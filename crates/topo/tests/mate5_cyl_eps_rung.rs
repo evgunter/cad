@@ -405,6 +405,51 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
 // Per-kind honesty: what stays refused, restated per kind
 // ---------------------------------------------------------------------
 
+/// `s` charted from another reference direction: the same locus, a
+/// description that does not read bit-identical, so no one chart holds
+/// both (`chart_region::declared_chart`).
+fn recharted(s: &Surface<f64>) -> Surface<f64> {
+    let y = geom_core::Vec3::unit_y();
+    match s.clone() {
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref: y,
+        },
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref: y,
+        },
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref: y,
+        },
+        other => other,
+    }
+}
+
 /// INVARIANT (kind honesty, the spec's deliverable 6): cross-instance
 /// declared SPHERE, CONE and TORUS pairs stay refused exactly as
 /// before — `ChartDivergence`, the enclosure arm never engaging — with
@@ -444,8 +489,9 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
     ];
     for (kind, surface) in kinds {
         // Two independently authored prisms whose interface faces are
-        // re-described as the SAME curved surface — the
-        // census_g2_carrier fixture shape, per kind.
+        // re-described as one curved locus on two charts — the
+        // census_g2_carrier fixture shape, per kind. (One description
+        // in both would be one chart by its bits.)
         let a: common::Prism<f64> = common::prism_z(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
             0.0,
@@ -474,7 +520,7 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
             .set_face_surface_unvouched_for_tests(
                 b.bottom_face,
                 FaceSurface::New {
-                    surface: surface.clone(),
+                    surface: recharted(&surface),
                     sense: true,
                 },
             )
@@ -510,8 +556,8 @@ mod interval_lane {
     use geom_core::interval::Interval;
     use topo::{Body, declared_pair_overlap};
 
-    /// INVARIANT (the fold's remainder, constructed): two identical
-    /// descriptions of one cylinder whose trims sit an exact
+    /// INVARIANT (the fold's remainder, constructed): two descriptions
+    /// of one cylinder whose trims sit an exact
     /// HALF-PERIOD apart in azimuth. The fold argument's true value
     /// lands on `periodic_branch`'s documented tie; interval
     /// arithmetic's outward rounding gives the enclosure positive
@@ -529,12 +575,19 @@ mod interval_lane {
             (0.0, 1.0),
             Tol::witness(),
         );
+        // B's description stores its origin half way up the axis (its
+        // window moved down to match): one cylinder, two descriptions
+        // that do not read bit-identical, so the pair takes the
+        // enclosure arm rather than one chart.
         let mut b = Body::<Interval>::new();
         let fb = cyl_wall_sheet(
             &mut b,
-            CylFrame::canonical(1.0),
+            CylFrame {
+                origin: geom_core::Point3::new(0.0, 0.0, 0.5),
+                ..CylFrame::canonical(1.0)
+            },
             (pi, pi + 0.4),
-            (0.2, 0.8),
+            (-0.3, 0.3),
             Tol::witness(),
         );
         match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {

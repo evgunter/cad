@@ -6983,30 +6983,23 @@ mod tests {
     #[test]
     fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
         use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
-        let (mut body, kept, absorbed, strut) =
-            crate::merge_faces::kept_rows::wall_beside_a_leaning_neighbour(Tol::witness());
-        let surface = |face| body.get_face(face).unwrap().surface;
-        let pair = (surface(kept), surface(absorbed));
-        let refusal = body
-            .merge_coplanar_faces_declared(&[pair], Tol::witness())
-            .expect_err("the leaning neighbour's dihedral is in band at the kept face's edge");
-        let described = refusal
-            .kept_boundary()
-            .expect("the door's refusal is the describer's");
-        assert_eq!(
-            format!("{:?}", super::of_merge(refusal.clone())),
-            format!("{:?}", super::of_describe(described)),
-            "the live refusal passes through as the boolean's own"
-        );
-        let text = super::of_merge(refusal).to_string();
+        let (kept, strut) = (crate::entity::FaceKey::default(), crate::entity::EdgeKey::default());
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let diag = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value((band.zero() * band.escalate()).sqrt()),
+            band,
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let text = super::of_merge(crate::merge_faces::MergeCoplanarError::of_kept_boundary(
+            &[(kept, strut)],
+            DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
+        ))
+        .to_string();
         assert!(
             text.contains("seam") && !text.contains("kept face"),
             "the boolean words it as its own seam's: {text}"
         );
-        let diag = match described {
-            DescribeRefusal::Undecided { diag, .. } => diag,
-            DescribeRefusal::Failed { .. } => panic!("the live refusal is undecided"),
-        };
         let mut every = vec![
             DescribeRefusal::undecided(
                 strut,

@@ -377,15 +377,16 @@ cases! {
     // Overlapping plane flanks lie on one plane, which the door then asks
     // to be one face.
     flanks_along_a_short_arm: "Coincidence(FlankSense)", D, FLANK_SITE,
-        Withdrawn(Because::Refuses("UndeclaredCoincidence")) =>
+        Withdrawn(Because::Refuses("Coincidence(Carriers)")) =>
         planar_flank_membership(false, false);
     // Declared `Rest`, the one face the door verified.
     flanks_along_a_short_arm_declared_rest: "Coincidence(FlankSense)", D, FLANK_SITE, Valued =>
         planar_flank_membership(false, true);
     // Coincident planes facing opposite ways, read at a short arm: the
-    // offset rung asks next, and refuses an undeclared pair.
+    // offset rung asks next, and refuses a pair no glue door glued (the
+    // site is called directly here, past the operation's glue door).
     planes_facing_at_a_short_arm: "PlaneOrientation", -D, FLANK_SITE,
-        Withdrawn(Because::Refuses("UndeclaredCoincidence")) => shared_side_plane(D);
+        Withdrawn(Because::Refuses("Coincidence(Carriers)")) => shared_side_plane(D);
     flanks_against_a_short_arm: "Coincidence(FlankSense)", -D, FLANK_SITE, Valued =>
         planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
@@ -394,32 +395,12 @@ cases! {
     // whose chord is 0, so the angle reads over the circle's extent.
     neighbours_bent_across_a_circle: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
         bent_disc(D);
-    // Finished bodies (the coincv5 review's NF-2 pose): a prism whose
-    // wall turns by a zero-band angle at a short edge, the offset the
-    // gate reads being the bend, so it is offered from the zero band.
-    // Its kink lies on both walls exactly, so it is described at every
-    // tolerance a re-run takes; beside a far brick and crossed by one
-    // through each public op.
-    neighbours_kinked_beside_a_far_brick: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(None, KINK);
-    neighbours_kinked_crossed_union: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(Some(0), KINK);
-    neighbours_kinked_crossed_subtract: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(Some(1), KINK);
-    neighbours_kinked_crossed_intersect: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(Some(2), KINK);
-    neighbours_kinked_twice_as_far_beside_a_far_brick: "CoplanarNeighbours",
-        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(None, 2.0 * KINK);
-    neighbours_kinked_twice_as_far_crossed_union: "CoplanarNeighbours",
-        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(Some(0), 2.0 * KINK);
-    // The coincv5 review's split top bent about its diagonal, its
-    // plane's origin far along the plane, asked at the gate: its bent
-    // half's far corner stays on the walls, `KINK · ½√2` off the bent
-    // plane, inside the band at the design tolerance and outside it
-    // below the offer, so the re-run has no finished body of this pose
-    // to hand a door (`bent_split_far_origin`).
-    neighbours_bent_far_origin_at_the_gate: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
-        GATE_SITE, Valued => at_the_gate(bent_split_far_origin(10.0));
+    // A split top's half lifted off its plane by an offset in band,
+    // either way: the gate's offset rung, which passes on either sign.
+    neighbours_lifted_in_band: "CoplanarNeighbours", -D, GATE_SITE, Valued =>
+        lifted_neighbours(D);
+    neighbours_lowered_in_band: "CoplanarNeighbours", D, GATE_SITE, Valued =>
+        lifted_neighbours(-D);
     rim_just_above_a_face: "Coincidence(EdgeOnPlane)", D, RIM_PLANE_SITE, Valued =>
         rim_over_a_brick(1.0 - D);
     rim_just_below_a_face: "Coincidence(EdgeOnPlane)", -D, RIM_PLANE_SITE, Valued =>
@@ -1430,6 +1411,17 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
+/// A unit prism's top split on its diagonal, one half re-described on
+/// the parallel plane `offset` above: the operand's maximal-faces gate,
+/// whose offset rung reads it.
+fn lifted_neighbours(offset: f64) -> Result<(), BooleanError> {
+    let body = super::tests::top_split_redescribed(|p0, along, _| {
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        plane_through(p0 + up * offset, along, up)
+    });
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+}
+
 /// A brick's top with a disc of radius ½ planted in it, the disc bent
 /// about its diameter along `x` by an angle whose sine over the
 /// circle's extent, its diameter, is `margin`: the operand's
@@ -1597,165 +1589,6 @@ fn corner_on_a_corner(axis: Vec3<f64>, theta: f64) -> Result<(), BooleanError> {
     public_op(0, &a, &b, &BooleanDeclarations::none())
 }
 
-/// The zero-band angle the neighbour bodies turn by.
-const KINK: f64 = 5.5e-10;
-
-/// The height of [`kinked_prism`], the length of its kinked edge.
-const KINK_HEIGHT: f64 = 0.1;
-
-/// `body`'s edges described the way a construction describes them at
-/// this run's tolerance: each edge the at-rest gate finds without an
-/// honest description (the scaffold an extrusion or a split leaves, a
-/// description a re-chart strands, or one at rest where its faces are
-/// transverse) is described as the intersection of its two faces where
-/// the band decides them transverse, and at rest in its first face's
-/// chart otherwise, which holds it exactly. A pose bent within the band
-/// at one tolerance is bent past it at a smaller one, so a case re-run
-/// below its offer finishes the same geometry.
-fn described_at_this_tolerance(mut body: crate::body::Body<f64>) -> crate::body::Body<f64> {
-    use crate::ValidationError as V;
-    let tol = Tol::witness();
-    let Err(errors) = crate::AtRestBody::validate(body.clone(), tol) else {
-        return body;
-    };
-    let mut edges: Vec<_> = errors
-        .iter()
-        .filter_map(|e| match e {
-            V::ScaffoldAtRest { edge }
-            | V::DescriptionNotAdjacent { edge }
-            | V::TransverseNotIntrinsic { edge } => Some(*edge),
-            _ => None,
-        })
-        .collect();
-    edges.sort();
-    edges.dedup();
-    for edge in edges {
-        let (s1, s2) = crate::readback::edge_sides(&body, edge)
-            .expect("a live edge's sides")
-            .surfaces();
-        let e = body.get_edge(edge).expect("a live edge");
-        let at = |body: &crate::body::Body<f64>, v| {
-            *body
-                .get_point(body.get_vertex(v).expect("a live vertex").point)
-                .expect("a live point")
-        };
-        let (p0, p1) = (
-            at(
-                &body,
-                body.get_half_edge(e.he_plus)
-                    .expect("a live half-edge")
-                    .start,
-            ),
-            at(
-                &body,
-                body.get_half_edge(e.he_minus).expect("its twin").start,
-            ),
-        );
-        let witness = p0.lerp(p1, 0.5);
-        let transverse = geom_brep::classify_dihedral(
-            body.get_surface(s1).expect("a live surface"),
-            body.get_surface(s2).expect("a live surface"),
-            witness,
-            p0.distance(p1),
-            band(),
-        );
-        let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-        spec = match transverse {
-            Ok(geom_brep::DihedralClass::Transverse) => {
-                spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
-                spec
-            }
-            _ => spec.at_rest_in_chart(s1, false),
-        };
-        body.set_edge_curve(edge, spec, tol)
-            .expect("the edge takes its description");
-    }
-    body
-}
-
-/// `body` finished, then the public op `k` of it and the brick `cross`,
-/// or, where `k` is `None`, the union of it and a far brick.
-fn beside_or_crossed(
-    what: &str,
-    body: crate::body::Body<f64>,
-    k: Option<u8>,
-    cross: crate::body::Body<f64>,
-) -> Result<(), BooleanError> {
-    let tol = Tol::witness();
-    let body = finished(what, body, tol);
-    match k {
-        None => {
-            let far = crate::test_support_fixtures::brick::<f64>(
-                (20.0, 21.0),
-                (0.0, 1.0),
-                (0.0, 1.0),
-                tol,
-            );
-            public_op(
-                0,
-                &body,
-                &finished("the far brick", far, tol),
-                &BooleanDeclarations::none(),
-            )
-        }
-        Some(k) => public_op(
-            k,
-            &body,
-            &finished("the crossing brick", cross, tol),
-            &BooleanDeclarations::none(),
-        ),
-    }
-}
-
-/// A prism of height [`KINK_HEIGHT`] whose profile turns by `theta` at
-/// `(0.1, 0)`: the wall along `y = 0` and the one tilted by `theta` out
-/// to `x = 10.1` share the vertical edge there, which lies on both walls
-/// exactly and is described at this run's tolerance (the extrusion
-/// leaves it a scaffold, the walls being in band of each other at the
-/// design tolerance). Beside a far
-/// brick (`k` `None`) or crossed on its long wall by the public op `k`
-/// (the coincv5 review's `kinked_prism`; the kink at rest is the delta
-/// review's `d_kinked_prism_with_its_kink_at_rest`).
-fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
-    let tol = Tol::witness();
-    let h = KINK_HEIGHT;
-    let profile = [
-        (0.0, 0.0),
-        (0.1, 0.0),
-        (10.1, 10.0 * theta.tan()),
-        (10.1, 1.0),
-        (0.0, 1.0),
-    ];
-    let body = described_at_this_tolerance(prism_z::<f64>(&profile, 0.0, h, tol).body);
-    let cross = crate::test_support_fixtures::brick::<f64>(
-        (4.0, 5.0),
-        (-0.5, 0.5),
-        (0.02, 0.5 * h + 0.3),
-        tol,
-    );
-    beside_or_crossed("the kinked prism", body, k, cross)
-}
-
-/// `body` through the maximal-faces gate, as operand A.
-fn at_the_gate(body: crate::Body<f64>) -> Result<(), BooleanError> {
-    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
-}
-
-/// A split top whose re-described half is bent by [`KINK`] about the
-/// diagonal (its edges stay on it), its plane's origin `l` from the
-/// diagonal within the plane (the coincv5 review's
-/// `split_bent_far_origin`). The bent half's far corner stays where the
-/// walls put it, `KINK · ½√2` off the bent plane: a finished body only
-/// while that is inside the band, so no tolerance below the offer
-/// finishes it.
-fn bent_split_far_origin(l: f64) -> crate::Body<f64> {
-    super::tests::top_split_redescribed(|p0, along, _| {
-        let up = Vec3::new(0.0, 0.0, 1.0);
-        let n = up * KINK.cos() + along.cross(up) * KINK.sin();
-        plane_through(p0 + n.cross(along) * l, along, n)
-    })
-}
-
 /// **A stranded split top is refused typed at the at-rest gate, before
 /// any door**: the half re-described on the parallel plane `1000 ε` above
 /// leaves its own edges and vertices `1000 ε` off it, which no finished
@@ -1765,8 +1598,7 @@ fn bent_split_far_origin(l: f64) -> crate::Body<f64> {
 /// door that classifies — the boolean doors and `boolean_reduce`
 /// alike — takes a finished body. The offset
 /// is far past the band at every tolerance, so the refusal is the
-/// stranded body's, not any offer's (the coincv5 review's NF-2). The
-/// `CoplanarNeighbours` offers run on finished bodies, in the cases.
+/// stranded body's, not any offer's (the coincv5 review's NF-2).
 #[test]
 fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
     let up = Vec3::new(0.0, 0.0, 1.0);
@@ -2524,6 +2356,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
     ("join.rs", "travel", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
+    ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
+    ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
@@ -2837,16 +2671,16 @@ lever_rows! {
     tangent_planes_clearly_tilted: Some("UnsupportedDeclarationClass") =>
         block_declared_tangent_at(1e-3);
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
-    // decides and the undeclared coplanar pair refuses next, whose own
-    // story is the declaration, which passes.
-    overlapping_flanks_lengthened: Some("UndeclaredCoincidence") =>
+    // decides and the coplanar pair, which no glue door glued here,
+    // refuses next, whose own story is the declaration, which passes.
+    overlapping_flanks_lengthened: Some("Coincidence(Carriers)") =>
         planar_flank_membership_at(false, false, 1e-3);
     overlapping_flanks_lengthened_declared_rest: None =>
         planar_flank_membership_at(false, true, 1e-3);
     touching_flanks_lengthened: None => planar_flank_membership_at(true, false, 1e-3);
     // `PlaneOrientation`: lengthened, the offset rung refuses the
-    // undeclared pair next, as above.
-    facing_planes_lengthened: Some("UndeclaredCoincidence") => shared_side_plane(1e-3);
+    // unglued pair next, as above.
+    facing_planes_lengthened: Some("Coincidence(Carriers)") => shared_side_plane(1e-3);
     // `VertexOnFace`: the vertices moved clearly off the face.
     vertex_moved_clearly_above_a_face: None => block_on_a_block(1.0 + 1e-3);
     vertex_moved_clearly_into_a_face: None => block_on_a_block(1.0 - 1e-3);

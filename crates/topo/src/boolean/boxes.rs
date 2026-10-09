@@ -3444,7 +3444,12 @@ pub(crate) mod tests {
     ///
     /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
     ///   **Prunes**: loose is slower work, never a different answer.
-    ///   The only door for which that is true.
+    /// - `boolean/glue.rs` — the glue door's pair scan and its coaxial
+    ///   scan, face boxes of both operands. **Prunes**: a loose box
+    ///   only adds pairs the carrier ladder reads and leaves apart,
+    ///   which is slower work and the same answer. A box TIGHTER than
+    ///   its face would miss a pair, which then reaches its site
+    ///   unglued and refuses there — loud, never a different body.
     /// - `boolean/ops.rs` — the curved-extent fallback, face and
     ///   edge: the cylinder-face arm clears a [`face_box`] against
     ///   the ball's extent, the scan's near-boundary test walks the
@@ -3534,12 +3539,9 @@ pub(crate) mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         //
-        // `boolean/mod.rs`'s two and three of `boolean/reduce.rs`'s
-        // eight are ONE door, the undeclared-continuation scan: the
-        // driver builds its padded boxes (`boxes::face_box`/`edge_box`
-        // at `pad`) and hands them in as closures, and the scan's own
-        // calls through those closure parameters match the same text.
-        // So are one of `boolean/ops.rs`'s four and `pieces.rs`'s one:
+        // `boolean/glue.rs`'s four are two doors, the pair scan and
+        // the coaxial scan, each boxing both operands' faces. One of
+        // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
@@ -3549,9 +3551,9 @@ pub(crate) mod tests {
         // `edge_box` to show a torn link panics.
         const PINNED: [(&str, usize); 10] = [
             ("boolean/carrier_touch.rs", 1),
-            ("boolean/mod.rs", 2),
+            ("boolean/glue.rs", 4),
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 8),
+            ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
             ("face_boxes.rs", 1),

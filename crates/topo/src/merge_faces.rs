@@ -2990,15 +2990,39 @@ mod tests {
         body
     }
 
-    /// One plane description, used for every face of the planar
-    /// fixtures: the merge's rungs never compare coordinates, so one
-    /// description on distinct keys is exactly the declared rung's
-    /// subject.
+    /// One plane description, used for the faces of the planar
+    /// fixtures a row means to glue: one description on distinct keys
+    /// is one plane by its margins, declared or not.
     fn flat_plane() -> Surface<f64> {
+        flat_plane_at(0.0)
+    }
+
+    /// A plane parallel to [`flat_plane`] at height `z`: definitely
+    /// another plane wherever `z` is not in band of `0`, so a face on
+    /// it is no merge candidate of a face on [`flat_plane`].
+    fn flat_plane_at(z: f64) -> Surface<f64> {
         Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            origin: geom_core::Point3::new(0.0, 0.0, z),
             normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// Moves every key of `body` that no pair of `declared` names, and
+    /// that its faces do not share with a declared key, onto a plane of
+    /// its own height: the faces a row leaves undeclared stay apart by
+    /// their margins.
+    fn separate_undeclared(body: &mut Body<f64>, declared: &[(SurfaceKey, SurfaceKey)]) {
+        let named = |k: SurfaceKey| declared.iter().any(|&(a, b)| a == k || b == k);
+        let keys: Vec<SurfaceKey> = body
+            .faces()
+            .map(|(_, f)| f.surface)
+            .filter(|&k| !named(k))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        for (i, k) in keys.into_iter().enumerate() {
+            *body.surfaces.get_mut(k).expect("a live key") = flat_plane_at(10.0 * (i + 1) as f64);
         }
     }
 
@@ -3197,11 +3221,11 @@ mod tests {
             .map(|(k, _)| k)
             .filter(|&k| k != top && k != half)
             .collect();
-        for f in others {
+        for (i, f) in others.into_iter().enumerate() {
             body.set_face_surface(
                 f,
                 crate::euler::FaceSurface::New {
-                    surface: flat_plane(),
+                    surface: flat_plane_at(10.0 * (i + 1) as f64),
                     sense: true,
                 },
             )
@@ -3659,6 +3683,7 @@ mod tests {
         let host_key = surface_of(&body, host);
         declared.retain(|&(_, k)| k == host_key);
         assert_eq!(declared.len(), 1);
+        separate_undeclared(&mut body, &declared);
         assert_eq!(validate_closed(&body), Ok(()));
         let outcome = body
             .merge_coplanar_faces_declared(&declared, tol)

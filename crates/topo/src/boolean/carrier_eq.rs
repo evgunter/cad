@@ -1329,14 +1329,19 @@ mod tests {
         );
     }
 
-    /// ε-row, three outcomes at one geometry: a sub-band radius
+    /// ε-row, three outcomes at one geometry: an in-band radius
     /// difference. UNDECLARED it is undecided, typed (in-band is never a
     /// silent pass); DECLARED it is the bridged residue and stands;
     /// a definite difference at the same site contradicts.
     #[test]
     fn sphere_radius_epsilon_row_three_outcomes() {
+        let b = band();
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
-        let in_band = sphere([0.0, 0.0, 0.0], 2.0 + 1e-12, false);
+        let in_band = sphere(
+            [0.0, 0.0, 0.0],
+            2.0 + (b.zero() + b.escalate()) * 0.5,
+            false,
+        );
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, &at(1.0), band()),

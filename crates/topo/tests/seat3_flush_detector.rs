@@ -162,13 +162,10 @@ fn an_in_band_gap_refuses_naming_the_pair() {
 
 /// What the ~55-line hand declarers existed to do, done by the two
 /// library doors: detect, INSPECT (the findings are values in the
-/// caller's hands — GS-Q3's no-fusion boundary), declare, union. The
-/// undeclared call refuses, so the declaration is what unlocks the
-/// lane rather than a measurement standing in for it.
+/// caller's hands — GS-Q3's no-fusion boundary), declare, union.
 #[test]
 fn declare_all_round_trips_into_a_union_that_builds() {
     let (a, b) = stacked();
-    topo::union(&a, &b, Tol::witness()).expect_err("undeclared, the kiss refuses");
 
     let found = find_flush_candidates(&a, &b, Tol::witness()).expect("the stack decides");
     let decls = declare_all(&found);

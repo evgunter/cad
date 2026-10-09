@@ -5515,25 +5515,6 @@ pub(crate) mod staleness_posture {
                  certified description does",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
-            ("set_surface_source", Neither, "GeomSource metadata"),
-            ("set_curve_source", Neither, "GeomSource metadata"),
-            ("set_point_source", Neither, "GeomSource metadata"),
-            ("clear_geom_sources", Neither, "GeomSource metadata"),
-            (
-                "mark_imported",
-                Neither,
-                "origin metadata beside the GeomSource maps (`crate::GeomOrigin`)",
-            ),
-            (
-                "set_surface_field_source",
-                Neither,
-                "ParamSource metadata: a per-field side record beside the surface",
-            ),
-            (
-                "set_surface_axis_source",
-                Neither,
-                "axis-channel metadata: a per-component side record beside the surface",
-            ),
             (
                 "begin_surgery",
                 Neither,

@@ -2594,9 +2594,9 @@ fn cs_germ_frame<T: Decide>(
 ///   figure-eight node) has no frame and keeps [`FrameError::NoArm`].
 ///
 /// The offset `d` must be definite (`bool_germ_frame_cs_offset`): `û`
-/// does not exist on the axis, and a coaxial pose is never read from a
-/// measured `d` ([`cs_pair_frame`]), so a Zero or in-band offset keeps
-/// `NoArm` verbatim rather than escalating. Radii are read by magnitude:
+/// does not exist on the axis. A pose reaches here only once
+/// [`cs_pair_frame`] has decided it off the axis, so a Zero or in-band
+/// offset here keeps `NoArm` verbatim rather than escalating. Radii are read by magnitude:
 /// a negative stored radius denotes the same point set.
 #[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
 fn cs_transverse_frame<T: Decide>(
@@ -4488,6 +4488,17 @@ mod frame_dispatch_tests {
         }
     }
 
+    /// A sphere touching [`cylinder`]'s unit wall from outside its
+    /// axis at one azimuth (`R = r + d`), the transverse frame's node.
+    fn node_sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.5, 0.0, 0.0),
+            radius: 1.5,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
     /// A cylinder about `axis` through `origin`. The chart's `u_ref` is
     /// any unit vector across the axis — this dispatch never reads it,
     /// and picking the less-aligned coordinate direction keeps it from
@@ -4551,16 +4562,14 @@ mod frame_dispatch_tests {
                 cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
                 true,
             ),
-            // Cylinder × sphere, both orders. This pose is EXACTLY
-            // coaxial (`sphere()` sits on `cylinder()`'s axis) and its
-            // walls cross, so it is the pair's declared-arm pose — and
-            // it still refuses, because the declaration channel does
-            // not exist and coaxiality is never inferred from the
-            // measured distance. `NoArm` is the routing, not a
-            // frontier: the general rung marches this pair. The pinch
+            // Cylinder × sphere, both orders, at the figure-eight's
+            // node: the walls touch at one azimuth, so neither the
+            // coaxial frame nor the transverse one exists. `NoArm` is
+            // the routing, not a frontier: the general rung marches
+            // this pair. The pinch
             // variant stays unreachable — pinned exactly.
-            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere(), false),
-            (sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
+            (cylinder(Vec3::new(0.0, 0.0, 1.0)), node_sphere(), false),
+            (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
         for (a, b, cylinder_pair) in curved_pairs {
             let got =
@@ -5016,14 +5025,12 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The declaration is the whole gate.** The SAME exactly-coaxial
-    /// pose answers with a frame under `Declared` and refuses `NoArm`
-    /// under `None` — the never-infer rule, at this door. `NoArm` here
-    /// is a routing (the general rung marches the pair), never a
-    /// desync, and the dispatch's own arm passes `None` today because
-    /// it is keyed on KINDS and has nowhere to read a ladder.
+    /// **The coaxial frame is decided by its margin, at every door.**
+    /// An exactly coaxial pose, and its re-posed twin, answer the
+    /// coaxial frame through [`cs_pair_frame`] and through the kind
+    /// dispatch in both operand orders.
     #[test]
-    fn the_coaxial_frame_needs_the_declaration_and_never_infers_it() {
+    fn the_coaxial_frame_is_decided_by_its_margin() {
         for (label, cyl, sph) in [
             (
                 "direct",
@@ -5037,54 +5044,30 @@ mod frame_dispatch_tests {
             ),
         ] {
             assert!(
+                matches!(cs_pair_frame(&cyl, &sph, band()), Ok(Some(_))),
+                "{label}: the pair door"
+            );
+            assert!(
                 matches!(
-                    cs_pair_frame(&cyl, &sph, band()),
+                    pair_section_frame(&cyl, &sph, at(), None, band()),
                     Ok(Some(_))
-                ),
-                "{label}: declared"
-            );
-            assert!(
-                matches!(
-                    cs_pair_frame(&cyl, &sph, band()),
-                    Err(FrameError::NoArm)
-                ),
-                "{label}: undeclared"
-            );
-            // And that is what the kind dispatch itself does today, in
-            // both operand orders.
-            assert!(
-                matches!(
-                    pair_section_frame(
-                        &cyl,
-                        &sph,
-                        at(),
-                        None,
-                        band()
-                    ),
-                    Err(FrameError::NoArm)
                 ),
                 "{label}: dispatch, cylinder first"
             );
             assert!(
                 matches!(
-                    pair_section_frame(
-                        &sph,
-                        &cyl,
-                        at(),
-                        None,
-                        band()
-                    ),
-                    Err(FrameError::NoArm)
+                    pair_section_frame(&sph, &cyl, at(), None, band()),
+                    Ok(Some(_))
                 ),
                 "{label}: dispatch, sphere first"
             );
         }
     }
 
-    /// A germ was minted from a crossing, so a section that is a
-    /// TANGENCY, an empty gap, or a contradicted declaration is a
-    /// lockstep failure — loud, typed, and never `None`. Each is a
-    /// distinct cause and each gets the desync door, exactly as the
+    /// A germ was minted from a crossing, so a coaxial section that is
+    /// a TANGENCY or an empty gap is a lockstep failure — loud, typed,
+    /// and never `None`. Each is a distinct cause and each gets the
+    /// desync door, exactly as the
     /// two sphere arms above treat their non-locus outcomes.
     #[test]
     fn a_cylinder_sphere_pose_that_is_not_a_locus_is_a_desync() {
@@ -5094,9 +5077,6 @@ mod frame_dispatch_tests {
             ("tangent", ball(Point3::new(0.0, 0.0, 0.0), 1.0)),
             // R < r: the sphere never reaches the wall.
             ("empty", ball(Point3::new(0.0, 0.0, 0.0), 0.5)),
-            // Declared coaxial, definitely off the axis: the
-            // declaration is verified and contradicted.
-            ("off-axis", ball(Point3::new(0.4, 0.0, 0.0), 2.0)),
         ] {
             for (label, cyl, s) in [
                 ("direct", cylinder(z), sph.clone()),
@@ -5556,18 +5536,20 @@ mod transverse_cs_frame_rows {
         }
     }
 
-    /// **The poses with no frame keep `NoArm`; an undecided reach
-    /// escalates.** The walls touching at `θ = π` (`R = r + d`, the
-    /// figure-eight's node) and a coaxial pose, decided or in the band,
-    /// keep the dispatch's `NoArm`; a reach margin in the band escalates
-    /// under `bool_germ_frame_cs_reach`.
+    /// **The tangent pose keeps `NoArm`; the coaxial pose is the
+    /// coaxial frame; an undecided offset or reach escalates.** The
+    /// walls touching at `θ = π` (`R = r + d`, the figure-eight's node)
+    /// keep the dispatch's `NoArm`; a coaxial pose its margin decides
+    /// answers the coaxial frame ([`cs_pair_frame`]); an offset from
+    /// the axis in the band escalates under `cs_coaxial`, and a reach
+    /// margin in the band under `bool_germ_frame_cs_reach`.
     #[test]
-    fn a_tangency_or_a_coaxial_pose_keeps_no_arm() {
+    fn a_tangency_keeps_no_arm_and_a_coaxial_pose_is_decided() {
         let eps = Tol::witness().get().eps;
         for (label, pose, want) in [
             ("node", Pose::at(0.5, 0.25, 0.75), "NoArm"),
-            ("coaxial", Pose::at(0.5, 0.0, 0.75), "NoArm"),
-            ("offset in band", Pose::at(0.5, 4.0 * eps, 0.75), "NoArm"),
+            ("coaxial", Pose::at(0.5, 0.0, 0.75), "a frame"),
+            ("offset in band", Pose::at(0.5, 4.0 * eps, 0.75), "cs_coaxial"),
             (
                 "reach in band",
                 Pose::at(0.5, 0.25, 0.75 + 4.0 * eps),
@@ -5584,6 +5566,7 @@ mod transverse_cs_frame_rows {
             );
             let read = match got {
                 Err(FrameError::NoArm) => "NoArm",
+                Ok(Some(_)) => "a frame",
                 Err(FrameError::Escalated(diag)) => diag.predicate.unwrap_or("unnamed"),
                 _ => "another answer",
             };
