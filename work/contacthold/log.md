@@ -174,3 +174,21 @@ are updated. A lane follows once this is on main.
 - Friction: the session's disk allowance (about 40 GB) holds about four
   building lanes. One lane's target reached 11 GB, and free space fell to
   5.8 GB. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4550 reviewed (full single); fix pass
+
+The reviewer found the new clear sound (cylinder, cone, sphere, torus and
+NURBS reaches enclose their faces in an aimed frame; a `None` reach never
+clears) and that it only ever clears more. It added rows: a torus, and
+1e-7/1e-6 cuts. **MAJOR**: the row asked to reword the README's
+touch-analysis sentence to match the code, and that sentence is C1 of
+Ev's PR #3422 ruling, ratified and unbuilt. My brief passed the row's ask
+on unchecked, and the lane's `git log -S` missed the line-wrapped phrase.
+Class: **a row's request to reword "stale" text is a claim about
+ratification, and the brief must check it before passing it on**. The
+hunk is reverted; the two parked rows that carry C1 stay. The minors are
+in the fix pass: doc placement, the restored planar-first check in
+`operand_axes` (it had added extra reach reads to the boolean), the
+census passing `sweep_pad` (the aimed frame's rounding contract), and two
+filed rows (torus extent overshoot; `bool_pair_gap` missing from the K
+ledger). An independent verifier follows the fix pass. — (CONTACTHOLD orchestrator)
