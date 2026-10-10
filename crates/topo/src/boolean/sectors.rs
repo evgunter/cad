@@ -5378,6 +5378,165 @@ mod tests {
     /// section, whose curvature carries no bound), **and rides a curved
     /// face `On`**: tangent to a cylinder of its own radius, it lies on
     /// the face to first order, which is all a tangent plane says there.
+    /// **Every verdict `pierce_side` gives a conic tied with a plane is
+    /// true of the arc, sampled** (review row, R1 of PR 4575). Circles
+    /// and ellipses through the origin, leaving with a first-order
+    /// residue inside the band (none, or most of the band either way)
+    /// and bending off `z = 0` by a stated multiple of the band, at
+    /// spans short of, at, and past the `π/(2·κ_max)` cap, and from both
+    /// ends of an ellipse's axes: an `In` must put a point of the edge
+    /// past the escalation band below the plane, an `Out` above it, and
+    /// an `On` keep every point within the escalation band. `In` and
+    /// `Out` are checked at the witness the derivation names, the point
+    /// at arc length `min(extent, π/(2·κ_max))`, found here by sampling.
+    #[test]
+    fn a_conic_tie_verdict_is_true_of_the_sampled_arc() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let base = geom_core::Point3::origin();
+        // A margin that decides definite clears the escalation band
+        // (less the sampling's own rounding).
+        let cleared = b.escalate() * (1.0 - 1e-6);
+        let (mut ins, mut outs, mut ons, mut refused) = (0, 0, 0, 0);
+        // (semi-axis along the start's inward normal, the other, span);
+        // equal semi-axes are a circle.
+        let shapes: &[(f64, f64, f64)] = &[
+            (1.0, 1.0, 0.3),
+            (1.0, 1.0, core::f64::consts::FRAC_PI_2),
+            (1.0, 1.0, 3.0),
+            (1.0, 1.0, 6.0),
+            (3.0, 1.0, 0.5),
+            (3.0, 1.0, 1.5),
+            (3.0, 1.0, 3.0),
+            (1.0, 3.0, 0.5),
+            (1.0, 3.0, 1.5),
+            (1.0, 3.0, 3.0),
+            (10.0, 0.1, 1.0),
+            (0.1, 10.0, 1.0),
+        ];
+        for &(along_n, along_t, span) in shapes {
+            for rho in [0.0, 0.6, -0.6] {
+                for q in [0.3, 0.9, 1.5, 3.0, 6.0, 9.0, 10.3, 11.0, 15.0, 30.0, 1e3] {
+                    for sense in [1.0, -1.0] {
+                        // The arc's own frame: it leaves along `t`,
+                        // bending toward `big_n`; `u` points from the
+                        // centre to the start.
+                        let mk = |beta: f64, cg: f64| {
+                            let t = Vec3::new(beta.cos(), 0.0, beta.sin());
+                            let sg = (1.0 - cg * cg).max(0.0).sqrt();
+                            let big_n = Vec3::new(-beta.sin() * cg, sg, beta.cos() * cg);
+                            let u = -big_n;
+                            let carrier = if along_n == along_t {
+                                geom::Curve3::Circle {
+                                    center: base + big_n * along_n,
+                                    axis: u.cross(t),
+                                    radius: along_n,
+                                    u_ref: u,
+                                }
+                            } else {
+                                geom::Curve3::Ellipse {
+                                    center: base + big_n * along_n,
+                                    axis: u.cross(t),
+                                    major: along_n,
+                                    minor: along_t,
+                                    u_ref: u,
+                                }
+                            };
+                            (carrier, big_n)
+                        };
+                        let (flat, _) = mk(0.0, 1.0);
+                        assert!(flat.eval(0.0).distance(base) < 1e-12);
+                        assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
+                        let samples = 4000;
+                        let param = |i: usize| span * i as f64 / samples as f64;
+                        let chord = flat.eval(span).distance(base);
+                        let extent = geom_brep::edge_extent(&flat, 0.0, span, chord);
+                        // The witness the derivation names, found
+                        // independently: the sample at arc length
+                        // `l = min(extent, π/(2·κ_max))`, with `κ_max`
+                        // sampled over the whole carrier.
+                        let kmax = (0..=samples)
+                            .map(|i| {
+                                let t = core::f64::consts::TAU * i as f64 / samples as f64;
+                                let (d1, d2) = (flat.deriv(t), flat.deriv2(t));
+                                d1.cross(d2).norm() / d1.norm().powi(3)
+                            })
+                            .fold(0.0f64, f64::max);
+                        let l = extent.min(core::f64::consts::FRAC_PI_2 / kmax);
+                        let mut walked = 0.0;
+                        let mut at_l = samples;
+                        for i in 1..=samples {
+                            walked += flat.eval(param(i)).distance(flat.eval(param(i - 1)));
+                            if walked >= l {
+                                at_l = i - 1;
+                                break;
+                            }
+                        }
+                        // The arc's excursion along its own normal at `l`.
+                        let depth = (flat.eval(param(at_l)) - base).z;
+                        let beta = (rho * b.zero() / extent).asin();
+                        let cg = sense * (q * b.zero() / depth).min(1.0);
+                        let (carrier, _) = mk(beta, cg);
+                        let tangent = carrier.deriv(0.0);
+                        let bend = Bend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+                        let dir = tangent.normalize() * extent;
+                        let reach = Reach::Conic { extent, bend };
+                        if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
+                            continue;
+                        }
+                        let heights: Vec<f64> = (0..=samples)
+                            .map(|i| (carrier.eval(param(i)) - base).z)
+                            .collect();
+                        let h_l = heights[at_l];
+                        let lo = heights.iter().copied().fold(f64::INFINITY, f64::min);
+                        let hi = heights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                        let what = format!(
+                            "axes ({along_n}, {along_t}), span {span}, rho {rho}, q {q}, \
+                             sense {sense}: heights [{lo:e}, {hi:e}], {h_l:e} at l = {l}"
+                        );
+                        match pierce_side(dir, reach, n, FaceShape::Plane, NO_CURVATURE(), b) {
+                            Ok(PierceSide {
+                                code: SideCode::In, ..
+                            }) => {
+                                ins += 1;
+                                assert!(
+                                    h_l < -cleared,
+                                    "In, but the witness is not past the band below: {what}"
+                                );
+                            }
+                            Ok(PierceSide {
+                                code: SideCode::Out,
+                                ..
+                            }) => {
+                                outs += 1;
+                                assert!(
+                                    h_l > cleared,
+                                    "Out, but the witness is not past the band above: {what}"
+                                );
+                            }
+                            Ok(PierceSide {
+                                code: SideCode::On, ..
+                            }) => {
+                                ons += 1;
+                                assert!(
+                                    lo.abs().max(hi.abs()) <= b.escalate(),
+                                    "On, but a point leaves the band: {what}"
+                                );
+                            }
+                            Err(BooleanError::Escalated {
+                                decision: BooleanDecision::ConicBend,
+                                ..
+                            }) => refused += 1,
+                            other => panic!("{what}: {other:?}"),
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("conic tie sweep: In {ins}, Out {outs}, On {ons}, refused {refused}");
+        assert!(ins > 0 && outs > 0 && ons > 0 && refused > 0);
+    }
+
     #[test]
     fn a_conic_tie_refuses_where_its_bend_certifies_nothing() {
         let b = band();

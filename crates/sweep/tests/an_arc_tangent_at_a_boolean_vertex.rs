@@ -399,3 +399,200 @@ fn the_flush_and_corner_postures() {
         }
     }
 }
+
+/// A slab `x ∈ [x0, x1]`, `z ∈ [0, 1]`, `y ∈ [y0, y0 + depth]`.
+fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
+    lying_extrude(
+        vec![
+            (Point2::new(0.0, x0), 0.0),
+            (Point2::new(1.0, x0), 0.0),
+            (Point2::new(1.0, x1), 0.0),
+            (Point2::new(0.0, x1), 0.0),
+        ],
+        y0,
+        depth,
+        "the slab",
+    )
+}
+
+/// **The tilted dip off the vertex-on-face pass, printed** (review probe,
+/// R1 of PR 4575): its rim vertex on the slab's top EDGE (`x ∈ [2, 5]`)
+/// and at a slab CORNER (`y ∈ [0, 6]`), and with the slab beside it
+/// (`x ∈ [0, 2]`). At the frozen head `edge` refuses
+/// `Join(UnpairedLooseEnds { count: 2 })`, the first-order signature
+/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`);
+/// descending in `side_code` too moves it to `ClassificationInvariant`.
+/// `corner` and `beside-corner` refuse `CurvedPierceUnsupported`; `beside`
+/// answers. Run with `--ignored --nocapture`.
+#[test]
+#[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
+fn review_tilted_dip_off_the_vertex_on_face_pass() {
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let d = BooleanDeclarations::none();
+    for alpha in [0.3f64, 0.6] {
+        let round = tilted_dipping_round(alpha);
+        let vr = vol(&round);
+        let lens = (5.0 / 3.0 - core::f64::consts::FRAC_PI_2) / (2.0 * alpha.tan());
+        for (posture, s, meet) in [
+            ("edge", slab_between(2.0, 5.0, -6.0, 12.0), lens),
+            ("corner", slab_between(2.0, 5.0, 0.0, 6.0), lens),
+            ("beside", slab_between(0.0, 2.0, -6.0, 12.0), 0.0),
+            ("beside-corner", slab_between(0.0, 2.0, 0.0, 6.0), 0.0),
+        ] {
+            let vs = vol(&s);
+            let tag = |op: &str| format!("α={alpha} {posture} / {op}");
+            let w = |v: f64| if v == 0.0 { None } else { Some(v) };
+            report(
+                &tag("slab ∪ round"),
+                topo::union_with(&s, &round, &d, Tol::witness()),
+                Some(vs + vr - meet),
+            );
+            report(
+                &tag("slab ∖ round"),
+                topo::subtract_with(&s, &round, &d, Tol::witness()),
+                w(vs - meet),
+            );
+            report(
+                &tag("round ∖ slab"),
+                topo::subtract_with(&round, &s, &d, Tol::witness()),
+                w(vr - meet),
+            );
+            report(
+                &tag("slab ∩ round"),
+                topo::intersect_with(&s, &round, &d, Tol::witness()),
+                w(meet),
+            );
+        }
+    }
+}
+
+/// A slab `x ∈ [x0, x1]`, `z ∈ [z0, 1]`, `y ∈ [y0, y0 + depth]`.
+fn slab_deep(x0: f64, x1: f64, y0: f64, depth: f64, z0: f64) -> AtRestBody<f64> {
+    lying_extrude(
+        vec![
+            (Point2::new(z0, x0), 0.0),
+            (Point2::new(1.0, x0), 0.0),
+            (Point2::new(1.0, x1), 0.0),
+            (Point2::new(z0, x1), 0.0),
+        ],
+        y0,
+        depth,
+        "the slab",
+    )
+}
+
+/// [`quarter_round`] (arc bending UP off z = 1) turned by `alpha` about
+/// the rim's tangent line y = 0, z = 1.
+fn tilted_round(alpha: f64) -> AtRestBody<f64> {
+    let (sa, ca) = alpha.sin_cos();
+    let plane = SketchPlane::new(Affine3::from_parts(
+        geom_core::Mat3::from_cols(
+            Vec3::new(0.0, -sa, ca),
+            Vec3::unit_x(),
+            Vec3::new(0.0, ca, sa),
+        ),
+        Vec3::new(0.0, sa, 1.0 - ca),
+    ));
+    let b90 = (core::f64::consts::PI / 8.0).tan();
+    let profile = Profile::new(
+        plane,
+        vec![bulge_loop(vec![
+            (Point2::new(1.0, 0.5), 0.0),
+            (Point2::new(1.0, 2.0), -b90),
+            (Point2::new(2.0, 3.0), 0.0),
+            (Point2::new(3.0, 3.0), 0.0),
+            (Point2::new(3.0, 0.5), 0.0),
+        ])],
+    )
+    .validate(Tol::witness())
+    .unwrap();
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    finished("the tilted round", body, Tol::witness())
+}
+
+/// **A round tilted so its arc bends OUT of the slab answers at every op**
+/// (review row, R1 of PR 4575). The quarter round turned by a negative
+/// `α` about the rim's tangent line: its cap arc still leaves the rim
+/// vertex tangent to `z = 1` and bends up, out of the slab, while its
+/// bottom face and wall dip into a deep slab, so no face the arc bounds
+/// lumps and the arc's own reading decides its side. Read to first order
+/// (`On`) every op refused `Join(UnpairedLooseEnds { count: 2 })`; read by
+/// its bend (`Out`) every op answers. `edge-off` puts the rim vertex on
+/// the slab's top edge with the slab under the bottom face only, and
+/// answers either way.
+///
+/// The overlap, in the round's frame `(x, u, w)`: below `z = 1` where
+/// `w > (u − 1)/t`, `t = tan|α|`; at each `x` the section
+/// `u ∈ [g(x), 1 + 4t]` gives the triangle `max(0, 4t − c)²/(2t)`,
+/// `c = g − 1` (`g = 1` on `[0.5, 2]`, `2 − sqrt(1 − (x − 2)²)` on
+/// `[2, 3]`), integrated by the midpoint rule on the arc's span.
+#[test]
+fn a_round_tilted_to_bend_its_arc_out_of_the_slab_answers() {
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let d = BooleanDeclarations::none();
+    for alpha in [-0.3f64, -0.2] {
+        let t = alpha.abs().tan();
+        let round = tilted_round(alpha);
+        let vr = vol(&round);
+        let n = 200_000;
+        let h = 1.0 / n as f64;
+        let arc_part: f64 = (0..n)
+            .map(|i| {
+                let s = (i as f64 + 0.5) * h;
+                let c = 1.0 - (1.0 - s * s).sqrt();
+                (4.0 * t - c).max(0.0).powi(2) / (2.0 * t) * h
+            })
+            .sum();
+        let flat_part = 12.0 * t;
+        for (posture, s, meet) in [
+            (
+                "wide",
+                slab_deep(0.0, 5.0, -6.0, 12.0, -3.0),
+                flat_part + arc_part,
+            ),
+            ("edge-off", slab_deep(0.0, 2.0, -6.0, 12.0, -3.0), flat_part),
+        ] {
+            let vs = vol(&s);
+            for (op, got, want) in [
+                (
+                    "slab ∪ round",
+                    topo::union_with(&s, &round, &d, Tol::witness()),
+                    vs + vr - meet,
+                ),
+                (
+                    "slab ∖ round",
+                    topo::subtract_with(&s, &round, &d, Tol::witness()),
+                    vs - meet,
+                ),
+                (
+                    "round ∖ slab",
+                    topo::subtract_with(&round, &s, &d, Tol::witness()),
+                    vr - meet,
+                ),
+                (
+                    "slab ∩ round",
+                    topo::intersect_with(&s, &round, &d, Tol::witness()),
+                    meet,
+                ),
+            ] {
+                let v = match got {
+                    Ok(BooleanResult::Body(b)) => vol(&b.body),
+                    other => panic!("α = {alpha}, {posture}, {op}: want a body, got {other:?}"),
+                };
+                assert!(
+                    (v - want).abs() <= 1e3 * Tol::witness().eps(),
+                    "α = {alpha}, {posture}, {op}: {v} vs {want}"
+                );
+            }
+        }
+    }
+}
