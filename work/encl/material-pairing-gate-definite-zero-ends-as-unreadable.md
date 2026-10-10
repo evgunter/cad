@@ -4,6 +4,7 @@ kind: issue
 title: geom-brep/topo: the material-pairing gate's decided Zero reaches tier 3 as SliverDihedral{MaterialSide} with a flat defect ending that reads no margin
 status: review
 branch: encl/material-pairing-zero
+pr: 4474
 opened: 2026-10-09
 priority: P3
 cost: M
