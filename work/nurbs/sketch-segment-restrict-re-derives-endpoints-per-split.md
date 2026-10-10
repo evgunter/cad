@@ -2,11 +2,13 @@
 id: sketch-segment-restrict-re-derives-endpoints-per-split
 kind: issue
 title: SketchSegment::restrict re-derives its endpoints through eval at every split, so a nested split's stored arc endpoints compound the rotation's enclosure — the sibling of MappedCurve's per-split composition
-status: open
+status: closed
 opened: 2026-10-09
 refs: [mapped-curve-restrict-composes-placements-per-split]
 priority: P2
 cost: M
+closed: 2026-10-10
+pr: 4491
 ---
 
 
@@ -67,3 +69,37 @@ verbatim plus `Arc2`, shared with the `profile` crate and read by
 readers), so a window on it changes what "the segment's endpoints" means
 for every reader of `a`/`b`; the readers are listed in the type's doc
 (`SketchSegment`'s "every reader of the locus reads the same fields").
+
+## Closed (2026-10-10, PR 4491)
+
+Restriction never enters the sketch segment. `MappedCurve` is
+`{ source: MappedSource, range: SubRange }`:
+- `source` is the old enum without `range`;
+- `range` is the old `SweepRange`, hoisted to cover every arm;
+- `restrict` narrows the range, and `eval(s)` is `source.eval(range.at(s))`.
+
+`SketchSegment::restrict` is deleted, so `a`/`b` are always the
+authored ends.
+
+Readers:
+- `offset_axial::reauthor` writes a whole segment and reads the
+  covered turn (`sweep × span`);
+- `replace_face::move_mapped_endpoint` re-authors a whole chord from
+  the moved point to the other end's evaluation when the range is
+  restricted;
+- transforms carry the range.
+
+Over 64 nested splits (Interval, exact inputs,
+`crates/geom-brep/tests/sketch_segment_restriction.rs`):
+- the line and the arc a thousand metres out stay at 2.3e-13 –
+  3.4e-13 on every chain, where the line reached 8.2e3 m `(0.3, 0.7)`
+  and 1.9e8 m `(a, 1)`, and the arc 1.5e-11 – 1.7e-11;
+- near the origin the line stays ≤ 2.9e-14, where it reached 1.13 m
+  and 1.2e5 m;
+- the near arc is 1.2–1.35× the re-derived form on its two inexact
+  chains (3.1e-14 / 4.7e-14). That is the range start's per-split
+  rounding times radius·sweep, and the evidence is added to
+  `revolved-point-eval-levers-angle-width-by-the-coordinates`.
+
+A whole range evaluates bit for bit as before at f64, Interval and
+`Sym`.
