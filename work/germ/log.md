@@ -836,3 +836,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - a real defect → fix it (the review arm, byte 150, is HOLDOUT if it becomes a code unit);
   - a k-lint rule question → `needs_ev` and the designer route, with no lint change by the lane.
   PR 4530's fix pass is still running.
+- 2026-10-10 18:00 — Last P2 (circle × torus root slack versus k-lint rule 2): the measuring lane found case (b), and PR 4561 (tracker only) merged on the orchestrator's read.
+  - Still flagged at 1e-12 only: 8 × `bool_circle_torus_root_slack`, 1 × `_meridian`, 1 × HONE's sphere-region slack. All are pure rounding, identical at every ε. A tighter bound clears only 2 of 8.
+  - The k-lint nightly cannot run at all (P1 filed: `tint/probe-sweep-prepass-reds-on-assemble-one-local-battery`).
+  - The design fork goes to the designer pair. Problem statement sha256 `318410049819`, with no candidate options (the designers are told to skip the item's Options section). Blinding byte 10, so A = Opus and B = Fable, recorded on `analysis/design-fork/germ-klint-rounding-margins`. Both designers run as local subagents.
