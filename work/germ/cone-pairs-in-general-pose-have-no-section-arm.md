@@ -8,6 +8,7 @@ priority: P2
 cost: M
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 branch: germ/cone-pairs-general-pose
+pr: 4522
 ---
 
 ## What
