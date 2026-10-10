@@ -5,7 +5,7 @@ title: geom: Projection3's orthogonality field has no production reader, and the
 status: open
 opened: 2026-10-10
 priority: P3
-cost: S
+cost: E
 ---
 
 
