@@ -398,3 +398,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Fork3 builds** are up as PR 4551 (A) and PR 4553 (B), with CI pending. Review tiers at arrival:
     - A, the step door plus the primitive behind every certified spline step: H, dual (concurrent).
     - B: dual if its route changes certification, otherwise single. (NURBS orchestrator)
+- 2026-10-10 17:28 — **PR 4518 merged** with DR-144 (Q2, `q + R(p − q)`). The `revolved-point-eval-levers…` row closes with it.
+  - **PR 4540's coding** came back: 11 bilateral findings, 8 unilateral to the R2 report and 6 to the R1 report, tally 0. The nearest miss is R1's `chart_stretch_inf`, which fails (a) because it was raised as MINOR. The pair was fair. This matches the pre-note.
+  - **PR 4553** (fork3 build B: the knot algebra bounded off `Interval`; `localized` dropped by route (a); `refined` re-routed homogeneously by route (b); the speed meter and quad sites through `apply_certified`) is CI-green.
+    - Its tier: dual, class M. It changes the certification route of plane × NURBS and SSI and bounds the knot API across `geom`; the design is settled and the route was measured.
+    - Rule 1 byte 182, mod 3 = 2, gives SEQUENTIAL: one FULL review on `e32d58c62d`.
+    - The PR reports `topo::rim_dim_review_probes::silent_fixed_predicates_scale_linearly` red on main under `--all-features`. The review is to confirm or refute it before it is filed.
+  - **PR 4551** (fork3 build A) is still fixing a red test job. (NURBS orchestrator)
