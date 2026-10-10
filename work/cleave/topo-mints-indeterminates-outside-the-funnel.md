@@ -29,13 +29,19 @@ fixture inside `#[cfg(test)]`):
   arm → `ContactRefusal::Contradicted`
 - `contact_rest_ladder_invariant` — the `CarrierRelation::Distinct` arm
   → `ContactRefusal::Escalated`
-- the residual arm, under the decided predicate's own name
-  (`contact_tangent_on_1` / `_on_2`), after `Ok(Sign::Positive)` →
-  `Contradicted`
+- the residual arm, now `on_surface` (PR 4558), two mints, both carrying a
+  DECIDED margin rather than `INVALID`: `Contradicted` under
+  `contact_tangent_off_1` / `_off_2` (the sample's `r` decided nonzero,
+  class (b) with its measured margin), and `Escalated` under
+  `contact_tangent_on_1` / `_on_2` with the span bound's decided
+  `Positive` margin when the sample is decided on the surface (a
+  definite reading the outcome cannot use, off the log)
 - `contact_tangent_opposed`, after `Ok(Sign::Positive)` → `Contradicted`
 - `contact_tangent_independent` → `Contradicted`
 - `contact_tangent_parallel` → `Contradicted`
-- `contact_tangent_second_order` → `Escalated`
+- `contact_tangent_second_order` → `Escalated`: since PR 4558 only for
+  a DEFINITE zero; an in-band reading returns the funnel's own
+  `Indeterminate`
 
 **Five of the seven are `Contradicted`, not `Escalated`** — see the note
 below, which is the harder half.
@@ -407,4 +413,4 @@ Waits on `intent-stage4-is-built`, not on the whole program: held step 2's paylo
 
 E deletes step 2's user-visible payload sites: `BooleanError::UndeclaredCoincidence`, editor-core's `UndeclaredCoincidence` / `UndeclarableContact`, and `NeighbourOffset`. `CarrierEqError`'s Zero arm is no longer a refusal, because rung 4 glues. `CoincidenceMeasure` stays the ladders' typed payload (`crates/topo/src/boolean/carrier_eq.rs:137`). The pr4 x = 1.0 union's "margin is invalid" sentence has no site left to render it.
 
-Steps 3–5 are untouched. `contact_verify`'s minted `MarginDiag::INVALID` contradictions are all live (`crates/topo/src/boolean/contact_verify.rs:166`, `:180`, `:332`, `:366`, `:380`, `:430`, `:455`), and so are `plane_eq.rs:304` and the class (a)/(c) sites. E adds one shape of class (b): a pair decided one carrier at an arm the glue door did not glue escalates through `unglued_coincidence` (`crates/topo/src/boolean/mod.rs:1007`). That escalation carries the decided margin, or `INVALID` where none was read (`recl.rs:151`, `vtxfac.rs:789`), inside an `Indeterminate`. The row resumes at step 3.
+Steps 3–5 are untouched. `contact_verify`'s minted `MarginDiag::INVALID` refusals are live in `rest_pair_reading` (`contact_rest_senses_opposed`, `contact_rest_ladder_invariant`) and in `tangent_locus_relation` (`contact_tangent_opposed`, `contact_tangent_independent`, `contact_tangent_parallel`, and `contact_tangent_second_order` on a definite zero); `on_surface`'s two carry decided margins since PR 4558, and so are `plane_eq.rs:304` and the class (a)/(c) sites. E adds one shape of class (b): a pair decided one carrier at an arm the glue door did not glue escalates through `unglued_coincidence` (`crates/topo/src/boolean/mod.rs:1007`). That escalation carries the decided margin, or `INVALID` where none was read (`recl.rs:151`, `vtxfac.rs:789`), inside an `Indeterminate`. The row resumes at step 3.

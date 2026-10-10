@@ -26,10 +26,10 @@ not the workspace's predicate-name roster** — that is
 `docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
 orphans are all outside these two crates by construction (`profile`
 ×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
-hole in it. **(2) Not complete inside them.** Of **248** funnel-reaching
+hole in it. **(2) Not complete inside them.** Of **250** funnel-reaching
 names in the two crates the tables and their prose reach **225**, carry
-an individual `dim` verdict for **123**, and miss **23** entirely; the
-23 are listed under *Uncovered names* below the tables and are §D's
+an individual `dim` verdict for **123**, and miss **25** entirely; the
+25 are listed under *Uncovered names* below the tables and are §D's
 **D46**. The word *every* was this document's for a year and it was
 never true of the second bound; it is retired here rather than
 footnoted.
@@ -173,8 +173,8 @@ the call site*. In these two crates that is ten spellings — `decide`,
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
-**Names — the deliverable.** **248** distinct predicate names: **212**
-written as a literal at one of those spellings, and **36 carried** by a
+**Names — the deliverable.** **250** distinct predicate names: **212**
+written as a literal at one of those spellings, and **38 carried** by a
 module-private `const`, a struct field or a local table
 (`sector_shape.rs`'s three consts, `ray_walk::ParityRows` twice over,
 `transform.rs`'s two arrays, `carrier_eq.rs`'s margin tuples,
@@ -187,15 +187,15 @@ module-private `const`, a struct field or a local table
 | named only in prose, no `dim` column | 3 |
 | reached only through a family cell or slash-list | 99 |
 | **reached, on the most generous reading** | **225** |
-| **recorded nowhere, under any reading** | **23** |
+| **recorded nowhere, under any reading** | **25** |
 
 **Reach is not verdict, and the asymmetry runs one way.** The 99 family
 matches are a judgement: glosses like *"pm_census vv/ve/vf/ef gaps,
 spans, residuals"* and *"sphere/torus meridian checks"* were read as
 covering every name they plausibly reach, which is the reading most
-favourable to this document. So **225 is a ceiling on REACH**, **23 a
+favourable to this document. So **225 is a ceiling on REACH**, **25 a
 floor on the hole** — a stricter reader moves names out of the 99 and
-into the 23, and nothing can move one out of the 23, because those
+into the 25, and nothing can move one out of the 25, because those
 names appear nowhere above this section in any form. And **reach is not
 a dimensional verdict**: the number of names this document has actually
 dimensioned, one row and one `dim` cell each, is **123**. The other 102
@@ -230,7 +230,7 @@ convention and the site count is not.
 roster alone** (K-REPORT's framing; it reproduces here). A code scan
 misses names not written at a funnel site — the 36 carried ones, 15% of
 the roster. A corpus column misses names the corpus never exercises —
-**83** of the 248 do not appear in the committed M7 baseline at all
+**83** of the 248 measured then do not appear in the committed M7 baseline at all
 (`props_rim_interior_side`, `props_rim_only_extent` and
 `props_rim_only_closed` are new here and post-date it;
 `props_rim_dir_group`, which it does carry, is retired),
@@ -252,7 +252,7 @@ grep -rnE '\b(decide|decide_reported|decide_flagged|decide_invariant|decide_posi
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
 # coverage — compare against THIS FILE WITH ITS TWO SELF-DESCRIBING
-# SECTIONS REMOVED. `Uncovered names` lists the 23 and this section
+# SECTIONS REMOVED. `Uncovered names` lists the 25 and this section
 # names helpers that share spellings with predicates, so a re-derivation
 # that reads the whole file finds a hole of zero and calls it closed.
 sed -e '/^## Coverage of the two crates/,/^## geom-brep/d' \
@@ -268,7 +268,7 @@ file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
 **Twelve names carry the K vocabulary and never reach the funnel**, so
-they are correctly outside the 248 and a reader who greps for one
+they are correctly outside the 250 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - six through `predicate: Some("…")`: `carrier_kind`,
   `contact_tangent_independent`, `contact_rest_senses_opposed`,
@@ -301,14 +301,14 @@ user, inside an `Indeterminate` claiming a predicate by that name had
 been posed and come back poisoned. The census now carries the door's
 own typed refusal instead, and the tag is gone from the tree.
 
-**Why no gate on 123 / 225 / 248 / 302 — the third answer to Q6.**
+**Why no gate on 123 / 225 / 250 / 302 — the third answer to Q6.**
 Not "it is guarded" and not "dating it is enough": a gate would have to
 fix the family-matching convention in code, and that convention is the
 judgement this section is careful to expose rather than freeze. A green
 gate would assert a reading, not a fact. What *is* mechanical is
 already elsewhere — `geom-core/tests/flagged_census.rs` pins the
 `decide_flagged` count, and the K sweep recomputes the emitted-name set
-on every merge. The 23 are scheduled as their own unit (§D's **D46**),
+on every merge. The 25 are scheduled as their own unit (§D's **D46**),
 which is what actually moves the number.
 
 ## geom-brep
@@ -685,9 +685,9 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
-### Uncovered names (measured at `43e2998d`)
+### Uncovered names (measured at `43e2998d`; `contact_tangent_off_1`/`_2` added since)
 
-Twenty-three names reach the funnel from `geom-brep` or `topo` and
+Twenty-five names reach the funnel from `geom-brep` or `topo` and
 have **no row, no family cell and no mention** anywhere above this
 section. They are enumerated rather than audited: each wants its
 comparand read and a dimension verdict, which is a unit (§D's **D46**)
@@ -696,12 +696,12 @@ eight homes are files this document has never named at all —
 `edge_nurbs.rs`, `boolean/carrier_eq.rs`, `boolean/contact_verify.rs` —
 and the other five are named files whose rows predate these names.
 
-**Where the 23 verdicts land when D46 does them**: one row each in the
+**Where the 25 verdicts land when D46 does them**: one row each in the
 `## geom-brep` or `## topo` table above, with `site`, `predicate`,
 `comparand`, `dim` and `status` filled the way every other row is —
 plus a disposition entry in *Findings* for any that come back FLAG, and
 its `F`-number. A name leaves this section only by acquiring that row;
-the section is empty when the two counts above meet at 248.
+the section is empty when the two counts above meet at 250.
 
 | home | names |
 |---|---|

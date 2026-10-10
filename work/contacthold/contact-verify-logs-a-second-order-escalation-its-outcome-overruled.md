@@ -84,7 +84,9 @@ in-band escalation returned). When an undeclared second-order refusal
 stands, it carries its own `Indeterminate`, so the refusal is the log's
 escalation. Red-first test:
 `an_overruled_second_order_escalation_leaves_the_log` (a pin in a
-bore). Bullet 2, a declaration bridging it, is not built: INTENT E makes
+bore). Bullet 2, a declaration bridging it, is not built (scheduled as
+`contact-verify-keeps-a-bridged-or-later-overruled-second-order-escalation`,
+with the cross-sample shape the review found): INTENT E makes
 every production caller pass `declared = true`, so it is now the normal
 case, and whether a bridged node should refine is still unmeasured. No read in
 the 8257-test corpus had the second-order reading in band, so this was
