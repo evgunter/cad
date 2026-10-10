@@ -63,8 +63,7 @@ pub fn document() -> CorpusDoc {
     // face (a non-zero spin), so the corpus rows walk the rotation
     // about the outward normal rather than the identity.
     let top = r.insert(Node::Datum(editor_core::Datum::FaceFrame {
-        at: cube.into(),
-        face: fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(cube, vec![fname(cube, RoleSeg::Cap(CapEnd::End))]),
         spin: ang(SPIN),
     }));
     // The boss profile, centred on the frame's origin (the carrier's

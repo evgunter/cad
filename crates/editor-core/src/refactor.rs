@@ -361,7 +361,7 @@ fn carry<E>(
                 .ok_or(RemapMiss::Input(g)),
             _ => Ok(world),
         };
-        let rd = |slot: crate::OperandSlot, var: VarId| match out_map.get(&var) {
+        let rd_output = |slot: crate::OperandSlot, var: VarId| match out_map.get(&var) {
             Some(&carried) => Ok(carried),
             None => match source.operation_of(var) {
                 Some(input) => Err(RemapMiss::Input(input)),
@@ -374,16 +374,53 @@ fn carry<E>(
                 }),
             },
         };
-        let carried = match remap_node(node, &node_map, &rd, &step_map, &regauge) {
-            Ok(carried) => carried,
-            Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
-                return Err(edit(EditError::DeclareNamesMissingNode {
-                    name: source.spoken_name(&name),
-                }));
-            }
-            Err(other) => return Err(miss(old, other)),
+        // A selection read crosses with its reader when its body does:
+        // the remapped node keeps the source id, and the insert below
+        // reads it as the selection authored afresh in the target (or
+        // as the one an earlier reader carried).
+        let rd = |slot: crate::OperandSlot, var: VarId| match source.selection(var) {
+            Some(select) => rd_output(slot, select.body).map(|_| var),
+            None => rd_output(slot, var),
         };
-        let (mut authored, fresh) = vars.author(&carried);
+        let refuse = |error: RemapMiss| match error {
+            RemapMiss::Name { name, missing } if forward(&missing) => {
+                edit(EditError::DeclareNamesMissingNode {
+                    name: source.spoken_name(&name),
+                })
+            }
+            other => miss(old, other),
+        };
+        let carried = remap_node(node, &node_map, &rd, &step_map, &regauge).map_err(&refuse)?;
+        let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
+        for (slot, var) in node.operand_rows() {
+            let Some(select) = source.selection(var) else {
+                continue;
+            };
+            let operand = match vars.map.get(&var) {
+                Some(&held) => crate::Operand::Var(held),
+                None => {
+                    let body = rd_output(slot, select.body).map_err(&refuse)?;
+                    let names = select
+                        .names
+                        .iter()
+                        .map(|n| {
+                            remap_name(n, &node_map, &step_map).map_err(|missing| RemapMiss::Name {
+                                name: Box::new(n.clone()),
+                                missing,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(&refuse)?;
+                    let kind = selection_kind(source, var);
+                    crate::Operand::select(
+                        crate::Operand::Var(body),
+                        crate::var::Select::canonical(kind, names),
+                    )
+                }
+            };
+            selects.insert(var, operand);
+        }
+        let (mut authored, fresh) = vars.author(&carried, &selects);
         settle(old, &mut authored);
         let record = target
             .apply_recorded(DocEdit::InsertNode {
@@ -396,6 +433,27 @@ fn carry<E>(
             unreachable!("an accepted insert mints its node")
         };
         node_map.insert(old, new);
+        // Each selection the insert minted stands for its source, and a
+        // named one takes its name across.
+        let minted_reads = target
+            .doc()
+            .node(new)
+            .map(Node::operand_rows)
+            .unwrap_or_default();
+        for ((_, from), (_, to)) in node.operand_rows().into_iter().zip(minted_reads) {
+            if source.selection(from).is_none() || vars.map.contains_key(&from) {
+                continue;
+            }
+            vars.map.insert(from, to);
+            if let Some(name) = source.var_name(from) {
+                target
+                    .apply(DocEdit::RenameVar {
+                        var: to.into(),
+                        name: Some(name.clone()),
+                    })
+                    .map_err(&edit)?;
+            }
+        }
         if let Some(Node::InstantiatePart { offset, .. }) = target.doc().node(new) {
             stated.push((new, offset.clone()));
         }
@@ -1816,8 +1874,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::UnresolvedInput { .. }
             | EditError::WouldCycle { .. }
             | EditError::DuplicateInput { .. }
-            | EditError::RepeatedDesignation { .. }
-            | EditError::SelectionNotCanonical { .. }
+            | EditError::SelectionShape { .. }
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetDeclareOnNonDeclaring { .. }
             | EditError::DeclaredSiteNotAnOperand { .. }
@@ -1831,7 +1888,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::DefinesNothing { .. }
             | EditError::PartHalfPort { .. }
             | EditError::ReadsWorldCopy { .. }
-            | EditError::MeasuresWorldCopy { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }
@@ -2277,14 +2333,11 @@ fn remap_node(
             origin: *origin,
             direction: *direction,
         }),
-        // A derived frame is not a leaf either: its body is an input
-        // and its face is a frozen name, and both cross the cut or
-        // the remap misses loudly — exactly a blend's target and
-        // selection.
-        Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
+        // A derived frame is not a leaf either: its face is a read,
+        // which crosses the cut or the remap misses loudly.
+        Node::Datum(crate::Datum::FaceFrame { face, spin }) => {
             Node::Datum(crate::Datum::FaceFrame {
-                at: rd(crate::OperandSlot::At, *at)?,
-                face: nm(face)?,
+                face: rd(crate::OperandSlot::Face, *face)?,
                 spin: *spin,
             })
         }
@@ -2371,36 +2424,21 @@ fn remap_node(
             stations: *stations,
             v_degree: *v_degree,
         },
-        Node::Fillet {
-            target,
-            radius,
-            selection,
-        } => Node::fillet(
-            rd(crate::OperandSlot::Target, *target)?,
-            *radius,
-            selection.iter().map(nm).collect::<Result<_, _>>()?,
-        ),
+        Node::Fillet { radius, selection } => Node::Fillet {
+            radius: *radius,
+            selection: rd(crate::OperandSlot::Selection, *selection)?,
+        },
         Node::Chamfer {
-            target,
             distance,
             selection,
-        } => Node::chamfer(
-            rd(crate::OperandSlot::Target, *target)?,
-            *distance,
-            selection.iter().map(nm).collect::<Result<_, _>>()?,
-        ),
-        // Through the construction door, which keeps the designation
-        // order and drops only a repeat: a remap never re-sorts an
-        // ordered payload.
-        Node::Shell {
-            target,
-            thickness,
-            open,
-        } => Node::shell(
-            rd(crate::OperandSlot::Target, *target)?,
-            *thickness,
-            open.iter().map(nm).collect::<Result<_, _>>()?,
-        ),
+        } => Node::Chamfer {
+            distance: *distance,
+            selection: rd(crate::OperandSlot::Selection, *selection)?,
+        },
+        Node::Shell { thickness, open } => Node::Shell {
+            thickness: *thickness,
+            open: rd(crate::OperandSlot::Open, *open)?,
+        },
         Node::Split { target, tool } => Node::Split {
             target: rd(crate::OperandSlot::Target, *target)?,
             tool: rd(crate::OperandSlot::Tool, *tool)?,
@@ -2487,17 +2525,17 @@ fn remap_node(
             // remapped above.
             alignment: alignment.clone(),
         },
-        // Both halves remap: the NAME through the name door, and the
-        // reading SITE through the id door, because a measure's site
-        // is an ordinary input edge.
-        Node::Measure { primitive } => Node::Measure {
-            primitive: primitive.try_map(|r| {
-                Ok::<_, RemapMiss>(crate::node::SitedRef {
-                    at: id(r.at)?,
-                    name: nm(&r.name)?,
-                })
-            })?,
-        },
+        Node::Measure { primitive } => {
+            let verb = primitive.kind();
+            let mut i = 0u8;
+            Node::Measure {
+                primitive: primitive.try_map(|&r| {
+                    let slot = crate::OperandSlot::Measured(verb, i);
+                    i += 1;
+                    rd(slot, r)
+                })?,
+            }
+        }
         // A value reading a measure's output directly re-points as an
         // operand does, and one reading a stranded output refuses; any
         // other value is a slot variable, carried as the bound is. The
@@ -2625,6 +2663,9 @@ impl<'s> VarCarry<'s> {
             VarDef::Output { .. } => {
                 unreachable!("an output crosses with its node, minted by the target's insert")
             }
+            VarDef::Select(_) => {
+                unreachable!("a selection crosses with its reader, minted by the target's insert")
+            }
         }
     }
 
@@ -2640,11 +2681,22 @@ impl<'s> VarCarry<'s> {
 
     /// **`node` as the carried insert writes it**: every slot a reader
     /// re-pointed into the target ([`Self::reader`]), and its table.
-    fn author(&self, node: &Node<ProfileProgram>) -> (AuthoredNode, Carried) {
+    fn author(
+        &self,
+        node: &Node<ProfileProgram>,
+        selects: &BTreeMap<VarId, crate::Operand>,
+    ) -> (AuthoredNode, Carried) {
         let carried = self.table(node.exprs().into_iter().copied());
-        let authored = node.authored_with(self.source, &mut |var, dim| {
-            self.reader(&carried.anonymous, var, dim)
-        });
+        let authored = node.authored_with(
+            self.source,
+            &mut |var, dim| self.reader(&carried.anonymous, var, dim),
+            &mut |var| {
+                selects
+                    .get(&var)
+                    .cloned()
+                    .unwrap_or(crate::Operand::Var(var))
+            },
+        );
         (authored, carried)
     }
 
@@ -2858,7 +2910,7 @@ pub fn split(
             _ => None,
         })
         .collect();
-    let mut crossing_reads: Vec<(RecipeNodeId, crate::OperandSlot)> = Vec::new();
+    let mut crossing_reads: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
     for consumer in doc.ids() {
         let Some(node) = doc.node(consumer) else {
             continue;
@@ -2867,10 +2919,11 @@ pub fn split(
         let mut carried: BTreeSet<RecipeNodeId> = BTreeSet::new();
         if !consumer_is_cut {
             for (slot, var) in node.operand_rows() {
-                if cut_placed.contains(&var)
-                    && let Some(input) = doc.operation_of(var)
+                let body = doc.selection(var).map_or(var, |select| select.body);
+                if cut_placed.contains(&body)
+                    && let Some(input) = doc.operation_of(body)
                 {
-                    crossing_reads.push((consumer, slot));
+                    crossing_reads.push((consumer, slot, var));
                     carried.insert(input);
                 }
             }
@@ -2888,7 +2941,7 @@ pub fn split(
     // A remainder reader re-pointed to the instance's body reads the
     // part's whole world: by inline's rule ([`world_heir`]), the cut's
     // placements must be one at the identity, or it refuses.
-    if let Some(&(reader, _)) = crossing_reads.first() {
+    if let Some(&(reader, _, _)) = crossing_reads.first() {
         let world: Vec<RecipeNodeId> = doc
             .placements()
             .into_iter()
@@ -3231,6 +3284,15 @@ pub fn split(
         }
     }
     let moving = moving_vars(doc, &cut_refs, &kept_refs)?;
+    // Each selection's readers, by node.
+    let mut select_readers: BTreeMap<VarId, Vec<RecipeNodeId>> = BTreeMap::new();
+    for id in doc.ids() {
+        for (_, var) in doc.node(id).map(Node::operand_rows).unwrap_or_default() {
+            if doc.selection(var).is_some() {
+                select_readers.entry(var).or_default().push(id);
+            }
+        }
+    }
     // Cut-side name references must lie wholly within the cut: the
     // part document cannot name the remainder's entities. Read off
     // the document's name-carrier enumeration, so a carrier added to
@@ -3250,6 +3312,27 @@ pub fn split(
                 if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node: doc.spoken(node),
+                        name: doc.spoken_name(name),
+                        missing: doc.spoken(missing),
+                    });
+                }
+            }
+            // A selection is on the side of its readers: one a cut node
+            // reads is the part's, and may not name the remainder.
+            NameCarrier::Select { var, name } => {
+                let Some(&reader) = select_readers
+                    .get(&var)
+                    .and_then(|readers| readers.iter().find(|reader| cut.contains(reader)))
+                else {
+                    continue;
+                };
+                let outside = derivation_nodes(name)
+                    .into_iter()
+                    .filter(|id| !cut.contains(id))
+                    .min_by_key(|id| (doc.node(*id).is_none(), *id));
+                if let Some(missing) = outside {
+                    return Err(SplitError::PartNameReachesRemainder {
+                        node: doc.spoken(reader),
                         name: doc.spoken_name(name),
                         missing: doc.spoken(missing),
                     });
@@ -3299,6 +3382,20 @@ pub fn split(
                     continue;
                 }
                 classify(name)?;
+            }
+            // A remainder selection whose body a cut placement places is
+            // authored afresh on the instance below; any other is
+            // classified as a payload name is.
+            NameCarrier::Select { var, name } => {
+                let remainder_read = select_readers
+                    .get(&var)
+                    .is_some_and(|readers| readers.iter().any(|r| !cut.contains(r)));
+                let crossing = doc
+                    .selection(var)
+                    .is_some_and(|select| cut_placed.contains(&select.body));
+                if remainder_read && !crossing {
+                    classify(name)?;
+                }
             }
             NameCarrier::Store { name } => classify(name)?,
         }
@@ -3609,33 +3706,89 @@ pub fn split(
             crate::placement::Placement::IDENTITY,
         ))
         .map_err(rem_refused)?;
-    for &(node, slot) in &crossing_reads {
+    let in_part = |from: &StableName| -> Result<StableName, SplitError> {
+        Ok(StableName {
+            kind: from.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: NameRef::new(in_world(from)?),
+            }],
+        })
+    };
+    // A selection of the cut body is authored afresh in the instance's
+    // body, each name the cut minted read through it, once per
+    // selection: its first reader authors it, and a named one keeps its
+    // name on the new variable, which every other reader then reads.
+    let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
+    for &(node, slot, var) in &crossing_reads {
+        let read = match (doc.selection(var), reauthored.get(&var)) {
+            (Some(_), Some(&fresh)) => crate::Operand::Var(fresh),
+            (Some(select), None) => crate::Operand::select(
+                crate::Operand::Var(instance_body),
+                crate::var::Select::canonical(
+                    selection_kind(doc, var),
+                    select
+                        .names
+                        .iter()
+                        .map(&in_part)
+                        .collect::<Result<Vec<_>, _>>()?,
+                ),
+            ),
+            (None, _) => crate::Operand::Var(instance_body),
+        };
         rem_apply(
             &mut remainder,
             DocEdit::SetParam {
                 node,
                 slot: crate::SlotId::Operand(slot),
-                value: crate::SlotValue::Read(crate::Operand::Var(instance_body)),
+                value: crate::SlotValue::Read(read),
                 fresh: Vec::new(),
             },
         )?;
+        if doc.selection(var).is_some() && !reauthored.contains_key(&var) {
+            let fresh = read_at(remainder.doc(), node, slot);
+            reauthored.insert(var, fresh);
+            if let Some(name) = doc.var_name(var) {
+                rem_apply(&mut remainder, DocEdit::DeleteVar { var: var.into() })?;
+                rem_apply(
+                    &mut remainder,
+                    DocEdit::RenameVar {
+                        var: fresh.into(),
+                        name: Some(name.clone()),
+                    },
+                )?;
+            }
+        }
     }
     for from in &rebinds {
-        let of = in_world(from)?;
-        let to = StableName {
-            kind: from.kind,
-            node: instance,
-            path: vec![RoleSeg::InPart {
-                of: NameRef::new(of),
-            }],
-        };
-        rem_apply(
-            &mut remainder,
-            DocEdit::Rebind {
-                from: from.clone(),
-                to,
-            },
-        )?;
+        let to = in_part(from)?;
+        // A repair is addressed by body: one per remainder selection
+        // body naming `from`, and one for the carriers no body holds.
+        let mut bodies: BTreeSet<VarId> = BTreeSet::new();
+        let mut unbodied = false;
+        for carrier in remainder.doc().name_carriers() {
+            if carrier.name() != from {
+                continue;
+            }
+            match carrier {
+                NameCarrier::Select { var, .. } => {
+                    if let Some(select) = remainder.doc().selection(var) {
+                        bodies.insert(select.body);
+                    }
+                }
+                NameCarrier::Payload { .. } | NameCarrier::Store { .. } => unbodied = true,
+            }
+        }
+        for body in bodies.into_iter().map(Some).chain(unbodied.then_some(None)) {
+            rem_apply(
+                &mut remainder,
+                DocEdit::Rebind {
+                    body,
+                    from: from.clone(),
+                    to: to.clone(),
+                },
+            )?;
+        }
     }
     // Reverse document order deletes consumers before their inputs, so
     // no delete dangles a live reference — except past a union
@@ -3743,6 +3896,40 @@ enum Landing {
     /// On a gauge minted under the instance's gauge holding its offset:
     /// a promote of the instance ([`DocEdit::Promote`]).
     Gauge,
+}
+
+/// The kind of the selection `var` holds in `doc`.
+///
+/// # Panics
+///
+/// If `doc` holds no variable `var`: every caller asks of a variable it
+/// just read as a selection.
+fn selection_kind<P>(doc: &Doc<P>, var: VarId) -> crate::VarKind {
+    let Some(held) = doc.var(var) else {
+        unreachable!("a selection the document holds is a variable it holds")
+    };
+    held.kind()
+}
+
+/// The variable `node` reads at `slot` in `doc`.
+///
+/// # Panics
+///
+/// If `node` holds no read at `slot`: every caller asks right after
+/// writing it.
+fn read_at<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    slot: crate::OperandSlot,
+) -> VarId {
+    let Some(var) = doc
+        .node(node)
+        .and_then(|n| n.operand_rows().into_iter().find(|(at, _)| *at == slot))
+        .map(|(_, var)| var)
+    else {
+        unreachable!("the read was just written")
+    };
+    var
 }
 
 /// Splices the document `instance` references into `doc` and deletes
@@ -3972,11 +4159,11 @@ pub fn inline(
     let identity = |p: RecipeNodeId| places_at_identity(&part, p);
     let mut host_placements: Vec<RecipeNodeId> = Vec::new();
     let mut posed: Vec<RecipeNodeId> = Vec::new();
-    let mut readers: Vec<(RecipeNodeId, crate::OperandSlot)> = Vec::new();
+    let mut readers: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
     for id in doc.ids() {
         let Some(reader) = doc.node(id) else { continue };
         for (slot, var) in reader.operand_rows() {
-            if doc.operation_of(var) != Some(instance) {
+            if doc.read_operation(var) != Some(instance) {
                 continue;
             }
             match reader {
@@ -3984,11 +4171,11 @@ pub fn inline(
                     if host_placements.is_empty() {
                         host_placements.push(id);
                     } else {
-                        readers.push((id, slot));
+                        readers.push((id, slot, var));
                     }
                 }
                 Node::PlaceInWorld { .. } => posed.push(id),
-                _ => readers.push((id, slot)),
+                _ => readers.push((id, slot, var)),
             }
         }
     }
@@ -4017,7 +4204,7 @@ pub fn inline(
         |p| identity(p) || dropped == Some(p),
         |p| part.spoken(p),
     );
-    if let (Some(&(reader, _)), Err(why)) = (readers.first(), &heir_placement) {
+    if let (Some(&(reader, _, _)), Err(why)) = (readers.first(), &heir_placement) {
         return Err(InlineError::InstanceReadUncarried {
             reader: doc.spoken(reader),
             why: why.clone(),
@@ -4334,7 +4521,7 @@ pub fn inline(
         }
     }
     // The inverse of the bridge: wrapped names re-anchor to local.
-    for from in &wrapped {
+    let rehost = |from: &StableName| -> Result<StableName, InlineError> {
         // The collection admitted exactly this shape; a non-match here
         // would be a collection bug, and skipping it would strand the
         // name silently — so the shape is re-destructured, not assumed.
@@ -4343,16 +4530,41 @@ pub fn inline(
                 name: doc.spoken_name(from),
             });
         };
-        let to = to_host(of).ok_or_else(|| InlineError::ForeignInstanceName {
+        to_host(of).ok_or_else(|| InlineError::ForeignInstanceName {
             name: doc.spoken_name(from),
-        })??;
-        step(
-            &mut current,
-            DocEdit::Rebind {
-                from: from.clone(),
-                to,
-            },
-        )?;
+        })?
+    };
+    // The selections of the instance's body are authored afresh on the
+    // inlined body below; every other carrier is repaired here, a
+    // selection of a body downstream of the instance by its body.
+    for from in &wrapped {
+        let mut bodies: BTreeSet<VarId> = BTreeSet::new();
+        let mut unbodied = false;
+        for carrier in current.doc().name_carriers() {
+            if carrier.name() != from {
+                continue;
+            }
+            match carrier {
+                NameCarrier::Select { var, .. } => {
+                    if let Some(select) = current.doc().selection(var)
+                        && current.doc().operation_of(select.body) != Some(instance)
+                    {
+                        bodies.insert(select.body);
+                    }
+                }
+                NameCarrier::Payload { .. } | NameCarrier::Store { .. } => unbodied = true,
+            }
+        }
+        for body in bodies.into_iter().map(Some).chain(unbodied.then_some(None)) {
+            step(
+                &mut current,
+                DocEdit::Rebind {
+                    body,
+                    from: from.clone(),
+                    to: rehost(from)?,
+                },
+            )?;
+        }
     }
     // The record dissolves (ASM-R2b D-4, and the function docs): every
     // crossing's part-side reference must land on a spliced local
@@ -4369,16 +4581,54 @@ pub fn inline(
     // The readers of the instance read the inlined body, and its host
     // placements at the identity go with it.
     if let Some(heir) = heir(current.doc()) {
-        for &(node, slot) in &readers {
+        // Once per selection, as split authors them: a named one keeps
+        // its name on the new variable, which every other reader reads.
+        let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
+        for &(node, slot, var) in &readers {
+            let read = match (doc.selection(var), reauthored.get(&var)) {
+                (Some(_), Some(&fresh)) => crate::Operand::Var(fresh),
+                (Some(select), None) => crate::Operand::select(
+                    crate::Operand::Var(heir),
+                    crate::var::Select::canonical(
+                        selection_kind(doc, var),
+                        select
+                            .names
+                            .iter()
+                            .map(|name| {
+                                if wrapped.contains(name) {
+                                    rehost(name)
+                                } else {
+                                    Ok(name.clone())
+                                }
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    ),
+                ),
+                (None, _) => crate::Operand::Var(heir),
+            };
             step(
                 &mut current,
                 DocEdit::SetParam {
                     node,
                     slot: crate::SlotId::Operand(slot),
-                    value: crate::SlotValue::Read(crate::Operand::Var(heir)),
+                    value: crate::SlotValue::Read(read),
                     fresh: Vec::new(),
                 },
             )?;
+            if doc.selection(var).is_some() && !reauthored.contains_key(&var) {
+                let fresh = read_at(current.doc(), node, slot);
+                reauthored.insert(var, fresh);
+                if let Some(name) = doc.var_name(var) {
+                    step(&mut current, DocEdit::DeleteVar { var: var.into() })?;
+                    step(
+                        &mut current,
+                        DocEdit::RenameVar {
+                            var: fresh.into(),
+                            name: Some(name.clone()),
+                        },
+                    )?;
+                }
+            }
         }
         for &placement in &posed {
             step(

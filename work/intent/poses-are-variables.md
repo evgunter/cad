@@ -2,11 +2,10 @@
 id: poses-are-variables
 kind: issue
 title: D10 stage 3 PR A: a pose is a defined variable of its kind, read off geometry or constructed; one Subgroup; the revolve's axis is a 2-D line on the node
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [select-defines-face-and-edge-variables]
 refs: [explicit-placement-frames-hold-floats, intent-stage3-is-built]
 ---
 
