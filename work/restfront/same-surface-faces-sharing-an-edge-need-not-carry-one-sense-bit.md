@@ -10,7 +10,7 @@ cost: M
 
 
 Found off-question by the sphere-arm designer pair (FLUX fork log row
-108), 2026-10-10. It sits on validity's ground (`crates/topo/src/validate.rs`).
+109), 2026-10-10. It sits on validity's ground (`crates/topo/src/validate.rs`).
 
 Two faces of one body that lie on the same surface entity and share an
 edge must carry the same sense bit. If they did not, the surface would

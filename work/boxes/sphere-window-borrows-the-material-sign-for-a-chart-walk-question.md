@@ -10,7 +10,7 @@ cost: E
 
 
 Found off-question by the sphere-arm designer pair (FLUX fork log row
-108), 2026-10-10.
+109), 2026-10-10.
 
 `topo::boolean::boxes::sphere_window` takes
 `geom_brep::props::boundary_material_sign(...) == Encoded(sense)` as
