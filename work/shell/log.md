@@ -1342,3 +1342,9 @@ Ev said go.
 - **Unit 15 dual review dispatched** (2026-10-10 06:4xZ, PR 4472, frozen head 7b5120d42e, CI green): a concurrent Opus pair on one identical brief. Blinding byte 53. Each lane has its own worktree, target and log directory, so the shared-log glimpse from DR-126 cannot recur.
 - **Wall-seam designer pair dispatched** (2026-10-10): `a-wall-seam-between-two-fits-has-no-section`, one Opus and one Fable on the same problem statement. Byte 242, committed to `analysis/design-fork/shell-wall-seam`. They run alongside unit 15's review, because the seam needs design before it can be priced.
 - **Filed** `a-saddle-walls-offset-fit-stalls-short-of-the-default-eps` (P3, M, measure first). This is unit (e) of the wall-seam cut.
+- **Unit 15 dual review** (PR 4472, head 7b5120d42e, byte 53: A = R2, B = R1).
+  - R1: APPROVE-WITH-FIXES with 1 MAJOR. `incident_edges` levers a derived section's root decision by `extent_of` read at the old edge's parameters, extrapolated on the new domain. The value was measured (an arm 2–4.5× the chord) and the orchestrator verified the path at head.
+  - R2: APPROVE-WITH-FIXES with no MAJOR. A held non-plane surface at a corner now refuses `CornerSection` (the lane's `Unsupported`) where the corner used to build. Traced only; the orchestrator verified the path.
+  - Bilateral: the ε-end rule's doc scope, the seed taken from the domain end, the triplicated agreement predicate, and weak rows.
+  - Rule 3: each lane saw the other's process listing, but no findings, so the pair is fair. The next brief says to poll by own PID only.
+  - Ruling: fix the MAJOR, R2's MINOR and the ε-boundary row, plus the doc and style items, in one pass.
