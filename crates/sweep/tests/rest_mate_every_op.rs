@@ -25,6 +25,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::mate2_common::{
     collar_of, declare_rest, full_turn_collar, onto_y, peg_of, spheres_at, wall_decls_at,
 };
@@ -358,18 +359,14 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
     }
 }
 
-/// **A cavity with one of its sphere pairs undeclared keeps the
-/// refusal.** The hollow's cavity and the ball each carry two sphere
-/// faces, face `i` of each on the same side of the same seam. With a
-/// pair `(i, j)`, `i ≠ j`, left undeclared, every face still has a
-/// declared partner, the crossing layer passes, and the extent scan's
-/// sphere pair refuses `SpheresMeet`: it asks every face of a carrier,
-/// each on its exact pair, and a declaration on a face speaks for that
-/// face against its own partner only. (Leaving out a pair `(i, i)`
-/// refuses earlier, at the crossing layer along the seam the two faces
-/// share.)
+/// **A cavity with one of its sphere pairs undeclared is the cavity
+/// with all four declared.** The hollow's cavity and the ball each
+/// carry two sphere faces, face `i` of each on the same side of the
+/// same seam. A pair `(i, j)`, `i ≠ j`, left undeclared is one carrier
+/// by margin, so the boolean declares it `Rest` itself and every op is
+/// the fully declared op bit for bit (D10).
 #[test]
-fn a_cavity_with_one_sphere_pair_undeclared_keeps_the_sphere_refusal() {
+fn a_cavity_with_one_sphere_pair_undeclared_is_the_full_declaration() {
     let tol = Tol::witness();
     let (h, b) = (
         fin("the hollow", &hollow(0.5, 1.0)),
@@ -377,26 +374,35 @@ fn a_cavity_with_one_sphere_pair_undeclared_keeps_the_sphere_refusal() {
     );
     let (fh, fb) = (spheres_at(&h, 0.5), spheres_at(&b, 0.5));
     assert_eq!((fh.len(), fb.len()), (2, 2), "two sphere faces each");
-    for (oh, ob) in [(0, 1), (1, 0)] {
+    let declared = |skip: Option<(usize, usize)>| {
         let (mut hb, mut bh) = (BooleanDeclarations::none(), BooleanDeclarations::none());
         for (i, &x) in fh.iter().enumerate() {
             for (j, &y) in fb.iter().enumerate() {
-                if (i, j) != (oh, ob) {
+                if Some((i, j)) != skip {
                     declare_rest(&mut hb, &[x], &[y]);
                     declare_rest(&mut bh, &[y], &[x]);
                 }
             }
         }
-        for (op, out) in [
-            ("hollow ∪ ball", topo::union_with(&h, &b, &hb, tol)),
-            ("hollow ∩ ball", topo::intersect_with(&h, &b, &hb, tol)),
-            ("hollow ∖ ball", topo::subtract_with(&h, &b, &hb, tol)),
-            ("ball ∖ hollow", topo::subtract_with(&b, &h, &bh, tol)),
-        ] {
-            assert!(
-                matches!(out, Err(topo::BooleanError::SpheresMeet { .. })),
-                "pair ({oh}, {ob}) undeclared: {op}: {:?}",
-                out.as_ref().err()
+        (hb, bh)
+    };
+    let ops = |hb: &BooleanDeclarations, bh: &BooleanDeclarations| {
+        [
+            ("hollow ∪ ball", topo::union_with(&h, &b, hb, tol)),
+            ("hollow ∩ ball", topo::intersect_with(&h, &b, hb, tol)),
+            ("hollow ∖ ball", topo::subtract_with(&h, &b, hb, tol)),
+            ("ball ∖ hollow", topo::subtract_with(&b, &h, bh, tol)),
+        ]
+    };
+    let (hb, bh) = declared(None);
+    let full = ops(&hb, &bh);
+    for (oh, ob) in [(0, 1), (1, 0)] {
+        let (hb, bh) = declared(Some((oh, ob)));
+        for ((op, out), (_, want)) in ops(&hb, &bh).into_iter().zip(&full) {
+            assert_eq!(
+                outcome(&out),
+                outcome(want),
+                "pair ({oh}, {ob}) undeclared: {op}: the full declaration"
             );
         }
     }

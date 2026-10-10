@@ -10,7 +10,7 @@ use geom_core::{Band, Decide, Point3};
 
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
-use super::reduce::{face_oriented_source, face_plane};
+use super::reduce::face_plane;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
 use crate::face_normal::plane_outward_normal;
@@ -19,9 +19,8 @@ use crate::live::BoundaryMember;
 /// **The one flush-pair door**: the C4 verify ladder for a single
 /// cross-body PLANAR face pair — [`carrier_pair_relation`] restricted
 /// to two planes (descriptions through [`face_plane`], outward and
-/// sense-folded; S10's oriented sources, so rung 1's `orient` tags
-/// carry the face senses too — REST contact is precisely the
-/// `SameOpposite` verdict). It is that door, not a mirror of it: the
+/// sense-folded, so REST contact is precisely the `SameOpposite`
+/// verdict). It is that door, not a mirror of it: the
 /// verdict, the `decide` sites and the lever are the ones every carrier
 /// pair gets.
 ///
@@ -248,12 +247,12 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Descriptions through [`face_carrier`], identity through
-/// [`face_oriented_source`], and the pair's consumed extent through
-/// [`pair_extent`]: a declared verdict that bridges is one whose
-/// displacement stays in band at every point of both faces
+/// Descriptions through [`face_carrier`] and the pair's consumed
+/// extent through [`pair_extent`]: a declared verdict that bridges is
+/// one whose displacement stays in band at every point of both faces,
+/// and an undeclared coincidence one whose sum decides Zero there
 /// ([`super::carrier_eq::pair_door_reading`]). One door for the
-/// verify-at-use site and the detector's candidate-generation mode.
+/// verify-at-use site and the operation's glue door.
 ///
 /// # Errors
 ///
@@ -300,7 +299,7 @@ pub fn carrier_pair_verdict<T: Decide>(
     Ok(carrier_pair_reading(a, fa, b, fb, declared, band)?.map(|(rel, verdict, _)| (rel, verdict)))
 }
 
-/// [`carrier_pair_verdict`] with the declared reading's margin
+/// [`carrier_pair_verdict`] with the margin that decided a coincidence
 /// ([`super::carrier_eq::CarrierReading`]), which the declaration door
 /// records.
 ///
@@ -322,12 +321,7 @@ pub(crate) fn carrier_pair_reading<T: Decide>(
     let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
     let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
-    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
-    let id = PlaneIdentity {
-        s1: ga.as_ref(),
-        s2: gb.as_ref(),
-        declared,
-    };
+    let id = PlaneIdentity { declared };
     Ok(super::carrier_eq::pair_door_reading(
         &ca,
         &cb,
@@ -476,9 +470,9 @@ mod lever_rows {
         let theta = 0.5 * band().escalate();
         let (u, v) = ((0.2, 1.6), (0.0, 10.0));
         let mut a = Body::<f64>::new();
-        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), u, v, tol);
         let mut b = Body::<f64>::new();
-        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), u, v, tol);
         let sense = a.get_face(fa).unwrap().sense;
         b.set_face_sense(fb, !sense).unwrap();
         let read = door(&a, fa, &b, fb);
@@ -501,9 +495,9 @@ mod lever_rows {
         let theta = 0.105 * band().escalate();
         let (u, v) = ((-0.3, 0.3), (9.0, 10.0));
         let mut a = Body::<f64>::new();
-        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, u, v, tol);
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), u, v, tol);
         let mut b = Body::<f64>::new();
-        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), None, u, v, tol);
+        let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), u, v, tol);
         let sense = a.get_face(fa).unwrap().sense;
         b.set_face_sense(fb, !sense).unwrap();
         let read = door(&a, fa, &b, fb);

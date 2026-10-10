@@ -25,8 +25,7 @@
 //!   linearized implicit residual at the fixed schedule plus its
 //!   certified composite hull sup over the whole span.
 //! * **on-NURBS residual**: `|C(t) − S(u*, v*)|` at a **certified foot
-//!   point** ([`geom::NurbsSurface::project`], D9-fixed),
-//!   the foot's own orthogonality residuals banded alongside, and the
+//!   point** ([`geom::NurbsSurface::project`], D9-fixed), and the
 //!   between-samples obligation discharged by the tensor-product
 //!   Bernstein composite `sup_t |S(P(t)) − C(t)|` — a whole-curve
 //!   bound, not a sampled max.

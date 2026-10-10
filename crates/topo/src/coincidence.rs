@@ -13,10 +13,9 @@
 //! input's table and the row survives whatever the operation later
 //! does to those cells (a merge, a split into fragments).
 //!
-//! What is recorded is what a ladder decides from a margin. A pair a
-//! ladder settles before any margin (the same key, the same
-//! [`crate::GeomSource`]) is structure and is not recorded, and an ON
-//! verdict that only places topology is not a coincidence (D1).
+//! What is recorded is what a ladder decides from a margin. A pair on
+//! one surface key is structure and is not recorded, and an ON verdict
+//! that only places topology is not a coincidence (D1).
 
 use geom_core::MarginDiag;
 
@@ -76,9 +75,16 @@ pub enum Relation {
     /// first's heading through it (`aligned`, a smooth joint) or
     /// turning back along it (a cusp).
     Tangent {
-        /// Whether the second continues the first's heading rather
-        /// than reversing it.
+        /// Whether the second carries on the first rather than
+        /// reversing it.
         aligned: bool,
+    },
+    /// Two surfaces touch tangentially along a locus: their outward
+    /// sides opposed (a tangent contact) or, `seam`, one surface carried
+    /// on into the other.
+    TangentContact {
+        /// The outward sides agree: a seam.
+        seam: bool,
     },
     /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
@@ -88,15 +94,43 @@ pub enum Relation {
     CoRuled,
 }
 
+impl Relation {
+    /// The class a declaration of a face pair glued under this relation
+    /// asserts: one carrier opposed a `Rest` contact, aligned a
+    /// continuation, a tangency a `Tangent` contact or a seam. `None`
+    /// for a relation that glues no face pair.
+    #[must_use]
+    pub const fn glued_class(self) -> Option<crate::contact::BooleanCoincidence> {
+        use crate::contact::BooleanCoincidence as C;
+        match self {
+            Self::SameOpposite => Some(C::REST),
+            Self::SameOriented => Some(C::Continuation),
+            Self::TangentContact { seam: false } => Some(C::TANGENT),
+            Self::TangentContact { seam: true } => Some(C::Seam),
+            Self::Tangent { .. }
+            | Self::OnCarrier
+            | Self::EqualAngles
+            | Self::Coaxial
+            | Self::CoRuled => None,
+        }
+    }
+}
+
 /// The decision a row was recorded at: a closed set, one per site
 /// that decides a coincidence from values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DecisionSite {
-    /// The plane ladder's declared rung: a declared pair of planes read
-    /// as one displacement over its consumed extent.
+    /// The plane ladder: a pair of planes the operation glued, read as
+    /// one displacement over its consumed extent.
     PlaneLadder,
-    /// The carrier ladder's declared rung, for a curved pair.
+    /// The carrier ladder, for a curved pair.
     CarrierLadder,
+    /// The tangent witness lane: two faces touching tangentially along
+    /// a closed-form locus or a shared rim, verified along it.
+    TangentWitness,
+    /// The cylinder×sphere pair's coaxial classification: the sphere's
+    /// centre on the cylinder's axis.
+    CoaxialSphere,
     /// A split's ON verdict at a vertex whose neighbourhood leaves it
     /// with two or more runs on one side, so pieces of one side touch
     /// there.

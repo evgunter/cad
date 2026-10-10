@@ -223,7 +223,7 @@ fn edge_rest_promoted_d4_pin() {
 /// Corner-flush (contact-square edges collinear with the slab's own
 /// rim, the boundary-on-boundary class (iii)): the declared ∪ BUILDS
 /// through the same consumed class, and the
-/// undeclared door refuses unchanged (the ladder is law). ∖ returns
+/// undeclared door glues the same way (D10). ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
 fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
@@ -238,16 +238,10 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
 
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
-    // Undeclared: the coincidence door refuses first now (M4 PR 5's
-    // rung (b) narrowing — value equality never classifies).
-    let err = union(&slab, &corner, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-        "undeclared corner-flush ∪ must refuse at the coincidence door, got {err:?}"
-    );
-    // Declared: the join builds the corner-flush mate (the same
-    // frontier as the crosslap; `crosslap_rest.rs` holds the headline
-    // pins, `m5_s1_rest_zip.rs` the exact-volume row for this shape).
+    // The join builds the corner-flush mate, declared or not (the
+    // same frontier as the crosslap; `crosslap_rest.rs` holds the
+    // headline pins, `m5_s1_rest_zip.rs` the exact-volume row and the
+    // undeclared row for this shape).
     let glued = run_body(union_with as BoolOp<T>, &slab, &corner);
     assert!(
         glued.contacts.vv.is_empty()

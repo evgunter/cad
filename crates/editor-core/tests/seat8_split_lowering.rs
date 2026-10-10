@@ -2,12 +2,11 @@
 //! moved with it** — the SEAT-4/5/7 method, for the first verb whose
 //! result is two-sided.
 //!
-//! `Node::Split` now builds a `verbs::Verb`, runs it through the split
+//! `Node::Split` builds a `verbs::Verb`, runs it through the split
 //! door, takes its birth record out of the closed record channel and
-//! its two sides out of the door's own out-type, stamps both sides in
-//! one provenance index space, and emits names from the record. That
-//! is a re-plumbing, and a re-plumbing's failure mode is a difference
-//! nobody looks for — so:
+//! its two sides out of the door's own out-type, and emits names from
+//! the record. A re-plumbing's failure mode is a difference nobody
+//! looks for — so:
 //!
 //! - **The wire format**: a registered document carrying a split AND
 //!   two projections off it saves, loads and re-saves byte-identically.
@@ -25,21 +24,18 @@
 //!   where the projection reads it: a half selected by ROLE, an empty
 //!   half refused typed, a present half handed on as the split's own
 //!   body.
-//! - **The one-index-space stamping** across both halves is a guarded
-//!   property here, not a comment in the lowering.
 //!
 //! What already covers this and what these rows add is the same
 //! division SEAT-4 recorded: `m10_p_fence` digests every body point's
 //! bits corpus-wide and `lib_g16_corpus_name_digests` digests every
 //! name table, so either would catch a lowering that changed geometry
-//! or names — and neither says which document did it, neither reaches
-//! the provenance tables, and neither sees an `Empty` side at all
+//! or names — and neither says which document did it, and neither sees
+//! an `Empty` side at all
 //! (there is no body to digest and no name to emit for one).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ExtrudeSide;
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::corpus;
@@ -52,7 +48,6 @@ use editor_core::{
 };
 use fixture::digest::digest;
 use fixture::{len, scl, square, tol};
-use topo::{Body, SourceExpr};
 
 /// The registered split documents, by name: a tilted plane through a
 /// cylinder (curved section edges), a plane through a box with both
@@ -141,8 +136,8 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 // this unit's addition to it.
 
 /// **The registered split documents' evaluations are bit-identical**
-/// through the verb lowering — bodies on both sides, provenance stamps,
-/// name tables — one committed number each.
+/// through the verb lowering — bodies on both sides and name tables —
+/// one committed number each.
 ///
 /// The numbers were taken on this branch and re-taken on the extracted
 /// merge base with this file and the shared feed copied onto it; all
@@ -212,6 +207,13 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
 /// f64 and Interval rows held), and no name table did.
 ///
+/// RE-BLESSED, all three, for INTENT stage 4 E (booleans glue on Zero):
+/// a body no longer carries provenance side tables (`GeomSource`
+/// stamps, field and axis sources), and the digest feeds each body's
+/// `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
 /// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
 /// to turn its offset from the axis: 8 of its points moved by at most 2
 /// ulps (`m10_p_fence`'s header has the dump), and no name table did.
@@ -219,9 +221,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x3c8a_06a4_0790_b026u64),
-        ("part_select", 0x0f2b_e2d0_e2c1_5eff),
-        ("kitchen_sink", 0x20dd_5871_7172_fac6),
+        ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
+        ("part_select", 0x90fb_17e7_6b0b_54f9),
+        ("kitchen_sink", 0x00a8_c564_60a9_8611),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -257,7 +259,7 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     }
     assert!(
         moved.is_empty(),
-        "these documents' evaluations moved — a side, its stamps or the name table:\n{}",
+        "these documents' evaluations moved — a side or the name table:\n{}",
         moved.join("\n")
     );
 }
@@ -338,7 +340,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x4da244313ad3855f,
+        got, 0x392d4572060a0b1d,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -355,8 +357,7 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
 /// it reads it.** `Node::Part` selects a half by ROLE — above or below
 /// the plane's normal, never an index — refuses an empty half typed
 /// (`EmptyHalf`, naming the split and the side), and hands a present
-/// half on as the split's OWN body: the same `Arc`, no clone, no
-/// re-stamp. Those three are the contract the split's out-type carries
+/// half on as the split's OWN body: the same `Arc`, no clone. Those three are the contract the split's out-type carries
 /// two role-tagged `Body | Empty` sides for, and the reason it is not
 /// a list of bodies or a body with a side marker.
 #[test]
@@ -395,82 +396,5 @@ fn the_projection_reads_the_two_sided_value_by_role() {
     assert!(
         Arc::ptr_eq(side, projected),
         "the projection must hand on the split's own body, not a copy"
-    );
-}
-
-/// Every minted index this node stamped on `body`'s descriptions —
-/// surfaces, curves and points — as one set.
-fn minted_indices(body: &Body<f64>, node: RecipeNodeId) -> Vec<u32> {
-    let mut out = Vec::new();
-    let sources = body
-        .surfaces()
-        .map(|(k, _)| body.surface_source(k))
-        .chain(body.curves().map(|(k, _)| body.curve_source(k)))
-        .chain(body.points().map(|(k, _)| body.point_source(k)));
-    for source in sources.flatten() {
-        if source.node == node.0.digest() {
-            let SourceExpr::Minted { index } = source.expr else {
-                panic!("a split stamps minted sources only, found {source:?}");
-            };
-            out.push(index);
-        }
-    }
-    out
-}
-
-/// **Both halves are stamped in ONE index space** — the property the
-/// lowering's counter carry exists for, guarded rather than commented.
-///
-/// Each half's section plane is its own description with its own
-/// outward normal, and the two are the operands of any boolean that
-/// joins the halves back together (`part_select` does exactly that):
-/// a source shared between them would read as one plane at that
-/// boolean's coincidence rung while the bits say two. So every index
-/// this node minted on the above half and every index on the below
-/// half are distinct, and together they are the contiguous range a
-/// single stamp pass numbers. A lowering that restarted the counter
-/// on the second half — the red-first mutation this row was written
-/// against — gives both section planes index 0 and fails here, and
-/// fails the digest rows above with it.
-#[test]
-fn both_halves_are_stamped_in_one_index_space() {
-    let (r, split) = cube_split_at(0.5);
-    let ev = eval::<f64>(&r.doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "the fixture evaluates: {bad:?}");
-    let Some(ValuePayload::Split {
-        above: SplitSide::Body(above),
-        below: SplitSide::Body(below),
-    }) = ev.value(split).map(|v| &v.payload)
-    else {
-        panic!("the mid-plane cut yields two bodies");
-    };
-    let (a, b) = (minted_indices(above, split), minted_indices(below, split));
-    assert!(
-        !a.is_empty() && !b.is_empty(),
-        "each half carries something this node minted (its section plane at least): {a:?} / {b:?}"
-    );
-    let a_set: BTreeSet<u32> = a.iter().copied().collect();
-    let b_set: BTreeSet<u32> = b.iter().copied().collect();
-    assert_eq!(
-        a_set.len(),
-        a.len(),
-        "the above half repeats an index: {a:?}"
-    );
-    assert_eq!(
-        b_set.len(),
-        b.len(),
-        "the below half repeats an index: {b:?}"
-    );
-    let shared: Vec<u32> = a_set.intersection(&b_set).copied().collect();
-    assert!(
-        shared.is_empty(),
-        "the two halves share minted indices {shared:?} — one source over two geometries"
-    );
-    let all: BTreeSet<u32> = a_set.union(&b_set).copied().collect();
-    let expected: BTreeSet<u32> = (0..u32::try_from(all.len()).unwrap()).collect();
-    assert_eq!(
-        all, expected,
-        "the two halves' indices are not one contiguous space from 0"
     );
 }

@@ -2,11 +2,10 @@
 id: rounded-stack-subtract-and-intersect-refuse-fallback-extent
 kind: issue
 title: The rounded two-plate stack's subtract and intersect refuse FallbackExtentUnsupported with every finding declared
-status: parked
+status: open
 opened: 2026-10-01
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the review of PR 3657, measured on `d2d5b09076`.
@@ -113,3 +112,7 @@ on either side of it) is the open question here.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the extent pass's exemption is keyed on declarations (ops.rs Exempt::Declared/Rest), which stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E gives the extent pass's exemption the same pairs declared or not, because the glue door declares every Zero-decided continuation (`crates/topo/src/boolean/glue.rs:72`–`:78`). An undeclared stack is the declared one bit for bit, refusal included (`crates/sweep/tests/reach_continuation.rs:1226`–`:1237`). The refusals stand unchanged. A ∪ B of the thin plate in the thick one's wall still refuses `FallbackExtentUnsupported` (`reach_continuation.rs:1233`), and so do the half-rod stack's ∩ and ∖ (`crates/sweep/tests/reach_aligned_half_rods.rs:126`). The open question is unchanged: a certificate of abutment for an aligned continuation.

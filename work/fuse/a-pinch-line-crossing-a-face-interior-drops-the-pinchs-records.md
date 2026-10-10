@@ -2,11 +2,10 @@
 id: a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records
 kind: issue
 title: A pinch line crossing a face's interior drops the pinch's records at the new pinch end
-status: parked
+status: open
 opened: 2026-10-03
 priority: P1
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -59,3 +58,7 @@ construction, as a v-v row of the result. Then flip the pinned test to
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: a missing v-v contact record behind tier-3′ UndeclaredContact; stage 4 replaces the record/refusal pair with the recording door and a finding. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not reach this. The missing record is a v-v row at a pierce, not a face pair, and E's door glues and records face pairs only (`crates/topo/src/boolean/glue.rs:40`). `a_pinch_line_through_a_face_drops_its_records_at_the_new_end` (`crates/topo/tests/union_flush_onto_edge_contact.rs:780`) is unchanged on E and pins the failure as it stands. "Owed" stands.

@@ -3512,7 +3512,6 @@ const READ_FIXTURES: [(&str, BuildFixture); 6] = [
         crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             tol,

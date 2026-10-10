@@ -258,8 +258,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    "ParamSourceAttach/FieldNotOnKind",
-    "ParamSourceAttach/StaleKey",
     "PayloadExpr",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
@@ -3434,20 +3432,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     for (n, e) in naming {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
-    for (n, e) in [
-        ("StaleKey", topo::ParamAttachError::StaleKey),
-        (
-            "FieldNotOnKind",
-            topo::ParamAttachError::FieldNotOnKind {
-                field: topo::SurfaceField::TorusMinorRadius,
-            },
-        ),
-    ] {
-        rows.push(row(
-            &format!("ParamSourceAttach/{n}"),
-            NodeErrorKind::ParamSourceAttach(e),
-        ));
-    }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
     let wraps: [(&str, Wrap); 5] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
@@ -3504,48 +3488,25 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
-        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError, PartFault,
-        SitedRef, WitnessAge, WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
+        InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
-    let sited = |node| SitedRef {
-        at: RecipeNodeId::new(0, tagged(node)),
-        name: stable(EntityKind::Face, node),
-    };
-    let finding = |relation| FlushFinding {
-        pair: (sited(2), sited(3)),
-        class: BooleanCoincidence::REST,
-        evidence: FlushEvidence {
-            relation,
-            rung: FlushRung::DecidedCoincident,
-        },
-    };
     let mut rows = vec![
         row(
-            "UndeclaredContact(rest)",
-            NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(finding(topo::PlaneRelation::SameOpposite)),
-                merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
-            },
-        ),
-        row(
-            "UndeclaredContact(flush, merged)",
-            NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(finding(topo::PlaneRelation::SameOriented)),
-                merged: Box::new((vec![sited(2), sited(4)], Vec::new())),
-                diag: diag(),
-            },
-        ),
-        row(
-            "UndeclarableContact",
-            NodeErrorKind::UndeclarableContact {
-                row: Box::new(face()),
-                diag: diag(),
+            "UnionFoldStep",
+            NodeErrorKind::UnionFoldStep {
+                member: RecipeNodeId::new(0, tagged(2)),
+                refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
+                    decision: topo::BooleanDecision::Coincidence(
+                        topo::Coincide::Carriers,
+                        topo::DeclarationRead::Moot,
+                    ),
+                    diag: diag(),
+                })),
             },
         ),
         row(
