@@ -6434,6 +6434,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unlocalized_tag",
+        values: &["containment", "empty", "invalid", "lane", "refused", "unnamed"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "unmirrored_select_tag",
         // Twice on purpose: one word for two arms, and the multiset is
         // what says the two are held equal here rather than by prose.
