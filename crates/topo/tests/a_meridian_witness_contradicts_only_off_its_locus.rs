@@ -101,3 +101,30 @@ fn a_meridian_lifted_beyond_the_band_contradicts_under_the_sag() {
         "the sample is the miss"
     );
 }
+
+/// The span-too-wide refusal rests on two DEFINITE readings (the span
+/// bound decided past the band, the sample decided on the surface), so
+/// it is built off the frame's escalation log: a node that builds past
+/// an unglued pair must not read to the driver as undecided. Both
+/// readings stay on the verdict log.
+#[test]
+fn the_span_too_wide_refusal_is_not_on_the_escalation_log() {
+    let bracket = geom_core::k_stats::Bracket::open();
+    let out = read(0.0);
+    let log = bracket.finish();
+    assert!(
+        matches!(out, Err(ContactRefusal::Escalated { .. })),
+        "{out:?}"
+    );
+    assert!(
+        log.escalations.is_empty(),
+        "no escalation on the log: {:?}",
+        log.escalations
+    );
+    for name in ["contact_tangent_on_1", "contact_tangent_off_1"] {
+        assert!(
+            log.verdicts.iter().any(|v| v.predicate == name),
+            "{name} decided and recorded"
+        );
+    }
+}
