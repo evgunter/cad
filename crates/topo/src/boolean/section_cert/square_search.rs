@@ -747,8 +747,9 @@ pub(super) fn dump_line(what: &str, ring: &Ring, wall: &Wall) -> String {
         ),
     };
     format!(
-        "{{\"what\": \"{what}\", \"torus\": {{\"c\": {}, \"a\": {}, \"b1\": {}, \"R\": {:e}, \"r\": {:e}}}, \
+        "{{\"what\": \"{what}\", \"eps\": {:e}, \"torus\": {{\"c\": {}, \"a\": {}, \"b1\": {}, \"R\": {:e}, \"r\": {:e}}}, \
          \"wall\": {{\"o\": {}, \"d\": {}, \"e1\": {}, \"rc\": {:e}}}, \"answer\": {answer}}}",
+        band().zero(),
         xyz(ring.c - Point3::origin()),
         xyz(ring.a),
         xyz(ring.b1),

@@ -21,9 +21,10 @@ values, by a route that never reads the meridian plane the arm works in:
 Then, for every classified pose:
 
 - the classes must match part for part, and `single` must mean one component;
-- each witness must lie within `1e-12` of the scale of both carriers (true
-  distances at 40 digits) and on a component of its part's classes, distinct
-  components for distinct parts.
+- each witness must lie within the run's `eps` (the square reading turns the
+  wall by a tilt the band admits) plus `1e-12` of the scale of both carriers
+  (true distances at 40 digits) and on a component of its part's classes,
+  distinct components for distinct parts.
 
 It prints the counts and the worst witness distance, and exits non-zero on any
 violation. Run:
@@ -359,7 +360,7 @@ def check(line):
         w = vec(p["witness"])
         off = max(abs(pose.torus_distance(w)), abs(pose.wall_distance(w)))
         worst = max(worst, off / pose.scale)
-        if off > mpf(10) ** -12 * pose.scale:
+        if off > mpf(d["eps"]) + mpf(10) ** -12 * pose.scale:
             bad.append("%s: the witness %s is %s off" % (d["what"], p["witness"], mp.nstr(off, 5)))
         k = component_of(pose, nodes, comp_of, w)
         if k is None or classes[k] != (p["torus"], p["wall"]) or k in seen:

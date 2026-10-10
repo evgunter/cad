@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::germ_pair;
+use crate::common::oracles::volume_slack;
 use crate::revolve_common::{self, axis_y, validated};
 
 use core::f64::consts::FRAC_PI_2;
@@ -192,12 +193,11 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
                 Ok(()),
                 "{what} at {pose}: tier 3"
             );
-            let got = topo::mass_properties(&b.body, Tol::witness())
-                .expect("the volume integrates")
-                .volume;
+            let m = topo::mass_properties(&b.body, Tol::witness()).expect("the volume integrates");
             assert!(
-                (got - want).abs() <= 1e-9 * want.max(1.0),
-                "{what} at {pose}: volume {got} against the closed form {want}"
+                (m.volume - want).abs() <= volume_slack(&m, want),
+                "{what} at {pose}: volume {} against the closed form {want}",
+                m.volume
             );
             // The rod pieces (∩, `c ∖ h`) carry the cap's ellipse on
             // their wall, which the at-infinity probe cannot measure in

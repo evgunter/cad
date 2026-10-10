@@ -18,6 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::oracles::volume_slack;
 use crate::revolve_common;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -64,12 +65,6 @@ fn rod(x: (f64, f64), (h, e): (f64, f64), rc: f64) -> AtRestBody<f64> {
     .expect("the rod extrudes")
     .body;
     finished("the rod", b, Tol::witness())
-}
-
-fn volume(b: &Body<f64>) -> f64 {
-    topo::mass_properties(b, Tol::witness())
-        .expect("the volume integrates")
-        .volume
 }
 
 fn in_solid(b: &Body<f64>, q: Point3<f64>) -> Option<bool> {
@@ -122,11 +117,12 @@ fn answers(
             "{what}, {:?}: tier 3",
             w.op
         );
-        let got = volume(&b.body);
+        let m = topo::mass_properties(&b.body, Tol::witness()).expect("the volume integrates");
         assert!(
-            (got - w.volume).abs() <= 1e-9 * w.volume.max(1.0),
-            "{what}, {:?}: volume {got} against the closed form {}",
+            (m.volume - w.volume).abs() <= volume_slack(&m, w.volume),
+            "{what}, {:?}: volume {} against the closed form {}",
             w.op,
+            m.volume,
             w.volume
         );
         for (q, inside) in probes.into_iter().zip(w.inside) {
