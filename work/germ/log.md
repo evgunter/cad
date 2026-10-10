@@ -889,3 +889,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-10-10 21:58 — PR 4592 (pn-apex-line outcomes) is up and CI is green. Frozen head `c801c98a4`. A HOLDOUT concurrent pair, r4592a and r4592b, runs from one brief (sha256 `fe29a63e2929`) as local background subagents dispatched together. Coding byte 29, odd: A = R2.
   - The lane departed from the item, with a measurement: the pair is bounded by the far nappe's start `|δ|/D`, not `|δ|/M`, because the item's π/6 pose was 0.04 m off, not "about ε". The √ε asymptote offset is derived to be inside the band whenever the pair is served.
   - The half-angle measure-first lane has no PR yet.
+- 2026-10-10 22:58 — Check-in.
+  - The r4592 pair is running. The container restarted at about 21:56, before their dispatch, so they are unaffected.
+  - The half-angle lane is running its topo battery.
+  - **The P1 c5 is scoped.** What GERM owes is `join.rs` `pair_section_frame`'s plane × torus germ frame. Four consumers stop there, and the corner bar's lens obligation is among them. A spec lane is dispatched first, on the cone-sector spec's method: `session_01VC2opodGJHiq98up3Jx4ua`, branch `germ/torus-plane-frame-spec`. Any forks go to the designers.
