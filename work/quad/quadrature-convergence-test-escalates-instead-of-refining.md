@@ -229,3 +229,19 @@ longer exists) and the `VolumeWall` machinery in `demos/tour`. The
 mechanism this row names, an in-band convergence test escalating
 instead of refining, is untouched. The CLEAVE instances above are not
 re-measured, so the row stays open.
+
+## A fifth copy, and a second witness (FLUX, 2026-10-10)
+
+`geom_brep::props::spiric::spiric_face_rounds` (the spiric-bounded cap
+and torus wall lane) runs the same round loop on the same meter and
+decides `props_quad_converged` with the same `?`, so the fix owes it
+too. Measured while that lane was a third-order rule: the sectioned
+vessel's torus wall (`crates/sweep/tests/spiric_rim.rs`,
+`the_sectioned_vessel_hollows_to_its_measured_volume`, wall `1/128`)
+landed round 0 at `width_len = 1.0304e-6` against the target
+`1.024e-6`, margin `−6.42e-9` in band `(1e-9, 1e-8)`, and tier 3
+refused `VolumeUncomputable { Escalated { props_quad_converged } }`
+on a face the next round would have certified. The landed fifth-order
+rule converges that face at round 0 far below the target, so no row
+pins the case now; it is a coincidence of one width against one
+target, which is this issue's shape.

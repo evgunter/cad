@@ -410,7 +410,8 @@ fn wall_probes(tol: Tol) {
     let sectioned = pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body;
-    let props = pncad::topo::mass_properties(&sectioned, tol).expect("the sectioned hollow's props");
+    let props =
+        pncad::topo::mass_properties(&sectioned, tol).expect("the sectioned hollow's props");
     println!(
         "   the sectioned vessel's hollow measures {} ± {} m³ (its spiric faces by quadrature)",
         props.volume, props.volume_pad

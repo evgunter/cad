@@ -569,19 +569,6 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     )
 }
 
-/// A loop edge read at the interval scalar.
-fn lift_edge<T: Decide + Bounds + CertifiedEnclosure>(e: &LoopEdge<T>) -> LoopEdge<Interval> {
-    LoopEdge {
-        carrier: e.carrier.map_scalar(Interval::from_certified),
-        carrier_id: e.carrier_id,
-        t0: Interval::from_certified(e.t0),
-        t1: Interval::from_certified(e.t1),
-        forward: e.forward,
-        start: e.start,
-        end: e.end,
-    }
-}
-
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
 /// ellipse's major) times its span, a spiric's speed bound
 /// `r(R − r)/f_min` times its span.
@@ -646,13 +633,6 @@ fn spiric_edge_q(
     })
 }
 
-/// A harmonic chart image's coefficient read as exact `f64` structure
-/// (C6): `Some` only for a point bracket.
-fn exact<T: Decide + Bounds + CertifiedEnclosure>(x: T) -> Option<f64> {
-    let x = Interval::from_certified(x);
-    (x.is_certified() && x.lo() == x.hi()).then_some(x.lo())
-}
-
 /// **The spiric-bounded face lane**: a plane cap or a torus wall with a
 /// `Curve3::Spiric` on its boundary, assembled for
 /// [`spiric::spiric_face_rounds`] (its module docs carry the
@@ -668,7 +648,7 @@ fn exact<T: Decide + Bounds + CertifiedEnclosure>(x: T) -> Option<f64> {
 /// meridian (`u` fixed, `v` linear) — read as exact structure. Any
 /// other image refuses typed.
 #[allow(clippy::too_many_arguments)]
-fn spiric_face<T: Decide + Bounds + CertifiedEnclosure>(
+fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
@@ -680,6 +660,21 @@ fn spiric_face<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<RoundOutcome, PropsError> {
     let centre = centre.unwrap_or_else(Point3::origin);
     let unsupported = |what| PropsError::QuadratureUnsupported { what };
+    let lift_edge = |e: &LoopEdge<T>| LoopEdge {
+        carrier: e.carrier.map_scalar(Interval::from_certified),
+        carrier_id: e.carrier_id,
+        t0: Interval::from_certified(e.t0),
+        t1: Interval::from_certified(e.t1),
+        forward: e.forward,
+        start: e.start,
+        end: e.end,
+    };
+    // A harmonic image's coefficient read as exact `f64` structure
+    // (C6): `Some` only for a point bracket.
+    let exact = |x: T| {
+        let x = Interval::from_certified(x);
+        (x.is_certified() && x.lo() == x.hi()).then_some(x.lo())
+    };
     let face = match surface {
         Surface::Plane { .. } => {
             let corrupt =
@@ -688,10 +683,10 @@ fn spiric_face<T: Decide + Bounds + CertifiedEnclosure>(
             let lk = body.half_edges.get(*first).ok_or_else(corrupt)?.parent_loop;
             let fk = body.loops.get(lk).ok_or_else(corrupt)?.face;
             let face = body.faces.get(fk).ok_or_else(corrupt)?;
-            let mut loops = vec![outer.iter().map(lift_edge).collect::<Vec<_>>()];
+            let mut loops = vec![outer.iter().map(&lift_edge).collect::<Vec<_>>()];
             for &rk in &face.rings {
                 let (ring, _) = super::loop_edges(body, rk).map_err(|_| corrupt())?;
-                loops.push(ring.iter().map(lift_edge).collect());
+                loops.push(ring.iter().map(&lift_edge).collect());
             }
             let Some(anchor) = loops[0].first().map(|e| e.carrier.eval(e.t0)) else {
                 return Err(PropsError::DegenerateFace);
