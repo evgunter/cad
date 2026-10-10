@@ -81,16 +81,20 @@ corner at its own reach, and edges reaching farther read the gap as
 metres.
 
 **Fix.** A bound is read only against the faces it does not bound (its
-own and the one across it on the shared-bound chain). An `On` or
-in-band reading there votes nothing only where that plane is the bound's
-own face's, or the across face's, as far as the reading reaches (the
-classed edges and the corner's sectors, `bool_faces_parallel`): coplanar
+own and the one across it on the shared-bound chain). An `On` or in-band
+reading there votes nothing only where that plane is the bound's own
+face's, or the across face's, facing the same way, as far as the reading
+reaches (the classed edges and the corner's sectors,
+`bool_corner_one_plane`, the chord between the unit normals): coplanar
 or tangent faces, such as a sphere's faces at its pole, read alike met
 or joined. Anywhere else the corner goes to `cone_read`, which reads each
-edge at its own reach. The two-face wedge's bisector, whose `On` voted
-met, takes the same story. After it: 0 wrong at every ε; `wedge_classes`
-refusals on the fuzz fall from 292/89/14 to 143/45/2 (the in-band arm
-now reads through `cone_read`, as `cone_side` does: 143/43/2). The fuzz
+edge at its own reach. A corner no bound reads off any plane is met only
+where every face lies on one plane, facing one way. The two-face wedge's
+bisector takes the same story, and its `Out` now sets the wedge hollow,
+so an in-band edge row on a reflex wedge reads as a polygon cone rather
+than refusing; an in-band edge row on a met corner does too, as on a
+hollow one. Only the in-band escalation is read so; any other side-code
+error propagates. After it: 0 wrong at every ε on the fuzz, and the fuzz
 asserts the long-probe family again. A first cut that sent every
 non-structural `On` to `cone_read` refused
 `sweep::tilted_sphere_pair::a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`
@@ -98,6 +102,10 @@ at ε 1e-6 (`bool_cone_within` in band beside a pole whose faces share
 one tangent plane); the coincidence test is what keeps it.
 
 **Pins.** `tests/a_corner_flat_at_its_short_bounds.rs` (every pose,
-both dent signs, six op orders; red on main),
+both dent signs, six op orders; red on main, in the fast set),
 `sectors::tests::a_reflex_edge_on_or_in_band_reads_as_a_polygon_cone`,
-and the fuzz's long-probe column.
+`a_wedge_reads_each_arm_of_its_bisector` and
+`a_direction_in_band_of_a_corners_face_reads_it_as_a_polygon_cone`
+(each read against a closed form; the last two red on main's arms), and
+the fuzz's long-probe column. Filed:
+`work/hone/boolean-reads-two-faces-coplanar-three-ways-at-three-levers.md`.
