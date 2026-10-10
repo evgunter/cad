@@ -747,3 +747,24 @@ Signed (CLEAVE orchestrator).
   - the K-dependence of `GrazeAgainstNeighbours` and the C5 offer at K < 2 are filed.
 - **PR 4564** (`wedge_classes` On; single FULL review): in review. The lane pushed an empty commit
   to kick CI, against the rules; noted.
+- **PR 4564** (`wedge_classes` On; single FULL review): APPROVE-WITH-FIXES.
+  - Confirmed: 0 wrong across 9 fuzz seeds; 4,649 refusals now answer, each matching the exact
+    oracle.
+  - Ruled: disclose and test the two-face arm; give `one_plane` its own predicate name; route the
+    met in-band row like the hollow one; narrow the `Err(_)` catch; move the pin to the fast set.
+- **PR 4581** (near-tangent invariants; single FULL review): NOT-MERGEABLE-AS-IS. The fix is right.
+  At 1e-12, 4 runs that refused `ClassificationInvariant` now ship bodies failing tier 3′. That is
+  FUSE's stale-contact / undeclared-contact class, and the door runs no census over its result.
+  - **Orchestrator ruling: trade accepted, made explicit.**
+    - The refusal it replaces was a wrong, translation-dependent reading.
+    - Main already ships identical findings at the neighbouring pose, and a sub-ulp pose change
+      puts 25 main runs into this class.
+    - The four runs are pinned at their current findings, pointing to FUSE's row and to
+      `boolean-door-runs-the-census-over-its-result`.
+    - Reported to Ev.
+  - Fix pass also covers:
+    - the sweep pin checks U/I/S, closed forms and tier 3′ (it passed under a germ-sign mutation);
+    - `ExtentBall` radii that enclose their region;
+    - one germ-sign method;
+    - the probe fixture made bit-identical again.
+- **PR 4571 merged after a re-run** (see above). The seal's fired `blocked_on` entry is pruned.
