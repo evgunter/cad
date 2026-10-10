@@ -10,7 +10,7 @@ cost: M
 
 
 
-(Option C of design-fork row 103: a sharpness improvement, not an alternative to the bound ending.)
+(Option C of design-fork row 104: a sharpness improvement, not an alternative to the bound ending.)
 
 ## What
 

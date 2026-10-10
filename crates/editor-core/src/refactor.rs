@@ -365,7 +365,13 @@ fn carry<E>(
             Some(&carried) => Ok(carried),
             None => match source.operation_of(var) {
                 Some(input) => Err(RemapMiss::Input(input)),
-                None => Err(RemapMiss::Read { slot, var }),
+                None => Err(RemapMiss::Read {
+                    slot,
+                    var,
+                    output: source
+                        .var(var)
+                        .is_some_and(|held| held.def().output().is_some()),
+                }),
             },
         };
         let carried = match remap_node(node, &node_map, &rd, &step_map, &regauge) {
@@ -1840,9 +1846,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::AnonymousVarUnread { .. }
             | EditError::SharedVarNeedsName { .. }
             | EditError::DeleteAnonymousVar { .. }
-            | EditError::MeasureMalformed { .. }
-            | EditError::AssertionTarget { .. }
             | EditError::AssertionDimension { .. }
+            | EditError::ConstructionReadsObserved { .. }
             | EditError::ContinuousVarCannotBeCount { .. }
             | EditError::UnknownVar { .. }
             | EditError::VarNameTaken { .. }
@@ -2139,6 +2144,16 @@ enum RemapMiss {
     Read {
         /// The reader's operand.
         slot: crate::OperandSlot,
+        /// The read.
+        var: VarId,
+        /// Whether the read is an operation's output (a stranded one),
+        /// rather than a variable the carry moves on its own.
+        output: bool,
+    },
+    /// An assertion's value reading an output no live operation
+    /// defines: a stranded measured value, which the carry cannot
+    /// re-point and must not keep.
+    PayloadRead {
         /// The read.
         var: VarId,
     },
@@ -2472,31 +2487,27 @@ fn remap_node(
             // remapped above.
             alignment: alignment.clone(),
         },
-        // A measure's references are BOTH names and edges, so they
-        // remap through the name door exactly once — `nm` rewrites the
-        // embedded minting node id, which is what the edge is derived
-        // from.
         // Both halves remap: the NAME through the name door, and the
         // reading SITE through the id door, because a measure's site
         // is an ordinary input edge.
-        Node::Measure { expr, refs } => Node::Measure {
-            expr: expr.clone(),
-            refs: refs
-                .iter()
-                .map(|r| {
-                    Ok(crate::node::SitedRef {
-                        at: id(r.at)?,
-                        name: nm(&r.name)?,
-                    })
+        Node::Measure { primitive } => Node::Measure {
+            primitive: primitive.try_map(|r| {
+                Ok::<_, RemapMiss>(crate::node::SitedRef {
+                    at: id(r.at)?,
+                    name: nm(&r.name)?,
                 })
-                .collect::<Result<_, RemapMiss>>()?,
+            })?,
         },
-        Node::Assertion {
-            measure,
-            bound,
-            dir,
-        } => Node::Assertion {
-            measure: rd(crate::OperandSlot::Measure, *measure)?,
+        // A value reading a measure's output directly re-points as an
+        // operand does, and one reading a stranded output refuses; any
+        // other value is a slot variable, carried as the bound is. The
+        // value is no operand, so its miss names no slot of its own.
+        Node::Assertion { value, bound, dir } => Node::Assertion {
+            value: match rd(crate::OperandSlot::Input, *value) {
+                Err(RemapMiss::Read { output: false, .. }) => *value,
+                Err(RemapMiss::Read { var, .. }) => return Err(RemapMiss::PayloadRead { var }),
+                read => read?,
+            },
             bound: *bound,
             dir: *dir,
         },
@@ -3354,11 +3365,17 @@ pub fn split(
                     input: doc.spoken(input),
                 }),
             },
-            RemapMiss::Read { slot, var } => SplitError::PartEdit {
+            RemapMiss::Read { slot, var, .. } => SplitError::PartEdit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: doc.spoken(old),
                     slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
+                }),
+            },
+            RemapMiss::PayloadRead { var } => SplitError::PartEdit {
+                error: Box::new(EditError::PayloadUnresolvedVar {
+                    var: doc.spoken_var(var),
+                    node: doc.spoken(old),
                 }),
             },
             RemapMiss::Name { name, missing } => SplitError::reaches(doc, old, &name, missing),
@@ -4227,11 +4244,17 @@ pub fn inline(
                     input: part.spoken(input),
                 }),
             },
-            RemapMiss::Read { slot, var } => InlineError::Edit {
+            RemapMiss::Read { slot, var, .. } => InlineError::Edit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: part.spoken(old),
                     slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
+                }),
+            },
+            RemapMiss::PayloadRead { var } => InlineError::Edit {
+                error: Box::new(EditError::PayloadUnresolvedVar {
+                    var: part.spoken_var(var),
+                    node: part.spoken(old),
                 }),
             },
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),
@@ -4595,7 +4618,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
                 );
             }
             Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
-            Err(RemapMiss::Read { var, .. }) => {
+            Err(RemapMiss::Read { var, .. } | RemapMiss::PayloadRead { var }) => {
                 panic!("a name miss is not a read miss, got {var:?}")
             }
             Ok(out) => panic!("INNER is unmapped, got {out:?}"),

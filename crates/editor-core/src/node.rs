@@ -1342,13 +1342,12 @@ pub enum PartSelect<S = crate::VarId> {
 
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
-/// but the two the measurement vocabulary adds.
+/// but [`Node::Assertion`].
 ///
 /// The slot vocabulary is the ordinary home for a node's expressions,
 /// and it stays so: this is the escape hatch for the two expressions
-/// whose dimension a slot ADDRESS cannot fix — a measured
-/// expression's value leaves (they live inside a `MeasureExpr`, not
-/// beside it) and an assertion's bound (its dimension is the measure's).
+/// whose dimension a slot ADDRESS cannot fix — an assertion's value
+/// and its bound, whose dimension is whatever the value's is.
 ///
 /// One order, three consumers: the evaluator resolves these once, the
 /// content key hashes the resolved values, and the op reads the same
@@ -1356,30 +1355,25 @@ pub enum PartSelect<S = crate::VarId> {
 /// the key writes nothing at all for those, so no existing document's
 /// content key moves.
 pub fn payload_exprs<P, S: Slot>(node: &Node<P, S>) -> Option<Vec<&S>> {
-    expr_table!(node, value_leaves, Some, _rows => None)
+    expr_table!(node, Some, _rows => None)
 }
 
-/// **THE expression table of a node, borrow-generic**: the two payload
-/// carriers' expressions ([`payload_exprs`]) each passed through
+/// **THE expression table of a node, borrow-generic**: the payload
+/// carrier's expressions ([`payload_exprs`]) each passed through
 /// `$wrap`, and every other node bound to `$rest` and answered by
 /// `$other` (its slot rows, or nothing). One text, so the
 /// readers [`payload_exprs`], [`Node::exprs`] and [`Node::exprs_mut`] cannot
 /// come to disagree about which node carries what: a node's slot table
-/// lists no row for the two payload carriers (`node_rows`' last arm),
+/// lists no row for the payload carrier (`node_rows`' last arm),
 /// and this table lists no payload for any other node.
 macro_rules! expr_table {
-    ($node:expr, $leaves:ident, $wrap:expr, $rest:ident => $other:expr) => {{
+    ($node:expr, $wrap:expr, $rest:ident => $other:expr) => {{
         match $node {
-            Node::Measure { expr, refs: _ } => {
-                let mut leaves = Vec::new();
-                expr.$leaves(&mut leaves);
-                $wrap(leaves)
-            }
             Node::Assertion {
-                measure: _,
+                value,
                 bound,
                 dir: _,
-            } => $wrap(vec![bound]),
+            } => $wrap(vec![value, bound]),
             $rest @ (Node::Datum(_)
             | Node::Profile(_)
             | Node::Extrude { .. }
@@ -1401,7 +1395,8 @@ macro_rules! expr_table {
             | Node::PlacedUnion { .. }
             | Node::InstantiatePart { .. }
             | Node::Gauge { .. }
-            | Node::Mate { .. }) => $other,
+            | Node::Mate { .. }
+            | Node::Measure { .. }) => $other,
         }
     }};
 }
@@ -1805,41 +1800,6 @@ impl core::fmt::Display for ListFault {
     }
 }
 
-/// What makes a [`Node::Measure`]'s expression unusable
-/// ([`Node::measure_fault`]) — one vocabulary for the construction
-/// door and the load door's re-check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeasureNodeFault {
-    /// A primitive addresses a reference the node does not carry. The
-    /// expression indexes `refs` positionally, so an index past its
-    /// end names nothing at all — a corrupt recipe, refused rather
-    /// than resolved to whatever happens to sit at the last position.
-    RefIndexOutOfRange {
-        /// The primitive that reads it.
-        verb: &'static str,
-        /// The out-of-range index.
-        index: u32,
-        /// How many references the node carries.
-        refs: usize,
-    },
-}
-
-// The ONE prose vocabulary for this fault, forwarded by every door
-// that renders it rather than restated.
-impl core::fmt::Display for MeasureNodeFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RefIndexOutOfRange { verb, index, refs } => write!(
-                f,
-                "`{verb}` reads reference {index}, and the measure carries {refs} — the \
-                 expression indexes the node's reference list, so this names nothing"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for MeasureNodeFault {}
-
 /// **What makes a formula unusable at a slot**
 /// ([`Node::formula_dimension_fault`]; spec D6) — the rule "a slot's
 /// formula carries the dimension the slot address fixes", asked by the
@@ -1900,56 +1860,21 @@ impl core::fmt::Display for SlotDimensionFault {
 
 /// What makes a [`Node::Assertion`]'s bound unusable
 /// ([`Node::assertion_bound_fault`]) — one vocabulary for the edit
-/// door and the load door's re-check.
-///
-/// Two arms rather than one dimension-or-nothing answer: "the
-/// reference is not a measure" and "it is, and it measures something
-/// else" are different mistakes with different repairs, and a reader
-/// should not have to decode an absent dimension to tell them apart.
+/// door, the load door's re-check and evaluation's backstop: an
+/// assertion compares one quantity, so the bound's dimension is the
+/// value's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AssertionBoundFault {
-    /// The reference names no live measure node — there is no measured
-    /// dimension for the bound to agree with.
-    TargetNotMeasure {
-        /// What the assertion references.
-        measure: RecipeNodeId,
-        /// The bound's dimension.
-        bound: Dimension,
-    },
-    /// The reference is a measure, and its dimension is not the
-    /// bound's: the assertion compares two different quantities.
-    DimensionMismatch {
-        /// The measure it constrains.
-        measure: RecipeNodeId,
-        /// What that measure yields.
-        measured: Dimension,
-        /// The bound's dimension.
-        bound: Dimension,
-    },
+pub(crate) struct AssertionBoundFault {
+    /// The value's dimension.
+    pub measured: Dimension,
+    /// The bound's dimension.
+    pub bound: Dimension,
 }
 
 impl AssertionBoundFault {
-    /// **E10's agreement itself, stated once**: an assertion compares
-    /// one quantity, so the bound's declared dimension is the one the
-    /// measure yields.
-    ///
-    /// The entry point for a caller that already HAS the measured
-    /// dimension and cannot reach the measure node —
-    /// `eval::wire`'s assertion backstop, which reads it off
-    /// the evaluated payload, the dimension the measure node's own
-    /// expression put there. [`Node::assertion_bound_fault`] is the
-    /// entry point for a caller holding the document, and reaches this
-    /// one once it has resolved the reference.
-    pub(crate) fn against(
-        measure: RecipeNodeId,
-        measured: Dimension,
-        bound: Dimension,
-    ) -> Option<Self> {
-        (measured != bound).then_some(Self::DimensionMismatch {
-            measure,
-            measured,
-            bound,
-        })
+    /// **E10's agreement itself, stated once.**
+    pub(crate) fn against(measured: Dimension, bound: Dimension) -> Option<Self> {
+        (measured != bound).then_some(Self { measured, bound })
     }
 }
 
@@ -2081,8 +2006,8 @@ impl<S: Slot> PatternKind<S> {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(bound(
-    serialize = "P: serde::Serialize, crate::measure::MeasureExpr<S>: serde::Serialize",
-    deserialize = "P: serde::Deserialize<'de>, crate::measure::MeasureExpr<S>: serde::Deserialize<'de>"
+    serialize = "P: serde::Serialize",
+    deserialize = "P: serde::Deserialize<'de>"
 ))]
 pub enum Node<P, S: Slot = crate::VarId> {
     /// A datum construction.
@@ -2760,72 +2685,31 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// clocking (A3's alignment datum).
         alignment: crate::mate::Alignment<S>,
     },
-    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
-    /// node that denotes NO body and evaluates to a typed F1 quantity.
-    ///
-    /// There is one `Measure` variant, not one per measured kind: the
-    /// quantity's dimension rides the EXPRESSION through the existing
-    /// lattice, so `distance` and `angle` are values of one node kind
-    /// rather than a parallel type vocabulary beside F1.
-    ///
-    /// # References
-    ///
-    /// `refs` is the frozen, canonical entity selection — the
-    /// [`Node::Fillet`] `selection` precedent — and the expression
-    /// addresses it by INDEX. Unlike a fillet's selection the order is
-    /// MEANINGFUL (it is argument order: `gap`'s first reference is the
-    /// containing carrier), so the vector is neither sorted nor
-    /// deduplicated; what canonicalization buys elsewhere — bit-equal
-    /// recipes for equal selections — is bought here by the indices
-    /// being part of the expression.
-    ///
-    /// # These name references ARE edges
-    ///
-    /// Declared pairs and `Mate` heads are names that are not DAG edges
-    /// (the spec D3 carve-out): they are carried as data and resolved
-    /// at their node's evaluation. A measure resolves its own,
-    /// against values that must ALREADY EXIST when it runs — so the
-    /// referenced nodes are exactly its data dependencies, and
-    /// [`crate::Doc::upstream`] reports them ([`Node::measure_sites`]).
-    /// Nothing else can order the sink after the geometry it measures:
-    /// the schedule is edge-driven, so an edgeless measure would be
-    /// scheduled at level 0 and resolve against nothing.
-    ///
-    /// **The consequence**: deleting a referenced node strands the
-    /// measure's names exactly as it strands any reader's, reported at
-    /// the delete (`Maintenance::Strand`), and the measure refuses at
-    /// evaluation until rebound. N5's dangling semantics still govern
-    /// the case they were written for — a name that stops
-    /// resolving in a still-live node's table, which the typed
-    /// resolution refusal reports and `Rebind` repairs.
+    /// **A measurement** (ERROR-DESIGN E3): an operation holding one
+    /// closed-form [`crate::MeasurePrimitive`] over two sited
+    /// references, defining one scalar output of the primitive's
+    /// dimension. That output is **observed** (D10): a function of the
+    /// built geometry, read only by an [`Node::Assertion`], directly or
+    /// through a definition. Arithmetic over measured values is a
+    /// defined variable over the measures' outputs.
     ///
     /// # What a reference denotes: the carrier AT a named node
     ///
-    /// A [`SitedRef`] is a pair — the entity's [`StableName`], and
-    /// the node its carrier is READ AT. The second half is what makes
-    /// a measure report placed geometry.
-    ///
-    /// A name alone cannot do it. N1 names embed their MINTING node,
-    /// and a rigid transform is identity-preserving: `wire_transform`
-    /// hands the input's table through by `Arc::clone` and contributes
-    /// no RolePath segment, so a transformed wall keeps the upstream
-    /// name and there is no transform-minted name to reference
-    /// instead. Resolving at the minting node therefore measured the
-    /// UNMOVED carrier — a box translated 100 m measured 5 where the
-    /// placed answer is 95, and said `Ok`.
-    ///
-    /// So the reference names the node to read at, exactly as the
-    /// interrogation doors do (`face_frame(ev, node, name)` — this is
-    /// their contract, not a new one). Selecting a wall from a
-    /// transform's own selection door and measuring it gives the
-    /// placed number, because `at` is that transform.
+    /// A [`SitedRef`] is a pair — the entity's [`StableName`], and the
+    /// node its carrier is READ AT. The second half is what makes a
+    /// measure report placed geometry: a rigid transform is
+    /// identity-preserving (it hands its input's table through and
+    /// contributes no RolePath segment), so a name resolved at its
+    /// minting node reads the UNMOVED carrier. Each `at` is a dependency
+    /// ([`crate::Doc::upstream`], [`Node::measure_sites`]): the measure
+    /// resolves its names against values that must already exist.
+    /// Deleting a referenced node strands the measure's names, reported
+    /// at the delete (`Maintenance::Strand`); a name that stops
+    /// resolving in a live node's table is N5's typed resolution
+    /// refusal, repaired by `Rebind`.
     Measure {
-        /// The measured expression: `Expr` arithmetic over
-        /// [`crate::MeasurePrimitive`] leaves that index `refs`.
-        expr: crate::measure::MeasureExpr<S>,
-        /// The referenced entities, in argument order, frozen at
-        /// authoring time.
-        refs: Vec<SitedRef>,
+        /// The measurement, over its two references in argument order.
+        primitive: crate::measure::MeasurePrimitive,
     },
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data — "this web is at least 0.5 mm" lives
@@ -2840,16 +2724,14 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// assertions report; a gating mode is additive policy, not a
     /// default this node quietly implements.
     Assertion {
-        /// The measure node this constrains — an ordinary DAG edge, so
-        /// a failed or poisoned measure poisons its assertions (F2)
-        /// rather than producing a verdict about nothing.
-        measure: S::Read,
-        /// The bound. Recipe payload rather than a slot: a slot's
-        /// address fixes its dimension, and this one's is fixed by the
-        /// MEASURE it constrains. It must type-check against that
-        /// measure's dimension; a mismatch is a typed document error at
-        /// every door, never a silent comparison of radians with
-        /// metres.
+        /// The value checked: any scalar variable, typically an observed
+        /// one (a measure's output, or a definition over outputs). Not a
+        /// slot: a slot's address fixes its dimension, and this one's is
+        /// whatever the variable's is.
+        value: S,
+        /// The bound, in the value's dimension; a mismatch is a typed
+        /// document error at every door, never a silent comparison of
+        /// radians with metres.
         bound: S,
         /// Which side of the bound the measure must fall on.
         dir: crate::measure::AssertionDir,
@@ -3158,17 +3040,14 @@ macro_rules! node_rows {
                 }
             }
             // Neither carries a SLOT. A slot's address fixes its
-            // dimension ([`SlotId::dimension`]) — that is the
-            // vocabulary's contract, read by the edit door, the load
-            // re-check and the GUI alike. A measured expression is not
-            // an `Expr` at all, and an assertion's bound takes its
-            // dimension from the MEASURE it constrains, which no slot
-            // address can state. Both are recipe payload instead, fed
-            // to the content key where a fillet's selection is fed and
-            // evaluated in their own stage.
-            Node::Measure { expr: _, refs: _ }
+            // dimension ([`SlotId::dimension`]); a measure reads names,
+            // and an assertion's value and bound take their dimension
+            // from the variable the value reads, which no slot address
+            // can state. Both are payload instead
+            // ([`payload_exprs`]).
+            Node::Measure { primitive: _ }
             | Node::Assertion {
-                measure: _,
+                value: _,
                 bound: _,
                 dir: _,
             } => {}
@@ -3370,7 +3249,7 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     /// does the load door (`PlacementRuleFault::CountSpelling`), so no
     /// stored reader is there to lower, check or re-point.
     pub(crate) fn exprs(&self) -> Vec<&S> {
-        expr_table!(self, value_leaves, core::convert::identity, rest => rest
+        expr_table!(self, core::convert::identity, rest => rest
             .rows()
             .into_iter()
             .map(|(_, e)| e)
@@ -3380,7 +3259,7 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     /// [`Node::exprs`], exclusive: the same expressions in the same
     /// order.
     pub(crate) fn exprs_mut(&mut self) -> Vec<&mut S> {
-        expr_table!(self, value_leaves_mut, core::convert::identity, rest => rest
+        expr_table!(self, core::convert::identity, rest => rest
             .rows_mut()
             .into_iter()
             .map(|(_, e)| e)
@@ -3486,14 +3365,16 @@ impl<P> Node<P> {
                 placement: _,
             }
             // A measure's references are sited names
-            // ([`Node::measure_sites`]), not operands.
-            | Node::Measure { expr: _, refs: _ } => Vec::new(),
-            Node::Profile(p) => p.frame_read().map(|r| (O::Frame, r)).into_iter().collect(),
-            Node::Assertion {
-                measure,
+            // ([`Node::measure_sites`]), and an assertion's value is a
+            // payload expression ([`payload_exprs`]): neither is an
+            // operand.
+            | Node::Measure { primitive: _ }
+            | Node::Assertion {
+                value: _,
                 bound: _,
                 dir: _,
-            } => vec![(O::Measure, *measure)],
+            } => Vec::new(),
+            Node::Profile(p) => p.frame_read().map(|r| (O::Frame, r)).into_iter().collect(),
             Node::Extrude {
                 profile,
                 distance: _,
@@ -3638,17 +3519,17 @@ impl<P> Node<P> {
                 parent: _,
                 placement: _,
             }
-            | Node::Measure { expr: _, refs: _ } => Vec::new(),
+            | Node::Measure { primitive: _ }
+            | Node::Assertion {
+                value: _,
+                bound: _,
+                dir: _,
+            } => Vec::new(),
             Node::Profile(p) => p
                 .frame_read_mut()
                 .map(|r| (O::Frame, r))
                 .into_iter()
                 .collect(),
-            Node::Assertion {
-                measure,
-                bound: _,
-                dir: _,
-            } => vec![(O::Measure, measure)],
             Node::Extrude {
                 profile,
                 distance: _,
@@ -3746,54 +3627,41 @@ impl<P> Node<P> {
     }
 
     /// **The nodes this node's measure sites are read at**, distinct
-    /// and ascending: a measure's references are names read at a node,
-    /// and reading is what the measure waits for, so these join its
-    /// upstream ([`crate::Doc::upstream`]) beside its reads. Empty for
-    /// every other node.
+    /// and in argument order: a measure's references are names read at
+    /// a node, and reading is what the measure waits for, so these join
+    /// its upstream ([`crate::Doc::upstream`]). Empty for every other
+    /// node.
     pub fn measure_sites(&self) -> Vec<RecipeNodeId> {
-        let Node::Measure { refs, .. } = self else {
+        let Node::Measure { primitive } = self else {
             return Vec::new();
         };
-        let mut v: Vec<RecipeNodeId> = refs.iter().map(|r| r.at).collect();
-        v.sort_unstable();
-        v.dedup();
+        let mut v: Vec<RecipeNodeId> = Vec::with_capacity(2);
+        for r in primitive.refs() {
+            if !v.contains(&r.at) {
+                v.push(r.at);
+            }
+        }
         v
     }
 
-    /// **E10, stated once**: what is wrong with this assertion's bound
-    /// against the node it constrains, if anything — the dimension the
-    /// measure yields, or the absence of a measure at that reference.
-    /// `None` for every node that is not a [`Node::Assertion`].
+    /// **E10, stated once**: whether this assertion's bound is
+    /// dimensioned differently from its value. `None` for every node
+    /// that is not a [`Node::Assertion`], and for one reading a variable
+    /// `doc` does not hold (the read walks' fault).
     ///
-    /// The predicate takes the DOCUMENT because the measured dimension
-    /// is another node's property, and it is what lets both doors ask
-    /// ONE question. The edit door renders the
-    /// answer as [`crate::EditError::AssertionTarget`] /
+    /// The edit door renders the answer as
     /// [`crate::EditError::AssertionDimension`] and the load door as
-    /// `SnapshotError::AssertionTarget` / `SnapshotError::AssertionBound`:
-    /// a refusal names the door it came from, and the rule is asked in
-    /// one place so the two cannot drift.
-    ///
-    /// The target's LIVENESS is not asked separately: a reference that
-    /// names no live node is not a measure, and reports as such.
+    /// `SnapshotError::AssertionBound`: a refusal names the door it came
+    /// from, and the rule is asked in one place so the two cannot drift.
     pub(crate) fn assertion_bound_fault(
         &self,
         doc: &crate::doc::Doc<P>,
     ) -> Option<AssertionBoundFault> {
-        let Node::Assertion { measure, bound, .. } = self else {
+        let Node::Assertion { value, bound, .. } = self else {
             return None;
         };
-        // The bound's dimension is its variable's kind; a bound reading
-        // a variable `doc` does not hold, or one no expression reads, is
-        // the read walks'.
-        let bound = doc.vars.get(bound)?.kind().dimension()?;
-        let (measure, _) = doc.defined_by(*measure)?;
-        match doc.nodes.get(&measure) {
-            Some(Node::Measure { expr, .. }) => {
-                AssertionBoundFault::against(measure, expr.dim(), bound)
-            }
-            _ => Some(AssertionBoundFault::TargetNotMeasure { measure, bound }),
-        }
+        let dim = |var: &VarId| doc.vars.get(var)?.kind().dimension();
+        AssertionBoundFault::against(dim(value)?, dim(bound)?)
     }
 
     /// Whether this node is a mate whose alignment datum carries a
@@ -4092,11 +3960,10 @@ impl<P> Node<P> {
                 hits += rewrite(face, map);
             }
             // No re-canonicalization: the order IS argument order, and
-            // a rebind onto an already-referenced entity must leave two
-            // arguments naming one entity rather than shrink the list
-            // and renumber every index the expression holds.
-            Node::Measure { refs, .. } => {
-                for r in refs.iter_mut() {
+            // a rebind onto the other argument's entity leaves two
+            // arguments naming one entity.
+            Node::Measure { primitive } => {
+                for r in primitive.refs_mut() {
                     hits += rewrite(&mut r.name, map);
                 }
             }
@@ -4452,8 +4319,8 @@ impl<P, S: Slot> Node<P, S> {
                 kind: PortKind::Placed,
             }],
             Self::PlaceInWorld { .. } => vec![OutputPort::of("copy", VarKind::Body)],
-            Self::Measure { expr, .. } => {
-                vec![OutputPort::of("value", VarKind::from(expr.dim()))]
+            Self::Measure { primitive } => {
+                vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
             Self::Extrude { .. }
             | Self::Tube { .. }
@@ -4655,16 +4522,11 @@ impl<P, S: Slot> Node<P, S> {
                 class: *class,
                 alignment: alignment.try_map_slots(f)?,
             },
-            Node::Measure { expr, refs } => Node::Measure {
-                expr: expr.try_map_values(f)?,
-                refs: refs.clone(),
+            Node::Measure { primitive } => Node::Measure {
+                primitive: primitive.clone(),
             },
-            Node::Assertion {
-                measure,
-                bound,
-                dir,
-            } => Node::Assertion {
-                measure: read(O::Measure, measure)?,
+            Node::Assertion { value, bound, dir } => Node::Assertion {
+                value: f(value)?,
                 bound: f(bound)?,
                 dir: *dir,
             },
@@ -4687,8 +4549,8 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// itself, so every unchanged argument keeps its variable and
     /// that variable's distribution.
     ///
-    /// `doc` answers what no address fixes: an assertion's bound is
-    /// read at its measure's dimension.
+    /// `doc` answers what no address fixes: an assertion's value and
+    /// bound are read at their variables' dimensions.
     #[must_use]
     pub fn authored(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
         self.authored_with(doc, &mut crate::Formula::var)
@@ -4728,15 +4590,7 @@ impl<P: crate::ProfilePayload> Node<P> {
             .into_iter()
             .map(|(slot, &var)| (var, slot.expr_dimension()))
             .collect();
-        match self {
-            Node::Measure { expr, .. } => {
-                let mut reads = Vec::new();
-                expr.var_reads(&mut reads);
-                dims.extend(reads);
-            }
-            Node::Assertion { .. } => dims.extend(self.payload_reads(doc).into_iter().flatten()),
-            _ => {}
-        }
+        dims.extend(self.payload_reads(doc).into_iter().flatten());
         let mut payload = None;
         if let Node::Profile(p) = self {
             payload = Some(p.authored_with(reader));
@@ -4744,8 +4598,8 @@ impl<P: crate::ProfilePayload> Node<P> {
         let mut read = |var: &VarId| {
             let Some(&dim) = dims.get(var) else {
                 unreachable!(
-                    "every slot of a stored node has an address, a measured leaf or an \
-                     assertion's measure to read {var:?} at"
+                    "every slot of a stored node has an address or an assertion's \
+                     variable to read {var:?} at"
                 )
             };
             Ok::<_, core::convert::Infallible>(reader(*var, dim))
@@ -4766,37 +4620,21 @@ impl<P: crate::ProfilePayload> Node<P> {
 
 impl<P: crate::ProfilePayload> Node<P> {
     /// **The variables the expressions no slot addresses read**, each
-    /// with the dimension it is read at ([`payload_exprs`]'s order): a
-    /// measured expression's value leaves at their leaves' dimensions,
-    /// an assertion's bound at its variable's kind — or, where `doc`
-    /// no longer holds the variable, at its measure's dimension. `None`
-    /// for a slot-only node.
+    /// with the dimension it is read at ([`payload_exprs`]'s order): an
+    /// assertion's value and bound at their variables' kinds — or,
+    /// where `doc` no longer holds one, at the other's. `None` for a
+    /// slot-only node.
     pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
-        match self {
-            Node::Measure { expr, .. } => {
-                let mut reads = Vec::new();
-                expr.var_reads(&mut reads);
-                Some(reads)
-            }
-            Node::Assertion { measure, bound, .. } => {
-                let dim = doc
-                    .vars
-                    .get(bound)
-                    .and_then(|v| v.kind().dimension())
-                    .or_else(|| {
-                        match doc
-                            .defined_by(*measure)
-                            .and_then(|(m, _)| doc.nodes.get(&m))
-                        {
-                            Some(Node::Measure { expr, .. }) => Some(expr.dim()),
-                            _ => None,
-                        }
-                    })
-                    .unwrap_or(Dimension::Scalar);
-                Some(vec![(*bound, dim)])
-            }
-            _ => None,
-        }
+        let Node::Assertion { value, bound, .. } = self else {
+            return None;
+        };
+        let dim = |var: &VarId| doc.vars.get(var).and_then(|v| v.kind().dimension());
+        let (v, b) = (dim(value), dim(bound));
+        let either = v.or(b).unwrap_or(Dimension::Scalar);
+        Some(vec![
+            (*value, v.unwrap_or(either)),
+            (*bound, b.unwrap_or(either)),
+        ])
     }
 }
 
@@ -4962,7 +4800,7 @@ impl<P, S: Slot> Node<P, S> {
             Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
-            Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
+            Node::Measure { primitive } => primitive.refs().map(|r| &r.name).into(),
             // An instance's interface record: each crossing's `outer`,
             // in record order.
             //
@@ -5095,8 +4933,8 @@ impl<P, S: Slot> Node<P, S> {
             Node::Datum(Datum::FaceFrame { face, .. }) => {
                 (reference == 0 && face == name).then(|| ("frame", "face".to_owned()))
             }
-            Node::Measure { refs, .. } => {
-                let held = refs.get(reference)?;
+            Node::Measure { primitive } => {
+                let held = primitive.refs().get(reference).copied()?;
                 (held.name == *name).then(|| ("measure", format!("reference {reference}")))
             }
             Node::Boolean { declare, .. } | Node::Union { declare, .. } => {
@@ -5172,30 +5010,6 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
-    }
-
-    /// What is wrong with this node's measured expression, if anything
-    /// — the one answer the construction door and the persistence
-    /// re-check both read, so the two can never disagree about which
-    /// trees are well-formed. `None` for every non-measure node.
-    pub fn measure_fault(&self) -> Option<MeasureNodeFault> {
-        let Node::Measure { expr, refs } = self else {
-            return None;
-        };
-        let mut prims = Vec::new();
-        expr.primitives(&mut prims);
-        for prim in prims {
-            for index in prim.refs() {
-                if !usize::try_from(index).is_ok_and(|i| i < refs.len()) {
-                    return Some(MeasureNodeFault::RefIndexOutOfRange {
-                        verb: prim.verb(),
-                        index,
-                        refs: refs.len(),
-                    });
-                }
-            }
-        }
-        None
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
@@ -5300,23 +5114,6 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
-    /// Builds a [`Node::Measure`], checking that every primitive's
-    /// reference index addresses a reference the node actually carries
-    /// — the ONE door, so an expression whose leaf points past the end
-    /// of `refs` is unconstructable rather than an evaluation-time
-    /// surprise. The load door re-runs the same check on file data
-    /// ([`Node::measure_fault`]).
-    pub fn measure(
-        expr: crate::measure::MeasureExpr<S>,
-        refs: Vec<SitedRef>,
-    ) -> Result<Self, MeasureNodeFault> {
-        let node = Node::Measure { expr, refs };
-        match node.measure_fault() {
-            Some(fault) => Err(fault),
-            None => Ok(node),
-        }
-    }
-
     /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
     /// deduplicated) — the one construction door, so a recipe's bits
     /// do not depend on the order a user clicked in. The form comes
@@ -5368,7 +5165,6 @@ impl<P, S> Node<P, S>
 where
     P: PartialEq + crate::program::SlotPayload<S>,
     S: Slot,
-    crate::measure::MeasureExpr<S>: PartialEq,
 {
     /// Bit-semantic payload equality (spec D7's comparison substrate):
     /// `PartialEq` for structure plus BIT comparison of every slot
@@ -5394,15 +5190,6 @@ where
             }
             (None, None) => {}
             _ => return false,
-        }
-        // A measured expression's own literals live inside the
-        // `MeasureExpr`, which `payload_exprs` reaches only the value
-        // leaves of — the primitives and the tree shape are compared by
-        // `PartialEq` above, and the leaves' bits here.
-        if let (Node::Measure { expr: a, .. }, Node::Measure { expr: b, .. }) = (self, other)
-            && !a.bit_eq(b)
-        {
-            return false;
         }
         // A literal FRAME is float payload no slot addresses, and the
         // `PartialEq` above compares its coordinates by value: every

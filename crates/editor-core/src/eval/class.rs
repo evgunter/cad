@@ -286,8 +286,6 @@ pub enum NodeErrorClass {
     MeasureNotParallel,
     /// [`NodeErrorKind::MeasureUnsupported`].
     MeasureUnsupported,
-    /// [`NodeErrorKind::MeasureMalformed`].
-    MeasureMalformed,
     /// [`NodeErrorKind::PayloadExpr`].
     PayloadExpr,
     /// [`NodeErrorKind::MeasureSelectionKind`].
@@ -413,7 +411,6 @@ impl NodeErrorKind {
             Self::MeasureNonFinite { .. } => C::MeasureNonFinite,
             Self::MeasureNotParallel { .. } => C::MeasureNotParallel,
             Self::MeasureUnsupported(_) => C::MeasureUnsupported,
-            Self::MeasureMalformed(_) => C::MeasureMalformed,
             Self::PayloadExpr { .. } => C::PayloadExpr,
             Self::MeasureSelectionKind { .. } => C::MeasureSelectionKind,
             Self::MeasureClearanceRefused(_) => C::MeasureClearanceRefused,
@@ -645,7 +642,6 @@ mod tests {
         MeasureNonFinite,
         MeasureNotParallel,
         MeasureUnsupported,
-        MeasureMalformed,
         PayloadExpr,
         MeasureSelectionKind,
         MeasureClearanceRefused,
@@ -1173,13 +1169,6 @@ mod tests {
                     verb: "distance",
                     a: "cylinder",
                     b: "torus",
-                })
-            }
-            C::MeasureMalformed => {
-                K::MeasureMalformed(crate::MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
                 })
             }
             C::PayloadExpr => K::PayloadExpr {

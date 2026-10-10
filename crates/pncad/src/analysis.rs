@@ -97,7 +97,7 @@ pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIG
 /// second spelling, and a bitwise comparison of two spellings tests
 /// the spellings.
 pub use editor_core::mc::{
-    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
     monte_carlo, sample_offsets, summarize,
 };
 

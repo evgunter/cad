@@ -24,10 +24,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    DimensionError, DocEdit, EditError, EvalOptions, ExprPath, Formula, LoopProgram, MeasureExpr,
-    Node, NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval,
-    eval_count, parse_formula, unparse,
+    DimensionError, DocEdit, EditError, EvalOptions, ExprPath, Formula, LoopProgram, Node,
+    NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval, eval_count,
+    parse_formula, unparse,
 };
 use fixture::{Recorder, len, run, scl, xy_frame};
 use geom_core::{Interval, Tol};
@@ -56,14 +56,12 @@ fn deep_count(start: i64, levels: usize) -> Formula {
     })
 }
 
-/// A measurement `levels` deep: `measure_levels` nested sums over value
-/// leaves, the first holding `metres` as an expression nested the rest
-/// of the way, so it evaluates to `metres + 0.25 · (measure_levels - 1)`.
-fn deep_measure(metres: f64, levels: usize, measure_levels: usize) -> MeasureExpr<Formula> {
-    let first = MeasureExpr::value(deep_length(metres, levels - measure_levels + 1));
-    (1..measure_levels).fold(first, |m, _| {
-        MeasureExpr::add(m, MeasureExpr::value(len(0.25))).unwrap()
-    })
+/// A sum `levels` deep: `sum_levels` nested sums, the first term
+/// holding `metres` as an expression nested the rest of the way, so it
+/// evaluates to `metres + 0.25 · (sum_levels - 1)`.
+fn deep_sum(metres: f64, levels: usize, sum_levels: usize) -> Formula {
+    let first = deep_length(metres, levels - sum_levels + 1);
+    (1..sum_levels).fold(first, |m, _| Formula::add(m, len(0.25)).unwrap())
 }
 
 /// The nesting refusal a door raised, with the bound it names.
@@ -99,9 +97,10 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
         distance: deep_length(0.5, levels),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(Node::Measure {
-        expr: deep_measure(0.5, levels, levels.div_ceil(2)),
-        refs: vec![],
+    let measure = r.insert(Node::Assertion {
+        value: deep_sum(0.5, levels, levels.div_ceil(2)),
+        bound: len(0.0),
+        dir: editor_core::AssertionDir::AtLeast,
     });
     (r, extrude, measure)
 }
@@ -145,11 +144,14 @@ fn both_saves(r: &Recorder) -> [(&'static str, String); 2] {
     ]
 }
 
-/// The value a measurement node evaluated to.
+/// The value an assertion compared.
 fn measured(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
     match ev.result(id) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
+            ValuePayload::Assertion(
+                editor_core::AssertionVerdict::Holds { measured, .. }
+                | editor_core::AssertionVerdict::Violated { measured, .. },
+            ) => *measured,
             other => panic!("node {id:?} is a {}", other.kind_name()),
         },
         _ => panic!("node {id:?} did not evaluate"),
@@ -328,18 +330,6 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
                 "count_to_scalar",
                 Formula::count_to_scalar(deep_count(1, BOUND)).err(),
             ),
-            (
-                "measure neg",
-                MeasureExpr::neg(deep_measure(0.5, BOUND, 3)).err(),
-            ),
-            (
-                "measure add",
-                MeasureExpr::add(
-                    MeasureExpr::value(len(0.0)),
-                    deep_measure(0.5, BOUND, BOUND),
-                )
-                .err(),
-            ),
         ] {
             let error = refused.unwrap_or_else(|| panic!("{label} one past the bound refuses"));
             assert_eq!(refused_bound(&error), BOUND, "{label}");
@@ -487,19 +477,20 @@ fn a_negative_leaf_at_the_bound_reads_back() {
     });
 }
 
-/// **A measurement shares the bound, at every split of its levels
-/// between measurement nodes and the expression a value leaf holds**:
-/// at the bound it saves and loads back on the smallest stack, and one
-/// level more refuses at the constructor.
+/// **An assertion's value shares the bound, at every split of its
+/// levels between sums and the expression a term holds**: at the bound
+/// it saves and loads back on the smallest stack, and one level more
+/// refuses at the constructor.
 #[test]
-fn a_measurement_shares_the_bound_at_every_split() {
+fn an_assertion_value_shares_the_bound_at_every_split() {
     on_the_smallest_stack(|| {
         for measure_levels in [1, 2, 3, BOUND / 2, BOUND - 1, BOUND] {
-            let at = deep_measure(0.5, BOUND, measure_levels);
+            let at = deep_sum(0.5, BOUND, measure_levels);
             let (mut r, _) = extrude_document(len(0.5));
-            r.insert(Node::Measure {
-                expr: at.clone(),
-                refs: vec![],
+            r.insert(Node::Assertion {
+                value: at.clone(),
+                bound: len(0.0),
+                dir: editor_core::AssertionDir::AtLeast,
             });
             let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
             for (label, text) in both_saves(&r) {
@@ -511,8 +502,7 @@ fn a_measurement_shares_the_bound_at_every_split() {
                     "split {measure_levels}: the {label} loads back"
                 );
             }
-            let one_more = MeasureExpr::add(at, MeasureExpr::value(len(0.0)))
-                .expect_err("one level more refuses");
+            let one_more = Formula::add(at, len(0.0)).expect_err("one level more refuses");
             assert_eq!(refused_bound(&one_more), BOUND, "split {measure_levels}");
         }
     });

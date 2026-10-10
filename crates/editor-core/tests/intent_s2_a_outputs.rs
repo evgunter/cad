@@ -739,40 +739,6 @@ fn inline_carries_the_name_on_an_instances_body() {
     }
 }
 
-/// **A slot reading a measured value refuses at evaluation saying so**:
-/// the door that refuses it is unit D's (`ConstructionReadsObserved`),
-/// and until then the reader's refusal names the output it read, never
-/// a deleted or undeclared variable.
-#[test]
-fn a_slot_reading_an_output_refuses_naming_it() {
-    let (doc, _, _, extrude) = block("s2a-observed");
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(editor_core::MeasureExpr::value(len(0.5)), Vec::new())
-            .expect("a measured value"),
-    );
-    let gap = doc.output(measure, 0).expect("a measure defines its value");
-    assert_eq!(doc.var(gap).unwrap().kind(), VarKind::Length);
-    let doc = named(doc, gap, "gap");
-    let (doc, _) = fixture::step(
-        doc,
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length)
-                .into(),
-            fresh: Vec::new(),
-        },
-    );
-    let ev = crate::corpus::eval::<f64>(&doc);
-    let Some(editor_core::NodeResult::Failed(error)) = ev.nodes.get(&extrude) else {
-        panic!("the reader refuses: {:?}", ev.nodes.get(&extrude))
-    };
-    let said = error.to_string();
-    assert!(said.contains("an operation's output"), "{said}");
-    assert!(!said.contains("deleted"), "{said}");
-}
-
 /// **A placer whose operand is gone loads, and refuses at evaluation**:
 /// deleting the operation it reads strands its read (D10), and the
 /// output walk, which has no kind to hold its port to, leaves it to
