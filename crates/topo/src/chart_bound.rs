@@ -460,10 +460,14 @@ impl<T: Real> MetredBound<T> {
     }
 }
 
-/// A metred chart rectangle: the cell the consumer is asking about.
-/// Its four bounds are exact `f64` structure (a subdivision cell's
-/// corners are the driver's own arithmetic), and a POINT is this with
-/// zero extent.
+/// A metred chart rectangle: the cell the consumer is asking about, and
+/// a POINT is this with zero extent.
+///
+/// Its bounds are `f64` the driver computed — a subdivision of its
+/// window, rounded outward onto the metred chart — so they are a
+/// function of whatever the window is a function of, not constants of
+/// the query, and they enter the decisions through
+/// [`Real::from_computed`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MetredRect {
     /// Lower first-parameter bound, metres.
@@ -543,8 +547,8 @@ impl<T: Decide> MetredBound<T> {
             }
         }
         let q = Point2::new(
-            T::from_f64(0.5 * (rect.u_min + rect.u_max)),
-            T::from_f64(0.5 * (rect.v_min + rect.v_max)),
+            T::from_computed(0.5 * (rect.u_min + rect.u_max)),
+            T::from_computed(0.5 * (rect.v_min + rect.v_max)),
         );
         for lp in &self.loops {
             let verts: Vec<Point2<T>> = lp.edges.iter().map(MetredEdge::a).collect();
@@ -591,10 +595,10 @@ fn edge_clears<T: Decide>(edge: &MetredEdge<T>, rect: MetredRect, band: Band) ->
 /// one of them separates.
 fn box_separates<T: Decide>(w: &ChartWindow<T>, rect: MetredRect, band: Band) -> bool {
     [
-        T::from_f64(rect.u_min) - w.u_max,
-        w.u_min - T::from_f64(rect.u_max),
-        T::from_f64(rect.v_min) - w.v_max,
-        w.v_min - T::from_f64(rect.v_max),
+        T::from_computed(rect.u_min) - w.u_max,
+        w.u_min - T::from_computed(rect.u_max),
+        T::from_computed(rect.v_min) - w.v_max,
+        w.v_min - T::from_computed(rect.v_max),
     ]
     .into_iter()
     .any(|gap| matches!(decide(GAP, Margin::of(gap), band), Ok(Sign::Positive)))
@@ -613,7 +617,7 @@ fn normal_separates<T: Decide>(a: Point2<T>, b: Point2<T>, rect: MetredRect, ban
     let lever = n.norm();
     let (mut all_positive, mut all_negative) = (true, true);
     for (cu, cv) in rect.corners() {
-        let w = Vec2::new(T::from_f64(cu) - a.x, T::from_f64(cv) - a.y);
+        let w = Vec2::new(T::from_computed(cu) - a.x, T::from_computed(cv) - a.y);
         match decide(GAP, Margin::over_lever(n.dot(w), lever), band) {
             Ok(Sign::Positive) => all_negative = false,
             Ok(Sign::Negative) => all_positive = false,
@@ -681,5 +685,56 @@ mod tests {
         ];
         assert_eq!(parity(&poly, Point2::new(1.0, 1.0), band), Some(true));
         assert_eq!(parity(&poly, Point2::new(3.0, 1.0), band), Some(false));
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    use super::*;
+    use crate::revalue_pin::{S, revalued};
+    use geom_core::{SupSpeed, Tol};
+
+    /// The cell enters as a computed value: built at `Sym<f64>` over a
+    /// square whose right side is the parameter, with the cell the
+    /// driver's `f64` arithmetic on that side, no decision re-values to
+    /// the cell `p0` asked about.
+    #[test]
+    fn the_query_cell_enters_as_computed() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, x| {
+            let (zero, one) = (S::zero(), S::one());
+            let verts = [(zero, zero), (x, zero), (x, one), (zero, one)];
+            let outer = ChartLoop {
+                edges: (0..4)
+                    .map(|i| {
+                        let (a, b) = (verts[i], verts[(i + 1) % 4]);
+                        ChartEdge::Segment {
+                            a: Point2::new(a.0, a.1),
+                            b: Point2::new(b.0, b.1),
+                        }
+                    })
+                    .collect(),
+                ring: false,
+            };
+            let bound = ChartBound::assembled(
+                outer,
+                Vec::new(),
+                None,
+                ChartArm::Rate(SupSpeed::new(one)),
+                band,
+            )
+            .unwrap()
+            .metred((one, one));
+            assert!(
+                bound.certifies_outside(MetredRect::new(p + 0.25, p + 0.5, 0.25, 0.75), band),
+                "a cell right of the square is outside it"
+            );
+            Vec::new()
+        });
+        assert_eq!(found.laundered, 0, "{found:?}");
+        assert!(
+            found.opaque > 0,
+            "the cell's decisions were compared: {found:?}"
+        );
     }
 }

@@ -147,6 +147,20 @@ impl SectionLane<f64> {
     }
 }
 
+#[cfg(test)]
+impl<T: Real> SectionLane<T> {
+    /// A lane that roots by `root` and derives no section: how a row at
+    /// a scalar holding no lane reaches a door that reads one.
+    pub(crate) fn rooting(
+        root: fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>,
+    ) -> Self {
+        Self {
+            section: |_, _, _, _, _, _| unreachable!("a rooting lane derives no section"),
+            root,
+        }
+    }
+}
+
 impl<T: Real> SectionLane<T> {
     /// The section of `plane` with the spline `wall` nearest `old` on
     /// `[t0, t1]`, running with it: the wall's exact row where the
