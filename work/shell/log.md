@@ -1378,3 +1378,6 @@ Ev said go.
   - Unit 18: the general simultaneous door. Session `session_01De5VWXHkEBqhmCXCzNUivh`, branch `shell/general-door`, H tier, dual review.
   - Both specs are in the dispatch prompts, as `## Decided` sections the lanes copy into their items.
 - **Filed** `intent/the-plate-verdict-pin-holds-only-at-the-default-eps` (P4, E), found by unit 17's differential: the tour's plate pin is ε-dependent.
+- **Unit 17 review 1** (PR 4525, sequential arm, head 533bfea562): APPROVE-WITH-FIXES, no MAJOR, so there is no review 2.
+  - F1, MINOR, executed: `normal_in_plane_along` accepts steps that point opposite ways along m, so `holds_the_move` can answer true for a nearly singular net whose moved row lies 0.1 off the plane. It is made must-fix.
+  - Docs, the wrap row's reflection guard, and the domain assumption go into the same pass.
