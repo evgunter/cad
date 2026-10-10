@@ -89,15 +89,16 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
         .filter(|c| {
             matches!(
                 *c.description(),
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                    if s2 == cap_key
-                        && matches!(body.get_surface(s1), Some(geom::Surface::Plane { .. }))
+                geom_brep::EdgeDescription::Intersection { pair, .. }
+                    if pair.other(cap_key).is_some_and(|side| {
+                        matches!(body.get_surface(side), Some(geom::Surface::Plane { .. }))
+                    })
             ) && matches!(c.carrier(), geom::Curve3::Nurbs(_))
         })
         .count();
     assert_eq!(
         sections, 4,
-        "eps {eps:e}: each cap edge is a moved side's section of the fit, plane first"
+        "eps {eps:e}: each cap edge is a moved side's section of the fit"
     );
     let refusals = topo::validate_geometric(&body, Tol::witness())
         .expect_err("the fitted cap's quadrature is not built");

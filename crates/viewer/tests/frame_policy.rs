@@ -726,7 +726,11 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
              somewhere one does",
         ),
         (
-            frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+            frame::at_rest_badge(Some(&AtRestBadge::Certified {
+                minted: 0,
+                loud: 0,
+                quiet: 0,
+            })),
             frame::Subject::Document,
             "the at-rest verdict ends when the document accepts another act",
         ),
@@ -1469,8 +1473,12 @@ fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
 /// argues explicitly for poisoned rows and that nothing used to say.
 #[test]
 fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
-    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 4 }))
-        .expect("a certified assembly badges");
+    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified {
+        minted: 4,
+        loud: 0,
+        quiet: 0,
+    }))
+    .expect("a certified assembly badges");
     assert_eq!(
         certified.tone(),
         frame::Tone::Advisory,
@@ -1483,6 +1491,39 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         certified.label()
     );
     assert!(certified.label().contains('4'), "{}", certified.label());
+
+    // An overlap no assertion quiets is the reader's to answer; one
+    // every assertion quiets is reported and asks nothing.
+    for (loud, quiet, tone) in [
+        (1, 2, frame::Tone::Actionable),
+        (0, 2, frame::Tone::Advisory),
+    ] {
+        let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified {
+            minted: 0,
+            loud,
+            quiet,
+        }))
+        .expect("a certified assembly badges");
+        assert_eq!(
+            badge.tone(),
+            tone,
+            "{loud} loud, {quiet} quiet: {}",
+            badge.label()
+        );
+        assert!(
+            badge
+                .label()
+                .contains(&format!("interference: {loud} loud, {quiet} quiet")),
+            "{}",
+            badge.label()
+        );
+        assert_eq!(
+            badge.label().starts_with("at rest: interference"),
+            loud > 0,
+            "a loud overlap leads the badge, and only a loud one: {}",
+            badge.label()
+        );
+    }
 
     let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {
         message: "the gate declined to certify".to_owned(),
@@ -1591,7 +1632,11 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     for (which, badge) in [
         (
             "at rest",
-            frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+            frame::at_rest_badge(Some(&AtRestBadge::Certified {
+                minted: 0,
+                loud: 0,
+                quiet: 0,
+            })),
         ),
         (
             "product",

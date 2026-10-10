@@ -92,8 +92,7 @@ fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f6
     let s2 = body.add_surface(plane(a.plane.0, a.plane.1));
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: surface,
-            s2,
+            pair: geom_brep::SurfacePair::new(surface, s2),
             witness: a.carrier.mid_point(0.0, a.end),
         },
         carrier: a.carrier.clone(),

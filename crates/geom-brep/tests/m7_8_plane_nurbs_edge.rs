@@ -32,7 +32,7 @@ use geom_brep::keys::SurfaceKey;
 use geom_brep::ssi::PointLever;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal, SsiLimb,
-    plane_nurbs_limbs,
+    SurfacePair, plane_nurbs_limbs,
 };
 use geom_core::test_support::upper;
 use geom_core::{FileCoincidence, Tol};
@@ -288,7 +288,10 @@ fn door_spec(
     (
         move |k| arena.get(k).cloned(),
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(s1, s2),
+                witness,
+            },
             carrier,
             param_start: 0.0,
             param_end: 1.0,
