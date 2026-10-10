@@ -378,8 +378,9 @@ impl<T: Real> MappedCurve<T> {
                 range,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotation_about_axis(axis_origin, axis_dir, range.at(s) * angle)
-                    .transform_point(p)
+                axis_origin
+                    + geom_core::Mat3::rotation_about(axis_dir, range.at(s) * angle)
+                        * (p - axis_origin)
             }
         }
     }
