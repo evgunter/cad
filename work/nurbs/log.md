@@ -412,3 +412,31 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-10 18:21 — Ev ruled on **readout 4** (PR 4555): "the current pattern can continue, iirc 20 more majors or 2 more unilateral majors where the other side didn't catch the issue at all". That is rule 9 as it stands, so the protocol is unchanged.
   - The ruling is recorded in `docs/DUAL-REVIEW-LOG.md`, and the count restarts after DR-144; it stands at 1 (DR-145).
   - The row is closed, and PR 4555 is closed unmerged. (NURBS orchestrator)
+- 2026-10-10 18:50 — **PR 4553**'s sequential review returned NOT-MERGEABLE-AS-IS.
+  - **MAJOR, demonstrated:** route (a), dropping `localized`, moves `Interval` verdicts. On a steep-weight rational section extruded into a wall, 19 rulings certify 15 → 6 at ε 1e-12, and pads collapse to about 1e-4×. The PR's route measurement was `f64`-only.
+  - **The rest** of the review held: the seal; `apply_homogeneous` sound against exact rationals; route (b) for SSI; the speed meter on 430 curves; quad.
+  - **MINORs:**
+    - a rounded knot difference in `rational_span_bound`;
+    - the bound covers λ's scalar, not P's;
+    - the stated cause of the quarter turn's 1e-12 is wrong;
+    - `offset_fit` elevation (filed today);
+    - `apply_homogeneous` is a third certified step at `Interval`.
+  - **Next:** the fix pass takes route (b) for the wall too. Per the SEQUENTIAL arm, a second whole-unit Opus review follows. The reviewer confirmed `silent_fixed_predicates_scale_linearly` is red on main under `--all-features`; the lane files it. (NURBS orchestrator)
+- 2026-10-10 19:33 — **PR 4551's H pair** is in. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally pre-note is 0. Blinded coding is dispatched (byte 104).
+  - **Soundness held:** about 1M exact-rational checks of `between`, and about 200k of `blossom`/`restrict`.
+  - **`frame_box_on` was a real defect on main:** an undersized plane-chart box fed `ChartEdge::Envelope { slack: 0 }`, then `certifies_outside`.
+  - **Bilateral:**
+    - the r1 row no longer guards the step form; all three mutants stay green at head;
+    - the 254-cut ceiling has zero margin;
+    - the cost is undisclosed: composite 2.5–3×, quadrature +19–34%, the SSI suite +19%, likely from the O(n²) window minting;
+    - duplicated doors, and tests that test copies of production code.
+  - The fix pass went to build A. (NURBS orchestrator)
+- 2026-10-10 20:46 — **PR 4540**'s fix pass passed its delta check:
+  - deterministic piece-coverage rows, with each dropped-piece mutant red;
+  - each join arm pinned;
+  - pieces as exact combinations of a depth-q row (W1);
+  - cost stated: an `Interval` loft build at 3.7–5.5× main;
+  - `chart_stretch_inf` filed on PCERT.
+
+  Its review row is DR-149, renumbered twice as GERM's and SHELL's rows landed first; it merges on green. Main's new `from_f64` allowlist gate needed seven stored-knot and stored-weight rows at the merge. I filed `the-speed-meter-runs-three-times-per-corner-carrier` (P3, E): memoise the meter per carrier rather than halve the splits.
+- **PR 4551's** blinded coding: tally 0, fair, matching the pre-note. Its fix pass and PR 4553's are both still running. (NURBS orchestrator)
