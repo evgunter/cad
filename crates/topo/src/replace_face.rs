@@ -37,11 +37,13 @@
 //! (the carrier lanes below) is the section only where the held surface
 //! is carried onto itself by the move — a plane cap moved along its
 //! normal beside a wall that contains it — and the door transports
-//! there and nowhere else between distinct surfaces. An edge both of
-//! whose sides are the moved chart (a seam it shares with itself, a
-//! wrap) moves with the chart. An edge so
-//! derived is stated as the two surfaces' `Intersection`, its sketch
-//! record dropped: it is not a curve the sketch drew.
+//! there and nowhere else between distinct surfaces. An edge derived as
+//! a section is stated as the two surfaces' `Intersection`, its sketch
+//! record dropped: it is not a curve the sketch drew. A moved spline
+//! chart's iso image is extracted instead, as a row of its fit, where
+//! both of its sides move with the fit: a seam the chart shares with
+//! itself (a wrap among them), or a neighbour that holds the move along
+//! the row (below).
 //!
 //! **A moved corner is solved, not transported.** Where every held
 //! surface around a corner holds the move, the transports put it where
@@ -384,7 +386,8 @@ pub enum ReplaceFaceError<T: Real> {
     ///   one that is no line of its chart, or a line along a seam the
     ///   face shares with itself that holds neither parameter fixed;
     /// - a curve still under construction (a scaffold edge);
-    /// - a seam the face shares with itself.
+    /// - a seam the face shares with itself that is not described on
+    ///   its own chart.
     FittedBoundaryUnsupported {
         /// The edge the fitted chart cannot carry.
         edge: EdgeKey,
@@ -2182,6 +2185,13 @@ fn plan_edge<T: Decide>(
         // parameter EXACTLY fixed: an exact test can only refuse more
         // than a margined one, so it needs no band.
         let row = iso_image_row(p0, pl, (t0, t1));
+        // The hold is read on the OLD chart and the row extracted from
+        // the new fit at the same `at`: the fit lives on the old
+        // chart's own parameter rectangle, ends exact
+        // (`geom_brep::offset_fit`, its knots `on_domain` the base's).
+        // Were they ever to differ, an `at` at an end of the old domain
+        // but not the fit's refuses typed at the extraction
+        // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
                 let held =

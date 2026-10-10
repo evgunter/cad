@@ -791,8 +791,11 @@ thin solids keep their two), and the invariant is closure, not genus
 inverted cavity walls at edge re-attachment. A fitted face's edge with a
 plane is their section over the fit (C5), and a row of its fit whose
 sides both move with it — a seam the face shares with itself, or a
-plane that contains the fit's normal along the row — is extracted from
-the new fit, at the row its iso image names. Its corners are the held
+plane along whose normal every cross-row step of the old net's two
+rows at that end runs, all one way, the two rows' weights equal (which
+puts the fit's normal in the plane along the row; a plane containing
+it otherwise takes the section) — is extracted from the new fit, at
+the row its iso image names. Its corners are the held
 planes' roots along those edges, a section's sought from its end at
 the corner; the fit itself is not rooted along a held edge. Its other
 boundary refuses: `Approx` against anything but a plane, a row of the

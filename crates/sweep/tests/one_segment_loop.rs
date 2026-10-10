@@ -1135,16 +1135,26 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
                 image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
                 wrap: true,
                 ..
-            } if surface == wall_key && pl.x == 0.0 && p0.x == 0.0
+            } if surface == wall_key && p0.x == 0.0 && pl.x == 0.0 && pl.y == -1.0
         ),
-        "the wrap edge is the u = 0 wrap row of the wall's chart, got {:?}",
+        "the wrap edge is the u = 0 wrap row of the wall's chart, run back \
+         (`pl = (0, −1)`), got {:?}",
         spec.description
     );
-    for t in [spec.param_start, spec.param_end] {
+    // The strut runs top to bottom, as it did: its span forward on the
+    // row reflected through 0, from `z = 2` down to `z = 0`.
+    assert!(
+        spec.param_start < spec.param_end,
+        "the span runs forward on its carrier, got {}..{}",
+        spec.param_start,
+        spec.param_end
+    );
+    for (t, z) in [(spec.param_start, 2.0), (spec.param_end, 0.0)] {
         let p = spec.carrier.eval(t);
         assert!(
-            (p.x - 1.0).abs() < 1e-9 && (p.y.abs() - d).abs() < 1e-9,
-            "the column stands on the wrap line carried d off the ring's plane, got {p:?}"
+            (p.x - 1.0).abs() < 1e-9 && (p.y.abs() - d).abs() < 1e-9 && (p.z - z).abs() < 1e-9,
+            "the column stands on the wrap line carried d off the ring's plane, at z = {z}, \
+             got {p:?}"
         );
     }
 }

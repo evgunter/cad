@@ -966,12 +966,8 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// `false` branch for a nearly-zero value must be the one that refuses
 /// or routes more.
 ///
-/// **Which doors ask it** — hand-kept, like its siblings' rosters:
-///
-/// - `profile`'s bulge lowering, where a bulge of exactly zero is a
-///   line and anything else an arc;
-/// - `topo`'s offset door, reading an `IsoLine` chart image as a row of
-///   its chart only where one parameter is held exactly fixed.
+/// Its callers are what `grep -rn is_exact_zero crates` finds; each
+/// says at the call what an exact zero means there.
 pub fn is_exact_zero<T: Real>(x: T) -> bool {
     !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
 }
