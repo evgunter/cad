@@ -129,6 +129,8 @@ mod pcurve_frame_premise_rows;
 mod pn_apex_point_reach;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_cone_ring.rs"]
+mod props_cone_ring;
 #[path = "props_sphere_circle_loop.rs"]
 mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]

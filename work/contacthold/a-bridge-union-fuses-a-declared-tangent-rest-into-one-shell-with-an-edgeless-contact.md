@@ -83,3 +83,11 @@ union door did not produce (a hand-built or `graft_disjoint` body).
 ## Parked on the D10 hold (2026-10-08)
 
 Step 1 now refuses `TangentSlitArmUnbuilt` (`boolean/mod.rs`); the one route left is a carried `CarriedVf{Tangent}` record, which `declared-pairs-retire` deletes. Likely closes at release. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Read against E's branch (2026-10-10)
+
+With E, the plain union glues the tangent too and refuses
+`TangentSlitArmUnbuilt` as the declared one does; the only route to the
+fused shell left is a carried `CarriedVf { Tangent }`, and F deletes
+`CarriedContacts`. Expected to close at F; re-check the census's
+same-solid face×face arm then. (CONTACTHOLD orchestrator)

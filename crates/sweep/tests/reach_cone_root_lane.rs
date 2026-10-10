@@ -289,8 +289,15 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
 /// outside the kernel, stable to 4e-6 from 200³.
 const CUBE_ON_THE_WIDENING_WALL: f64 = 0.030_601;
 
+/// The overlap of the same cube with [`NARROWING`], by the same midpoint
+/// rule over the cube's own box, stable to 2e-8 from 400³ to 800³.
+const CUBE_ON_THE_NARROWING_WALL: f64 = 0.029_738_0;
+
 /// **Every op on a cone wall answers its truth or refuses typed.** The
-/// turned cube across the widening wall builds under all four ops: each
+/// turned cube across the widening wall and across the narrowing one,
+/// placed across the frustum's seam and inside one wall face (where ∪
+/// and A ∖ B keep its footprint as a ring on the cone face), builds
+/// under all four ops: each
 /// body's volume is its closed form from the frustum's, the cube's and
 /// their overlap, it passes tier 3, and `point_in_solid` agrees with
 /// both operands' closed-form membership over a grid. The tilted rod
@@ -299,82 +306,110 @@ const CUBE_ON_THE_WIDENING_WALL: f64 = 0.030_601;
 #[test]
 fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
     let tol = Tol::witness();
-    let f = WIDENING;
-    let cone = f.body();
-    let cube = diagonal_cube(0.4, [-0.75, 0.5, 0.0]);
-    let frustum = Solid::Revolved {
-        y0: f.y0,
-        y1: f.y1,
-        r0: f.r0,
-        k: f.k,
-        window: None,
-    };
     let d = Vec3::new(1.0, 1.0, 1.0) / 3f64.sqrt();
-    let turned = Solid::Brick([(-0.2, 0.2); 3]).posed(
-        Affine3::translation(Vec3::new(-0.75, 0.5, 0.0))
-            * Affine3::rotation_about_axis(
-                Point3::origin(),
-                Vec3::new(-1.0, 0.0, 1.0) / 2f64.sqrt(),
-                d.y.acos(),
-            ),
-    );
-    let (va, vb, vi) = (
-        PI / 3.0 * (0.25 + 0.5 + 1.0),
-        0.064,
-        CUBE_ON_THE_WIDENING_WALL,
-    );
-    let points = solid_truth::grid(Point3::new(-1.1, 0.0, -0.4), Point3::new(-0.4, 1.0, 0.4), 7);
-    for (op_label, got, op, x, y, v) in [
+    for (place, c, (lo, hi)) in [
         (
-            "∪",
-            topo::union(&cone, &cube, tol),
-            Op::Union,
-            &frustum,
-            &turned,
-            va + vb - vi,
+            "across the seam",
+            [-0.75, 0.5, 0.0],
+            (Point3::new(-1.1, 0.0, -0.4), Point3::new(-0.4, 1.0, 0.4)),
         ),
         (
-            "∩",
-            topo::intersect(&cone, &cube, tol),
-            Op::Intersect,
-            &frustum,
-            &turned,
-            vi,
-        ),
-        (
-            "A ∖ B",
-            topo::subtract(&cone, &cube, tol),
-            Op::Subtract,
-            &frustum,
-            &turned,
-            va - vi,
-        ),
-        (
-            "B ∖ A",
-            topo::subtract(&cube, &cone, tol),
-            Op::Subtract,
-            &turned,
-            &frustum,
-            vb - vi,
+            "inside one wall face",
+            [0.0, 0.5, -0.75],
+            (Point3::new(-0.4, 0.0, -1.1), Point3::new(0.4, 1.0, -0.4)),
         ),
     ] {
-        // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
-        // sections: one grid point refuses `PartialConeFace` there,
-        // measured at every ε row.
-        let partial = if matches!(op_label, "∪" | "A ∖ B") {
-            1
-        } else {
-            0
-        };
-        solid_truth::assert_is_but(
-            &format!("the turned cube, {op_label}"),
-            &got,
-            Want::Body(v, 1e-5),
-            &|q| op.depth(x, y, q),
-            &[],
-            &points,
-            partial,
+        let cube = diagonal_cube(0.4, c);
+        let turned = Solid::Brick([(-0.2, 0.2); 3]).posed(
+            Affine3::translation(Vec3::new(c[0], c[1], c[2]))
+                * Affine3::rotation_about_axis(
+                    Point3::origin(),
+                    Vec3::new(-1.0, 0.0, 1.0) / 2f64.sqrt(),
+                    d.y.acos(),
+                ),
         );
+        let points = solid_truth::grid(lo, hi, 7);
+        for (wall, f, overlap) in [
+            ("widening", WIDENING, CUBE_ON_THE_WIDENING_WALL),
+            ("narrowing", NARROWING, CUBE_ON_THE_NARROWING_WALL),
+        ] {
+            let cone = f.body();
+            let frustum = Solid::Revolved {
+                y0: f.y0,
+                y1: f.y1,
+                r0: f.r0,
+                k: f.k,
+                window: None,
+            };
+            let (vb, vi) = (0.064, overlap);
+            // The frustum's volume, `π·h·(r₀² + r₀·r₁ + r₁²)/3`.
+            let va =
+                PI * (f.y1 - f.y0) / 3.0 * (f.r0.powi(2) + f.r0 * f.r(f.y1) + f.r(f.y1).powi(2));
+            for (op_label, got, op, x, y, v) in [
+                (
+                    "∪",
+                    topo::union(&cone, &cube, tol),
+                    Op::Union,
+                    &frustum,
+                    &turned,
+                    va + vb - vi,
+                ),
+                (
+                    "∩",
+                    topo::intersect(&cone, &cube, tol),
+                    Op::Intersect,
+                    &frustum,
+                    &turned,
+                    vi,
+                ),
+                (
+                    "A ∖ B",
+                    topo::subtract(&cone, &cube, tol),
+                    Op::Subtract,
+                    &frustum,
+                    &turned,
+                    va - vi,
+                ),
+                (
+                    "B ∖ A",
+                    topo::subtract(&cube, &cone, tol),
+                    Op::Subtract,
+                    &turned,
+                    &frustum,
+                    vb - vi,
+                ),
+            ] {
+                // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
+                // sections, whose trim `point_in_solid` cannot always read
+                // (`PartialConeFace`); inside one wall face, that face
+                // carries the cube's footprint as a ring. On the widening wall
+                // one grid point refuses there; on the narrowing wall 153 do,
+                // and 152 in ∩ and B ∖ A. Measured in both places at every ε
+                // row.
+                let keeps_the_wall = matches!(op_label, "∪" | "A ∖ B");
+                let partial = match (wall, keeps_the_wall) {
+                    ("widening", true) => 1,
+                    ("widening", false) => 0,
+                    (_, true) => 153,
+                    (_, false) => 152,
+                };
+                let rings = usize::from(keeps_the_wall && place == "inside one wall face");
+                assert_eq!(
+                    ringed_cone_faces(&got),
+                    rings,
+                    "the turned cube {place} on the {wall} wall, {op_label}: ringed cone faces"
+                );
+                solid_truth::assert_is_but(
+                    &format!("the turned cube {place} on the {wall} wall, {op_label}"),
+                    &got,
+                    Want::Body(v, 1e-5),
+                    &|q| op.depth(x, y, q),
+                    &[],
+                    &points,
+                    partial,
+                );
+            }
+        }
     }
     let narrowing = NARROWING.body();
     let rod = rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]);
@@ -497,4 +532,86 @@ fn an_edge_grazing_the_wall_keeps_the_frontier() {
     assert_sweep_refuses("a brick grazing the wall", FULL, &other, |e| {
         matches!(e, BooleanError::CurvedPierceUnsupported { .. })
     });
+}
+
+/// How many of `got`'s body's cone faces carry a ring.
+fn ringed_cone_faces(got: &Result<topo::BooleanResult<f64>, BooleanError>) -> usize {
+    let Ok(topo::BooleanResult::Body(bb)) = got else {
+        return 0;
+    };
+    bb.body
+        .faces()
+        .filter(|&(k, f)| {
+            !f.rings.is_empty()
+                && topo::query::face_surface_kind(&bb.body, k) == Some(geom::SurfaceKind::Cone)
+        })
+        .count()
+}
+
+/// The frustum the cone-ring fuzz drew as seed 15 at ε = 1e-12.
+const SEED_15: Frustum = Frustum {
+    y0: 0.0,
+    y1: 19.689,
+    r0: 3.6339,
+    k: 0.5513,
+};
+
+/// The cube's side, centre and turn for [`SEED_15`]: side 4.748, its
+/// centre 0.08 outside the wall at `y = 15.2`, azimuth 3.952 from `+x`
+/// towards `+z`, turned 1.2567 about `(−0.342, 0.22, −0.0995)`.
+fn seed_15_cube() -> (f64, Point3<f64>, Affine3<f64>) {
+    let (y, az, out) = (15.2f64, 3.952f64, 0.08);
+    let r = SEED_15.r(y) + out;
+    let axis = Vec3::new(-0.342, 0.22, -0.0995);
+    let turn = Affine3::rotation_about_axis(Point3::origin(), axis / axis.norm(), 1.2567);
+    (4.748, Point3::new(r * az.cos(), y, r * az.sin()), turn)
+}
+
+/// The overlap of the cube [`seed_15_cube`] with [`SEED_15`], by a
+/// midpoint rule over the cube's own coordinates at 1600³ cells outside
+/// the kernel, stable to 4e-6 from 800³.
+const SEED_15_OVERLAP: f64 = 50.088_746;
+
+/// **A ring on a cone wall whose winding sums to rounding answers at
+/// every ε row.** The cone-ring fuzz's seed 15: a turned cube through
+/// the wall of a frustum, inside one wall face, so ∪ and A ∖ B keep
+/// its footprint as a ring on the cone face. Re-derived in interval
+/// arithmetic for check 7, the ring's winding about the axis encloses
+/// zero to ±1.7e-12, and a zero test of it escalated at ε = 1e-12;
+/// decided against half a turn, it does not. Every op builds, its
+/// volume the closed form from the frustum's, the cube's and their
+/// overlap, through tier 3.
+#[test]
+fn a_ring_on_a_cone_wall_whose_winding_sums_to_rounding_answers() {
+    let tol = Tol::witness();
+    let cone = SEED_15.body();
+    let (side, c, turn) = seed_15_cube();
+    let h = side / 2.0;
+    let raw = sweep::test_support::brick((-h, h), (-h, h), (-h, h), tol);
+    let to = Affine3::translation(c - Point3::origin());
+    let cube = finished(
+        "the cube",
+        topo::transform_rigid(&raw, &(to * turn), tol).unwrap(),
+        tol,
+    );
+    let f = SEED_15;
+    let va = PI * (f.y1 - f.y0) / 3.0 * (f.r0.powi(2) + f.r0 * f.r(f.y1) + f.r(f.y1).powi(2));
+    let (vb, vi) = (side.powi(3), SEED_15_OVERLAP);
+    for (op, got, want, rings) in [
+        ("∪", topo::union(&cone, &cube, tol), va + vb - vi, 1),
+        ("∩", topo::intersect(&cone, &cube, tol), vi, 0),
+        ("A ∖ B", topo::subtract(&cone, &cube, tol), va - vi, 1),
+        ("B ∖ A", topo::subtract(&cube, &cone, tol), vb - vi, 0),
+    ] {
+        let bb = match got.as_ref().map(topo::BooleanResult::body) {
+            Ok(Some(bb)) => bb,
+            _ => panic!("{op}: wanted a body, got {got:?}"),
+        };
+        assert_eq!(ringed_cone_faces(&got), rings, "{op}: ringed cone faces");
+        topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
+        let v = topo::mass_properties(&bb.body, tol)
+            .unwrap_or_else(|e| panic!("{op}: the volume refused {e:?}"))
+            .volume;
+        assert!((v - want).abs() <= 1e-5, "{op}: volume {v} against {want}");
+    }
 }

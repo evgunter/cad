@@ -47,3 +47,14 @@ Carry the rung (or the routed decision) through `ContactRefusal` and
 ## Parked on the D10 hold (2026-10-08)
 
 Both doors (the Rest verify in `contact_verify.rs`, the flush offer in `flush.rs`) retire with declared pairs. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Read against E's branch (2026-10-10)
+
+Two halves with different fates. The flush half (`flush.rs::pair_finding`,
+reached only from the `find_flush_candidates` declare protocol) is
+deleted by F. The Rest-verify half survives: `contact_verify`'s Rest
+reading lives on as the census's patch-record confirm. But it sits in
+the one contact_verify.rs hunk that both E and B2 rewrite
+(`rest_pair_verdict` → `rest_pair_reading`), so it stays parked; at F,
+close the flush half and re-state this row as the Rest half alone.
+(CONTACTHOLD orchestrator)

@@ -290,6 +290,12 @@ pub struct Link<T: Real> {
     pub convexity_margin: ClassifiedMargin,
     /// The folded lever arm used by this link's angular predicates.
     pub arm_len: T,
+    /// A curved arm's coaxiality, decided from values: the two supports
+    /// read as sharing the axis ([`topo::Relation::Coaxial`]) or the
+    /// ruling ([`topo::Relation::CoRuled`]) the band is minted on, the
+    /// margin `fillet3_support_coaxiality` decided Zero. `None` on a
+    /// planar row, which decides none.
+    pub support_axis: Option<topo::Coincidence>,
 }
 
 impl<T: Real> Link<T> {
@@ -455,6 +461,10 @@ pub struct BatteryVerdict<T: Real> {
     /// uniform trihedra the corner patch carves are not listed: that
     /// configuration has no tag of its own ([`corner_at`]).
     pub end_faces: Vec<(VertexKey, EndSection<T>)>,
+    /// The junctions predicate 4 decided tangent, so one band runs
+    /// through each: a [`topo::Relation::Tangent`] row between the two
+    /// links' edges, in walk order.
+    pub joints: Vec<topo::Coincidence>,
     /// The open-chain ends predicate 6 classified
     /// [`CornerConfig::Turn`], each decided isosceles once though two
     /// chains end there, sorted by vertex. The planar band's plan reads
@@ -463,10 +473,17 @@ pub struct BatteryVerdict<T: Real> {
 }
 
 impl<T: Real> BatteryVerdict<T> {
-    /// The coincidences the battery decided from values, in vertex
-    /// order ([`topo::coincidence`]).
+    /// The coincidences the battery decided from values
+    /// ([`topo::coincidence`]), predicate by predicate: each link's
+    /// support coaxiality in walk order, each tangent junction, then
+    /// each isosceles turn in vertex order.
     pub fn coincidences(&self) -> impl Iterator<Item = &topo::Coincidence> {
-        self.turns.iter().map(|t| &t.coincidence)
+        self.chains
+            .iter()
+            .flat_map(Chain::links)
+            .filter_map(|l| l.support_axis.as_ref())
+            .chain(&self.joints)
+            .chain(self.turns.iter().map(|t| &t.coincidence))
     }
 }
 
@@ -745,6 +762,9 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// wrap-around) for a constant-radius spine to exist through it;
 /// C8's edge-chain-smoothness predicate is exactly this.
 ///
+/// Returns the margin it decided Zero: a tangency decided from values,
+/// which the caller records where two links meet.
+///
 /// # Errors
 ///
 /// [`BlendError::ChainNotG1`] / [`BlendError::Escalated`].
@@ -754,17 +774,18 @@ pub fn chain_g1<T: Decide + Bounds>(
     arm: T,
     vertex: VertexKey,
     band: Band,
-) -> Result<(), BlendError> {
+) -> Result<MarginDiag, BlendError> {
     let site = BlendSite::Joint { vertex };
     classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
     let margin = Margin::levered(sin_theta, arm);
-    match classify(site, BlendDecision::ChainG1, margin, band)? {
+    let decided = classify_reported(site, BlendDecision::ChainG1, margin, band)?;
+    match decided.sign {
         // A POSITIVE margin is the failure here (a corner), and a
         // ZERO one the success (tangent continuity) — the inverted
         // polarity of a coincidence predicate, stated so no reader
         // has to infer it.
-        Sign::Zero => Ok(()),
+        Sign::Zero => Ok(decided.margin),
         sign => Err(BlendError::ChainNotG1 {
             vertex,
             margin: classified(BlendDecision::ChainG1, margin.value(), band, sign),
@@ -1012,9 +1033,17 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // rides (`plane_sphere_blend`).
     let sense = |f: FaceKey| body.get_face(f).map(|d| d.sense).ok_or_else(broken);
     let senses = (sense(face_a)?, sense(face_b)?);
-    let (arm, blend) = classify_arm(
+    let (arm, blend, axis) = classify_arm(
         &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
     )?;
+    let support_axis = axis.map(|(relation, margin)| {
+        row(
+            [face_a, face_b].map(|f| topo::RowCell::face(topo::Operand::A, f)),
+            relation,
+            topo::DecisionSite::BatterySupportAxis,
+            margin,
+        )
+    });
     Ok(Link {
         edge,
         face_a,
@@ -1027,6 +1056,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         convexity,
         convexity_margin,
         arm_len: extent,
+        support_axis,
     })
 }
 
@@ -1060,6 +1090,27 @@ pub fn arm_roster() -> &'static str {
 pub(super) const NOT_COAXIAL: &str =
     "a curved support pair whose supports do not share one axis of revolution or one ruling";
 
+/// What a curved arm decided its two supports share, and the margin it
+/// was decided on.
+type SupportAxis = (topo::Relation, MarginDiag);
+
+/// A row the battery decided from values, its cells in the source
+/// body's keys.
+fn row(
+    cells: [topo::RowCell; 2],
+    relation: topo::Relation,
+    site: topo::DecisionSite,
+    margin: MarginDiag,
+) -> topo::Coincidence {
+    topo::Coincidence {
+        cells,
+        relation,
+        site,
+        margin,
+        discharge: topo::Discharge::Numeric,
+    }
+}
+
 /// **`fillet3_support_coaxiality`** — do a curved pair's two supports
 /// really share the axis (or the ruling) its arm's spine is derived
 /// from?
@@ -1085,20 +1136,23 @@ pub(super) const NOT_COAXIAL: &str =
 /// on a coaxial cylinder or cone is a latitude of it, so the carrier
 /// already witnesses the shared axis. This predicate is what makes that
 /// implication a CHECKED premise rather than an unstated chain through
-/// somebody else's certificate.
+/// somebody else's certificate. The Zero is still a coaxiality decided
+/// from values, so the margin it was decided on is returned for the
+/// link to record.
 fn support_coaxiality<T: Decide + Bounds>(
     edge: EdgeKey,
     departure: T,
     band: Band,
     supports: &'static str,
-) -> Result<(), BlendError> {
-    match classify(
+) -> Result<MarginDiag, BlendError> {
+    let decided = classify_reported(
         BlendSite::Chain,
         BlendDecision::SupportCoaxiality,
         Margin::of(departure),
         band,
-    )? {
-        Sign::Zero => Ok(()),
+    )?;
+    match decided.sign {
+        Sign::Zero => Ok(decided.margin),
         _ => Err(BlendError::SpineUnsupported { edge, supports }),
     }
 }
@@ -1116,6 +1170,9 @@ fn support_coaxiality<T: Decide + Bounds>(
 /// with the same shape and the same honesty: a curved support is a
 /// real chamfer whose arm is not built (VERBS-ARMS' machinery), not a
 /// geometry this kernel will approximate.
+///
+/// A curved row also returns the margin its coaxiality was decided on
+/// ([`support_coaxiality`]); the planar rows decide none.
 #[allow(clippy::too_many_arguments)]
 fn classify_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
@@ -1133,12 +1190,13 @@ fn classify_arm<T: Decide + Bounds>(
     edge: EdgeKey,
     kind: BlendKind,
     band: Band,
-) -> Result<(BlendArm, EdgeBlend<T>), BlendError> {
+) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     if matches!(kind, BlendKind::Chamfer) {
         return match (sa, sb) {
             (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
                 BlendArm::PlanePlaneStrip,
                 chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
+                None,
             )),
             _ => Err(BlendError::ChamferArmUnsupported {
                 edge,
@@ -1150,6 +1208,7 @@ fn classify_arm<T: Decide + Bounds>(
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
             plane_plane_blend(p, tau.normalize(), n_a, n_b, radius, convexity),
+            None,
         )),
         (
             Surface::Plane { origin, .. },
@@ -1168,6 +1227,7 @@ fn classify_arm<T: Decide + Bounds>(
                 senses.1,
                 convexity,
             ),
+            None,
         )),
         (
             Surface::Sphere {
@@ -1186,11 +1246,12 @@ fn classify_arm<T: Decide + Bounds>(
                 convexity,
             );
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
-            Ok((BlendArm::PlaneSphereTorus, b))
+            Ok((BlendArm::PlaneSphereTorus, b, None))
         }
         _ => curved_arm(
             sa, sb, senses, convexity, carrier, p, extent, radius, edge, band,
-        ),
+        )
+        .map(|(arm, blend, axis)| (arm, blend, Some(axis))),
     }
 }
 
@@ -1278,7 +1339,7 @@ fn curved_arm<T: Decide + Bounds>(
     radius: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(BlendArm, EdgeBlend<T>), BlendError> {
+) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
         Curve3::Circle { center, axis, .. } => {
@@ -1294,8 +1355,9 @@ fn curved_arm<T: Decide + Bounds>(
             ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
-            support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
-            Ok((arm, sheet.blend(ta, tb, radius)))
+            let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            let axis = (topo::Relation::Coaxial, margin);
+            Ok((arm, sheet.blend(ta, tb, radius), axis))
         }
         Curve3::Line { dir, .. } => {
             let arm = ruling_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
@@ -1310,8 +1372,9 @@ fn curved_arm<T: Decide + Bounds>(
             ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
-            support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
-            Ok((arm, sheet.blend(ta, tb, radius)))
+            let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            let axis = (topo::Relation::CoRuled, margin);
+            Ok((arm, sheet.blend(ta, tb, radius), axis))
         }
         _ => Err(unsupported(ARM_ROSTER)),
     }
@@ -1500,7 +1563,8 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
 /// **Predicate 4 over one walked chain**: every junction judged by
 /// [`chain_g1`] at its own two carriers, returning the junctions (as
 /// positions in [`Chain::junctions`]) where two plane–plane links turn
-/// a DEFINITE corner. A definite turn at a junction involving a curved
+/// a DEFINITE corner, and a row for each junction decided tangent, in
+/// junction order. A definite turn at a junction involving a curved
 /// link refuses; an in-band reading escalates at either.
 ///
 /// # Errors
@@ -1512,9 +1576,10 @@ fn chain_turns<T: Decide + Bounds>(
     body: &Body<T>,
     chain: &Chain<T>,
     band: Band,
-) -> Result<Vec<usize>, BlendError> {
+) -> Result<(Vec<usize>, Vec<topo::Coincidence>), BlendError> {
     let ring: Vec<&Link<T>> = chain.links().collect();
     let mut turns = Vec::new();
+    let mut tangent = Vec::new();
     for (at, j) in chain.junctions.iter().enumerate() {
         let v = &j.vertex;
         // The junction's two links are the ones the walk found
@@ -1558,14 +1623,22 @@ fn chain_turns<T: Decide + Bounds>(
                 None => c.deriv(t1),
             }
         };
-        match chain_g1(
-            pick(&ca, ta0, ta1),
-            pick(&cb, tb0, tb1),
-            a.arm_len.min(b.arm_len),
-            *v,
-            band,
-        ) {
-            Ok(()) => {}
+        // Each tangent heads INTO the junction, so a smooth joint reads
+        // them opposed.
+        let (tau_a, tau_b) = (pick(&ca, ta0, ta1), pick(&cb, tb0, tb1));
+        match chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band) {
+            // At a Zero `sin θ` over a definitely positive arm the two
+            // unit tangents are within the band of `±1` apart, so the
+            // dot's sign is certain on any enclosure; it is read, not
+            // metered.
+            Ok(margin) => tangent.push(row(
+                [a.edge, b.edge].map(|e| topo::RowCell::edge(topo::Operand::A, e)),
+                topo::Relation::Tangent {
+                    aligned: tau_a.dot(tau_b).hi() < 0.0,
+                },
+                topo::DecisionSite::BatteryJoint,
+                margin,
+            )),
             Err(BlendError::ChainNotG1 { .. })
                 if a.arm.is_plane_plane() && b.arm.is_plane_plane() =>
             {
@@ -1592,27 +1665,31 @@ fn chain_turns<T: Decide + Bounds>(
             let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
                 return Err(BlendError::ChainNotConnected { edge: l.edge });
             };
+            // One cell meeting itself is not a coincidence of two, so
+            // its Zero records no row.
             chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
         }
     }
-    Ok(turns)
+    Ok((turns, tangent))
 }
 
 /// **The chains the verdict carries**: each walked chain classified at
 /// its junctions ([`chain_turns`]) and broken at every turn
 /// ([`break_at_turns`]), so a multi-link chain spans only junctions one
-/// band runs through.
+/// band runs through; with the rows of those junctions, in walk order.
 pub(crate) fn broken_at_turns<T: Decide + Bounds>(
     body: &Body<T>,
     chains: Vec<Chain<T>>,
     band: Band,
-) -> Result<Vec<Chain<T>>, BlendError> {
+) -> Result<(Vec<Chain<T>>, Vec<topo::Coincidence>), BlendError> {
     let mut broken: Vec<Chain<T>> = Vec::with_capacity(chains.len());
+    let mut joints = Vec::new();
     for chain in chains {
-        let turns = chain_turns(body, &chain, band)?;
+        let (turns, tangent) = chain_turns(body, &chain, band)?;
+        joints.extend(tangent);
         broken.extend(break_at_turns(chain, &turns));
     }
-    Ok(broken)
+    Ok((broken, joints))
 }
 
 /// **Break a chain at its turns** — `turns` indexes
@@ -1784,7 +1861,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // breaks there into two ends, which predicate 6 judges with every
     // other chain end; in band, it escalates. At a junction involving a
     // curved link a definite turn refuses.
-    let chains = broken_at_turns(body, chains, band)?;
+    let (chains, joints) = broken_at_turns(body, chains, band)?;
 
     // --- 5. convexity-sign consistency along each chain (the
     // per-link sign was decided during resolution; here it must AGREE
@@ -1846,6 +1923,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
         size: req.size,
         kind,
         end_faces,
+        joints,
         turns,
     })
 }
@@ -2135,10 +2213,6 @@ fn turn_at<T: Decide>(
         }
     }
     let requested = [l1.edge, l2.edge];
-    let edge_cell = |e| topo::RowCell::Input {
-        input: topo::Operand::A,
-        cell: topo::Cell::Edge(e),
-    };
     Ok(Turn {
         vertex,
         requested,
@@ -2148,13 +2222,12 @@ fn turn_at<T: Decide>(
         out: dirs,
         crossing,
         foot: y1 + (y2 - y1) * T::from_f64(0.5),
-        coincidence: topo::Coincidence {
-            cells: requested.map(edge_cell),
-            relation: topo::Relation::EqualAngles,
-            site: topo::DecisionSite::BatteryTurn,
-            margin: decided.margin,
-            discharge: topo::Discharge::Numeric,
-        },
+        coincidence: row(
+            requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
+            topo::Relation::EqualAngles,
+            topo::DecisionSite::BatteryTurn,
+            decided.margin,
+        ),
     })
 }
 

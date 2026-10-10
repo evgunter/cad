@@ -23,7 +23,7 @@ FORK-3 is with Ev on #4222 (`a-selection-is-a-definition-of-a-body-s-faces-or-ed
 
 ## FORK-3 ruled (2026-10-08, PR 4222)
 
-Sets. A selection is a definition (`Select { body, names }`), not a node; a fillet or chamfer reads one `Edges` and a shell one `Faces`, stating the body once, and the three lose `target`; `FaceFrame`, `Measure` and a mate side read one `Face`/`Edge`; a selection authored twice is two variables (the GUI offers the existing one); `Rebind { body, from, to }`.
+Sets. A selection is a definition (`Select { body, names }`), not a node; a fillet or chamfer reads one `Edges` and a shell one `Faces`, stating the body once, and the three lose `target`; `FaceFrame` and a mate side read one `Face`; a `Measure` operand reads one selection of the kinds its primitive admits, or a `Body`; a selection authored twice is two variables (the GUI offers the existing one); `Rebind { body, from, to }`.
 
 ## Carried from unit D (PR 4355), first from unit B (PR 4342)
 
