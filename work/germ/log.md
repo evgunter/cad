@@ -826,3 +826,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The foot's M-tier count toward twenty is 18 on main. If 4522 lands as the 19th, 4530 is the 20th, and the full readout falls due at the same time.
   - Fix pass on the union: cloud session `session_01KroaaTXrQ4ttVV3v4Y7zZq`.
 - 2026-10-10 — PR 4522 (cone pairs in general pose) state-sync. DR-143 written last: HOLDOUT pair, 0 tallied, fair but flagged, so the M-tier count toward twenty goes to **19**. PR 4530, the next row, is the 20th, which makes the full readout due with its M-tier miss (rule 9). The item is closed and `GERM-VERBS-CONE-SPEC.md` retired.
+- 2026-10-10 16:05 — PR 4522 merged (DR-143). The M-tier count toward twenty is 19. **Readout plan for when PR 4530 merges** (its row will be the 20th M-tier unit and carries an M-tier miss), following readout 3's procedure (PR 4283, branch `analysis/dual-review/readout-3`):
+  - a FULL readout (rule 9: 20 units; the miss is folded in);
+  - written BLIND by a separate agent from the log rows, the protocol and readouts 1–3, on branch `analysis/dual-review/readout-4`, as an `[ev]` PR that is never merged;
+  - a `needs_ev` item, `work/germ/the-dual-review-streams-fourth-readout-is-owed`;
+  - disclosures: arm bytes drawn at dispatch, before the PRs existed; 4530's tally dedup was a close call (two test faults counted as one defect).
