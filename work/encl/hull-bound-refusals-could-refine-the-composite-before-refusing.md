@@ -2,11 +2,12 @@
 id: hull-bound-refusals-could-refine-the-composite-before-refusing
 kind: issue
 title: geom-brep: a C2 hull-limb refusal ends at the first Bernstein bound instead of subdividing until the bound decides
-status: dispatched
+status: review
 branch: encl/hull-bound-refine
 opened: 2026-10-10
 priority: P3
 cost: M
+pr: 4538
 ---
 
 

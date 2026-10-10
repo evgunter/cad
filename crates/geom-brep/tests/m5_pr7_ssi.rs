@@ -446,8 +446,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         let d = eps() * 0.05 * f64::from(k);
         let bad = displaced(&carrier, n, d);
         match certify_against(&bad) {
+            // Limb 2 refuses on its bound, or on its composite's value
+            // at a break against either operand, which subdividing the
+            // bound reads past ε.
             Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
                 margin,
             }) => {
                 found = Some((d, upper(margin)));
@@ -457,9 +460,13 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // escalation band, so limb 2 speaks as an F6 escalation
             // rather than a definite refusal, naming the same limb.
             Err(SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
                 ref cause,
-            }) if cause.predicate == Some("ssi_hull_sup") => {
+            }) if matches!(
+                cause.predicate,
+                Some("ssi_hull_sup" | "ssi_hull_value" | "ssi_hull_value_chart")
+            ) =>
+            {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -1101,9 +1108,10 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     // re-projects from the corrupted warm start and converges to the
     // true foot, so the on-locus distance stays in band —
     // while limb 2, which consumes the pcurve AS the parameter map,
-    // must see |S(P(t)) − C(t)| at the corruption's full size. The
-    // displacement scales from the resolved band (definitely positive
-    // at any battery ε).
+    // must see |S(P(t)) − C(t)| at the corruption's full size: measured
+    // at a break of its composite, past the band, so it refuses on that
+    // value rather than on its bound. The displacement scales from the
+    // resolved band (definitely positive at any battery ε).
     let Curve3::Nurbs(ref carrier) = b.carrier else {
         panic!("a rung-3 carrier is a NURBS curve");
     };
@@ -1129,10 +1137,10 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
+            limb: SsiLimb::HullValueChart,
             margin,
         } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
-        other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
+        other => panic!("CORRUPT-PCURVE: expected limb 2's value at a break, got {other}"),
     }
 }
 
@@ -4771,19 +4779,19 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
     assert!(samples.contains(&n), "{at}: {n} samples");
 }
 
-/// **The `z = 0.2` arc across a dome of curvature 4/m is refined where
-/// the hull limb refused it, at ε 1e-9.** The fit rung prices the gap
-/// between samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³`
-/// runs from 4 at the centre to 23 at the branch ends. At d = 2 limb 2
-/// read the marched carrier in band at its end; the gap there is
-/// halved, and the arc certifies on about 348 samples, two more than
-/// the march's 346 (cause 4 of
+/// **The `z = 0.2` arc across a dome of curvature 4/m certifies on the
+/// march's samples, at ε 1e-9.** The fit rung prices the gap between
+/// samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³` runs from 4
+/// at the centre to 23 at the branch ends. At d = 2 limb 2's first hull
+/// read the marched carrier in band at its end; subdivided, it clears,
+/// and the arc certifies on the march's 346 samples with no refinement
+/// round (cause 4 of
 /// `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`). At
 /// d = 1 the march's samples certify as they stand.
 #[test]
-fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
+fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
     let b = band_at(1e-9);
-    for (d, samples) in [(1.0, 230..250), (2.0, 347..352)] {
+    for (d, samples) in [(1.0, 230..250), (2.0, 340..347)] {
         let (_, dom) = dome_tilt(d);
         let zcut = Surface::Plane {
             origin: Point3::new(0.5, -d / 8.0, 0.2),
@@ -6109,17 +6117,32 @@ fn a_pair_bending_late_refuses_on_limb_3_without_refining_to_the_wall() {
 }
 
 /// **The uncertified door refines as far as limbs 1 and 2 locate a
-/// refusal.** It returns its last refused triple, so refinement's
-/// limb-3 ask, which ends refinement on a certifying door, passes on it.
-/// The late-bend pair of [`bend_pair`] 1e-3 apart, `β = −3`, traced
-/// through `(0.1, 0.5)` at a march tolerance and band of 1e-9: the triple
-/// holds 176 control points, where asking limb 3 would stop it at 173.
+/// refusal**, and returns its last refused triple. The late-bend pair of
+/// [`bend_pair`] 1e-3 apart, `β = −3`, traced through `(0.1, 0.5)` at a
+/// march tolerance and band of 1e-9: the triple holds 173 control
+/// points, limbs 1 and 2 pass it, and limb 3's tube straddles the band.
 #[test]
-fn the_uncertified_door_refines_past_the_limb_3_ask() {
+fn the_uncertified_door_refines_until_limbs_1_and_2_pass() {
     let (plane, dom) = graph_cut();
     let wall = bend_pair(0.5, -3.0, 0.75, 1e-3);
-    let (carrier, _, _) =
+    let (carrier, _, pb) =
         ssi::trace_plane_nurbs_uncertified(&plane, &wall, (0.1, 0.5), dom, 1e-9, band_at(1e-9))
             .unwrap_or_else(|e| panic!("the uncertified trace: {e}"));
-    assert_eq!(carrier.control().len(), 176, "refined past the limb-3 ask");
+    assert_eq!(
+        carrier.control().len(),
+        173,
+        "refined until limbs 1 and 2 pass"
+    );
+    let again = ssi::certify_rung3(
+        &carrier,
+        Some(&pb),
+        &SsiOperand::Analytic(&plane),
+        &SsiOperand::nurbs(&wall).expect("the wall's chart speeds mint"),
+        dom.extent,
+        band_at(1e-9),
+    );
+    assert!(
+        matches!(again, Err(SsiError::TubeStraddles { .. })),
+        "limbs 1 and 2 pass the returned triple and limb 3's tube straddles: {again:?}"
+    );
 }

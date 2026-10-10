@@ -413,7 +413,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                      them",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                SsiLimb::HullValueChart => write!(
+                    f,
+                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
+                     is off the surface point its description names",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
                     f,
                     "{} measured {margin:e} m against the run tolerance — the declared carrier \
                      is not on both surfaces",
@@ -910,11 +916,22 @@ impl AnalyticRung3Refusal {
     /// The certification check a refusal of `limb` is a refused arm of in
     /// this certificate: its limb 2 is the carrier's certified distance
     /// bound from an analytic operand, not the plane × NURBS lane's.
+    ///
+    /// # Panics
+    ///
+    /// On a limb-2 value at a break: this certificate decides its
+    /// limb 2 on a bound alone ([`analytic_rung3`]) and asks the SSI
+    /// certificate for limb 3 alone, so no refusal of it names one.
     #[must_use]
     pub fn check(limb: SsiLimb) -> CertCheck {
         match limb {
             SsiLimb::HullSup => CertCheck::AnalyticHull,
             SsiLimb::OnLocus | SsiLimb::Tube => limb.check(),
+            SsiLimb::HullValue | SsiLimb::HullValueChart => unreachable!(
+                "the analytic rung-3 certificate decides limb 2 on its bound alone and asks the \
+                 SSI certificate for limb 3 alone, so no refusal of it names {}",
+                limb.name()
+            ),
         }
     }
 

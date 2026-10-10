@@ -871,6 +871,34 @@ impl CompositeForm {
     pub fn sup_bound(&self) -> f64 {
         self.bound().mag()
     }
+
+    /// Certified enclosures of `f ∘ C` AT its breaks, one per entry of
+    /// `num.breaks()`. A Bernstein row interpolates its end
+    /// coefficients, so the value at a break is the quotient of the end
+    /// coefficients there: read off the span the break starts, the last
+    /// break off the last span's end. Refused where that denominator
+    /// coefficient is not proven away from zero.
+    pub fn break_values(&self) -> Vec<Interval> {
+        let (num, den) = (self.num.spans(), self.den.spans());
+        let mut values: Vec<Interval> = num
+            .iter()
+            .zip(den)
+            .map(|(n, d)| end_quotient(n.first(), d.first()))
+            .collect();
+        values.push(end_quotient(
+            num.last().and_then(|n| n.last()),
+            den.last().and_then(|d| d.last()),
+        ));
+        values
+    }
+}
+
+/// `n / d`, refused where either row is empty.
+fn end_quotient(n: Option<&Interval>, d: Option<&Interval>) -> Interval {
+    match (n, d) {
+        (Some(n), Some(d)) => *n / *d,
+        _ => Interval::refused(),
+    }
 }
 
 /// The analytic implicit surfaces whose composites `f ∘ C` this module

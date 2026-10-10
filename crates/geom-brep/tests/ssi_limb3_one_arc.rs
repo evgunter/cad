@@ -834,16 +834,34 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
             "{at}: the search's answer (branches, contacts, a region along the side)"
         );
         let got = declared(&wall, (0.0, 1.0));
-        assert!(
-            matches!(
-                got,
-                Err(geom_brep::PlaneNurbsRefusal::Limb {
-                    limb: ssi::SsiLimb::HullSup,
-                    ..
-                })
-            ),
-            "{at}: the carrier along the side refuses on limb 2 first: {got:?}"
-        );
+        if m <= 64 {
+            assert!(
+                matches!(
+                    got,
+                    Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                        cause: ssi::OneArcRefusal::Count { solutions: 0 },
+                        ..
+                    })
+                ),
+                "{at}: the carrier along the side passes limbs 1 and 2, and its tube holds \
+                 no solution: {got:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    got,
+                    Err(geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: ssi::SsiLimb::HullSup,
+                        ..
+                    } | geom_brep::PlaneNurbsRefusal::Escalated {
+                        limb: ssi::SsiLimb::HullSup,
+                        ..
+                    })
+                ),
+                "{at}: limb 2's subdivision budget is spent, and it refuses on its bound: \
+                 {got:?}"
+            );
+        }
     }
     for &m in controls {
         let at = format!("the control, m {m}, ε {e:e}");
@@ -860,10 +878,14 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
 /// at rest.** `z = k·x + h(y)`, `h` over `m` C0 spans each `(P, −N, P)`,
 /// `P > N`: along the side `x = 0`, `φ = h ≥ (P − N)/2 > 0` and the wall
 /// rises inward, so the locus is empty, but every span's hull holds `−N`.
-/// The search answers no branch and no region, and the carrier along the
-/// side refuses, on limb 2 first. Red under the side's sign read on its
-/// unrefined hull: the search then reports a `Side` region on the empty
-/// locus.
+/// The search answers no branch and no region. The carrier along the
+/// side lies within `P < ε` of the plane, so limb 2, subdivided, passes
+/// it over 64 spans, and its tube refuses with no solution in a box;
+/// over 256 or more, each of the composite's spans meets many of the
+/// wall's, its hull clears only after more halving than limb 2's budget
+/// holds, and it refuses on its bound. Red under the side's sign read on
+/// its unrefined hull: the search then reports a `Side` region on the
+/// empty locus.
 ///
 /// The control, `(0.3ε, −0.5ε, 0.3ε)` on each span, holds two zeros of
 /// `φ` on every span: its hulls straddle because `φ` does, and the side
