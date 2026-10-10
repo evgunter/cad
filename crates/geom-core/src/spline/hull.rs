@@ -510,10 +510,10 @@ impl KnotVector {
     /// error it is, never as an empty line.
     ///
     /// This is the one door beside the mints that takes a coefficient
-    /// array, and it takes it only to mint: every consumer of it holds
-    /// its coefficients as an owned `Vec` beside a vector (a tensor
-    /// net's lines, a derivative ladder's levels), and a door on the
-    /// pair would make each of them spell the same mint-then-map.
+    /// array, and it takes it only to mint. A consumer whose array is
+    /// its own construction builds it with
+    /// [`KnotVector::with_coeffs_from_fn`] instead, and one that
+    /// differences a level again holds it as a [`SplineCoeffsBuf`].
     pub fn difference_coeffs<E: CertifiedBounds>(&self, coeffs: &[E]) -> Vec<Interval> {
         self.with_coeffs(coeffs).map_or_else(
             || vec![Interval::refused()],

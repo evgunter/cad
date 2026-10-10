@@ -508,20 +508,20 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> [TensorCoeffs<'_>; 3] {
     let nv = n.knots_v().control_count();
     core::array::from_fn(|c| {
-            TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
-                // Row-major layout: control[iu·nv + iv] — the net's own.
-                let p = n.control()[i * nv + j];
-                let x = Interval::point(match c {
-                    0 => p.x,
-                    1 => p.y,
-                    _ => p.z,
-                });
-                if weighted {
-                    Interval::point(n.weights()[i * nv + j]) * x
-                } else {
-                    x
-                }
-            })
+        TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+            // Row-major layout: control[iu·nv + iv] — the net's own.
+            let p = n.control()[i * nv + j];
+            let x = Interval::point(match c {
+                0 => p.x,
+                1 => p.y,
+                _ => p.z,
+            });
+            if weighted {
+                Interval::point(n.weights()[i * nv + j]) * x
+            } else {
+                x
+            }
+        })
     })
 }
 

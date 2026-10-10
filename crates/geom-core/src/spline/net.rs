@@ -397,6 +397,59 @@ impl TensorNet {
 /// extent can sit beside the vectors and no count is ever checked. The
 /// vectors are borrowed, or owned where a derivative door derived one
 /// ([`TensorCoeffs::derivative_u`]).
+///
+/// These rows are library doctests (`cargo test -p geom-core --doc`);
+/// each `compile_fail` block has a twin differing in one respect that
+/// compiles, so a typo shared by both reddens the twin (stable rustdoc
+/// does not check the error code; it was read off `rustc` 1.97.0).
+///
+/// **A net of another extent has no constructor to sit beside the
+/// vectors** — the fields are private:
+///
+/// ```compile_fail,E0451
+/// use geom_core::interval::Interval;
+/// use geom_core::interval::certification::Certification;
+/// use geom_core::spline::{KnotVector, TensorCoeffs, TensorNet};
+/// let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let net = TensorNet::from_fn(2, 3, |_, _| Interval::point(0.0));
+/// let _ = TensorCoeffs { ku: std::borrow::Cow::Borrowed(&k), kv: std::borrow::Cow::Borrowed(&k), net };
+/// ```
+///
+/// The twin builds the net from the vectors, at their extent:
+///
+/// ```
+/// use geom_core::interval::Interval;
+/// use geom_core::interval::certification::Certification;
+/// use geom_core::spline::{KnotVector, TensorCoeffs};
+/// let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let t = TensorCoeffs::from_fn(&k, &k, |_, _| Interval::point(0.0));
+/// assert_eq!((t.net().nu(), t.net().nv()), (3, 3));
+/// ```
+///
+/// **The Bernstein conversion takes the pair**, not a grid beside two
+/// vectors:
+///
+/// ```compile_fail,E0061
+/// use geom_core::interval::Interval;
+/// use geom_core::interval::certification::Certification;
+/// use geom_core::spline::KnotVector;
+/// use geom_core::spline::compose::patch::PatchSpans;
+/// let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let grid = vec![Interval::point(0.0); 9];
+/// let _ = PatchSpans::decompose(&k, &k, &grid, &[], &[]);
+/// ```
+///
+/// The twin hands it the pair:
+///
+/// ```
+/// use geom_core::interval::Interval;
+/// use geom_core::interval::certification::Certification;
+/// use geom_core::spline::{KnotVector, TensorCoeffs};
+/// use geom_core::spline::compose::patch::PatchSpans;
+/// let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let t = TensorCoeffs::from_fn(&k, &k, |_, _| Interval::point(0.0));
+/// assert_eq!(PatchSpans::decompose(&t, &[], &[]).cell_counts(), (1, 1));
+/// ```
 #[derive(Clone, Debug)]
 pub struct TensorCoeffs<'a> {
     ku: Cow<'a, KnotVector>,
@@ -445,10 +498,8 @@ impl TensorCoeffs<'_> {
     pub fn diff_u(&self) -> TensorNet {
         let cols: Vec<Vec<Interval>> = (0..self.net.nv())
             .map(|j| {
-                self.ku.with_coeffs_from_fn(
-                    |i| self.net.get(i, j),
-                    |pair| pair.derivative_coeffs(),
-                )
+                self.ku
+                    .with_coeffs_from_fn(|i| self.net.get(i, j), |pair| pair.derivative_coeffs())
             })
             .collect();
         // `derivative_coeffs` answers `control_count() − 1` entries per line.
@@ -495,9 +546,8 @@ impl TensorCoeffs<'_> {
         plans_u: &'s [CurvePlan],
         plans_v: &'s [CurvePlan],
     ) -> TensorCoeffs<'s> {
-        let last = |plans: &'s [CurvePlan], kv: &'s KnotVector| {
-            plans.last().map_or(kv, CurvePlan::knots)
-        };
+        let last =
+            |plans: &'s [CurvePlan], kv: &'s KnotVector| plans.last().map_or(kv, CurvePlan::knots);
         TensorCoeffs {
             ku: Cow::Borrowed(last(plans_u, &self.ku)),
             kv: Cow::Borrowed(last(plans_v, &self.kv)),

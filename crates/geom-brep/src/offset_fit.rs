@@ -236,8 +236,8 @@ use geom_core::{
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
 use crate::patch_bound::{PatchBoundError, is_rational};
-use geom_core::spline::TensorCoeffs;
 use crate::recourse::Reading;
+use geom_core::spline::TensorCoeffs;
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
