@@ -74,7 +74,7 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, PierceLever, build_sectors, side_code};
+use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
@@ -138,6 +138,7 @@ pub(super) fn pierced_and_paired(
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PierceDatum<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
+    pub shape: super::sectors::FaceShape,
     pub lever: PierceLever<T>,
 }
 
@@ -159,7 +160,9 @@ pub(super) fn partner_side<T: Decide>(
     for s in partner {
         for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
             let lever = datum.lever.within(reach.length());
-            match side_code(dir, reach, datum.normal, lever, band) {
+            let code = pierce_side(dir, reach, datum.normal, datum.shape, lever, band)
+                .map(|read| read.code);
+            match code {
                 Ok(c @ (SideCode::In | SideCode::Out)) if side.is_none_or(|k| k == c) => {
                     side = Some(c);
                 }
@@ -390,6 +393,9 @@ struct Entry {
     he: HalfEdgeKey,
     is_edge: bool,
     class: SideCode,
+    /// The bound's first-order reading tied
+    /// ([`super::sectors::PierceSide::tied`]).
+    tied: bool,
     /// The class is Delta 2's lump, not this bound's own reading.
     lumped: bool,
 }
@@ -469,6 +475,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // `f64::MAX`, so its charge is vacuous and the planar lane's
     // verdicts are unmoved.
     let pierced_lever = PierceLever::of(pierced_surface, p);
+    let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -481,16 +488,19 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // which is why the primitive takes the typed one.
     let mut entries = Vec::with_capacity(n);
     for s in &sectors {
+        let read = pierce_side(
+            s.end,
+            s.end_reach,
+            n_pierced,
+            pierced_shape,
+            pierced_lever.within(s.end_reach.length()),
+            band,
+        )?;
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(
-                s.end,
-                s.end_reach,
-                n_pierced,
-                pierced_lever.within(s.end_reach.length()),
-                band,
-            )?,
+            class: read.code,
+            tied: read.tied,
             lumped: false,
         });
     }
@@ -500,9 +510,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // whose normal is `n_pierced` — the same vector `face_plane` hands
     // back on a planar face, so the planar lane's margin is unmoved.
     //
-    // Lumping overwrites both bounds' readings, so both must read On,
-    // each at its reach — a line bound at its far vertex, in metres; a
-    // bound read definitely off the plane decides the sector off it.
+    // Lumping overwrites both bounds' readings, so both must tie at
+    // first order, each at its reach — a line bound at its far vertex,
+    // in metres; a bound read definitely off the plane decides the
+    // sector off it. A conic bound that ties may read its bend off the
+    // plane, and the lump's second order supersedes it.
     // Where both read On, the normals' parallelism at the arm proposes
     // coplanarity. A tilt the bounds read On and the normals do not (in
     // band, or decided off: a thin sector tilted about one bound rises
@@ -511,6 +523,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // bounds' own: a smaller tolerance reads the steeper bound off the
     // plane and the sector with it.
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
+    let tied: Vec<bool> = entries.iter().map(|e| e.tied).collect();
     let classes = entries
         .iter()
         .filter(|e| e.is_edge)
@@ -518,7 +531,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     let mut covered = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
-        if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
+        if !tied[k] || !tied[(k + 1) % n] {
             continue;
         }
         let m = Margin::levered(s.normal.vec().cross(n_pierced.vec()).norm(), s.arm);
@@ -867,6 +880,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         classes,
         datum: PierceDatum {
             normal: n_pierced,
+            shape: pierced_shape,
             lever: pierced_lever,
         },
     };
@@ -1229,9 +1243,11 @@ fn germ_order<T: Decide>(
 /// An edge entry's On is a real one for a LINE edge: its far vertex is
 /// within the band of the plane (`side_code`, `Reach::Chord`), so the
 /// edge lies in it to the tolerance and the resolution is ε-true of it.
-/// A curved edge's On is its departure's, to first order
-/// (`Reach::Extent`; the residue is
-/// `work/contacthold/boolean-conic-side-code-zero-is-first-order`).
+/// A conic edge's On against a plane is as real: its tangent and its
+/// bend both read within the band (`Reach::Conic`,
+/// `sectors::conic_side`). Against a curved face, and for a fitted
+/// edge's chord (`Reach::Extent`), it is a first-order tie
+/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,
 /// and it is resolved only where its code changes no topology. Its two
@@ -1668,6 +1684,7 @@ mod tests {
             he: HalfEdgeKey::default(),
             is_edge,
             class,
+            tied: class == SideCode::On,
             lumped: false,
         }
     }
