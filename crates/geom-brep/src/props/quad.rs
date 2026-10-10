@@ -5780,6 +5780,176 @@ mod tests {
         );
     }
 
+    /// VERIFY PROBE (PR 4557, item A): R2's original probe, verbatim in
+    /// substance — no window may return `Open { refusal: None }` for a
+    /// ring wound WITH its face.
+    #[test]
+    fn verify_probe_r2_open_window_skips_the_winding_gate() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [outer, ring] = ringed_rectangle(false, 0.0);
+        for r in 0..=QUAD_MAX_ROUNDS {
+            let got = cylinder_cut_face_rounds::<f64>(
+                pt(1.0), Interval::zero(), &[&outer, &ring], eps, band, RoundWindow::at(r));
+            eprintln!("OPEN round {r}: {:?}", got.as_ref().map(|_| ()).map_err(|e| e.clone()));
+            assert!(matches!(got, Err(PropsError::RingWoundWithFace)), "round {r}: {got:?}");
+        }
+    }
+
+    /// A rectangle `u ∈ [0, 2]`, `v ∈ [0, h]` counter-clockwise, and an
+    /// elliptic hole `(1 + a cos t, c + b sin t)` clockwise.
+    fn probe_face(h: f64, ring: Option<(f64, f64, f64)>) -> Vec<Vec<TrimEdgeQ>> {
+        let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
+            u, v, t0: pt(0.0), t1: pt(span), forward,
+            trig0: (pt(1.0), pt(0.0)), env: pt(0.0),
+        };
+        let outer = vec![
+            line(chan(0.0, 0.0, 0.0, 1.0), chan(0.0, 0.0, 0.0, 0.0), 2.0, true),
+            line(chan(2.0, 0.0, 0.0, 0.0), chan(0.0, 0.0, 0.0, 1.0), h, true),
+            line(chan(0.0, 0.0, 0.0, 1.0), chan(h, 0.0, 0.0, 0.0), 2.0, false),
+            line(chan(0.0, 0.0, 0.0, 0.0), chan(0.0, 0.0, 0.0, 1.0), h, false),
+        ];
+        let mut out = vec![outer];
+        if let Some((a, b, c)) = ring {
+            let pi = core::f64::consts::PI;
+            let arc = |from: f64, trig0| TrimEdgeQ {
+                u: chan(1.0, a, 0.0, 0.0), v: chan(c, 0.0, b, 0.0),
+                t0: pt(from), t1: pt(from + pi), forward: false, trig0, env: pt(0.0),
+            };
+            out.push(vec![arc(pi, (pt(-1.0), pt(0.0))), arc(0.0, (pt(1.0), pt(0.0)))]);
+        }
+        out
+    }
+
+    /// VERIFY PROBE (item A, over-refusal): legitimate holes — the 0.3
+    /// circle, a 0.02 circle, a 1e-3 circle, a thin 0.3 × 0.003 ellipse
+    /// and a 0.9 × 0.004 sliver — return an enclosure of `2 − πab` at
+    /// every round 0..=3 and over the whole schedule, never a refusal.
+    #[test]
+    fn verify_probe_legit_rings_measure_at_every_early_round() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        for (a, b) in [(0.3, 0.3), (0.02, 0.02), (1e-3, 1e-3), (0.3, 0.003), (0.9, 0.004)] {
+            let f = probe_face(1.0, Some((a, b, 0.5)));
+            let loops: Vec<&[TrimEdgeQ]> = f.iter().map(Vec::as_slice).collect();
+            let exact = 2.0 - core::f64::consts::PI * a * b;
+            for r in 0..=3 {
+                let got = cylinder_cut_face_rounds::<f64>(
+                    pt(1.0), Interval::zero(), &loops, eps, band, RoundWindow::at(r));
+                let bounds = match got {
+                    Ok(RoundOutcome::Converged(b)) => b,
+                    Ok(RoundOutcome::Open { bounds, .. }) => bounds,
+                    Err(e) => panic!("ring {a}x{b} round {r}: refused {e:?}"),
+                };
+                eprintln!("ring {a}x{b} round {r}: flux {:?}", bounds.flux);
+                assert!(bounds.flux.lo() <= exact && exact <= bounds.flux.hi());
+            }
+            let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band)
+                .unwrap_or_else(|e| panic!("ring {a}x{b}: {e:?}"));
+            assert!(whole.flux.lo() <= exact && exact <= whole.flux.hi());
+        }
+    }
+
+    /// VERIFY PROBE (item A, over-refusal at the margin): rings whose
+    /// mean width nears the band, and a thin wall with a ring. Whenever
+    /// the whole schedule measures, every early round must return too.
+    #[test]
+    fn verify_probe_thin_rings_round0_vs_whole() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        eprintln!("band zero {} escalate {} eps {eps}", band.zero(), band.escalate());
+        let mut bad = Vec::new();
+        for (h, a, b, c) in [
+            (1.0, 1e-4, 1e-4, 0.5), (1.0, 2e-5, 2e-5, 0.5), (1.0, 1e-5, 1e-5, 0.5),
+            (1.0, 5e-6, 5e-6, 0.5), (1.0, 3e-6, 3e-6, 0.5), (1.0, 2e-6, 2e-6, 0.5),
+            (1.0, 0.3, 1e-5, 0.5), (1.0, 0.3, 3e-6, 0.5), (1.0, 0.3, 2e-6, 0.5),
+            (1.0, 0.3, 1.5e-6, 0.5), (1.0, 0.9, 1e-6, 0.5),
+            (0.01, 0.3, 0.002, 0.005), (1e-3, 0.3, 2e-4, 5e-4), (1e-4, 0.3, 2e-5, 5e-5),
+            (2e-5, 0.3, 4e-6, 1e-5), (1e-5, 0.3, 2e-6, 5e-6),
+        ] {
+            let f = probe_face(h, Some((a, b, c)));
+            let loops: Vec<&[TrimEdgeQ]> = f.iter().map(Vec::as_slice).collect();
+            let whole = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band);
+            let rounds: Vec<_> = (0..=3).map(|r| cylinder_cut_face_rounds::<f64>(
+                pt(1.0), Interval::zero(), &loops, eps, band, RoundWindow::at(r)).map(|o| match o {
+                    RoundOutcome::Converged(_) => "C", RoundOutcome::Open { .. } => "O" })).collect();
+            eprintln!("h {h} ring {a}x{b}: whole {:?} rounds {rounds:?}", whole.as_ref().map(|w| w.flux));
+            if whole.is_ok() && rounds.iter().any(Result::is_err) {
+                bad.push(format!("h {h} ring {a}x{b}: {rounds:?}"));
+            }
+        }
+        assert!(bad.is_empty(), "over-refused early: {bad:#?}");
+    }
+
+    /// VERIFY PROBE (item E): the junction-period decide refuses a loop
+    /// that winds the cylinder (one rim edge, `u = t` over a full turn),
+    /// and a two-rim band whose loops each wind it, while the seam-cut
+    /// full-turn rectangle, closed on the chart, measures `2π`.
+    #[test]
+    fn verify_probe_winding_loops() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let tau = core::f64::consts::TAU;
+        let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
+            u, v, t0: pt(0.0), t1: pt(span), forward,
+            trig0: (pt(1.0), pt(0.0)), env: pt(0.0),
+        };
+        let rim0 = line(chan(0.0, 0.0, 0.0, 1.0), chan(0.0, 0.0, 0.0, 0.0), tau, true);
+        let rim1 = line(chan(0.0, 0.0, 0.0, 1.0), chan(1.0, 0.0, 0.0, 0.0), tau, false);
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[rim0.clone()]], eps, band);
+        eprintln!("one rim: {got:?}");
+        assert!(matches!(got, Err(PropsError::ChartPeriodJump)));
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[rim0.clone()], &[rim1.clone()]], eps, band);
+        eprintln!("two rims: {got:?}");
+        assert!(matches!(got, Err(PropsError::ChartPeriodJump)));
+        let seam_up = line(chan(tau, 0.0, 0.0, 0.0), chan(0.0, 0.0, 0.0, 1.0), 1.0, true);
+        let seam_dn = line(chan(0.0, 0.0, 0.0, 0.0), chan(0.0, 0.0, 0.0, 1.0), 1.0, false);
+        let rect = [rim0, seam_up, rim1, seam_dn];
+        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&rect], eps, band);
+        eprintln!("seam-cut rectangle: {got:?}");
+        let b = got.expect("closed on the chart");
+        assert!(b.flux.lo() <= tau && tau <= b.flux.hi());
+    }
+
+    /// VERIFY PROBE (item C): a face too thin for the extent gate refuses
+    /// `DegenerateFace` at convergence, while its open round-0 enclosure,
+    /// which skips that gate, still encloses its true flux `2h` — at a
+    /// nonzero `o·A⃗` too, and with a hole in it.
+    #[test]
+    fn verify_probe_open_round_of_a_degenerate_face_still_encloses() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        for h in [1e-11, 1e-13, 1e-15] {
+            let f = probe_face(h, None);
+            let loops: Vec<&[TrimEdgeQ]> = f.iter().map(Vec::as_slice).collect();
+            for oa in [0.0, 5.0, -5.0] {
+                let exact = 2.0 * h + oa;
+                for r in 0..=QUAD_MAX_ROUNDS {
+                    let got = cylinder_cut_face_rounds::<f64>(
+                        pt(1.0), pt(oa), &loops, eps, band, RoundWindow::at(r));
+                    eprintln!("h {h} oa {oa} round {r}: {got:?}");
+                    match got {
+                        Ok(RoundOutcome::Open { bounds, .. }) | Ok(RoundOutcome::Converged(bounds)) => {
+                            assert!(bounds.flux.lo() <= exact && exact <= bounds.flux.hi(),
+                                "h {h} round {r}: {:?} misses {exact}", bounds.flux);
+                        }
+                        Err(_) => {}
+                    }
+                }
+                let whole = cylinder_cut_face::<f64>(pt(1.0), pt(oa), &loops, eps, band);
+                eprintln!("h {h} oa {oa} whole: {whole:?}");
+            }
+            // a hole wider than the strip: a whole of no width
+            let f = probe_face(h, Some((0.5, h / 4.0, h / 2.0)));
+            let loops: Vec<&[TrimEdgeQ]> = f.iter().map(Vec::as_slice).collect();
+            for r in 0..=3 {
+                let got = cylinder_cut_face_rounds::<f64>(
+                    pt(1.0), Interval::zero(), &loops, eps, band, RoundWindow::at(r));
+                eprintln!("h {h} holed round {r}: {got:?}");
+            }
+        }
+    }
+
     /// **A loop stored a period off on the chart refuses**
     /// (`props_quad_junction_period`): the ring's second arc carried
     /// `2π` along the azimuth closes in space, not on the chart.
