@@ -59,7 +59,7 @@ fn shelf_over(post: common::Prism<f64>) -> (Body<f64>, FaceKey, FaceKey) {
 
 fn errors(body: &Body<f64>, a: FaceKey, b: FaceKey) -> Vec<ValidationError> {
     let records = topo::ContactRecords::from_iter(vec![topo::Cited::new(
-        topo::Contact::new(&body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
         topo::Cites::decided(0),
     )]);
     match topo::validate_pseudomanifold(body, &records, Tol::witness()) {

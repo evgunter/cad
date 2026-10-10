@@ -280,7 +280,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let part_ev = run(&part, &EvalOptions::default());
     let part_product = product_recorded(&part, &part_ev, Tol::witness()).expect("the part gathers");
     assert_eq!(
-        part_product.contacts.vv.len(),
+        part_product.contacts.vertex_vertex().count(),
         1,
         "the kiss union records one v-v contact: {:?}",
         part_product.contacts
@@ -303,7 +303,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the assembly gathers");
 
     assert_eq!(
-        product.contacts.vv.len(),
+        product.contacts.vertex_vertex().count(),
         1,
         "the record crossed the seam, exactly once: {:?}",
         product.contacts
@@ -340,7 +340,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     // into the evaluated body's contact record set), so the record is
     // already in the product the assembly door is handed.
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
-    assert_eq!(product.contacts.patches.len(), 1);
+    assert_eq!(product.contacts.face_face().count(), 1);
     assert_eq!(
         product.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
         vec![mate]
@@ -2114,8 +2114,7 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     let contacts = &product.contacts;
     assert!(
         contacts.vv.is_empty()
-            && contacts.a_on_b.is_empty()
-            && contacts.b_on_a.is_empty()
+            && contacts.vertex_face().next().is_none()
             && contacts.curves.is_empty()
             && contacts.patches.is_empty(),
         "the gather discovers no contacts (F1), so nothing here is declared: {contacts:?}"

@@ -326,13 +326,17 @@ fn r2_flush_stack_full_overlap() {
             ..
         } = e
         {
-            contacts.vv.push(topo::Cited::new(
-                topo::VvContact { a: *a, b: *b },
+            contacts.push(topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(*a), topo::Cell::Vertex(*b)).unwrap(),
                 topo::Cites::decided(0),
             ));
         }
     }
-    assert_eq!(contacts.vv.len(), 4, "expected the 4 corner kisses");
+    assert_eq!(
+        contacts.vertex_vertex().count(),
+        4,
+        "expected the 4 corner kisses"
+    );
     let verdict = validate_pseudomanifold(&body, &contacts, Tol::witness());
     // Executed outcome recorded in the report: if Ok, a full-area
     // flush contact is certifiable from 4 vv records (skeleton
@@ -589,22 +593,23 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
         validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
         Ok(())
     );
-    let mut tampered = r.contacts.clone();
-    let rests = tampered.a_on_b.len() + tampered.b_on_a.len();
-    assert_eq!(rests, 1, "expected exactly one vf record");
-    let rec = tampered
-        .a_on_b
-        .first_mut()
-        .or(tampered.b_on_a.first_mut())
-        .unwrap();
-    let right = rec.face;
+    let rests: Vec<_> = r.contacts.vertex_face().collect();
+    assert_eq!(rests.len(), 1, "expected exactly one vf record");
+    let (vertex, right) = rests[0];
     let wrong = r
         .body
         .faces()
         .map(|(k, _)| k)
-        .find(|&k| k != right)
+        .find(|&k| {
+            k != right
+                && topo::Contact::new(&r.body, topo::Cell::Vertex(vertex), topo::Cell::Face(k))
+                    .is_ok()
+        })
         .unwrap();
-    rec.record.face = wrong;
+    let tampered = topo::test_support::records(
+        &r.body,
+        [(topo::Cell::Vertex(vertex), topo::Cell::Face(wrong))],
+    );
     let errors = validate_pseudomanifold(&r.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors

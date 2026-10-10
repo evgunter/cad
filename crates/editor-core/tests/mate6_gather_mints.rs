@@ -249,7 +249,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
         "three stands of two cubes each"
     );
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         3,
         "one carried declaration per stand — the inner mate's, re-keyed \
          onto the aggregate"
@@ -288,7 +288,7 @@ fn the_carry_survives_a_second_nesting_level() {
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the deep row gathers");
     assert_eq!(gathered.body.solids().count(), 8, "two mids of two stands");
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         4,
         "one carried declaration per stand, through two seams"
     );
@@ -451,7 +451,7 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         1,
         "minted once by the gather"
     );
@@ -657,7 +657,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         "the mate AFTER the bad reference still minted"
     );
     assert_eq!(
-        gathered.contacts.patches.len(),
+        gathered.contacts.face_face().count(),
         1,
         "and its record is in the set the gate will read"
     );
@@ -720,7 +720,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         vec![good],
         "the mate AFTER the unmintable class still minted"
     );
-    assert_eq!(gathered.contacts.patches.len(), 1);
+    assert_eq!(gathered.contacts.face_face().count(), 1);
     assert_eq!(
         gathered
             .unminted
@@ -794,7 +794,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         vec![good],
         "the good mate between two bad ones still minted"
     );
-    assert_eq!(gathered.contacts.patches.len(), 1);
+    assert_eq!(gathered.contacts.face_face().count(), 1);
     assert_eq!(
         gathered
             .unminted
@@ -859,7 +859,11 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let (stand, _, mate) = stand("mate6-cites-stand", part, body, 1.0);
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
-    assert_eq!(product.contacts.patches.len(), 1, "one mate, one record");
+    assert_eq!(
+        product.contacts.face_face().count(),
+        1,
+        "one mate, one record"
+    );
     assert_eq!(
         product.contacts.patches[0].cites,
         topo::Cites::decided(0),
@@ -906,7 +910,7 @@ fn a_pair_the_census_refuses_mints_no_record() {
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
     assert!(
-        product.contacts.patches.is_empty(),
+        product.contacts.face_face().next().is_none(),
         "{:?}",
         product.contacts
     );

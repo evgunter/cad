@@ -353,11 +353,8 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let mut declared = topo::ContactRecords::default();
     for &pw in &plate_walls {
         for &bw in &boss_walls {
-            declared.patches.push(topo::Cited::new(
-                topo::PatchContact {
-                    face_a: pw,
-                    face_b: bw,
-                },
+            declared.push(topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Face(pw), topo::Cell::Face(bw)).unwrap(),
                 topo::Cites::decided(0),
             ));
         }

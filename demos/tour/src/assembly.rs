@@ -1411,7 +1411,7 @@ impl AtRest {
     /// set the gate was handed, which is what a mate's minting
     /// produces (A3) and the one quantity both arms carry.
     fn minted(&self) -> usize {
-        self.contacts.patches.len()
+        self.contacts.face_face().count()
     }
 }
 

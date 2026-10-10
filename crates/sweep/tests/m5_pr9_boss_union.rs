@@ -85,8 +85,8 @@ fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     let b = boss();
     let mut contacts = topo::ContactRecords::default();
     let v = b.vertices().next().unwrap().0;
-    contacts.vv.push(topo::Cited::new(
-        topo::VvContact { a: v, b: v },
+    contacts.push(topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Vertex(v), topo::Cell::Vertex(v)).unwrap(),
         topo::Cites::decided(0),
     ));
     let errs = topo::validate_pseudomanifold(&b, &contacts, Tol::witness())
@@ -153,16 +153,14 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         let on_rim = (p.z - 1.0).abs() < 1e-9
             && ((p.x - 2.0).powi(2) + (p.y - 2.0).powi(2) - 0.25).abs() < 1e-9;
         if on_rim {
-            records.a_on_b.push(topo::Cited::new(
-                topo::VfContact {
-                    vertex: vk,
-                    face: top_face,
-                },
+            records.push(topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(vk), topo::Cell::Face(top_face))
+                    .unwrap(),
                 topo::Cites::decided(0),
             ));
         }
     }
-    assert_eq!(records.a_on_b.len(), 3, "the three arc joints");
+    assert_eq!(records.vertex_face().count(), 3, "the three arc joints");
     assert_eq!(
         topo::validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),
@@ -289,11 +287,8 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let bite = faces[0];
     let pin_wall = *faces.last().unwrap();
     let mut records = topo::ContactRecords::default();
-    records.patches.push(topo::Cited::new(
-        topo::PatchContact {
-            face_a: bite,
-            face_b: pin_wall,
-        },
+    records.push(topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Face(bite), topo::Cell::Face(pin_wall)).unwrap(),
         topo::Cites::decided(0),
     ));
     let errs = topo::validate_pseudomanifold(&body, &records, Tol::witness())

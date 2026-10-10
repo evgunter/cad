@@ -27,9 +27,7 @@ use geom::Surface;
 use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{
-    Body, CensusContact, ContactRecords, ValidationError, VvContact, validate_pseudomanifold,
-};
+use topo::{Body, CensusContact, ContactRecords, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -123,8 +121,8 @@ fn stacked() -> (Body<f64>, ContactRecords) {
         let [va, vb] = hits[..] else {
             panic!("exactly two corners at ({x}, {y}, 1)");
         };
-        records.vv.push(topo::Cited::new(
-            VvContact { a: va, b: vb },
+        records.push(topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
             topo::Cites::decided(0),
         ));
     };
@@ -324,15 +322,11 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let [fa, fb] = ifaces[..] else {
         panic!("exactly two z=1 faces, got {ifaces:?}");
     };
-    let patch = |a, b| ContactRecords {
-        patches: vec![topo::Cited::new(
-            topo::PatchContact {
-                face_a: a,
-                face_b: b,
-            },
+    let patch = |a, b| {
+        topo::ContactRecords::from_iter(vec![topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
             topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
+        )])
     };
     // The TRUE record on this fixture: the interface pair, certified
     // through the declared pair's shared world carrier (#1063).
@@ -446,8 +440,8 @@ fn r1_delta_probe_bridged_nested_pair_stays_loud() {
     let va = body.vertices().next().unwrap().0;
     let vb = body.vertices().last().unwrap().0;
     let mut records = ContactRecords::default();
-    records.vv.push(topo::Cited::new(
-        VvContact { a: va, b: vb },
+    records.push(topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
         topo::Cites::decided(0),
     ));
     let errs = validate_pseudomanifold(&body, &records, Tol::witness())

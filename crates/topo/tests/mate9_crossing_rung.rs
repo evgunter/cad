@@ -76,7 +76,7 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
     )
 }
 
-fn declared(body: &Body<f64>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+fn declared<T: geom_core::Real>(body: &Body<T>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
     topo::test_support::records(
         body,
         pairs
@@ -463,7 +463,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         "no declaration, no consult: {bare:?}"
     );
 
-    let found = structural(&dual, &declared(&body, &[pair]));
+    let found = structural(&dual, &declared(&dual, &[pair]));
     let refusals = lane_refusals(&found);
     assert_eq!(
         refusals.len(),
@@ -490,7 +490,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         pair,
         "the two seats are built in one arena order"
     );
-    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&body, &[pair]), tol)
+    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&seat, &[pair]), tol)
         .expect_err("the `_structural` door at f64 holds no region door either");
     let shape = |errors: &[ValidationError]| -> Vec<String> {
         errors
@@ -508,7 +508,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
          rendering aside"
     );
     assert!(
-        errors(&seat, &declared(&body, &[pair])).is_empty(),
+        errors(&seat, &declared(&seat, &[pair])).is_empty(),
         "and the certified door, holding the region door, certifies the seat"
     );
 }

@@ -448,8 +448,7 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                             cf.patches.len()
                         );
                         if !(cf.vv.is_empty()
-                            && cf.a_on_b.is_empty()
-                            && cf.b_on_a.is_empty()
+                            && cf.vertex_face().next().is_none()
                             && cf.curves.is_empty()
                             && cf.patches.is_empty())
                         {

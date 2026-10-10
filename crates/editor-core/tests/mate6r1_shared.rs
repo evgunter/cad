@@ -545,7 +545,7 @@ fn r1_three_stands_exact_counts() {
     println!(
         "R1-PROBE three_stands solids={} patches={} => {gate}",
         g.body.solids().count(),
-        g.contacts.patches.len()
+        g.contacts.face_face().count()
     );
 }
 
@@ -652,6 +652,6 @@ fn r1_two_overlapping_false_stands() {
         "R1-PROBE two_overlapping_false_stands roots={} solids={} patches={} separation_findings => {sep}",
         g.solid_copies.len(),
         g.body.solids().count(),
-        g.contacts.patches.len()
+        g.contacts.face_face().count()
     );
 }

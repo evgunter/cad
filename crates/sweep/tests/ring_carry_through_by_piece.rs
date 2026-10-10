@@ -449,10 +449,10 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         );
         assert_eq!(
             (
-                bb.contacts.vv.len(),
+                bb.contacts.vertex_vertex().count(),
                 bb.contacts.a_on_b.len() + bb.contacts.b_on_a.len(),
-                bb.contacts.ve.len(),
-                bb.contacts.ee.len(),
+                bb.contacts.vertex_edge().count(),
+                bb.contacts.edge_edge().count(),
             ),
             (0, 0, 1, 0),
             "{what}: [v-v, v-f, v-e, e-e] records"

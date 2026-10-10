@@ -304,11 +304,8 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     let rim = face_vertices(&body, cap);
     let v0 = rim[0];
     let mut records = ContactRecords::default();
-    records.b_on_a.push(topo::Cited::new(
-        topo::VfContact {
-            vertex: v0,
-            face: brick_top,
-        },
+    records.push(topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Vertex(v0), topo::Cell::Face(brick_top)).unwrap(),
         topo::Cites::decided(0),
     ));
     // The fixture's own precondition, and it is what makes the
@@ -318,7 +315,7 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     // deferral having been deleted. The two are indistinguishable
     // downstream — both leave every wall refused.
     assert_eq!(
-        records.b_on_a.len(),
+        records.vertex_face().count(),
         1,
         "the fixture declares exactly one rest, on the brick's top face"
     );

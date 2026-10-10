@@ -47,7 +47,7 @@ fn the_declared_seat_through_the_four_doors_at_f64() {
     let tol = Tol::witness();
     let seat = common::straddle_seat(tol);
     let pair = (seat.post_top, seat.shelf_bottom);
-    let records = declared(&body, pair);
+    let records = declared(&seat.body, pair);
 
     let certified = topo::validate_pseudomanifold(&seat.body, &records, tol);
     assert!(
