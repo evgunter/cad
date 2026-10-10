@@ -32,8 +32,9 @@ then the union, minus the bare filter words themselves (`carrier`,
 `matches_loopbuilder`. **106 names** at M10-7; **104 rows** since
 `bool_germ_frame_axes_parallel` retired into the section table's
 `cc_axes_parallel` (TANG, PR 4118) and `plane_nurbs_on_locus` into
-`ssi_on_locus_foot`, which the plane × NURBS lane decides the same
-foot under.
+both `ssi_on_locus` and `ssi_on_locus_foot`: it decided the larger of
+the plane residual and the wall foot, which the plane × NURBS lane now
+decides under those two names.
 
 **Its blind spots, which are the previous sweep's and are still real.**
 A misses a predicate named through a wrapper or a table — and that miss
@@ -108,7 +109,7 @@ CSV rather than a name filter.
 
 | name | bucket | evidence | site | rule (M10-8) |
 | --- | --- | --- | --- | --- |
-| `offset_reanchor_on_carrier` | IMPLICIT | an offset carrier re-anchored through a solve | `crates/topo/src/replace_face.rs` | not in the M10-8 documents |
+| `offset_corner_on_surface` | IMPLICIT | an offset corner found by a root solve on a moved surface | `crates/topo/src/offset_derive.rs` | not in the M10-8 documents |
 | `ssi_on_locus` | IMPLICIT | a marched intersection point's residual | `crates/geom-brep/src/ssi/certify.rs` | not in the M10-8 documents |
 | `ssi_on_locus_foot` | IMPLICIT | the foot of that point's projection | `crates/geom-brep/src/ssi/certify.rs` | not in the M10-8 documents |
 | `arc_continue_needs_arc_carrier` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` | not in the M10-8 documents |

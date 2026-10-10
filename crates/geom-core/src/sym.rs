@@ -934,7 +934,7 @@
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **106
 //! names** at M10-7, **104** since two retired. The rule is written out in
-//! `work/sym/symbolic-tier-census.md`, which also carries the full
+//! `work/tier/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
@@ -954,9 +954,11 @@
 //! point's residual and the foot of its projection, the plane × NURBS
 //! lane's chart-image foot among them) and `offset_corner_on_surface`
 //! (an offset corner found by a root solve) — EXACTLY the quantities
-//! S-CERT's frontier item already names, at either filter width. A quantity found by iteration has no expression
-//! in the parameters, so no normal form reaches it and its residual
-//! widens with the box whatever this tier does.
+//! S-CERT's frontier item
+//! (`work/tier/param-box-certification-of-implicit-quantities.md`)
+//! names, at either filter width. A quantity found by iteration has no
+//! expression in the parameters, so no normal form reaches it and its
+//! residual widens with the box whatever this tier does.
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
