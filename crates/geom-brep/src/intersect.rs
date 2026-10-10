@@ -237,11 +237,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Cylinder, Cylinder) => PairRoute {
             rung: Rung::Conic,
             implemented: true,
-            note: "equal radii (structural/declared ONLY — never inferred from \
-                   values) with intersecting axes split into two Ellipses \
-                   (cylinder_cylinder_section); unequal, undeclared, or skew routes \
-                   to the general rung, whose cylinder×cylinder arm has not retired \
-                   (arms retire one at a time, each with its proof)",
+            note: "equal radii (decided Zero by their margin) with intersecting axes \
+                   split into two Ellipses (cylinder_cylinder_section); unequal or skew \
+                   routes to the general rung, whose cylinder×cylinder arm has not \
+                   retired (arms retire one at a time, each with its proof)",
         },
         // ---- Rung 2, axis-aligned poses only: the containing and
         // normal planes cut closed-form Circles, the parallel one off
@@ -289,15 +288,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: true,
             note: "marched in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) and \
                    fitted, with the full three-limb certificate and in-op \
-                   exhaustiveness (geom_brep::ssi::cylinder_sphere_ssi); the \
-                   DECLARED-coaxial special case is classified exactly \
-                   (cylinder_sphere_section: two circles, the tangent circle as \
-                   classification data, or empty), and everything else — every \
-                   transversal pose, and every coaxial pose without ladder evidence, \
-                   because THIS pair's coaxiality is never inferred from a measured \
-                   distance (a ruling this pair can afford: its general-rung arm is \
-                   implemented, so refusing costs a slower answer, not an answer) — \
-                   still marches",
+                   exhaustiveness (geom_brep::ssi::cylinder_sphere_ssi); the coaxial \
+                   special case, the axis-to-centre distance decided Zero by its \
+                   margin, is classified exactly (cylinder_sphere_section: two \
+                   circles, the tangent circle as classification data, or empty), and \
+                   every transversal pose still marches",
         },
         // ---- Rung 3: quartic-and-worse loci. The general rung is
         // implemented, but it retires per arm (C12.1), so these still

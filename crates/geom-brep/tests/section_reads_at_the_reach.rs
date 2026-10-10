@@ -12,8 +12,8 @@
 use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::intersect::{
-    ConeCylinderSection, EqualCylinderSection, PlaneCylinderSection, RadiusEvidence,
-    cone_cylinder_section, cylinder_cylinder_section, plane_cylinder_section,
+    ConeCylinderSection, EqualCylinderSection, PlaneCylinderSection, cone_cylinder_section,
+    cylinder_cylinder_section, plane_cylinder_section,
 };
 use geom_brep::{ExtentBall, Reach, TangentLocus, tangent_locus};
 use geom_core::{Point3, Vec3};
