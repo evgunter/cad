@@ -2,11 +2,13 @@
 id: declared-faces-has-no-cross-solid-check
 kind: issue
 title: An intra-solid PATCH record is admitted into the census's backing index with no reading of its own (curve records are the designed cusp channel; patches have no such role)
-status: open
+status: parked
 opened: 2026-09-16
 refs: [750]
 priority: P3
-cost: D
+cost: M
+blocked_on: [at-rest-records-are-unordered-cell-pairs]
+design: true
 ---
 
 The adjacent observation from issue 750, filed at BOOL-4's spec time
@@ -59,3 +61,15 @@ question, so the row is costed `D`.
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
 
 E ships one set of `ContactRecords` for a glued pair, declared or not. `Declared::index` reads them unchanged, so the question this row asks still holds.
+
+## Parked on the at-rest record fork (2026-10-10)
+
+The open question (refuse intra-solid patch records, or keep intra-solid
+pairs out of the backing index) is phrased in the record kinds that the
+at-rest record fork (`[ev]` PR 4547, carried on
+`contact-records-carry-operand-labels-into-the-at-rest-currency`) would
+retire as stored types. Under its recommendation, "patch" vs "curve" is
+read from the two cells' carriers, so the question restates as which
+same-solid cell pairs may back an event. Weigh it with designers once Ev
+answers. Re-priced from legacy `D` to `M` with `design`.
+(CONTACTHOLD orchestrator)

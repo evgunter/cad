@@ -154,3 +154,53 @@ and ORBIT's twin, neither with an orchestrator. I claimed the RESTREAD row
 tube-rim row its riding witness. Notes are on both logs and both plans
 are updated. A lane follows once this is on main.
 — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — wording merged; side-code measured and dispatched
+
+- PR 4545 merged on my own read (comments, one DESIGN.md sentence, one
+  panic message). It closed `boolean-vertex-contact-records-…` and filed
+  `zero-to-distinct-cells-on-one-point-doors-audit`; the census/validator
+  wording tied to `UndeclaredContact` went to INTENT J's row as evidence.
+- The side-code measure reproduces on main: a tangent arc that curves off
+  is read On to first order (`sectors::side_code`, `Reach::Extent`), and in
+  the dip case that makes `sectors::along` refuse a germ with both bounds
+  "on" the face. E made the undeclared path reach it. The same lane now
+  builds the second-order reading on `contacthold/side-code-order2`.
+  Re-priced to cost H (certified second-order bounds). Review tier:
+  **dual** (class H, per this plan's posture), under
+  `docs/DUAL-REVIEW-PROTOCOL.md`. Its side finding (flush and corner
+  postures refuse `odd number of surviving crossing records`, not this
+  row's cause) is filed in that PR.
+- Friction: the session's disk allowance (about 40 GB) holds about four
+  building lanes. One lane's target reached 11 GB, and free space fell to
+  5.8 GB. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4550 reviewed (full single); fix pass
+
+The reviewer found the new clear sound (cylinder, cone, sphere, torus and
+NURBS reaches enclose their faces in an aimed frame; a `None` reach never
+clears) and that it only ever clears more. It added rows: a torus, and
+1e-7/1e-6 cuts. **MAJOR**: the row asked to reword the README's
+touch-analysis sentence to match the code, and that sentence is C1 of
+Ev's PR #3422 ruling, ratified and unbuilt. My brief passed the row's ask
+on unchecked, and the lane's `git log -S` missed the line-wrapped phrase.
+Class: **a row's request to reword "stale" text is a claim about
+ratification, and the brief must check it before passing it on**. The
+hunk is reverted; the two parked rows that carry C1 stay. The minors are
+in the fix pass: doc placement, the restored planar-first check in
+`operand_axes` (it had added extra reach reads to the boolean), the
+census passing `sweep_pad` (the aimed frame's rounding contract), and two
+filed rows (torus extent overshoot; `bool_pair_gap` missing from the K
+ledger). An independent verifier follows the fix pass. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — Ev ruled the at-rest record (PR 4547, merged)
+
+"this sounds good. i have no strong opinion on the sub-question;
+whatever is more elegant/uniform works." I took the uniform answer:
+every pair whose interiors meet is recorded. Fork log row 108 is filled
+(A = Opus, B = Fable; both matched Ev). The build is the unit
+`at-rest-records-are-unordered-cell-pairs` (H, dual review). The two fork
+rows ride with it, and `topo-surgery-…` and `declared-faces-…` park on
+it. It's dispatched once disk and slots free up. PR 4558's review came
+back with no MAJOR, so a fix pass is out. PR 4550's verifier passed it,
+and it merges after its last README word. — (CONTACTHOLD orchestrator)

@@ -6,8 +6,6 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: M
-design: true
-needs_ev: true
 branch: germ/ev-klint-bound-door
 refs: [sphere-region-root-slack-crowds-the-zero-band-at-1e-12]
 ---
@@ -220,3 +218,13 @@ Two designers, from one problem statement, agree on the diagnosis and on its hom
 - **Separately:** the one remaining flag, `bool_circle_torus_meridian` at 1.04e-14, is a genuine coincidence whose honest rounding at a 5 m scene crosses ε/10² at 1e-12. Both designers recommend a zero-side ceiling on rule 2, cut from the coincidence zeros, the twin of M7-F1's definite-side cap, rather than re-cutting `PROXIMITY_FACTOR`.
 
 Their full texts, A and B, are on the `[ev]` PR.
+
+## Ev's ruling (PR 4567, 2026-10-10)
+
+> "ah, didn't realize it failed--yeah just tallying it is fine"
+>
+> "i don't think i see the benefit to this / i'm not sure why it's semantically correct" (on the kernel bound door)
+
+- k-lint's rule 2 zero-arm flags are **tallied and printed** (e.g. "rounding uses 31% of ε here (lily, 1e-12)"); they do not fail the `k-lint (dev-probe)` gate.
+- No kernel bound or certification door. The root-slack decisions keep going through `decide`.
+- The unit that builds this is the item's next step.
