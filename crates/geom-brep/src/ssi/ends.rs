@@ -506,7 +506,7 @@ impl<'a> Ends<'a> {
             self.ctx.extent,
             self.band,
             certify::Limbs::All,
-            &mut Vec::new(),
+            &mut certify::Refused::default(),
         )?;
         Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
     }
@@ -631,7 +631,6 @@ mod tests {
         };
         let limb = || SsiError::CertificateLimb {
             limb: SsiLimb::OnLocus,
-            value: 3e-9,
             margin: MarginDiag::value(3e-9),
         };
         let step = |margin| SsiError::Escalated {
