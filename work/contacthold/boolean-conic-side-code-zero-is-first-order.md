@@ -74,9 +74,10 @@ side reading runs before any split.
   its wall touches the slab's top along the rim and lumps whole as a
   tangent sector, and the run boundary lands on the coplanar bottom
   sector beside it, both of whose edges lie on the top
-  (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`'s
-  family). Forcing every reading of the arc to its far vertex moved it
-  only by unlumping the wall. `flush`/`corner` refuse ∖ ∖ ∩ on an odd
+  (`a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector`;
+  not the HONE row, whose raising site and sector differ). Forcing every
+  reading of the arc to its far vertex moved it only by unlumping the
+  wall, onto the HONE row's `vtxfac::pierce_germ_dir`. `flush`/`corner` refuse ∖ ∖ ∩ on an odd
   crossing count that the arc's reading does not move
   (`a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex`).
 

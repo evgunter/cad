@@ -331,8 +331,8 @@ fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
 /// whole as a tangent sector, and the differences and intersection
 /// refuse in `sectors::along`, a run boundary on the coplanar bottom
 /// sector beside it with both its edges on the top
-/// (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`'s
-/// family). It asserts nothing. Run:
+/// (`work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`);
+/// the union refuses `TangentSlitArmUnbuilt`. It asserts nothing. Run:
 /// `cargo test -p sweep --test all the_flush_and_corner_postures -- --ignored --nocapture`
 #[test]
 #[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]

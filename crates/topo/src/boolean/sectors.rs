@@ -24,7 +24,9 @@
 //! [`Reach`] allows ([`side_code`]): a line edge at its far vertex, in
 //! metres; a curved edge and a bisector through
 //! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
-//! `Tangent ⇒ On`. Program 15.7's printed `IN = +1` (positive dot ⇒ IN)
+//! `Tangent ⇒ On` in the sector passes; the vertex-on-face pass reads a
+//! conic's `Tangent` against a plane face by its bend ([`pierce_side`]).
+//! Program 15.7's printed `IN = +1` (positive dot ⇒ IN)
 //! is coherent only for inward normals; under TOG §2's (and our)
 //! outward normals the derived mapping is the opposite — mirror-pinned
 //! by `mirror_check_side_codes`.
@@ -105,7 +107,8 @@ pub(super) struct Bend<T: geom_core::Real> {
 pub(super) enum BendBounds<T: geom_core::Real> {
     /// A circle or an ellipse: a plane curve whose curvature lies in
     /// `[least, most]`, both positive, and whose points all lie within
-    /// `reach` of the base vertex.
+    /// `reach` of the base vertex and within `rise` of its tangent line
+    /// there.
     Planar {
         /// The least curvature anywhere on the carrier.
         least: T,
@@ -113,6 +116,9 @@ pub(super) enum BendBounds<T: geom_core::Real> {
         most: T,
         /// A bound on every point's distance from the base vertex.
         reach: T,
+        /// A bound on every point's distance from the tangent line at
+        /// the base vertex, toward the principal normal.
+        rise: T,
     },
     /// A spiric section: no curvature bound is certified here, so its
     /// tie with a face's plane reads no side.
@@ -129,21 +135,29 @@ impl<T: Decide> Bend<T> {
         let curvature = (deriv2 - t * deriv2.dot(t)) / speed_sq;
         let bounds = match *carrier {
             // The parameter is the angle, so the arc is `radius·span`
-            // long, and no point lies further than the diameter.
+            // long, no point lies further than the diameter, and the arc
+            // rises `radius·(1 − cos θ)` off its tangent at angle `θ`,
+            // most at `θ = min(span, π)`.
             geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
                 least: T::one() / radius,
                 most: T::one() / radius,
                 reach: (radius * span).min(radius * T::from_f64(2.0)),
+                rise: radius * (T::one() - span.min(T::pi()).cos()),
             },
             // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
-            // ends of the major axis to `a/b²` at the ends of the minor,
-            // and no point lies further than the major diameter.
+            // ends of the minor axis to `a/b²` at the ends of the major,
+            // and no point lies further than the major diameter. Off its
+            // tangent the arc rises `y' = sin φ ≤ φ ≤ most·s`, so at most
+            // `most·S²/2` over its length `S ≤ a·span` (the speed is at
+            // most `a`), and never past the major diameter.
             geom::Curve3::Ellipse { major, minor, .. } => {
                 let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
+                let most = a / b.powi(2);
                 BendBounds::Planar {
                     least: b / a.powi(2),
-                    most: a / b.powi(2),
+                    most,
                     reach: a * T::from_f64(2.0),
+                    rise: (most * (a * span).powi(2) * T::from_f64(0.5)).min(a * T::from_f64(2.0)),
                 }
             }
             geom::Curve3::Spiric { .. } => BendBounds::Unbounded,
@@ -171,10 +185,11 @@ impl<T: Decide> Reach<T> {
     /// The bound's signed first-order departure from the plane through
     /// its base vertex with unit normal `n`, as [`side_code`] reads it: a
     /// line edge's far vertex, in metres; any other bound's direction
-    /// `dir` levered at its reach ([`rise`]). It is the margin a tie's
-    /// first order leaves, which is what the vertex-on-face pass's
-    /// whole-sector lump keys on ([`PierceSide::tied`]); a conic's bend
-    /// is [`conic_side`]'s.
+    /// `dir` levered at its reach ([`rise`]). The vertex-on-face pass
+    /// quotes it for a sector whose bounds tie but whose tilt it cannot
+    /// decide (`bool_sector_coplanar`): the steeper bound's first-order
+    /// departure is what a smaller tolerance reads off the plane. A
+    /// conic's bend is [`conic_side`]'s.
     pub(super) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
             Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
@@ -639,7 +654,7 @@ pub(super) fn side_code<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    read_side(dir, reach, face_normal, lever, false, band).map(|side| side.code)
+    read_side(dir, reach, face_normal, lever, None, band).map(|side| side.code)
 }
 
 /// **A bound's side of a pierced face, as the vertex-on-face pass reads
@@ -661,14 +676,7 @@ pub(super) fn pierce_side<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<PierceSide, BooleanError> {
-    read_side(
-        dir,
-        reach,
-        face_normal,
-        lever,
-        shape == FaceShape::Plane,
-        band,
-    )
+    read_side(dir, reach, face_normal, lever, Some(shape), band)
 }
 
 /// What [`pierce_side`] read of a bound.
@@ -680,14 +688,16 @@ pub(super) struct PierceSide {
     pub tied: bool,
 }
 
-/// [`side_code`] and [`pierce_side`]'s one body: `descend` reads a
-/// conic's first-order tie one order down ([`conic_side`]).
+/// [`side_code`] and [`pierce_side`]'s one body. `shape` is the face's
+/// where the reading may descend (the vertex-on-face pass's), `None`
+/// for the first-order reading; a conic's tie with a plane face is read
+/// one order down ([`conic_side`]).
 fn read_side<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face_normal: OutwardNormal<T>,
     lever: T,
-    descend: bool,
+    shape: Option<FaceShape>,
     band: Band,
 ) -> Result<PierceSide, BooleanError> {
     let n = face_normal.vec();
@@ -718,7 +728,7 @@ fn read_side<T: Decide>(
                 Ok(EntersMaterial::Exits) => SideCode::Out,
                 Ok(EntersMaterial::Tangent) => {
                     return match reach {
-                        Reach::Conic { extent, bend } if descend => {
+                        Reach::Conic { extent, bend } if shape == Some(FaceShape::Plane) => {
                             conic_side(dir, extent, bend, face_normal, band).map(tie)
                         }
                         _ => Ok(tie(SideCode::On)),
@@ -788,9 +798,10 @@ fn read_side<T: Decide>(
 /// along it `Out`. `l` is capped at the extent, so the witness point
 /// lies on the edge.
 ///
-/// **On.** Every point of the arc lies within `reach` of the vertex
-/// and in the arc's plane, so its height is at most
-/// `(|t̂·n̂| + |N̂·n̂|)·reach`; where that reads `Zero` the whole edge
+/// **On.** Every point of the arc lies in its own plane, within `reach`
+/// of the vertex and within `rise` of the tangent line there toward
+/// `N̂` ([`BendBounds::Planar`]), so its height is at most
+/// `|t̂·n̂|·reach + |N̂·n̂|·rise`; where that reads `Zero` the whole edge
 /// lies in the plane to the band, and the bound is `On` as a line
 /// edge's is.
 ///
@@ -805,19 +816,19 @@ fn conic_side<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let n = face_normal.vec();
-    let refused = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::ConicBend,
-        diag,
-    };
-    let slope = dir.normalize().dot(n).abs();
     let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
     // A spiric section has no bend this reading certifies: it lifts
     // nothing, and the margin below cannot clear.
     let (lift, l) = match bend.bounds {
-        BendBounds::Planar { least, most, reach } => {
+        BendBounds::Planar {
+            least,
+            most,
+            reach,
+            rise: height,
+        } => {
             if let Ok(Sign::Zero) = decide(
                 "bool_conic_flat",
-                Margin::levered(slope + normal_part.abs(), reach),
+                Margin::of(rise(dir, n, reach).abs() + normal_part.abs() * height),
                 band,
             ) {
                 return Ok(SideCode::On);
@@ -831,8 +842,18 @@ fn conic_side<T: Decide>(
         }
         BendBounds::Unbounded => (T::zero(), extent),
     };
-    crate::validate::decide_positive("bool_conic_bend", Margin::of(lift - slope * l), band)
-        .map_err(refused)?;
+    crate::validate::decide_positive(
+        "bool_conic_bend",
+        Margin::of(lift - rise(dir, n, l).abs()),
+        band,
+    )
+    .map_err(|diag| { { use std::io::Write as _; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt") { let _ = writeln!(f, "RAISED {:?}", std::thread::current().name()); } } BooleanError::Escalated {
+        decision: BooleanDecision::ConicBend,
+        diag,
+    }})?;
+    // The lift that cleared is at most the sagitta `½·|κ·n̂|·l²`
+    // (`|κ·n̂| ≥ least·|N̂·n̂|` and `2·sin²(x/2) ≤ x²/2`), so the
+    // sagitta's sign is decided wherever the lift's was.
     match crate::validate::decide_nonzero(
         "bool_conic_bend_side",
         Margin::sagitta(bend.curvature.dot(n), l),
@@ -842,7 +863,9 @@ fn conic_side<T: Decide>(
         // against the outward normal.
         Ok(NonzeroSign::Negative) => Ok(SideCode::In),
         Ok(NonzeroSign::Positive) => Ok(SideCode::Out),
-        Err(diag) => Err(refused(diag)),
+        Err(_) => unreachable!(
+            "a bend whose certified lift cleared the band has a sagitta at least as large"
+        ),
     }
 }
 
@@ -5373,11 +5396,6 @@ mod tests {
         );
     }
 
-    /// **A conic tie refuses typed where its bend does not certify a
-    /// side** (an arc so short its lift stays in the band, and a spiric
-    /// section, whose curvature carries no bound), **and rides a curved
-    /// face `On`**: tangent to a cylinder of its own radius, it lies on
-    /// the face to first order, which is all a tangent plane says there.
     /// **Every verdict `pierce_side` gives a conic tied with a plane is
     /// true of the arc, sampled** (review row, R1 of PR 4575). Circles
     /// and ellipses through the origin, leaving with a first-order
@@ -5537,6 +5555,50 @@ mod tests {
         assert!(ins > 0 && outs > 0 && ons > 0 && refused > 0);
     }
 
+    /// **An arc long beside the band whose sagitta stays inside it is
+    /// `On`** (review row, R2 of PR 4575): radius 1000, a microradian
+    /// of span, so a millimetre long and `5e-10` off its tangent at its
+    /// far end. Bending toward the plane's normal it lies in the plane to
+    /// the band; a height bound read at its reach (a millimetre) refused.
+    #[test]
+    fn a_long_arc_whose_sagitta_is_in_the_band_is_on() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let (r, span) = (1e3, 1e-6);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let carrier = geom::Curve3::Circle {
+            center: geom_core::Point3::origin() + z * r,
+            axis: x.cross(z),
+            radius: r,
+            u_ref: -z,
+        };
+        let chord = carrier.eval(span).distance(geom_core::Point3::origin());
+        assert!(chord > 9e-4 && (carrier.eval(span) - geom_core::Point3::origin()).z < b.zero());
+        let extent = geom_brep::edge_extent(&carrier, 0.0, span, chord);
+        let bend = Bend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
+        let dir = carrier.deriv(0.0).normalize() * extent;
+        assert_eq!(
+            pierce_side(
+                dir,
+                Reach::Conic { extent, bend },
+                n,
+                FaceShape::Plane,
+                NO_CURVATURE(),
+                b
+            )
+            .unwrap()
+            .code,
+            SideCode::On,
+            "the whole arc lies within the band of the plane"
+        );
+    }
+
+    /// **A conic tie refuses typed where its bend does not certify a
+    /// side** (an arc so short its lift stays in the band, and a spiric
+    /// section, whose curvature carries no bound), **and rides a curved
+    /// face `On`**: tangent to a cylinder of its own radius, it lies on
+    /// the face to first order, which is all a tangent plane says there.
     #[test]
     fn a_conic_tie_refuses_where_its_bend_certifies_nothing() {
         let b = band();

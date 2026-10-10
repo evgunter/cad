@@ -54,6 +54,20 @@ returns `On` at the tie:
    read `Out`), and is
    `work/tang/vtxfac-tangent-sector-should-descend-per-bound.md`'s.
 
+**Reproduction (both reviews of PR 4575, executed).** The tilted dip
+(`an_arc_tangent_at_a_boolean_vertex.rs`'s `tilted_dipping_round`, α =
+0.3 or 0.6) with its rim vertex on the slab's top EDGE (slab
+x ∈ [2, 5], y ∈ [−6, 6]) reaches item 1: the arc's tie is read by the
+vertex-edge pass, not the vertex-on-face one, and every op refuses
+`Join(UnpairedLooseEnds { count: 2 })`, the wrong germ the vertex-on-face
+pass no longer makes. Descending in `side_code` as well moves it to
+`ClassificationInvariant "odd number of surviving crossing records at a
+vertex pair"`, so the descent there needs the gateways keyed first.
+Printed by `review_tilted_dip_off_the_vertex_on_face_pass` (`--ignored
+--nocapture`). `a_tangent_arc_at_other_boolean_vertices.rs`'s
+`a_rising_round_tilted_onto_a_slab_edge_keeps_its_operands` goes red if
+`side_code` descends without them.
+
 A direction-only reading is listed so the next sweep does not re-find
 it: `sectors::arc_side` (`bool_cone_arc`) reads a bound's direction
 against a great arc of the cone of directions, and a conic tangent to

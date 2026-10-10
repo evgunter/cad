@@ -294,11 +294,12 @@ pub enum BooleanDecision {
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
-    /// Whether an arc that leaves a corner along a face's plane bends
-    /// off it clearly enough to read which side it goes: the margin is
-    /// a lower bound on how far the arc's bend carries it off the face,
-    /// less the residue its tangent leaves and the face's own bend, and
-    /// a definitely positive one passes.
+    /// Whether an arc that leaves a corner along a plane face bends off
+    /// it clearly enough to read which side it goes: the margin is a
+    /// lower bound on how far the arc's bend carries it off the plane,
+    /// less the residue its tangent's first-order reading leaves, and a
+    /// definitely positive one passes. A spiric arc's bend carries no
+    /// bound, so its margin never passes.
     ConicBend,
     /// Whether two directions at a corner, read parallel, point the same
     /// way or opposite ways (`bool_dir_same`): the cosine levered at the
@@ -1207,14 +1208,14 @@ pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// Whether an arc that leaves a corner along a face's plane bends off it
+/// Whether an arc that leaves a corner along a plane face bends off it
 /// clearly enough to read its side ([`BooleanDecision::ConicBend`]): the
-/// margin is the least lift the arc's bend gives it off the face's
-/// tangent plane, less the residue of its tangent's first-order reading
-/// and the sagitta the face bends through, and a definitely positive
-/// one passes.
+/// margin is the least lift the arc's bend gives it off the plane, less
+/// the residue of its tangent's first-order reading, and a definitely
+/// positive one passes. Only a circle or an ellipse can bend off more
+/// sharply; a spiric arc's way through is the angle.
 pub(crate) const CONIC_BEND: SizedDecision = SizedDecision {
-    lever: "make the arc leave the face at an angle, or bend off it more sharply",
+    lever: "tilt the arc off the face, or bend a circular or elliptic arc more sharply",
     size: "lift beyond the residue",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
@@ -2341,8 +2342,8 @@ pub(in crate::boolean) mod tests {
                 "whether an arc leaving a corner along a face bends off it clearly enough to read \
                  which side it goes",
                 Ending::Sized(
-                    "Recourse: make the arc leave the face at an angle, or bend off it more \
-                     sharply",
+                    "Recourse: tilt the arc off the face, or bend a circular or elliptic arc \
+                     more sharply",
                     SizedPass::Positive,
                 ),
             ),

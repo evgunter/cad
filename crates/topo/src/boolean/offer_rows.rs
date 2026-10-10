@@ -792,6 +792,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
             least: 1.0,
             most: 1.0,
             reach: core::f64::consts::FRAC_PI_2,
+            rise: 1.0,
         },
     };
     pierce_side(
@@ -2917,6 +2918,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "sphere_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "classify_vertex_on_face",
+        "BooleanDecision::ConicBend",
         1,
     ),
     (
