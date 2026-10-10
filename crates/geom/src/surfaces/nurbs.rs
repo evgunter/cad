@@ -957,7 +957,28 @@ impl<T: Real> NurbsSurface<T> {
 }
 
 /// The knot algebra: at the evaluation scalars only
-/// ([`ProjectiveScalar`]'s docs say why not at `Interval`).
+/// ([`ProjectiveScalar`]'s docs say why not at `Interval`), on curves
+/// and surfaces alike. At the certification scalar a refinement does
+/// not typecheck:
+///
+/// ```compile_fail,E0599
+/// use geom::{NurbsCurve3, NurbsSurface};
+/// use geom_core::Interval;
+/// fn refine(s: &NurbsSurface<Interval>, c: &NurbsCurve3<Interval>) {
+///     let _ = s.refine_knots_u(&[0.5]);
+///     let _ = c.refine_knots(&[0.5]);
+/// }
+/// ```
+///
+/// Its twin differs in the scalar alone:
+///
+/// ```
+/// use geom::{NurbsCurve3, NurbsSurface};
+/// fn refine(s: &NurbsSurface<f64>, c: &NurbsCurve3<f64>) {
+///     let _ = s.refine_knots_u(&[0.5]);
+///     let _ = c.refine_knots(&[0.5]);
+/// }
+/// ```
 impl<T: ProjectiveScalar> NurbsSurface<T> {
     /// Applies one shared-schedule plan chain builder per v-column
     /// (module docs: per-column weights ⇒ per-column λs, shared knot
