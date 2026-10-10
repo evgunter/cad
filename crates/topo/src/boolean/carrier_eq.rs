@@ -397,7 +397,11 @@ pub(super) fn pair_door_reading<T: Decide>(
                     relation,
                 }
             })?;
-            Ok((relation, verdict, margin.map(|m| sum.map_or(m, |s| m.jointly(s)))))
+            Ok((
+                relation,
+                verdict,
+                margin.map(|m| sum.map_or(m, |s| m.jointly(s))),
+            ))
         }
         verdict => verdict,
     }
@@ -1077,9 +1081,9 @@ fn data_rungs<T: Decide>(
                 margin,
             }) => {
                 // The first datum's reading, standing for every one.
-                first_zero = Some(first_zero.map_or(margin, |first: geom_core::MarginDiag| {
-                    first.jointly(margin)
-                }));
+                first_zero = Some(
+                    first_zero.map_or(margin, |first: geom_core::MarginDiag| first.jointly(margin)),
+                );
             }
             Err(unread @ CoincidenceMeasure::Unreadable(_)) => kept.blocked(unread),
             Err(in_band) => kept.in_band(in_band),

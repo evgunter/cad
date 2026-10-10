@@ -115,7 +115,7 @@ pub use checks::{
     ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
     run_checks, run_checks_on, subject_body,
 };
-pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use coincide::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, Unreplayed};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{

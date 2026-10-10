@@ -949,7 +949,8 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
     // A tangent line's Zero is one only with this one, so its margin
     // stands for both.
-    let parallel = match decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)? {
+    let parallel = match decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?
+    {
         Decided {
             sign: Sign::Zero,
             margin,

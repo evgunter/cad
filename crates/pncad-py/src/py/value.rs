@@ -1383,11 +1383,8 @@ impl Evaluation {
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let proofs = d::coincide::prove(
-            &self.doc,
-            &[(node.0, &*value.coincidences)],
-            Tol::witness(),
-        );
+        let proofs =
+            d::coincide::prove(&self.doc, &[(node.0, &*value.coincidences)], Tol::witness());
         value
             .coincidences
             .iter()

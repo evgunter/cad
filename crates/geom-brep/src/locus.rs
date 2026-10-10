@@ -4,13 +4,16 @@
 //! a named row through `dihedral::decide`.
 
 use geom::Surface;
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+};
 
 use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
-    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel_reported, decide_across_reported,
-    parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, plane_cylinder_ruled,
+    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel_reported,
+    decide_across_reported, parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing,
+    plane_cylinder_ruled,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -200,26 +203,22 @@ pub fn tangent_locus<T: Decide>(
         ) => {
             // Each tangency below is one only with the axes parallel, so
             // its margin stands for both.
-            let parallel = match cylinder_axes_parallel_reported(
-                reach,
-                (*o1, *a1),
-                (*o2, *a2),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Decided {
-                    sign: Sign::Zero,
-                    margin,
-                } => margin,
-                Decided { .. } => {
-                    return Err(TangentLocusError::Unsupported {
-                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
+            let parallel =
+                match cylinder_axes_parallel_reported(reach, (*o1, *a1), (*o2, *a2), band)
+                    .map_err(escalate)?
+                {
+                    Decided {
+                        sign: Sign::Zero,
+                        margin,
+                    } => margin,
+                    Decided { .. } => {
+                        return Err(TangentLocusError::Unsupported {
+                            what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
                                axes (the generator line); skew/crossing axes are outside \
                                the lane",
-                    });
-                }
-            };
+                        });
+                    }
+                };
             let ParallelAxes {
                 foot1,
                 d_vec: w,

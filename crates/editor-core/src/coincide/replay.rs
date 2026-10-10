@@ -23,6 +23,14 @@
 //! the decisions it took here (ERROR-DESIGN E12). A replay that refuses,
 //! escalates or takes other decisions at the row's node proves nothing.
 //!
+//! **A theorem about the expression the replay saw.** A computed value
+//! the kernel re-enters as a constant (`T::from_f64` of a computed
+//! `f64`) is a different function of the variables than the one it came
+//! from, so a proof whose expression crosses such a site can be false.
+//! The sites are listed with the rows that owe their fix
+//! (`scripts/gates/from-f64-sites.tsv`), and the re-valuation row
+//! (`editor-core/tests/revalue_corpus.rs`) is what catches one.
+//!
 //! A row of the replay is the f64 row's when it was decided at the same
 //! node, at the same site, as the same ordinal among that site's rows
 //! there, between cells of the same names.
@@ -40,6 +48,18 @@ use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 
+/// **The tier's budget at the door**, with the drive's retry ladder: a
+/// margin whose form outgrows it is not proved, and fails fast.
+/// Measured in release: a filleted disc's two coaxial supports prove
+/// here and its two joints only from 1024 terms; a filleted box's eight
+/// mitres prove at no budget
+/// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`), and cost
+/// 0.9 s here against 172 s at 1024.
+const DOOR_BUDGET: SymBudget = SymBudget {
+    max_terms: 256,
+    max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
+};
+
 /// The scalar the door replays at: `f64` arithmetic, every variable a
 /// symbol.
 type Lane = Sym<f64>;
@@ -53,17 +73,13 @@ pub(super) fn rungs(
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     tol: Tol,
 ) -> Vec<Vec<Result<Rung, Unreplayed>>> {
-    let budget = SymBudget {
-        max_terms: crate::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
-    };
     let opts = EvalOptions {
         symbols: true,
         profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let (out, _) = deferred::with_deferred_session(
-        budget,
+        DOOR_BUDGET,
         SymRules::shipped(),
         crate::drive::DEFAULT_SYM_RETRY,
         || {
