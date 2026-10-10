@@ -3,3 +3,34 @@ dispatched: 2026-10-10
 byte: 242
 mapping: Opus = A, Fable = B
 protocol: 26db1af89e
+
+## First reports (2026-10-10, before reconciliation)
+
+- **A**:
+  - Answer: `shell` moves every face of a solid at once through one general simultaneous door.
+    - Every edge is the section of its two moved surfaces, through C5.
+    - The crease seam is `Intersection{fit_i, fit_j}`: a seeded NURBS × NURBS section that runs corner to corner from the old seam. It is certified by plane × NURBS-style limbs on both operands.
+    - Corners are the common roots of the surfaces meeting there; Cramer and the axial solve stay as fast paths.
+    - The iso-row arm is kept only for same-chart and hold cases.
+  - Argument: moving one face at a time puts the intermediate section on the fit's window edge (offset by t·cot φ), so the result depends on face order. Moving them together puts every convex seam inside both windows.
+  - Exhaustiveness is NOT owed for this consumer. C5 splits each arm's service into seeded vs complete; the boolean asks for complete.
+  - D2: no change.
+  - Confidence: likely. Framing rejected: partly (exhaustiveness; the seam row is an at-rest fact).
+  - Ratified text: C5 (service split, agent text from 3aacd6d28a, wants Ev's sign-off), O4 (agent prose), C3.
+  - Units: junction rule → C5 split + seeded NURBS × NURBS + certify rung → general door → fit budget, quadrature, vase.
+- **B**:
+  - Answer: the same final state.
+    - The seam is `Intersection{Approx_j, Approx_j+1}`, a rung-3 C2 section.
+    - `shell` moves all charts together through one general door; the planar and axial doors are its closed forms; `replace_faces_offset` stays the single-face verb.
+    - The iso-row arm fires only for self-shared images or where the neighbour holds the move, and `holds_the_move` gains NURBS-mover arms.
+  - Argument: the same sequencing algebra (per face d·cot φ, which changes sign at 90°).
+  - Exhaustiveness IS built into the arm: a product-domain boundary pass, a two-chart tube, and a hull-excluding subdivision.
+  - D2: the NURBS-adjacent exemption should state its reason (the loft seam is a shared domain side, stated exactly by the chart image).
+  - Confidence: likely. Framing rejected: partly (the description asymmetry picks the refusal; the iso-row arm sits outside the door's discipline).
+  - Ratified text: C5 (add NURBS × NURBS), C2/C3 (two-chart tube and boundary pass), O4 (agent text), D2 (the exemption's reason).
+  - Units: arm (H) ∥ general door (H; can land first, with the seams refusing until the arm lands) ∥ narrow the iso-row arm (M, first if possible) → fit budget.
+- Agreement: yes on the final state: crease seam = fit × fit section, all charts moved together, iso-row arm narrowed, fit budget a separate gate.
+- They differ on:
+  1. whether the NURBS × NURBS arm owes exhaustiveness (A: a seeded service, no; B: yes, product-domain);
+  2. whether D2's exemption text changes (B yes, A no).
+- Arithmetic slip: B's together-offset is d·tan(φ/2); A's is d·cot(φ/2). cot is right (→0 as φ→π). Not decision-bearing.
