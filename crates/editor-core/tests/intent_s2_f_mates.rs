@@ -533,17 +533,22 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     let placed_t = doc
         .ids()
         .into_iter()
-        .find(|&p| matches!(doc.node(p), Some(Node::PlaceInWorld { .. })) && doc.upstream(p).len() == 1
-            && doc.node(doc.upstream(p)[0]).is_some_and(|n| matches!(n, Node::Transform { .. })))
+        .find(|&p| {
+            matches!(doc.node(p), Some(Node::PlaceInWorld { .. }))
+                && doc.upstream(p).len() == 1
+                && doc
+                    .node(doc.upstream(p)[0])
+                    .is_some_and(|n| matches!(n, Node::Transform { .. }))
+        })
         .expect("the transform is placed");
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: placed_t });
     let (doc, posed) = step(
         doc,
         DocEdit::place(
             editor_core::Operand::Node(x),
-            Some(editor_core::Placement::literal(&editor_core::Frame::translation([
-                0.0, 0.0, 10.0,
-            ]))),
+            Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([0.0, 0.0, 10.0]),
+            )),
         ),
     );
     let posed = posed.expect("the placement mints");

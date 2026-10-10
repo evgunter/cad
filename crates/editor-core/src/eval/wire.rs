@@ -2245,12 +2245,14 @@ pub(super) fn side_refusal<T: Decide>(
 ) -> Option<NodeErrorKind> {
     [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)]
         .into_iter()
-        .find_map(|(side, var)| match select(doc, results, crate::OperandSlot::Side(side), var) {
-            Err(
-                kind @ (NodeErrorKind::SelectResolve { .. } | NodeErrorKind::SelectKind { .. }),
-            ) => Some(kind),
-            Ok(_) | Err(_) => None,
-        })
+        .find_map(
+            |(side, var)| match select(doc, results, crate::OperandSlot::Side(side), var) {
+                Err(
+                    kind @ (NodeErrorKind::SelectResolve { .. } | NodeErrorKind::SelectKind { .. }),
+                ) => Some(kind),
+                Ok(_) | Err(_) => None,
+            },
+        )
 }
 
 /// One resolved measure reference, as a SELECTION rather than as a
