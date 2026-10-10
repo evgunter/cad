@@ -897,7 +897,7 @@ impl Measurement {
 ///
 /// `measured` and `bound` are present for a decided verdict and `None`
 /// for an undecided one. Reading a verdict changes nothing: a failing
-/// assertion gates no build and moves no product (E10 v1).
+/// assertion gates no build and moves no product (D10).
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Verdict {
     /// `"Holds"`, `"Violated"` or `"Unevaluated"`.
@@ -2696,16 +2696,18 @@ impl Coincidence {
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent` or
-    /// `cusp`. A `profile_junction` row is `tangent` or `cusp` between
-    /// two carriers and `same_oriented` where its pieces continue one.
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `coaxial` or `co_ruled`. A `profile_junction` row is `tangent`
+    /// or `cusp` between two carriers and `same_oriented` where its
+    /// pieces continue one.
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `split_on`, `battery_turn` or `profile_junction`.
+    /// `split_on`, `battery_turn`, `battery_joint`,
+    /// `battery_support_axis` or `profile_junction`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

@@ -204,11 +204,18 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// digest walks holds those copies. What each document delivers did
 /// not move: `intent_s2_c_world`'s migration check holds each product
 /// to its pre-C digest.
+///
+/// RE-BLESSED, `cut_cylinder` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x5b24_7f0a_1360_4db4u64),
+        ("cut_cylinder", 0x3c8a_06a4_0790_b026u64),
         ("part_select", 0x0f2b_e2d0_e2c1_5eff),
         ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ] {

@@ -843,7 +843,7 @@ impl MergeDecision {
             }
             // The displacement is a bound over a ball enclosing the
             // faces, not a reading of them.
-            Self::DeclaredReach => Unsized::LastResort.recourse(arm, Reading::Build),
+            Self::DeclaredReach => Unsized::Fit.recourse(arm, Reading::Build),
             Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
         }
     }

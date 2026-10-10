@@ -1114,7 +1114,48 @@ pub fn fit_offset_at(
     // The ladder is the meters' own (`OFFSET_METER_LADDER`).
     let (reg, coll) = meter_patch(base, d, band)?;
 
-    let (mut us, mut vs) = seed_params(base);
+    let (fit, report, round) = refine_rounds_at(
+        seed_params(base),
+        (reg.speed_u.get(), reg.speed_v.get()),
+        d,
+        tolerance,
+        |us, vs| {
+            let fit = interpolate_offset_grid(base, d, us, vs)?;
+            let report = measure(base, &fit, d, reg.floor)?;
+            Ok((fit, report))
+        },
+    )?;
+    #[allow(clippy::cast_possible_truncation)]
+    let cert = OffsetCertificate {
+        distance: d,
+        cells: report.cells,
+        samples: OFFSET_CERT_SAMPLES as u32,
+        on_locus_max: report.on_locus_max,
+        hull_sup: report.hull_sup,
+        normal_floor: reg.floor,
+        curvature_reach: coll.reach,
+        rounds: round as u32,
+    };
+    Ok((fit, cert))
+}
+
+/// The refinement loop `fit_offset_at` runs from the seed schedule
+/// `(us, vs)`, and so part of that numeric-target instrument (its
+/// chosen `tolerance` is the point): `round_at` fits and measures one
+/// schedule, and every
+/// decision about the next one — the certificate, the stall verdict
+/// before the budget test, the cap, the marking and its fallback — is
+/// taken here. Returns the certifying round's fit, report and round
+/// count. Generic over the fit so the loop's ordering can be driven by
+/// a scripted bound sequence (this module's tests), which no fixture
+/// grounded in the enclosure's width holds for long.
+fn refine_rounds_at<S>(
+    (mut us, mut vs): (Vec<f64>, Vec<f64>),
+    (speed_u, speed_v): (f64, f64),
+    d: f64,
+    tolerance: f64,
+    mut round_at: impl FnMut(&[f64], &[f64]) -> Result<(S, Report), OffsetFitError>,
+) -> Result<(S, Report, usize), OffsetFitError> {
     // The stall guard's state: the previous round's bound, and
     // whether the marking that produced this grid was the
     // both-directions fallback.
@@ -1132,8 +1173,7 @@ pub fn fit_offset_at(
     // and nothing else.
     let mut round = 0usize;
     loop {
-        let fit = interpolate_offset_grid(base, d, &us, &vs)?;
-        let report = measure(base, &fit, d, reg.floor)?;
+        let (fit, report) = round_at(&us, &vs)?;
         let achieved = report.hull_sup;
         let grid = (us.len(), vs.len());
         if achieved.is_finite() && best.is_none_or(|b| achieved < b.bound) {
@@ -1144,18 +1184,7 @@ pub fn fit_offset_at(
         }
         nan_residual_at(report.on_locus_max, tolerance)?;
         if report.hull_sup <= tolerance {
-            #[allow(clippy::cast_possible_truncation)]
-            let cert = OffsetCertificate {
-                distance: d,
-                cells: report.cells,
-                samples: OFFSET_CERT_SAMPLES as u32,
-                on_locus_max: report.on_locus_max,
-                hull_sup: report.hull_sup,
-                normal_floor: reg.floor,
-                curvature_reach: coll.reach,
-                rounds: round as u32,
-            };
-            return Ok((fit, cert));
+            return Ok((fit, report, round));
         }
         // Insert a sample parameter at the midpoint of every sample
         // interval a worst-carrying cell touches — the "knot
@@ -1214,14 +1243,7 @@ pub fn fit_offset_at(
         // set is "the round whose schedule came from a both-directions
         // marking", and that is a fact about `next`, not about the
         // order of two statements.
-        let mut next = refine_schedule(
-            &us,
-            &vs,
-            &report,
-            reg.speed_u.get(),
-            reg.speed_v.get(),
-            verdict,
-        );
+        let mut next = refine_schedule(&us, &vs, &report, speed_u, speed_v, verdict);
         // A directional marking can fail to grow the schedule even
         // though it marked intervals: `bisect` drops a midpoint that
         // is not strictly between its endpoints, which is what an
@@ -1229,14 +1251,7 @@ pub fn fit_offset_at(
         // same evidence as a round that gained nothing, so it takes
         // the same fallback rather than escaping to the budget.
         if !next.grew(&us, &vs) && next.mode == Refine::Directional {
-            next = refine_schedule(
-                &us,
-                &vs,
-                &report,
-                reg.speed_u.get(),
-                reg.speed_v.get(),
-                Refine::BothDirections,
-            );
+            next = refine_schedule(&us, &vs, &report, speed_u, speed_v, Refine::BothDirections);
         }
         if next.us.len() > OFFSET_FIT_SAMPLE_CAP || next.vs.len() > OFFSET_FIT_SAMPLE_CAP {
             // The per-direction cap: a REFINEMENT limit, not a
@@ -1963,32 +1978,21 @@ enum Refine {
 ///
 /// # Reachability
 ///
-/// The refusal is reached through the door. The test is
-/// `hull_sup < prev_sup` with no epsilon, so any decrease counts as
-/// improvement; but a round whose bound ROSE failed to fall as surely
-/// as a flat one, and near the enclosure's floor the bound rises
-/// routinely — a finer schedule re-interpolates a different fit, and
-/// the Bézier decomposition's insertion width grows with the grid.
-/// `offset_fit`'s suite reaches the face on a bilinear saddle wall at
-/// `theta = 0.6` (`the_second_non_improving_round_is_the_stalls_face`):
-/// at `d = ±5.6234132519034906e-11` and target `1e-14` it stalls on
-/// round 5, and at `d = 1.333521432163324e-10` on the budget's last
-/// round ([`OFFSET_FIT_BUDGET`]), where taking the verdict before the
-/// budget test is what gives the round the stall's face.
-///
-/// **Those stalls ride on that width, and the fixture has already moved
-/// once because of it.** `geom_core::spline::compose`'s insertion took
-/// the convex form `c_{i−1}·β + c_i·α`, which stopped the
-/// decomposition's width compounding per insertion; the `theta = 0.3`
-/// requests the row used to carry (`d = ±5e-10`, round 4, and
-/// `d = 1e-6`) all certify under it — the `5e-10` one on round 3 at
-/// 7.9933e-15. The row's own docs carry the hunt that found the
-/// replacements, and the same thing will happen again to any fixture
-/// pinned here: a narrowing of the assembly moves it, and the answer is
-/// to re-find a stalling request, never to widen the arm.
+/// The test is `hull_sup < prev_sup` with no epsilon, so any decrease
+/// counts as improvement; but a round whose bound ROSE failed to fall
+/// as surely as a flat one, and near the enclosure's floor the bound
+/// rises — a finer schedule re-interpolates a different fit, and the
+/// assembly's rounding grows with the grid. Whether a given request
+/// reaches the refusal through the door therefore rides on that
+/// rounding, and every fixture pinned there has moved as the assembly
+/// narrowed (the convex insertion form, then the Bézier cut from each
+/// segment's own row). So the loop's ordering — the verdict taken
+/// before the budget test, on the budget's round too — is pinned on
+/// scripted bound sequences driven through [`refine_rounds_at`] itself
+/// (this module's `scripted_rounds` rows), which no narrowing moves.
 ///
 /// **`+∞` is not a failure to improve**, which is the other half of why
-/// the arm is reachable at all: the first guard below exempts a
+/// the arm is reached at all: the first guard below exempts a
 /// non-finite `prev_sup`, so the rounds before a bound first becomes
 /// finite are `Directional` and cannot make a later non-improving round
 /// the SECOND one. A fixture whose early rounds carry no finite bound
@@ -2714,6 +2718,24 @@ mod tests {
         sup
     }
 
+    /// The cells whose bound under `mode` agrees with `sup` to nine
+    /// significant digits — the tie a sup cell is picked out of.
+    fn tied_with(
+        comp: &Composite,
+        floor: f64,
+        d: f64,
+        mode: ELow,
+        sup: f64,
+    ) -> Vec<(usize, usize)> {
+        let (nu, nv) = comp.x.cell_counts();
+        (0..nu)
+            .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
+            .filter(|&(su, sv)| {
+                (decompose(comp, su, sv, floor, d, mode).4 - sup).abs() <= sup * 1e-9
+            })
+            .collect()
+    }
+
     /// Every cell of a composite, under both readings: the witness
     /// reading is a MAX over the componentwise one, so no cell's
     /// bound may rise. Returns the worst (largest) ratio old/new.
@@ -2771,11 +2793,12 @@ mod tests {
     /// only thing that differs between them is the expression under
     /// test.
     ///
-    /// **On the cap grid the sup cell is one of a tie.** The cells
-    /// along `v` at `u = 21` agree to the digits pinned here (this
-    /// surface's weights are constant along `v`, so the `v` insertion
-    /// fold adds the weight channel no width), and which one carries
-    /// the sup is decided below them.
+    /// **The sup cell is one of a tie.** Cells across the grid agree
+    /// to nine significant digits (on the `1e-3` grid, `(0, 3)` and
+    /// `(21, 6)` among them), and which one carries the sup is decided
+    /// below them by rounding. So the row pins the tie and the witness's
+    /// magnitudes, which every tied cell shares, and not the winner's
+    /// indices.
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();
@@ -2802,7 +2825,12 @@ mod tests {
         assert_eq!((cert.rounds, cert.cells), (4, 308));
         let comp = Composite::build(&base, &fit, d).unwrap();
         let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
-        assert_eq!((su, sv), (21, 6));
+        let tie = tied_with(&comp, reg.floor, d, ELow::Witness, sup);
+        assert!(
+            tie.len() > 1 && tie.contains(&(su, sv)),
+            "the sup cell {:?} is one of a tie: {tie:?}",
+            (su, sv)
+        );
         assert!(near(sup, 1.7006e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
@@ -2849,7 +2877,6 @@ mod tests {
         assert_eq!((cert5.rounds, cert5.cells), (5, 364));
         let comp5 = Composite::build(&base, &fit5, d).unwrap();
         let (su5, sv5, sup5) = sup_cell(&comp5, reg.floor, d, ELow::Witness);
-        assert_eq!((su5, sv5), (21, 3));
         let (dist5, tau5, t35, e_lo5, _) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Witness);
         // The SAME quantity `tests/offset_fit.rs`'s
         // `a_micron_scale_offset_certifies_and_names_its_limit` pins as
@@ -3612,6 +3639,107 @@ mod recourse_tests {
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+}
+
+/// The refinement loop's ORDERING, driven by scripted bound sequences
+/// through [`refine_rounds_at`] itself: the stall verdict before the
+/// budget test, and the budget's face past a verdict that did not
+/// refuse. A fixture grounded in the enclosure's width stops stalling
+/// whenever the assembly narrows, so the ordering is pinned here, on
+/// bounds that cannot move.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod scripted_rounds {
+    use super::{LastRound, OFFSET_FIT_BUDGET, OffsetFitError, Report, refine_rounds_at};
+
+    /// Runs the loop from a 3 × 3 seed, round `k` reporting
+    /// `bounds[k]` with one failing cell, the schedule's first, against
+    /// a tolerance of 1 — so each round grows the grid by a sample or
+    /// two and the sample cap never answers first.
+    fn run(bounds: &[f64]) -> Result<usize, OffsetFitError> {
+        let seed = (vec![0.0, 0.5, 1.0], vec![0.0, 0.5, 1.0]);
+        let mut k = 0;
+        refine_rounds_at(seed, (1.0, 1.0), 0.1, 1.0, |us, vs| {
+            let hull_sup = bounds[k];
+            k += 1;
+            Ok((
+                (),
+                Report {
+                    cells: 1,
+                    on_locus_max: 0.0,
+                    hull_sup,
+                    failing: vec![((us[0], us[1]), (vs[0], vs[1]))],
+                },
+            ))
+        })
+        .map(|(_, _, round)| round)
+    }
+
+    #[test]
+    fn a_bound_under_the_tolerance_certifies_on_its_round() {
+        assert_eq!(run(&[f64::INFINITY, 4.0, 0.5]).unwrap(), 2);
+    }
+
+    /// Round 3 does not fall, so its successor is marked both ways;
+    /// round 4 does not fall either, and the loop refuses there, two
+    /// rounds before the budget.
+    #[test]
+    fn a_both_directions_round_that_gains_nothing_stalls_before_the_budget() {
+        match run(&[f64::INFINITY, 5.0, 4.0, 4.0, 4.0]) {
+            Err(
+                ref e @ OffsetFitError::RefinementStalled {
+                    rounds,
+                    achieved,
+                    best,
+                    ..
+                },
+            ) => {
+                assert_eq!((rounds, achieved, best.bound), (4, 4.0, 4.0));
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("stopped improving") && msg.contains("both directions"),
+                    "the message says what was tried: {msg}"
+                );
+            }
+            other => panic!("the stall's face: {other:?}"),
+        }
+    }
+
+    /// The same stall on the budget's own round: the verdict comes
+    /// first, so the round wears the stall's face, not the budget's.
+    #[test]
+    fn a_stall_on_the_budgets_round_is_the_stall_not_the_budget() {
+        let mut bounds = vec![f64::INFINITY, 6.0, 5.0, 4.0, 3.0];
+        bounds.resize(OFFSET_FIT_BUDGET + 1, 3.0);
+        assert_eq!(bounds.len(), 7, "the budget this row is written against");
+        match run(&bounds) {
+            Err(OffsetFitError::RefinementStalled { rounds, .. }) => {
+                assert_eq!(rounds as usize, OFFSET_FIT_BUDGET);
+            }
+            other => panic!("the stall's face on the budget's round: {other:?}"),
+        }
+    }
+
+    /// One non-improving round, the last: its grid was marked one way,
+    /// so the verdict asks for both directions and the budget's face
+    /// answers, naming a last round that did not improve.
+    #[test]
+    fn a_single_non_improving_last_round_is_the_budgets_face() {
+        let mut bounds: Vec<f64> = vec![f64::INFINITY, 7.0, 6.0, 5.0, 4.0, 3.0];
+        bounds.push(3.0);
+        assert_eq!(bounds.len(), OFFSET_FIT_BUDGET + 1);
+        match run(&bounds) {
+            Err(OffsetFitError::BudgetExhausted {
+                budget, last_round, ..
+            }) => {
+                assert_eq!(
+                    (budget, last_round),
+                    (OFFSET_FIT_BUDGET, LastRound::DidNotImprove)
+                );
+            }
+            other => panic!("the budget's face: {other:?}"),
         }
     }
 }

@@ -69,8 +69,8 @@
 //!
 //! # What an extrusion stores (the D2 story, applied)
 //!
-//! - **Side struts** — `MappedCurve::ExtrudedPoint { point, place,
-//!   vec, range }`; **bottom rims** minted as `MappedCurve::PlacedSegment` at
+//! - **Side struts** — `MappedSource::ExtrudedPoint { point, place,
+//!   vec }` over a whole range; **bottom rims** minted as `MappedSource::PlacedSegment` at
 //!   the sketch placement; **top rims** minted as `PlacedSegment` at
 //!   the placement translated by `w` (PR 3's binding handoff).
 //! - **Profile-corner joins**: once both side faces of a join exist,

@@ -23,7 +23,10 @@ mod certified {
     use geom_core::Tol;
 
     use crate::common::operands::m5_boss;
-    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
+    use crate::common::sphere_recut::{
+        RECUT_DECIDES_FROM, RECUT_HI_PER_EPS, RECUT_MAPPED_ENCLOSURE_HI, RECUT_PIN_EPS, plate,
+        recut_ball,
+    };
     use geom::Surface;
     use geom_core::{Bounds, Interval, OrthoFrame};
     use profile::{
@@ -195,7 +198,7 @@ mod certified {
     /// re-certifies, and the re-entered pipeline's plane×sphere germs
     /// mint arcs whose volume enclosure contains the closed form.
     ///
-    /// **Scoped to ε ≥ [`RECUT_MAPPED_ENCLOSURE_HI`]** (#921). Below it
+    /// **Scoped to ε ≥ [`RECUT_DECIDES_FROM`]** (#921). Below it
     /// the chain escalates on `carrier_matches_mapped_source`, and that
     /// escalation is honest rather than a defect, so the row asserts it
     /// instead of asserting a decision the scalar cannot make. The
@@ -217,7 +220,7 @@ mod certified {
         let plate = finished("the plate", plate(), Tol::witness());
 
         let cut = topo::subtract(&plate, &ball, Tol::witness());
-        if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {
+        if Tol::witness().eps() < RECUT_DECIDES_FROM {
             let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
                 panic!(
                     "below the enclosure width the chain must escalate on the mapped-source \
@@ -249,15 +252,25 @@ mod certified {
                 hi > cause.band.zero(),
                 "the enclosure must exceed the coincidence threshold, else it would classify"
             );
-            // Pinned bit-exactly, both directions (D9: same build, same
-            // inputs, same bits). A ceiling alone would admit the very
-            // width this unit retired, and would let a partial
-            // tightening leave the constant stale in silence.
-            assert!(
-                hi == RECUT_MAPPED_ENCLOSURE_HI,
-                "the mapped-source enclosure is {hi:e}, not its measured value \
-                 {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
-            );
+            // Pinned bit-exactly, both directions, at the ε it was
+            // measured at (D9: same build, same inputs, same bits); held
+            // within its measured tracking of ε elsewhere in the arm. A
+            // ceiling alone at the pin would admit a partial tightening
+            // in silence.
+            let eps = Tol::witness().eps();
+            if eps == RECUT_PIN_EPS {
+                assert!(
+                    hi == RECUT_MAPPED_ENCLOSURE_HI,
+                    "the mapped-source enclosure is {hi:e}, not its measured value \
+                     {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
+                );
+            } else {
+                assert!(
+                    hi <= RECUT_HI_PER_EPS * eps,
+                    "the mapped-source enclosure {hi:e} is over {RECUT_HI_PER_EPS}·ε at ε = \
+                     {eps:e} — the arc chain widened"
+                );
+            }
             // The cylinder class is unaffected by the arc-chain width
             // and still decides at this scalar.
             let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());

@@ -48,19 +48,21 @@ fn l_profile() -> ValidatedProfile<f64> {
 /// convention). Scope: extruded bodies at rest carry NO PlacedSegment
 /// descriptions (the prefer-intrinsic pass has already re-described
 /// every edge as Intersection), so a public split_edge on an at-rest
-/// extrusion does not reach SketchSegment::restrict; this test
+/// extrusion does not reach a placed arc's restriction; this test
 /// exercises the formula at the geom-brep consumer level. The lane
 /// itself IS reached end-to-end elsewhere - curved booleans and the
 /// fillet verbs split mapped arcs mid-operation, before the
 /// prefer-intrinsic pass runs. The sub-arc over param fractions
-/// [s0, s1] turns theta' = theta * (s1 - s0) about the SAME carrier, so
-/// its centre and radius must be the parent's bit for bit and its
-/// sweep EXACTLY sweep * (s1 - s0); endpoints are eval(s0)/eval(s1)
-/// bitwise; and the reparameterization law
-/// restrict(s0, s1).eval(s) ~= eval(s0 + (s1 - s0) * s) holds.
+/// [s0, s1] keeps the authored segment and its placement bit for bit
+/// and narrows only its range, to start s0 and span EXACTLY s1 - s0;
+/// its ends evaluate bitwise as the parent does at the range's own
+/// parameters; and the
+/// reparameterization law restrict(s0, s1).eval(s) ~= eval(s0 + (s1 -
+/// s0) * s) holds.
 #[test]
 fn arc_restriction_formula_derived_independently() {
-    use geom_brep::SketchSegment;
+    use geom_brep::{MappedCurve, MappedSource, SketchSegment};
+    use geom_core::Affine3;
     // A 90-degree counterclockwise arc, as the profile lowers it.
     let seg = sweep::test_support::bulge_arc(
         Point2::new(1.0, 0.0),
@@ -68,68 +70,88 @@ fn arc_restriction_formula_derived_independently() {
         (core::f64::consts::PI / 8.0).tan(),
     );
     let SketchSegment::Arc {
+        a: a0,
+        b: b0,
         arc: Arc2 {
             centre,
             radius,
             sweep,
         },
-        ..
     } = seg
     else {
         panic!("the fixture is an arc");
     };
+    let whole = MappedCurve::whole(MappedSource::PlacedSegment {
+        segment: seg,
+        place: Affine3::identity(),
+    });
     let (s0, s1) = (0.3_f64, 0.85_f64);
-    let sub = seg.restrict(s0, s1);
-    let SketchSegment::Arc {
-        a,
-        b,
-        arc: Arc2 {
-            centre: cp,
-            radius: rp,
-            sweep: wp,
-        },
-    } = sub
+    let sub = whole.restrict(s0, s1);
+    let MappedSource::PlacedSegment {
+        segment:
+            SketchSegment::Arc {
+                a,
+                b,
+                arc:
+                    Arc2 {
+                        centre: cp,
+                        radius: rp,
+                        sweep: wp,
+                    },
+            },
+        ..
+    } = sub.source
     else {
-        panic!("restriction changed the segment kind");
+        panic!("restriction changed the source kind");
     };
     assert_eq!(
-        (cp.x.to_bits(), cp.y.to_bits(), rp.to_bits()),
-        (centre.x.to_bits(), centre.y.to_bits(), radius.to_bits()),
-        "the sub-arc keeps the parent's carrier"
+        (cp.x.to_bits(), cp.y.to_bits(), rp.to_bits(), wp.to_bits()),
+        (
+            centre.x.to_bits(),
+            centre.y.to_bits(),
+            radius.to_bits(),
+            sweep.to_bits()
+        ),
+        "the restricted source keeps the parent's carrier and sweep"
     );
     assert_eq!(
-        wp.to_bits(),
-        (sweep * (s1 - s0)).to_bits(),
-        "sweep' formula mismatch"
+        (a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits()),
+        (
+            a0.x.to_bits(),
+            a0.y.to_bits(),
+            b0.x.to_bits(),
+            b0.y.to_bits()
+        ),
+        "the restricted source keeps the authored endpoints"
     );
-    let (ea, eb) = (seg.eval(s0), seg.eval(s1));
     assert_eq!(
-        (a.x.to_bits(), a.y.to_bits()),
-        (ea.x.to_bits(), ea.y.to_bits())
+        (sub.range.start(), sub.range.span()),
+        (Some(s0), Some(s1 - s0)),
+        "the range starts at s0 and spans s1 - s0"
     );
-    assert_eq!(
-        (b.x.to_bits(), b.y.to_bits()),
-        (eb.x.to_bits(), eb.y.to_bits())
-    );
+    // Each end is the parent at the range's own `u`: `s0` exactly at
+    // s = 0, and `s0 + (s1 − s0)` — within an ulp of `s1` — at s = 1.
+    for (s, at) in [(0.0, s0), (1.0, s0 + (s1 - s0))] {
+        let (got, want) = (sub.eval(s), whole.eval(at));
+        assert_eq!(
+            (got.x.to_bits(), got.y.to_bits(), got.z.to_bits()),
+            (want.x.to_bits(), want.y.to_bits(), want.z.to_bits()),
+            "the sub-arc's end at s = {s} is the parent's at {at}"
+        );
+    }
+    assert!(sub.eval(1.0).distance(whole.eval(s1)) < 1e-15);
     // Reparameterization law, sampled densely (float slack only).
     for i in 0..=16 {
         let s = f64::from(i) / 16.0;
-        let via_sub = sub.eval(s);
-        let via_parent = seg.eval(s0 + (s1 - s0) * s);
-        let d = ((via_sub.x - via_parent.x).powi(2) + (via_sub.y - via_parent.y).powi(2)).sqrt();
+        let d = sub.eval(s).distance(whole.eval(s0 + (s1 - s0) * s));
         assert!(d < 1e-12, "restrict/eval law broken at s={s}: {d}");
     }
     // Degenerate probe: restricting to a sliver stays finite and lands
     // on the parent (certification, not restrict, is the gate).
-    let sliver = seg.restrict(0.5, 0.5 + 1e-9);
-    let SketchSegment::Arc {
-        arc: Arc2 { sweep: ws, .. },
-        ..
-    } = sliver
-    else {
-        panic!("kind");
-    };
-    assert!(ws.is_finite() && ws > 0.0);
+    let sliver = whole.restrict(0.5, 0.5 + 1e-9);
+    let span = sliver.range.span().expect("a restricted range has a span");
+    assert!(span.is_finite() && span > 0.0);
+    assert!(sliver.eval(1.0).distance(whole.eval(0.5)) < 1e-8);
 }
 
 /// TARGET 3 on a REAL curved body: split the D-body's arc wall rim (a

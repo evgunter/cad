@@ -196,10 +196,11 @@ impl<'a> CurveCertData<'a> {
 
     /// The same data with `extra` break parameters: every channel is
     /// Bézier-decomposed with each `extra` value strictly inside the
-    /// domain inserted to full multiplicity, in the ring (the convex
-    /// form, [`super::algebra::CurvePlan::apply_certified`]'s docs), so
-    /// every composite built from it has a break there and its span
-    /// bounds read the finer pieces. The represented curve is the same
+    /// domain cut in as a break, each piece's row read from its Bézier
+    /// segment's in the ring (the convex form,
+    /// [`super::algebra::CurvePlan::apply_certified`]'s docs), so every
+    /// composite built from it has a break there and its span bounds
+    /// read the finer pieces. The represented curve is the same
     /// one: no control point or weight is re-rounded, as a refinement
     /// of the net through an `f64` plan would re-round them. Values
     /// outside the open domain or on a knot are filtered, not errors.
@@ -321,11 +322,12 @@ impl BernsteinSpans {
 ///   `the_convex_form_does_not_inflate_the_fold`.
 ///   (Both are `#[cfg(test)]`, so these are names and not links —
 ///   rustdoc does not document a test module.)
-/// - [`to_bezier_spans_extra`] inserts each interior knot to full
-///   multiplicity, so the fold here is `p − m` deep for a knot of
-///   existing multiplicity `m` (`for step in m..p`) — `p` deep for a
-///   fresh break, one step for a knot already at `p − 1`. That is the
-///   depth the lerp form multiplied a coefficient's dust up over.
+/// - [`to_bezier_spans_extra`] inserts each of the curve's own interior
+///   knots to full multiplicity, so the fold here is `p − m` deep for a
+///   knot of existing multiplicity `m` (`for step in m..p`), one step
+///   for a knot already at `p − 1`; the extra breaks it cuts from each
+///   segment's row are `p` deep too (`sub_segment`). That is the depth
+///   the lerp form multiplied a coefficient's dust up over.
 ///
 /// **The Boehm structure is shared with `algebra::insert_once` (private
 /// there, so this is a name and not a link), and so is the coefficient
@@ -384,32 +386,27 @@ fn insert_once_ring(
 /// interior multiplicity (structure from the pair's vector,
 /// coefficients in the ring), then the per-span coefficient rows read off by chunks — with
 /// **extra break parameters** injected: each
-/// `extra` value strictly inside the domain and not already a knot is
-/// inserted to full multiplicity, so two channels decomposed with each
-/// other's knots as extras land on one shared break list (the tensor
-/// composite's alignment substrate, and knot insertion is exact in ℝ —
-/// the represented function is unchanged). Values outside the open
-/// domain or duplicating a knot are structure-filtered, not errors.
+/// `extra` value strictly inside the domain and not already a knot
+/// becomes a break, so two channels decomposed with each other's knots
+/// as extras land on one shared break list (the tensor composite's
+/// alignment substrate, and knot insertion is exact in ℝ — the
+/// represented function is unchanged). Values outside the open domain
+/// or duplicating a knot are structure-filtered, not errors.
+///
+/// The extras are cut out of the Bézier segment of the pair's vector
+/// they fall in,
+/// each sub-segment from that segment's own row ([`sub_segment`]), not
+/// by inserting them one after another into the whole net: a ring
+/// insertion combines coefficients that already carry the previous
+/// insertions' widths, so a sequential schedule grows a segment's
+/// width with the number of breaks cut into it, while a cut from the
+/// segment's row is `p` combinations deep whatever the count.
 fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> BernsteinSpans {
     let kv = pair.knots();
     let p = kv.degree();
     let mut knots = kv.knots().to_vec();
     let mut c = pair.coeffs().to_vec();
     let (lo, hi) = kv.domain();
-    // Merge the existing interior values (multiplicity from the vector)
-    // with the fresh extras (multiplicity 0), ascending, exact-`f64`
-    // dedup — pure structure (C6's f64 lane). An extra becomes an
-    // insertion point only through `interior_knot`, the one filter to
-    // the open domain.
-    let mut interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
-    for &v in extra {
-        if let Some(k) = kv.interior_knot(v)
-            && !interior.iter().any(|(w, _)| w.value() == v)
-        {
-            interior.push((k, 0));
-        }
-    }
-    interior.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
     // `knots` is a valid clamped vector for `p` at every step, which is
     // what lets the raw span search be called on it: each insertion
     // places one copy of a strictly interior `v` inside the existing
@@ -418,25 +415,78 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
     // degree. Rebuilding a `KnotVector` per step would re-establish
     // that by validation, at a clone and an O(n) re-check each — the
     // reason this path is raw at all.
-    for (v, m) in &interior {
+    let own: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+    for (v, m) in &own {
         for step in *m..p {
             insert_once_ring(&mut knots, p, step, &mut c, *v);
         }
     }
-    // Breaks: domain ends plus the distinct interior values (ascending).
-    let mut breaks = Vec::with_capacity(interior.len() + 2);
-    breaks.push(lo);
-    breaks.extend(interior.iter().map(|(v, _)| v.value()));
-    breaks.push(hi);
-    // Full multiplicity everywhere: control count = nseg·p + 1; span j
-    // owns coefficients j·p ..= j·p + p.
-    let nseg = breaks.len() - 1;
-    let spans = (0..nseg).map(|j| c[j * p..=j * p + p].to_vec()).collect();
+    let mut segment_ends = Vec::with_capacity(own.len() + 2);
+    segment_ends.push(lo);
+    segment_ends.extend(own.iter().map(|(v, _)| v.value()));
+    segment_ends.push(hi);
+    // The fresh extras, ascending with exact-`f64` dedup — pure
+    // structure (C6's f64 lane). An extra becomes a break only through
+    // `interior_knot`, the one filter to the open domain.
+    let mut cuts: Vec<f64> = extra
+        .iter()
+        .copied()
+        .filter(|&v| kv.interior_knot(v).is_some() && !own.iter().any(|(w, _)| w.value() == v))
+        .collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    // Full multiplicity at the own knots: segment j owns coefficients
+    // j·p ..= j·p + p.
+    let mut breaks = vec![lo];
+    let mut spans = Vec::with_capacity(segment_ends.len() + cuts.len() - 1);
+    let mut next_cut = cuts.iter().copied().peekable();
+    for (j, ends) in segment_ends.windows(2).enumerate() {
+        let (s0, s1) = (ends[0], ends[1]);
+        let row = &c[j * p..=j * p + p];
+        let mut from = s0;
+        while let Some(cut) = next_cut.next_if(|&cut| cut < s1) {
+            spans.push(sub_segment(row, p, (s0, s1), (from, cut)));
+            breaks.push(cut);
+            from = cut;
+        }
+        spans.push(sub_segment(row, p, (s0, s1), (from, s1)));
+        breaks.push(s1);
+    }
     BernsteinSpans {
         degree: p,
         breaks,
         spans,
     }
+}
+
+/// The Bernstein row on `[a, b]` of the degree-`p` Bézier segment
+/// `row` on `[s0, s1]`, with `s0 ≤ a < b ≤ s1`. Coefficient `i` is the
+/// segment's blossom at `(a^(p−i), b^i)`, evaluated by de Casteljau
+/// from the segment's own row — `p` levels of [`convex_step`], `p − i`
+/// at `a` and `i` at `b` — so no coefficient is more than `p`
+/// combinations deep, wherever the cut falls and however many cuts the
+/// segment takes. The whole segment comes back as it came.
+fn sub_segment(
+    row: &[Interval],
+    p: usize,
+    (s0, s1): (f64, f64),
+    (a, b): (f64, f64),
+) -> Vec<Interval> {
+    if a == s0 && b == s1 {
+        return row.to_vec();
+    }
+    (0..=p)
+        .map(|i| {
+            let mut r = row.to_vec();
+            for level in 0..p {
+                let t = if level < p - i { a } else { b };
+                for j in 0..p - level {
+                    r[j] = convex_step(r[j], r[j + 1], s0, s1, t);
+                }
+            }
+            r[0]
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------
@@ -2379,6 +2429,164 @@ mod tests {
         for (ba, bb) in a.span_bounds().iter().zip(b.span_bounds().iter()) {
             assert_eq!(ba.lo().to_bits(), bb.lo().to_bits());
             assert_eq!(ba.hi().to_bits(), bb.hi().to_bits());
+        }
+    }
+
+    /// The decomposition with extra breaks encloses the exact Bézier
+    /// rows: every span coefficient [`to_bezier_spans_extra`] returns
+    /// contains the one exact rational insertion of every break gives.
+    /// The fixtures are the containment families plus degree-1 rows,
+    /// a double knot and Bézier segments at degrees 4 and 5; the
+    /// extras land inside segments, twice on one value, on an own knot
+    /// (the double knot's included), at both domain ends, outside the
+    /// domain, and at non-dyadic places. Every fixture certifies every
+    /// slot, so no family passes by refusing.
+    #[test]
+    fn cutting_extras_from_their_segment_encloses_the_exact_rows() {
+        let pts = |v: &[f64]| -> Vec<(f64, f64)> { v.iter().map(|x| (*x, *x)).collect() };
+        let mut fixtures = containment_fixtures();
+        fixtures.extend([
+            (
+                "degree 1 with knots",
+                1,
+                vec![0.0, 0.0, 0.4, 0.7, 1.0, 1.0],
+                pts(&[0.3, -1.7, 2.9, 0.1]),
+            ),
+            (
+                "degree 1 Bézier, wide",
+                1,
+                vec![0.0, 0.0, 1.0, 1.0],
+                vec![(0.1, 0.2), (-3.0, 7.0)],
+            ),
+            (
+                "degree 2 double knot",
+                2,
+                vec![0.0, 0.0, 0.0, 0.4, 0.4, 1.0, 1.0, 1.0],
+                pts(&[1.0, -2.0, 3.0, 0.5, 9.0]),
+            ),
+            (
+                "degree 4 Bézier, one huge coefficient",
+                4,
+                [[0.0; 5], [1.0; 5]].concat(),
+                pts(&[1.0, -1.0, 1e10, -1.0, 1.0]),
+            ),
+            (
+                "degree 5 at a knot 0.5",
+                5,
+                [&[0.0; 6][..], &[0.5], &[1.0; 6]].concat(),
+                pts(&[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
+            ),
+        ]);
+        for (name, p, knot_list, coeff_ends) in fixtures {
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let (lo, hi) = kv.domain();
+            let extra: Vec<f64> = [
+                0.9,
+                0.1,
+                0.1,
+                0.3,
+                1.0 / 3.0,
+                0.4,
+                0.5,
+                0.5,
+                0.77,
+                0.9,
+                0.0,
+                1.0,
+                -0.5,
+                0.123_456_789,
+            ]
+            .iter()
+            .map(|f| lo + (hi - lo) * f)
+            .collect();
+            let ring: Vec<Interval> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| Interval::from_bounds(*lo, *hi))
+                .collect();
+            let got = to_bezier_spans_extra(kv.with_coeffs(&ring).unwrap(), &extra);
+            let mut knots = kv.knots().to_vec();
+            let mut exact: Vec<QInt> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| QInt {
+                    lo: Q::from_f64(*lo),
+                    hi: Q::from_f64(*hi),
+                })
+                .collect();
+            let mut runs: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            for &v in &extra {
+                if let Some(k) = kv.interior_knot(v)
+                    && !runs.iter().any(|(w, _)| w.value() == v)
+                {
+                    runs.push((k, 0));
+                }
+            }
+            runs.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
+            for (v, m) in &runs {
+                for step in *m..p {
+                    exact = insert_once_exact(&knots, p, step, &exact, *v);
+                    knots.insert(find_span_in(&knots, p, *v) + 1, v.value());
+                }
+            }
+            let mut want_breaks = vec![lo];
+            want_breaks.extend(runs.iter().map(|(v, _)| v.value()));
+            want_breaks.push(hi);
+            assert_eq!(
+                got.breaks, want_breaks,
+                "{name}: the breaks are the merged list"
+            );
+            let mut checked = 0usize;
+            for (j, row) in got.spans.iter().enumerate() {
+                for (i, r) in row.iter().enumerate() {
+                    if !r.is_certified() {
+                        continue;
+                    }
+                    let x = &exact[j * p + i];
+                    assert!(
+                        x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less
+                            && x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                        "{name}: span {j} slot {i} [{:e}, {:e}] does not enclose the exact \
+                         [{:e}, {:e}]",
+                        r.lo(),
+                        r.hi(),
+                        x.lo.to_f64_report(),
+                        x.hi.to_f64_report()
+                    );
+                    checked += 1;
+                }
+            }
+            let slots = got.spans.iter().flatten().count();
+            assert_eq!(checked, slots, "{name}: every slot certifies");
+        }
+    }
+
+    /// Cutting more breaks into one segment does not widen its rows: a
+    /// Bézier segment of each degree 1–5 cut at the 254 interior 255ths
+    /// keeps every coefficient within `2p + 1` ulps of its scale
+    /// (measured: 2.5, 2.75, 6.5, 5.5 and 10.5), where
+    /// inserting the breaks one after another into the whole net folds
+    /// each new coefficient out of the last one's width.
+    #[test]
+    fn a_segment_cut_many_times_keeps_its_rows_ulp_wide() {
+        let base = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
+        let extra: Vec<f64> = (1..255).map(|k| f64::from(k) / 255.0).collect();
+        for p in 1..=5usize {
+            let kv = KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap();
+            let row: Vec<Interval> = base[..=p].iter().map(|x| Interval::point(*x)).collect();
+            let got = to_bezier_spans_extra(kv.with_coeffs(&row).unwrap(), &extra);
+            assert_eq!(got.spans.len(), 255, "degree {p}: one span per piece");
+            let widest = got
+                .spans
+                .iter()
+                .flatten()
+                .map(|c| c.hi() - c.lo())
+                .fold(0.0f64, f64::max);
+            #[allow(clippy::cast_precision_loss)]
+            let ceiling = (2.0 * p as f64 + 1.0) * f64::EPSILON;
+            assert!(
+                widest <= ceiling,
+                "degree {p}: the widest coefficient after 254 cuts is {widest:e}, {} ulps of 1",
+                widest / f64::EPSILON
+            );
         }
     }
 }
