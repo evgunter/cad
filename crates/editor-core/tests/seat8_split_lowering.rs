@@ -199,13 +199,20 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// digest walks holds those copies. What each document delivers did
 /// not move: `intent_s2_c_world`'s migration check holds each product
 /// to its pre-C digest.
+///
+/// RE-BLESSED, all three, for INTENT stage 4 E (booleans glue on Zero):
+/// a body no longer carries provenance side tables (`GeomSource`
+/// stamps, field and axis sources), and the digest feeds each body's
+/// `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x5b24_7f0a_1360_4db4u64),
-        ("part_select", 0x0f2b_e2d0_e2c1_5eff),
-        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
+        ("cut_cylinder", 0xb918_821a_3a37_bbadu64),
+        ("part_select", 0x90fb_17e7_6b0b_54f9),
+        ("kitchen_sink", 0x98c0_fba7_09be_e02d),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
