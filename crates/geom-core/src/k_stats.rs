@@ -868,6 +868,31 @@ pub fn decide_nonzero<T: Decide>(
     )
 }
 
+/// [`decide_nonzero`], keeping the reporting margin the passing sign was
+/// decided on, as [`decide_magnitude_reported`] keeps it: for a verdict a
+/// later refusal quotes.
+///
+/// # Errors
+///
+/// As [`decide_nonzero`].
+pub fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
+    classify_gated_reported(
+        name,
+        margin.value(),
+        band,
+        SizedPass::NonZero,
+        |sign| match sign {
+            Sign::Positive => Some(NonzeroSign::Positive),
+            Sign::Negative => Some(NonzeroSign::Negative),
+            Sign::Zero => None,
+        },
+    )
+}
+
 /// A definite sign a [`decide_magnitude`] decision can reach. `Negative`
 /// is not one of its values: a magnitude has none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
