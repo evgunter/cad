@@ -1,7 +1,8 @@
-//! **A mate reads at its operand** — the transform-aware solve.
+//! **A mate reads the body its side names** — the transform-aware solve.
 //!
-//! A mate's two references are `SitedFace`s: a FACE name, and the node
-//! the reference is read at. The solve walks from that operand down to
+//! A mate's two sides are reads of a face: a FACE name, selected in the
+//! body it is read at (the side's operand). The solve walks from that
+//! body down to
 //! the name's minting instance and composes the map of every
 //! pose-bearing node it passes, so a mate on a TRANSFORMED instance
 //! seats the transformed geometry and a mate on the instance seats

@@ -5,11 +5,11 @@
 //! a pattern OVER a pattern does not evaluate. The nested shape a
 //! user can build runs through `Node::Part { select: Instance(i) }`,
 //! which projects one body out of the instances carrying every name
-//! VERBATIM: `Pattern` over `Part` over `Pattern`. The walk from a
-//! mate's operand passes the `Part` contributing nothing, consumes an
+//! VERBATIM: `Pattern` over `Part` over `Pattern`. The walk from the
+//! body a mate's side reads passes the `Part` contributing nothing, consumes an
 //! `Instance(i)` qualifier at each pattern, and lands on the
 //! instance that minted the name — so a nested copy's member is that
-//! instance, the CHAIN of copies, and the operand.
+//! instance, the CHAIN of copies, and the body read.
 //!
 //! Every row goes through ordinary doors — `DocEdit::InsertNode`,
 //! `solve_document`, `evaluate`, `product`, `assemble` — and the
@@ -744,7 +744,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     );
 }
 
-/// **A3(b).** One copy, two OPERANDS: a mate read at the pattern
+/// **A3(b).** One copy, two bodies read: a mate read at the pattern
 /// under `Instance(1)` and a mate read at a `Part` selecting that
 /// same instance are one placement spelled two ways, so one member:
 /// the `Part` places nothing, and both walks pass the same copy. The
@@ -946,16 +946,13 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
 
 /// **What the at-rest gate says for a mate read BELOW the outer
 /// pattern** — on a nested document. The SOLVE places such a mate;
-/// the gate refuses it, because the name's row is the `Part`'s own
-/// and the outer pattern places that body again before the product
-/// holds it. The refusal is in the operand's voice: `MovedAbove { at:
-/// part, by: outer }`, naming the `Part` the mate reads at and the
-/// pattern that moves it, rather than calling the name vanished.
-/// Reading the same
+/// the gate mints nothing for it, because the side reads the `Part`,
+/// which no placement places — the outer pattern's copies are what the
+/// world holds. Reading the same
 /// document's mate AT the outer pattern (every other row here) holds,
 /// because there the name is a root's own row.
 #[test]
-fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
+fn the_gate_on_a_mate_read_below_the_outer_pattern_mints_nothing() {
     let s = scene("msolve2-gate");
     let (base, top) = (s.base, s.top);
     let (base_body, top_body) = (s.base_body, s.top_body);

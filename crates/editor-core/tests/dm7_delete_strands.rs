@@ -524,7 +524,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 }
 
 // ---------------------------------------------------------------------
-// A mate: a head is a name, an operand is not.
+// A mate: a side is a read.
 // ---------------------------------------------------------------------
 
 fn mate_frame() -> MateFrame<Formula> {
@@ -552,11 +552,8 @@ fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName 
     }
 }
 
-/// **A mate's HEAD strands and its operand does not.**
+/// **A mate's side strands as a read.**
 ///
-/// The two references a mate carries are different kinds of thing. The
-/// head is a `StableName` — resolved through the N5 ladder, repairable
-/// by `Rebind` — so its minting node going is a strand and is reported.
 /// A mate side is a read (D10): deleting the instance it is read in
 /// strands the read, reported once, typed by the side's slot. The
 /// side's name rides its selection and is not a second row.

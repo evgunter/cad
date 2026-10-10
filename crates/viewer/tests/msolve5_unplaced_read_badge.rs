@@ -26,7 +26,7 @@ use viewer::session::{AtRestBadge, DocSession, SessionOp};
 /// post and both copies placed, and the seat mate read AT the
 /// transform. Stored beside the bench's
 /// parts so the session's resolver finds them.
-fn moved_above(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
+fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
@@ -97,7 +97,7 @@ fn moved_above(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
 fn a_mate_read_below_a_pattern_declares_nothing_and_the_badge_turns_red() {
     let tol = Tol::witness();
     let bench = asm::bench("msolve5-badge", tol);
-    let path = moved_above(&bench, tol);
+    let path = read_below_pattern(&bench, tol);
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived("msolve5-boot", tol),
         tol,

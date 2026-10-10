@@ -3057,6 +3057,10 @@ NOT_BOUND = {
     # and the face a refusal is about crosses already stripped, as
     # `MateFault.face`.
     "head_face": INTERIOR,
+    # A stored mate side's head — the body its selection is read in and
+    # its face name — what the member walk starts from; a Python author
+    # reads a side through the mate it belongs to.
+    "head_of": INTERIOR,
     # The coset table's static gaps (a clocking rider on a planar rest,
     # a standalone clocking), the one home the coset table and the
     # viewer's mate tool read. A Python caller meets the same sentence

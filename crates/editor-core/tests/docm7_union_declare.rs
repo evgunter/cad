@@ -1571,8 +1571,8 @@ fn a_declaration_adds_no_inputs() {
         vec![a, b],
         "a declaration's sides are references, not reads"
     );
-    // And the sites are what `payload_read_sites` answers with — the
-    // reading edges, which is the other half of the same fact.
+    // And the sites are what `payload_read_sites` answers with, which
+    // is the other half of the same fact.
     let sites: Vec<RecipeNodeId> = node.payload_read_sites();
     assert_eq!(sites.len(), 8, "two sites per pair, four pairs");
     assert!(sites.iter().all(|at| *at == a || *at == b), "{sites:?}");

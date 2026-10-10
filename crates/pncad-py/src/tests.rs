@@ -4406,8 +4406,9 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // program's expression is reached by a loop index, a step
             // index and an argument role, a later placement step's by a
             // step index and a component, a mate offset's by a side, a
-            // step index and a component, and a list's entry by its
-            // position, none of which the word carries.
+            // step index and a component, a list's entry by its
+            // position, and a mate's side by which side, none of which
+            // the word carries.
             None => assert!(
                 matches!(
                     *word,
@@ -4417,6 +4418,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "section"
                         | "member"
                         | "measured"
+                        | "side"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5748,6 +5750,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "section",
             "selection",
+            "side",
             "target",
             "tool",
         ],

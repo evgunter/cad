@@ -42,9 +42,9 @@ of three.
 ## The job
 
 - Mirror the turntable in `bench_scene.stand()` (or a sibling the
-  tests opt into: `TestBenchStand`'s `reading_edges` and
-  `last_maintenance` rows read the world-standing stand's exact edge
-  set and records, and the gauge adds reading edges).
+  tests opt into: `TestBenchStand`'s `relative_freedom_components`
+  and `last_maintenance` rows read the world-standing stand's exact
+  component and records, and the gauge adds a coupling edge).
 - Author the crate resting on the shelf's top face: a placing mate
   through `Doc.regauge_then_mate`, its shelf side
   `MateFrame.on_face(...)` slid along the shelf (the tour's `bench`,

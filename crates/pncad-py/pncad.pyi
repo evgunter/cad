@@ -2623,7 +2623,9 @@ class Node:
         document.
 
         A dangling reference is not refused here: the solve refuses
-        typed naming its head (`mate_dangling_head`) — or, where the
+        typed naming its head (`mate_dangling_head`), or the side's
+        read when it is no face of a live body
+        (`mate_side_unresolved`) — or, where the
         head resolves and a pattern or transform placing it could not
         derive a pose, naming that placer and carrying the
         evaluation's own cause (`mate_placer_refused`, whose `error`

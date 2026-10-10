@@ -2,12 +2,12 @@
 id: split-and-inline-over-a-mate-read-at-a-union-are-unmeasured
 kind: issue
 title: Split and inline over a mate head read at a union are unmeasured since the member walk descends unions
-status: parked
+status: closed
 priority: P3
 cost: M
 parent: MSOLVE-13
 opened: 2026-10-03
-blocked_on: [a-mate-reads-face-variables]
+closed: 2026-10-10
 ---
 
 
@@ -46,3 +46,18 @@ says.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `a-mate-reads-face-variables`, not on the whole program: refactor.rs reads member_of through the head walk that descends unions; unit F retires that walk (A12's reading edges), and names this row as its own. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+By INTENT stage 2 F (`a-mate-reads-face-variables`), which made a mate
+side a selection read and rewrote the four sites. The rows are
+`crates/editor-core/tests/msolve13_read_at_operand.rs` A3, each with
+its verdict:
+- A3(a): a cut taking the union and its placement but not the
+  transforms below refuses `SeveredEdge` at the cut union.
+- A3(b): a cut taking the block and the transforms but not the union
+  refuses `SeveredEdge` at the kept union.
+- A3(c): a declaring mate whose cut side reads the union through a
+  transform refuses `MateFrameCrosses` on that side.
+- A3(d): the whole group, with its mate read at the union, splits and
+  inlines back to itself up to ids, and the gate holds on the result.

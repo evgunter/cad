@@ -177,8 +177,8 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
         AxisSense::Opposed,
     );
 
-    // The reading edges: the pattern-member mate reads through the
-    // pattern's INPUT instance — the vertex that joins the top into
+    // The mate's coupling edges: the pattern-member mate reads through
+    // the pattern's INPUT instance — the vertex that joins the top into
     // the pattern's group.
     assert_eq!(
         crate::fixture::mate_edges(&doc),
@@ -583,11 +583,10 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 /// INVARIANT (ratified pin): the pattern consumed its master's root,
 /// so the MASTER-NAME spelling of a seat still REFUSES at the gate —
 /// pinned as a refusal, not fixed. The canonical spelling is the
-/// `Instance(i)` head the other rows use. The refusal's word is the
-/// operand's: the name is spelled at `leg`, and the pattern places it
-/// again before the product holds it (`MovedAbove { at: leg, by:
-/// pattern }`), rather than a name that vanished — the leg's face is
-/// there, under the pattern's row.
+/// `Instance(i)` head the other rows use. The side reads `leg`, which
+/// no placement places — the pattern's copies are what the world holds
+/// — so the mate mints nothing, rather than refuse a name that
+/// vanished: the leg's face is there, under the pattern's row.
 #[test]
 fn the_master_name_spelling_mints_nothing() {
     let mut store = PartStore::default();

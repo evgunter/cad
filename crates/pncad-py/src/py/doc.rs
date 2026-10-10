@@ -3412,8 +3412,10 @@ impl Node {
     /// reaching a document.
     ///
     /// A dangling reference is not refused here: the solve refuses
-    /// typed naming its head (`MateFault`, `mate_dangling_head`),
-    /// which is the ratified dangling-reference semantics — or, where
+    /// typed naming its head (`MateFault`, `mate_dangling_head`), or
+    /// the side's read when it is no face of a live body
+    /// (`mate_side_unresolved`), which is the ratified
+    /// dangling-reference semantics — or, where
     /// the head resolves and a pattern or transform placing it could
     /// not derive a pose, naming that placer and carrying the
     /// evaluation's own cause (`mate_placer_refused`).

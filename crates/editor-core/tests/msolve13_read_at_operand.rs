@@ -10,8 +10,9 @@
 //! The rows build the documents the gather's own recourse leads to — a
 //! union over two transforms of one mated instance — and measure the
 //! gate's verdict on each, the member walk's descent through the
-//! union, and the member key that makes two spellings of one placement
-//! one member.
+//! union, the member key that makes two spellings of one placement
+//! one member, and what split and inline answer across a mate read at
+//! a union (A3).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -22,7 +23,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
     Formula, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, StableName, member_of,
+    RecipeNodeId, SitedFace, SplitError, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -62,6 +63,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// mates put them.
 struct Scene {
     doc: ProfileDoc,
+    store: PartStore,
     opts: EvalOptions,
     base1: RecipeNodeId,
     base2: RecipeNodeId,
@@ -86,7 +88,7 @@ fn scene_with(label: &str, two: bool) -> Scene {
         box_part(&format!("{label}-top"), 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
-    let opts = with_resolver(store);
+    let opts = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base1) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, base2) = if two {
@@ -101,6 +103,7 @@ fn scene_with(label: &str, two: bool) -> Scene {
     let doc = fixture::place_all(doc, bases);
     Scene {
         doc,
+        store,
         opts,
         base1,
         base2,
@@ -584,5 +587,196 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         ),
         "the gather refuses at the Part's placement, poisoned through the Part, before any \
          reference is read: {err:?}"
+    );
+}
+
+// ---- A3: split and inline across a mate read at a union ----
+
+/// The split of `cut` out of `doc`, its refusal or outcome.
+fn split_of(
+    s: &Scene,
+    doc: &ProfileDoc,
+    cut: &[RecipeNodeId],
+    label: &str,
+) -> Result<editor_core::SplitOutcome, SplitError> {
+    editor_core::split(
+        doc,
+        &cut.iter().copied().collect(),
+        DocumentId::derive(label),
+        Tol::witness(),
+        s.opts.resolver.as_ref(),
+    )
+}
+
+/// The placement of `body` in `doc`.
+fn placement_of(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
+    doc.ids()
+        .into_iter()
+        .find(|&p| {
+            matches!(doc.node(p), Some(Node::PlaceInWorld { .. })) && doc.upstream(p) == vec![body]
+        })
+        .expect("the body is placed")
+}
+
+/// The scene with the slabs on a gauge of their own and the block at an
+/// offset, so a mate between them declares rather than welds.
+fn declaring(label: &str) -> Scene {
+    let s = scene(label);
+    let (mut doc, g) = insert(
+        s.doc.clone(),
+        Node::gauge(
+            None,
+            editor_core::Placement::literal(&editor_core::Frame::translation([0.0, 0.0, -5.0])),
+        ),
+    );
+    for base in [s.base1, s.base2] {
+        doc = step(
+            doc,
+            DocEdit::SetGauge {
+                node: base,
+                gauge: Some(g),
+            },
+        )
+        .0;
+    }
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: s.top,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::translation([0.0, 0.0, 5.0]),
+            )),
+            fresh: Vec::new(),
+        },
+    );
+    Scene { doc, ..s }
+}
+
+/// **A3(a).** A cut that takes the union a mate reads, and its
+/// placement, but not the transforms below it, is the union's own
+/// severed read: the cut union reads a kept transform. The mate reads
+/// the union, which moves whole with its placement, and says nothing.
+#[test]
+fn a3a_a_cut_taking_the_union_but_not_its_members_severs_the_union() {
+    let s = scene("msolve13-a3a");
+    let f = fused(&s, |t1, union| {
+        head_at(union, member_name(union, t1, s.top_cap()))
+    });
+    let up = placement_of(&f.doc, f.union);
+    let err = split_of(&s, &f.doc, &[f.union, up], "msolve13-a3a-part")
+        .expect_err("the union reads the kept transforms");
+    assert!(
+        matches!(
+            &err,
+            SplitError::SeveredEdge { consumer, consumer_is_cut: true, .. }
+                if *consumer == f.doc.spoken(f.union)
+        ),
+        "{err:?}"
+    );
+}
+
+/// **A3(b).** The reverse: a cut taking the block and the transforms
+/// below the union and leaving the union is the kept union's severed
+/// read. The mates declare (the slabs and the block each stand where
+/// they are put), so no group is torn before the read is reached.
+#[test]
+fn a3b_a_cut_taking_the_members_but_not_the_union_severs_the_union() {
+    let s = declaring("msolve13-a3b");
+    let f = fused(&s, |t1, union| {
+        head_at(union, member_name(union, t1, s.top_cap()))
+    });
+    let err = split_of(&s, &f.doc, &[s.top, f.t1, f.t2], "msolve13-a3b-part")
+        .expect_err("the kept union reads the cut transforms");
+    assert!(
+        matches!(
+            &err,
+            SplitError::SeveredEdge { consumer, consumer_is_cut: false, .. }
+                if *consumer == f.doc.spoken(f.union)
+        ),
+        "{err:?}"
+    );
+}
+
+/// **A3(c).** A declaring mate whose cut side reads the union through
+/// a transform crosses with a frame the part cannot hold: the member's
+/// chain carries the transform, so the face's frame is no frame of the
+/// instance left behind, and the cut refuses `MateFrameCrosses` on
+/// that side.
+#[test]
+fn a3c_a_declaring_mate_read_through_a_union_and_a_transform_refuses_its_frame() {
+    let s = declaring("msolve13-a3c");
+    let f = fused(&s, |t1, union| {
+        head_at(union, member_name(union, t1, s.top_cap()))
+    });
+    let up = placement_of(&f.doc, f.union);
+    let err = split_of(
+        &s,
+        &f.doc,
+        &[s.top, f.t1, f.t2, f.union, up],
+        "msolve13-a3c-part",
+    )
+    .expect_err("the mates' cut side reads through a transform");
+    assert!(
+        matches!(
+            &err,
+            SplitError::MateFrameCrosses { mate, side: editor_core::MateSide::B, promote: None }
+                if *mate == f.doc.spoken(f.m1)
+        ),
+        "{err:?}"
+    );
+}
+
+/// **A3(d).** A whole group with its mate read at a union — the slab,
+/// the block, a transform of it, their union, the placements and the
+/// mate — cuts into a part and inlines back: `inline(split(d))` is `d`
+/// up to node ids, the mate still reading the union naming the
+/// block's face, and the gate holds on the result.
+#[test]
+fn a3d_a_group_with_a_mate_read_at_a_union_splits_and_inlines_back() {
+    let s = scene("msolve13-a3d");
+    let (doc, t1) = insert(
+        s.doc.clone(),
+        xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: vec![s.top.into(), t1.into()],
+            declare: Vec::new(),
+        },
+    );
+    let (doc, _) = crate::fixture::place(doc, union);
+    let (doc, mate) = mated(
+        doc,
+        seat(
+            s.base_cap(s.base1),
+            head_at(union, member_name(union, s.top, s.top_cap())),
+        ),
+    );
+    let ev = run(&doc, &s.opts);
+    assert!(gate(&doc, &ev).is_ok(), "A3(d): the document gates");
+    let cut = fixture::with_placements(
+        &doc,
+        &[s.base1, s.top, t1, union, mate].into_iter().collect(),
+    );
+    let cut: Vec<_> = cut.into_iter().collect();
+    let out = split_of(&s, &doc, &cut, "msolve13-a3d-part")
+        .unwrap_or_else(|e| panic!("A3(d): the whole group cuts: {e}"));
+    let mut store = s.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let back = editor_core::inline(
+        &out.remainder,
+        out.instance,
+        &crate::p2_gauges::resolver(store.clone()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("A3(d): the part inlines back: {e}"));
+    let (map, steps) = fixture::round_trip::composed(&doc, &out, &back);
+    fixture::round_trip::same_up_to_ids(&doc, &back.doc, &map, &steps)
+        .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
+    let ev = run(&back.doc, &with_resolver(store));
+    assert!(
+        gate(&back.doc, &ev).is_ok(),
+        "A3(d): the gate holds on the round trip"
     );
 }
