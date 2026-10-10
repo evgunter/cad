@@ -38,3 +38,43 @@ merged, which fired five rows' trigger. Read against the D10 hold:
   fix to build.
 
 Track `active`. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — the E/F-parked rows read against E's branch; three lanes out
+
+A read-only lane checked the 12 rows parked on E and F against E's
+branch (PR 4496) and F's spec. **E doesn't rewrite the contact
+verifiers.** `glue.rs::decided_declarations` adds each Zero-decided
+undeclared pair to the op's `BooleanDeclarations`, and it then runs the
+existing declared path. So `contact_verify::tangent_locus_relation`
+becomes the undeclared tangent glue decision too, and the census's
+record walks outlive F (they read op records, not declarations). Most
+"rewired by E" parking notes don't match E's diff. I checked B2's diff
+myself: it touches `rest_pair_verdict` and
+`census::confirm_curve_and_patch_records`, not `tangent_locus_relation`
+or the census's edge passes.
+
+Dispatched (the rows' own files update on their lanes' branches):
+
+- **contacthold/tangent-locus**: `contact-verify-on-surface-residual-subtracts-its-sag`,
+  `contact-tangent-relation-decides-offsets-and-tilt-per-sample`,
+  `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`
+  (bullets 1 and 3; bullet 2 is the normal case after E). All three are in
+  one function, so one lane. Review tier: **full single**. A bound's
+  direction per verdict is exactly the class CONTACT's reviews kept finding.
+  Seam: E's tangent goldens move; whichever lands second re-baselines.
+- **contacthold/census-edge-pass**: `census-edge-pass-reads-no-line-conic-crossing`,
+  then `ef-bound-backed-migrates-to-region-confinement`. Its "moot at F"
+  premise is wrong: the arms read op records. Review tier: **full single**.
+  The lane keeps out of B2's census regions.
+- **contacthold/side-code-measure**: `boolean-conic-side-code-zero-is-first-order`.
+  Measure only; it also runs on E's branch, where undeclared verified
+  tangents reach `tangent_lump`.
+
+Stays parked: `census-declared-sites-read-a-torn-record-as-absent`
+(code survives, but B2 rewrites one of its three sites; re-parked on B2);
+`a-same-operand-f7-…` (closes with E); `a-bridge-union-…` (closes at F);
+`carrier-escalation-…` (flush half dies at F, Rest half sits in E's and
+B2's one contact_verify hunk). Held for designers:
+`contact-verify-lane-gate-answers-a-crossing-not-certifiable` (same
+function as the tangent lane; weigh it once that lane lands) and
+`declared-faces-has-no-cross-solid-check`. — (CONTACTHOLD orchestrator)

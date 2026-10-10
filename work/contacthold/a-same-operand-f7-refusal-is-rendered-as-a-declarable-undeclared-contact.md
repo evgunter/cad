@@ -24,3 +24,10 @@ an operand, but hand-built and imported bodies still can.
 ## Parked on the D10 hold (2026-10-08)
 
 The declare menu it renders (`editor-core` `eval/wire.rs` `union_refusal`, `refusal_menu`) is deleted when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Read against E's branch (2026-10-10)
+
+E (PR 4496) deletes `eval/wire.rs::union_refusal`, `::refusal_menu` and
+`::sited_member`, and the `UndeclaredCoincidence` spelling retires, so
+the rendering this row describes goes with it: expected to close when
+E merges. (CONTACTHOLD orchestrator)
