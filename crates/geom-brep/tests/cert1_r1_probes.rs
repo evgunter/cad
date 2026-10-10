@@ -287,23 +287,23 @@ fn probe_lever_is_latitude_uniform() {
 
 /// A polar CAP — one full rim at latitude `b`, no meridians: the pole
 /// is in the face INTERIOR. This probe recorded the refusal that became
-/// issue 1250, then the cap measured off the rim's traversal; a chart
-/// pole inside a face is now a vertex the face owes, so the rim has a
-/// pole on each side and no pole-free side under either bit, and the
-/// face is refused `SenseContradicted` whichever way the rim runs —
-/// the form import must normalise.
+/// issue 1250. The rim has a pole on each side, so its loop encodes no
+/// side and the face measures under its bit by Gauss–Bonnet: the cap
+/// `2πR²(1 − sin b)` traversed `+u`, and the ball minus that cap
+/// traversed the other way. Validity, not props, owes the refusal the
+/// pole-in-the-interior rule calls for.
 #[test]
 fn probe_full_polar_cap_disposition() {
     let b: f64 = 0.5;
-    for (u0, u1) in [(0.0, 2.0 * PI), (2.0 * PI, 0.0)] {
+    for (u0, u1, exact) in [
+        (0.0, 2.0 * PI, 2.0 * PI * RS * RS * (1.0 - b.sin())),
+        (2.0 * PI, 0.0, 2.0 * PI * RS * RS * (1.0 + b.sin())),
+    ] {
         let edges = vec![rim(b, u0, u1, 0, 0)];
-        for sense in [true, false] {
-            assert_eq!(
-                curved_face(&sphere::<f64>(), &edges, sense, band()).map(|_| ()),
-                Err(PropsError::SenseContradicted),
-                "cap {u0}->{u1}, sense {sense}"
-            );
-        }
+        let got = curved_face(&sphere::<f64>(), &edges, true, band())
+            .unwrap_or_else(|e| panic!("the cap disposition changed: {e:?}"));
+        let rel = (got.area - exact).abs() / exact;
+        assert!(rel < 1e-12, "cap {u0}->{u1}: area {} vs {exact}", got.area);
     }
 }
 

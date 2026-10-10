@@ -126,3 +126,17 @@ Ev, on PR 4549: *"this works"*. The PR 2850 ruling, *a chart
 singularity inside a face is a vertex of it*, now bears the one-loop
 side check. Its present-tense home is `crates/geom-brep/README.md`,
 C12 (7). The build (`flux/sphere-arm`) keeps the one-loop reader.
+
+## Built (`flux/sphere-arm`, 2026-10-10)
+
+One closed form: `curved::sphere_face`, Gauss–Bonnet over every loop of
+any sphere face bounded by circle arcs, its premises named decides. The
+iso branch is gone from the flux lane and survives in
+`require_iso_rectangle` alone. One side reader, `sphere_loop_side`, read
+by the flux arm and check 6. Per fork row 109, a one-loop face whose
+poles off the loop read on opposite sides answers `Unencoded`; its
+refusal is validity's. Witnesses: `sweep/tests/a_flipped_shallow_dimple.rs`
+(the box ∖ shallow ball, both dimple faces flipped, named by check 6
+alone), the L-shaped, plus and staircase faces at exact area
+(`geom-brep/tests/s58_iso_rectangle.rs`, `cert1_r1_probes.rs`,
+`props_sphere_pole_side.rs`).

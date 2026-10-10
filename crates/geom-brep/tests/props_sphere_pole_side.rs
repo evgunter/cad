@@ -9,10 +9,11 @@
 //! the faces the rim-traversal arm used to read:
 //!
 //! * **The rim-only polar cap.** One rim circle, no meridian, the pole
-//!   interior: a pole lies on each side of the rim, so no side is
-//!   pole-free, and the face is refused `SenseContradicted` under
-//!   either bit — the form import must normalise. Its seamed form, the
-//!   pole a vertex, measures `2πR²(1 − sin v₀)`.
+//!   interior: a pole lies on each side of the rim, so under either bit
+//!   the face holds one and the loop encodes no side. It measures under
+//!   its bit, `2πR²(1 − sin v₀)`; refusing it is validity's (the form
+//!   import must normalise). Its seamed form, the pole a vertex,
+//!   encodes its side and measures the same.
 //! * **The L-shaped complement.** A half-cap and the rest of its sphere
 //!   share both edges traversed opposite ways; the complement holds the
 //!   south pole, so the bit that claims it is refused, and the bit that
@@ -82,18 +83,22 @@ fn measures_outward(kind: &str, edges: &[LoopEdge<f64>], exact_area: f64) {
 // Issue 1250 — the rim-only polar cap
 // ---------------------------------------------------------------------
 
-/// **A cap bounded by ONE rim circle and nothing else holds a pole, and
-/// is refused under either bit.** The rim separates the two poles, so
-/// one of them lies inside whichever side the bit names: the flux lane
-/// and the side reader refuse it `SenseContradicted`, on both poles'
-/// caps, both traversals, and with the rim stated as one arc or three.
+/// **A cap bounded by ONE rim circle and nothing else encodes no side,
+/// and measures under its bit.** The rim separates the two poles, so
+/// whichever side is material holds one: the reading says nothing about
+/// the bit (`Unencoded`), and the face measures the cap `2πR²(1 − sin v₀)`
+/// under the bit that claims it and the ball minus the cap under the
+/// other — on both poles' caps, both traversals, and with the rim
+/// stated as one arc or three.
 #[test]
-fn a_rim_only_cap_holds_a_pole_and_is_refused() {
+fn a_rim_only_cap_encodes_no_side_and_measures_under_its_bit() {
     let third = TAU / 3.0;
     for v0 in [0.5_f64, -0.5, 0.0, 1.2, -1.2] {
-        for (label, edges) in [
-            ("+u", vec![rim(v0, 0.0, TAU, 0, 0)]),
-            ("-u", vec![rim(v0, TAU, 0.0, 0, 0)]),
+        let cap = TAU * RS * RS * (1.0 - v0.sin());
+        let rest = TAU * RS * RS * (1.0 + v0.sin());
+        for (label, edges, above) in [
+            ("+u", vec![rim(v0, 0.0, TAU, 0, 0)], cap),
+            ("-u", vec![rim(v0, TAU, 0.0, 0, 0)], rest),
             (
                 "three arcs",
                 vec![
@@ -101,19 +106,22 @@ fn a_rim_only_cap_holds_a_pole_and_is_refused() {
                     rim(v0, third, 2.0 * third, 1, 2),
                     rim(v0, 2.0 * third, TAU, 2, 0),
                 ],
+                cap,
             ),
         ] {
-            for sense in [true, false] {
-                assert_eq!(
-                    curved_face(&sphere(), &edges, sense, band()).map(|_| ()),
-                    Err(PropsError::SenseContradicted),
-                    "v0={v0}, {label}, sense={sense}"
-                );
-            }
             assert_eq!(
                 boundary_material_sign(&sphere(), &edges, band()),
-                Err(PropsError::SenseContradicted),
+                Ok(MaterialSign::Unencoded),
                 "v0={v0}, {label}: the gate"
+            );
+            measures_outward(&format!("v0={v0}, {label}"), &edges, above);
+            let below = curved_face(&sphere(), &edges, false, band())
+                .unwrap_or_else(|e| panic!("v0={v0}, {label}, reversed bit: {e:?}"));
+            let other = cap + rest - above;
+            assert!(
+                (below.area - other).abs() / other < 1e-12,
+                "v0={v0}, {label}: the reversed bit measures the other side, {} vs {other}",
+                below.area
             );
         }
     }
@@ -159,8 +167,10 @@ fn the_seamed_cap_measures_the_spherical_cap() {
 /// **A rim that does not close bounds nothing.** Half a rim, a quarter,
 /// a full rim with an extra half arc: each loop's last arc ends away
 /// from its first one's start, and the arm refuses on its own closure
-/// decide. The same full rim stated twice closes, but runs round twice
-/// and has a pole on each side.
+/// decide. The same full rim stated twice closes but runs round twice:
+/// no simple loop, which the arm does not decide (`curved::sphere_loop`'s
+/// docs). It answers the formula's value, `R²·2π(1 − 2 sin v₀)` — the
+/// residual this row pins, red the day simplicity is decided.
 #[test]
 fn a_rim_that_does_not_close_bounds_nothing() {
     let v0 = 0.5_f64;
@@ -181,16 +191,18 @@ fn a_rim_that_does_not_close_bounds_nothing() {
             "{name}"
         );
     }
-    assert_eq!(
-        curved_face(
-            &sphere(),
-            &[rim(v0, 0.0, TAU, 0, 0), rim(v0, 0.0, TAU, 0, 0)],
-            true,
-            band()
-        )
-        .map(|_| ()),
-        Err(PropsError::SenseContradicted),
-        "the same full rim stated twice"
+    let twice = curved_face(
+        &sphere(),
+        &[rim(v0, 0.0, TAU, 0, 0), rim(v0, 0.0, TAU, 0, 0)],
+        true,
+        band(),
+    )
+    .expect("the doubled rim is answered")
+    .area;
+    let formula = TAU * RS * RS * (1.0 - 2.0 * v0.sin());
+    assert!(
+        (twice - formula).abs() / formula < 1e-12,
+        "the same full rim stated twice: {twice} vs {formula}"
     );
 }
 
@@ -324,16 +336,18 @@ fn the_gate_sees_the_l_shaped_complement() {
     );
 }
 
-/// **A face whose rims run the same way has no pole-free side.** The
+/// **A face whose rims run the same way has a pole on each side.** The
 /// staircase — rim at `lo` over `[0, π]` `+u`, a meridian up, rim at
 /// `hi` over `[π, 2π]` `+u`, a meridian down — is a closed simple curve
 /// whose left region holds the north pole and whose right region holds
-/// the south one. Every rotation of its loop is refused by the flux
-/// lane and the gate alike. The consistent zone, its two rims as two
-/// loops traversed opposite ways, measures and encodes one side
-/// whichever loop comes first.
+/// the south one. Its loop encodes no side, and at every rotation the
+/// flux lane measures the left region under `sense = true`: the
+/// half-zone plus the whole cap above `hi`, the area the iso arm once
+/// answered 57% of. The consistent zone, its two rims as two loops
+/// traversed opposite ways, measures and encodes one side whichever
+/// loop comes first.
 #[test]
-fn a_face_whose_rims_run_the_same_way_has_no_pole_free_side() {
+fn a_face_whose_rims_run_the_same_way_has_a_pole_on_each_side() {
     let (lo, hi) = (-0.3_f64, 0.5_f64);
     let stair = [
         rim(lo, 0.0, PI, 0, 1),
@@ -341,24 +355,24 @@ fn a_face_whose_rims_run_the_same_way_has_no_pole_free_side() {
         rim(hi, PI, TAU, 2, 3),
         great(0.0, hi, lo, 3, 0),
     ];
+    let true_area = RS * RS * PI * (hi.sin() - lo.sin()) + TAU * RS * RS * (1.0 - hi.sin());
     for k in 0..stair.len() {
         let e: Vec<LoopEdge<f64>> = (0..stair.len())
             .map(|i| stair[(i + k) % stair.len()].clone())
             .collect();
-        assert_eq!(
-            curved_face(&sphere(), &e, true, band()).map(|_| ()),
-            Err(PropsError::SenseContradicted),
-            "k={k}: the flux lane"
-        );
+        measures_outward(&format!("staircase k={k}"), &e, true_area);
         assert_eq!(
             boundary_material_sign(&sphere(), &e, band()),
-            Err(PropsError::SenseContradicted),
+            Ok(MaterialSign::Unencoded),
             "k={k}: the gate"
         );
     }
     let (low, high) = (rim(lo, 0.0, TAU, 0, 0), rim(hi, TAU, 0.0, 1, 1));
     let exact = TAU * RS * RS * (hi.sin() - lo.sin());
-    for loops in [[&[low.clone()][..], &[high.clone()][..]], [&[high][..], &[low][..]]] {
+    for loops in [
+        [&[low.clone()][..], &[high.clone()][..]],
+        [&[high][..], &[low][..]],
+    ] {
         let fc = curved_face_loops(&sphere(), &loops, true, band()).expect("the zone");
         let rel = (fc.area - exact).abs() / exact;
         assert!(rel < 1e-12, "zone area {} vs {exact}", fc.area);
@@ -422,12 +436,12 @@ fn the_recorded_verdicts_are_a_face_fact_under_re_anchoring() {
     }
 }
 
-/// **The rim-only cap's recorded population says why it is refused:**
-/// the two poles read on opposite sides of the rim
+/// **The rim-only cap's recorded population says why it encodes no
+/// side:** the two poles read on opposite sides of the rim
 /// (`props_sphere_pole_winding`, once `Positive` and once `Negative`),
 /// each off a whole circle's projection (`props_sphere_pole_arc_full`)
 /// from a pole off the rim's plane (`props_sphere_pole_plane`), beside
-/// the loop's own premises.
+/// the loop's own premises and the area range it measures under.
 #[test]
 fn the_rim_only_cap_records_two_opposite_pole_readings() {
     let got = verdict_multiset(&[rim(0.5, 0.0, TAU, 0, 0)]);
@@ -436,6 +450,7 @@ fn the_rim_only_cap_records_two_opposite_pole_readings() {
         ("props_meridian_span_winding Zero", 1),
         ("props_sphere_circle_fit Zero", 1),
         ("props_sphere_circle_on Zero", 1),
+        ("props_sphere_loop_area Positive", 1),
         ("props_sphere_loop_closed Zero", 1),
         ("props_sphere_loop_cusp Positive", 1),
         ("props_sphere_pole_arc_full Zero", 2),

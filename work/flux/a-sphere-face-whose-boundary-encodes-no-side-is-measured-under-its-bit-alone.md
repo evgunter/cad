@@ -50,3 +50,16 @@ the neighbouring faces' sides carried across a shared edge into a
 global orientation pass, or the chart walk's pole junction stated
 without the bit — or the reason none exists, recorded where
 `MaterialSign::Unencoded` is documented.
+
+## Shrunk (`flux/sphere-arm`, 2026-10-10)
+
+`sphere_loop_side` reads a one-loop face as the side of its loop that
+holds no chart pole, by each pole's stereographic turning number, and a
+face with holes by the sign of its Gauss–Bonnet area. What remains
+`Unencoded`: faces with both poles on the loop (seam siblings meeting
+tangentially, where check 4 reads a flip as a lamina), and faces with a
+pole off the loop on each side, which hold a pole under either sense and
+are validity's to refuse
+(`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
+Witness: `sweep/tests/tilted_sphere_pair.rs`,
+`a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name`.

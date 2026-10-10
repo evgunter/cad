@@ -6350,10 +6350,13 @@ mod sphere_rect_rows {
             }
             let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
             let band = Band::linear(tol).unwrap();
-            let side = geom_brep::props::boundary_material_sign(&body.surfaces[sphere], &outer, band);
+            let side =
+                geom_brep::props::boundary_material_sign(&body.surfaces[sphere], &outer, band);
             body.set_face_sense(
                 north,
-                side == Ok(geom_brep::props::MaterialSign::Encoded(geom_core::Sign::Positive)),
+                side == Ok(geom_brep::props::MaterialSign::Encoded(
+                    geom_core::Sign::Positive,
+                )),
             )
             .unwrap();
         }
@@ -6466,8 +6469,15 @@ mod sphere_rect_rows {
         let c = Point3::new(120.0, -40.0, 75.0);
         for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
             let axis = Vec3::new(t.sin(), 0.0, t.cos());
-            let (body, cap, _) =
-                strut_cap(c, r, frame_about(axis), (h0, -0.9), (false, true), true, tol);
+            let (body, cap, _) = strut_cap(
+                c,
+                r,
+                frame_about(axis),
+                (h0, -0.9),
+                (false, true),
+                true,
+                tol,
+            );
             let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
             let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
             assert!(

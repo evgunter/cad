@@ -65,3 +65,15 @@ Past the volume, `mesh::curved::tessellate_curved` and
 `mesh::trimmed` refuse any ringed curved face
 (`TessellateError::RingOnCurvedFace`), so these results will not mesh
 either until that lane reads a ring.
+
+## Fixed (`flux/sphere-arm`, 2026-10-10)
+
+`χ = 1 − r`: `curved::sphere_face` measures a sphere face over all its
+loops, a hole's area positive and less than the outer region's
+(`props_sphere_hole_area`), and `topo::props::face_flux` hands a sphere
+face its rings. The rows that pinned the refusal now build at their
+slice integrals: `a_ring_on_a_sphere_face.rs` (every pose, every op),
+`four_crossings_…` ∪ and ball ∖ slab, `a_tube_ending_on_a_ball`'s
+tilted 1.2, `m5_s13_review_probes::probe_edge_escape_lands_a_ring…`,
+and `shell_curved_mouth`'s sphere window. The mesh lane still refuses a
+ringed curved face (TESS's).

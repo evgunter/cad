@@ -32,12 +32,13 @@
 //! inside the band, the shape door and the flux lane answer on the same
 //! undecidable gap (the shape door on `props_rim_side`, the flux lane
 //! on its loop's closure, `props_sphere_loop_closed`); at `Δv = 0` the
-//! door admits the face and the flux lane refuses it, each cap holding
-//! a pole. `mesh::tessellate` refuses it typed either way: in the
+//! door admits the face and the flux lane measures it under its bit —
+//! the two caps sum to the sphere's closed forms. `mesh::tessellate`
+//! refuses it typed either way: in the
 //! band on the shape door's escalation (`UnsupportedCurvedShape`), and
 //! at `Δv = 0` as `MeridianFreeCurvedFace`, the walk's own refusal of a
 //! loop with no meridian. So the finding these rows pin is real and is
-//! consumed by no measure and no mesh.
+//! consumed by a measure at `Δv = 0` and by no mesh.
 //!
 //! Offsets are derived from the run's own ε: this file is on CI's
 //! `eps ∈ {default, 1e-6, 1e-12}` matrix.
@@ -256,10 +257,10 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
 ///
 /// * **`Δv = 0`** — the two arcs state ONE rim circle, so the body is a
 ///   sphere split by one rim into two caps, each holding a pole in its
-///   interior. The flux lane reads the rim's loop, which has a pole on
-///   each side and no pole-free side, and refuses each cap
-///   `SenseContradicted` (`topo/tests/props_sphere_cap_door.rs` reads
-///   the same refusal through the public doors). The shape door admits
+///   interior. The rim has a pole on each side, so its loop encodes no
+///   side and each cap measures under its bit by Gauss–Bonnet: the two
+///   sum to `4πR³/3`, which `topo/tests/props_sphere_cap_door.rs`
+///   weighs directly. The shape door admits
 ///   it: with `lo == hi` no rim sits at an extreme rather than the
 ///   other, so its rim-side companion has nothing to compare and extent
 ///   is not a shape question.
@@ -276,6 +277,7 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
 fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
+    let mut caps = Vec::new();
     for (f, in_band) in [(1.5, true), (0.0, false)] {
         let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
         for (_, face) in body.faces() {
@@ -304,14 +306,24 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                 );
             } else {
                 assert_eq!(door, Ok(()));
-                assert_eq!(
-                    flux.map(|_| ()),
-                    Err(PropsError::SenseContradicted),
-                    "a rim-only cap holds a pole"
-                );
+                caps.push(flux.unwrap_or_else(|e| panic!("a rim-only cap measures: {e:?}")));
             }
         }
     }
+    // The two caps of one sphere: their areas sum to `4πR²` and their
+    // fluxes to `3V = 4πR³`.
+    let area: f64 = caps.iter().map(|c| c.area).sum();
+    let flux: f64 = caps.iter().map(|c| c.flux).sum();
+    let tau = core::f64::consts::TAU;
+    assert_eq!(caps.len(), 2, "one sphere, two rim-only caps");
+    assert!(
+        (area - 2.0 * tau * RS * RS).abs() < 1e-12 * area,
+        "the two caps' areas sum to 4πR²: {area}"
+    );
+    assert!(
+        (flux - 2.0 * tau * RS.powi(3)).abs() < 1e-12 * flux,
+        "and their fluxes to 3V = 4πR³: {flux}"
+    );
 }
 
 /// **The mesh lane refuses the rim-only cap typed, at zero gap and in

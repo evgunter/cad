@@ -2,17 +2,18 @@
 //! nothing else** — the witness for why `sphere_loop_side` reads a
 //! one-loop face's side off its chart poles.
 //!
-//! A box less a shallow ball leaves a dimple: one sphere face bounded
-//! by one circle, the section of the box's top face. The ball is
-//! `y`-poled with its seam on `+x`, both in the plane `z = 1.3`, so the
-//! dimple below `z = 1` holds no pole and misses the seam. Its edge
-//! meets the planar top face transversally, so tier 3's check 4, which
-//! reads material pairing only across `Smooth` edges, cannot see a flip
-//! of the dimple's sense bit; and the sphere's flux reads that bit, so
-//! a flip left unread would measure the box less the ball's COMPLEMENT,
-//! a wrong positive volume. The dimple's loop holds no pole on the
-//! side the face lies on, so the reader encodes its side, and both
-//! tier 3's check 6 and the mass properties refuse the flip by name.
+//! A box less a shallow ball leaves a dimple. The boolean charts the
+//! ball with its pole on the cut plane's normal, so the dimple is two
+//! sphere faces meeting along a seam at the pole, each bounded by half
+//! the section circle and the seam. Flipping the sense of BOTH faces
+//! keeps the seam consistent, and the section circle meets the planar
+//! top face transversally, so tier 3's check 4, which reads material
+//! pairing only across `Smooth` edges, sees nothing; and the sphere's
+//! flux reads the bit, so a flip left unread would measure the box less
+//! the ball's COMPLEMENT, a wrong positive volume. Each face has the
+//! pole on its loop and the far pole off it, on the side the face does
+//! not lie on, so the reader encodes its side, and both tier 3's check
+//! 6 and the mass properties refuse the flip by name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Tol, Vec3};
@@ -27,7 +28,11 @@ const C: (f64, f64, f64) = (2.0, 2.0, 1.3);
 
 fn slab() -> AtRestBody<f64> {
     let tol = Tol::witness();
-    finished("the slab", brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol), tol)
+    finished(
+        "the slab",
+        brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
+        tol,
+    )
 }
 
 fn ball() -> AtRestBody<f64> {
@@ -55,7 +60,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         (v - volume).abs() <= 1e-9 * volume,
         "volume {v} against the closed form {volume}"
     );
-    let dimples: Vec<_> = body
+    let dimple: Vec<_> = body
         .faces()
         .filter(|(_, f)| {
             matches!(
@@ -65,13 +70,17 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(dimples.len(), 1, "one dimple face");
-    let dimple = dimples[0];
-    let flipped = body.flipped_face_sense_for_tests(dimple).expect("the face");
+    assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
+    let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
+        b.flipped_face_sense_for_tests(k).expect("the face")
+    });
     assert_eq!(
         topo::validate_geometric(&flipped, tol),
-        Err(vec![topo::ValidationError::CurvedSenseInverted { face: dimple }]),
-        "check 6 names the flipped dimple"
+        Err(dimple
+            .iter()
+            .map(|&face| topo::ValidationError::CurvedSenseInverted { face })
+            .collect()),
+        "check 6 names both flipped faces, and nothing else does"
     );
     assert!(
         matches!(
@@ -79,7 +88,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
             Err(topo::MassPropsError::Face {
                 face,
                 source: geom_brep::props::PropsError::SenseContradicted,
-            }) if face == dimple
+            }) if dimple.contains(&face)
         ),
         "the flipped dimple is refused, not measured as the complement"
     );

@@ -191,7 +191,11 @@ fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lan
     );
     let fc = curved_face(&sphere(), &rev, false, band()).expect("the cap, reversed");
     assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
-    assert!((fc.flux + area).abs() < 1e-12, "flux {} != -{area}", fc.flux);
+    assert!(
+        (fc.flux + area).abs() < 1e-12,
+        "flux {} != -{area}",
+        fc.flux
+    );
     // A loop whose arcs do not meet is refused, not integrated.
     let open = vec![section(0.0, 3.0, 0, 1), section(3.0, 6.0, 1, 0)];
     assert_eq!(
@@ -422,9 +426,10 @@ fn srim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// definite ±1 whose value depends on which rim the owning body's loop
 /// walk hands over first. `unanimous_rim_side` needs no sense bit to
 /// see the contradiction, and the door asks it whatever the anchor. The
-/// flux lane and the material-side gate read no rim: the loop's left
-/// side holds the north pole and its right side the south one, so no
-/// side of it is pole-free and both refuse it `SenseContradicted`.
+/// material-side gate reads no rim: the loop's left side holds the
+/// north pole and its right side the south one, so whichever side is
+/// material holds a pole, and the gate answers that the loop encodes
+/// no side.
 #[test]
 fn the_door_refuses_a_face_whose_rims_encode_different_sides() {
     let (lo, hi) = (-0.3_f64, 0.5_f64);
@@ -448,8 +453,8 @@ fn the_door_refuses_a_face_whose_rims_encode_different_sides() {
             "k={k}: the door reads the contradiction whatever the anchor"
         );
         assert_eq!(
-            boundary_material_sign(&sphere(), &e, band()).map(|_| ()),
-            Err(PropsError::SenseContradicted),
+            boundary_material_sign(&sphere(), &e, band()),
+            Ok(MaterialSign::Unencoded),
             "k={k}: the gate"
         );
     }
@@ -462,7 +467,11 @@ fn the_door_refuses_a_face_whose_rims_encode_different_sides() {
     let fc = geom_brep::props::curved_face_loops(&sphere(), &loops, true, band())
         .expect("the zone measures");
     let exact = tau * (hi.sin() - lo.sin());
-    assert!((fc.area - exact).abs() < 1e-12, "area {} != {exact}", fc.area);
+    assert!(
+        (fc.area - exact).abs() < 1e-12,
+        "area {} != {exact}",
+        fc.area
+    );
     assert_eq!(
         geom_brep::props::boundary_material_sign_loops(&sphere(), &loops, band()),
         Ok(MaterialSign::Encoded(geom_core::Sign::Positive))
@@ -492,7 +501,11 @@ fn the_one_rim_divergence_survives_the_residue() {
     );
     let fc = curved_face(&sphere(), &complement, false, band()).expect("the half-cap");
     let exact = pi * (1.0 - v0.sin());
-    assert!((fc.area - exact).abs() < 1e-12, "area {} != {exact}", fc.area);
+    assert!(
+        (fc.area - exact).abs() < 1e-12,
+        "area {} != {exact}",
+        fc.area
+    );
 }
 
 /// **The residue is not band-continuous with the door's zero-extent

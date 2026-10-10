@@ -132,3 +132,16 @@ a cylinder. Two of the citations above move:
 
 The subject is unchanged on the three kinds that still read
 `linear_rim_side`.
+
+## Closed (`flux/sphere-arm`, 2026-10-10)
+
+`linear_rim_side` is deleted. The cone's material-side gate reads
+`props_cone_area_side`, the sign of its area against the chart normal
+off the axial vector area its flux integrates, over every loop; the
+sphere's reads `sphere_loop_side`. `props_rim_side` survives only in the
+shape door's `unanimous_rim_side`, which decides every rim on its own
+offset, a face fact. Witnesses:
+`geom-brep/tests/props_cone_apex_cap.rs`
+`the_cone_gate_reads_one_side_at_every_anchor` and
+`props_sphere_pole_side.rs`
+`the_recorded_verdicts_are_a_face_fact_under_re_anchoring`.

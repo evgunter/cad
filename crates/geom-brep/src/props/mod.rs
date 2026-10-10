@@ -351,9 +351,9 @@ pub enum PropsError {
     /// encodes (`curved::sphere_loop_side`), so its radial flux term —
     /// read off the bit — would measure the complement of the face.
     /// Two causes, which the boundary cannot tell apart: the bit is
-    /// inverted, or the face holds a chart pole in its interior (a loop
-    /// with a pole on each side bears no pole-free side under either
-    /// bit), which import must normalise into a vertex of the face.
+    /// inverted, or the face holds in its interior the one chart pole
+    /// off its loop, which import must normalise into a vertex of the
+    /// face.
     SenseContradicted,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's

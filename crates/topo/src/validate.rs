@@ -1336,9 +1336,12 @@ pub enum ValidationError {
     ///   encodes no side, the documented residual; such faces meet
     ///   their seam siblings tangentially, where check 4 reads a flip
     ///   as a lamina;
-    /// * a sphere face with a pole on each side of its loop, whose
-    ///   reading refuses under either bit — check 7 reports it through
-    ///   the flux's `SenseContradicted`;
+    /// * a one-loop sphere face with a chart pole off its loop on EACH
+    ///   side — a rim-only cap, a tilted cap or a blend corner patch
+    ///   holding a pole. Under either sense it holds a pole, which
+    ///   breaks the rule that a chart singularity inside a face is a
+    ///   vertex of it, so its loop says nothing about the bit; refusing
+    ///   such a face is this validity's rule to state, not check 6's;
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
@@ -6944,7 +6947,8 @@ pub(crate) fn tier3_local_checks_marked<
     // ellipse-rim material-side encoding lands). A one-loop sphere
     // face with both poles on its loop returns `Unencoded` (its
     // boundary encodes no side; the bit is the ONLY encoding) and
-    // stays exempt: the documented residual.
+    // stays exempt: the documented residual. So does one with a pole
+    // off its loop on each side, which holds a pole under either sense.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(surface) = body.surfaces.get(face.surface) else {

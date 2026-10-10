@@ -37,10 +37,15 @@ fn certifies_exactly(name: &str, r: f64, b: f64) {
     assert_eq!(mp.volume_pad, 0.0, "{name}: closed-form pad is 0");
     let h = r * (1.0 - b.sin());
     let exact = core::f64::consts::PI * h * h * (3.0 * r - h) / 6.0;
-    let rel = (mp.volume - exact).abs() / exact;
+    // Gauss–Bonnet reads the half-cap's area as what its loop's turning
+    // leaves of a whole turn, so its rounding scales with the radial
+    // term `R·Area`, not with the thin cap's far smaller volume: the
+    // bound is on the error against that term.
+    let radial = r * core::f64::consts::PI * r * r * (1.0 - b.sin());
+    let rel = (mp.volume - exact).abs() / radial;
     assert!(
-        rel < 1e-9,
-        "{name}: volume {:.15e} != exact {exact:.15e} (rel {rel:.3e})",
+        rel < 1e-12,
+        "{name}: volume {:.15e} != exact {exact:.15e} (error over R·Area {rel:.3e})",
         mp.volume
     );
 }

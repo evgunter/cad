@@ -37,3 +37,12 @@ a partial revolve carries a run of cocircular arcs as one wall and each
 wedge cap carries the run as one meridian edge, so the arm reads a
 two-edge boundary there. The lineage-piece case from a split edge
 stands as found.
+
+## Moot (`flux/sphere-arm`, 2026-10-10)
+
+The wedge arm is gone: Gauss–Bonnet reads a lune whose meridians arrive
+in pieces, lineage or not, since a great circle turns by zero at a joint.
+Witnesses: `geom-brep/tests/bool5_wedge_arm.rs`
+`a_split_meridian_wedge_measures_the_quarter_lune`,
+`bool5r1_probes.rs` (lineage pieces) and `bool5r2_wedge_probes.rs`, each
+at `2R²·π/2`.

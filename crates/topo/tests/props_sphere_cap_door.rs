@@ -1,16 +1,20 @@
 //! **A ball cut by one plane, through the public doors** (issue
 //! 1250).
 //!
-//! The face a single planar cut leaves on a ball, stated as one rim
-//! circle and nothing else, holds a pole in its interior. A chart
+//! The face a single planar cut leaves on a ball is bounded by one rim
+//! circle and nothing else, with the pole interior to it. A chart
 //! singularity inside a face is a vertex of it, so this statement is
-//! not one the closed form reads: the rim has a pole on each side and
-//! no pole-free side, and the sphere's side reader refuses the face
-//! `SenseContradicted` under either traversal — the form import must
-//! normalise into half-caps meeting at the pole
-//! (`work/exch/import-normalizes-the-rim-only-cap.md`). These rows
-//! assemble the body through the Euler doors and read that refusal
-//! from outside, at tier 3 and at the mass properties.
+//! one validity owes a refusal and import a normalisation
+//! (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
+//! Until then the closed form reads it by Gauss–Bonnet: the rim has a
+//! pole on each side, so its loop encodes no side, and the face measures
+//! under its bit. These rows read the result from outside: assemble the
+//! body through the Euler doors, certify it at all three tiers, and weigh
+//! it against the spherical-cap closed form `πh²(3R − h)/3`.
+//!
+//! Every volume here is a CLOSED FORM end to end — `volume_pad` is
+//! exactly zero, so no row is served by a certified enclosure whose
+//! midpoint happens to land.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
@@ -56,9 +60,9 @@ fn cut_circle(z: f64) -> Curve3<f64> {
 /// the same rim traversed `−u`.
 ///
 /// The circle is stated as two half-arcs because the Euler doors mint
-/// an edge between two vertices; `du_of_rims` sums their spans back to
-/// the full `2π`, which is one of the things the rows below check by
-/// getting the area right.
+/// an edge between two vertices; Gauss–Bonnet integrates both spans,
+/// which is one of the things the rows below check by getting the area
+/// right.
 ///
 /// Both edges come to REST between two faces, so each is described
 /// where it rests rather than left on the scaffolding door (D3's
@@ -137,89 +141,88 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
     body
 }
 
-/// Tiers 1 and 2 pass; tier 3 refuses the volume, its sphere face
-/// holding a pole, beside the rim's two vertices nothing else meets
-/// (the body is construction state until the join takes the half-arcs
-/// back into one closed edge, check 11); and the mass properties refuse
-/// the same face by the same cause.
-fn refused_for_its_pole(name: &str, body: &Body<f64>) {
+/// Certify at all three tiers and return the closed-form volume,
+/// asserting that no part of it came from an enclosure.
+///
+/// The rim's two half-arcs meet at two vertices nothing else does, so
+/// the body is construction state until the join takes them back into
+/// one closed edge: tier 3 refuses exactly those two vertices (check
+/// 11) and nothing else. The half-arcs stay, because their spans
+/// summing back to `2π` is part of what these rows check.
+fn certified_volume(name: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{name}: tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "{name}: tier 2");
-    let is_sphere = |face: topo::FaceKey| {
-        matches!(
-            body.get_face(face)
-                .and_then(|f| body.get_surface(f.surface)),
-            Some(Surface::Sphere { .. })
-        )
-    };
-    let errors = topo::validate_geometric(body, tol).expect_err("tier 3 refuses");
-    let (volume, rest): (Vec<_>, Vec<_>) = errors.into_iter().partition(|e| {
-        matches!(e, topo::ValidationError::VolumeUncomputable { .. })
-    });
-    assert!(
-        matches!(
-            volume.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    face,
-                    source: geom_brep::props::PropsError::SenseContradicted,
-                },
-                ..
-            }] if is_sphere(*face)
-        ),
-        "{name}: tier 3's volume: {volume:?}"
-    );
     assert_eq!(
-        rest,
-        body.vertices()
+        topo::validate_geometric(body, tol),
+        Err(body
+            .vertices()
             .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
-            .collect::<Vec<_>>(),
-        "{name}: tier 3 refuses the rim's two vertices beside the volume"
+            .collect()),
+        "{name}: tier 3 refuses the rim's two vertices and nothing else"
     );
-    assert!(
-        matches!(
-            topo::mass_properties(body, tol),
-            Err(topo::MassPropsError::Face {
-                face,
-                source: geom_brep::props::PropsError::SenseContradicted,
-            }) if is_sphere(face)
-        ),
-        "{name}: the mass properties"
-    );
+    let props = topo::mass_properties(body, tol).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+    assert_eq!(props.volume_pad, 0.0, "{name}: a closed form needs no pad");
+    assert_eq!(props.area_pad, 0.0, "{name}: nor does its area");
+    props.volume
 }
 
-/// **The cap a plane cuts off a ball** — the solid above the cut, whose
-/// spherical face is one rim circle with the north pole interior to it,
-/// and whose planar face is the disc.
+/// The spherical cap of height `h` off a unit ball.
+fn cap_volume(h: f64) -> f64 {
+    core::f64::consts::PI * h * h * (3.0 - h) / 3.0
+}
+
+/// **The cap a plane cuts off a ball weighs `πh²(3R − h)/3`** — the
+/// solid above the cut, whose spherical face is one rim circle with
+/// the north pole interior to it, and whose planar face is the disc.
 #[test]
-fn a_ball_cut_by_one_plane_is_refused_for_its_pole() {
+fn a_ball_cut_by_one_plane_weighs_the_spherical_cap() {
     for z in [0.5_f64, 0.0, -0.5, 0.9] {
         // The disc caps the solid from BELOW, so its outward normal
         // points down.
         let body = cut_ball(z, unit_sphere(), Some(cut_plane(z, false)));
-        refused_for_its_pole(&format!("cap above z={z}"), &body);
+        let got = certified_volume(&format!("cap above z={z}"), &body);
+        let want = cap_volume(1.0 - z);
+        assert!(
+            (got - want).abs() <= 1e-12 * want,
+            "cap above z={z}: volume {got} vs closed form {want}"
+        );
     }
 }
 
-/// **The same rim traversed the other way is the rest of the ball**,
-/// holding the south pole, and is refused the same way.
+/// **The same rim traversed the other way is the rest of the ball.**
+/// Nothing about the two solids differs except which way their
+/// spherical face walks the cut circle: the cap's rim runs `+u` and
+/// its interior is above, this one's runs `−u` and its interior is
+/// below, down to the south pole.
 #[test]
-fn the_other_traversal_of_the_same_rim_is_refused_for_its_pole() {
+fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
+    let ball = 4.0 * core::f64::consts::PI / 3.0;
     for z in [0.5_f64, 0.0, -0.5, 0.9] {
         // Now the DISC is the seed face (rim `+u`, outward normal up)
         // and the sphere is the `−u` face.
         let body = cut_ball(z, cut_plane(z, true), Some(unit_sphere()));
-        refused_for_its_pole(&format!("ball below z={z}"), &body);
+        let got = certified_volume(&format!("ball below z={z}"), &body);
+        let want = ball - cap_volume(1.0 - z);
+        assert!(
+            (got - want).abs() <= 1e-12 * want,
+            "ball below z={z}: volume {got} vs closed form {want}"
+        );
     }
 }
 
-/// **A closed sphere split by ONE rim circle into two rim-only caps**:
-/// each cap holds a pole, and the volume is refused at the first.
+/// **A closed sphere split by ONE rim circle into two rim-only caps
+/// weighs `4πR³/3`.** Each cap measures under its own bit, and the two
+/// closed forms sum to the ball.
 #[test]
-fn a_sphere_split_into_two_rim_only_caps_is_refused_for_its_poles() {
+fn a_sphere_split_into_two_rim_only_caps_weighs_the_ball() {
     for z in [0.5_f64, 0.0, -0.75] {
         let body = cut_ball(z, unit_sphere(), None);
-        refused_for_its_pole(&format!("two caps at z={z}"), &body);
+        let got = certified_volume(&format!("two caps at z={z}"), &body);
+        let want = 4.0 * core::f64::consts::PI / 3.0;
+        assert!(
+            (got - want).abs() <= 1e-12 * want,
+            "two caps at z={z}: volume {got} vs 4π/3 {want}"
+        );
     }
 }

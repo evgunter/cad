@@ -714,12 +714,12 @@ fn the_cone_gate_reads_one_side_at_every_anchor() {
     };
     for nappe in [1.0, -1.0] {
         let (lo, hi) = (nappe * SL, nappe * 2.0 * SL);
-        // Counter-clockwise in the chart `(u, v)`: along the lower rim,
-        // out along the generator at `u = 1`, back along the upper rim,
-        // in along the generator at `u = 0`. On the `v < 0` nappe a
-        // generator's points lie at azimuth `u + π`, where its rims'
-        // arcs are read from. The chart normal encodes the side on both
-        // nappes alike.
+        // Along the rim at `lo`, out along the generator at `u = 1`,
+        // back along the rim at `hi`, in along the generator at `u = 0`:
+        // counter-clockwise in the chart `(u, v)` where `hi > lo`, the
+        // `v > 0` nappe, and clockwise on the mirrored `v < 0` one. There
+        // a generator's points lie at azimuth `u + π`, where its rims'
+        // arcs are read from.
         let du = if nappe > 0.0 { 0.0 } else { PI };
         let patch = [
             rim(lo, du, du + 1.0, 0, 1),
@@ -727,7 +727,11 @@ fn the_cone_gate_reads_one_side_at_every_anchor() {
             rim(hi, du + 1.0, du, 2, 3),
             generator(0.0, hi, lo, 3, 0),
         ];
-        let want = geom_core::Sign::Positive;
+        let want = if nappe > 0.0 {
+            geom_core::Sign::Positive
+        } else {
+            geom_core::Sign::Negative
+        };
         let rotated = |k: usize, reversed: bool| -> Vec<LoopEdge<f64>> {
             let mut e: Vec<LoopEdge<f64>> = (0..patch.len())
                 .map(|i| patch[(i + k) % patch.len()].clone())

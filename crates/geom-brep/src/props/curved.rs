@@ -78,13 +78,20 @@ pub enum MaterialSign {
     Encoded(Sign),
     /// The boundary does not encode the side, so the face's bit is its
     /// one encoding and nothing cross-checks it — the documented
-    /// residual of the curved sense gate. One face answers this: a
-    /// one-loop sphere face with both chart poles on its loop (a lune,
-    /// a hemisphere split at its poles), whose loop bounds the face and
-    /// its complement alike with neither holding a pole
-    /// ([`sphere_loop_side`]). Such faces are seam siblings that meet
-    /// along their meridians tangentially, where tier 3's check 4 reads
-    /// a flip as a lamina.
+    /// residual of the curved sense gate. Two one-loop sphere faces
+    /// answer this ([`sphere_loop_side`]):
+    ///
+    /// * one with both chart poles on its loop (a lune, a hemisphere
+    ///   split at its poles), whose loop bounds the face and its
+    ///   complement alike with neither holding a pole. Such faces are
+    ///   seam siblings that meet along their meridians tangentially,
+    ///   where tier 3's check 4 reads a flip as a lamina;
+    /// * one whose loop has a pole off it on EACH side (a rim-only cap,
+    ///   a tilted cap or a blend corner patch holding a pole). Under
+    ///   either sense such a face holds a pole, which breaks the rule
+    ///   that a chart singularity inside a face is a vertex of it; the
+    ///   reading carries nothing about the bit, and validity, not the
+    ///   side reader, is what refuses the face.
     Unencoded,
 }
 
@@ -1894,7 +1901,11 @@ fn cone_material_sign<T: Decide>(
         (Sign::Negative, _) => -T::one(),
         _ => return Err(PropsError::DegenerateFace),
     };
-    match mean_width_side("props_cone_area_side", (-(nappe * axial) / sin_a, length), band)? {
+    match mean_width_side(
+        "props_cone_area_side",
+        (-(nappe * axial) / sin_a, length),
+        band,
+    )? {
         Sign::Zero => Err(PropsError::DegenerateFace),
         side => Ok(MaterialSign::Encoded(side)),
     }
@@ -2310,7 +2321,7 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///
 /// [`PropsError::SphereLoop`] naming the failed premise,
 /// [`PropsError::SenseContradicted`] for a bit the boundary contradicts
-/// or a face holding a chart pole ([`sphere_loop_side`]),
+/// ([`sphere_loop_side`]),
 /// [`PropsError::Unimplemented`] for a spline or spiric edge,
 /// [`PropsError::Escalated`] in the band.
 fn sphere_face<T: Decide>(
@@ -2331,11 +2342,7 @@ fn sphere_face<T: Decide>(
     // A loop's turning against the outward normal is its turning
     // against the chart normal, negated where the bit reverses it.
     let turning = |g: &SphereLoop<T>| {
-        if sense {
-            g.turning()
-        } else {
-            -g.turning()
-        }
+        if sense { g.turning() } else { -g.turning() }
     };
     let Some((outer, rings)) = gauss.split_first() else {
         return Err(PropsError::NotIsoRectangle {
@@ -2352,7 +2359,12 @@ fn sphere_face<T: Decide>(
     let mut solid = region;
     for ring in rings {
         let hole = tau + turning(ring);
-        require_solid_angle("props_sphere_hole_area", hole.min(region - hole), radius, band)?;
+        require_solid_angle(
+            "props_sphere_hole_area",
+            hole.min(region - hole),
+            radius,
+            band,
+        )?;
         solid = solid - hole;
     }
     let area = radius.powi(2) * solid;
@@ -2604,8 +2616,7 @@ fn require_cusp_free<T: Decide>(
 /// # Errors
 ///
 /// [`sphere_loop`]'s premises; [`PropsError::DegenerateFace`] for a
-/// ringed face of zero area; [`PropsError::SenseContradicted`] for a
-/// loop with a chart pole on each side ([`pole_free_side`]).
+/// ringed face of zero area.
 fn sphere_loop_side<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -2632,9 +2643,7 @@ fn side_of_sphere_loops<T: Decide>(
         [one] => pole_free_side(center, radius, axis, one, band),
         [_, rings @ ..] => {
             let euler = T::one() - T::from_f64(rings.len() as f64);
-            let solid = gauss
-                .iter()
-                .fold(T::tau() * euler, |s, g| s - g.turning());
+            let solid = gauss.iter().fold(T::tau() * euler, |s, g| s - g.turning());
             match classify(
                 "props_sphere_area_side",
                 Margin::levered(solid, radius),
@@ -2653,14 +2662,13 @@ fn side_of_sphere_loops<T: Decide>(
 /// face lies on the side of its loop that holds neither pole; each
 /// pole off the loop says which side that is ([`pole_side`]).
 ///
-/// The answer is `Encoded` when at least one pole is off the loop and
-/// reads, and `Unencoded` when both poles lie on it (a lune, a
-/// hemisphere split at its poles: the loop alone does not say) or
-/// neither reading is decided. Two poles read on OPPOSITE sides of the
-/// loop leave no pole-free side: whichever side the bit names holds a
-/// pole, so the face is refused `SenseContradicted` — the bit is
-/// inverted, or the face holds a pole that import must normalise into
-/// a vertex.
+/// The answer is `Encoded` when the poles off the loop that read agree
+/// on a side, and `Unencoded` when both poles lie on the loop (a lune,
+/// a hemisphere split at its poles: the loop alone does not say), when
+/// neither reading is decided, or when the poles off the loop read on
+/// OPPOSITE sides. That last loop has a pole on each side, so whichever
+/// side is material holds a pole and the reading says nothing about
+/// the bit; it is not this reader's to refuse ([`MaterialSign`]).
 fn pole_free_side<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -2679,7 +2687,7 @@ fn pole_free_side<T: Decide>(
             Err(other) => return Err(other),
         };
         match (reading, side) {
-            (Some(a), Some(b)) if a != b => return Err(PropsError::SenseContradicted),
+            (Some(a), Some(b)) if a != b => return Ok(MaterialSign::Unencoded),
             (None, side) => reading = side,
             _ => {}
         }
@@ -2796,22 +2804,14 @@ fn pole_side<T: Decide>(
 }
 
 /// Whether the point `p`, on `arc`'s carrier, lies within its stored
-/// span, as a margin: the chord from `p` to the nearer span end,
-/// signed positive inside, levered by the circle radius. Direction
-/// arithmetic on the unit circle, no angle extraction: `p` is inside
-/// exactly when its direction is within `Δt/2` of the span's midpoint
-/// direction.
+/// span, as a margin ([`span_membership`], levered by the circle
+/// radius).
 fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     let w0 = arc.start - arc.centre;
     let rr = arc.radius.powi(2);
     let q = p - arc.centre;
     let (ps, pc) = (q.dot(w0) / rr, q.dot(arc.axis.cross(w0)) / rr);
-    let (sd2, cd2) = (arc.span * T::from_f64(0.5)).sin_cos();
-    let (sdt, cdt) = arc.span.sin_cos();
-    let inside = ps * cd2 + pc * sd2 - cd2;
-    let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
-    let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
-    Margin::levered(chord_a.min(chord_b).copysign(inside), arc.radius)
+    Margin::levered(span_membership(ps, pc, arc.span), arc.radius)
 }
 
 /// **Certification's per-edge span bounds, re-decided at the parse**
@@ -2939,37 +2939,40 @@ fn sphere_meridian_pole_margins<T: Decide>(
     let dt = e.t1 - e.t0;
     // The north pole (λ = +r0) sits at the span-relative direction
     // `(sa, ca)` on the parameter circle; the south pole (λ = −r0)
-    // at its antipode. Everything below is direction arithmetic — no
-    // `atan2`, no range reduction: an angle extraction is wide at its
-    // branch cut (an arc anchored at a pole put an interval enclosure
-    // exactly there, live on the die-fillet corpus), and a mod-2π
-    // `floor` spans its integer step at a period boundary; either
-    // widens the margin to the whole period and forces an escalation
-    // the scalar lane does not have.
-    let half = T::from_f64(0.5);
-    // The membership EDGE is the half-span's cosine: the span was
-    // decided above, so `dt/2` is at most a half-turn plus the
-    // coincidence band.
-    let (sd2, cd2) = (dt * half).sin_cos();
+    // at its antipode.
+    Ok([(sa, ca, r0), (-sa, -ca, -r0)]
+        .map(|(ps, pc, extreme)| (span_membership(ps, pc, dt), extreme)))
+}
+
+/// **Whether a point on a circle lies in an arc's span, as a signed
+/// chord.** `(ps, pc)` is the point's direction on the unit circle
+/// relative to the span's start (`ps` along the start, `pc` a quarter
+/// turn on), and `dt` the span, which its caller has decided is one
+/// certification produces, `0 < dt ≤ τ`.
+///
+/// Sign: the point lies in the closed span iff its direction is within
+/// `dt/2` of the span's midpoint direction — one dot test,
+/// `⟨P, M⟩ − cos(dt/2)`, whose zero set on the circle is exactly the two
+/// span endpoints. Magnitude: the CHORD to the nearer span endpoint,
+/// the point deviation of moving the point onto the span boundary once
+/// levered by the radius. Direction arithmetic, no `atan2` and no range
+/// reduction: an angle extraction is wide at its branch cut (an arc
+/// anchored at a pole put an interval enclosure exactly there, live on
+/// the die-fillet corpus) and a mod-2π `floor` spans its integer step
+/// at a period boundary, either widening the margin to the whole period
+/// and forcing an escalation the scalar lane does not have.
+fn span_membership<T: Real>(ps: T, pc: T, dt: T) -> T {
+    let (sd2, cd2) = (dt * T::from_f64(0.5)).sin_cos();
     let (sdt, cdt) = dt.sin_cos();
-    Ok([(sa, ca, r0), (-sa, -ca, -r0)].map(|(ps, pc, extreme)| {
-        // Sign: the pole lies in the closed span iff its direction is
-        // within `dt/2` of the span's midpoint direction — one dot
-        // test, `⟨P, M⟩ − cos(dt/2)`, whose zero set on the circle is
-        // exactly the two span endpoints.
-        let f = ps * cd2 + pc * sd2 - cd2;
-        // Magnitude: the CHORD to the nearer span endpoint — levered
-        // by R below, that is the point deviation of moving the pole
-        // onto the span boundary. powi(2), not x*x (see `level_gap`).
-        let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
-        let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
-        // `copysign` transfers the membership sign onto the chord; at
-        // an interval scalar a sign enclosure straddling zero yields
-        // the two-sided hull `±chord`, which is tight exactly where
-        // it happens — the pole at a span endpoint, chord ≈ 0.
-        let m = chord_a.min(chord_b).copysign(f);
-        (m, extreme)
-    }))
+    let f = ps * cd2 + pc * sd2 - cd2;
+    // powi(2), not x*x (see `level_gap`).
+    let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
+    let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
+    // `copysign` transfers the membership sign onto the chord; at an
+    // interval scalar a sign enclosure straddling zero yields the
+    // two-sided hull `±chord`, which is tight exactly where it happens
+    // — the point at a span endpoint, chord ≈ 0.
+    chord_a.min(chord_b).copysign(f)
 }
 
 /// Push the latitude-sine extremes a sphere meridian arc attains over
