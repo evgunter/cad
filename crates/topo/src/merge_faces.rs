@@ -844,9 +844,7 @@ impl MergeDecision {
             }
             // The displacement is a bound over a ball enclosing the
             // faces, not a reading of them.
-            Self::DeclaredReach | Self::PairReach => {
-                Unsized::LastResort.recourse(arm, Reading::Build)
-            }
+            Self::DeclaredReach | Self::PairReach => Unsized::Fit.recourse(arm, Reading::Build),
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
