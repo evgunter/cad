@@ -1407,3 +1407,5 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-10 — Dispatched `foot-orthogonality-limb-is-retired-in-the-code` (`encl/retire-foot-orthogonality`), as Ev ruled in PR 4498.
 - 2026-10-10 — PR 4517 (retire foot orthogonality) merged at `00da1d9187` after a full review and a small fix pass (pinned the clamped-foot test, dropped the retired C2.1 quotations). Row closed. Seam notes posted on ssiarith, ssiedge, ssimarch and flux.
 - 2026-10-10 — Dispatched `certify-decides-the-plane-nurbs-limbs-twice` (`encl/plane-nurbs-limbs-once`).
+- 2026-10-10 — PR 4520 (PlaneNurbs limbs decided once) merged at `fb2feb09b5` after a full review and a prose fix pass. The second decision was unreachable for f64 and Interval, and could refuse spuriously for Sym. Row closed. Seam notes posted on tier, pcert (new row `fitted-pcurve-envelope-re-decides-the-ssi-hull`) and pred (D46 evidence).
+- 2026-10-10 — Dispatched `limb-refusals-carry-the-margin-twice-as-a-bare-f64` (`encl/limb-margin-once`).

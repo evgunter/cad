@@ -2,7 +2,8 @@
 id: limb-refusals-carry-the-margin-twice-as-a-bare-f64
 kind: issue
 title: geom-brep: SsiError::CertificateLimb, PlaneNurbsRefusal::Limb and AnalyticRung3Refusal::Limb carry value: f64 beside the margin, which refine.rs routes on
-status: open
+status: dispatched
+branch: encl/limb-margin-once
 opened: 2026-10-10
 priority: P3
 cost: M
