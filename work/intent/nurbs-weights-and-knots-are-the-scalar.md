@@ -47,3 +47,12 @@ stored weight without moving it is indistinguishable from one that
 never reaches it. This unit's fix owes its own pin, as
 `*-keeps-computed-values-in-t` do: a revolve with a variable angle at
 `Sym<f64>`, whose rational weight re-values with the angle.
+
+Four `stored-carrier-data` rows are values computed from the stored
+data rather than the stored data itself: `curves/nurbs.rs`'s `wp_lo` and
+`wp_hi` (a bound on the stored weights' derivative) and `net.rs`'s `bw`
+(the weights' deviation under a re-fit) and `rw` (a re-fit net's weight).
+Once the weights are `T`, each is a value this crate computed, so it
+stays in `T` or enters through `from_computed`. It does not stay as
+stored data re-read. Re-class them as each is touched. (Raised by PR
+4589's review, unverified.)

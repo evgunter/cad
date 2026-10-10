@@ -186,8 +186,7 @@ pub(super) fn rim_arc(
     };
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: cyl,
-            s2: plane,
+            pair: geom_brep::SurfacePair::new(cyl, plane),
             witness: carrier.mid_point(t0, t1),
         },
         carrier,
