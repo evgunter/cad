@@ -477,15 +477,10 @@ fn stale_declaration_and_ring_contact_are_matchable(
             named::<EdgeKey>(b);
             "edge_edge"
         }
-        StaleDeclaration::CurveLocus {
-            face_a,
-            face_b,
-            witness,
-        } => {
-            named::<FaceKey>(face_a);
-            named::<FaceKey>(face_b);
-            named::<EdgeKey>(witness);
-            "curve_locus"
+        StaleDeclaration::EdgeFace { edge, face } => {
+            named::<EdgeKey>(edge);
+            named::<FaceKey>(face);
+            "edge_face"
         }
         StaleDeclaration::Patch { .. } => "patch",
     };

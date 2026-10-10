@@ -105,7 +105,7 @@ fn insert_null_pairs<T: Decide>(
     records: &[PairRecord],
     raw: &[PairRecord],
     declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     op: BooleanOp,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
@@ -385,7 +385,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     records: &[PairRecord],
     raw: &[PairRecord],
     declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     op: BooleanOp,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
@@ -2492,7 +2492,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -2508,7 +2508,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -2631,7 +2631,7 @@ mod tests {
                 recs,
                 recs,
                 &crate::boolean::DeclaredPairs::default(),
-                &crate::boolean::ContactRecords::default(),
+                &crate::boolean::ReductionContacts::default(),
                 op,
                 band,
             )
@@ -3075,7 +3075,7 @@ mod tests {
             &recs,
             &recs,
             &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )

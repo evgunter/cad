@@ -2088,8 +2088,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
 
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
-/// 3′ with no records, and a curve record naming its edge — which the
-/// census certifies on the jet schedule — changes nothing about it.
+/// 3′ with no records.
 #[test]
 fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
@@ -2100,19 +2099,6 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
             &crate::boolean::ContactRecords::default(),
             tol
         ),
-        Ok(())
-    );
-    let mut records = crate::boolean::ContactRecords::default();
-    records.curves.push(crate::Cited::new(
-        crate::boolean::CurveContact {
-            face_a: p.face_side[0],
-            face_b: p.face_side[2],
-            witness: kiss_edge(&p),
-        },
-        crate::Cites::decided(0),
-    ));
-    assert_eq!(
-        crate::validate::validate_pseudomanifold(&p.body, &records, tol),
         Ok(())
     );
 }
@@ -3316,7 +3302,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
 mod line_conic_review {
     use super::*;
     use crate::FaceKey;
-    use crate::boolean::{ContactRecords, PatchContact};
+    use crate::boolean::{Cell, Contact, ContactRecords};
     use crate::test_support_fixtures::{
         FaceGeometry, describe_as_intersections, prism_ops, prism_z,
     };
@@ -3356,16 +3342,12 @@ mod line_conic_review {
     }
 
     fn patch(a: FaceKey, b: FaceKey) -> ContactRecords {
-        ContactRecords {
-            patches: vec![crate::Cited::new(
-                PatchContact {
-                    face_a: a,
-                    face_b: b,
-                },
-                crate::Cites::decided(0),
-            )],
-            ..ContactRecords::default()
-        }
+        [crate::Cited::new(
+            Contact::of(Cell::Face(a), Cell::Face(b)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
     }
 
     fn validate(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {

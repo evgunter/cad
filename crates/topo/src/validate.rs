@@ -2283,15 +2283,13 @@ pub enum StaleDeclaration {
         /// The other.
         b: crate::entity::EdgeKey,
     },
-    /// A curve-granularity record whose faces or witness edge no
-    /// longer resolve — the locus that certified it is gone.
-    CurveLocus {
-        /// The record's A-side face.
-        face_a: FaceKey,
-        /// The record's B-side face.
-        face_b: FaceKey,
-        /// The record's witness edge.
-        witness: crate::entity::EdgeKey,
+    /// An edge-face record whose edge or face is dead, or whose
+    /// interiors no longer meet.
+    EdgeFace {
+        /// The record's edge.
+        edge: crate::entity::EdgeKey,
+        /// The record's face.
+        face: FaceKey,
     },
     /// A patch-granularity record whose faces are dead or whose trim
     /// regions definitely no longer overlap in the shared chart
@@ -2319,7 +2317,7 @@ impl fmt::Display for StaleDeclaration {
             Self::VertexOnFace { .. } => "a recorded vertex-on-face contact",
             Self::VertexOnEdge { .. } => "a recorded vertex-on-edge contact",
             Self::EdgeEdge { .. } => "a recorded edge-to-edge contact",
-            Self::CurveLocus { .. } => "a recorded contact along an edge",
+            Self::EdgeFace { .. } => "a recorded edge-on-face contact",
             Self::Patch { .. } => "a recorded face-to-face contact",
         })
     }
@@ -8692,8 +8690,8 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Since M9-2 the census reaches beyond the exact planar sweeps: the
 /// conformal face-pair arm (shared-carrier opposed-sense curved pairs
 /// through the chart-region predicate), face-granularity backing from
-/// curve/patch records, and the record certifiers (jet schedule for
-/// `CurveContact`, chart-region overlap for `PatchContact`). ASM R2-b
+/// face–face records, and the record certifiers (chart-region overlap
+/// for a face–face record). ASM R2-b
 /// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): mate declarations
 /// land in the product body's [`crate::boolean::ContactRecords`] —
 /// same currency, no adapter — and validate here.
@@ -15469,11 +15467,7 @@ mod review_census_display_keys {
                         !declaration.to_string().contains("Key("),
                         "{label}: {declaration}"
                     );
-                    let want = match declaration {
-                        super::StaleDeclaration::CurveLocus { .. } => 3,
-                        _ => 2,
-                    };
-                    assert_eq!(keys_in_debug, want, "{label}: {e:?}");
+                    assert_eq!(keys_in_debug, 2, "{label}: {e:?}");
                     checked += 1;
                 }
                 _ => {}

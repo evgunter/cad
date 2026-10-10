@@ -307,6 +307,26 @@ pub mod test_support {
         plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// A test's hand-built contact records: each pair of `body`'s cells
+    /// as a record citing row 0 of the producing op's coincidences.
+    ///
+    /// # Panics
+    ///
+    /// Where a pair is not a record ([`crate::Contact::new`]).
+    #[allow(clippy::panic)]
+    pub fn records<T: Real>(
+        body: &Body<T>,
+        pairs: impl IntoIterator<Item = (crate::Cell, crate::Cell)>,
+    ) -> crate::ContactRecords {
+        pairs
+            .into_iter()
+            .map(|(x, y)| match crate::Contact::new(body, x, y) {
+                Ok(c) => crate::Cited::new(c, crate::Cites::decided(0)),
+                Err(e) => panic!("{x:?}, {y:?} is not a contact record: {e:?}"),
+            })
+            .collect()
+    }
     /// Holes meeting at one vertex of a plate's top
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
@@ -816,11 +836,12 @@ pub use boolean::{
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError,
     CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent,
-    ContactRecords, ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead,
+    Contact, ContactKind, ContactPairError, ContactRecords, ContainDecision, ContainError,
+    Contradiction, DeclarationRead,
     DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions,
     HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, LeverArm,
     NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
-    PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
+    PierceRingRecord, ReductionContacts, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
     PlaneRung, PointInSolidError, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation,
     SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
     TorusConvention, VeContact, Verdicts, VfContact, VoidContainment, VoidEvidence,

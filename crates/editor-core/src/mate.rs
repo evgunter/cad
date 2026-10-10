@@ -58,8 +58,8 @@
 //! set. The table is one function both doors read, so a class can
 //! never be admitted at one and refused at the other without saying
 //! so: `Rest` clears both, `Tangent` solves and then refuses typed at
-//! the mint door (an at-rest contact has no witness edge for its
-//! `CurveContact` — [`crate::MintRefusal::NoAtRestRecord`]), and
+//! the mint door (the at-rest census decides no tangent locus for its
+//! face–face record to cite — [`crate::MintRefusal::NoAtRestRecord`]), and
 //! every later class — `Fit { gap }` when it lands — refuses at the
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
@@ -648,13 +648,11 @@ pub fn table_gap(primitive: MatePrimitive, clocking: Option<f64>) -> Option<&'st
 /// then obey.
 pub fn class_admission(class: ContactClass) -> ClassAdmission {
     match class {
-        // Face granularity: a rest between two placed faces IS a
-        // `PatchContact` (M9-1).
+        // A rest between two placed faces IS a face–face record.
         ContactClass::Rest => ClassAdmission::Mints,
         ContactClass::Tangent => ClassAdmission::NoAtRestRecord {
-            why: "a tangency's record is a `CurveContact` keyed by the witness EDGE whose \
-                  carrier is the contact locus, and an assembly at rest has none — nothing \
-                  zipped the instances together, which is what \"at rest, not a boolean\" means",
+            why: "a tangency between placed faces is a face-face record on two carriers, and \
+                  the census at rest decides nothing along their locus for the record to cite",
         },
         _ => ClassAdmission::NotAdmitted,
     }

@@ -983,7 +983,7 @@ struct Along {
 /// site's surgery moves the orbit the bounds are read from.
 pub(super) fn germ_locus<T: Decide>(
     side: GermSide<'_, T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<super::Locus, BooleanError> {
     let in_face = super::Locus::InFace(side.sector.face);
     Ok(match along(side)? {
@@ -1007,7 +1007,7 @@ pub(super) fn germ_locus<T: Decide>(
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
@@ -1174,7 +1174,7 @@ pub(super) fn stale_site(_: StaleSite) -> BooleanError {
 fn touch<T: Decide>(
     side: GermSide<'_, T>,
     far: VertexKey,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<Touch, BooleanError> {
     let site = site_of(side.body, far)?;
     Ok(
@@ -1197,7 +1197,7 @@ fn touch<T: Decide>(
 
 /// The recorded contacts of `operand`'s vertices on the partner's faces.
 fn on_faces(
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     operand: Operand,
 ) -> &[crate::Cited<super::VfContact>] {
     match operand {
@@ -1223,7 +1223,7 @@ fn tangent_face<T: Decide>(
     side: GermSide<'_, T>,
     partner: GermSide<'_, T>,
     along: crate::entity::EdgeKey,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<Option<FaceKey>, BooleanError> {
     let edge = proven(&partner.body.edges, along, EntityId::Edge);
     let (u, v) = (

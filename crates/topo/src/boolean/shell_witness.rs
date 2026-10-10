@@ -78,7 +78,7 @@ use std::collections::BTreeSet;
 
 use super::solid_contain::{SolidContainment, point_in_solid};
 use super::{
-    BooleanError, BooleanOp, CarrierRelation, ContactRecords, Operand, SettledPair, SideCode,
+    BooleanError, BooleanOp, CarrierRelation, ReductionContacts, Operand, SettledPair, SideCode,
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
@@ -372,12 +372,12 @@ pub(super) fn check_mutual<T: Decide>(
 }
 
 /// Every vertex the reduction recorded ON the other operand
-/// (`ContactRecords::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
+/// (`ReductionContacts::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
 /// in-band against it, never `In` or `Out` (module docs: the reason the
 /// ladder reads no contact record). Debug builds only; a refusal of the
 /// probe is not this check's question and is passed over.
 pub(super) fn debug_assert_contacts_undecisive<T: Decide + crate::props::AtRestPolicy>(
-    contacts: &ContactRecords,
+    contacts: &ReductionContacts,
     a: (&Body<T>, &Body<T>),
     b: (&Body<T>, &Body<T>),
     band: Band,
