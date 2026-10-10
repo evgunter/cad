@@ -16,7 +16,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeDescriptionSpec, MappedCurve, SketchSegment, newell_plane};
+use geom_brep::{EdgeDescriptionSpec, MappedCurve, MappedSource, SketchSegment, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Arc2, Band, Decide, Point2, Point3, Vec3};
 use topo::{
@@ -59,10 +59,12 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>()
 
     // A bottom/top profile rim: PlacedSegment (the sweep's own form).
     let rim = |s0: Point2<T>, s1: Point2<T>, p0: Point3<T>, p1: Point3<T>, place| EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-            segment: SketchSegment::Line { a: s0, b: s1 },
-            place,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::PlacedSegment {
+                segment: SketchSegment::Line { a: s0, b: s1 },
+                place,
+            },
+        )),
         carrier: Curve3::Line {
             origin: p0,
             dir: (p1 - p0) / p0.distance(p1),
@@ -72,12 +74,13 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>()
     };
     // A side strut: ExtrudedPoint (the sweep's own form), s in [0,1].
     let strut_spec = |s0: Point2<T>, p0: Point3<T>| EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: s0,
-            place: place_bottom,
-            vec: w,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: s0,
+                place: place_bottom,
+                vec: w,
+            },
+        )),
         carrier: Curve3::Line {
             origin: p0,
             dir: w / w.norm(),
@@ -684,19 +687,21 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     // honestly certified arc — description and carrier agree exactly).
     let edge = t.mevs[0].edge;
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-            segment: SketchSegment::Arc {
-                a: Point2::new(0.0, 0.0),
-                b: Point2::new(1.0, 0.0),
-                // The half circle about (0.5, 0), counterclockwise.
-                arc: Arc2 {
-                    centre: Point2::new(0.5, 0.0),
-                    radius: 0.5,
-                    sweep: core::f64::consts::PI,
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::PlacedSegment {
+                segment: SketchSegment::Arc {
+                    a: Point2::new(0.0, 0.0),
+                    b: Point2::new(1.0, 0.0),
+                    // The half circle about (0.5, 0), counterclockwise.
+                    arc: Arc2 {
+                        centre: Point2::new(0.5, 0.0),
+                        radius: 0.5,
+                        sweep: core::f64::consts::PI,
+                    },
                 },
+                place: Affine3::identity(),
             },
-            place: Affine3::identity(),
-        }),
+        )),
         carrier: Curve3::Circle {
             center: Point3::new(0.5, 0.0, 0.0),
             axis: Vec3::unit_z(),
@@ -750,18 +755,20 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     common::describe_as_intersections(&mut body, Tol::witness());
     let edge = t.mevs[0].edge;
     let mk = |t1: f64| EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-            segment: SketchSegment::Arc {
-                a: Point2::new(0.0, 0.0),
-                b: Point2::new(1.0, 0.0),
-                arc: Arc2 {
-                    centre: Point2::new(0.5, 0.0),
-                    radius: 0.5,
-                    sweep: PI,
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::PlacedSegment {
+                segment: SketchSegment::Arc {
+                    a: Point2::new(0.0, 0.0),
+                    b: Point2::new(1.0, 0.0),
+                    arc: Arc2 {
+                        centre: Point2::new(0.5, 0.0),
+                        radius: 0.5,
+                        sweep: PI,
+                    },
                 },
+                place: Affine3::identity(),
             },
-            place: Affine3::identity(),
-        }),
+        )),
         carrier: Curve3::Circle {
             center: Point3::new(0.5, 0.0, 0.0),
             axis: Vec3::unit_z(),

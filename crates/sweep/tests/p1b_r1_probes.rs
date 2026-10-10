@@ -24,7 +24,7 @@ use sweep::ExtrudeSide;
 
 use crate::common::shell_operands::{tube, vessel};
 use geom::Surface;
-use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
@@ -580,14 +580,13 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         surface,
         image,
         wrap: seam_flag,
-        declared: Some(MappedCurve::RevolvedPoint {
+        declared: Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
             axis_origin: Point3::new(0.0, 0.0, 0.0),
             axis_dir: Vec3::unit_y(),
             angle: 0.5,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        })),
     };
     let err = body
         .set_edge_curve(seam, spec, Tol::witness())
@@ -619,12 +618,11 @@ fn edge_touches_face(body: &Body<f64>, edge: EdgeKey, face: topo::FaceKey) -> bo
 }
 
 fn dummy_declaration() -> MappedCurve<f64> {
-    MappedCurve::ExtrudedPoint {
+    MappedCurve::whole(MappedSource::ExtrudedPoint {
         point: Point2::new(0.0, 0.0),
         place: Affine3::translation(Vec3::new(123.0, -456.0, 789.0)),
         vec: Vec3::new(0.0, 0.0, 1.0),
-        range: geom_brep::SweepRange::whole(),
-    }
+    })
 }
 
 // =====================================================================
