@@ -812,3 +812,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `radial-hole-through-a-tube-has-no-section-arm`: byte 222, HOLDOUT. Session `session_01Ss4Z8msiMMpUHKbu3BBBLE`, branch `germ/radial-hole-through-a-tube`.
   The M-tier count toward twenty is at 17 (rule 9: a full readout at 20).
 - 2026-10-10 10:45 — PR 4522 (cone pairs in general pose, M HOLDOUT byte 105): the lane is done, CI is green, and the head is frozen at `b039883d3`. A concurrent pair, r4522a and r4522b, runs from one brief (sha256 `f1fff685bca5`). Coding byte 39, odd, so A = R2. The PR deletes `GERM-VERBS-CONE-SPEC.md`, with a ledger note. One departure: the naive-projection mutant cannot turn a row red, and the PR argues why. The radial-hole lane is still building.
+- 2026-10-10 12:22 — PR 4522's HOLDOUT pair is in: both APPROVE-WITH-FIXES, no MAJOR, no wrong answer (about 13k answered lines and 5k op results). Coded (`scratchpad/dr4522/coding.md`): 0 tallied, no M-tier miss, fair but flagged (R2 saw one process name of R1's lane). Fix pass dispatched as cloud session `session_01HozpneySQ2vM54bouEDidL`, covering:
+  - witness-class rows;
+  - a search that enforces "must answer";
+  - rounding bounds and a slack meter;
+  - τ₁ = τ₂ answered, or given its own refusal;
+  - defensive checks reached or documented;
+  - one quadric spelling.
+  PR 4530 (radial hole) is open; its lane is still writing the body.
