@@ -5411,6 +5411,89 @@ mod tests {
         }
     }
 
+    /// **A refusal on a certified bound is the certificate's limit**
+    /// (D4 ¶1 (i)): a loose bound contradicts nothing stored, so every
+    /// arm ends in the last resort at every reading, and at the import
+    /// door a bound within ε_in names itself and the stopgap. A bound
+    /// past ε_in, or only partly within it, ends in the last resort: it
+    /// says nothing about where the miss lies.
+    #[test]
+    fn a_certified_bound_refusal_is_the_certificates_limit() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        use crate::ssi::SsiLimb;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let file = FileCoincidence::new(1e-6);
+        let named = "The certificate's bound on this miss lies within the file's declared \
+                     coincidence distance ε_in = 1e-6 m, so the miss does too. Recourse: \
+                     re-export the file more precisely, or, as a stopgap, set the tolerance to \
+                     ε_in = 1e-6 m; this refusal may indicate a kernel bug worth reporting";
+        let undecided = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_probe"),
+            terminal_sliver: false,
+        };
+        let within = undecided(MarginDiag::value(5e-9));
+        let poisoned = undecided(MarginDiag::INVALID);
+        for check in [CertCheck::TangentHull, CertCheck::PlaneNurbsHull] {
+            let exceeded = |margin| CertifyError::ResidualExceeded {
+                check,
+                sample: NOT_A_SAMPLE,
+                margin,
+            };
+            let escalated = |cause| CertifyError::Escalated {
+                check,
+                sample: NOT_A_SAMPLE,
+                cause,
+            };
+            let inside = exceeded(MarginDiag::value(5e-7));
+            for reading in [Reading::Build, Reading::AtRest] {
+                assert_eq!(
+                    inside.ending(reading).unwrap(),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{check:?} {reading:?}"
+                );
+                assert_eq!(
+                    escalated(within).ending(reading).unwrap(),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{check:?} {reading:?}"
+                );
+            }
+            assert_eq!(
+                escalated(poisoned).ending(Reading::AtRest).unwrap(),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                "{check:?}: an unreadable margin is a defect"
+            );
+            assert_eq!(inside.ending(file).unwrap(), named, "{check:?}");
+            assert_eq!(
+                escalated(within).ending(file).unwrap(),
+                named,
+                "{check:?}: the in-band route names the bound too"
+            );
+            for past in [
+                exceeded(MarginDiag::value(2e-6)),
+                exceeded(MarginDiag::enclosure(5e-7, 2e-6)),
+            ] {
+                assert_eq!(
+                    past.ending(file).unwrap(),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{check:?} {past:?}"
+                );
+            }
+        }
+        let limb = CertifyError::PlaneNurbs(P::Limb {
+            limb: SsiLimb::HullSup,
+            value: 5e-7,
+            margin: MarginDiag::value(5e-7),
+        });
+        assert_eq!(limb.ending(Reading::AtRest).unwrap(), KERNEL_LIMIT_RECOURSE);
+        assert_eq!(limb.ending(file).unwrap(), named);
+        assert_eq!(
+            limb.ending(FileCoincidence::new(1e-7)).unwrap(),
+            KERNEL_LIMIT_RECOURSE
+        );
+    }
+
     /// **The analytic rung-3 lane's one-arc refusal ends at the import
     /// door as the plane x NURBS lane's does** (D4 ¶1): one stored edge's
     /// one-arc proof, whichever lane certified it, with the file's ε_in

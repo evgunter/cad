@@ -3281,10 +3281,15 @@ mod ending_tests {
     /// **A certificate limb's definite refusal ends by its limb**, as its
     /// undecided sibling does: a fitted residual's at a build is the
     /// last resort, and over stored geometry the defect of the kernel or
-    /// the file. The tube's refusal is held to the concision standard.
+    /// the file; a certified bound's is the last resort at both, since a
+    /// loose bound contradicts nothing stored. The tube's refusal is held
+    /// to the concision standard.
     #[test]
     fn a_definite_limb_refusal_ends_by_its_limb() {
-        for limb in [SsiLimb::OnLocus, SsiLimb::HullSup] {
+        for (limb, at_rest) in [
+            (SsiLimb::OnLocus, KERNEL_OR_FILE_DEFECT_ENDING),
+            (SsiLimb::HullSup, KERNEL_LIMIT_RECOURSE),
+        ] {
             let refusal = SsiError::CertificateLimb {
                 limb,
                 value: 3e-9,
@@ -3295,11 +3300,7 @@ mod ending_tests {
                 KERNEL_LIMIT_RECOURSE,
                 "{limb:?}"
             );
-            assert_eq!(
-                refusal.ending(Reading::AtRest),
-                KERNEL_OR_FILE_DEFECT_ENDING,
-                "{limb:?}"
-            );
+            assert_eq!(refusal.ending(Reading::AtRest), at_rest, "{limb:?}");
         }
         let tube = SsiError::TubeStraddles {
             verdict: Refused::Zero(Classified {
