@@ -161,8 +161,8 @@ pub use editor_core::{Placement, Step};
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
-    MeasureUnavailableAt, Measured, NotAFaceName, Observed, ObservedRefusal, SitedFace, SitedRef,
-    UnevaluatedReason, measure,
+    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.
@@ -256,8 +256,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
-    UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
-    WrittenDef,
+    Select, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault,
+    VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -342,7 +342,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SnapshotError, load, save,
+    SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as

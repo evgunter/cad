@@ -384,7 +384,7 @@ fn operation<P>(
     at: RecipeNodeId,
     read: crate::VarId,
 ) -> Result<RecipeNodeId, Unwalked> {
-    doc.operation_of(read).ok_or(Unwalked::Unresolved(at))
+    doc.read_operation(read).ok_or(Unwalked::Unresolved(at))
 }
 
 /// **The input a carried segment at `at` names its entity in**, by the
@@ -421,9 +421,13 @@ fn carried_input<P>(
         // from its one target.
         (
             _,
-            Node::Fillet { target, .. }
-            | Node::Chamfer { target, .. }
-            | Node::Shell { target, .. }
+            Node::Fillet {
+                selection: target, ..
+            }
+            | Node::Chamfer {
+                selection: target, ..
+            }
+            | Node::Shell { open: target, .. }
             | Node::Split { target, .. },
         ) => operation(doc, at, *target),
         _ => Err(misplaced),

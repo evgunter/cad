@@ -1635,7 +1635,7 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            let defined_by = |var| doc.defined_by(var).map(|(at, _)| at);
+            let defined_by = |var| doc.read_operation(var);
             for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {

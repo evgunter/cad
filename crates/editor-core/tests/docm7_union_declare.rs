@@ -1415,6 +1415,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: from.clone(),
                 to: to.clone(),
             },
