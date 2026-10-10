@@ -34,11 +34,10 @@ land next:
   outside the conic inventory **by decision, not by omission**" (R1).
   Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
   unimplemented in the C5 table).
-- a cone face is boolean-live only where the pair-scoped operand
-  gate (VERBS-GATE, #1001) finds no unsupported PAIR it could
-  enter, and fillet's cone arms are the COAXIAL ones (VERBS-ARMS-2)
-  — a cone meeting a drafted plane at generic tilt is neither, so
-  the drafted body is still one-way there.
+- a cone face joins a plane in the boolean where their section is an
+  ellipse or a circle (the plane × cone germ lane), and fillet's cone
+  arms are the COAXIAL ones (VERBS-ARMS-2) — a cone meeting a drafted
+  plane at generic tilt booleans, and does not fillet there.
 
 **Recommendation**: v1 ships plane-only with a typed
 `DraftUnsupported`-class refusal naming the wall kind.

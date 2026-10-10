@@ -34,8 +34,9 @@
 //!   its boundary, and passes the crossing layer the same way; the union
 //!   stops in the join. A same-radius stacked cylinder
 //!   stops there on its own rim, whose parent shares the partner's
-//!   carrier. A cone frustum is refused earlier, at the operand gate,
-//!   on its kind.
+//!   carrier. A cone frustum stops one layer earlier, at the crossing
+//!   layer, on its base rim — a parallel lying on the cone and on the
+//!   tube's wall at once (`CurvedPierceUnsupported`), declared or not.
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
 //! - **The stadium** (slab ∪ cylinder whose wall the slab's top and
@@ -802,20 +803,14 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
 }
 
 /// **A rim lying inside the partner's face** passes the crossing layer:
-/// a tube ending on a ball of radius `√2` (its rim on the sphere, 45° to
-/// the wall), and a tube standing on a torus's 45° latitude. Each union
-/// stops in the join, on a frontier that is not the crossing layer's
-/// (`work/join/a-tube-ending-on-a-ball-refuses-section-loop-mixed.md`;
-/// the torus × plane germ frame, `work/germ/c5-plane-torus-cone-cylinder-arms.md`).
+/// a tube standing on a torus's 45° latitude stops in the join, on the
+/// torus × plane germ frame (`work/germ/c5-plane-torus-cone-cylinder-arms.md`),
+/// a frontier that is not the crossing layer's. A tube ending on a ball
+/// builds (`a_tube_ending_on_a_ball.rs`).
 #[test]
 fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
-    let ball = finished(
-        "the ball",
-        ball_poled_z(2.0_f64.sqrt(), Vec3::new(0.0, 0.0, 0.0), tol),
-        tol,
-    );
     let at0 = revolved_about_y(
         vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(3.0, 0.0), 1.0)],
         Revolution::Full,
@@ -826,29 +821,19 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     torus.merge_coplanar_faces(tol).unwrap();
     let torus = finished("the torus", torus, tol);
     let s = core::f64::consts::FRAC_1_SQRT_2;
-    for (label, tube, partner) in [
-        ("tube on a ball", rod_z(R, 1.0, 2.0), &ball),
-        ("tube on a torus", rod_z(2.0 + s, s, 2.0), &torus),
-    ] {
-        for (order, r) in [
-            topo::union_with(&tube, partner, &none, tol),
-            topo::union_with(partner, &tube, &none, tol),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            assert!(
-                matches!(
-                    r,
-                    Err(
-                        BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                            | BooleanError::GermFrameUnsupported { .. }
-                    )
-                ),
-                "{label}, order {order}: past the crossing layer, the join's refusal: {:?}",
-                r.err()
-            );
-        }
+    let tube = rod_z(2.0 + s, s, 2.0);
+    for (order, r) in [
+        topo::union_with(&tube, &torus, &none, tol),
+        topo::union_with(&torus, &tube, &none, tol),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(
+            matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
+            "order {order}: past the crossing layer, the join's refusal: {:?}",
+            r.err()
+        );
     }
 }
 
@@ -1070,17 +1055,24 @@ fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation
     }
     let cone = frustum_on_the_cap();
     let cap_c = planes_at_z(&cone, H);
+    // The frustum's base circle is the tube's rim: a parallel lying ON
+    // the cone and on the tube's wall at once, which the circle × cone
+    // lane reads as its coaxial Zero, the door. An abutment is a
+    // contact, so it stays a refusal; the refused edge is that circle.
     for class in [None, Some(BooleanCoincidence::REST)] {
-        for e in union_both_orders(&tube, &cone, &cap_t, &cap_c, class) {
+        let [ab, ba] = union_both_orders(&tube, &cone, &cap_t, &cap_c, class);
+        for (order, e, (a, b)) in [(0, ab, (&tube, &cone)), (1, ba, (&cone, &tube))] {
+            let BooleanError::CurvedPierceUnsupported { edge, operand, .. } = e else {
+                panic!("frustum, discs {class:?}, order {order}: the crossing layer: {e:?}");
+            };
+            let owner = match operand {
+                topo::Operand::A => a,
+                topo::Operand::B => b,
+            };
             assert!(
-                matches!(
-                    e,
-                    BooleanError::CurvedPairUnsupported {
-                        kind: SurfaceKind::Cone,
-                        ..
-                    }
-                ),
-                "frustum, discs {class:?}: the operand gate's refusal: {e:?}"
+                matches!(carrier_of(owner, edge), geom::Curve3::Circle { .. }),
+                "frustum, discs {class:?}, order {order}: the rim circle: {:?}",
+                carrier_of(owner, edge)
             );
         }
     }

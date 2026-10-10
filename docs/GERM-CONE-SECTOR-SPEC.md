@@ -356,7 +356,7 @@ at the operand gate, and the gate pins stay green:
 The rows are therefore verdict-level and in-crate. They call
 `face_outward_normal_at`, `sector_face`, `pair_section_frame_at`,
 `bool_planar_chord_spec` and `classify_vertex_on_face` directly. Or they
-take `topo::sweep_split_admitting_cones`'s door one stage further: a
+take `topo::sweep_split`'s door one stage further: a
 `sweep-testing` door that runs the join on the split operands is U-S0,
 optional.
 
@@ -437,7 +437,7 @@ reconcile the two specs.
 ### U-S4 — plane-cone-join-lane
 
 The rows run whole poses through U-S0's door,
-`topo::join_admitting_cones` (`sweep-testing`), which stops the
+`topo::test_support::boolean_through_the_join`, which stops the
 production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
 
 1. **B4's slab:** both sides' chords are the circle `y = 0.3` and
