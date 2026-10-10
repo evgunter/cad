@@ -141,6 +141,10 @@ and a selection of `split.above` states its body once. A body seat
 reading a whole family, a profile or a split as a whole refuses by kind at
 the door (`SlotVarKind`).
 
+*Built: the indexed read at every body seat, FORK-DM4 unit 1 (PR 4527).
+Until stage 3 G, `Part { select: Instance }` stands beside it, a second
+way to pick a member; new authoring writes `xs[i]`.*
+
 ## DM4 — Flat operators before splice: union and intersect are lists, subtract a pair
 
 `Node::Union { members, declare }` fuses its members into one body, and
@@ -369,7 +373,9 @@ refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
 member-space declaration channel, DOCM-7 (PR 2028), sited at the members
 (#2795) and made the node's own payload (#3587); the flat `Merged` mint and
 the look-through, DOCM-8 (PR 2073); the typed refusal past the merges,
-ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
+ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213); the
+three nodes over one `Bodies` argument, keyed by the read, FORK-DM4 unit 1
+(PR 4527).*
 
 ## DM5 — A read repeated is answered by the operation
 
@@ -397,8 +403,9 @@ refusing the repeat keeps a syntactic refusal beside a semantic admission
 of the identical geometry, and collapsing the list as a set rewrites what
 the author wrote and is a second rule beside the glue two variables get.
 
-*The refusal this clause replaces (`EditError::DuplicateInput`, the load
-validator's arm) was built in DOCM-3 (PR 1803).*
+*Built: FORK-DM4 unit 1 (PR 4527). The refusal this clause replaces
+(`EditError::DuplicateInput`, the load validator's arm) was built in DOCM-3
+(PR 1803).*
 
 ## DM6 — No edit infers a re-point
 
