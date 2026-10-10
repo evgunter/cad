@@ -1,0 +1,13 @@
+diff --git a/crates/geom-core/src/interval/certification.rs b/crates/geom-core/src/interval/certification.rs
+index 41691c7d..e22a4995 100644
+--- a/crates/geom-core/src/interval/certification.rs
++++ b/crates/geom-core/src/interval/certification.rs
+@@ -340,7 +340,7 @@ impl Certification for Interval {
+             corner(from.0.lo(), to.0.lo()),
+             corner(from.0.hi(), to.0.hi()),
+         );
+-        corners.meet(Self::hull(x, y))
++        corners
+     }
+ 
+     fn contains(self, x: f64) -> bool {

@@ -1,0 +1,27 @@
+diff --git a/crates/geom-core/src/interval/certification.rs b/crates/geom-core/src/interval/certification.rs
+index 41691c7d..ed989dfc 100644
+--- a/crates/geom-core/src/interval/certification.rs
++++ b/crates/geom-core/src/interval/certification.rs
+@@ -327,20 +327,8 @@ impl Certification for Interval {
+         if !lambda.is_certified() {
+             return Self::refused();
+         }
+-        let (from, to, t) = if lambda.0.lo() + lambda.0.hi() <= 1.0 {
+-            (x, y, lambda)
+-        } else {
+-            (y, x, <Self as Certification>::one() - lambda)
+-        };
+-        let corner = |a: f64, b: f64| {
+-            let a = Self::point(a);
+-            a + (Self::point(b) - a) * t
+-        };
+-        let corners = Self::hull(
+-            corner(from.0.lo(), to.0.lo()),
+-            corner(from.0.hi(), to.0.hi()),
+-        );
+-        corners.meet(Self::hull(x, y))
++        let one = <Self as Certification>::one();
++        (x * (one - lambda) + y * lambda).meet(Self::hull(x, y))
+     }
+ 
+     fn contains(self, x: f64) -> bool {

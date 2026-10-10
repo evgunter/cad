@@ -1,0 +1,28 @@
+diff --git a/crates/geom-brep/src/pcurve_cache/projected.rs b/crates/geom-brep/src/pcurve_cache/projected.rs
+index 98630d4d..47f68e69 100644
+--- a/crates/geom-brep/src/pcurve_cache/projected.rs
++++ b/crates/geom-brep/src/pcurve_cache/projected.rs
+@@ -537,22 +537,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
+                 // A part may cross the net's knots (a plane chart's one
+                 // piece is the whole net): each span it crosses is
+                 // restricted on its own, never extended past its knots.
+-                let mut controls = Vec::new();
+-                let mut from = part;
+-                for k in net
+-                    .knots()
+-                    .knot_runs()
+-                    .map(|(k, _)| k)
+-                    .filter(|&k| k > s0 && k < s1)
+-                {
+-                    if let (Some(stretch), Some(rest)) =
+-                        (ParamRange::new(from.start(), k), ParamRange::new(k, s1))
+-                    {
+-                        controls.extend(piece_controls(net, stretch));
+-                        from = rest;
+-                    }
+-                }
+-                controls.extend(piece_controls(net, from));
++                let controls = piece_controls(net, part);
+                 let first = controls[0].0;
+                 let mut x = (first.x, first.x);
+                 let mut y = (first.y, first.y);

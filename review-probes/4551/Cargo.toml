@@ -1,0 +1,7 @@
+[package]
+name = "probe"
+version = "0.0.0"
+edition = "2024"
+[dependencies]
+geom-core = { path = "/home/user/cad/crates/geom-core" }
+[workspace]
