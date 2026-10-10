@@ -7,7 +7,7 @@ opened: 2026-09-28
 priority: P3
 cost: M
 design: true
-blocked_on: [a-fitted-wall-has-no-section-with-a-moved-cap]
+blocked_on: [a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section]
 ---
 
 
@@ -72,3 +72,15 @@ re-anchor. It still reaches no curved `Approx` face with edges,
 because the twisted loft and the vase stop next at the oblique cap
 corner, which is the new gate. Re-parked on that item; the reason
 above ("no body the tree can move today …") still holds.
+
+## Re-parked (SHELL fitted-wall-section lane, 2026-10-09, PR 4404)
+
+Its trigger, `a-fitted-wall-has-no-section-with-a-moved-cap`, closed
+with PR 4404: a fitted face's edge with a plane now routes and derives
+as their section over the fit. It still reaches no curved `Approx`
+face with edges. The twisted loft's wall fit refuses at the default ε,
+and above it its wall refuses at a seam; the vase refuses at a cap
+first. A fitted face bounded by planes refuses at its first corner.
+Re-parked on that corner gap. The one `Approx`-capped body that now
+carries an `Intersection` with its fit, `box_with_approx_cap` with a
+side moved, still has a planar, exact fit.

@@ -208,3 +208,13 @@ Each lane that builds locally costs 1–10 GB. From here, heavy lanes run CI-onl
 - the UV-rectangle refusal is spelled five times.
 
 (NURBS orchestrator)
+
+## 2026-10-09 — PR 4438 merges: grid points clear knots by a fraction of the spacing
+
+The ruling above, built at all seven grid sites. A delta review of the fix pass approved it with fixes, and those are in. Changes after the review:
+- production and the tests share one `grid_clearance` helper;
+- the no-cliff rows take the production span counts;
+- the clearance doc states the trade as measured (about +0.2% width at large gaps, measured to g ≈ 1e-8) instead of "costs nothing";
+- m5_pr7's ratio bound was re-derived as `√G`.
+
+Walls 15 and 17 retired, so the lily's swept leaves are now cubic. A container restart killed the cleanup lane after it pushed; the redo found the work already on the branch and gated a fresh merge of main. (NURBS orchestrator)

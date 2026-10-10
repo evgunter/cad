@@ -680,9 +680,8 @@ fn generic_edge_edge_mixed_order_pair() {
 
 /// A brick over `x` with one face relabelled a cone whose apex sits
 /// one unit before the brick on the `x` axis, the face's boundary left
-/// on the brick's lines. The cone is a kind with no wired boolean arm,
-/// and its box is read off the face's own boundary, so where the BRICK
-/// sits decides whether the box reaches `[0, 1]^3`.
+/// on the brick's lines. Its box is read off the face's own boundary,
+/// so where the BRICK sits decides whether the box reaches `[0, 1]^3`.
 #[cfg(test)]
 fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     use geom_core::Vec3;
@@ -783,10 +782,10 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     );
 }
 
-/// A face whose kind has no wired boolean arm, posed so its box reaches
-/// the other operand: the cone-relabelled brick is refused at rest on
-/// the relabelled face (`assert_cone_face_refuses_at_rest`), so it
-/// never reaches the boolean's pair-scoped curved gate.
+/// A relabelled cone face posed so its box reaches the other operand:
+/// the brick is refused at rest on the relabelled face
+/// (`assert_cone_face_refuses_at_rest`), so it never reaches the
+/// boolean.
 #[test]
 fn curved_face_gate_witness() {
     // The brick overlaps `[0, 1]^3`, so the cone face's box would reach it.

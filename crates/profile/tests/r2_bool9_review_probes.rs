@@ -7,7 +7,7 @@
 //!    "bit for bit". The unit's receipt runs at `f64`, where the
 //!    crossing is the identity — so it measures the walk and not the
 //!    conversion. These rows re-spell BOTH retired walks verbatim and
-//!    compare, on a loop with arcs, bulges, declared joints and a
+//!    compare, on a loop with arcs, bulges and a
 //!    reversed orientation, at `f64` and
 //!    at the certified interval scalar.
 //! 2. The door census's writer pattern is a fixed needle list. This
@@ -51,17 +51,15 @@ use profile::{
 };
 
 /// A loop that is NOT the identity-shaped fixture: two fillet arcs
-/// with nonzero bulges of both signs, two declared joints, a stray
-/// declaration order that is not sorted, and read back reversed so the
-/// walk meets a different index order than it was authored in.
+/// with nonzero bulges of both signs, read back reversed so the walk
+/// meets a different index order than it was authored in.
 fn awkward() -> ProfileLoop<f64> {
     let raw: ProfileLoop<f64> = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.41421356237309503),
         (Point2::new(3.0, 0.25), -0.13165249758739583),
         (Point2::new(2.5, 2.0), 0.0),
         (Point2::new(0.125, 1.75), 0.0),
-    ])
-    .with_tangent_joints(vec![2, 0]);
+    ]);
     raw.reversed()
 }
 
@@ -84,7 +82,6 @@ fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
             (v.map(T::from_f64), segment)
         },
     ))
-    .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 /// `crates/editor-core/src/eval/anchor.rs::embed_profile`'s retired
@@ -105,7 +102,6 @@ fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
             (Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)), segment)
         },
     ))
-    .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
@@ -119,13 +115,12 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
             "{what}: segment {i}"
         );
     }
-    assert_eq!(a.tangent_joints(), b.tangent_joints(), "{what}: joints");
 }
 
 /// **The door reproduces BOTH retired walks, on a loop that could tell
 /// them apart.** The unit's own receipt uses an all-tangent stadium;
-/// this one carries bulges of both signs, an unsorted declaration list
-/// and a reversed index order, so a walk that sorted, re-derived or
+/// this one carries bulges of both signs and a reversed index order, so
+/// a walk that sorted, re-derived or
 /// re-indexed anything would show here.
 #[test]
 fn r2_embed_is_both_retired_walks_bit_for_bit_at_f64() {
@@ -136,23 +131,6 @@ fn r2_embed_is_both_retired_walks_bit_for_bit_at_f64() {
     // And the door is the identity at f64, which is the premise the
     // unit's receipt rests on.
     same_bits(&src, &door, "identity");
-}
-
-/// The declaration list travels as DATA — order preserved, duplicates
-/// preserved, out-of-range preserved. The unit's row shows one
-/// out-of-range index; this shows the door does not sort or dedupe
-/// either, which a `BTreeSet`-shaped rewrite of `embed` would break
-/// while still passing that row.
-#[test]
-fn r2_embed_carries_the_declaration_list_unnormalised() {
-    let odd: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        Point2::new(0.0, 0.0),
-        Point2::new(1.0, 0.0),
-        Point2::new(1.0, 1.0),
-    ])
-    .with_tangent_joints(vec![2, 0, 2, 9]);
-    let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
-    assert_eq!(crossed.tangent_joints(), [2, 0, 2, 9]);
 }
 
 /// The same comparison at the CERTIFIED INTERVAL scalar, where
@@ -192,8 +170,6 @@ fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
             );
         }
     }
-    assert_eq!(door.tangent_joints(), loft.tangent_joints());
-    assert_eq!(door.tangent_joints(), anchor.tangent_joints());
 }
 
 // ------------------------------------------------------------------
@@ -316,113 +292,71 @@ fn r2_the_new_value_row_has_a_ceiling_of_its_own() {
 
 /// One rung of the ladder: a triangle whose fourth vertex sits `off`
 /// away from the exactly-collinear subdivision point on the closing
-/// side, with the closing joint declared or not.
-fn rung(off: f64, declared: bool) -> ProfileLoop<f64> {
-    let lp: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+/// side.
+fn rung(off: f64) -> ProfileLoop<f64> {
+    <ProfileLoop<f64> as RawLoop<f64>>::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
         Point2::new(1.0, 1.0),
         Point2::new(0.5 + off, 0.5),
-    ]);
-    if declared {
-        lp.with_tangent_joints(vec![3])
-    } else {
-        lp
-    }
+    ])
 }
 
-/// **The widening, swept — and issue 433's two questions, executed as
-/// a pair.**
+/// **The widening, swept.**
 ///
 /// `DeclaredJointBeforeClosingLine` and `AllJointsDeclared` both
-/// retired, so a declared closing joint now spells `continue_to`,
-/// whose target the DRIVER measures against the departing ray. Two
-/// worries, one sweep, over a ladder of offsets from the closing
-/// side's exact subdivision point:
+/// retired, so a tangent closing joint now spells `continue_to`, whose
+/// target the DRIVER measures against the departing ray. Over a ladder
+/// of offsets from the closing side's exact subdivision point, every
+/// rung must be a faithful lift, the driver's refusal, or a `Mismatch`
+/// that SAYS the table moved: a `Lifted` whose table does not match is
+/// the state `lift_checked`'s differential exists to make impossible,
+/// and the widening opened exactly this family.
 ///
-/// 1. **The widening must not author quietly.** Every declared rung
-///    must be a faithful lift, the driver's refusal, or a `Mismatch`
-///    that SAYS the table moved. A `Lifted` whose table does not match
-///    is the state `lift_checked`'s differential exists to make
-///    impossible, and the widening opened exactly this family.
-/// 2. **The declaration is what asks the authoring question.** The
-///    undeclared twin of each rung must never lift where the declared
-///    one refuses — the declaration may only ever open spellings, and
-///    an undeclared zero-turn seam is the junction the lattice refuses
-///    while `validate` accepts the identical table as data. The
-///    assertion is taken at the EXACTLY collinear rung, where a zero
-///    turn is tangent at any tolerance, so the row means the same
-///    thing at every eps; the wider counts are printed, since which
-///    rungs fall inside the band is an eps question. (At the default
-///    tolerance the split is total: 23 declared lifts, 0 undeclared.
-///    At 1e-12 the far rungs invert, because a FALSE declaration
-///    correctly CLOSES a spelling — which is the widening's own
-///    contract, not a violation of it.)
+/// The lift reads validation's tangent joints, so which rungs spell a
+/// continuation is an eps question; the counts are printed. The
+/// EXACTLY collinear rung is tangent at any tolerance, so it must lift.
 #[test]
 fn r2_the_widened_lift_never_lifts_a_loop_whose_table_moved() {
     let tol = Tol::witness();
-    let (mut d_lift, mut d_wall, mut u_lift, mut u_wall, mut mism) = (0, 0, 0, 0, 0);
+    let (mut lifted, mut walled, mut mism) = (0, 0, 0);
     for k in 0..24 {
         let off = if k == 0 {
             0.0
         } else {
             1e-16 * f64::powi(2.0, k)
         };
-        let mut lifted_here = [false; 2];
-        for (slot, declared) in [(0usize, true), (1usize, false)] {
-            match lift_checked(&rung(off, declared), tol) {
-                LiftOutcome::Lifted {
-                    worst_abs, program, ..
-                } => {
-                    lifted_here[slot] = true;
-                    if declared {
-                        d_lift += 1;
-                    } else {
-                        u_lift += 1;
-                    }
-                    assert!(
-                        worst_abs < 1e-12,
-                        "k={k} declared={declared}: a lift is only a lift if the \
-                         table survives it: {worst_abs:e} {program:?}"
-                    );
-                }
-                LiftOutcome::ReplayRefused { .. } => {
-                    if declared {
-                        d_wall += 1;
-                    } else {
-                        u_wall += 1;
-                    }
-                }
-                LiftOutcome::Refused(r) => {
-                    panic!("k={k} declared={declared}: unexpected structural wall {r:?}")
-                }
-                LiftOutcome::Mismatch {
-                    worst_abs, program, ..
-                } => {
-                    // Reported, never silent — which is the contract.
-                    mism += 1;
-                    println!("r2: k={k} declared={declared} MISMATCH {worst_abs:e} {program:?}");
-                }
+        match lift_checked(&rung(off), tol) {
+            LiftOutcome::Lifted {
+                worst_abs, program, ..
+            } => {
+                lifted += 1;
+                assert!(
+                    worst_abs < 1e-12,
+                    "k={k}: a lift is only a lift if the table survives it: \
+                     {worst_abs:e} {program:?}"
+                );
+            }
+            // The driver's refusal, or the joint inside the band, where
+            // validation decides nothing for the lift to read.
+            LiftOutcome::ReplayRefused { .. }
+            | LiftOutcome::Refused(profile::LiftRefusal::Unclassified(_)) => {
+                walled += 1;
+                assert_ne!(k, 0, "the exactly collinear rung must lift");
+            }
+            LiftOutcome::Refused(r) => panic!("k={k}: unexpected structural wall {r:?}"),
+            LiftOutcome::Mismatch {
+                worst_abs, program, ..
+            } => {
+                // Reported, never silent — which is the contract.
+                mism += 1;
+                println!("r2: k={k} MISMATCH {worst_abs:e} {program:?}");
             }
         }
-        if k == 0 {
-            // The EXACTLY collinear rung: a zero turn is tangent at
-            // any tolerance, so this pair is eps-robust and it is
-            // issue 433's subject in one line. Declared, the lattice
-            // has a spelling; undeclared, it walls — and `validate`
-            // accepts both tables as data either way.
-            assert!(lifted_here[0], "the declared exact seam must lift");
-            assert!(!lifted_here[1], "the undeclared exact seam must wall");
-        }
     }
-    println!(
-        "r2: ladder — declared: lifted {d_lift}, walled {d_wall}; \
-         undeclared: lifted {u_lift}, walled {u_wall}; mismatch {mism}"
-    );
+    println!("r2: ladder — lifted {lifted}, walled {walled}; mismatch {mism}");
     assert_eq!(mism, 0, "no rung authored a different table");
-    assert_eq!(d_lift + d_wall, 24, "every declared rung got an outcome");
-    assert_eq!(u_lift + u_wall, 24, "every undeclared rung got an outcome");
-    assert!(d_lift > 0 && u_wall > 0);
+    assert_eq!(lifted + walled, 24, "every rung got an outcome");
 }
 
 /// The lattice is the only authoring door a shipped build has, and it

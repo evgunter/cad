@@ -2,7 +2,7 @@
 //!
 //! Drives a grid of fillet requests through the public doors and dumps,
 //! per request, either the built loop's vertex positions and bulges AS
-//! BITS plus its declared tangent joints and its `Profile::validate`
+//! BITS plus its constructed tangent joints and its `Profile::validate`
 //! verdict, or the refusal's `Debug` (variant and payload). Nothing here
 //! reads a `Display`, so the dump is invariant under a rendered-text
 //! change and any diff between two trees is a behaviour change.
@@ -14,16 +14,16 @@
 use std::fmt::Write as _;
 
 use geom_core::{Point2, Tol};
-use profile::{ArcSweep, Center, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
+use profile::{ArcSweep, Center, ConstructedLoop, Open, PathError, Profile, SketchPlane, Start};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f64>>) {
+fn record(out: &mut String, key: &str, lp: &Result<ConstructedLoop<f64>, PathError<f64>>) {
     match lp {
         Ok(lp) => {
-            let _ = write!(out, "{key} BUILT joints={:?}", lp.tangent_joints());
+            let _ = write!(out, "{key} BUILT joints={:?}", lp.constructed_joints());
             for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                 let b = match s {
                     profile::Segment::Line => 0.0,
@@ -37,10 +37,11 @@ fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f
                     b.to_bits()
                 );
             }
-            let verdict = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol()) {
-                Ok(_) => "ok".to_string(),
-                Err(e) => format!("{e:?}"),
-            };
+            let verdict =
+                match Profile::new(SketchPlane::xy(), vec![lp.as_loop().clone()]).validate(tol()) {
+                    Ok(_) => "ok".to_string(),
+                    Err(e) => format!("{e:?}"),
+                };
             let _ = writeln!(out, " validate={verdict}");
         }
         Err(e) => {
@@ -49,7 +50,7 @@ fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f
     }
 }
 
-fn line_arc(radius: f64, carrier: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc(radius: f64, carrier: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.at(Point2::new(0.0, carrier))
         .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(carrier, 0.0, tol())?
@@ -62,10 +63,10 @@ fn line_arc(radius: f64, carrier: f64) -> Result<ProfileLoop<f64>, PathError<f64
             },
             tol(),
         )
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
-fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let h = (r_carrier * r_carrier - 0.25 * d * d).sqrt();
     Open.arc_fillet_arc(
         Center {
@@ -81,10 +82,10 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
         },
         tol(),
     )
-    .map(|c| c.loop_.into_loop())
+    .map(|c| c.loop_)
 }
 
-fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn mixed(r_carrier: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-0.5 * r_carrier, 0.0),
@@ -100,10 +101,10 @@ fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|closed| closed.loop_.into_loop())
+    .map(|closed| closed.loop_)
 }
 
-fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(start_x, 0.0))
         .angle(0.0, tol())?
@@ -112,7 +113,7 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 fn corner_out(
@@ -120,7 +121,7 @@ fn corner_out(
     sin_turn: f64,
     arm: f64,
     radius: f64,
-) -> Result<ProfileLoop<f64>, PathError<f64>> {
+) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let corner = Point2::new(r_carrier, 0.0);
     let dir = Point2::new(sin_turn, (1.0 - sin_turn * sin_turn).sqrt());
     let start = Point2::new(corner.x - arm * dir.x, corner.y - arm * dir.y);
@@ -136,7 +137,7 @@ fn corner_out(
             tol(),
         )?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 #[test]

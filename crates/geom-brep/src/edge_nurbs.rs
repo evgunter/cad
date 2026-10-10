@@ -77,17 +77,15 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::algebra::{GridSkip, domain_grid_points};
+use geom_core::spline::algebra::domain_grid_points;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
-    Band, Bounds, Decide, Decided, FileCoincidence, Indeterminate, MarginDiag, Point2, Point3,
-    Readable, Real, Sign, Vec3,
+    Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
+    Vec3,
 };
 
-use crate::certify::{
-    CERT_SAMPLES, CertCheck, recourse, recourse_in_file, schedule_fraction, schedule_param,
-};
-use crate::recourse::{Reading, Refused, RefusedArm};
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::recourse::{ReadAt, Refused, RefusedArm};
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
     certify_rung3,
@@ -329,7 +327,7 @@ impl core::fmt::Display for CarrierDomainRefusal {
 }
 
 impl PlaneNurbsRefusal {
-    /// The ending this refusal's decision gives it, read at `reading`
+    /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`]), or `None` for a refusal that is no decision's
     /// refused arm. `Display` renders the payload alone, as
     /// [`crate::CertifyError`]'s does, and the door appends this.
@@ -339,24 +337,11 @@ impl PlaneNurbsRefusal {
     /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
-    }
-
-    /// The ending this refusal gives at the STEP import door
-    /// ([`recourse_in_file`]), as [`PlaneNurbsRefusal::ending`] gives it
-    /// at rest.
-    #[must_use]
-    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
-        }
-        self.decision()
-            .map(|(check, arm)| recourse_in_file(check, arm, file))
+        self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
     /// The decision this refusal is a refused arm of, and which arm
@@ -903,28 +888,15 @@ impl AnalyticRung3Refusal {
         }
     }
 
-    /// The ending this refusal's decision gives it, read at `reading`,
-    /// or `None` for a refusal that is no decision's refused arm
+    /// The ending this refusal's decision gives it, read at `at`, or
+    /// `None` for a refusal that is no decision's refused arm
     /// ([`PlaneNurbsRefusal::ending`]'s structure).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
-        self.decision()
-            .map(|(check, arm)| recourse(check, arm, reading))
-    }
-
-    /// The ending this refusal gives at the STEP import door
-    /// ([`recourse_in_file`]), as [`AnalyticRung3Refusal::ending`] gives
-    /// it at rest.
-    #[must_use]
-    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
-        }
-        self.decision()
-            .map(|(check, arm)| recourse_in_file(check, arm, file))
+        self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
     /// The decision this refusal is a refused arm of, and which arm.
@@ -1193,7 +1165,7 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        domain_grid_points(kv, PXN_WALL_SPANS, GridSkip::BitEqual)
+        domain_grid_points(kv, PXN_WALL_SPANS)
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());
@@ -1278,7 +1250,10 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::FileCoincidence;
     use geom_core::spline::KnotVector;
+
+    use crate::recourse::Reading;
 
     use super::*;
 
@@ -1306,7 +1281,6 @@ mod tests {
     /// the payload and ending growing past the budget.
     #[test]
     fn the_tube_not_one_arc_refusal_renders_within_the_standard() {
-        use crate::recourse::Reading;
         use crate::ssi::OneArcRefusal;
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let undecided = geom_core::k_stats::decide_positive(
@@ -1337,7 +1311,7 @@ mod tests {
     /// **Limb 3's at-rest refusal reads the file's ε_in at the import
     /// door** (D4 ¶1): an undecided one-arc clearance at or below ε_in is
     /// not offered a tolerance alone, and one past it is offered the
-    /// at-rest value. Red where `ending_in_file` reads the one-arc
+    /// at-rest value. Red where the door's `ending` reads the one-arc
     /// decision at rest, which offers "tighten below 5e-10 m" for a
     /// 5e-9 m clearance within the file's 1e-6 m.
     #[test]
@@ -1354,7 +1328,7 @@ mod tests {
             }),
         };
         let file = |eps_in| FileCoincidence::new(eps_in);
-        let within = refusal(5e-9).ending_in_file(file(1e-6)).unwrap();
+        let within = refusal(5e-9).ending(file(1e-6)).unwrap();
         assert!(
             within.starts_with(
                 "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
@@ -1367,7 +1341,7 @@ mod tests {
         );
         let past = refusal(5e-9);
         assert_eq!(
-            past.ending_in_file(file(1e-9)),
+            past.ending(file(1e-9)),
             past.ending(Reading::AtRest),
             "a clearance past ε_in reads as at rest"
         );
@@ -1501,21 +1475,25 @@ mod tests {
         (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
     }
 
-    /// `localized` inserts each direction's DOMAIN sixteenths, skipping
-    /// a grid point only where a knot sits on it bit for bit (`0.5`;
-    /// a knot one ulp above `1/16` does NOT suppress `1/16`), and
-    /// leaves a direction with `PXN_WALL_SPANS + degree` control points
-    /// alone while one with a control point fewer takes the grid.
+    /// `localized` inserts each direction's DOMAIN sixteenths, a grid
+    /// point skipped up to and including `GRID_CLEARANCE` of the
+    /// spacing (`2⁻¹²`) from a knot (`0.5`, and `1/16` beside a knot
+    /// exactly `2⁻¹²` above it; a knot one ulp further than that above
+    /// `3/8` leaves `3/8` standing), and leaves a direction with
+    /// `PXN_WALL_SPANS + degree` control points alone while one with a
+    /// control point fewer takes the grid.
     #[test]
-    fn localized_inserts_the_domain_grid_per_direction_with_its_cut_off() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+    fn localized_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, PXN_WALL_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
         let at = deg2(&odd64(15));
         assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
-        let out = localized(&wall(deg2(&[near, 0.5]), at.clone()));
+        let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));
         assert_eq!(
             out.knots_u().knots(),
             [
-                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
                 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
             ]
         );
@@ -1524,6 +1502,56 @@ mod tests {
         assert_eq!(below.control_count(), 17);
         let out = localized(&wall(deg2(&[0.5]), below));
         assert_eq!(out.knots_v().control_count(), 17 + 15);
+    }
+
+    /// `localized`'s wall has no cliff at any distance of a stated knot
+    /// from a grid point: a degree-1 ruled wall bent at every offset of
+    /// [`crate::grid_offsets::knot_offsets`] from the first point of the
+    /// [`PXN_WALL_SPANS`] grid keeps every
+    /// span's `u` difference quotient within `1e-9` of the slope of the
+    /// leg it lies on. That quotient is the derivative net each cell of
+    /// the tube's chart readings is built from. It is read directly
+    /// because `NurbsBoxes::speed_sup` takes the largest cell and so
+    /// hides a hairline whose rounding happened to land low. A grid
+    /// point inserted at a gap `g` beside the bend divides the inserted
+    /// point's rounding by `g`.
+    #[test]
+    fn the_wall_grid_derivative_net_has_no_cliff_at_any_knot_offset() {
+        let (_, offsets) = crate::grid_offsets::knot_offsets(PXN_WALL_SPANS, 1);
+        let rows: Vec<(String, f64)> = offsets
+            .into_iter()
+            .map(|(label, k)| {
+                let ku = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+                let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+                let control = [0.0, 0.9, 1.0]
+                    .into_iter()
+                    .flat_map(|x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)])
+                    .collect();
+                let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+                let fine = localized(&wall);
+                let (knots, nv) = (fine.knots_u().knots(), fine.knots_v().control_count());
+                let x: Vec<f64> = fine.control().iter().step_by(nv).map(|p| p.x).collect();
+                // Degree 1: control `i` sits at knot `i + 1`.
+                let worst = (0..x.len() - 1)
+                    .map(|i| {
+                        let (a, b) = (knots[i + 1], knots[i + 2]);
+                        let slope = if b <= k { 0.9 / k } else { 0.1 / (1.0 - k) };
+                        ((x[i + 1] - x[i]) / (b - a) - slope).abs()
+                    })
+                    .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
+                (label, worst)
+            })
+            .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, worst)| format!("\n  {label:>26}: slope error {worst:.4e}"))
+            .collect();
+        for (label, worst) in &rows {
+            assert!(
+                *worst < 1e-9,
+                "knot {label}: a span left its leg's slope{table}"
+            );
+        }
     }
 
     /// An exact rational: `n / d`, `d > 0`, for the oracle below.

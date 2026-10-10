@@ -269,17 +269,24 @@ where
             wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
-        Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(
+        Node::Profile(program) => {
+            let payload = wire_profile(
                 program,
                 at(O::Frame, program.frame)?,
                 results,
                 profile_pre,
                 env.lane,
                 tol,
-            )?,
-            names::empty(),
-        )),
+            )?;
+            let rows = match &payload {
+                ValuePayload::Profile(value) => {
+                    crate::coincide::name_junctions(id, &value.validated, &value.pieces)
+                        .map_err(NodeErrorKind::Naming)?
+                }
+                _ => Vec::new(),
+            };
+            Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
+        }
         Node::Extrude { profile, side, .. } => wire_extrude(
             id,
             at(O::Profile, *profile)?,

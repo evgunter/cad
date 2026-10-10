@@ -7,6 +7,7 @@ opened: 2026-10-08
 priority: P3
 cost: E
 refs: [shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel]
+branch: shell/tilted-read-gaps
 pr: 4467
 closed: 2026-10-10
 ---

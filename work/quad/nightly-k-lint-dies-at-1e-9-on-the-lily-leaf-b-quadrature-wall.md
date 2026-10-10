@@ -27,3 +27,11 @@ The panic takes down the ε = 1e-9 demo pass, so the 1e-12 pass and the k-lint s
 ## Repair shape
 
 The demo pass must not die on a refusal it expects. One option is for the dev-probe tour to treat the pinned wall as an expected typed refusal and carry on, as PR 3976 did for the cutaway. The other is to fix the cause. Either way, the k-lint step has to run again.
+
+## 2026-10-09 — the leaf_b refusal is gone at the default ε (NURBS, PR 4438)
+
+PR 4438 retires wall 17: `lily_leaf_b` measures at the default ε
+(`V = 0.003134 m³ ± 8.0e-8`), so the release tour at the default ε
+(1e-9) runs green, and so do its 1e-12 and 1e-6 rows. The k-lint
+dev-probe itself was not run here. The next nightly after that PR
+merges says whether this row can close.

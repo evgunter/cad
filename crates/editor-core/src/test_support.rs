@@ -137,15 +137,23 @@ pub fn stored_reading(
 /// the caller's to rule out, by comparing the rebuilt ids.
 pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::AuthoredNode {
     let lost = doc.written_would_not_reproduce();
-    let read: Vec<crate::VarId> = node
-        .exprs()
+    // Written expands each anonymous definition, so a lost variable is
+    // read through the definitions the node's slots reach as well.
+    let mut reached: Vec<crate::VarId> = node.exprs().into_iter().copied().collect();
+    let mut at = 0;
+    while let Some(&var) = reached.get(at) {
+        if doc.var_name(var).is_none() {
+            reached.extend(doc.definition_reads(var));
+        }
+        at += 1;
+    }
+    let read: Vec<crate::VarId> = reached
         .into_iter()
-        .copied()
         .filter(|var| lost.contains(var))
         .collect();
     assert!(
         read.is_empty(),
-        "a written re-insert would not reproduce {read:?}: shared, or toleranced"
+        "a written re-insert would not reproduce {read:?}: read twice, or toleranced"
     );
     node.written(doc)
 }

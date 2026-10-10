@@ -296,8 +296,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/SliverLoop",
     "Profile/Structure",
     "Profile/TangencyContradicted",
-    "Profile/TangentJointOutOfRange",
-    "Profile/UndeclaredTangency",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
     "ProfileReplay/Path/ArcViaCollinear",
@@ -2754,15 +2752,6 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UndeclaredTangency",
-            E::UndeclaredTangency {
-                first: a,
-                second: b,
-                joint: 2,
-                suggestion: "declare_tangent(loop=0, joint=2)".to_owned(),
-            },
-        ),
-        (
             "TangencyContradicted",
             E::TangencyContradicted {
                 first: a,
@@ -4400,7 +4389,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "FittedBoundaryUnsupported",
                 R::FittedBoundaryUnsupported {
                     edge,
-                    what: "a seam shared with another fitted face",
+                    what: "a row of this fit shared with another fitted face",
                 },
             ),
             (
