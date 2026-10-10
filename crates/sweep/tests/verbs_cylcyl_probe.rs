@@ -147,9 +147,16 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
         let Ok(topo::BooleanResult::Body(bb)) = &declared else {
             panic!("{name}: the declared union builds: {declared:?}");
         };
-        assert_eq!(topo::validate_geometric(&bb.body, tol), Ok(()), "{name}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol),
+            Ok(()),
+            "{name}: tier 3"
+        );
         let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
-        assert!((v - want).abs() < 1e-9, "{name}: {v} vs the closed form {want}");
+        assert!(
+            (v - want).abs() < 1e-9,
+            "{name}: {v} vs the closed form {want}"
+        );
         assert_eq!(
             outcome(&topo::union(&a, &b, tol)),
             outcome(&declared),

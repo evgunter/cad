@@ -350,7 +350,10 @@ fn an_undeclared_torus_pair_passes_the_gate_and_is_the_declared_rest() {
     peg_in_socket_union_holds(&s, &p, &walls);
     let want = outcome(&topo::union_with(&s, &p, &walls, Tol::witness()));
     for (posture, d) in [
-        ("the end caps declared", crate::mate2_common::continuations(&s, &p)),
+        (
+            "the end caps declared",
+            crate::mate2_common::continuations(&s, &p),
+        ),
         ("undeclared", BooleanDeclarations::none()),
     ] {
         assert_eq!(
@@ -757,11 +760,8 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
         ("kissing pair", kissing_pair(), None),
     ] {
         if let Some(class) = declared {
-            let twin = subtract_both_orders_and_intersect(
-                &a,
-                &b,
-                &wall_declarations(&a, &b, TUBE, class),
-            );
+            let twin =
+                subtract_both_orders_and_intersect(&a, &b, &wall_declarations(&a, &b, TUBE, class));
             for ((op, r), (_, want)) in
                 subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none())
                     .into_iter()

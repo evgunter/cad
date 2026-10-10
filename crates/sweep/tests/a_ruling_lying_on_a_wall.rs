@@ -431,8 +431,11 @@ fn a_ruling_whose_face_shares_the_walls_carrier_is_the_declared_continuation() {
         topo::intersect_with(&b, &t, &bt, tol),
     ];
     for ((op, r), want) in six(&t, &b).into_iter().zip(declared) {
-        eprintln!("PROBE ruling {op} {:?}", want.as_ref().map(|_| ()));
-        assert_eq!(outcome(&r), outcome(&want), "{op}: the declared continuation");
+        assert_eq!(
+            outcome(&r),
+            outcome(&want),
+            "{op}: the declared continuation"
+        );
     }
 }
 

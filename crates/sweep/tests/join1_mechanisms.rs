@@ -70,10 +70,10 @@ fn matching_reads_the_germs_loci() {
     let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
         assert!(
-            bb.naming.merge_skipped.iter().all(|s| matches!(
-                s.reason,
-                topo::MergeCoplanarError::PeriodClosure { .. }
-            )),
+            bb.naming
+                .merge_skipped
+                .iter()
+                .all(|s| matches!(s.reason, topo::MergeCoplanarError::PeriodClosure { .. })),
             "the merge door records only period closures: {:?}",
             bb.naming.merge_skipped
         );

@@ -44,8 +44,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use crate::common::operands::{bar, framed_bar};
+use crate::common::outcomes::outcome;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 use sweep::ExtrudeSide;

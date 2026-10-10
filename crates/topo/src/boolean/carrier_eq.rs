@@ -684,6 +684,7 @@ fn definite(predicate: &'static str, band: Band) -> Indeterminate {
 ///   `t·max(R₁, R₂)` move the tube's core circle, plus the
 ///   minor-radius difference; this holds at every point of the torus,
 ///   whatever the ball.
+///
 /// The verdict, its trilean, and the margin its upper bound was decided
 /// on: Zero for a [`ContactVerdict::Definite`], in band for a
 /// [`ContactVerdict::Bridged`].

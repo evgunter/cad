@@ -7,8 +7,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use crate::common::operands::{plate6, plate6_cyl};
+use crate::common::outcomes::outcome;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;

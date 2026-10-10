@@ -216,7 +216,13 @@ fn refusals_render_as_prose_not_debug_guts() {
         message.contains("inside the ambiguity band") && message.contains("Recourse: "),
         "{message}"
     );
-    for guts in ["Escalated", "BooleanDecision", "{", "Indeterminate", "MarginDiag"] {
+    for guts in [
+        "Escalated",
+        "BooleanDecision",
+        "{",
+        "Indeterminate",
+        "MarginDiag",
+    ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
     }
 

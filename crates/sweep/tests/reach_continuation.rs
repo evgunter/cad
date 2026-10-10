@@ -511,7 +511,9 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
 /// its west wall is tangent to the south-east fillet along the ruling at
 /// azimuth −45°: the box's wall edges pass that ruling mid-span and the
 /// plate has no edge on it. The pair declared `Tangent` is the cover
-/// (C4); undeclared, the graze refuses typed in both orders. The union
+/// (C4); undeclared, the boolean verifies the tangency by its witness
+/// and declares it itself, so every op is the declared one bit for bit
+/// (D10), in both orders. The union
 /// would have material on both sides of a ruling through the box wall's
 /// interior, the unbuilt doubled-slit arm, so it refuses. Volumes are
 /// closed form (the box 1, the plate [`area`] of four corners, interiors
@@ -577,13 +579,36 @@ fn a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_e
             (1.0, 6),
         ),
     ] {
-        let err = topo::union_with(a, b, &BooleanDeclarations::default(), tol())
-            .expect_err("an undeclared graze refuses");
-        assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-            "{order}, undeclared: {err:?}"
-        );
         let (ab, ba) = (tangent(fa, fb), tangent(fb, fa));
+        let none = BooleanDeclarations::default();
+        for (op, got, want) in [
+            (
+                "A ∪ B",
+                topo::union_with(a, b, &none, tol()),
+                topo::union_with(a, b, &ab, tol()),
+            ),
+            (
+                "A ∖ B",
+                topo::subtract_with(a, b, &none, tol()),
+                topo::subtract_with(a, b, &ab, tol()),
+            ),
+            (
+                "B ∖ A",
+                topo::subtract_with(b, a, &none, tol()),
+                topo::subtract_with(b, a, &ba, tol()),
+            ),
+            (
+                "A ∩ B",
+                topo::intersect_with(a, b, &none, tol()),
+                topo::intersect_with(a, b, &ab, tol()),
+            ),
+        ] {
+            assert_eq!(
+                outcome(&got),
+                outcome(&want),
+                "{order}, {op} undeclared: the declared outcome"
+            );
+        }
         let box_operand = if order == "box is A" {
             topo::Operand::A
         } else {

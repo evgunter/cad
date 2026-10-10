@@ -823,9 +823,13 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
 /// **A rim lying inside the partner's face** passes the crossing layer:
 /// a tube ending on a ball of radius `√2` (its rim on the sphere, 45° to
 /// the wall), and a tube standing on a torus's 45° latitude. Each union
-/// stops in the join, on a frontier that is not the crossing layer's
+/// stops in the join, on a frontier that is not the crossing layer's:
+/// the tube on the ball at the join's missing arm for the coaxial
+/// cylinder × sphere germ pair, `CurvedBooleanUnsupported` naming
+/// operand A's face, which the frame decides coaxial by margin; the tube on the
+/// torus at the section role read or the torus × plane germ frame
 /// (`work/join/a-tube-ending-on-a-ball-refuses-section-loop-mixed.md`;
-/// the torus × plane germ frame, `work/germ/c5-plane-torus-cone-cylinder-arms.md`).
+/// `work/germ/c5-plane-torus-cone-cylinder-arms.md`).
 #[test]
 fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let tol = Tol::witness();
@@ -856,14 +860,29 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
         .into_iter()
         .enumerate()
         {
-            assert!(
+            let joins = if label == "tube on a ball" {
+                // The missing arm is named on operand A's face: the
+                // tube's wall, or the ball's sphere.
+                let first = [SurfaceKind::Cylinder, SurfaceKind::Sphere][order];
+                matches!(
+                    r,
+                    Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: topo::Operand::A,
+                        kind,
+                        ..
+                    }) if kind == first
+                )
+            } else {
                 matches!(
                     r,
                     Err(
                         BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
                             | BooleanError::GermFrameUnsupported { .. }
                     )
-                ),
+                )
+            };
+            assert!(
+                joins,
                 "{label}, order {order}: past the crossing layer, the join's refusal: {:?}",
                 r.err()
             );

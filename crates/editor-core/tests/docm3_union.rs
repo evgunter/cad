@@ -932,10 +932,8 @@ fn a_union_is_one_body_at_an_operand_seat() {
 }
 
 // ---------------------------------------------------------------------
-// The refusal's name space. Adopted from `docm/3-review-r1`'s
-// `r1_refusal_from_a_later_fold_step_names_union_space_names`; R2's
-// `r2_a_refusal_at_a_later_fold_step_names_a_fold_row` measured the
-// same defect from the other side.
+// A later fold step against a flush member: what it glues and what
+// the union publishes.
 // ---------------------------------------------------------------------
 
 /// A box on a frame at height `z0`, footprint `[x0,x1]×[y0,y1]`.

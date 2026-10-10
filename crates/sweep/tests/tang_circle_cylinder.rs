@@ -283,7 +283,9 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
 /// other wall is `δ`, and the two walls touch along a ruling within the
 /// zero band. The boolean verifies that tangency
 /// by its witness and declares it itself, so each op is the op with the
-/// walls declared `Tangent`, bit for bit (D10); the half-angle ladder,
+/// walls declared `Tangent`, bit for bit (D10), which reaches the join
+/// and refuses there, `CurvedBooleanUnsupported` naming B's wall: the
+/// join has no arm for the tangent wall pair. The half-angle ladder,
 /// which does not decide on the residual's range and can certify an
 /// in-band configuration as a miss
 /// (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
@@ -319,7 +321,17 @@ fn a_rim_circle_within_the_band_of_a_parallel_wall_is_the_declared_tangency() {
         }
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
             let want = run_with(op, &a, &b, &tangent);
-            eprintln!("PROBE tang δ {delta} {op:?} {:?}", want.as_ref().map(|_| ()));
+            assert!(
+                matches!(
+                    want,
+                    Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: topo::Operand::B,
+                        kind: geom::SurfaceKind::Cylinder,
+                        ..
+                    })
+                ),
+                "δ {delta}, {op:?}: the join has no arm for the tangent wall pair: {want:?}"
+            );
             assert_eq!(
                 format!("{:?}", run(op, &a, &b)),
                 format!("{want:?}"),

@@ -579,10 +579,7 @@ pub fn built_bits(ev: &Evaluation<f64>, id: RecipeNodeId) -> String {
         Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
             body, ..
         })) => format!("{body:?}"),
-        other => panic!(
-            "{id:?} built no body: {other:?} / {:?}",
-            ev.nodes.get(&id)
-        ),
+        other => panic!("{id:?} built no body: {other:?} / {:?}", ev.nodes.get(&id)),
     }
 }
 

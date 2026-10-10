@@ -22,6 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
@@ -492,8 +493,11 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// `B`'s far end meridian meets the seam's CIRCLE beyond the arc's end,
 /// and no chain of `B`'s arcs runs along it; the interior question
 /// certifies that the ARC meets `B`'s boundary nowhere strictly inside
-/// its span, so its ends place it and the sweep answers. The op itself
-/// stops later, on the two tubes' coplanar start caps.
+/// its span, so its ends place it and the sweep answers. The two tubes'
+/// coplanar start caps are one plane by margin and glue, so the op
+/// itself stops later, at the join's germ frame, which has no plane ×
+/// torus arm; undeclared, it is the refusal the caps' declared
+/// continuation reaches (D10).
 #[test]
 fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let tol = Tol::witness();
@@ -534,6 +538,24 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         let r = topo::union_with(x, y, &none, tol);
         let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(x, y, tol).unwrap());
         let dr = topo::union_with(x, y, &d, tol);
-        eprintln!("PROBE gct {op} {d:?}\n UND {r:?}\n DECL {dr:?}");
+        assert_eq!(
+            d.coincident_faces.len(),
+            1,
+            "{op}: the start caps' one continuation"
+        );
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::GermFrameUnsupported { a_kind, b_kind, .. })
+                    if [a_kind, b_kind].contains(&geom::SurfaceKind::Plane)
+                        && [a_kind, b_kind].contains(&geom::SurfaceKind::Torus)
+            ),
+            "{op}: the join's plane × torus germ frame: {r:?}"
+        );
+        assert_eq!(
+            outcome(&r),
+            outcome(&dr),
+            "{op}: undeclared is the declared refusal"
+        );
     }
 }

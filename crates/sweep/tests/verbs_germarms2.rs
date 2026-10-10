@@ -326,10 +326,7 @@ fn the_fenced_poses_keep_their_own_outcomes() {
         ("direct", a.clone(), parallel.clone()),
         ("re-posed", repose(&a), repose(&parallel)),
     ] {
-        let (a, b) = (
-            finished("operand A", a, tol),
-            finished("operand B", b, tol),
-        );
+        let (a, b) = (finished("operand A", a, tol), finished("operand B", b, tol));
         let found = topo::flush::find_flush_candidates(&a, &b, tol).unwrap();
         let declared = topo::union_with(&a, &b, &topo::flush::declare_all(&found), tol);
         let Ok(topo::BooleanResult::Body(bb)) = &declared else {

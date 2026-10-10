@@ -16,8 +16,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use crate::common::operands::{slab as plate, three_arc_cylinder};
+use crate::common::outcomes::outcome;
 use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Sign, Tol, Vec3};
