@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "mint": {
-      "chain": "9986ca57fa20f6b7fd3439c9675d161efa842fe01b1998463cd335295f318979",
+      "chain": "9c7e375af19e8b82610808bddf4b50dafb5806d705f2e7f764f3766196d69857",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -460,6 +460,30 @@ id: 7ddec231df0049f879136a2f7624647d
         },
         {
           "var": "152:9986ca57fa20f6b7"
+        },
+        {
+          "node": "153:15b6dc14a36d8fbb"
+        },
+        {
+          "var": "154:af533fd4dd423f63"
+        },
+        {
+          "node": "155:8c1318adec6fc8e5"
+        },
+        {
+          "var": "156:0dc3df1d4a08b96e"
+        },
+        {
+          "node": "157:2d719d95c253fc9b"
+        },
+        {
+          "var": "158:f6942bbd30804ecb"
+        },
+        {
+          "node": "159:7deeb709df0e6efa"
+        },
+        {
+          "var": "160:9c7e375af19e8b82"
         }
       ]
     },
@@ -1125,17 +1149,40 @@ id: 7ddec231df0049f879136a2f7624647d
             }
           ]
         }
+      },
+      "153:15b6dc14a36d8fbb": {
+        "PlaceInWorld": {
+          "body": "103:d612a478571bf6b8",
+          "pose": {
+            "steps": []
+          }
+        }
+      },
+      "155:8c1318adec6fc8e5": {
+        "PlaceInWorld": {
+          "body": "124:8d38d6a41c48c240",
+          "pose": {
+            "steps": []
+          }
+        }
+      },
+      "157:2d719d95c253fc9b": {
+        "PlaceInWorld": {
+          "body": "131:5b4c778292070894",
+          "pose": {
+            "steps": []
+          }
+        }
+      },
+      "159:7deeb709df0e6efa": {
+        "PlaceInWorld": {
+          "body": "152:9986ca57fa20f6b7",
+          "pose": {
+            "steps": []
+          }
+        }
       }
     },
-    "roots": [
-      "109:22f05cfb828793c8",
-      "45:a2265d57e01c1d7e",
-      "72:39462fff9e05153a",
-      "102:c62245342f6871ee",
-      "123:13d8d6510cfd048c",
-      "130:18c749adb930dbd4",
-      "151:6d544e48c4a590a8"
-    ],
     "vars": {
       "1:e2382e0f27e19466": {
         "kind": "Length",
@@ -2328,6 +2375,42 @@ id: 7ddec231df0049f879136a2f7624647d
         "def": {
           "Output": {
             "node": "151:6d544e48c4a590a8",
+            "port": 0
+          }
+        }
+      },
+      "154:af533fd4dd423f63": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "153:15b6dc14a36d8fbb",
+            "port": 0
+          }
+        }
+      },
+      "156:0dc3df1d4a08b96e": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "155:8c1318adec6fc8e5",
+            "port": 0
+          }
+        }
+      },
+      "158:f6942bbd30804ecb": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "157:2d719d95c253fc9b",
+            "port": 0
+          }
+        }
+      },
+      "160:9c7e375af19e8b82": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "159:7deeb709df0e6efa",
             "port": 0
           }
         }

@@ -111,6 +111,8 @@ pub enum OperandSlot {
     Of,
     /// The body a face frame reads its face out of.
     At,
+    /// The body a world placement places.
+    Body,
 }
 
 impl OperandSlot {
@@ -130,7 +132,7 @@ impl OperandSlot {
             Self::Member(i) => format!("member {}", u64::from(i) + 1),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
-            Self::At => "body".to_owned(),
+            Self::At | Self::Body => "body".to_owned(),
         }
     }
 
@@ -142,7 +144,7 @@ impl OperandSlot {
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
-            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At => {
+            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }
             Self::Input | Self::Of => SlotKind::Placeable,

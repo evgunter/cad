@@ -1,5 +1,5 @@
 //! JOIN-2 review lane r2: probes of the tangent-germ locus ranking and
-//! of the zip's seam realization. Each probe prints one
+//! of the join's tangent sites. Each probe prints one
 //! `common::differential::outcome` line per (pose, order, op), so the
 //! same binary built on main and on the PR head can be diffed. The
 //! volume oracle is closed form from the outlines (shoelace plus the
@@ -10,7 +10,6 @@
 
 use super::common::differential::outcome;
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
 use sweep::test_support::{corners, extruded, prism_on, sketch_at, sketch_from_axes};
 use topo::{Body, BooleanDeclarations, BooleanError, BooleanOp};
 
@@ -44,24 +43,11 @@ fn bulge_area(v: &[((f64, f64), f64)]) -> f64 {
 }
 
 fn plate(v: &[((f64, f64), f64)], z0: f64) -> Body<f64> {
-    let n = v.len();
     let verts = v
         .iter()
         .map(|&((x, y), b)| (Point2::new(x, y), b))
         .collect();
-    // A fillet arc's two ends are declared-tangent joints.
-    let mut joints: Vec<usize> = Vec::new();
-    for (k, &(_, b)) in v.iter().enumerate() {
-        if b != 0.0 {
-            for j in [k, (k + 1) % n] {
-                if !joints.contains(&j) {
-                    joints.push(j);
-                }
-            }
-        }
-    }
-    joints.sort_unstable();
-    let lp = profile::test_support::bulge_loop(verts).with_tangent_joints(joints);
+    let lp = profile::test_support::bulge_loop(verts);
     extruded(sketch_at(z0), vec![lp], 1.0, tol())
 }
 
@@ -77,7 +63,7 @@ fn declared(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanDeclarations, String>
 }
 
 /// Every op in both orders, one line each, plus the join's own refusal
-/// for the union (to tell a zip-built body from a join-built one).
+/// for the union.
 fn battery(label: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, disjoint: bool) {
     for (order, x, y, vx, vy) in [("ab", a, b, va, vb), ("ba", b, a, vb, va)] {
         let d = match declared(x, y) {
@@ -92,7 +78,7 @@ fn battery(label: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, disjoint
         let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
         let path = match &join {
             Ok(None) => "join".to_string(),
-            Ok(Some(e)) => format!("zip-or-refuse[{}]", short(e)),
+            Ok(Some(e)) => format!("refuse[{}]", short(e)),
             Err(e) => format!("red-err[{}]", short(e)),
         };
         println!(
@@ -333,15 +319,14 @@ fn join2_r2_island_and_crossing_in_one_face() {
     }
 }
 
-/// **Claim 3 through the zip**: the island-and-crossing face of
+/// **Claim 3 at a tangent site**: the island-and-crossing face of
 /// [`join2_r2_island_and_crossing_in_one_face`], with the plate's
 /// north-east corner rounded so its fillet is tangent to the crossing
-/// arm's end edge mid-span (the tangency the join's surgery refuses, so
-/// the declared-REST zip builds the union). The island arm lies inside
-/// the same bottom face.
+/// arm's end edge mid-span. The island arm lies inside the same bottom
+/// face.
 #[test]
 #[ignore = "review probe battery; prints lines"]
-fn join2_r2_island_through_the_zip() {
+fn join2_r2_island_at_a_tangent_site() {
     let (ch, vch) = channel(4.0);
     for (name, r, xe, step) in [
         ("r=1 xe=4.5", 1.0, 4.5, 2.0),
@@ -360,7 +345,7 @@ fn join2_r2_island_through_the_zip() {
         ];
         let vp = bulge_area(&p);
         let up = plate(&p, 1.0);
-        battery(&format!("zip-island {name}"), &ch, &up, vch, vp, true);
+        battery(&format!("island {name}"), &ch, &up, vch, vp, true);
         // Mirrored in x about 2 (the island arm becomes the east one).
         let m: Vec<((f64, f64), f64)> = p
             .iter()
@@ -379,7 +364,7 @@ fn join2_r2_island_through_the_zip() {
         let vm = bulge_area(&m);
         let mplate = plate(&m, 1.0);
         battery(
-            &format!("zip-island-mirror {name}"),
+            &format!("island-mirror {name}"),
             &ch,
             &mplate,
             vch,
@@ -396,7 +381,7 @@ fn join2_r2_island_through_the_zip() {
 /// is on the face's boundary.
 #[test]
 #[ignore = "review probe battery; prints lines"]
-fn join2_r2_ring_order_through_the_zip() {
+fn join2_r2_ring_order_at_a_tangent_site() {
     let (ch, vch) = channel(4.0);
     for (name, r, xe, ys) in [
         ("r=1 xe=4.5", 1.0, 4.5, -1.0),
@@ -416,21 +401,15 @@ fn join2_r2_ring_order_through_the_zip() {
     }
 }
 
-/// One union that must build sound, its join's matching having paired
-/// every germ (the join's surgery may still refuse, and the zip build).
+/// One union that must build sound, its join connecting every germ.
 fn builds_paired(label: &str, x: &Body<f64>, y: &Body<f64>, want: f64) {
     let d = declared(x, y);
     assert!(d.is_ok(), "{label}: declarations: {d:?}");
     let d = d.unwrap_or_default();
     let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
     assert!(
-        !matches!(
-            join,
-            Ok(Some(BooleanError::Join(
-                topo::SplitJoinError::UnpairedLooseEnds { .. }
-            )))
-        ),
-        "{label}: the join pairs every germ, got {join:?}"
+        matches!(join, Ok(None)),
+        "{label}: the join connects every germ, got {join:?}"
     );
     let line = outcome(topo::union_with(&fin(x), &fin(y), &d, tol()), want, tol());
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
@@ -476,15 +455,14 @@ fn a_like_far_ends_tie_is_decided_by_the_partner_faces_trim() {
     }
 }
 
-/// **The declared-REST lane's output has maximal edges.** One pose of
+/// **A union at a tangent site has maximal edges.** One pose of
 /// [`a_like_far_ends_tie_is_decided_by_the_partner_faces_trim`]: the
-/// normal join refuses typed, so the REST lane answers the union, and
-/// the plates' rims meet at vertices that lie on one line between one
-/// face pair. The lane's output stage joins them: the union reports its
-/// joins and leaves no joinable vertex. Red when the REST lane skips the
-/// join.
+/// join connects the fillet's tangent site, and the plates' rims meet
+/// at vertices that lie on one line between one face pair. The output
+/// stage joins them: the union reports its joins and leaves no joinable
+/// vertex.
 #[test]
-fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
+fn a_tangent_site_union_joins_every_joinable_vertex_it_leaves() {
     let lower = vec![
         ((0.0, 0.0), 0.0),
         ((2.0, 0.0), q()),
@@ -513,16 +491,16 @@ fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
         let d = d.unwrap_or_default();
         let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
         assert!(
-            matches!(join, Ok(Some(_))),
-            "{order}: the normal join refuses, so the REST lane answers: {join:?}"
+            matches!(join, Ok(None)),
+            "{order}: the join connects the tangent site: {join:?}"
         );
         let got = topo::union_with(&fin(x), &fin(y), &d, tol());
         let Ok(topo::BooleanResult::Body(out)) = got else {
-            unreachable!("{order}: the REST lane builds the union: {got:?}");
+            unreachable!("{order}: the union builds: {got:?}");
         };
         assert!(
             !out.naming.edge_joins.is_empty(),
-            "{order}: the REST lane's output stage joins the rims' vertices"
+            "{order}: the output stage joins the rims' vertices"
         );
         let left = geom_core::Band::linear(geom_core::Tol::witness())
             .map(|band| topo::joinable_vertices(&out.body, band));
@@ -533,15 +511,15 @@ fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
     }
 }
 
-/// **Segments between pierce-ring vertices only refuse typed.** The
-/// zip's pose of [`join2_r2_island_through_the_zip`]: the channel's west
-/// arm top is an island inside the plate's bottom face, so every one of
-/// its segments runs between two ring vertices, and no realized segment
-/// ever reaches one. The zip refuses the island in both orders at its
-/// own frontier.
+/// **Segments between pierce-ring vertices build.** The pose of
+/// [`join2_r2_island_at_a_tangent_site`] whose channel's west arm top is
+/// an island inside the plate's bottom face, so every one of its
+/// segments runs between two ring vertices, the plate's fillet tangent
+/// to the east arm's end. The join places the island's ring when a
+/// chord first reaches it and builds the union sound in both orders.
 #[test]
-fn an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier() {
-    let (ch, _) = channel(4.0);
+fn an_island_of_ring_vertex_segments_builds_sound() {
+    let (ch, vch) = channel(4.0);
     let (r, xe, step) = (1.0, 4.5, 2.0);
     let p = vec![
         ((-1.0, -1.0), 0.0),
@@ -553,21 +531,9 @@ fn an_island_of_ring_vertex_segments_refuses_at_the_zip_frontier() {
         ((-1.0, 5.0), 0.0),
     ];
     let up = plate(&p, 1.0);
-    for (order, x, y) in [("ab", &ch, &up), ("ba", &up, &ch)] {
-        let d = declared(x, y);
-        assert!(d.is_ok(), "{order}: declarations: {d:?}");
-        let d = d.unwrap_or_default();
-        let got = topo::union_with(&fin(x), &fin(y), &d, tol());
-        assert!(
-            matches!(
-                got,
-                Err(BooleanError::RestZipUnsupported {
-                    what: topo::RestZipFrontier::SegmentsBetweenIsolatedPierces
-                })
-            ),
-            "{order}: {got:?}"
-        );
-    }
+    let want = vch + bulge_area(&p);
+    builds_paired("island ab", &ch, &up, want);
+    builds_paired("island ba", &up, &ch, want);
 }
 
 /// **A span between two pierce-ring vertices waits for one of them to

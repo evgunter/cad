@@ -89,6 +89,7 @@ test_utils::f6_variants! {
         Boolean,
         Union,
         Transform,
+        PlaceInWorld,
         Pattern,
         Part,
         PlacedUnion,

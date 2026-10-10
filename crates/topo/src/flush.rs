@@ -59,10 +59,8 @@
 //! Definite is a claim about the GEOMETRY, and only that. A finding
 //! says "declared, this pair verifies"; it does not say the op will
 //! build. A true declaration still meets whatever capability frontier
-//! lies downstream of verification — a `SameOriented` wall pair
-//! declared on a stepped mate verifies and then refuses at
-//! `RestZipUnsupported`, typed, at the zip. Detection cannot see those
-//! frontiers and does not claim to.
+//! lies downstream of verification, typed, in the boolean. Detection
+//! cannot see those frontiers and does not claim to.
 //!
 //! The refusal names ONE pair — the FIRST indeterminate pair in the
 //! enumeration order below — and abandons the walk there. It is not a

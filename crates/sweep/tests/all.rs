@@ -69,6 +69,10 @@ mod a_ring_on_a_sphere_face;
 mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "a_tube_ending_on_a_ball.rs"]
+mod a_tube_ending_on_a_ball;
+#[path = "an_annular_tube_through_a_plate.rs"]
+mod an_annular_tube_through_a_plate;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -107,6 +111,8 @@ mod bool6r1_probes_interval;
 mod carved_sphere_operand;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
+#[path = "cone_operand_rows.rs"]
+mod cone_operand_rows;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]

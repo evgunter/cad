@@ -76,8 +76,6 @@ mod asm_r2a_mate_wire;
 mod asm_r2b_assembly;
 #[path = "asm_r2b_interface_wire.rs"]
 mod asm_r2b_interface_wire;
-#[path = "asm_roots.rs"]
-mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
 #[path = "assemble_one_local_battery.rs"]
@@ -198,6 +196,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "fork7_shared_is_named.rs"]
+mod fork7_shared_is_named;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refusal_concision.rs"]
@@ -224,8 +224,6 @@ mod rv_dm7_probes;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
-#[path = "gather_placed_under_two_roots.rs"]
-mod gather_placed_under_two_roots;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -765,6 +763,8 @@ mod intent_s2_a_outputs;
 mod intent_s2_b_reads;
 #[path = "intent_s2_d_measure.rs"]
 mod intent_s2_d_measure;
+#[path = "intent_s2_c_world.rs"]
+mod intent_s2_c_world;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

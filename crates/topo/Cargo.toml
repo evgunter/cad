@@ -105,7 +105,7 @@ strum = { version = "0.28", features = ["derive"] }
 topo = { path = ".", features = ["sweep-testing", "test-support"] }
 # Downstream export/tessellation consumers, dev-only (M5 S1): the
 # glued-union acceptance rows pin watertight STL + STEP export of the
-# REST-zip results (dev-dependency cycles are cargo-legal and never
+# declared REST unions (dev-dependency cycles are cargo-legal and never
 # reach production dependents).
 mesh = { path = "../mesh" }
 stl = { path = "../stl" }

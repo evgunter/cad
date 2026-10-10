@@ -2,11 +2,10 @@
 //!
 //! - every authored point lies on the final path (targets are
 //!   vertices bit-for-bit; anchors lie on their trimmed side);
-//! - the verify layer's two tangency refusals
-//!   (`UndeclaredTangency`/`TangencyContradicted`) are unreachable
-//!   from the typed surface: tangency enters only by construction
-//!   (declared flags are never claims about independently-typed
-//!   numbers), and the sign-domain doors that could fake a
+//! - the verify layer's tangency refusal (`TangencyContradicted`) is
+//!   unreachable from the typed surface: tangency enters only by
+//!   construction (constructed joints are never claims about
+//!   independently-typed numbers), and the sign-domain doors that could fake a
 //!   construction (negative leg length, non-positive fillet radius)
 //!   refuse typed at authoring. Other verify doors (simplicity,
 //!   degeneracy) still judge the SHAPE — the lattice guarantees the
@@ -42,7 +41,7 @@ test_utils::gated_to![
 
 use crate::common;
 
-use common::pinned;
+use common::{pinned, pinned_constructed};
 use geom_core::Point2;
 use profile::path::{CornerReason, CornerWindow, HasAng, HasPos, WithIncoming};
 use profile::{Open, PartialPath, PathError, Profile, ProfileLoop, SketchPlane, Start};
@@ -198,18 +197,18 @@ proptest! {
             path = path.line_to(*q, Tol::witness()).unwrap();
         }
         let algebra = path.line_to(Start, Tol::witness()).unwrap();
-        let algebra = pinned(algebra);
+        let algebra = pinned_constructed(algebra);
         // The property SAID DIRECTLY (LIB-RETTAIL): a sharp chain's
         // lowering is the authored table verbatim — one vertex per
         // authored point, in order, bit-for-bit, every bulge +0.0, no
-        // declared joints. This used to be stated as "identical to the
+        // constructed joints. This used to be stated as "identical to the
         // LoopBuilder chain"; against a random input a recorded fixture
         // is impossible, and the twin was only ever a second way of
         // saying this. Said against the INPUT it is strictly stronger:
         // a lowering that dropped, duplicated or reordered a point now
         // fails even if a twin would have made the same mistake.
         prop_assert_eq!(algebra.vertices().len(), pts.len());
-        prop_assert!(algebra.tangent_joints().is_empty());
+        prop_assert!(algebra.constructed_joints().is_empty());
         for (k, q) in pts.iter().enumerate() {
             prop_assert_eq!(algebra.vertices()[k].x.to_bits(), q.x.to_bits());
             prop_assert_eq!(algebra.vertices()[k].y.to_bits(), q.y.to_bits());
@@ -246,7 +245,7 @@ proptest! {
             .line(top_len, Tol::witness()).unwrap()
             .line_to(Point2::new(0.0, h), Tol::witness()).unwrap()
             .line_to(Start, Tol::witness()).unwrap();
-        let algebra = pinned(algebra);
+        let algebra = pinned_constructed(algebra);
         validate_ok(&algebra);
         // The anchor lies on the trimmed arrival side: the segment
         // from the fillet arc's end (vertex 2) to the side's end
@@ -352,16 +351,16 @@ fn turn_pi_refuses_as_cusp_naming_the_declaration_door() {
         .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
-        declared.loop_.tangent_joints(),
+        declared.loop_.constructed_joints(),
         &[1],
         "the cusp joint is DECLARED, like a tangent one"
     );
 }
 
 #[test]
-fn declared_straight_continuation_of_a_line_is_a_declared_tangent_joint() {
+fn declared_straight_continuation_of_a_line_is_a_constructed_tangent_joint() {
     // RULED (Ev, in-chat, 2026-09-02): every zero-turn joint is a
-    // declared tangent joint, and the lattice never asks whether the
+    // tangent joint, and the lattice never asks whether the
     // carriers are the same. This used to refuse `SameCarrierJunction`.
     let leg = Open
         .at(Point2::new(0.0, 0.0))
@@ -388,8 +387,8 @@ fn cocircular_tangent_arc_is_same_carrier() {
         )
         .unwrap()
         .tangent();
-    // RULED (2026-09-02): cocircular under a declared tangency is a
-    // declared tangent joint, not a refusal.
+    // RULED (2026-09-02): cocircular under a constructed tangency is a
+    // constructed tangent joint, not a refusal.
     assert!(
         arc_end
             .tangent_arc_to(Point2::new(0.0, 1.0), Tol::witness())
@@ -588,12 +587,12 @@ fn tangent_seam_closes_via_tangent_arc() {
         .tangent()
         .tangent_arc_to(Start, Tol::witness())
         .unwrap();
-    let loop_ = pinned(loop_);
+    let loop_ = pinned_constructed(loop_);
     validate_ok(&loop_);
     // The two `.tangent()` joints are declared; the junctions at
     // (4, 1) and at Start are definitely sharp; the verifier confirms
     // every flag.
-    assert_eq!(loop_.tangent_joints().len(), 2);
+    assert_eq!(loop_.constructed_joints().len(), 2);
 }
 
 // ------------------------------------------------------------------
@@ -668,12 +667,13 @@ fn nonpositive_fillet_radius_refuses_typed_r7() {
 #[test]
 fn circle_validates_and_refuses_nonpositive_radius() {
     let c = profile::circle(Point2::new(1.0, 2.0), 0.75, Tol::witness()).unwrap();
-    let c = pinned(c);
+    let c = pinned_constructed(c);
     validate_ok(&c);
     assert_eq!(c.vertices().len(), 2);
-    assert!(
-        c.tangent_joints().is_empty(),
-        "a circle's two joints are same-carrier identities, not declared tangencies"
+    assert_eq!(
+        c.constructed_joints(),
+        &[0, 1],
+        "a circle constructs its two joints, one carrier continuing"
     );
     for r in [-1.0, 0.0] {
         assert!(
@@ -924,7 +924,7 @@ fn far_end_anchor_refuses_at_the_entry() {
 // LIB-G1 fix pass: the far-end anchor's EXACT-FIT branch (both
 // reviewers' MAJOR-1). When the fillet trim reaches the authored
 // anchor exactly, the side IS the arc — so the arc's outgoing joint
-// must be a FREE junction, not a declared tangency.
+// must be a FREE junction, not a constructed tangency.
 // ------------------------------------------------------------------
 
 /// A right-angle corner at (1, 1) with r = 0.5: the setback is exactly
@@ -1897,11 +1897,11 @@ fn via_start_close_and_the_arc_incoming_seam() {
         )
         .unwrap()
         .to(Start, Tol::witness())
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
     validate_ok(&seam);
     // The seam arc closes the loop: joint 0 is declared.
-    assert!(seam.tangent_joints().contains(&0));
+    assert!(seam.constructed_joints().contains(&0));
 }
 
 /// RAY EXTENSION (§2c round 10): bare `fillet(r)` directly on a leg
@@ -1928,7 +1928,7 @@ fn ray_extension_is_tangent_fillet_bitwise() {
             .line(1.0, Tol::witness())
             .unwrap()
             .line_to(Start, Tol::witness())
-            .map(pinned)
+            .map(pinned_constructed)
             .unwrap()
     };
     let extended = chain(true);
@@ -1940,7 +1940,7 @@ fn ray_extension_is_tangent_fillet_bitwise() {
     for (a, b) in extended.segments().iter().zip(spelled.segments().iter()) {
         assert_eq!(format!("{a:?}"), format!("{b:?}"));
     }
-    assert_eq!(extended.tangent_joints(), spelled.tangent_joints());
+    assert_eq!(extended.constructed_joints(), spelled.constructed_joints());
     validate_ok(&extended);
 }
 
@@ -1972,17 +1972,17 @@ fn straight_continuation_subdivides_a_run_and_validates() {
         .line_to(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
     let v: Vec<_> = lp.vertices().iter().map(|x| (x.x, x.y)).collect();
     assert_eq!(v, vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (4.0, 3.0)]);
     // The subdivision DECLARES its own zero-turn joint (Ev, in-chat,
     // 2026-09-02) — declaration by construction, as `.tangent()` is.
     assert_eq!(
-        lp.tangent_joints(),
+        lp.constructed_joints(),
         &[1],
         "the subdivision declares its own joint: {:?}",
-        lp.tangent_joints()
+        lp.constructed_joints()
     );
     validate_ok(&lp);
 }
@@ -2070,7 +2070,7 @@ fn authored_collinear_target_refuses_naming_the_structural_spelling() {
 
 /// A CURVED zero-turn junction keeps refusing: the departure is
 /// authored, and off an arc the same direction is tangency onto a
-/// DISTINCT carrier — the undeclared-tangency doctrine, untouched.
+/// DISTINCT carrier — the lattice's tangent-junction refusal, untouched.
 #[test]
 fn curved_zero_turn_still_refuses() {
     let arc_end = Open
@@ -2092,11 +2092,11 @@ fn curved_zero_turn_still_refuses() {
 /// The continuation row is CARRIER-BLIND, as the §2c axiom requires:
 /// it reads the tangent bit and nothing about the leg that produced
 /// it. Off an ARC that spelling authors a line tangent to the arc and
-/// declares nothing — a tangency between distinct carriers, which the
-/// DATA gate refuses. The declared spelling of the same geometry
-/// (`.tangent().line(len)`) passes, which is the whole difference.
+/// constructs the joint — a tangency between distinct carriers the
+/// gate verifies — exactly as the `.tangent().line(len)` spelling of
+/// the same geometry does.
 #[test]
-fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
+fn continuation_off_an_arc_is_a_constructed_tangency() {
     let semicircle = || {
         Open.at(Point2::new(-1.0, 0.0))
             .arc_to(
@@ -2112,24 +2112,21 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
         .line(1.0, Tol::witness())
         .expect("the door cannot see the carrier, so it cannot refuse here")
         .line_to(Start, Tol::witness())
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
-    // RULED (2026-09-02): the continuation DECLARES the joint it
-    // mints, so what this row called "undeclared" is declared now and
-    // the data gate accepts it. The door still cannot see the carrier —
-    // it does not need to.
-    assert!(undeclared.tangent_joints().contains(&1));
-    Profile::new(SketchPlane::xy(), vec![undeclared])
-        .validate(Tol::witness())
-        .expect("the continuation declared the joint");
+    // The continuation CONSTRUCTS the joint it mints, so what this row
+    // called "undeclared" is constructed and the gate verifies it. The
+    // door still cannot see the carrier — it does not need to.
+    assert!(undeclared.constructed_joints().contains(&1));
+    validate_ok(&undeclared);
     let declared = semicircle()
         .tangent()
         .line(1.0, Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
-    assert_eq!(declared.tangent_joints(), &[1]);
+    assert_eq!(declared.constructed_joints(), &[1]);
     validate_ok(&declared);
 }
 
@@ -2231,14 +2228,14 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
         at_m3().line_to(Start, t),
         Err(PathError::JunctionTangent { .. })
     ));
-    let closed = pinned(
+    let closed = pinned_constructed(
         at_m3()
             .continue_to(Start, t)
             .expect("the declared closer ends the run that crosses the seam"),
     );
     assert_eq!(closed.vertices().len(), 8);
-    // The subdivisions the run mints are declared joints now.
-    assert_eq!(closed.tangent_joints(), &[1, 3, 5, 7]);
+    // The subdivisions the run mints are constructed joints now.
+    assert_eq!(closed.constructed_joints(), &[1, 3, 5, 7]);
     validate_ok(&closed);
     // Rotation 2 — seam at the subdivision vertex `mid(keel, right)`:
     // the closer departs the corner asserted above, and the SEAM
@@ -2272,18 +2269,17 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     // THE FLIP. The declaration the seam wanted rides the ARRIVAL, not
     // the departure — the seam is the one junction whose arriving leg is
     // the later-authored one — and with it this rotation closes. Eight
-    // vertices, no tangent joint (one carrier continues through the
-    // seam; the #433 ruling says data like that claims no tangency),
+    // vertices, every subdivision a constructed tangent joint, and
     // `validate` green.
-    let closed = pinned(
+    let closed = pinned_constructed(
         back_at_keel()
             .line_to(Start.arrives_tangent(), t)
             .expect("the declared arrival closes the seam at a subdivision vertex"),
     );
     assert_eq!(closed.vertices().len(), 8);
-    // The seam is a declared tangent joint (target) and the run's
-    // subdivisions are declared tangent joints (the continuation verbs).
-    assert_eq!(closed.tangent_joints(), &[2, 4, 6, 0]);
+    // The seam is a constructed tangent joint (target) and so are the
+    // run's subdivisions (the continuation verbs); the set is sorted.
+    assert_eq!(closed.constructed_joints(), &[0, 2, 4, 6]);
     validate_ok(&closed);
 }
 // ==================================================================
@@ -2300,7 +2296,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
 /// `JunctionTangent`, which is the probe's whole subject and is
 /// unchanged. The DECLARED spelling used to refuse
 /// `SameCarrierJunction` and is legal since the Q1 sixth round (Ev,
-/// in-chat, 2026-09-02: every zero-turn joint is a declared tangent
+/// in-chat, 2026-09-02: every zero-turn joint is a constructed tangent
 /// joint), so the accepting spellings are now the declared one and the
 /// one with NO authored direction at all — never an authored direction
 /// that happens to land in band.
@@ -2359,17 +2355,15 @@ fn r2_probe_arc_continuations_never_pass_validate() {
         .line(0.5, t)
         .unwrap()
         .line_to(Start, t)
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
-    // RULED (2026-09-02): each continuation declares the joint it
-    // mints, so a CHAIN of them off an arc declares every one and the
-    // data gate accepts. The probe's subject — that the door cannot see
-    // the carrier — is unchanged; what moved is that it no longer has
-    // to, because the declaration travels with the verb.
-    assert_eq!(undeclared.tangent_joints(), &[1, 2]);
-    Profile::new(SketchPlane::xy(), vec![undeclared])
-        .validate(t)
-        .expect("every continuation joint is declared");
+    // Each continuation constructs the joint it mints, so a CHAIN of
+    // them off an arc constructs every one and the gate verifies them.
+    // The probe's subject — that the door cannot see the carrier — is
+    // unchanged; what moved is that it no longer has to, because the
+    // construction travels with the verb.
+    assert_eq!(undeclared.constructed_joints(), &[1, 2]);
+    validate_ok(&undeclared);
 }
 
 /// PROBE 3 (claim 5): third-spelling search for the lily seam wall,
@@ -2489,7 +2483,7 @@ fn r2_probe_bitwise_inheritance_is_transitive() {
         .line_to(Point2::new(-5.0, 1.0), t)
         .unwrap()
         .line_to(Start, t)
-        .map(pinned)
+        .map(pinned_constructed)
         .unwrap();
     let v = lp.vertices();
     let d = |i: usize| {
@@ -2505,6 +2499,6 @@ fn r2_probe_bitwise_inheritance_is_transitive() {
         "the third endpoint rounds: bit-identical displacements are the \
          fixture's property, not the inheritance's"
     );
-    assert_eq!(lp.tangent_joints(), &[1, 2]);
+    assert_eq!(lp.constructed_joints(), &[1, 2]);
     validate_ok(&lp);
 }

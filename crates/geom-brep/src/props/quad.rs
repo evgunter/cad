@@ -151,10 +151,10 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::algebra::{self, GridSkip, SLIVER_CLEARANCE_ULPS};
+use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
-use geom_core::spline::{KnotVector, Span};
+use geom_core::spline::{KnotVector, Param, ParamRange, Span, last_at_or_below};
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::{PropsCheck, PropsError};
@@ -896,11 +896,13 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
     let p = kv.degree();
     let u = kv.knots();
     // The window is validated once, by `span_at`, and carries its own
-    // first control point: the `span − p` this loop used to redo twice
-    // (once per pass) has no use site left and cannot underflow. Its
-    // in-range-ness is the `Span` invariant, so indexing `coeffs`
-    // needs only the length check above.
-    let first = kv.span_at(t).first_control();
+    // first control point, so it cannot underflow. Its in-range-ness is
+    // the `Span` invariant, so indexing `coeffs` needs only the length
+    // check above.
+    let Some(span) = kv.span_at(t) else {
+        return Interval::refused();
+    };
+    let first = span.first_control();
     let mut d: Vec<Interval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
@@ -913,16 +915,16 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
     d[p]
 }
 
-/// Hull of a scalar B-spline over `[lo, hi]`: `coeffs` minted as
-/// `kv`'s, then the hull of the active spans' coefficient hulls
-/// (conservative to span granularity). A refusal when the mint refuses
-/// the pair — a count the ladder's own structure never produces, kept
-/// as the answer a bound gives for structure it cannot license.
-fn range_hull(kv: &KnotVector, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
+/// Hull of a scalar B-spline over `range`: `coeffs` minted as `kv`'s,
+/// then the hull of the active spans' coefficient hulls (conservative
+/// to span granularity). A refusal when the mint refuses the pair — a
+/// count the ladder's own structure never produces, kept as the answer
+/// a bound gives for structure it cannot license.
+fn range_hull(kv: &KnotVector, coeffs: &[Interval], range: ParamRange) -> Interval {
     let Some(pair) = kv.with_coeffs(coeffs) else {
         return Interval::refused();
     };
-    let (s0, s1) = kv.span_range(lo, hi);
+    let (s0, s1) = kv.span_range(range);
     let mut acc = Interval::refused();
     let mut seeded = false;
     for index in s0.index()..=s1.index() {
@@ -984,13 +986,13 @@ impl DerivLadder {
         Self { levels }
     }
 
-    /// Hull of the `order`-th derivative over `[lo, hi]`, assuming the
+    /// Hull of the `order`-th derivative over `range`, assuming the
     /// piece is knot-free (module docs). `order` ∈ 1..=3.
-    fn hull(&self, order: usize, lo: f64, hi: f64) -> Interval {
+    fn hull(&self, order: usize, range: ParamRange) -> Interval {
         match &self.levels[order - 1] {
             // In-span polynomial zero (degree exhausted).
             None => Interval::zero(),
-            Some((Some(kv), q)) => range_hull(kv, q, lo, hi),
+            Some((Some(kv), q)) => range_hull(kv, q, range),
             // Coefficients exist but their kv does not (piecewise
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
@@ -1065,11 +1067,16 @@ pub fn bspline_green_integral(
         #[allow(clippy::cast_precision_loss)]
         let p_lo = a + span * (i as f64 / pieces as f64);
         let p_hi = p_lo + h;
+        let Some(piece) = ParamRange::new(p_lo, p_hi) else {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "empty or non-finite parameter interval",
+            });
+        };
         let straddles = interior.iter().any(|k| *k > p_lo && *k < p_hi);
-        let uh = range_hull(kv, u_coeffs, p_lo, p_hi);
+        let uh = range_hull(kv, u_coeffs, piece);
         let v1h = match v1_kv {
-            Some(k) => range_hull(k, v1, p_lo, p_hi),
-            None => v_ladder.hull(1, p_lo, p_hi),
+            Some(k) => range_hull(k, v1, piece),
+            None => v_ladder.hull(1, piece),
         };
         if straddles {
             // Smoothness-free rule across the knot.
@@ -1083,9 +1090,9 @@ pub fn bspline_green_integral(
                 None => v1h,
             };
         // f\'\' = u\'\'·v\' + 2·u\'·v\'\' + u·v\'\'\' over the knot-free piece.
-        let f2 = u_ladder.hull(2, p_lo, p_hi) * v1h
-            + pt(2.0) * u_ladder.hull(1, p_lo, p_hi) * v_ladder.hull(2, p_lo, p_hi)
-            + uh * v_ladder.hull(3, p_lo, p_hi);
+        let f2 = u_ladder.hull(2, piece) * v1h
+            + pt(2.0) * u_ladder.hull(1, piece) * v_ladder.hull(2, piece)
+            + uh * v_ladder.hull(3, piece);
         total = total + pt(h) * fm + f2 * h3_24;
     }
     Ok(total)
@@ -1198,7 +1205,7 @@ enum Collapse<'a> {
         /// The enclosed evaluation parameter.
         t: &'a Interval,
     },
-    Over(f64, f64),
+    Over(ParamRange),
 }
 
 /// One direction's knot structure: a real knot vector, or the
@@ -1233,26 +1240,40 @@ enum Dir {
 }
 
 /// The span index of `t` in a raw knot slice: the last nonempty span
-/// whose lower knot does not exceed `t`, clamped into the valid range.
-fn raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
+/// whose lower knot does not exceed `t`, clamped into the valid range
+/// (`degree` when none does). It is [`last_at_or_below`] over the span
+/// starts `knots[degree ..= top]`, which lands on a run's last copy —
+/// nonempty unless the run continues past `top`, where it steps back to
+/// the nonempty span below the run.
+fn raw_span(knots: &[f64], degree: usize, count: usize, t: Param) -> usize {
     let last = count.saturating_sub(1).max(degree);
-    let mut span = degree;
-    let mut i = degree;
-    while i <= last && i + 1 < knots.len() {
-        if knots[i] <= t && knots[i] < knots[i + 1] {
-            span = i;
-        }
-        i += 1;
+    let top = last.min(knots.len().saturating_sub(2));
+    if top < degree {
+        return degree;
     }
-    span.min(last)
+    let Some(j) = last_at_or_below(&knots[degree..=top], t) else {
+        return degree;
+    };
+    // Indexing justified: degree ≤ i ≤ top ≤ len − 2.
+    let mut i = degree + j;
+    while knots[i] == knots[i + 1] {
+        if i == degree {
+            return degree;
+        }
+        i -= 1;
+    }
+    i
 }
 
 /// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
 fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interval {
-    if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 || !t.is_finite() {
+    if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 {
         return Interval::refused();
     }
-    let span = raw_span(knots, degree, coeffs.len(), t);
+    let Some(at) = finite_param(t) else {
+        return Interval::refused();
+    };
+    let span = raw_span(knots, degree, coeffs.len(), at);
     let mut d: Vec<Interval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
     for r in 1..=degree {
         for j in (r..=degree).rev() {
@@ -1265,16 +1286,22 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interv
     d[degree]
 }
 
-/// Hull of a [`Dir::Raw`] spline over `[lo, hi]`: the local control
+/// Hull of a [`Dir::Raw`] spline over `range`: the local control
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses).
-fn raw_range_hull(knots: &[f64], degree: usize, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
+fn raw_range_hull(
+    knots: &[f64],
+    degree: usize,
+    coeffs: &[Interval],
+    range: ParamRange,
+) -> Interval {
     if coeffs.len() < degree + 1 {
         return Interval::refused();
     }
+    let (start, end) = range.ends();
     let (s0, s1) = (
-        raw_span(knots, degree, coeffs.len(), lo),
-        raw_span(knots, degree, coeffs.len(), hi),
+        raw_span(knots, degree, coeffs.len(), start),
+        raw_span(knots, degree, coeffs.len(), end),
     );
     let mut acc = Interval::refused();
     let mut seeded = false;
@@ -1321,14 +1348,22 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval>
 type DerivTake = Box<dyn Fn(&[Interval]) -> Vec<Interval>>;
 
 impl Dir {
-    /// The per-span-constant coefficient index for a point.
-    fn const_index(knots: &[f64], t: f64, count: usize) -> usize {
-        let mut i = 0usize;
-        while i + 1 < count && i + 1 < knots.len() && knots[i + 1] <= t {
-            i += 1;
+    /// The per-span-constant coefficient index for `t`: how many span
+    /// ends at or below it the coefficients reach ([`last_at_or_below`]
+    /// over `knots[1..m]`), so `0` below the first end.
+    fn const_index(knots: &[f64], t: Param, count: usize) -> usize {
+        let m = count.min(knots.len());
+        if m <= 1 {
+            return 0;
         }
-        i
+        last_at_or_below(&knots[1..m], t).map_or(0, |j| j + 1)
     }
+}
+
+/// `t` as a [`Param`] when it is finite: the point arms refuse an
+/// infinite point as well as a NaN one.
+fn finite_param(t: f64) -> Option<Param> {
+    Param::new(t).filter(|p| p.get().is_finite())
 }
 
 /// In-span de Boor at an ENCLOSED parameter: evaluates the span's
@@ -1515,14 +1550,18 @@ impl PatchGrid {
     fn collapse_1d(dir: &Dir, coeffs: &[Interval], op: Collapse<'_>) -> Interval {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
-            (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(coeffs, kv.span_at(mid), *t)
-            }
-            (Dir::Kv(kv), Collapse::Over(lo, hi)) => range_hull(kv, coeffs, lo, hi),
+            (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => match kv.span_at(mid) {
+                Some(span) => bspline_eval_ring_in_span(coeffs, span, *t),
+                None => Interval::refused(),
+            },
+            (Dir::Kv(kv), Collapse::Over(range)) => range_hull(kv, coeffs, range),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
             (Dir::Raw { knots, degree }, Collapse::AtSpan { mid, t }) => {
                 // The node lies in the closure of `mid`'s span; the
                 // span polynomial is what the rule integrates.
+                let Some(mid) = Param::new(mid) else {
+                    return Interval::refused();
+                };
                 let span = raw_span(knots, *degree, coeffs.len(), mid);
                 let mut d: Vec<Interval> = (0..=*degree)
                     .map(|j| {
@@ -1545,18 +1584,23 @@ impl PatchGrid {
                 }
                 d[*degree]
             }
-            (Dir::Raw { knots, degree }, Collapse::Over(lo, hi)) => {
-                raw_range_hull(knots, *degree, coeffs, lo, hi)
+            (Dir::Raw { knots, degree }, Collapse::Over(range)) => {
+                raw_range_hull(knots, *degree, coeffs, range)
             }
-            (Dir::Const { knots }, Collapse::At(t)) => {
-                coeffs[Dir::const_index(knots, t, coeffs.len())]
-            }
-            (Dir::Const { knots }, Collapse::AtSpan { mid, .. }) => {
-                coeffs[Dir::const_index(knots, mid, coeffs.len())]
-            }
-            (Dir::Const { knots }, Collapse::Over(lo, hi)) => {
-                let a = Dir::const_index(knots, lo, coeffs.len());
-                let b = Dir::const_index(knots, hi, coeffs.len());
+            // A non-finite point refuses, as the `Kv` and `Raw` point
+            // arms beside it do.
+            (Dir::Const { knots }, Collapse::At(t)) => match finite_param(t) {
+                Some(t) => coeffs[Dir::const_index(knots, t, coeffs.len())],
+                None => Interval::refused(),
+            },
+            (Dir::Const { knots }, Collapse::AtSpan { mid, .. }) => match Param::new(mid) {
+                Some(mid) => coeffs[Dir::const_index(knots, mid, coeffs.len())],
+                None => Interval::refused(),
+            },
+            (Dir::Const { knots }, Collapse::Over(range)) => {
+                let (start, end) = range.ends();
+                let a = Dir::const_index(knots, start, coeffs.len());
+                let b = Dir::const_index(knots, end, coeffs.len());
                 let mut acc = coeffs[a];
                 for c in &coeffs[a..=b.max(a)] {
                     acc = Interval::hull(acc, *c);
@@ -1609,6 +1653,25 @@ impl PatchGrid {
             self.channel(2, u, v),
         ]
     }
+}
+
+/// The windows over a bracket box `bu × bv`, or `None` when either side
+/// does not certify: a refused bracket names no region, so a hull over
+/// it is refused rather than read off a window it does not bound.
+fn certified_box(bu: Interval, bv: Interval) -> Option<(Collapse<'static>, Collapse<'static>)> {
+    Some((
+        Collapse::Over(ParamRange::certified(bu)?),
+        Collapse::Over(ParamRange::certified(bv)?),
+    ))
+}
+
+/// The hull a refused window answers, per component.
+fn refused_vec() -> RVec3 {
+    [
+        Interval::refused(),
+        Interval::refused(),
+        Interval::refused(),
+    ]
 }
 
 /// The zero-or-collapse read of an optional (derivative) grid.
@@ -2458,16 +2521,52 @@ fn debug_assert_area_gauge(area: Interval, perimeter_caller: f64, perimeter_lo: 
     }
 }
 
+/// A patch lane's UV rectangle: finite and of positive extent on each
+/// side, held as the two ranges the lanes read over. [`PatchRect::new`]
+/// is the lanes' one rectangle refusal.
+#[derive(Clone, Copy)]
+struct PatchRect {
+    u: ParamRange,
+    v: ParamRange,
+}
+
+impl PatchRect {
+    /// `(u0, u1, v0, v1)` as a rectangle, or the refusal for one that is
+    /// empty, inverted, NaN or not finite.
+    fn new((u0, u1, v0, v1): (f64, f64, f64, f64)) -> Result<Self, PropsError> {
+        // A finite difference of a strictly ordered pair: both ends are
+        // finite and the side has positive extent.
+        let side = |a: f64, b: f64| ParamRange::new(a, b).filter(|_| (b - a).is_finite() && a < b);
+        match (side(u0, u1), side(v0, v1)) {
+            (Some(u), Some(v)) => Ok(Self { u, v }),
+            _ => Err(PropsError::QuadratureUnsupported {
+                what: "empty or non-finite UV rectangle",
+            }),
+        }
+    }
+
+    /// The corners as `(u0, u1, v0, v1)`.
+    fn corners(self) -> (f64, f64, f64, f64) {
+        (self.u.start(), self.u.end(), self.v.start(), self.v.end())
+    }
+}
+
+/// The window between two adjacent cuts of a [`PatchRect`] side.
+/// [`knot_aligned_cuts`] of a finite range is a sorted list of numbers,
+/// so the pair is ordered and neither end is NaN.
+fn cut_window(a: f64, b: f64) -> ParamRange {
+    ParamRange::new(a, b)
+        .unwrap_or_else(|| unreachable!("adjacent cuts of a finite range are ordered numbers"))
+}
+
 /// One cell of the shared area grid: its closed extent per axis and the
 /// midpoint the rule evaluates at (carried rather than re-derived, so
 /// every lane's midpoint is the SAME float).
 #[derive(Clone, Copy)]
 struct AreaBox {
-    ulo: f64,
-    uhi: f64,
+    u: ParamRange,
     umid: f64,
-    vlo: f64,
-    vhi: f64,
+    v: ParamRange,
     vmid: f64,
 }
 
@@ -2530,13 +2629,13 @@ struct AreaCell {
 /// The area is a certified DENOMINATOR (the +V meter and the extent
 /// gate) — `boundary_defect` pads it directly.
 fn area_midpoint_taylor<E>(
-    rect: (f64, f64, f64, f64),
+    rect: PatchRect,
     n: usize,
     boundary_defect: f64,
     knots: (&[f64], &[f64]),
     mut cell: impl FnMut(AreaBox) -> Result<AreaCell, E>,
 ) -> Result<Interval, E> {
-    let (u0, u1, v0, v1) = rect;
+    let (u0, u1, v0, v1) = rect.corners();
     let cuts_u = knot_aligned_cuts(u0, u1, n, knots.0);
     let cuts_v = knot_aligned_cuts(v0, v1, n, knots.1);
     let mut acc = Interval::zero();
@@ -2547,11 +2646,9 @@ fn area_midpoint_taylor<E>(
             let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);
             let hv = c_vhi - c_vlo;
             let c = cell(AreaBox {
-                ulo: c_ulo,
-                uhi: c_uhi,
+                u: cut_window(c_ulo, c_uhi),
                 umid: c_ulo.midpoint(c_uhi),
-                vlo: c_vlo,
-                vhi: c_vhi,
+                v: cut_window(c_vlo, c_vhi),
                 vmid: c_vlo.midpoint(c_vhi),
             })?;
             // The cell width as an ENCLOSURE, not a rounded float:
@@ -2629,7 +2726,7 @@ fn refine_dir(
         return None;
     }
     let other = if along_u { nv } else { net.len() / nv };
-    let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS, GridSkip::BitEqual);
+    let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS);
     let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
     // Ascending-index fold over the plan chain, then over the lines of
     // this direction (D9).
@@ -2731,8 +2828,9 @@ fn quotient_second(
 /// SPAN of a whole vector into equal pieces, so its grid restarts at
 /// every knot and a knot is a span end by construction. This grid is
 /// uniform over the RANGE `[lo, hi]`, blind to where the knots fall;
-/// the knots join it as mandatory cuts and the sliver guard arbitrates
-/// between the two sets, which the per-span schedule never has to.
+/// the knots join it as mandatory cuts and the grid's clearance
+/// arbitrates between the two sets, which the per-span schedule never
+/// has to.
 /// Even on a single-span range, where the interior grids coincide, this
 /// list also carries the range ends and the coarse block edges it owes
 /// the hull blocks' containment.
@@ -2769,29 +2867,24 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // invariants: they only subdivide, and a cell that is wider
     // because one was dropped is still inside one smooth piece and
     // still inside its block. So a grid point is taken only when it
-    // stands clear of every mandatory knot cut by the sliver
-    // clearance, which is what stops the cut rule minting hairline
-    // cells (and hairline coarse blocks) when a knot happens to land
-    // an ulp from a grid point. The ends ride in the mandatory set
-    // for completeness; the open-range test already keeps every grid
-    // point off them.
+    // stands clear of every mandatory cut by its grid's clearance
+    // ([`algebra::GRID_CLEARANCE`] of that grid's spacing), which is
+    // what stops the cut rule minting narrow cells (and narrow coarse
+    // blocks) when a knot lands near a grid point. The ends ride in the
+    // mandatory set for completeness; the open-range test already
+    // keeps every grid point off them.
     //
-    // The test is against the MANDATORY set alone, never against
-    // other grid points. That is what makes the block-edge list and
-    // the cell list agree by construction rather than by an argument
-    // about spacing: a block edge is also a `pieces` grid point (both
-    // grids are `lo + (hi − lo)·k/n` and `pieces` is a multiple of
-    // [`QUAD2_HULL_BLOCKS`]), and it faces the identical predicate in
-    // both calls, so it is accepted in both or dropped in both — and
-    // every cell therefore still lies inside exactly one block.
-    let skip = GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS);
+    // Every block edge is a cell cut: the block grid's own points are
+    // in this list, and the block-edge list ([`QUAD2_HULL_BLOCKS`]
+    // pieces through this same function) takes exactly the block grid
+    // points this call takes — the same grid against the same
+    // mandatory set — so every cell still lies inside one block.
     let mandatory = cuts.clone();
-    cuts.extend(algebra::range_grid_points(lo, hi, pieces, skip, &mandatory));
+    cuts.extend(algebra::range_grid_points(lo, hi, pieces, &mandatory));
     cuts.extend(algebra::range_grid_points(
         lo,
         hi,
         QUAD2_HULL_BLOCKS,
-        skip,
         &mandatory,
     ));
     cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
@@ -2883,11 +2976,12 @@ fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
 ///    point at `pieces` is `lo + (hi − lo)·(i/pieces)`, and at
 ///    `2·pieces` the same point is `lo + (hi − lo)·(2i/(2·pieces))`
 ///    — the same correctly rounded quotient, hence the same f64 —
-///    while the mandatory cuts (the knots, the block edges) and the
-///    sliver predicate that admits or drops a grid point are the same
-///    at every round. So every cut of round `r` is a cut of round
-///    `r + 1`, every cell of round `r + 1` lies inside a cell of
-///    round `r`, and per block `Σh³` cannot grow (splitting `h` into
+///    while the mandatory cuts (the knots) and the block edges are the
+///    same at every round and the clearance that drops a grid point
+///    beside a knot ([`algebra::grid_clearance`]) only shrinks, so a
+///    point kept at round `r` is kept at `r + 1`. So every cut of
+///    round `r` is a cut of round `r + 1`, every cell of round `r + 1`
+///    lies inside a cell of round `r`, and per block `Σh³` cannot grow (splitting `h` into
 ///    parts gives `Σ parts³ ≤ h³`) while `Σh` is the block's extent.
 ///    Facts 1–3 applied at round `r` bound round `r`'s width from
 ///    below by round `r`'s separable sum, which is at least the last
@@ -3153,7 +3247,7 @@ fn rational_patch_face<T: Decide>(
     kv_v: &KnotVector,
     control: &[RVec3],
     weights: &[f64],
-    rect: (f64, f64, f64, f64),
+    rect: PatchRect,
     perimeter: f64,
     boundary_defect: f64,
     eps: f64,
@@ -3166,7 +3260,7 @@ fn rational_patch_face<T: Decide>(
          {QUAD2_RATIONAL_MAX_ROUNDS}",
         window.first
     );
-    let (u0, u1, v0, v1) = rect;
+    let (u0, u1, v0, v1) = rect.corners();
     if weights.len() != control.len() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational patch whose weight count does not match its control net",
@@ -3217,7 +3311,7 @@ fn rational_patch_face<T: Decide>(
     let knots_u = interior(kv_u, u0, u1);
     let knots_v = interior(kv_v, v0, v1);
 
-    let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
+    let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
     let g_w = w.chan(over_all.0, over_all.1);
     let g_w_lo = lo_or_refuse(g_w);
     if g_w_lo <= 0.0 || !g_w_lo.is_finite() {
@@ -3254,7 +3348,10 @@ fn rational_patch_face<T: Decide>(
         let (b_ulo, b_uhi) = (edges_u[bu], edges_u[bu + 1]);
         for bv in 0..nbv {
             let (b_vlo, b_vhi) = (edges_v[bv], edges_v[bv + 1]);
-            let o = (Collapse::Over(b_ulo, b_uhi), Collapse::Over(b_vlo, b_vhi));
+            let o = (
+                Collapse::Over(cut_window(b_ulo, b_uhi)),
+                Collapse::Over(cut_window(b_vlo, b_vhi)),
+            );
             let (n, bw) = (a.num(o.0, o.1), w.chan(o.0, o.1));
             blocks.push((
                 quotient_second(
@@ -3289,7 +3386,7 @@ fn rational_patch_face<T: Decide>(
         boundary_defect,
         (&knots_u, &knots_v),
         |b| {
-            let over = (Collapse::Over(b.ulo, b.uhi), Collapse::Over(b.vlo, b.vhi));
+            let over = (Collapse::Over(b.u), Collapse::Over(b.v));
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
             let cm = a.cross_num(&w, m.0, m.1);
             let wm = w.chan(m.0, m.1);
@@ -3350,9 +3447,12 @@ fn rational_patch_face<T: Decide>(
     };
 
     let perimeter_lo = || {
-        boundary_chord_perimeter_lo(rect, QUAD2_PERIM_CHORDS, (&knots_u, &knots_v), |cu, cv| {
-            a.point(&w, cu, cv)
-        })
+        boundary_chord_perimeter_lo(
+            rect.corners(),
+            QUAD2_PERIM_CHORDS,
+            (&knots_u, &knots_v),
+            |cu, cv| a.point(&w, cu, cv),
+        )
     };
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
@@ -3605,12 +3705,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
         window.first
     );
-    let (u0, u1, v0, v1) = rect;
-    if !(u1 - u0).is_finite() || u1 <= u0 || !(v1 - v0).is_finite() || v1 <= v0 {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "empty or non-finite UV rectangle",
-        });
-    }
+    let rect = PatchRect::new(rect)?;
+    let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
     if weights.iter().any(|w| *w != 1.0) {
@@ -3653,7 +3749,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // Position magnitude bound over the rectangle (the flux pad's
     // lever): a 1-norm over-bound of the 2-norm suffices — only an
     // upper bound is consumed.
-    let s_hull = s.vec(Collapse::Over(u0, u1), Collapse::Over(v0, v1));
+    let s_hull = s.vec(Collapse::Over(rect.u), Collapse::Over(rect.v));
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
@@ -3668,7 +3764,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // the cells are cut on the interior knots, so each one lies inside
     // a single smooth piece and the Taylor remainder is the whole
     // error there.
-    let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
+    let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
     let g_s = s_hull;
     let g_su = grid_vec(su.as_ref(), over_all.0, over_all.1);
     let g_sv = grid_vec(sv.as_ref(), over_all.0, over_all.1);
@@ -3709,7 +3805,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         boundary_defect,
         (&knots_u, &knots_v),
         |b| -> Result<AreaCell, PropsError> {
-            let over = (Collapse::Over(b.ulo, b.uhi), Collapse::Over(b.vlo, b.vhi));
+            let over = (Collapse::Over(b.u), Collapse::Over(b.v));
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
             let cm = rv_cross(
                 grid_vec(su.as_ref(), m.0, m.1),
@@ -3741,9 +3837,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     )?;
 
     let perimeter_lo = || {
-        boundary_chord_perimeter_lo(rect, QUAD2_PERIM_CHORDS, (&knots_u, &knots_v), |cu, cv| {
-            s.vec(Collapse::At(cu), Collapse::At(cv))
-        })
+        boundary_chord_perimeter_lo(
+            rect.corners(),
+            QUAD2_PERIM_CHORDS,
+            (&knots_u, &knots_v),
+            |cu, cv| s.vec(Collapse::At(cu), Collapse::At(cv)),
+        )
     };
 
     // ---- The exact per-span lane first (fn docs): one tensor
@@ -4033,14 +4132,10 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         return None;
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
-    // A uniform cut that lands on a knot is the knot; minting the
-    // hairline span between them would be arithmetic noise, and the
-    // block list would carry a box of zero width.
-    breaks.extend(algebra::domain_grid_points(
-        kv,
-        m,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-    ));
+    // A uniform cut near a knot is dropped and the knot stands: the
+    // narrow span between them would carry the insertion's rounding,
+    // and the block list a box of next to no width.
+    breaks.extend(algebra::domain_grid_points(kv, m));
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
     let mut add: Vec<f64> = Vec::new();
@@ -4289,11 +4384,10 @@ fn piece_monotone<T: Decide>(
         ));
     }
     let (bu, bv) = block_box(block);
-    let over = (
-        Collapse::Over(lo_or_refuse(bu), hi_or_refuse(bu)),
-        Collapse::Over(lo_or_refuse(bv), hi_or_refuse(bv)),
-    );
-    let (gu, gv) = (grid_vec(su, over.0, over.1), grid_vec(sv, over.0, over.1));
+    let (gu, gv) = match certified_box(bu, bv) {
+        Some(over) => (grid_vec(su, over.0, over.1), grid_vec(sv, over.0, over.1)),
+        None => (refused_vec(), refused_vec()),
+    };
     let rate = norm_lo(core::array::from_fn(|k| gu[k] * du + gv[k] * dv));
     // The INF door by signature (`predicate.rs`'s rate pair): this is a
     // "definitely apart" claim — the piece advances along its chord by
@@ -4732,16 +4826,28 @@ fn chord_polygon_area(
         if ua == ub {
             continue;
         }
-        let (lo, hi) = (ua.min(ub), ua.max(ub));
+        // `spanning`, not `min`/`max`: those drop a NaN end and would
+        // mint the chord's window from the other end alone.
+        let Some(span_u) = ParamRange::spanning(ua, ub) else {
+            return Interval::refused();
+        };
         let slope = (vb - va) / (ub - ua);
         let ell = |u: f64| va + (u - ua) * slope;
         let mut chord = Interval::zero();
-        for w in knot_aligned_cuts(lo, hi, TRIM_AREA_PIECES, &ku).windows(2) {
+        for w in knot_aligned_cuts(span_u.start(), span_u.end(), TRIM_AREA_PIECES, &ku).windows(2) {
             let (p, q) = (w[0], w[1]);
+            // Adjacent cuts of a sorted list are ordered; a pair that is
+            // not (an infinite end cuts to NaN) names no region, and the
+            // area refuses.
+            let Some(sub) = ParamRange::new(p, q) else {
+                return Interval::refused();
+            };
             let hu = q - p;
             let um = p.midpoint(q);
             let top = ell(um);
-            let (ilo, ihi) = (v0.min(top), v0.max(top));
+            let Some(column) = ParamRange::spanning(v0, top) else {
+                return Interval::refused();
+            };
             // The COLUMN under this sub-chord's midpoint, cell by cell
             // — and each cell's pad is the rectangle lane's own,
             // `½h_u·G_u + ½h_v·G_v`, with both hulls read over the
@@ -4750,8 +4856,13 @@ fn chord_polygon_area(
             // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
             // and the cell rule pads that rectangle directly.
             let mut col = Interval::zero();
-            for wc in knot_aligned_cuts(ilo, ihi, TRIM_AREA_PIECES, &kvb).windows(2) {
+            for wc in
+                knot_aligned_cuts(column.start(), column.end(), TRIM_AREA_PIECES, &kvb).windows(2)
+            {
                 let (c0, c1) = (wc[0], wc[1]);
+                let Some(cell_v) = ParamRange::new(c0, c1) else {
+                    return Interval::refused();
+                };
                 let hv = c1 - c0;
                 let vm = c0.midpoint(c1);
                 let (cell_g, cell_gu, cell_gv) = area_cell(
@@ -4760,8 +4871,8 @@ fn chord_polygon_area(
                     suu,
                     suv,
                     svv,
-                    Collapse::Over(p, q),
-                    Collapse::Over(c0, c1),
+                    Collapse::Over(sub),
+                    Collapse::Over(cell_v),
                 );
                 let mean = widen(
                     area_at(su, sv, Collapse::At(um), Collapse::At(vm)),
@@ -4780,15 +4891,17 @@ fn chord_polygon_area(
             // `|∫_p^q ∫_{ℓ(u_m)}^{ℓ(u)} g| ≤ |ℓ′|·h_u²·width(g)/8`,
             // the constant term of `g` integrating to zero against
             // `∫(u − u_m) du`.
-            let (elo, ehi) = (ell(p).min(ell(q)), ell(p).max(ell(q)));
+            let Some(band) = ParamRange::spanning(ell(p), ell(q)) else {
+                return Interval::refused();
+            };
             let (band_g, _, _) = area_cell(
                 su,
                 sv,
                 suu,
                 suv,
                 svv,
-                Collapse::Over(p, q),
-                Collapse::Over(elo, ehi),
+                Collapse::Over(sub),
+                Collapse::Over(band),
             );
             let mismatch = 0.125 * slope.abs() * hu.powi(2) * band_g.width();
             chord = chord + widen((pt(q) - pt(p)) * col, mismatch);
@@ -4925,14 +5038,15 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let suv = su.as_ref().and_then(PatchGrid::deriv_v);
     let svv = sv.as_ref().and_then(PatchGrid::deriv_v);
     let (tb_u, tb_v) = trim_box(chords);
-    let over = (
-        Collapse::Over(lo_or_refuse(tb_u), hi_or_refuse(tb_u)),
-        Collapse::Over(lo_or_refuse(tb_v), hi_or_refuse(tb_v)),
-    );
-    let s_hull = s.vec(over.0, over.1);
+    let (s_hull, h_su, h_sv) = match certified_box(tb_u, tb_v) {
+        Some(over) => (
+            s.vec(over.0, over.1),
+            grid_vec(su.as_ref(), over.0, over.1),
+            grid_vec(sv.as_ref(), over.0, over.1),
+        ),
+        None => (refused_vec(), refused_vec(), refused_vec()),
+    };
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
-    let h_su = grid_vec(su.as_ref(), over.0, over.1);
-    let h_sv = grid_vec(sv.as_ref(), over.0, over.1);
     let cross = rv_cross(h_su, h_sv);
     let sup_f = rv_dot(s_hull, cross).mag();
     // Whole-box `sup|f|` and `sup g` are the PADS' levers only — the
@@ -5020,15 +5134,16 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 continue;
             };
             let a = c.lune_area;
-            let ov = (
-                Collapse::Over(lo_or_refuse(bu), hi_or_refuse(bu)),
-                Collapse::Over(lo_or_refuse(bv), hi_or_refuse(bv)),
-            );
-            let hs = s.vec(ov.0, ov.1);
-            let hc = rv_cross(
-                grid_vec(su.as_ref(), ov.0, ov.1),
-                grid_vec(sv.as_ref(), ov.0, ov.1),
-            );
+            let (hs, hc) = match certified_box(bu, bv) {
+                Some(ov) => (
+                    s.vec(ov.0, ov.1),
+                    rv_cross(
+                        grid_vec(su.as_ref(), ov.0, ov.1),
+                        grid_vec(sv.as_ref(), ov.0, ov.1),
+                    ),
+                ),
+                None => (refused_vec(), refused_vec()),
+            };
             lune_f += a * rv_dot(hs, hc).mag();
             lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
@@ -5651,7 +5766,7 @@ mod tests {
                 // The INDEPENDENT oracle: S = A/W through geom-core's
                 // basis ladder, S_d by the quotient rule.
                 let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
-                    let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
+                    let (su, sv) = (kv_u.span_at(u).unwrap(), kv_v.span_at(v).unwrap());
                     let bu = ders_basis_funs::<f64>(su, u, 1);
                     let bv = ders_basis_funs::<f64>(sv, v, 1);
                     // The `iu * nv + iv` stride stays written out on
@@ -6955,27 +7070,112 @@ mod tests {
         encloses(b.area, g_int, "Q12 area");
     }
 
-    /// `refine_dir`'s grid is the DOMAIN's sixteenths, skipped only
-    /// where a knot sits on the grid point bit for bit: `0.5` is
-    /// skipped, while a knot one ulp above `1/16` does NOT suppress
-    /// `1/16`, and both land in the refined vector. The expected
-    /// vector is written out by hand.
+    /// `refine_dir`'s grid is the DOMAIN's sixteenths, a grid point
+    /// skipped up to and including `GRID_CLEARANCE` of the spacing
+    /// (`2⁻¹²`) from a knot: `0.5` is a knot, and `1/16` is skipped
+    /// beside a knot exactly `2⁻¹²` above it. A knot one ulp further
+    /// than that above `3/8` leaves `3/8` standing, so both land. The
+    /// expected vector is written out by hand.
     #[test]
-    fn refine_dir_inserts_the_domain_grid_skipping_bit_equal_knots() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    fn refine_dir_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+        let c = algebra::grid_clearance(0.0, 1.0, QUAD2_REFINE_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, near, clear, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         #[allow(clippy::cast_precision_loss)]
         let net: Vec<RVec3> = (0..kv.control_count()).map(|i| [pt(i as f64); 3]).collect();
         let (rkv, rnet, count) = refine_dir(&kv, &net, 1, true).unwrap();
         assert_eq!(
             rkv.knots(),
             [
-                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
                 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
             ]
         );
         assert_eq!(count, 19);
         assert_eq!(rnet.len(), 19);
+    }
+
+    /// The rational lane's round-0 enclosure of the quarter cylinder
+    /// `x² + y² = 1`, `0 ≤ z ≤ 2`, with its `u` arc split at `k` (the
+    /// Bézier arc with one knot inserted, so the locus and the truth
+    /// `flux = area = π` do not depend on `k`).
+    fn quarter_cylinder_split_at(k: f64) -> FaceCutBounds {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let bezier = [[1.0, 0.0, 1.0], [w, w, w], [0.0, 1.0, 1.0]];
+        let lerp = |a: [f64; 3], b: [f64; 3]| -> [f64; 3] {
+            core::array::from_fn(|i| (1.0 - k).mul_add(a[i], k * b[i]))
+        };
+        let hom = [
+            bezier[0],
+            lerp(bezier[0], bezier[1]),
+            lerp(bezier[1], bezier[2]),
+            bezier[2],
+        ];
+        let mut net = Vec::new();
+        let mut weights = Vec::new();
+        for [x, y, h] in hom {
+            for z in [0.0, 2.0] {
+                net.push([pt(x / h), pt(y / h), pt(z)]);
+                weights.push(h);
+            }
+        }
+        let out = nurbs_patch_face_rounds::<f64>(
+            &kv_u,
+            &kv_v,
+            &net,
+            &weights,
+            (0.0, 1.0, 0.0, 1.0),
+            2.0f64.mul_add(2.0, core::f64::consts::PI),
+            0.0,
+            Tol::witness().get().eps,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::at(0),
+        )
+        .unwrap_or_else(|e| panic!("the quarter cylinder split at {k}: {e:?}"));
+        bounds_of(&out)
+    }
+
+    /// `refine_dir`'s width has no cliff at any distance of a stated
+    /// knot from a grid point: with the quarter cylinder split at every
+    /// offset of [`crate::grid_offsets::knot_offsets`] from the first
+    /// point of the [`QUAD2_REFINE_SPANS`] grid, the round-0 flux and
+    /// area widths stay within `1.25×` of the split ON it. A grid point inserted at a gap `g` beside the knot opens
+    /// a span of width `g`, whose derivative hulls carry the inserted
+    /// point's rounding over `g` — an excess decaying as `1/g`, so a
+    /// skip rule that clears too little goes red at the first offset
+    /// past its clearance.
+    #[test]
+    fn the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset() {
+        let truth = core::f64::consts::PI;
+        let (g, offsets) = crate::grid_offsets::knot_offsets(QUAD2_REFINE_SPANS, 1);
+        let on = quarter_cylinder_split_at(g);
+        let rows: Vec<(String, FaceCutBounds)> = offsets
+            .into_iter()
+            .map(|(label, k)| (label, quarter_cylinder_split_at(k)))
+            .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, b)| {
+                format!(
+                    "\n  {label:>26}: flux {:.4e}  area {:.4e}",
+                    b.flux.width(),
+                    b.area.width()
+                )
+            })
+            .collect();
+        for (label, b) in &rows {
+            encloses(b.flux, truth, &format!("flux, knot {label}"));
+            encloses(b.area, truth, &format!("area, knot {label}"));
+            assert!(
+                b.flux.width() <= 1.25 * on.flux.width()
+                    && b.area.width() <= 1.25 * on.area.width(),
+                "knot {label}: the width left 1.25x of on-grid{table}"
+            );
+        }
     }
 
     /// `refine_dir` has no "already fine enough" cut-off: a vector
@@ -7000,14 +7200,14 @@ mod tests {
     }
 
     /// `bezier_blocks`' uniform breaks are the DOMAIN's `m`ths, dropped
-    /// when within the sliver guard of a knot: a knot one ulp above
-    /// `1/4` suppresses the break at `1/4` (four blocks, not five),
+    /// within `GRID_CLEARANCE` of the spacing of a knot: a knot one ulp
+    /// above `1/4` suppresses the break at `1/4` (four blocks, not five),
     /// while `1/2` and `3/4` stand. The block COUNT carries the pin:
     /// the starts' brackets (~1e-15 wide, the λ-rounding pad) cannot
     /// tell `near` from `1/4`, so they only confirm the other breaks
     /// sit where the grid puts them.
     #[test]
-    fn bezier_blocks_drops_a_uniform_break_within_the_sliver_of_a_knot() {
+    fn bezier_blocks_drops_a_uniform_break_within_the_clearance_of_a_knot() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
         let kv = KnotVector::clamped(vec![0.0, 0.0, near, 1.0, 1.0], 1).unwrap();
         let img = TrimPiece {
@@ -7060,9 +7260,10 @@ mod tests {
     /// * `pieces = 13`, no knots: the grid arithmetic. The step forms
     ///   `lo + ((hi − lo)·k)/n` and `lo + k·((hi − lo)/n)` round
     ///   `k = 2` to `0.1923076923076923`, not `0.19230769230769232`.
-    /// * `pieces = 16`, the sliver clearance's WIDTH: a knot 7·ε·width
-    ///   above the grid point `0.2875` drops it, one 9·ε·width above
-    ///   `0.5125` does not — the 8-ulp clearance sits between.
+    /// * `pieces = 16`, the clearance's WIDTH, `GRID_CLEARANCE` of the
+    ///   spacing: a knot that far above the grid point `0.2875` (it
+    ///   rounds a hair inside) drops it; one an ulp further above
+    ///   `0.5125` than that leaves it standing.
     /// * `pieces = 16` (a multiple of [`QUAD2_HULL_BLOCKS`], so every
     ///   block edge is a grid point): a knot one ulp above the grid
     ///   point `0.2125` stands and the grid point is dropped; the
@@ -7107,11 +7308,11 @@ mod tests {
                 0.7
             ]
         );
-        let unit = (hi - lo) * f64::EPSILON;
-        let inside = 0.2875 + 7.0 * unit;
-        let outside = 0.5125 + 9.0 * unit;
-        assert_eq!(inside, 0.287_500_000_000_000_9);
-        assert_eq!(outside, 0.512_500_000_000_001_2);
+        let clearance = algebra::grid_clearance(lo, hi, 16);
+        let inside = 0.2875 + clearance;
+        let outside = (0.5125 + clearance).next_up();
+        assert_eq!(inside, 0.287_646_484_374_999_96);
+        assert_eq!(outside, 0.512_646_484_375);
         assert_eq!(
             knot_aligned_cuts(lo, hi, 16, &[inside, outside]),
             [
@@ -7195,5 +7396,168 @@ mod tests {
                 0.2
             ]
         );
+    }
+
+    /// **A refused bracket mints no window, so no hull is read over
+    /// one.** The designers' worked example: knots `[0,0,0,1,2,3,3,3]`,
+    /// degree 2, coefficients `c_i = i`. A refused bracket's ends were
+    /// NaN, and the locator landed NaN on the first span, so the hull
+    /// came back as that span's, `[0, 2]`, certified, over a region
+    /// nobody asked about. Now the producer has no window to build, and
+    /// the reading it would have fed answers refused.
+    #[test]
+    fn a_refused_bracket_mints_no_window_and_its_reading_refuses() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        let coeffs: Vec<Interval> = (0..5).map(|i| pt(f64::from(i))).collect();
+        let first = ParamRange::certified(Interval::from_bounds(0.25, 0.5)).unwrap();
+        let h = range_hull(&kv, &coeffs, first);
+        assert_eq!(
+            (h.lo(), h.hi()),
+            (0.0, 2.0),
+            "CONTROL: the first span's hull"
+        );
+        let whole = ParamRange::certified(Interval::from_bounds(0.0, 3.0)).unwrap();
+        let h = range_hull(&kv, &coeffs, whole);
+        assert_eq!(
+            (h.lo(), h.hi()),
+            (0.0, 4.0),
+            "CONTROL: the whole domain's hull"
+        );
+        let good = Interval::from_bounds(0.0, 3.0);
+        for (name, bad) in [
+            ("refused", Interval::refused()),
+            ("Trv", Interval::from_bounds(-1.0, 4.0).sqrt()),
+        ] {
+            assert!(
+                ParamRange::certified(bad).is_none(),
+                "{name}: minted a window"
+            );
+            assert!(certified_box(bad, good).is_none(), "{name} u: minted a box");
+            assert!(certified_box(good, bad).is_none(), "{name} v: minted a box");
+        }
+    }
+
+    /// `[0, 0]` decorated `Trv`: `sqrt([−1, 0])`, a bracket whose ends
+    /// are an exact point and which does not certify. A producer that
+    /// read its bracket instead of minting through `certified` would
+    /// see an ordinary point.
+    fn trv_zero() -> Interval {
+        let x = Interval::from_bounds(-1.0, 0.0).sqrt();
+        assert!(
+            !x.is_certified() && x.lo() == 0.0 && x.hi() == 0.0,
+            "fixture: {x:?}"
+        );
+        x
+    }
+
+    /// **A Trv bracket driven through `piece_monotone` does not certify
+    /// a monotone piece.** On the flat chart every window's derivative
+    /// hull is the same exact constant, so the control row certifies the
+    /// straight chord. With one `Trv` coordinate the block box refuses
+    /// (`Certification::hull` refuses an uncertified operand, so a box
+    /// over several points is certified or NaI, never `Trv`), no window
+    /// is minted, and the rate is the refused one.
+    #[test]
+    fn a_trv_block_does_not_certify_a_piece_monotone() {
+        let (ku, kvv, control, _) = flat_chart(3.0);
+        let s = PatchGrid::base(&ku, &kvv, &control);
+        let (su, sv) = (s.deriv_u(), s.deriv_v());
+        let band = Band::linear(Tol::witness()).unwrap();
+        // The `Trv` rides on the LAST point, so the first step's advance
+        // is certified and the row reads the rate, not the span.
+        let block = |end: Interval| vec![(pt(0.0), pt(0.5)), (pt(0.5), pt(0.5)), (pt(1.0), end)];
+        let control_row = piece_monotone::<f64>(
+            &block(pt(0.5)),
+            (0.0, 0.5),
+            (1.0, 0.5),
+            su.as_ref(),
+            sv.as_ref(),
+            band,
+        );
+        assert!(
+            matches!(control_row, Ok(Sign::Positive)),
+            "CONTROL: a straight chord on the flat chart is monotone: {control_row:?}"
+        );
+        let trv = trv_zero() + pt(0.5);
+        let got = piece_monotone::<f64>(
+            &block(trv),
+            (0.0, 0.5),
+            (1.0, 0.5),
+            su.as_ref(),
+            sv.as_ref(),
+            band,
+        );
+        assert!(
+            !matches!(got, Ok(Sign::Positive)),
+            "a Trv block certified a monotone piece: {got:?}"
+        );
+    }
+
+    /// **A Trv bracket driven through the trimmed lane does not
+    /// converge.** One chord endpoint is a `Trv` `[0, 0]`, Q1's loop
+    /// otherwise. The trim box over the endpoints is NaI (a hull refuses
+    /// an uncertified operand), so it mints no window and the pads it
+    /// bounds refuse; the lane answers no converged bound.
+    #[test]
+    fn a_trv_trim_endpoint_does_not_converge_the_trimmed_lane() {
+        let c = 3.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let trv = trv_zero();
+        let mut first = iso((0.0, 0.0), (1.0, 0.0));
+        first.a = (trv, pt(0.0));
+        let chords = vec![
+            first,
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.5, 0.5), (0.0, 0.0)], 1e-3),
+        ];
+        let got = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE);
+        assert!(
+            !matches!(got, Ok(RoundOutcome::Converged(_))),
+            "a Trv trim endpoint converged: {got:?}"
+        );
+    }
+
+    /// **A NaN point locates no span on any `Dir`**: the `Const` point
+    /// arm used to answer `coeffs[0]` for a NaN `t` and now refuses a
+    /// non-finite one, as the `Kv` and `Raw` arms do; the span-located
+    /// arms refuse a NaN `mid`.
+    #[test]
+    fn a_nan_point_collapses_to_a_refusal_on_every_dir() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        let coeffs: Vec<Interval> = (0..5).map(|i| pt(f64::from(i))).collect();
+        let knots = kv.knots().to_vec();
+        let dirs = [
+            ("Kv", Dir::Kv(kv)),
+            (
+                "Raw",
+                Dir::Raw {
+                    knots: knots.clone(),
+                    degree: 2,
+                },
+            ),
+            ("Const", Dir::Const { knots }),
+        ];
+        let t = pt(0.5);
+        for (name, dir) in &dirs {
+            let at = |op| PatchGrid::collapse_1d(dir, &coeffs, op);
+            assert!(
+                at(Collapse::At(0.5)).is_certified(),
+                "CONTROL {name}: a point certifies"
+            );
+            for bad in [f64::NAN, f64::INFINITY] {
+                assert!(
+                    !at(Collapse::At(bad)).is_certified(),
+                    "{name}: At({bad}) certified"
+                );
+            }
+            assert!(
+                !at(Collapse::AtSpan {
+                    mid: f64::NAN,
+                    t: &t
+                })
+                .is_certified(),
+                "{name}: AtSpan at a NaN mid certified"
+            );
+        }
     }
 }

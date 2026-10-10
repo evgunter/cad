@@ -754,18 +754,18 @@ mod tests {
     /// held set is untouched.
     #[test]
     fn a_target_whose_edges_the_index_cannot_name_refuses_the_load_in_its_words() {
-        let (eval, mut index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let (eval, mut index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
         let target = BlendTarget {
-            node: extrude,
+            node: copy,
             body: 0,
         };
-        let drawn = index.edges_in(extrude, 0).to_vec();
+        let drawn = index.edges_in(copy, 0).to_vec();
         let mut tool = BlendTool::new();
         let held = EdgeSelection {
             name: index.edge_name_of(drawn[0]).expect("named").clone(),
-            node: extrude,
+            node: copy,
             body: 0,
         };
         assert_eq!(tool.pick(&doc, &held), None);
@@ -773,7 +773,7 @@ mod tests {
 
         let first = index.unname_edge(drawn[2]);
         let refused = EdgeNamesRefused {
-            node: extrude,
+            node: copy,
             body: 0,
             first,
             named: drawn.len() - 1,
@@ -793,7 +793,7 @@ mod tests {
         assert!(
             said.contains(&refused.to_string())
                 && said.contains(
-                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(extrude)).to_string()
+                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(copy)).to_string()
                 ),
             "the index's own words, through its Display: {said}"
         );
@@ -826,16 +826,16 @@ mod tests {
     /// and the load answers what it answers for a body with no edges.
     #[test]
     fn a_target_the_index_does_not_draw_is_not_a_naming_refusal() {
-        let (eval, index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let (eval, index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
         let target = BlendTarget {
-            node: extrude,
+            node: copy,
             body: 7,
         };
         assert!(matches!(
             index.edge_name_of(EdgeId {
-                node: extrude,
+                node: copy,
                 body: 7,
                 boundary: 0,
             }),

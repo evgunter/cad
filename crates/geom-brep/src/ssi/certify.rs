@@ -115,9 +115,7 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::spline::algebra::{
-    GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, range_grid_points,
-};
+use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
@@ -129,7 +127,7 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -311,9 +309,10 @@ fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
         return curve.clone();
     }
-    // Parameters already present as knots are skipped (refinement would
-    // raise multiplicity, which is not what this is for).
-    let add = domain_grid_points(kv, SSI_CERT_SPANS, GridSkip::BitEqual);
+    // A grid point on or near a knot is skipped: on it, refinement
+    // would raise multiplicity; beside it, it would open a narrow span
+    // whose tangent is the insertion's rounding.
+    let add = domain_grid_points(kv, SSI_CERT_SPANS);
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
@@ -720,11 +719,11 @@ impl Hull {
 }
 
 /// The uniform breaks limb 2's composite is cut at: the carrier
-/// domain's `SSI_CERT_SPANS` grid, minus every point within
-/// [`SLIVER_CLEARANCE_ULPS`] of an interior knot of EITHER curve. The
-/// composite merges both curves' knots into its break list, so a grid
-/// point a few ulps off either one's knot would open a hairline span
-/// beside it.
+/// domain's `SSI_CERT_SPANS` grid, minus every point within the grid's
+/// clearance ([`geom_core::spline::algebra::GRID_CLEARANCE`] of the
+/// spacing) of an interior knot of EITHER curve. The composite merges
+/// both curves' knots into its break list, so a grid point near either
+/// one's knot would open a narrow span beside it.
 fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
     let (lo, hi) = carrier.domain();
     let knots: Vec<f64> = carrier
@@ -732,13 +731,7 @@ fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
         .chain(pcurve.interior_knots())
         .map(|(k, _)| k)
         .collect();
-    range_grid_points(
-        lo,
-        hi,
-        SSI_CERT_SPANS,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-        &knots,
-    )
+    range_grid_points(lo, hi, SSI_CERT_SPANS, &knots)
 }
 
 /// The box chain covering a carrier: one padded box per span of the
@@ -1001,8 +994,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))?
-        else {
+        // A window that names no region has no stretch to read.
+        let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
+            return Ok(None);
+        };
+        let Some(margin) = chart_transverse_margin(&boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin < worst {
@@ -1773,8 +1769,8 @@ mod tests {
         /// its domain carries real endpoints (`sqrt([−1, 0.01]) + 0.1` is
         /// about `[0.1, 0.2]` at `Trv`), the span window's hull refuses it as NaI,
         /// and NaI's NaN endpoints must not become a chart window — a NaN
-        /// window end lands on the first span in `span_range`, and the
-        /// derivative boxes of an arbitrary cell would then certify.
+        /// end mints no `ParamRange`, where a window landed on the first
+        /// span would certify the derivative boxes of an arbitrary cell.
         #[test]
         fn a_violated_pcurve_coordinate_cannot_certify() {
             let bad = Interval::from_bounds(-1.0, 0.01).sqrt() + iv(0.1);
@@ -1917,28 +1913,99 @@ mod tests {
         geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
     }
 
-    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point only
-    /// where a knot sits on it bit for bit: `0.5` is skipped, while a
-    /// knot one ulp above `2/32` does NOT suppress `2/32`.
+    /// `refined` inserts the DOMAIN's 32nds, a grid point skipped up
+    /// to and including `GRID_CLEARANCE` of the spacing (`2⁻¹³`) from a
+    /// knot: `0.5` is a knot, and `2/32` is skipped beside a knot
+    /// exactly `2⁻¹³` above it, while a knot one ulp further than that
+    /// above `12/32` leaves `12/32` standing.
     #[test]
-    fn refined_inserts_the_domain_grid_skipping_bit_equal_knots() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let fine = super::refined(&carrier(&[near, 0.5]));
-        let mut want = vec![0.0, 0.0, 0.0, near];
-        want.extend((1..32).map(|k| f64::from(k) / 32.0));
+    fn refined_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
+        let fine = super::refined(&carrier(&[near, clear, 0.5]));
+        let mut want = vec![0.0, 0.0, 0.0, near, clear];
+        want.extend((1..32).filter(|&k| k != 2).map(|k| f64::from(k) / 32.0));
         want.extend([1.0, 1.0, 1.0]);
         want.sort_by(f64::total_cmp);
         assert_eq!(fine.knots().knots(), want);
     }
 
-    /// `chart_breaks` skips a grid point beside a knot of either curve:
-    /// a carrier knot one ulp above `2/32` drops `2/32`, a pcurve knot
-    /// one ulp below `12/32` drops `12/32`, and every other 32nd stays.
+    /// `refined`'s box chain has no cliff at any distance of a stated
+    /// knot from a grid point: a degree-1 carrier bent at every offset
+    /// of [`crate::grid_offsets::knot_offsets`] from the second point of
+    /// the [`super::SSI_CERT_SPANS`] grid gives every
+    /// box the direction of the leg it lies on as its axis, to `1e-10`.
+    /// A grid point inserted at a gap `g` beside the bend opens a span
+    /// of width `g` whose tangent is the inserted point's rounding over
+    /// `g`, an axis error decaying as `1/g` from `~1e-3` at `g ≈ 2e-15`;
+    /// `1e-10` is crossed near `g ≈ 2e-8`, far inside any clearance
+    /// that holds and far outside one that does not.
     #[test]
-    fn chart_breaks_skip_a_grid_point_beside_either_curves_knot() {
-        let above = f64::from_bits(0.0625f64.to_bits() + 1);
-        let below = f64::from_bits(0.375f64.to_bits() - 1);
-        let breaks = super::chart_breaks(carrier(&[above]).knots(), carrier(&[below]).knots());
+    #[allow(clippy::unwrap_used)]
+    fn the_refine_grid_box_axes_have_no_cliff_at_any_knot_offset() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Point3};
+        let bend = [0.9, 0.1, 0.3];
+        let unit = |d: [f64; 3]| {
+            let n = d.iter().map(|x| x * x).sum::<f64>().sqrt();
+            d.map(|x| x / n)
+        };
+        let legs = [unit(bend), unit([0.1, 0.9, 0.7])];
+        let (_, offsets) = crate::grid_offsets::knot_offsets(super::SSI_CERT_SPANS, 2);
+        let rows: Vec<(String, f64, usize)> = offsets
+            .into_iter()
+            .map(|(label, k)| {
+                let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+                let control = vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(bend[0], bend[1], bend[2]),
+                    Point3::new(1.0, 1.0, 1.0),
+                ];
+                let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+                let chain = super::box_chain(&curve);
+                let worst = chain
+                    .iter()
+                    .map(|(b, axis)| {
+                        let leg = legs[usize::from(b.x.hi() > bend[0])];
+                        (axis.x - leg[0])
+                            .abs()
+                            .max((axis.y - leg[1]).abs())
+                            .max((axis.z - leg[2]).abs())
+                    })
+                    // A NaN axis (a zero tangent) must surface, not fold away.
+                    .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
+                (label, worst, chain.len())
+            })
+            .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, worst, n)| {
+                format!("\n  {label:>26}: axis error {worst:.4e} over {n} boxes")
+            })
+            .collect();
+        for (label, worst, n) in &rows {
+            assert!(
+                *n >= super::SSI_CERT_SPANS,
+                "knot {label}: {n} boxes{table}"
+            );
+            assert!(*worst < 1e-10, "knot {label}: an axis left its leg{table}");
+        }
+    }
+
+    /// `chart_breaks` skips a grid point up to the clearance (`2⁻¹³`,
+    /// `GRID_CLEARANCE` of the spacing) from a knot of either curve: a
+    /// carrier knot that far above `2/32` drops `2/32`, a pcurve knot
+    /// that far below `12/32` drops `12/32`, and a pcurve knot one ulp
+    /// further below `20/32` leaves it standing with every other 32nd.
+    #[test]
+    fn chart_breaks_skip_a_grid_point_up_to_the_clearance_from_either_curves_knot() {
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
+        let above = 0.0625 + c;
+        let below = 0.375 - c;
+        let past = (0.625 - c).next_down();
+        let breaks =
+            super::chart_breaks(carrier(&[above]).knots(), carrier(&[below, past]).knots());
         let want: Vec<f64> = (1..32)
             .filter(|&k| k != 2 && k != 12)
             .map(|k| f64::from(k) / 32.0)

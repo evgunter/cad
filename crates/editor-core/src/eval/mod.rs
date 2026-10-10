@@ -412,26 +412,26 @@ impl NodeStanding {
     /// The standing of a document ROOT, as a door whose subject is the
     /// document's roots states it under its own stage word: `root`,
     /// then the standing.
-    pub(crate) fn of_root(self) -> RootStanding {
-        RootStanding(self)
+    pub(crate) fn of_placement(self) -> PlacementStanding {
+        PlacementStanding(self)
     }
 }
 
-/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
-/// with no value.
-pub(crate) struct RootStanding(NodeStanding);
+/// [`NodeStanding::of_placement`]'s rendering: the one sentence for a
+/// placement with no value.
+pub(crate) struct PlacementStanding(NodeStanding);
 
-impl crate::spoken::Say for RootStanding {
+impl crate::spoken::Say for PlacementStanding {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(f, "root {}", crate::spoken::Said(&self.0, by))
+        write!(f, "placement {}", crate::spoken::Said(&self.0, by))
     }
 }
 
-impl core::fmt::Display for RootStanding {
+impl core::fmt::Display for PlacementStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
@@ -1090,6 +1090,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
+        | Node::PlaceInWorld { .. }
         | Node::InstantiatePart { .. } => (family::BODY, true),
     };
     match placer {
@@ -1515,8 +1516,7 @@ pub enum NodeErrorKind {
     /// M6), pinned in `sweep/tests/m5_pr10_frontier.rs`'s flipped
     /// rows' successor and `editor-core`'s node suites.
     ///
-    /// A named sub-frontier, never a laundered catch-all (the
-    /// `RestZipUnsupported` precedent).
+    /// A named sub-frontier, never a laundered catch-all.
     CurvedSolidFrontier {
         /// The precise missing door.
         what: &'static str,
@@ -1654,6 +1654,17 @@ pub enum NodeErrorKind {
         input: RecipeNodeId,
         /// The empty half.
         half: crate::names::SplitHalf,
+    },
+    /// A union read two of its members out of one operation — a
+    /// split's two halves. Its names key each member by the operation
+    /// it reads (DM4), so the two would carry one key; it refuses
+    /// before any fold rather than naming one member's faces as the
+    /// other's.
+    MembersShareAnOperation {
+        /// The operation both members are read out of.
+        operation: RecipeNodeId,
+        /// The two members' positions in the list, earlier first.
+        members: (u32, u32),
     },
     /// A [`crate::Node::Part`] indexed a pattern's instances outside
     /// `0..count`. A negative index lands here too — the index is
@@ -1853,12 +1864,12 @@ pub enum NodeErrorKind {
     /// table to resolve the name in. A pair boolean's arm: a union's
     /// site that is not a member is the N5 strand a later `SetMembers`
     /// leaves, and refuses as a vanished name ([`Self::DeclareResolve`]).
-    /// Every door that writes a pair refuses such a site — the edit
-    /// doors ([`crate::EditError::DeclaredSiteNotAnOperand`]) and, for a
-    /// Boolean, the load door — and a Boolean's operands never change,
-    /// so no document those doors admit reaches this arm; it stays the
-    /// evaluation's own answer to a site it cannot read rather than an
-    /// assumption the doors held.
+    /// Every door that writes a pair refuses a site no operand reads —
+    /// the edit doors ([`crate::EditError::DeclaredSiteNotAnOperand`])
+    /// and, for a Boolean, the load door. A site two operands share (a
+    /// split's two halves) is admitted there and sided here by the
+    /// table that holds the name, so a name neither half holds, or
+    /// both, lands on this arm.
     DeclareSiteNotAnOperand {
         /// The site the pair named.
         at: crate::node::RecipeNodeId,
@@ -2595,6 +2606,18 @@ impl crate::spoken::Say for NodeErrorKind {
                 },
                 by.node(*input)
             ),
+            Self::MembersShareAnOperation {
+                operation,
+                members: (i, j),
+            } => write!(
+                f,
+                "members {} and {} of this union are both read out of {}, and a union keys \
+                 each member's names by the operation it reads; join the two with a pair \
+                 boolean",
+                u64::from(*i) + 1,
+                u64::from(*j) + 1,
+                by.node(*operation)
+            ),
             Self::InstanceOutOfRange {
                 input,
                 index,
@@ -2786,9 +2809,10 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "a declared entity is sited at {}, which is not an operand of this \
-                 node — site each side at the member (or the boolean operand) whose table \
-                 holds it",
+                "a declared entity is sited at {}, and no one operand of this node read \
+                 there holds it — site each side at the member (or the boolean operand) whose \
+                 table holds it; the two halves of one split share their site, so a side \
+                 between them names an entity only one half holds",
                 by.node(*at)
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
@@ -5563,6 +5587,9 @@ where
         // A fresh word: a gauge denotes no body, and its key is its
         // slots and its chain's shape.
         Node::Gauge { .. } => 36,
+        // A fresh word: a world placement's key is its body's upstream
+        // key, its pose's slots and its chain's shape.
+        Node::PlaceInWorld { .. } => 37,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -6054,6 +6081,10 @@ where
         Node::Transform {
             input: _,
             placement,
+        }
+        | Node::PlaceInWorld {
+            body: _,
+            pose: placement,
         }
         | Node::Gauge {
             parent: _,
@@ -6797,6 +6828,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::HoleRim => 44,
         S::Instance => 26,
         S::InPart => 40,
+        S::Placed => 51,
     }
 }
 
@@ -7019,7 +7051,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_tag(half(*side));
             h.name(of);
         }
-        RoleSeg::InPart { of } => {
+        RoleSeg::InPart { of } | RoleSeg::Placed { of } => {
             h.name(of);
         }
         RoleSeg::Instance { i, of } => {

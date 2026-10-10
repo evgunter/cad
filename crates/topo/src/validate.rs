@@ -1619,6 +1619,11 @@ pub enum ValidationError {
         solid: SolidKey,
         /// The shell's refusal, naming it.
         error: crate::props::ShellClassifyError,
+        /// The shell's certified `V/A`, where it lies wholly inside one
+        /// sliver band: the shell is in band of having no volume, whatever
+        /// `error`'s words (the walk's) say. `None` leaves open whether
+        /// the arithmetic or the geometry left the role unread.
+        sliver: Option<Box<crate::props::CertifiedSliver>>,
     },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
@@ -5248,38 +5253,29 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
         if record.shells.len() < 2 {
             continue;
         }
-        let mut undecided = false;
-        let reads: Vec<Option<ShellRead>> = record
-            .shells
-            .iter()
-            .map(
-                |&shell| match ShellRead::of(body, shell, band, tol, quad)? {
-                    Ok(read) => Some(read),
-                    Err(error) => {
-                        errors.push(ValidationError::ShellRoleUndecided { solid, error });
-                        undecided = true;
-                        None
-                    }
-                },
-            )
-            .collect();
+        let mut reads = Vec::with_capacity(record.shells.len());
+        for &shell in &record.shells {
+            match ShellRead::of(body, shell, band, tol, quad) {
+                Ok(read) => reads.push(read),
+                Err(crate::props::RoleRefusal { error, sliver }) => {
+                    errors.push(ValidationError::ShellRoleUndecided {
+                        solid,
+                        error,
+                        sliver,
+                    });
+                }
+            }
+        }
         // A shell whose role does not read leaves the solid's winding
         // unknowable; its refusal is the solid's verdict.
-        if undecided {
+        if reads.len() < record.shells.len() {
             continue;
         }
-        let outer = reads
-            .iter()
-            .flatten()
-            .filter(|r| r.role == ShellRole::Outer)
-            .count();
+        let outer = reads.iter().filter(|r| r.role == ShellRole::Outer).count();
         if outer > 1 {
             errors.push(ValidationError::SolidOuterShells { solid, outer });
             continue;
         }
-        let Some(reads) = reads.into_iter().collect::<Option<Vec<ShellRead>>>() else {
-            continue;
-        };
         for (i, read) in reads.iter().enumerate() {
             let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
             else {
@@ -15797,9 +15793,9 @@ mod certify_escalation_rows {
             ),
             (
                 escalated(CertCheck::Surface1Residual, MarginDiag::INVALID),
-                "whether it lies where its description says is undecided. Recourse: loosen the \
-                 tolerance, as a last resort; this refusal may \
-                 indicate a kernel bug worth reporting",
+                "whether it lies where its description says is undecided. There is no way \
+                 through: this is a kernel defect or a damaged \
+                 file; report it",
             ),
             (
                 escalated(

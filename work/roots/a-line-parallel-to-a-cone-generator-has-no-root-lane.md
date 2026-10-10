@@ -32,4 +32,18 @@ answers `CircleRoots::Uncertain`: the frontier
 
 Row: `reduce::line_cone_rows::a_miss_a_graze_and_a_ruling` pins the
 first pose's refusal. No finished body has been built that reaches
-either through the crossing sweep (`topo::sweep_split_admitting_cones`).
+either through the crossing sweep (`topo::sweep_split`).
+
+## 2026-10-09, a finished body reaches the second pose (VERBS-CONE U7)
+
+With `Cone` on the operand roster, the preview cone of
+`docs/GERM-VERBS-CONE-SPEC.md` against a quarter frustum sector of its
+own carrier (`(0.1, 0.2) (0.8, 0.2) (0.4, 0.6) (0.1, 0.6)` revolved
+`π/2` about `y`) refuses B ∖ A `CurvedPierceUnsupported` on the
+sector's generator edge, which lies on the cone, and the other three
+ops `CrossingAtConeApex` on the cone's seam generator, whose line runs
+through the sector face's apex. Pinned as a refusal in
+`sweep/tests/cone_operand_rows.rs`
+(`a_tangent_plane_and_a_sector_on_the_cone_face_refuse`): a cone sector
+lying on a cone face is a coincidence D10 holds, so the row stays a
+refusal whatever this item lands.

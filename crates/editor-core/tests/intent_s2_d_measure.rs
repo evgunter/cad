@@ -371,7 +371,6 @@ fn a_measure_key_reads_its_sites_by_content_not_by_id() {
 /// compares the measured depth plus the pad: the assertion runs after
 /// the measure its value now reads, though it was inserted before it.
 #[test]
-#[ignore = "green once C deletes the roots backstop: today `DefineVar` meets it (MINOR-2)"]
 fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
     let (doc, a, _) = slabs("s2d-order", 2.5);
     let w = VarName::new("w").unwrap();

@@ -260,11 +260,13 @@ pub enum SplitJoinError {
     /// Neither section loop of a null face reads which side of the other
     /// solid it lies on: every witness the role probe holds for either
     /// loop's regions lies on the other solid's boundary or within its
-    /// band of it. A crossing's two flanks cannot both read that way
-    /// unless their faces are curved and the witness can only sit on
-    /// their boundaries — the frontier of
-    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
-    /// — or the two solids' faces lie within the band of each other (a
+    /// band of it. A crossing's two flanks can both read that way only
+    /// where no face of either offers a point of its interior: a
+    /// curved face, the frontier of
+    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
+    /// or a planar one none of whose interior candidates certifies
+    /// (`crate::stands`, rung 3) — or where the two solids' faces lie
+    /// within the band of each other (a
     /// settled in-band coincidence,
     /// `topo/tests/door_backstop_settled_residue.rs`). No kernel defect.
     SectionLoopUndecided {
@@ -327,7 +329,7 @@ pub enum SplitJoinError {
     ///   one means a lane invariant is broken, never user geometry;
     /// - **deliberate typed frontiers**: configurations the M5 lane
     ///   refuses BY DESIGN with the front door named in `what` (a
-    ///   tangent germ pair inside the boolean zip — a touching
+    ///   tangent germ pair inside the boolean join — a touching
     ///   configuration, the M5 envelope's frontier; a non-cylinder
     ///   planar-side germ partner — the PR 9c arms).
     SectionInvariant {
@@ -470,8 +472,8 @@ impl SplitJoinError {
             Self::SectionLoopUndecided { .. } => write!(
                 f,
                 "which of a section's two loops bounds the result cannot be read: every \
-                 point it is read at lies on a curved face's boundary or too near the \
-                 other part. {}",
+                 point it is read at lies on a face's boundary or too near the other \
+                 part. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopMixed { face } => write!(
@@ -818,10 +820,12 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
-    /// A section segment that is an edge of BOTH solids: its chords are
-    /// copies of that edge ([`along_edge_spec`]) and no section is
-    /// read, since the germ's face pair there may be two faces on one
-    /// carrier, with no section between them.
+    /// A section segment that is an edge of this solid: this side's
+    /// chord is a copy of that edge ([`along_edge_spec`]) and reads no
+    /// section, since the germ's face pair there may be two faces on
+    /// one carrier, or meet in no conic. Where the edge is this solid's
+    /// alone, the other solid's chord may read one (the boolean's
+    /// edge-plane lane cuts its face by the edge's plane).
     AlongEdge,
 }
 
@@ -863,7 +867,7 @@ impl<T: Real> SectionConic<T> {
 ///
 /// `Straight` and `Tangent` are handed BACK rather than decided here:
 /// the two chord lanes mean different things by them — the split lane
-/// mints a tangent chord along the ruling, the boolean zip refuses a
+/// mints a tangent chord along the ruling, the boolean join refuses a
 /// tangent germ pair as a touching frontier — and that difference is
 /// the whole of what the two lanes do not share.
 pub(crate) enum SectionCase<T: Real> {
@@ -1321,8 +1325,7 @@ fn chord_spec<T: Decide>(
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
             JoinLane::AlongEdge => Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a chord along an edge of both solids asked for a section: it copies the \
-                       edge",
+                what: "a chord along an edge asked for a section: it copies the edge",
             }),
         };
     }
@@ -1625,15 +1628,16 @@ fn bool_planar_chord_spec<T: Decide>(
     )? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
-        // A tangent germ pair inside the boolean zip means TOUCHING
-        // operands — the M5 envelope refuses those upstream; reaching
-        // here is a frontier configuration, refused typed. (The split
-        // lane mints a chord on the same ruling; that difference is
-        // why `section_case` hands the arm back instead of deciding.)
+        // A tangent germ pair in the boolean join means TOUCHING
+        // operands: a germ tangent to a bound of its sector is read in
+        // the face across it (`boolean::insert`), so reaching here is a
+        // frontier configuration, refused typed. (The split lane mints
+        // a chord on the same ruling; that difference is why
+        // `section_case` hands the arm back instead of deciding.)
         SectionCase::Tangent(_) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "tangent plane×wall germ pair in the boolean zip — a touching \
+                what: "tangent plane×wall germ pair in the boolean join — a touching \
                        configuration, the typed frontier of the supported envelope",
             });
         }
@@ -2816,17 +2820,20 @@ fn path_ring_side<T: Decide>(
     }
 }
 
-/// **The chord of a section segment that is an edge of BOTH solids**
-/// ([`JoinLane::AlongEdge`], `segment` naming this solid's edge): the
-/// other copy of that edge, so its curve is the edge's own, from `u1`
-/// to `u2` (the edge's endpoints' copies, at its endpoints' points) —
-/// never a section the lane would compute from the germ's face pair,
-/// which may be two faces on one carrier with no section between them.
-/// A line is the straight chord; a circle is its own arc, on the
-/// carrier reversed when the chord runs against it. `None` on every
-/// other lane: there a segment along an edge of ONE solid lies in a
-/// face of the other, whose lane computes the section the chord takes
-/// (the rod's ruling, a lens rim on a wall).
+/// **The chord of a section segment that is an edge of this solid**
+/// ([`JoinLane::AlongEdge`], `segment` naming that edge): the other
+/// copy of the edge, so its curve is the edge's own, from `u1` to `u2`
+/// (the edge's endpoints' copies, at its endpoints' points) — never a
+/// section the lane would compute from the germ's face pair, which may
+/// be two faces on one carrier, or meet in no conic. A line is the
+/// straight chord; a circle is its own arc, on the carrier reversed
+/// when the chord runs against it. The boolean takes this lane on both
+/// solids for an edge of both, and on the edge's solid alone for a
+/// conic edge of one lying in a face of the other whose pair has no
+/// section lane (a tube's rim on a ball). `None` on every other lane:
+/// there a segment along an edge of one solid lies in a face of the
+/// other, whose lane computes the section the chord takes (the rod's
+/// ruling, a lens rim on a wall).
 ///
 /// `segment`, `u1` and `u2` are keys the join carries, so one that no
 /// longer resolves refuses typed. Past them, the ends' points and the
@@ -3656,9 +3663,8 @@ enum RingSide {
     Out,
     /// Every vertex is ON the run ([`ring_side`]'s decided verdict).
     OnRun,
-    /// No vertex was decided: on a chart, a vertex whose ray is
-    /// degenerate says nothing, whether or not it is on the run
-    /// ([`chart_ring_side`]).
+    /// No vertex was decided: on a chart, a vertex on the run says
+    /// nothing ([`chart_ring_side`]).
     Undecided,
 }
 
@@ -3693,17 +3699,19 @@ fn ring_vertices<T: Decide>(
 /// there is read from its harmonic form; the straight chart rows between
 /// images (the walk's junction gaps) are segments. A ring vertex is placed
 /// on the run's branch, which is one branch because the run's window is
-/// decided under a period. Each comparison is a named trilean metered in
-/// metres; a ring vertex on the ray's degenerate rows (the run passes
-/// through its azimuth at a vertex, or along it) says nothing and the
-/// next vertex is asked, as [`ring_side`] does for a vertex on the run;
-/// so does one whose reading escalates, and the first escalation
-/// escalates only where no vertex decides ([`first_decided`]); the
-/// decided vertices agree because the ring does not cross the run (its
-/// premise). Such a vertex may or may not be on the run, so a ring none of whose
-/// vertices is decided is [`RingSide::Undecided`], never
-/// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
-/// vertex, always reads so here, and refuses rather than waiting.
+/// decided under a period; for a window of exactly one period, a vertex
+/// at the seam's azimuth reads alike on either edge. Each comparison is a named trilean metered in
+/// metres. A run vertex at the ray's azimuth reads as just short of it
+/// (the half-open rule), so the ray crosses the run there once or not at
+/// all, and a run row along the ray is met only by a vertex on it. A ring
+/// vertex on the run says nothing and the next vertex is asked, as
+/// [`ring_side`] does; so does one whose reading escalates, and the first
+/// escalation escalates only where no vertex decides ([`first_decided`]);
+/// the decided vertices agree because the ring does not cross the run
+/// (its premise). A ring none of whose vertices is decided is
+/// [`RingSide::Undecided`], never [`RingSide::OnRun`]: a pierce strut at a
+/// pinch, whose point is a run vertex, always reads so here, and refuses
+/// rather than waiting.
 /// A sphere or a cone face reads without a chart ([`path_ring_side`]);
 /// [`ChordJoiner::rehome_rings`] sends no other kind here.
 ///
@@ -3738,14 +3746,20 @@ fn chart_ring_side<T: Decide>(
     let decide_m = |name, margin| {
         decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
     };
+    // A run whose window is a whole period (a band round a full-turn
+    // face, closed along its seam) holds the seam's azimuth at both `lo`
+    // and `hi`. A ring vertex there reads alike at either: the half-open
+    // rule reads it just inside `lo` or just past `hi`, and just inside
+    // `lo` the run lies only beside its rows along `lo`, which the ray
+    // meets only from a vertex on them.
     if decide_m(
         "split_ring_chart_window",
         Margin::levered(tau - (hi - lo), radius),
-    )? != Sign::Positive
+    )? == Sign::Negative
     {
         return Err(invariant(
-            "ring re-homing on a chart: the run's azimuth window spans a full period, so a \
-             ring vertex has no single branch on it",
+            "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
+             so a ring vertex has no single branch on it",
         ));
     }
     let mid = (lo + hi) * T::from_f64(0.5);
@@ -3763,10 +3777,10 @@ fn chart_ring_side<T: Decide>(
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];
             let rows = [
-                (image.entry, image.exit, Some(image)),
-                (image.exit, next.entry, None),
+                (image.entry, image.exit, (image.v.0, image.v.1), Some(image)),
+                (image.exit, next.entry, (image.v.1, next.v.0), None),
             ];
-            for (u0, u1, edge) in rows {
+            for (u0, u1, (v0, v1), edge) in rows {
                 let sides = [u0, u1].map(|u| {
                     decide_r(
                         "split_ring_chart_ray_azimuth",
@@ -3777,10 +3791,22 @@ fn chart_ring_side<T: Decide>(
                     [Ok(s0), Ok(s1)] => (s0, s1),
                     [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
                 };
-                if s0 == Sign::Zero || s1 == Sign::Zero {
-                    return Ok(Ok(None));
+                if s0 == Sign::Zero && s1 == Sign::Zero {
+                    // A row along the ray: the ray misses it unless the
+                    // vertex is on it.
+                    let ends = [v0, v1]
+                        .map(|v| decide_r("split_ring_chart_ray_along", Margin::of(v - v_p)));
+                    match ends {
+                        [Ok(e0), Ok(e1)] if e0 == e1 && e0 != Sign::Zero => continue,
+                        [Ok(_), Ok(_)] => return Ok(Ok(None)),
+                        [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
+                    }
                 }
-                if s0 == s1 {
+                // A row end at the ray's azimuth reads as below it, so
+                // a run vertex the ray passes through is crossed once
+                // or not at all, by the rows on either side of it.
+                let below = |s: Sign| s != Sign::Negative;
+                if below(s0) == below(s1) {
                     continue;
                 }
                 let f = (u_p - u0) / (u1 - u0);
@@ -3837,6 +3863,9 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;

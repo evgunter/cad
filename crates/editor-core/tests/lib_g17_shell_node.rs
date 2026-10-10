@@ -643,11 +643,14 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
                 d.name
             ),
         }
-        // Everything upstream of the shell built: the refusal is the
-        // shell's alone.
+        // Everything else built or is poisoned through the shell (its
+        // world placement): the refusal is the shell's alone.
         let upstream_bad: Vec<_> = failures(&ev)
             .into_iter()
-            .filter(|s| !s.starts_with(&format!("{shell:?}")))
+            .filter(|s| {
+                !s.starts_with(&format!("{shell:?}"))
+                    && !s.ends_with(&format!("poisoned through {shell:?}"))
+            })
             .collect();
         assert!(upstream_bad.is_empty(), "{}: {upstream_bad:?}", d.name);
     }
@@ -770,10 +773,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     let wall_piece = fixture::piece(&r.doc, tube, 0, 1);
     let wall = editor_core::band(tube, wall_piece);
     let shell = r.insert(Node::shell(
-        editor_core::Operand::Output {
-            node: tube,
-            port: 0,
-        },
+        editor_core::Operand::output(tube, 0),
         fixture::len(0.0625),
         vec![wall.clone()],
     ));

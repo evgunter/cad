@@ -152,11 +152,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "boolean-error.md"),
     "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                       "boolean-error.md"),
-    # `BooleanError::CoplanarNeighbours`'s refused offset and
-    # `RestZipUnsupported`'s sub-frontier: the same carrier, the same row.
+    # `BooleanError::CoplanarNeighbours`'s refused offset: the same
+    # carrier, the same row.
     "NeighbourOffset": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
-                        "boolean-error.md"),
-    "RestZipFrontier": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
     # `BooleanError::VertexReadTwice`'s two reads (PR 4234): the same
     # carrier, the same row.
@@ -216,6 +214,12 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
                             "crates/pncad/src/select.rs; the general rule is at the "
                             "payload-rule header of crates/pncad/src/document.rs"),
+    # A coincidence row's cell names a profile piece by the same reference a
+    # profile pick does, so `NamedCell::Piece` carries `select`'s word for it.
+    "ProfileEdgeRef": ("argued", "the naming vocabulary is `select`'s and is spelled "
+                                 "once, crates/pncad/src/select.rs; the general rule is "
+                                 "at the payload-rule header of "
+                                 "crates/pncad/src/document.rs"),
     # The same rule with the two lists swapped, and it decides these the same
     # way: the payload's vocabulary is the DOCUMENT layer's, so it is spelled
     # once on `document` and the analysis list points at it. That split is the

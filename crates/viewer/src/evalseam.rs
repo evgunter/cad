@@ -372,13 +372,13 @@ impl EvalService for InlineEvaluator {
 #[derive(Clone, Debug)]
 pub struct IndexRequest {
     /// The picture to build — the generation of the evaluation this
-    /// index describes and the chordal tolerance its roots are
+    /// index describes and the chordal tolerance its copies are
     /// tessellated at, as one value ([`PictureKey`]). The δ half is
     /// the half the evaluation knows nothing about.
     pub key: PictureKey,
-    /// The document whose roots are walked.
+    /// The document whose world placements are walked.
     pub doc: Doc<ProfileProgram>,
-    /// The run those roots' payloads are read from. Shared rather than
+    /// The run those placements' payloads are read from. Shared rather than
     /// copied: the panels, the scene and this build read one value.
     pub evaluation: Arc<Evaluation<f64>>,
     /// The ε the tessellation decides at.
@@ -399,7 +399,7 @@ pub struct IndexDone {
     /// What the seam's memo did for this answer.
     pub memo: MemoReport,
     /// The index, or the refusal that stopped it — a failed or
-    /// poisoned root is an ordinary editing state and its refusal is
+    /// poisoned placement is an ordinary editing state and its refusal is
     /// the answer, not an absence.
     pub index: Result<PickIndex, PickIndexError>,
 }
@@ -486,7 +486,7 @@ pub trait IndexService {
 /// picture already lived: the previous generation's `NodePick`s by
 /// (node, body) under the evaluation's content keys, and the per-face
 /// patch memo under them (`PickMemo`'s docs). A build answers a reused
-/// root's pick without touching it and a recomputed root's unchanged
+/// placement's pick without touching it and a recomputed placement's unchanged
 /// faces without meshing them; the answer is byte-identical to a build
 /// with no memo, and the rows in `tests/index_memo.rs` are the proof.
 fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {

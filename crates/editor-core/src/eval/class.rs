@@ -103,6 +103,8 @@ pub enum NodeErrorClass {
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
+    /// [`NodeErrorKind::MembersShareAnOperation`].
+    MembersShareAnOperation,
     /// [`NodeErrorKind::InstanceOutOfRange`].
     InstanceOutOfRange,
     /// [`NodeErrorKind::DegenerateDirection`].
@@ -336,6 +338,7 @@ impl NodeErrorKind {
             Self::ProductOperand { .. } => C::ProductOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
+            Self::MembersShareAnOperation { .. } => C::MembersShareAnOperation,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
             Self::NonFiniteDirection { .. } => C::NonFiniteDirection,
@@ -561,6 +564,7 @@ mod tests {
         ProductOperand,
         UnfinishedOperand,
         EmptyHalf,
+        MembersShareAnOperation,
         InstanceOutOfRange,
         DegenerateDirection,
         NonFiniteDirection,
@@ -829,6 +833,10 @@ mod tests {
                 input: n(3),
                 half: crate::SplitHalf::Above,
             },
+            C::MembersShareAnOperation => K::MembersShareAnOperation {
+                operation: n(3),
+                members: (0, 1),
+            },
             C::InstanceOutOfRange => K::InstanceOutOfRange {
                 input: n(3),
                 index: 7,
@@ -1036,7 +1044,10 @@ mod tests {
             }),
             C::PartProduct => part(crate::PartFault::PartProduct {
                 held: Default::default(),
-                refusal: crate::ProductError::NoBodyRoots.into(),
+                refusal: crate::ProductError::EmptyProduct {
+                    unplaced: Vec::new(),
+                }
+                .into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
                 cycle: vec![doc_ref(), doc_ref()],

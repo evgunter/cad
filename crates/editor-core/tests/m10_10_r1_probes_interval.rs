@@ -45,9 +45,7 @@ const CHORD_HALF: f64 = 2.0e-3;
 /// The bore's nominal radius.
 const BORE_R: f64 = 0.3e-3;
 /// The authored bulge of the segment's arc — a MAJOR arc, so both
-/// junctions with the chord are corners rather than tangencies (the
-/// kernel refuses an undeclared tangency, which is how the first cut
-/// of this fixture died).
+/// junctions with the chord are corners rather than tangencies.
 const BULGE: f64 = 2.0;
 
 fn plen(n: &'static str) -> Formula {

@@ -947,12 +947,11 @@ fn f_two_rings_same_face_from_one_operand() {
 // G. Boundary-on-boundary refusal honesty.
 // =====================================================================
 
-/// Corner-flush {4} and stacked-full {8} — the PR 5.5 pinned
-/// refusals — FLIPPED to exact successes under M5 S1's declared-REST
-/// zip (the boundary-on-boundary class (iii) lane). The sharpness
-/// claim survives inverted: the exact contact set takes the REST
-/// lane, the epsilon-perturbed neighbors (shift 1/16, far beyond any
-/// band) take the transversal chord lane, and BOTH produce exact
+/// Corner-flush {4} and stacked-full {8}, the boundary-on-boundary
+/// class (iii), build exactly. The sharpness claim holds both ways:
+/// the exact contact set and the epsilon-perturbed neighbors (shift
+/// 1/16, far beyond any band, the transversal chord lane) BOTH produce
+/// exact
 /// oracles — while the UNDECLARED exact contacts still refuse typed,
 /// deterministic, operand-preserving at the coincidence door (the
 /// boundary between the lanes is declared intent + the exact contact

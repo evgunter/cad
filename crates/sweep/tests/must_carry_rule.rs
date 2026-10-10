@@ -57,7 +57,7 @@ use geom_brep::{
     EdgeDescription, LeverRung, MustCarryEscalation, MustCarryVerdict, must_carry_over_edge,
 };
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
@@ -124,8 +124,7 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
         (Point2::new(q, 1.0), b),
         (Point2::new(0.0, 1.0 - q), 0.0),
         (Point2::new(0.0, q), b),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");
@@ -176,8 +175,7 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
         (Point2::new(outer, -h), 0.0),
         (shoulder, bulge),
         (Point2::new(r_bore, 0.0), 0.0),
-    ])
-    .with_tangent_joints(vec![3]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the bored ring is a valid profile");
@@ -299,7 +297,16 @@ fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_descript
 #[test]
 fn an_extrude_strut_with_an_in_band_margin_refuses_typed() {
     match filleted_block(free_length_for(in_band_margin())) {
-        Err(ExtrudeError::SliverJoin { source, .. }) => assert_in_band_payload(source),
+        Err(ExtrudeError::SliverJoin {
+            reading, source, ..
+        }) => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Bend,
+                "the strut's in-band station is the second-order bend's"
+            );
+            assert_in_band_payload(source);
+        }
         Err(other) => panic!("the in-band strut must refuse as a sliver JOIN, not {other}"),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
@@ -351,7 +358,16 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
 #[test]
 fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
     match bored_ring(free_length_for(in_band_margin())) {
-        Err(sweep::RevolveError::SliverJoin { source, .. }) => assert_in_band_payload(source),
+        Err(sweep::RevolveError::SliverJoin {
+            reading, source, ..
+        }) => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Bend,
+                "the latitude join's in-band station is the second-order bend's"
+            );
+            assert_in_band_payload(source);
+        }
         Err(other) => panic!("the in-band latitude join must refuse as a sliver JOIN, not {other}"),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
@@ -884,8 +900,7 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         (p2(q, 1.0), b),
         (p2(0.0, 1.0 - q), zero),
         (p2(0.0, q), b),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the filleted block is a valid profile");

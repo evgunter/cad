@@ -632,9 +632,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |source| RevolveError::SliverJoin {
+            |reading, source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
+                reading,
                 source,
             },
             tol,
@@ -679,6 +680,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                     axis_origin: frame.o3,
                     axis_dir: frame.a3,
                     angle: half,
+                    range: geom_brep::SweepRange::whole(),
                 },
             ),
             carrier: geom::Curve3::Circle {
@@ -718,9 +720,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |source| RevolveError::SliverJoin {
+            |reading, source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
+                reading,
                 source,
             },
             tol,

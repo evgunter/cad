@@ -100,6 +100,7 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "input" => SlotId::Operand(OperandSlot::Input),
         "of" => SlotId::Operand(OperandSlot::Of),
         "at" => SlotId::Operand(OperandSlot::At),
+        "body" => SlotId::Operand(OperandSlot::Body),
         _ => return None,
     };
     Some(slot)

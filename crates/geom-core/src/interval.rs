@@ -804,16 +804,20 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// see [`crate::spline::locate`]'s module docs). Sound because every
 /// span's polynomial extension agrees with the curve on the span
 /// itself, so hulling the per-span interval evaluations over the box
-/// contains the true image. Poison (NaI/empty) surfaces NaN brackets
-/// and lands on the first span deterministically — the poisoned `t`
-/// then propagates through the evaluation arithmetic as a value.
+/// contains the true image.
+///
+/// It reads the stored **bracket**, not the certificate: a `Trv`
+/// enclosure is a sound bracket and locates, and its decoration rides
+/// through to whichever reader certifies. A NaI (NaN ends) or an empty
+/// enclosure (inverted ends) is no bracket, so it locates nothing.
 impl crate::spline::SpanLocate for Interval {
-    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
-        // `span_range` now answers in validated spans, which is exactly
-        // what a `SpanSet` carries — so the locator is the range query
-        // again, with no unpacking in between.
-        let (first, last) = knots.span_range(Bounds::lo(self), Bounds::hi(self));
-        crate::spline::SpanSet { first, last }
+    fn locate_spans<'a>(
+        self,
+        knots: &'a crate::spline::KnotVector,
+    ) -> Option<crate::spline::SpanSet<'a>> {
+        let range = crate::spline::ParamRange::new(Bounds::lo(self), Bounds::hi(self))?;
+        let (first, last) = knots.span_range(range);
+        Some(crate::spline::SpanSet { first, last })
     }
 
     fn enclosure_hull(self, other: Self) -> Self {

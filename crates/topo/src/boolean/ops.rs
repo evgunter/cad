@@ -60,8 +60,8 @@
 //! coincidence ladder has no numeric rung).
 //!
 //! After the merge and its re-description, every output stage (the
-//! seamed path, the graft and single-operand fallbacks, the declared
-//! REST lane, all through [`finish_output`]) runs the edge join
+//! seamed path, the graft and single-operand fallbacks, all through
+//! [`finish_output`]) runs the edge join
 //! ([`super::edge_join::join_stage`]): every joinable vertex is joined
 //! away, so every result has maximal edges (`docs/DESIGN.md`, the
 //! merge stage). Each join writes its substitution rows into the
@@ -97,24 +97,13 @@
 //! Still refusing — typed, deterministic, operands untouched; never a
 //! silent wrong body:
 //!
-//! - **Boundary-on-boundary seams** — NARROWED by M5 S1: declared
-//!   UNIONS of pure REST contacts (the full-overlap stacked union,
-//!   corner-flush rests, the mated cross-lap) now build through the
-//!   declared-REST zip (`rest` module): when the chord join refuses
-//!   typed on a declared ∪, the lane re-examines the reduction,
-//!   realizes the seam structurally (existing edges reused, single
-//!   chords minted), removes the coincident contact patches, and
-//!   fuses the boundary — exact dyadic volume additivity. What still
-//!   refuses, typed: undeclared mates (the coincidence door, ladder
-//!   rung (b)); REST sub-frontiers the lane names
-//!   (`RestZipUnsupported` — e.g. ring-carrying contact patches,
-//!   non-star patch adjacency); and boundary-on-boundary
-//!   configurations whose seam has a segment off the contact patches
-//!   (the join's own refusal stands verbatim, whichever of `Join`,
-//!   `JoinDesync` or `CurvedBooleanUnsupported` it was). An edge-in-face
-//!   contact beside the patch that leaves no segment is not seen there
-//!   (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
-//!   The ∩ and ∖ of a
+//! - **Boundary-on-boundary seams**: declared unions of pure REST
+//!   contacts (the full-overlap stacked union, corner-flush rests, the
+//!   mated cross-lap, a shaft in a bore, a plate on a rounded plate)
+//!   build through the join, which discards each contact side whole
+//!   and fuses along the seam. What still refuses, typed: undeclared
+//!   mates (the coincidence door, ladder rung (b)), and the join's own
+//!   refusals. The ∩ and ∖ of a
 //!   pure REST contact leave no null pair, so they take the
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
@@ -153,7 +142,9 @@ use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{AtRestBody, decide, scaffolds_at_rest, validate, validate_closed};
+use crate::validate::{
+    AtRestBody, ValidationError, decide, scaffolds_at_rest, validate, validate_closed,
+};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
 
@@ -305,8 +296,8 @@ pub struct BooleanNaming {
     /// one fact whichever copy is kept. Clone keys, as
     /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
     /// for the operand faces. Read off the classification, so every path
-    /// that classifies records it — the section path, the containment
-    /// fallback and the declared-REST union — sorted and deduplicated;
+    /// that classifies records it — the section path and the
+    /// containment fallback — sorted and deduplicated;
     /// a path that never classifies (disjoint boxes) has none.
     pub covered: Vec<(FaceKey, FaceKey)>,
     /// Every operand edge piece the classification read beside a vertex,
@@ -576,8 +567,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // face pair of the kind is answered by a vertex probe that could
     // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
     // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
-    // so ∖ and ∩ have no seam lane for it; `Cone` has no arm under any
-    // op.
+    // so ∖ and ∩ have no seam lane for it.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is
@@ -617,18 +607,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
         super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(
-        op,
-        &a,
-        &b,
-        decls,
-        JoinSweep {
-            strategy,
-            roster: super::reduce::boolean_arm_exists,
-        },
-        true,
-        tol,
-    )
+    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -652,13 +631,13 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    sweep: JoinSweep<T>,
+    strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops) =
-        match through_the_join(op, a, b, decls, sweep, recut, tol)? {
+        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
@@ -797,8 +776,7 @@ fn fused_through(map: &SeamCorrespondence, merges: &Fusions) -> SeamCorresponden
 /// What the pipeline reaches through its join ([`through_the_join`]).
 pub(super) enum Joined<T: Real> {
     /// The pipeline's answer, reached without a join to finish: the
-    /// no-crossings path (the re-cut or the containment fallback), or
-    /// the declared-REST door taking a refused join.
+    /// no-crossings path (the re-cut or the containment fallback).
     Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
@@ -814,20 +792,9 @@ pub(super) enum Joined<T: Real> {
     },
 }
 
-/// How [`through_the_join`]'s reduction sweeps: its strategy, and the
-/// operand gate's face-kind roster
-/// ([`super::boolean_reduce_declared_strategy`]).
-#[derive(Clone, Copy)]
-pub(super) struct JoinSweep<T: geom_core::Real> {
-    /// The sweep strategy.
-    pub(super) strategy: SweepStrategy,
-    /// The face kinds the operand gate admits.
-    pub(super) roster: fn(&geom::Surface<T>) -> bool,
-}
-
 /// **The pipeline through its join**: the reduction, then the
 /// no-crossings path where there is no null pair, and otherwise the
-/// join, with the declared-REST door behind a join that refuses.
+/// join.
 /// [`boolean_op_recut`] finishes what it returns, and the test hook
 /// that stops at the join (`boolean::through_the_join`) reads it, so
 /// the two run one sequence.
@@ -836,19 +803,18 @@ pub(super) struct JoinSweep<T: geom_core::Real> {
 ///
 /// The reduction's, the no-crossings path's and the join's refusals.
 ///
-/// The reduction sweeps as `sweep` says ([`JoinSweep`]).
+/// The reduction sweeps by `strategy`.
 pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    sweep: JoinSweep<T>,
+    strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
-    let JoinSweep { strategy, roster } = sweep;
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, roster, tol)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -901,7 +867,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // entity's key (`splitting::finish`'s `carve`), so those
             // names still hold on `a2` and `b2`.
             apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, sweep, false, tol)
+            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
@@ -912,19 +878,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .map(|result| Joined::Answered(Box::new(result)));
     }
 
-    // The declared-REST union door (M5 S1): a declared union whose
-    // join refuses typed may be the boundary-on-boundary REST
-    // frontier — the lane re-examines the UNMUTATED reduction and
-    // either zips the mate or reproduces the original refusal
-    // verbatim. The clones are taken only when the door can open
-    // (declared union), so undeclared and non-union ops pay nothing.
-    // Decided on the reduction, while its contacts still name the
-    // operands' own faces; raised on the built body, after the
-    // structural gate and before the volume backstop
-    // ([`interior_loop_verdict`]).
     let interior_loops = interior_loop_verdict(op, a, b, &red, decls, band);
-    let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
-    let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     // The join carves both reduction operands through the Euler
     // operators; one scope per operand body, and what certifies the
     // result is `gate` below, over the body they are finished into.
@@ -935,35 +889,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     red.enter_join_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
     red.leave_join_surgery(connected.is_ok());
-    let connected = match connected {
-        Ok(c) => c,
-        Err(
-            err @ (BooleanError::Join(_)
-            | BooleanError::JoinDesync { .. }
-            | BooleanError::CurvedBooleanUnsupported { .. }),
-        ) => match saved {
-            Some((sa, sb)) => {
-                red.a = sa;
-                red.b = sb;
-                return match super::rest::try_rest_union(
-                    red,
-                    a,
-                    b,
-                    decls,
-                    interior_loops,
-                    band,
-                    tol,
-                )? {
-                    Some(result) => Ok(Joined::Answered(Box::new(result))),
-                    // Not the REST frontier: the original join
-                    // refusal stands, verbatim.
-                    None => Err(err),
-                };
-            }
-            None => return Err(err),
-        },
-        Err(e) => return Err(e),
-    };
+    let connected = connected?;
     if connected.completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",
@@ -1564,15 +1490,8 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let band = Band::linear(tol)?;
     let decls = BooleanDeclarations::default();
-    let red = super::boolean_reduce_declared_strategy(
-        op,
-        a,
-        b,
-        &decls,
-        SweepStrategy::Realized,
-        super::reduce::boolean_arm_exists,
-        tol,
-    )?;
+    let red =
+        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
     let events = event_pairs(&red);
     section_pairs(
         a,
@@ -2602,7 +2521,7 @@ fn seam_reading<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
     geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
-        .map_err(|escalation| (DihedralReading::Lever(escalation.rung()), escalation.diag()))
+        .map_err(DihedralReading::of_lever)
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
@@ -2668,16 +2587,11 @@ fn must_carry_reading<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<bool, (DihedralReading, Indeterminate)> {
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict};
+    use geom_brep::MustCarryVerdict;
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
-        MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err((DihedralReading::Lever(escalation.rung()), escalation.diag()))
-        }
-        MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
-            Err((DihedralReading::Bend, diag))
-        }
+        MustCarryVerdict::InBand(escalation) => Err(DihedralReading::of_must_carry(escalation)),
     }
 }
 
@@ -3680,12 +3594,16 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// finished ([`AtRestPolicy::gate_at_rest_kept`]: tier 3, whose first
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
-/// gate, [`structural_gate`] runs in its place.
+/// gate, [`structural_gate`] runs in its place. The at-rest gate's
+/// findings are typed by [`finished_body_refusal`]; the structural
+/// gate's are structure alone, the kernel's.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Pieces`] where the body's pieces cannot be read;
-/// [`BooleanError::ResultInvalid`] carrying the validator's findings.
+/// [`BooleanError::Escalated`] where every finding is the operands'
+/// ill-conditioning, and [`BooleanError::ResultInvalid`] carrying the
+/// validator's findings otherwise.
 pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     body: Body<T>,
     band: Band,
@@ -3704,11 +3622,186 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         from.elapsed(),
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
-    let kept = kept.map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    let kept = kept.map_err(finished_body_refusal)?;
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
     Ok(kept)
+}
+
+/// **How the finished-body gate types what it found** (D10, Booleans):
+/// a result holds no in-band pair or shell, and one that does is the
+/// operands' ill-conditioning, which definite cuts can compose. So where
+/// every finding is born of a margin certified in band, the refusal is
+/// [`BooleanError::Escalated`] on the shell whose certified enclosure
+/// binds the offer (nearest zero: a tolerance deciding it decides every
+/// other), naming how many more lie in band; its recourse is a smaller
+/// tolerance or moved parts. Any other finding is the kernel's own
+/// defect, and the refusal is [`BooleanError::ResultInvalid`] carrying
+/// every finding. Each finding's arm is [`finding_arm`]'s.
+fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
+    let binding = in_band.as_deref().and_then(|shells| {
+        shells
+            .iter()
+            .copied()
+            .reduce(|a, b| {
+                if a.certified.margin.binds_before(b.certified.margin) {
+                    a
+                } else {
+                    b
+                }
+            })
+            .map(|binding| (binding, shells.len() - 1))
+    });
+    match binding {
+        Some((binding, others)) => BooleanError::Escalated {
+            decision: BooleanDecision::ShellRole {
+                solid: binding.solid,
+                shell: binding.shell,
+                others,
+            },
+            diag: binding.certified,
+        },
+        None => BooleanError::ResultInvalid { errors },
+    }
+}
+
+/// A shell of the result certified in band.
+#[derive(Clone, Copy)]
+struct InBandShell {
+    /// Its solid.
+    solid: crate::entity::SolidKey,
+    /// The shell.
+    shell: ShellKey,
+    /// Its certified enclosure of `V/A`, wholly in one sliver band.
+    certified: Indeterminate,
+}
+
+/// **Which of Q1's arms one finding of the finished-body gate is**: the
+/// shell and certified margin of a finding certified in band, or `None`
+/// for the kernel's. Every finding states its arm here.
+fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
+    use crate::props::ShellClassifyError;
+    use ValidationError as V;
+    match finding {
+        // In band: a shell whose volume over its area, re-derived in
+        // interval arithmetic, lies wholly inside one sliver band.
+        // The certificate decides, whatever words the walk's ends gave the
+        // refusal: a walk that read zero is refuted by it.
+        V::ShellRoleUndecided {
+            solid,
+            error:
+                ShellClassifyError::Escalated { shell, .. }
+                | ShellClassifyError::ZeroVolume { shell, .. }
+                | ShellClassifyError::Straddles { shell }
+                | ShellClassifyError::Props { shell, .. },
+            sliver: Some(certified),
+        } => Some(InBandShell {
+            solid: *solid,
+            shell: *shell,
+            certified: *certified.reading(),
+        }),
+        // Undecided, and not certified in band: a role read whose
+        // enclosure the arithmetic left wider than the band or straddling
+        // its edge (`work/join/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
+        // or poisoned; or a band that does not form.
+        V::ShellRoleUndecided { .. } => None,
+        // Undecided at a point margin the gate has not shown conditioned
+        // (`work/join/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
+        V::DegenerateTorusEscalated { .. }
+        | V::PlanarFaceEscalated { .. }
+        | V::PlanarBoundaryEscalated { .. }
+        | V::SliverDihedral { .. }
+        | V::JoinUndecidedAtRest { .. }
+        | V::VolumeSignUnresolved { .. }
+        | V::RingContactEscalated { .. }
+        | V::RingNestingUndecided { .. }
+        | V::RingPairContactEscalated { .. }
+        | V::PinchCornerEscalated { .. } => None,
+        // The census's findings: the door runs no census
+        // (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+        V::UndeclaredContact { .. }
+        | V::StaleContactDeclaration { .. }
+        | V::ContactContradicted { .. }
+        | V::CensusEscalated { .. }
+        | V::CensusUnsupported { .. }
+        | V::CensusLaneUnsupported { .. }
+        | V::CensusUndecidable { .. }
+        | V::InstanceInterference { .. } => None,
+        // A certificate that failed or a lane that cannot run: the
+        // kernel's.
+        V::Band { .. }
+        | V::UncertifiableSurface { .. }
+        | V::PoisonedSurfaceDescription { .. }
+        | V::ApproxCertification { .. }
+        | V::ApproxLaneUnsupported { .. }
+        | V::PoisonedSurfaceDatum { .. }
+        | V::UnrepresentableSurfaceDatum { .. }
+        | V::PoisonedCurveDatum { .. }
+        | V::UnrepresentableCurveDatum { .. }
+        | V::EdgeCertification { .. }
+        | V::VolumeUncomputable { .. }
+        | V::Pcurve { .. } => None,
+        // Definite findings: a kernel defect.
+        V::DanglingDescription { .. }
+        | V::DegenerateTorus { .. }
+        | V::DescriptionNotAdjacent { .. }
+        | V::PlanarFaceResidual { .. }
+        | V::PlanarBoundaryResidual { .. }
+        | V::TransverseNotIntrinsic { .. }
+        | V::ScaffoldAtRest { .. }
+        | V::JoinableVertexAtRest { .. }
+        | V::TangentNotIntrinsic { .. }
+        | V::LaminaWedge { .. }
+        | V::NoDihedralArm { .. }
+        | V::LoopRoleInverted { .. }
+        | V::CurvedSenseInverted { .. }
+        | V::NegativeVolume { .. }
+        | V::RingMeetsOuter { .. }
+        | V::RingOutsideOuter { .. }
+        | V::RingMeetsRing { .. }
+        | V::PinchCornerCrossed { .. }
+        | V::ShellWinding { .. }
+        | V::SolidOuterShells { .. }
+        | V::DanglingTopology { .. }
+        | V::DanglingGeometry { .. }
+        | V::NextPrevMismatch { .. }
+        | V::LoopCycleOverrun { .. }
+        | V::ParentLoopMismatch { .. }
+        | V::UnreachableHalfEdge { .. }
+        | V::EdgeHalvesIdentical { .. }
+        | V::EdgeSlotBackpointerMismatch { .. }
+        | V::HalfEdgeUnclaimed { .. }
+        | V::HalfEdgeMultiplyClaimed { .. }
+        | V::EdgeNotAntiparallel { .. }
+        | V::EmanatingStartMismatch { .. }
+        | V::EmptyLoopVertexWithEmanating { .. }
+        | V::LoneVertexWithIncidence { .. }
+        | V::VertexOrbitOverrun { .. }
+        | V::OrbitForeignMember { .. }
+        | V::SplitVertexOrbit { .. }
+        | V::OuterListedAsRing { .. }
+        | V::BackPointerMismatch { .. }
+        | V::OrphanEntity { .. }
+        | V::MultiplyOwned { .. }
+        | V::OrphanGeometry { .. }
+        | V::SolidWithoutShells { .. }
+        | V::ShellWithoutFaces { .. }
+        | V::EdgeAcrossShells { .. }
+        | V::ComponentEulerViolation { .. }
+        | V::MissingProvenance { .. }
+        | V::LeakedProvenance { .. }
+        | V::ScaffoldingEmptyLoop { .. }
+        | V::ScaffoldingStrutVertex { .. }
+        | V::ShellDisconnected { .. }
+        | V::NullScaffoldShared { .. }
+        | V::LeakedNullFaceRecord { .. }
+        | V::StaleNullFaceLoop { .. }
+        | V::StaleNullFaceOwnership { .. }
+        | V::NullEdgeAtRest { .. }
+        | V::NullFaceAtRest { .. } => None,
+    }
 }
 
 /// The result gate where no at-rest gate ran (a dual's policy answers
@@ -5498,6 +5591,110 @@ mod tests {
         );
     }
 
+    /// **The gate's findings take their arm** (D10, Booleans): shells
+    /// certified slivers alone are the operands' ill-conditioning,
+    /// refused `Escalated` on the one whose enclosure binds the offer
+    /// (nearest zero, on either side, in either order) and naming how many
+    /// more lie in band; the same shell beside a definite finding, or an
+    /// escalation the arithmetic may have made, is the kernel's.
+    #[test]
+    fn the_gate_types_only_certified_in_band_findings_escalated() {
+        use crate::ShellClassifyError as S;
+        use crate::ValidationError as V;
+        use crate::entity::{ShellKey, SolidKey};
+        use crate::props::CertifiedSliver;
+        use geom_core::{Band, Indeterminate, MarginDiag};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |margin, terminal_sliver| Indeterminate {
+            margin,
+            band,
+            predicate: Some("positive_volume"),
+            terminal_sliver,
+        };
+        let walk = read(MarginDiag::value(3.05e-9), false);
+        let sliver = |lo, hi| {
+            CertifiedSliver::of(read(MarginDiag::enclosure(lo, hi), true)).expect("in band")
+        };
+        let (thin, thick) = (sliver(-3.29e-9, -3.28e-9), sliver(6.57e-9, 6.58e-9));
+        let shells: Vec<ShellKey> = (1..=3)
+            .map(|n: u64| slotmap::KeyData::from_ffi((1 << 32) | n).into())
+            .collect();
+        let role = |shell: ShellKey, sliver: Option<CertifiedSliver>| V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::Escalated {
+                shell,
+                source: walk,
+            },
+            sliver: sliver.map(Box::new),
+        };
+        // A walk that read zero, refuted by the certificate.
+        let zero_read = |shell: ShellKey, sliver: Option<CertifiedSliver>| V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::ZeroVolume {
+                shell,
+                verdict: geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(8.7e-10),
+                    band,
+                },
+            },
+            sliver: sliver.map(Box::new),
+        };
+        let definite = V::NegativeVolume {
+            solid: SolidKey::default(),
+        };
+        for (what, errors) in [
+            (
+                "thin first",
+                vec![role(shells[0], Some(thin)), role(shells[1], Some(thick))],
+            ),
+            (
+                "thick first",
+                vec![role(shells[1], Some(thick)), role(shells[0], Some(thin))],
+            ),
+            (
+                "the thin one's walk read zero",
+                vec![
+                    role(shells[1], Some(thick)),
+                    zero_read(shells[0], Some(thin)),
+                ],
+            ),
+        ] {
+            let refusal = super::finished_body_refusal(errors);
+            assert!(
+                matches!(
+                    &refusal,
+                    BooleanError::Escalated {
+                        decision: BooleanDecision::ShellRole { shell, others: 1, .. },
+                        diag,
+                    } if *shell == shells[0] && diag == thin.reading()
+                ),
+                "{what}: the thinner shell binds, the other counted: {refusal:?}"
+            );
+        }
+        for (what, errors) in [
+            ("an uncertified escalation", vec![role(shells[0], None)]),
+            ("an uncertified zero", vec![zero_read(shells[0], None)]),
+            (
+                "beside one",
+                vec![role(shells[0], Some(thin)), role(shells[2], None)],
+            ),
+            (
+                "beside a definite finding",
+                vec![role(shells[0], Some(thin)), definite],
+            ),
+            ("nothing", Vec::new()),
+        ] {
+            let n = errors.len();
+            assert!(
+                matches!(
+                    super::finished_body_refusal(errors),
+                    BooleanError::ResultInvalid { errors } if errors.len() == n
+                ),
+                "{what}: the kernel's, every finding kept"
+            );
+        }
+    }
+
     /// **At a dual the result gate is main's structural gate.** A dual's
     /// policy runs no at-rest gate, so tiers 1 and 2 and the transience
     /// fence run in its place: the undescribed box refuses one
@@ -6613,10 +6810,7 @@ mod tests {
                 &a,
                 &b,
                 &decls,
-                super::JoinSweep {
-                    strategy: SweepStrategy::Realized,
-                    roster: crate::boolean::reduce::boolean_arm_exists,
-                },
+                SweepStrategy::Realized,
                 true,
                 tol,
             )

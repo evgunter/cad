@@ -705,7 +705,10 @@ fn a7_the_product_of_a_lone_part_root_is_that_half() {
         tool: tool.into(),
     });
     let above = part(&mut r, split, half(SplitHalf::Above));
-    assert_eq!(r.doc.roots(), &[above], "the Part is the only sink");
+    r.insert(Node::place_in_world(
+        above,
+        editor_core::Placement::IDENTITY,
+    ));
     let ev = eval(&r.doc);
     let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
     let m = mass_properties(&body, Tol::witness()).expect("mass properties");
@@ -909,6 +912,57 @@ fn a_tie_the_split_separates_is_unique_in_each_parts_table() {
             "{name} stays tied on the split"
         );
     }
+}
+
+/// **A side naming a tie both halves hold is sided by neither.** The
+/// U-cutter tie the split separates is one name, `Unique` in each
+/// half's rows; a pair declared across the two halves names both
+/// halves at the split's one site, so a side naming that tie is held
+/// by both operands' tables and refuses typed rather than being read
+/// in the first.
+#[test]
+fn a_side_naming_a_tie_both_halves_hold_refuses() {
+    let mut r = Recorder::new();
+    let sub = u_cutter_tie(&mut r);
+    let tool = r.insert(Node::Datum(Datum::Plane {
+        origin: [len(0.0), len(2.0), len(0.0)],
+        normal: [scl(0.0), scl(1.0), scl(0.0)],
+    }));
+    let split = r.insert(Node::Split {
+        target: sub.into(),
+        tool: tool.into(),
+    });
+    let ev = eval(&r.doc);
+    let (tied, _) = ties(&ev, split)
+        .into_iter()
+        .find(|(name, c)| {
+            name.kind == EntityKind::Face
+                && c.iter()
+                    .map(|e| e.body)
+                    .collect::<std::collections::BTreeSet<u32>>()
+                    .len()
+                    > 1
+        })
+        .expect("the premise: a face tie straddling the two halves");
+    let section = corpus::part_select::section_face(split, SplitHalf::Below);
+    let joined = r.insert(Node::Boolean {
+        op: BooleanOp::Union,
+        a: editor_core::Operand::output(split, SplitHalf::Above.port()),
+        b: editor_core::Operand::output(split, SplitHalf::Below.port()),
+        declare: editor_core::declare_rest(vec![(
+            editor_core::SitedRef::new(split, tied),
+            editor_core::SitedRef::new(split, section),
+        )]),
+    });
+    let ev = eval(&r.doc);
+    assert!(
+        matches!(
+            error_of(&ev, joined),
+            NodeErrorKind::DeclareSiteNotAnOperand { at } if *at == split
+        ),
+        "{:?}",
+        error_of(&ev, joined)
+    );
 }
 
 /// **The contrast: a pattern of a tied master.** The pattern wraps the

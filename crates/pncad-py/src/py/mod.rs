@@ -46,9 +46,8 @@ pyo3::create_exception!(
      `None` where it carries none. `EvaluationError` states why the \
      second word is a second attribute.\n\n\
      The rest is the refusing arm's PAYLOAD, present on every arm and \
-     `None` where that arm does not carry it: `node`, `input` and \
-     `referenced_by` (the node the refusal is about, a node it names, \
-     a node downstream that references it), `slot`, `param`, `name`, \
+     `None` where that arm does not carry it: `node` and `input` (the \
+     node the refusal is about, a node it names), `slot`, `param`, `name`, \
      `key`, `expected` and `found` (the dimension the door required \
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
@@ -339,7 +338,7 @@ pyo3::create_exception!(
      caller who catches this class must say which of the two they \
      mean.\n\n\
      A gather refusal arrives here under the gather's OWN tag \
-     (`no_body_roots`, `root_failed`, ...), not a wrapper tag: which \
+     (`empty_product`, `root_poisoned`, ...), not a wrapper tag: which \
      invariant broke is what a caller branches on."
 );
 pyo3::create_exception!(
@@ -347,13 +346,13 @@ pyo3::create_exception!(
     ProductError,
     PncadError,
     "The whole-document gather refused. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through` and `name` \
-     (`None` where the arm does not carry them).\n\n\
+     tag of the refusing arm, plus `node`, `through` and \
+     `unplaced_bodies` (`None` where the arm does not carry them).\n\n\
      Its message names each node as the evaluation's own document \
      holds it (kind, label and tag): the document the gather was taken \
      of. `node` and `through` carry the full ids.\n\n\
-     A product is all of the roots or none of them — there are no \
-     partial products."
+     A product is every copy the world's placements define or none of \
+     them — there are no partial products."
 );
 pyo3::create_exception!(
     pncad,

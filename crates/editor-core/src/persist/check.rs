@@ -226,9 +226,10 @@ pub(crate) enum Walk {
     /// read of an output deleted since is legal — its reader is
     /// stranded, refused at evaluation. Snapshot only.
     OperandRead,
-    /// [`first_unread_anonymous_var`] over the variable table: a
-    /// variable with no name is read by something (VR7). Snapshot only.
-    AnonymousVar,
+    /// [`first_unnamed_reader_fault`] over the variable table: a
+    /// variable with no name has exactly one reader (VR2, VR9).
+    /// Snapshot only.
+    UnnamedReader,
     /// [`first_program_fault`] over the profile programs' replay: a
     /// REPLAY PROBE under the document's params whose LATTICE
     /// violations refuse (the corrupt-file class — no authoring surface
@@ -271,7 +272,7 @@ impl Walk {
         Walk::OperandRead,
         Walk::Program,
         Walk::Snapshot,
-        Walk::AnonymousVar,
+        Walk::UnnamedReader,
     ];
 
     /// **This walk over one document**, or `None` when it finds
@@ -333,11 +334,9 @@ impl Walk {
             Walk::OperandRead => {
                 first_operand_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
-            Walk::AnonymousVar => first_unread_anonymous_var(snapshot).map(|var| {
-                super::PersistError::Snapshot(SnapshotError::AnonymousVarUnread {
-                    var: snapshot.spoken_var(var),
-                })
-            }),
+            Walk::UnnamedReader => {
+                first_unnamed_reader_fault(snapshot).map(super::PersistError::Snapshot)
+            }
             Walk::Program => first_program_fault(snapshot, tol).map(|(node, fault)| {
                 super::PersistError::ProfileProgram {
                     node: snapshot.spoken(node),
@@ -378,8 +377,8 @@ impl Walk {
 ///   a structurally invalid shape, and the param-table answer names the
 ///   parameter while the structural one does not.
 ///
-/// [`Walk::AnonymousVar`] comes last: whether a variable is read is a
-/// question about the readers, so it is asked once every reader is
+/// [`Walk::UnnamedReader`] comes last: how many readers a variable has
+/// is a question about the readers, so it is asked once every reader is
 /// known to be well-formed — a slot a structurally broken node no
 /// longer addresses leaves its variable unread, and the structural
 /// fault is the answer
@@ -713,34 +712,53 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.operand_rows().into_iter().find_map(|(slot, var)| {
-            if !snapshot.has_minted_var(var) {
-                return Some(SnapshotError::OperandUnminted {
+        node.operand_rows()
+            .into_iter()
+            .find_map(|(slot, var)| {
+                if !snapshot.has_minted_var(var) {
+                    return Some(SnapshotError::OperandUnminted {
+                        node: snapshot.spoken(id),
+                        slot,
+                        var: snapshot.spoken_var(var),
+                    });
+                }
+                // A minted read no live operation defines is a strand the
+                // file keeps (DM7), the reader's refusal at evaluation.
+                let held = snapshot.var(var)?;
+                Some(
+                    match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
+                        crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
+                            node: snapshot.spoken(id),
+                            slot: SlotId::Operand(slot),
+                            var: Box::new(snapshot.spoken_var(var)),
+                            found,
+                            expected: slot.kind(),
+                        },
+                        crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
+                            node: snapshot.spoken(id),
+                            half,
+                            var: Box::new(snapshot.spoken_var(var)),
+                        },
+                        crate::doc::ReadFault::WorldCopy { placement } => {
+                            SnapshotError::ReadsWorldCopy {
+                                node: snapshot.spoken(id),
+                                slot: SlotId::Operand(slot),
+                                placement: snapshot.spoken(placement),
+                            }
+                        }
+                    },
+                )
+            })
+            .or_else(|| {
+                let placement = node
+                    .measure_sites()
+                    .into_iter()
+                    .find_map(|at| crate::edit::world_copy_site(snapshot, at))?;
+                Some(SnapshotError::MeasuresWorldCopy {
                     node: snapshot.spoken(id),
-                    slot,
-                    var: snapshot.spoken_var(var),
-                });
-            }
-            // A minted read no live operation defines is a strand the
-            // file keeps (DM7), the reader's refusal at evaluation.
-            let held = snapshot.var(var)?;
-            Some(
-                match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
-                    crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
-                        node: snapshot.spoken(id),
-                        slot: SlotId::Operand(slot),
-                        var: Box::new(snapshot.spoken_var(var)),
-                        found,
-                        expected: slot.kind(),
-                    },
-                    crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
-                        node: snapshot.spoken(id),
-                        half,
-                        var: Box::new(snapshot.spoken_var(var)),
-                    },
-                },
-            )
-        })
+                    placement: snapshot.spoken(placement),
+                })
+            })
     })
 }
 
@@ -775,9 +793,18 @@ fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarR
 }
 
 /// The first variable, in declaration order, that has no name and that
-/// nothing reads ([`Walk::AnonymousVar`]).
-fn first_unread_anonymous_var(snapshot: &ProfileDoc) -> Option<VarId> {
-    snapshot.unread_anonymous_vars().first().copied()
+/// nothing reads, then the first with no name and more than one reader
+/// ([`Walk::UnnamedReader`]).
+fn first_unnamed_reader_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    if let Some(&var) = snapshot.unread_anonymous_vars().first() {
+        return Some(SnapshotError::AnonymousVarUnread {
+            var: snapshot.spoken_var(var),
+        });
+    }
+    let var = *snapshot.shared_unnamed_vars().first()?;
+    Some(SnapshotError::SharedVarNeedsName {
+        var: snapshot.spoken_var(var),
+    })
 }
 
 /// The first non-finite float in ε, the document params, the profile
@@ -977,7 +1004,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetAppearance { .. }
         | DocEdit::ClearAppearance { .. }
         | DocEdit::ClearAppearanceMeta { .. }
-        | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         // A gauge reference is a node id, and so is what a promote or a
         // fold names.
@@ -1114,6 +1140,24 @@ pub enum SnapshotError {
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
     },
+    /// An operand reads a world placement's copy — the edit doors'
+    /// [`crate::EditError::ReadsWorldCopy`].
+    ReadsWorldCopy {
+        /// The reading node.
+        node: SpokenNode,
+        /// The slot.
+        slot: SlotId,
+        /// The placement whose copy it reads.
+        placement: SpokenNode,
+    },
+    /// A measure is sited at a world placement — the edit doors'
+    /// [`crate::EditError::MeasuresWorldCopy`].
+    MeasuresWorldCopy {
+        /// The measure.
+        node: SpokenNode,
+        /// The placement it is sited at.
+        placement: SpokenNode,
+    },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
     /// leaves a document so, since every door that writes a read asks
     /// acyclicity ([`crate::EditError::WouldCycle`]).
@@ -1188,10 +1232,6 @@ pub enum SnapshotError {
         /// The recorded value.
         value: f64,
     },
-    /// The product-root list violates an A10 invariant (ASM-ROOTS
-    /// D-2): the same check `apply` runs, so a file can carry no root
-    /// state the edit doors could not have produced.
-    Roots(crate::roots::RootFault),
     /// A gauge reference — an instance's gauge or a gauge's parent —
     /// that names a live node that is not a gauge. The edit doors
     /// refuse it through the same predicate (`doc::gauge_ref_fault`).
@@ -1308,9 +1348,15 @@ pub enum SnapshotError {
         referenced: crate::expr::Dimension,
     },
     /// A variable with no name that nothing reads (VR7: an anonymous
-    /// variable is read by something; the edit that detaches its last
-    /// reader removes it).
+    /// variable goes with its reader).
     AnonymousVarUnread {
+        /// The variable.
+        var: SpokenVar,
+    },
+    /// A variable with no name that more than one reader reads (VR2:
+    /// an unnamed variable has exactly one reader). A file written
+    /// before the doors refused a share holds one.
+    SharedVarNeedsName {
         /// The variable.
         var: SpokenVar,
     },
@@ -1500,6 +1546,19 @@ impl core::fmt::Display for SnapshotError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())
             }
+            Self::MeasuresWorldCopy { node, placement } => write!(
+                f,
+                "{node} is sited at {placement}, whose copy only the product and export read"
+            ),
+            Self::ReadsWorldCopy {
+                node,
+                slot,
+                placement,
+            } => write!(
+                f,
+                "{node}'s {slot} reads the world copy {placement} makes, and construction never \
+                 reads the world"
+            ),
             Self::ReadCycle { at } => write!(
                 f,
                 "the nodes' reads close a loop through {at} — no edit writes one. {}",
@@ -1572,6 +1631,12 @@ impl core::fmt::Display for SnapshotError {
                 "{var} has no name and nothing reads it, and a variable with no name is one \
                  something reads"
             ),
+            Self::SharedVarNeedsName { var } => write!(
+                f,
+                "{var} has no name and more than one reader, and a variable with no name has \
+                 exactly one. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
             Self::DefinitionReadsUnmintedVar { var, read } => write!(
                 f,
                 "the definition of {var} reads variable {read}, which the document never \
@@ -1615,7 +1680,6 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "the recorded ε {value:e} is not finite and strictly positive"
             ),
-            Self::Roots(fault) => write!(f, "{fault}"),
             Self::NotAGauge { node, gauge } => write!(
                 f,
                 "{node}'s gauge reference names {gauge}, which is not a gauge"
@@ -1950,10 +2014,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
-    // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
-    // walk so a file with dangling inputs is diagnosed as such rather
-    // than as an incidental coverage failure.
-    crate::roots::check(doc, |id| doc.spoken(id)).map_err(SnapshotError::Roots)?;
     // D7's producer convention, asked of the whole map. The RULE is
     // already shared — `MetaValue::require_versioned` is the one
     // predicate, and `SetAppearanceMeta` calls it too — and what is not
@@ -2106,7 +2166,7 @@ mod tests {
             SlotRead,
             PayloadRead,
             OperandRead,
-            AnonymousVar,
+            UnnamedReader,
             Program,
             Snapshot,
         ];
@@ -2129,7 +2189,7 @@ mod tests {
             | Walk::SlotRead
             | Walk::PayloadRead
             | Walk::OperandRead
-            | Walk::AnonymousVar
+            | Walk::UnnamedReader
             | Walk::Snapshot => true,
         }
     }
@@ -2147,6 +2207,8 @@ mod tests {
             DeclaredNameNotUpstream,
             OperandUnminted,
             PartHalfPort,
+            ReadsWorldCopy,
+            MeasuresWorldCopy,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2160,13 +2222,13 @@ mod tests {
             SlotVarKind,
             PayloadVarKind,
             AnonymousVarUnread,
+            SharedVarNeedsName,
             DefinitionReadsUnmintedVar,
             DefinitionVarKind,
             ObservedRead,
             DefinitionCycle,
             DefinitionTooLarge,
             EpsilonInvalid,
-            Roots,
             NotAGauge,
             GaugeCycle,
             PlacementNonFinite,
@@ -2206,10 +2268,13 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. } | SnapshotError::PartHalfPort { .. } => {
-                Walk::OperandRead
+            SnapshotError::OperandUnminted { .. }
+            | SnapshotError::PartHalfPort { .. }
+            | SnapshotError::ReadsWorldCopy { .. }
+            | SnapshotError::MeasuresWorldCopy { .. } => Walk::OperandRead,
+            SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
+                Walk::UnnamedReader
             }
-            SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
             SnapshotError::ObservedRead { .. } => Walk::ObservedRead,
@@ -2226,7 +2291,6 @@ mod tests {
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
             | SnapshotError::EpsilonInvalid { .. }
-            | SnapshotError::Roots(_)
             | SnapshotError::NotAGauge { .. }
             | SnapshotError::GaugeCycle { .. }
             | SnapshotError::PlacementNonFinite { .. }
@@ -2307,6 +2371,15 @@ mod tests {
                 half: crate::SplitHalf::Below,
                 var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
             },
+            SnapshotError::ReadsWorldCopy {
+                node: node(),
+                slot: SlotId::Operand(crate::OperandSlot::A),
+                placement: node(),
+            },
+            SnapshotError::MeasuresWorldCopy {
+                node: node(),
+                placement: node(),
+            },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },
             SnapshotError::WitnessOnMissingNode { node: node() },
@@ -2358,6 +2431,9 @@ mod tests {
             SnapshotError::AnonymousVarUnread {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
+            SnapshotError::SharedVarNeedsName {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+            },
             SnapshotError::DefinitionReadsUnmintedVar {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 read: crate::VarId::new(0, 8),
@@ -2377,10 +2453,6 @@ mod tests {
                 nodes: 4097,
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
-            SnapshotError::Roots(crate::roots::RootFault::Ancestor {
-                ancestor: at(1),
-                descendant: at(2),
-            }),
             SnapshotError::NotAGauge {
                 node: node(),
                 gauge: at(2),

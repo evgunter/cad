@@ -136,7 +136,7 @@ use pncad::document::{
     Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
     NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError,
     SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
     UpdateError,
 };
@@ -570,6 +570,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::At => "at",
+        S::Body => "body",
     }
 }
 
@@ -607,6 +608,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
         EditError::PartHalfPort { .. } => "part_half_port",
+        EditError::ReadsWorldCopy { .. } => "reads_world_copy",
+        EditError::MeasuresWorldCopy { .. } => "measures_world_copy",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -629,6 +632,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::FreshUnread { .. } => "fresh_unread",
         EditError::VarNameUnchanged { .. } => "var_name_unchanged",
         EditError::AnonymousVarUnread { .. } => "anonymous_var_unread",
+        EditError::SharedVarNeedsName { .. } => "shared_var_needs_name",
         EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
         EditError::VarKindFixed { .. } => "var_kind_fixed",
         EditError::NotAFreeVar { .. } => "not_a_free_var",
@@ -671,7 +675,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // The product-root invariants tag per FAULT,
         // not per wrapper: which invariant broke is what a caller
         // branches on.
-        EditError::Roots(fault) => root_fault_tag(fault),
         EditError::OffsetOnNonInstance { .. } => "offset_on_non_instance",
         EditError::GaugeOnNonPlaced { .. } => "gauge_on_non_placed",
         EditError::GaugeNotLive { .. } => "gauge_not_live",
@@ -906,17 +909,6 @@ pub fn band_field_tag(field: &BandField) -> &'static str {
     }
 }
 
-/// The stable tag for a product-root invariant refusal — shared by
-/// every door that carries a `RootFault`.
-pub fn root_fault_tag(fault: &RootFault) -> &'static str {
-    match fault {
-        RootFault::NotLive { .. } => "root_not_live",
-        RootFault::Duplicate { .. } => "root_duplicate",
-        RootFault::Ancestor { .. } => "root_ancestor",
-        RootFault::Uncovered { .. } => "root_uncovered",
-    }
-}
-
 /// The stable tag for a node's evaluation refusal: one word per
 /// [`NodeErrorClass`], so the word is read off the class a refusal
 /// projects to and never off its payload.
@@ -1068,6 +1060,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // material, and an instance index outside the pattern's count.
         C::EmptyHalf => "empty_half",
         C::InstanceOutOfRange => "instance_out_of_range",
+        // A union of two members read out of one operation.
+        C::MembersShareAnOperation => "members_share_an_operation",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -1192,6 +1186,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
+        NodeErrorKind::MembersShareAnOperation { .. } => None,
         NodeErrorKind::InstanceOutOfRange { .. } => None,
         NodeErrorKind::DegenerateDirection { .. } => None,
         NodeErrorKind::NonFiniteDirection { .. } => None,
@@ -1266,8 +1261,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
 /// `EditError.inner_variant`, beside [`edit_error_tag`]'s `variant`.
 ///
 /// [`node_inner_kind_tag`]'s rule at the other carrier, and the same
-/// `None`s: an arm with no inner refusal, and `Roots`, whose word is
-/// already the fault's through [`root_fault_tag`].
+/// `None`: an arm with no inner refusal.
 pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
     match err {
         EditError::ProfileProgramRefused { refusal, .. } => Some(program_refusal_tag(refusal)),
@@ -1284,7 +1278,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // so its word is the fault's — the recourse a caller branches
         // on is the mate fault's own.
         EditError::MateRefused { fault, .. } => Some(mate_fault_tag(fault)),
-        EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
@@ -1304,6 +1297,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
         EditError::PartHalfPort { .. } => None,
+        EditError::ReadsWorldCopy { .. } => None,
+        EditError::MeasuresWorldCopy { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -1324,6 +1319,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PayloadUnresolvedVar { .. } => None,
         EditError::VarNameUnchanged { .. } => None,
         EditError::AnonymousVarUnread { .. } => None,
+        EditError::SharedVarNeedsName { .. } => None,
         EditError::DeleteAnonymousVar { .. } => None,
         EditError::VarKindFixed { .. } => None,
         EditError::NotAFreeVar { .. } => None,
@@ -1434,7 +1430,6 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::TangentialContact { .. } => "tangential_contact",
         ProfileError::TangentJointOutOfRange { .. } => "tangent_joint_out_of_range",
         ProfileError::TangentJointOnFullTurn { .. } => "tangent_joint_on_full_turn",
-        ProfileError::UndeclaredTangency { .. } => "undeclared_tangency",
         ProfileError::TangencyContradicted { .. } => "tangency_contradicted",
         ProfileError::SliverLoop { .. } => "sliver_loop",
         ProfileError::MultipleOuterLoops { .. } => "multiple_outer_loops",
@@ -1694,7 +1689,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
-        BooleanErrorKind::RestZipUnsupported => "rest_zip_unsupported",
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CurvedRestUnrecorded => "curved_rest_unrecorded",
@@ -2052,6 +2046,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
         SnapshotError::PartHalfPort { .. } => "part_half_port",
+        SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
+        SnapshotError::MeasuresWorldCopy { .. } => "measures_world_copy",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
@@ -2065,15 +2061,12 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
         SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
         SnapshotError::AnonymousVarUnread { .. } => "anonymous_var_unread",
+        SnapshotError::SharedVarNeedsName { .. } => "shared_var_needs_name",
         SnapshotError::DefinitionReadsUnmintedVar { .. } => "definition_reads_unminted_var",
         SnapshotError::DefinitionVarKind { .. } => "definition_var_kind",
         SnapshotError::DefinitionCycle { .. } => "definition_cycle",
         SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
-        // The product-root list's own invariant vocabulary, carried
-        // through: a root fault is the same fact here as at the edit
-        // door, so it keeps the tag it has there.
-        SnapshotError::Roots(fault) => root_fault_tag(fault),
         // A gauge reference naming a live non-gauge, or a gauge that
         // would sit on itself — the edit door's two words for it.
         SnapshotError::NotAGauge { .. } => "not_a_gauge",
@@ -2300,13 +2293,12 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::UnknownNode => "unknown_node",
         K::RootFailed => "root_failed",
         K::RootPoisoned => "root_poisoned",
-        K::PlacedUnderTwoRoots => "placed_under_two_roots",
-        K::NoBodyRoots => "no_body_roots",
+        K::EmptyProduct => "empty_product",
+        K::StrandedPlacement => "stranded_placement",
         K::Unplaced => "unplaced",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
-        K::Naming => "product_naming",
         K::ContactLineage => "contact_lineage",
     }
 }
@@ -2514,7 +2506,7 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 /// collapsing every gather refusal to one tag: a caller branching on
 /// "why did my assembly not gather" wants the gather's own answer,
 /// and the wrapper adds nothing they can act on. The two namespaces
-/// do not collide — the gather's tags are bare (`no_body_roots`), the
+/// do not collide — the gather's tags are bare (`empty_product`), the
 /// gate's carry their own words.
 ///
 /// The two MINT arms each carry a LIST, so neither can delegate: a
@@ -2614,6 +2606,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UnknownCutNode { .. } => "unknown_cut_node",
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornGroup { .. } => "torn_group",
         SplitError::SeveredGauge { .. } => "severed_gauge",
@@ -2632,6 +2625,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
+        SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
@@ -2649,7 +2643,8 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
     match err {
         InlineError::UnknownNode { .. } => "unknown_node",
         InlineError::NotAnInstance { .. } => "not_an_instance",
-        InlineError::InstanceConsumed { .. } => "instance_consumed",
+        InlineError::PlacementPoseCrosses { .. } => "placement_pose_crosses",
+        InlineError::InstanceReadUncarried { .. } => "instance_read_uncarried",
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
@@ -3028,6 +3023,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
         R::EqualAngles => "equal_angles",
+        R::Tangent { aligned: true } => "tangent",
+        R::Tangent { aligned: false } => "cusp",
     }
 }
 
@@ -3040,6 +3037,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
+        S::ProfileJunction => "profile_junction",
     }
 }
 

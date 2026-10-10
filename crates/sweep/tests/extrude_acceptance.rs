@@ -297,11 +297,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // surfaces (plane–cylinder): distinct surface keys, conventional
     // MappedCurve struts.
     let b = FRAC_PI_8.tan();
-    // All eight joints are exact tangencies -- declared (#101), one
-    // declaration per joint including the closing arc's two. Each
+    // All eight joints are exact tangencies. Each
     // vertex carries the bulge of the segment LEAVING it: the four
     // straight legs leave with 0, the four quarter-arcs with b.
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.25, 0.0), 0.0),
         (Point2::new(0.75, 0.0), b),
         (Point2::new(1.0, 0.25), 0.0),
@@ -311,7 +310,6 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
         (Point2::new(0.0, 0.75), 0.0),
         (Point2::new(0.0, 0.25), b),
     ]);
-    lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance {
@@ -682,8 +680,14 @@ fn sliver_dihedral_join_is_a_typed_error() {
         ExtrudeError::SliverJoin {
             loop_index,
             vertex_index,
+            reading,
             source,
         } => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                "a sliver corner is the first-order wedge's escalation"
+            );
             assert_eq!(loop_index, 0);
             assert_eq!(source.predicate, Some("dihedral_wedge"));
             // The shallow corner sits at input vertex 1 = (1, 0); the

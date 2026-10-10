@@ -1,10 +1,12 @@
 """A slot holds a variable (INTENT-LITERALS PR C; the spec's §8 row 15).
 
 A value written at a slot is a variable of its own, anonymous: the
-edit mints it, and `Doc.slot` reads it back as a `Var`. A `Var` passed
-to two slots is one variable both read, which is how two slots share a
-value; two values typed alike are two variables. A slot takes a `Var`,
-a `Formula`, or a value, written or bare (Q9).
+edit mints it, and `Doc.slot` reads it back as a `Var`. A named `Var`
+passed to two slots is one variable both read, which is how two slots
+share a value; an unnamed one has exactly one reader, so a second
+refuses until it is named (VR2). Two values typed alike are two
+variables. A slot takes a `Var`, a `Formula`, or a value, written or
+bare (Q9).
 """
 
 import unittest
@@ -63,6 +65,24 @@ class TestASlotHoldsAVariable(unittest.TestCase):
         b = doc.insert(Node.extrude(square(doc), depth))
         self.assertEqual(doc.slot(a, "distance"), depth)
         self.assertEqual(doc.slot(a, "distance"), doc.slot(b, "distance"))
+
+    def test_an_unnamed_var_passed_twice_refuses_until_it_is_named(self):
+        doc = Doc("slot-variables-unnamed-twice")
+        a = doc.insert(Node.extrude(square(doc), 0.5 * m))
+        depth = doc.slot(a, "distance")
+        self.assertIsNone(doc.var_name(depth), "the premise: it is unnamed")
+        profile = square(doc)
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.extrude(profile, depth))
+        self.assertEqual(caught.exception.variant, "shared_var_needs_name")
+        self.assertIsNone(caught.exception.param, "it has no name to speak")
+        doc.apply(DocEdit.rename_var(depth, VarName("depth")))
+        b = doc.insert(Node.extrude(profile, depth))
+        self.assertEqual(doc.slot(b, "distance"), depth)
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.rename_var(depth, None))
+        self.assertEqual(caught.exception.variant, "shared_var_needs_name")
+        self.assertEqual(caught.exception.param, "depth")
 
     def test_two_values_typed_alike_are_two_variables(self):
         doc = Doc("slot-variables-typed")

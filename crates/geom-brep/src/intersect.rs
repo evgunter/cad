@@ -401,25 +401,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    exhaustiveness/seeding story — arms retire one at a time, each \
                    with its proof",
         },
-        // ---- Approx × everything: refused, and deliberately NOT as
-        // the fitted kind would be. An intersection locus is a claim
-        // about the surfaces the modeller asked for; against an
-        // approximating surface it is a claim about the FIT, off the
-        // intended locus by up to the fit's own ε. Certifying it means
-        // composing that ε with the SSI's three limbs, and no rule for
-        // that composition is ratified. Routing `Approx` to its fitted
-        // kind's arm would silently make the weaker claim. ----
-        (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => PairRoute {
-            rung: Rung::General,
-            implemented: false,
-            note: "an approximating operand routes to the general rung with the ℝ⁴ \
-                   PARAMETRIC-PAIR trace shape of its FIT, and refuses there: the \
-                   locus the trace would certify is the fit's, not the described \
-                   surface's, and composing the fit's precision claim with the \
-                   SSI certificate's limbs is not a ratified rule. The refusal is \
-                   the honest answer, not a missing marcher",
-        },
+        // ---- Approx: an intersection operand is its fit, as it is for
+        // evaluation, boxes and pcurves. The fit's distance from its
+        // description is the face's claim (O3, re-derived at rest by
+        // O5), not the edge's, so nothing is composed into the section's
+        // bound: each pair takes the arm its fit's kind takes, and
+        // plane×Approx is the plane×NURBS arm over the fit. ----
+        (Plane, Approx) | (Approx, Plane) => route(Plane, Nurbs),
+        (Approx, Approx) => route(Nurbs, Nurbs),
+        (Approx, other @ (Cylinder | Cone | Sphere | Torus | Nurbs))
+        | (other @ (Cylinder | Cone | Sphere | Torus | Nurbs), Approx) => route(Nurbs, other),
     }
 }
 
@@ -466,8 +457,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// under every evidence, and never refuses a pose the arm would serve.
 ///
 /// Every other implemented pair serves every pose: plane×plane,
-/// plane×cylinder, plane×sphere, sphere×sphere, and the two
-/// general-rung arms that march (cylinder×sphere, plane×NURBS). An
+/// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
+/// arms that march (cylinder×sphere, and plane×NURBS with plane×Approx
+/// over its fit). An
 /// unimplemented pair answers [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -538,8 +530,8 @@ pub fn route_pose<T: Decide>(
         }
         // Every pose served, by a closed form or by a general-rung arm
         // that marches.
-        (Plane, Plane | Cylinder | Sphere | Nurbs)
-        | (Cylinder | Sphere | Nurbs, Plane)
+        (Plane, Plane | Cylinder | Sphere | Nurbs | Approx)
+        | (Cylinder | Sphere | Nurbs | Approx, Plane)
         | (Sphere, Sphere | Cylinder)
         | (Cylinder, Sphere) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
@@ -548,8 +540,8 @@ pub fn route_pose<T: Decide>(
         | (Cone, Cone | Sphere | Torus | Nurbs)
         | (Sphere, Cone | Torus | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
-        | (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
+        | (Approx, Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
     };
     let refused = |note| {
         Ok(PairRoute {

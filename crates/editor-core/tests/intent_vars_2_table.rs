@@ -460,9 +460,9 @@ fn a_name_on_no_variable_refuses_at_load() {
 }
 
 /// `AnonymousVarUnread`: a variable with no name that nothing reads —
-/// the edit that detaches an anonymous variable's last reader removes
-/// it, so the load door refuses one rather than let the lanes disagree
-/// on whether it exists.
+/// the edit that detaches an anonymous variable's reader removes it,
+/// so the load door refuses one rather than let the lanes disagree on
+/// whether it exists.
 #[test]
 fn an_unread_unnamed_variable_refuses_at_load() {
     let err = load_doctored(|snap, _, v| {

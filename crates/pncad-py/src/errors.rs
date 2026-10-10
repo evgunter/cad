@@ -431,9 +431,9 @@ pub enum ErrorClass {
     /// the same tags the hit-test door answers with rather than a
     /// wrapper's.
     NodePick,
-    /// The advisory-check registry could not RUN: a root without a
-    /// value, a tolerance that forms no band, roots that gather into
-    /// no product. The Python class is `ChecksError`.
+    /// The advisory-check registry could not RUN: a placement without
+    /// a value, a tolerance that forms no band, placements that gather
+    /// into no product. The Python class is `ChecksError`.
     ///
     /// Not a finding. A check that ran and disagreed is a value in the
     /// report; this class means nothing was checked, which is the

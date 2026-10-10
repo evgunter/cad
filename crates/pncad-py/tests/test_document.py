@@ -1675,9 +1675,8 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
                 .to((0 * m, 1 * m))
                 .line_to(Start)
             )
-        # `dimension` rides the expression-path edit and `roots` reads
-        # its word off the fault already — neither has a Python door
-        # that could carry a second one.
+        # `dimension` rides the expression-path edit, which has no
+        # Python door that could carry a second word.
         self.assertFalse(hasattr(DocEdit, "set_expr_at"))
         self.assertEqual(len(doc.order()), 0)
 
@@ -1690,7 +1689,6 @@ EDIT_ATTRS = (
     "inner_variant",
     "node",
     "input",
-    "referenced_by",
     "slot",
     "param",
     "name",
@@ -2062,36 +2060,14 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             self.set_of(offered.exception), {"variant", "param", "expected", "offered"}
         )
 
-    def test_a_refused_scalar_and_a_root_pair_cross_as_themselves(self):
+    def test_a_refused_scalar_crosses_as_itself(self):
         doc = Doc()
-        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as eps:
             doc.apply(DocEdit.set_tolerance(-1.0))
         self.assertEqual(eps.exception.variant, "invalid_tolerance")
         self.assertEqual(eps.exception.value, -1.0)
         self.assertEqual(self.set_of(eps.exception), {"variant", "value"})
-
-        # A root that is an ancestor of another root names two node
-        # roles: the offender, and the node downstream that references
-        # it. They are different roles, so folding them into one
-        # attribute would lose which is which. `variant` is the FAULT's
-        # word already, so `inner_variant` stays `None`.
-        pattern = doc.insert(
-            Node.pattern(box, Formula.count(3), PatternKind.linear((
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ), Formula.length_in(2, m)))
-        )
-        with self.assertRaises(EditError) as roots:
-            doc.apply(DocEdit.set_roots([box, pattern]))
-        self.assertEqual(roots.exception.variant, "root_ancestor")
-        self.assertEqual(roots.exception.node, box)
-        self.assertEqual(roots.exception.referenced_by, pattern)
-        self.assertIsNone(roots.exception.inner_variant)
-        self.assertEqual(
-            self.set_of(roots.exception), {"variant", "node", "referenced_by"}
-        )
 
     def test_an_arm_with_no_payload_answers_none_all_the_way_down(self):
         # The placement axis refuses with an inner word and NOTHING
