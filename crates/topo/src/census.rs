@@ -11408,6 +11408,8 @@ mod torn_reach_rows {
 /// carriers**: an edge–face record on a line and a plane is confirmed
 /// by reconstruction, one off it at a conventional vertex of its edge,
 /// and a face–face record on two carriers along their tangent line.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod records_by_carrier {
     use super::*;
     use crate::boolean::{Cell, ContactRecords};
