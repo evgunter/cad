@@ -29,7 +29,7 @@ use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, DocumentId, Formula, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    Doc, DocumentId, Formula, MeasurePrimitive, Node, NodeStanding, ProductError, ProfileDoc,
     ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
@@ -365,11 +365,12 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let top = common::asm::in_part(post, &bench.post_top);
     common::insert_into(
         &mut asm,
-        Node::measure(
-            MeasureExpr::value(common::len(1.0)),
-            vec![SitedRef::new(post, top)],
-        )
-        .expect("the measure indexes no reference it lacks"),
+        Node::Measure {
+            primitive: MeasurePrimitive::Distance {
+                a: SitedRef::new(post, top.clone()),
+                b: SitedRef::new(post, top),
+            },
+        },
         tol,
     );
     let path = Workspace::open(&bench.dir)

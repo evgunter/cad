@@ -31,8 +31,9 @@
 //! its answer comes from the E7 subdivision engine
 //! (`clearance::min_separation`) as a certified BRACKET, and
 //! the value is computed in the node's wiring — where the bodies are —
-//! rather than here. [`eval_measure`] intercepts that primitive before
-//! this dispatch is consulted, and the arm below says so.
+//! rather than here. The wiring (`wire::wire_measure`) intercepts that
+//! primitive before this dispatch is consulted, and the arm below says
+//! so.
 //!
 //! # Which trileans this module consumes
 //!
@@ -66,7 +67,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use topo::Body;
 
-use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
+use crate::measure::MeasurePrimitive;
 use crate::names::{EntityKey, EntityRef};
 
 /// A carrier pair this unit has no closed form for, named by the pair
@@ -169,10 +170,6 @@ pub(crate) enum Carrier<T: geom_core::Real> {
     /// A carrier outside the v1 table, kept as its CLASS so a refusal
     /// can name it.
     Other(&'static str),
-    /// A reference the expression never indexes, so its carrier was
-    /// never read. Unreachable from any closed form (the node door
-    /// bounds every index), and announced as a kernel bug if reached.
-    Unread,
 }
 
 impl<T: geom_core::Real> Carrier<T> {
@@ -185,7 +182,6 @@ impl<T: geom_core::Real> Carrier<T> {
             Self::Sphere { .. } => "a sphere face",
             Self::Line { .. } => "a line edge",
             Self::Other(what) => what,
-            Self::Unread => "an unread reference",
         }
     }
 }
@@ -308,7 +304,7 @@ pub(crate) enum PrimitiveRefusal {
 /// **The v1 primitive evaluator.** One closed form per row of the
 /// module's table; every other pair refuses.
 pub(crate) fn primitive<T: Decide>(
-    prim: MeasurePrimitive,
+    prim: &MeasurePrimitive,
     a: &Carrier<T>,
     b: &Carrier<T>,
     band: Band,
@@ -318,11 +314,10 @@ pub(crate) fn primitive<T: Decide>(
         MeasurePrimitive::Angle { .. } => angle(a, b),
         MeasurePrimitive::Gap { .. } => gap(a, b, band),
         // Not a closed form over carriers at all: its answer is the E7
-        // engine's, computed at the node's wiring and read off the
-        // pre-order vector in `eval_measure_inner`, which intercepts
-        // this primitive before it reaches here. Announced as the
-        // kernel bug it would be rather than measured by some other
-        // arm that happens to compile.
+        // engine's, computed at the node's wiring, which answers this
+        // primitive before it reaches here. Announced as the kernel bug
+        // it would be rather than measured by some other arm that
+        // happens to compile.
         MeasurePrimitive::MinClearance { .. } => unreachable!(
             "`min_clearance` is answered by the clearance engine before the closed-form table \
              is consulted; reaching this arm means the interception and this dispatch disagree"
@@ -459,13 +454,13 @@ fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
         Carrier::Sphere { center, radius } => (*center, *radius),
         // A line carries no origin (its type docs say why), so it has
         // no reference point to measure a reach from, and neither does
-        // an unread or unsupported carrier. The world origin with reach
+        // an unsupported carrier. The world origin with reach
         // zero is the DEFINED answer for them, not a claim that they
         // cannot arrive — see [`arm`]'s "which carriers reach it". No v1
         // lever site can hand one here (`angle` is the only line
         // consumer and takes no arm); a new lever site must check that
         // again rather than inherit it.
-        Carrier::Line { .. } | Carrier::Other(_) | Carrier::Unread => (Point3::origin(), T::zero()),
+        Carrier::Line { .. } | Carrier::Other(_) => (Point3::origin(), T::zero()),
     }
 }
 
@@ -751,188 +746,256 @@ fn gap<T: Decide>(
     }
 }
 
-/// **Evaluates a whole measured expression, and refuses a non-finite
-/// result** — [`crate::expr::eval`]'s two-part shape, deliberately
-/// mirrored: a `Real` core with no decisions in it, then the
-/// ONE ruled door on the final value.
-///
-/// The door is not a second implementation. It is
-/// [`crate::expr::refuse_non_finite`], the very function
-/// [`crate::expr::eval`] calls, because this language's `Div` is the
-/// same partial operation that language's is: `13 / 0` is `inf` in
-/// both, and only one of them used to say so.
-pub(crate) fn eval_measure<T: Decide>(
-    expr: &MeasureExpr,
-    carriers: &[Carrier<T>],
-    leaves: &[T],
-    cursor: &mut usize,
-    clearances: &[T],
-    clearance_cursor: &mut usize,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
-    let value = eval_measure_inner(
-        expr,
-        carriers,
-        leaves,
-        cursor,
-        clearances,
-        clearance_cursor,
-        band,
-    )?;
+/// **A measured value, refused when it is not finite** — the ruled
+/// door [`crate::expr::eval`] applies to a document expression,
+/// [`crate::expr::refuse_non_finite`], applied to a measure for the same
+/// reason: a measure is a number a reader believes, and an assertion
+/// over `inf` would report a verdict about nothing.
+pub(crate) fn finite<T: Decide>(value: T) -> Result<T, PrimitiveRefusal> {
     crate::expr::refuse_non_finite(value).map_err(PrimitiveRefusal::NonFinite)
 }
 
-/// The core: the primitives against the resolved carriers, the
-/// arithmetic in between, and the value leaves read off the vector the
-/// node's leaf stage already evaluated. No decisions inside — poison
-/// FLOWS through values per the kernel policy, and the single refusal
-/// door is [`eval_measure`]'s.
-///
-/// Both vectors arrive INDEX-ALIGNED with this walk — the carriers
-/// with the node's references, the leaves with
-/// [`MeasureExpr::value_leaves`]'s pre-order — so nothing here
-/// resolves a name or re-evaluates an expression: resolution ran once,
-/// leaf evaluation ran once, and the content key saw exactly the
-/// values this arithmetic sees.
-///
-/// The walk keeps its own stack, as [`crate::expr::eval`]'s does: it
-/// meets the leaves in pre-order, first child first, which is the order
-/// both vectors are in, and combines each operator once its operands
-/// are valued, so how deep the expression nests costs the thread's
-/// stack nothing.
-fn eval_measure_inner<T: Decide>(
-    root: &MeasureExpr,
-    carriers: &[Carrier<T>],
-    leaves: &[T],
-    cursor: &mut usize,
-    clearances: &[T],
-    clearance_cursor: &mut usize,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
-    use crate::tree::{Operands as O, Visit};
-    crate::tree::fold(
-        root,
-        |expr| {
-            Ok(match expr.kind() {
-                MeasureKind::Primitive(_) | MeasureKind::Value(_) => Visit::Value(leaf_value(
-                    expr,
-                    carriers,
-                    leaves,
-                    cursor,
-                    clearances,
-                    clearance_cursor,
-                    band,
-                )?),
-                MeasureKind::Neg(a) => Visit::One(a),
-                MeasureKind::Add(a, b)
-                | MeasureKind::Sub(a, b)
-                | MeasureKind::Mul(a, b)
-                | MeasureKind::Div(a, b)
-                | MeasureKind::Min(a, b)
-                | MeasureKind::Max(a, b) => Visit::Two(a, b),
-            })
-        },
-        |expr, operands| {
-            Ok(match (expr.kind(), operands) {
-                (MeasureKind::Neg(_), O::One(a)) => -a,
-                (MeasureKind::Add(..), O::Two(a, b)) => a + b,
-                (MeasureKind::Sub(..), O::Two(a, b)) => a - b,
-                (MeasureKind::Mul(..), O::Two(a, b)) => a * b,
-                (MeasureKind::Div(..), O::Two(a, b)) => a / b,
-                (MeasureKind::Min(..), O::Two(a, b)) => a.min(b),
-                (MeasureKind::Max(..), O::Two(a, b)) => a.max(b),
-                _ => unreachable!(
-                    "a leaf is valued when visited, and an operator combined from as many \
-                     operands as it has children"
-                ),
-            })
-        },
-    )
+/// **What an observed variable is worth in one evaluation** (D10): a
+/// value at the evaluation's scalar, or the typed absence a measure
+/// under it carries at that scalar ([`crate::MeasureUnavailableAt`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Observed<T> {
+    /// The value, in kernel units.
+    Value(T),
+    /// A measure it reads has no value at this scalar.
+    Unavailable(crate::measure::MeasureUnavailableAt),
 }
 
-/// A leaf's value: a primitive against its carriers, or the next value
-/// leaf off the vector.
-fn leaf_value<T: Decide>(
-    expr: &MeasureExpr,
-    carriers: &[Carrier<T>],
-    leaves: &[T],
-    cursor: &mut usize,
-    clearances: &[T],
-    clearance_cursor: &mut usize,
-    band: Band,
-) -> Result<T, PrimitiveRefusal> {
-    match expr.kind() {
-        MeasureKind::Primitive(p) => {
-            let [ia, ib] = p.refs();
-            // Both indices were bounds-checked at the node door and
-            // re-checked at load, so a miss is a kernel bug: it is
-            // announced as one rather than carried as a refusal a
-            // caller could believe in.
-            let (Some(a), Some(b)) = (carriers.get(ia as usize), carriers.get(ib as usize)) else {
-                unreachable!(
-                    "`{}` reads references {ia} and {ib} of {} resolved carriers, yet \
-                     `Node::measure_fault` bounds every index against the node's reference \
-                     list at both the construction and the load door",
-                    p.verb(),
-                    carriers.len()
+/// **Why an observed variable has no reading** in an evaluation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ObservedRefusal {
+    /// A measure defining an output it reads has no value: it failed,
+    /// is poisoned, or did not run.
+    Measure(super::NodeStanding),
+    /// Its definition refused, or it reads a variable with no binding.
+    Expr(crate::expr::EvalError),
+}
+
+impl core::fmt::Display for ObservedRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Measure(standing) => write!(f, "{standing}"),
+            Self::Expr(source) => write!(f, "{source}"),
+        }
+    }
+}
+
+impl core::error::Error for ObservedRefusal {}
+
+/// **`var` read at `dim`, measured values bound**: an observed
+/// variable's measure outputs are bound from `results` (the values the
+/// measures computed in this evaluation), and every observed definition
+/// over them is evaluated over those, at `env`'s scalar; every other
+/// variable reads `env`'s binding. A variable that is not observed is
+/// `env`'s reading of it. `env` itself is never written: a
+/// construction's environment holds no measured value
+/// ([`crate::Doc::var_env`]).
+///
+/// # Errors
+///
+/// [`ObservedRefusal::Measure`] when a measure under `var` has no value
+/// in `results`, and [`ObservedRefusal::Expr`] when an evaluation over
+/// the bound values refuses.
+pub(crate) fn observe<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    env: &crate::expr::VarEnv<T>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    var: crate::VarId,
+    dim: crate::Dimension,
+) -> Result<Observed<T>, ObservedRefusal> {
+    use crate::expr::ParamValue;
+    use std::collections::BTreeSet;
+    let outputs = doc.observed_outputs(var);
+    if outputs.is_empty() {
+        return crate::expr::eval_var(var, dim, env)
+            .map(Observed::Value)
+            .map_err(ObservedRefusal::Expr);
+    }
+    // A measure's output read directly is the value the measure
+    // computed, which passed the non-finite door at the measure.
+    if outputs == [var] {
+        return measured(doc, results, var);
+    }
+    // The measured values bound over `env`, then every definition under
+    // `var` that reads one re-bound in definition order: the same step
+    // that binds every definition of a construction's environment.
+    let mut local = env.clone();
+    let mut touched: BTreeSet<crate::VarId> = BTreeSet::new();
+    for &output in &outputs {
+        let Some(at_dim) = doc.var(output).and_then(|held| held.kind().dimension()) else {
+            continue;
+        };
+        match measured(doc, results, output)? {
+            Observed::Value(value) => {
+                local.refused.remove(&output);
+                local
+                    .bindings
+                    .insert(output, ParamValue::Continuous { dim: at_dim, value });
+            }
+            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        }
+        touched.insert(output);
+    }
+    let under = definitions_under(doc, var);
+    for id in doc.definition_order() {
+        if !under.contains(&id) {
+            continue;
+        }
+        let mut reads = Vec::new();
+        if let Some(expr) = doc.var(id).and_then(|held| held.def().defined()) {
+            expr.var_reads(&mut reads);
+        }
+        if reads.iter().any(|(read, _)| touched.contains(read)) {
+            doc.bind_definition(id, &mut local);
+            touched.insert(id);
+        }
+    }
+    crate::expr::eval_var(var, dim, &local)
+        .map(Observed::Value)
+        .map_err(ObservedRefusal::Expr)
+}
+
+/// **`formula` evaluated with measured values bound**: [`observe`] for
+/// each observed variable it reads, every other read `env`'s. The door
+/// a reader outside the document takes to a measurement's value that no
+/// variable holds — `Recording::measure`'s `value` before an assertion
+/// lowers it.
+///
+/// # Errors
+///
+/// As [`observe`].
+pub(crate) fn observe_formula<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    env: &crate::expr::VarEnv<T>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    formula: &crate::Formula,
+) -> Result<Observed<T>, ObservedRefusal> {
+    let mut reads = Vec::new();
+    formula.var_reads(&mut reads);
+    let mut local = env.clone();
+    for (read, dim) in reads {
+        if doc.observed_outputs(read).is_empty() {
+            continue;
+        }
+        match observe(doc, env, results, read, dim)? {
+            Observed::Value(value) => {
+                local
+                    .bindings
+                    .insert(read, crate::expr::ParamValue::Continuous { dim, value });
+            }
+            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        }
+    }
+    crate::expr::eval(formula, &local)
+        .map(Observed::Value)
+        .map_err(ObservedRefusal::Expr)
+}
+
+/// **The defined variables `var`'s value is computed through**: `var`
+/// itself when it is defined, and every definition its definitions
+/// read, transitively.
+fn definitions_under<P>(
+    doc: &crate::Doc<P>,
+    var: crate::VarId,
+) -> std::collections::BTreeSet<crate::VarId> {
+    let mut under = std::collections::BTreeSet::new();
+    let mut stack = vec![var];
+    while let Some(at) = stack.pop() {
+        let Some(expr) = doc.var(at).and_then(|held| held.def().defined()) else {
+            continue;
+        };
+        if !under.insert(at) {
+            continue;
+        }
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        stack.extend(reads.into_iter().map(|(read, _)| read));
+    }
+    under
+}
+
+/// **The measure an observed variable's absence is said at**: the first
+/// measure under `var` with no value at this scalar, which is what
+/// [`observe`] answered [`Observed::Unavailable`] for — or, read before
+/// any run, the first measure under it.
+pub(crate) fn unavailable_at<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::RecipeNodeId {
+    let measures: Vec<crate::RecipeNodeId> = doc
+        .observed_outputs(var)
+        .into_iter()
+        .filter_map(|out| doc.operation_of(out))
+        .collect();
+    let clearance = measures.iter().copied().find(|&node| {
+        matches!(
+            doc.node(node),
+            Some(crate::Node::Measure {
+                primitive: MeasurePrimitive::MinClearance { .. }
+            })
+        )
+    });
+    match clearance.or_else(|| measures.first().copied()) {
+        Some(node) => node,
+        None => unreachable!(
+            "{var:?} is read as a measured value, and every reader asks that it is one"
+        ),
+    }
+}
+
+/// **What the measure defining `output` computed in this run.**
+fn measured<T: Decide, P>(
+    doc: &crate::Doc<P>,
+    results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
+    output: crate::VarId,
+) -> Result<Observed<T>, ObservedRefusal> {
+    let Some(node) = doc.operation_of(output) else {
+        return Err(ObservedRefusal::Expr(
+            crate::expr::EvalError::UnresolvedVar { var: output },
+        ));
+    };
+    let value = super::usable_in(results, node, || super::NodeStanding::NotEvaluated { node })
+        .map_err(ObservedRefusal::Measure)?;
+    match &value.payload {
+        super::ValuePayload::Measure { value, .. } => Ok(Observed::Value(*value)),
+        super::ValuePayload::MeasureUnavailable { reason, .. } => {
+            Ok(Observed::Unavailable(*reason))
+        }
+        _ => Err(ObservedRefusal::Expr(crate::expr::EvalError::OutputRead {
+            var: output,
+        })),
+    }
+}
+
+/// **Which endpoints of an observed value's enclosure belong to what it
+/// names** ([`Certified`](crate::measure::Certified)): structural, off
+/// the measures under it, so the same at every scalar. A value that is
+/// one `min_clearance` measure's output is its lower bound only; one a
+/// definition carries a `min_clearance` through is neither; every other
+/// value is a whole enclosure.
+pub(crate) fn certified<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::measure::Certified {
+    use crate::measure::Certified;
+    let clearance = |out: &crate::VarId| {
+        doc.operation_of(*out)
+            .and_then(|node| doc.node(node))
+            .is_some_and(|node| {
+                matches!(
+                    node,
+                    crate::Node::Measure {
+                        primitive: MeasurePrimitive::MinClearance { .. }
+                    }
                 )
-            };
-            // `Unread` is filled in for references no primitive
-            // indexes; reaching one from a primitive means the read
-            // set and this walk disagree, which is a kernel bug.
-            if matches!(a, Carrier::Unread) || matches!(b, Carrier::Unread) {
-                unreachable!(
-                    "`{}` reads references {ia}/{ib}, which the resolver marked unread — the \
-                     read set is computed from these very primitives",
-                    p.verb()
-                )
-            }
-            // **The one primitive whose value did not come from a
-            // carrier.** `min_clearance` measures between two
-            // SELECTIONS through the E7 engine, which wants bodies and
-            // face scopes; its answers were computed once, in the
-            // node's wiring, and arrive here in this very pre-order —
-            // the same arrangement the value leaves have, for the same
-            // reason (one walk, one order, no chance of two consumers
-            // disagreeing about which leaf is which).
-            if matches!(p, MeasurePrimitive::MinClearance { .. }) {
-                let i = *clearance_cursor;
-                *clearance_cursor += 1;
-                return match clearances.get(i) {
-                    Some(v) => Ok(*v),
-                    None => unreachable!(
-                        "`min_clearance` leaf {i} of {} computed answers is missing, yet that \
-                         vector is this expression's own primitives walked in this very order",
-                        clearances.len()
-                    ),
-                };
-            }
-            primitive(*p, a, b, band)
-        }
-        MeasureKind::Value(_) => {
-            let i = *cursor;
-            *cursor += 1;
-            // Same reasoning: the leaf vector IS this expression's own
-            // `value_leaves` walked in this very order, so a short
-            // vector is a kernel bug, not a document fault.
-            match leaves.get(i) {
-                Some(v) => Ok(*v),
-                None => unreachable!(
-                    "measure value leaf {i} of {} evaluated leaves is missing, yet the leaf \
-                     vector is this expression's own `value_leaves` in this very order",
-                    leaves.len()
-                ),
-            }
-        }
-        MeasureKind::Neg(_)
-        | MeasureKind::Add(..)
-        | MeasureKind::Sub(..)
-        | MeasureKind::Mul(..)
-        | MeasureKind::Div(..)
-        | MeasureKind::Min(..)
-        | MeasureKind::Max(..) => {
-            unreachable!("an operator is combined by the walk, never valued as a leaf")
-        }
+            })
+    };
+    let outputs = doc.observed_outputs(var);
+    if outputs == [var] && clearance(&var) {
+        Certified::LowerBoundOnly
+    } else if outputs.iter().any(clearance) {
+        Certified::Neither
+    } else {
+        Certified::Enclosure
     }
 }
 
@@ -969,30 +1032,5 @@ mod tests {
                 "({major}, {minor}): a point {far} out against a reach of {reach}"
             );
         }
-    }
-
-    /// The measurement evaluator and the measurement's `Drop` cost the
-    /// stack nothing per level: a million levels evaluate and free on
-    /// the wasm32 stack.
-    #[test]
-    fn the_measurement_walk_and_drop_keep_their_own_stack() {
-        test_utils::own_thread::on_the_smallest_stack(|| {
-            let leaf = MeasureExpr::value_at(crate::VarId::new(0, 0), crate::Dimension::Count);
-            let deep = crate::tree::raw_chain(leaf, 1_000_000, crate::measure::raw_neg);
-            let (mut cursor, mut clearance_cursor) = (0, 0);
-            let band = Band::new(1e-9, 1e-6).expect("a valid band");
-            let value = eval_measure_inner::<f64>(
-                &deep,
-                &[],
-                &[2.5],
-                &mut cursor,
-                &[],
-                &mut clearance_cursor,
-                band,
-            );
-            assert_eq!(value.ok(), Some(-2.5));
-            assert_eq!(cursor, 1, "the one value leaf is read once");
-            drop(deep);
-        });
     }
 }

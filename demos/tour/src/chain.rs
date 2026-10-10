@@ -105,8 +105,8 @@
 use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -529,24 +529,26 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // their AXIS distance (its own contract), and both axes are `+z`,
     // so this is the tip pin's in-plane deviation from where the
     // drawing says it goes — no author's arithmetic on top of it.
-    let position = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     // The two references are read BEFORE the insert borrows the
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists.
-    let refs = vec![
-        wall(*pins.last().expect("a chain has a tip pin")),
-        wall(target),
-    ];
+    let position = MeasurePrimitive::Distance {
+        a: wall(*pins.last().expect("a chain has a tip pin")),
+        b: wall(target),
+    };
     let measure = insert(
         &mut doc,
-        Node::measure(position, refs).expect("both indices in range"),
+        Node::Measure {
+            primitive: position,
+        },
         tol,
     );
+    let position = doc.output(measure, 0).expect("a measure defines its value");
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: Formula::var(position, Dimension::Length),
             bound: len(bound),
             dir: AssertionDir::AtMost,
         },

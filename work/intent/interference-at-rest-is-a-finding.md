@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [measure-is-an-operation, select-defines-face-and-edge-variables]
+blocked_on: [select-defines-face-and-edge-variables]
 ---
 
 INTENT stage 5, PR B. Ev approved the design in PR 4319 (fork log row
