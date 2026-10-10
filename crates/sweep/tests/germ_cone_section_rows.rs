@@ -1,6 +1,6 @@
 //! **The section certificate's cone rows on real bodies**, at verdict
-//! level: the preview cone of `docs/GERM-VERBS-CONE-SPEC.md` §0 against
-//! its fixtures, and a seamed frustum against a tilted slab.
+//! level: the preview cone of the cone admission's spec (its §0,
+//! `docs/doc-ledger/germ-verbs-cone-spec.md`) against its fixtures, and a seamed frustum against a tilted slab.
 //!
 //! The rows read the certificate directly: on the crossings path with
 //! the events of the cone's root lane
@@ -200,11 +200,16 @@ fn the_nested_cone_has_no_cone_pair() {
     );
 }
 
-/// **P1, an oblique rod**: the preview's bite carrier, a cylinder along
-/// `x` about `(y, z) = (0.45, 0.8)`, radius `0.3`. Cone × oblique
-/// cylinder has no arm: R-reach, naming the cone face.
+/// **P1, an oblique rod, bites the cone in one loop interior to both
+/// faces**: the preview's bite carrier, a cylinder along `x` about
+/// `(y, z) = (0.45, 0.8)`, radius `0.3`, its axis outside the cone
+/// (`ρ = 0.55 < 0.8` at `y = 0.45`). The general-pose arm reads one
+/// null loop, its witness inside both faces, and with no event the pass
+/// refuses it as a certified interior loop (R-loop), naming the cone
+/// face; the rod's caps, far outside the cone, clear `Out`. The mutant
+/// reading the loop essential on either carrier clears it by W2: red.
 #[test]
-fn an_oblique_rod_refuses_on_reach() {
+fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
     let cone = cone();
     let along_x = topo::transform_rigid(
         &pin(0.3, 0.0, -2.0, 2.0),
@@ -219,14 +224,23 @@ fn an_oblique_rod_refuses_on_reach() {
     )
     .unwrap();
     let v = cone_verdicts(&cone, &rod);
-    assert!(v.iter().any(|x| x == "Err(Reach)"), "{v:?}");
+    assert_eq!(
+        v.iter().filter(|x| *x == "Err(Loop)").count(),
+        1,
+        "one pair refuses R-loop: {v:?}"
+    );
+    assert!(
+        v.iter()
+            .all(|x| x == "Err(Loop)" || x.starts_with("Ok([Out")),
+        "every other pair clears Out: {v:?}"
+    );
     match no_crossings_certificates(&cone, &rod, Tol::witness()) {
         Err(BooleanError::FallbackExtentUnsupported {
             operand,
             face,
             what,
         }) => {
-            assert!(what.contains("no section classification"), "{what}");
+            assert!(what.contains("closed loop interior to both"), "{what}");
             assert!(
                 operand == topo::Operand::A && is_cone(&cone, face),
                 "{face:?}"

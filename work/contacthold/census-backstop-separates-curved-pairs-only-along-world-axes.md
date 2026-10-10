@@ -42,3 +42,19 @@ says the touch analysis reads every curved face of a touch's star
 plane)". The touch analysis as built answers `Unreadable` for any curved
 face (`census::Said::CurvedTouch`), so that sentence describes no code
 today; correct it with this row.
+
+## Claimed by CONTACTHOLD (2026-10-10)
+
+Moved from RESTREAD (no orchestrator holds it) with its twin closed:
+ORBIT's `census-backstop-clears-a-curved-pair-only-along-world-axes`,
+which adds the pointer to reuse `boolean::separating::apart`, the
+boolean's narrow phase, at the census's scalar. **Measured** by
+CONTACTHOLD's tube-rim lane (`contacthold/tube-rim-measure`, probe
+`crates/sweep/tests/contacthold_tube_rim_probe.rs`): a tube whose rim
+vertex touches a tilted cube face unions with the exact volume, carries
+a cited `VfContact`, and fails tier 3′ with `CensusUndecidable {
+CurvedWithinReach }` from arm 1 on every pair of the cube face against a
+tube face strictly on the plane's far side. The same pairs refuse with
+the cube moved 0.05 off; at 20 off it passes. The witness row
+`a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime`
+rides with this one. (CONTACTHOLD orchestrator)
