@@ -2381,4 +2381,102 @@ mod tests {
             assert_eq!(ba.hi().to_bits(), bb.hi().to_bits());
         }
     }
+
+    /// The decomposition with extra breaks encloses the exact Bézier
+    /// rows: every span coefficient [`to_bezier_spans_extra`] returns
+    /// contains the one exact rational insertion of every break gives,
+    /// on every containment fixture, with extras that land inside a
+    /// segment, beside an own knot and in non-dyadic places.
+    #[test]
+    fn cutting_extras_from_their_segment_encloses_the_exact_rows() {
+        let mut checked = 0usize;
+        for (name, p, knot_list, coeff_ends) in containment_fixtures() {
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let (lo, hi) = kv.domain();
+            let extra: Vec<f64> = [0.1, 0.3, 1.0 / 3.0, 0.5, 0.77, 0.9]
+                .iter()
+                .map(|f| lo + (hi - lo) * f)
+                .collect();
+            let ring: Vec<Interval> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| Interval::from_bounds(*lo, *hi))
+                .collect();
+            let got = to_bezier_spans_extra(&kv, &ring, &extra);
+            let mut knots = kv.knots().to_vec();
+            let mut exact: Vec<QInt> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| QInt {
+                    lo: Q::from_f64(*lo),
+                    hi: Q::from_f64(*hi),
+                })
+                .collect();
+            let mut runs: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            for &v in &extra {
+                if let Some(k) = kv.interior_knot(v)
+                    && !runs.iter().any(|(w, _)| w.value() == v)
+                {
+                    runs.push((k, 0));
+                }
+            }
+            runs.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
+            for (v, m) in &runs {
+                for step in *m..p {
+                    exact = insert_once_exact(&knots, p, step, &exact, *v);
+                    knots.insert(find_span_in(&knots, p, *v) + 1, v.value());
+                }
+            }
+            let mut want_breaks = vec![lo];
+            want_breaks.extend(runs.iter().map(|(v, _)| v.value()));
+            want_breaks.push(hi);
+            assert_eq!(
+                got.breaks, want_breaks,
+                "{name}: the breaks are the merged list"
+            );
+            for (j, row) in got.spans.iter().enumerate() {
+                for (i, r) in row.iter().enumerate() {
+                    if !r.is_certified() {
+                        continue;
+                    }
+                    let x = &exact[j * p + i];
+                    assert!(
+                        x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less
+                            && x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                        "{name}: span {j} slot {i} [{:e}, {:e}] does not enclose the exact \
+                         [{:e}, {:e}]",
+                        r.lo(),
+                        r.hi(),
+                        x.lo.to_f64_report(),
+                        x.hi.to_f64_report()
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 100, "the row checked {checked} slots");
+    }
+
+    /// Cutting more breaks into one segment does not widen its rows: a
+    /// line on `[0, 1]` cut at the 254 interior 255ths keeps every
+    /// coefficient within a few ulps, where inserting the breaks one
+    /// after another into the whole net folds each new coefficient out
+    /// of the last one's width.
+    #[test]
+    fn a_segment_cut_many_times_keeps_its_rows_ulp_wide() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let line = [Interval::point(0.0), Interval::point(1.0)];
+        let extra: Vec<f64> = (1..255).map(|k| f64::from(k) / 255.0).collect();
+        let got = to_bezier_spans_extra(&kv, &line, &extra);
+        assert_eq!(got.spans.len(), 255);
+        let widest = got
+            .spans
+            .iter()
+            .flatten()
+            .map(|c| c.hi() - c.lo())
+            .fold(0.0f64, f64::max);
+        assert!(
+            widest <= 4.0 * f64::EPSILON,
+            "the widest coefficient after 254 cuts is {widest:e}, {} ulps of 1",
+            widest / f64::EPSILON
+        );
+    }
 }
