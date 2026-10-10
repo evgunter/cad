@@ -1103,7 +1103,8 @@ test_utils::f6_variants! {
         SlotVarKind,
         PartHalfPort,
         ReadsWorldCopy,
-        MeasuresWorldCopy,
+        SelectionShape,
+        SelectionBody,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1242,14 +1243,27 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
                 placement: absent(9),
             },
-            vec!["reads the world copy", "construction never reads the world"],
+            vec!["reads the world copy", "only the product and export read"],
         ),
         (
-            SnapshotError::MeasuresWorldCopy {
-                node: node(),
-                placement: absent(9),
+            SnapshotError::SelectionShape {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::SelectionFault::Repeated { first: 0, again: 1 },
             },
-            vec!["is sited at", "only the product and export read"],
+            vec!["is not a selection a door writes", "name 1 repeats name 0"],
+        ),
+        (
+            SnapshotError::SelectionBody {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::SelectionBodyFault::Kind {
+                    body: Box::new(editor_core::SpokenVar::new(
+                        editor_core::VarId::new(0, 8),
+                        None,
+                    )),
+                    found: editor_core::VarKind::Profile,
+                },
+            },
+            vec!["selects in", "which is a profile, not a body"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },
@@ -3062,6 +3076,7 @@ test_utils::f6_variants! {
     const MAINTENANCE: Maintenance = [
         OffsetCleared,
         Strand,
+        StrandedSelection,
         StrandedAppearance,
         StrandedRead,
         LabelDropped,
@@ -3108,6 +3123,19 @@ fn maintenance_display_says_what_the_edit_did() {
                 // name went.
                 "this edit deleted Extrude 000000000007, which minted the name",
                 "resolves to nothing until it is rebound",
+            ],
+        ),
+        (
+            Maintenance::StrandedSelection {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                readers: vec![held(5, "Datum frame (on face)")],
+                name: spoken_face_name(),
+                took: editor_core::Took::Piece,
+            },
+            vec![
+                "Datum frame (on face) 000000000005 selects the end cap of Extrude 000000000007",
+                "this edit kept a step it names but no longer draws that piece",
+                "so Datum frame (on face) 000000000005 refuses until the name is rebound",
             ],
         ),
         (

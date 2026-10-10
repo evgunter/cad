@@ -1500,15 +1500,15 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 ///
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
-/// - A stranded payload name is retold only where its CARRIER fails on
-///   it, and this door cannot know that it will. Any carrier poisoned
+/// - A stranded payload or selected name is retold only where its
+///   CARRIER fails on it, and this door cannot know that it will. Any carrier poisoned
 ///   by an upstream failure has a row that names the ancestor, not the
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
-        Maintenance::Strand { .. } => Retold::Never,
+        Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
         // next evaluation, before any poison from upstream, naming the
         // operand.

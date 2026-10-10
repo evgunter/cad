@@ -1154,8 +1154,7 @@ mod tests {
         let (doc, carrier) = inserted(
             &doc,
             Node::Datum(Datum::FaceFrame {
-                at: extrude.into(),
-                face: wall.clone(),
+                face: pncad::document::Operand::select(extrude, vec![wall.clone()]),
                 spin: crate::test_support::ang(0.0),
             }),
             tol,
@@ -1259,7 +1258,9 @@ mod tests {
         assert!(
             matches!(
                 session.committed_doc().node(carrier),
-                Some(Node::Datum(Datum::FaceFrame { face, .. })) if *face == wall
+                Some(Node::Datum(Datum::FaceFrame { face, .. }))
+                    if session.committed_doc().selection(*face).map(|s| s.names.clone())
+                        == Some(vec![wall.clone()])
             ),
             "the carrier's name is untouched"
         );
@@ -1310,7 +1311,7 @@ mod tests {
         let undrawn: Doc<ProfileProgram> = Doc::empty_derived("undrawn", Tol::witness());
         assert!(
             hovered.contains(&format!(
-                "{} carries a name for {}",
+                "{} selects {}",
                 committed.spoken(carrier),
                 committed.spoken_name(&wall).steps_respoken(&undrawn)
             )),
@@ -1365,8 +1366,14 @@ mod tests {
             name.to_string().contains("the profile step "),
             "a removed step is said by its tag: {name}"
         );
-        let expected = vec![Maintenance::Strand {
-            node: before.spoken(carrier),
+        let Some(Node::Datum(pncad::document::Datum::FaceFrame { face, .. })) =
+            before.node(carrier)
+        else {
+            panic!("the carrier is a face frame")
+        };
+        let expected = vec![Maintenance::StrandedSelection {
+            var: before.spoken_var(*face),
+            readers: vec![before.spoken(carrier)],
             name,
             took: pncad::document::Took::Step,
         }];
