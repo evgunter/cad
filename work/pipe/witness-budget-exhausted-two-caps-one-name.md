@@ -2,10 +2,12 @@
 id: witness-budget-exhausted-two-caps-one-name
 kind: issue
 title: WitnessOutcome::BudgetExhausted fires from two caps (segments, cells) under one name — the payload, not the type, says which
-status: open
+status: closed
 opened: 2026-09-06
 priority: P1
 cost: E
+closed: 2026-10-10
+pr: 4486
 ---
 
 
@@ -62,3 +64,7 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Closed 2026-10-10
+
+PR 4486. Each type has one face per cap. `WitnessOutcome::{SegmentCapExceeded { segments }, CellCapExceeded { segments, cells }}` maps to `ChartRegionError::{WitnessSegmentCapExceeded, WitnessCellCapExceeded}`. The levers are `WITNESS_SEGMENT_CAP` / `WITNESS_CELL_CAP`, replacing `WITNESS_BUDGET` / `WitnessBudget`. Display names each face's own cap. Every consumer is updated, and the census and validate mappings keep one answer for both. Both arms are reached by P5 / P7, `every_chart_region_arm_names_a_recourse` and `each_witness_cap_refusal_names_its_own_cap`. The sweep still finds this as the only hit; the PR body has the receipt.
