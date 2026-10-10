@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [contact-records-cite-their-decision, a-union-member-is-keyed-by-its-read]
+blocked_on: [a-union-member-is-keyed-by-its-read]
 ---
 
 INTENT stage 4, PR F. Ev approved the design in PR 4323 (fork log row

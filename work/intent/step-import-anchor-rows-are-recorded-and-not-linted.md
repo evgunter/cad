@@ -2,8 +2,7 @@
 id: step-import-anchor-rows-are-recorded-and-not-linted
 kind: issue
 title: STEP import's anchor rows are recorded on StepImport::Solid and nothing lints them
-status: parked
-blocked_on: [contact-records-cite-their-decision]
+status: open
 opened: 2026-10-10
 priority: P3
 cost: M

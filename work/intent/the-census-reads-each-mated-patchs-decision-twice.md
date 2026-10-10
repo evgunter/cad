@@ -3,7 +3,7 @@ id: the-census-reads-each-mated-patchs-decision-twice
 kind: issue
 title: The at-rest census decides each mated patch's carrier pair twice: once to record its CensusAtRest row, once as the gate
 status: parked
-blocked_on: [contact-records-cite-their-decision, mates-declare-no-contact]
+blocked_on: [mates-declare-no-contact]
 opened: 2026-10-10
 priority: P4
 cost: M
