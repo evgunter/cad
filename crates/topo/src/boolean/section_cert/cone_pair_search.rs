@@ -1,10 +1,12 @@
 //! **The general-pose cone rows against a traced section** (a
 //! counterexample search, shape 1): a cone against an oblique cylinder
-//! and against a tilted or parallel-axis cone, at scales from 1 m to
-//! 1 km, each pose generic or built at a signed offset from one
-//! degeneracy — the apex on the partner, a tangency of the carriers at a
-//! chosen point, a generator along the partner's asymptotic directions —
-//! the offset log-uniform from `1e-12` of the scale up to half of it.
+//! and against a tilted or parallel-axis cone (of another aperture, or
+//! of the same one: a plane conic), at scales from 1 m to 1 km and
+//! half-angles from `0.05` to `1.45`, each pose generic or built at a
+//! signed offset from one degeneracy — the apex on the partner, a
+//! tangency of the carriers at a chosen point, a generator along the
+//! partner's asymptotic directions — the offset log-uniform from
+//! `1e-12` of the scale up to half of it.
 //!
 //! The oracle traces the partner's residual on each carrier's own
 //! ruling chart — azimuth periodic, the signed distance along the line
@@ -24,10 +26,13 @@
 //!
 //! Below the trace's resolution (`0.03` of the scale) the class is not
 //! traced: an offset inside the band's Zero (a quarter of it) must
-//! refuse R-tan; one between must answer — R-tan only within a few
-//! escalation widths — with every witness on both carriers. A generic
-//! pose (no degeneracy built in) is traced at every draw. Any other
-//! refusal is counted and printed, never a mismatch.
+//! refuse R-tan, and every answer's witnesses lie on both carriers. A
+//! pose standing [`must_answer`] or farther from every degeneracy — the
+//! built one, and each the search measures from the carriers itself
+//! ([`clear_of`]) — must answer, or refuse a chart's precision floor
+//! (`_precision`: the `f64` reading cannot resolve the band). Every
+//! refusal is tallied by row, with the farthest each stood off its
+//! degeneracies.
 
 #![allow(
     clippy::unwrap_used,
@@ -224,11 +229,25 @@ fn cylinder_near_aperture(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     })
 }
 
+/// A half-angle, log-uniform from a needle to a near-plane.
+fn aperture(rng: &mut Rng) -> f64 {
+    rng.range(0.05f64.ln(), 1.45f64.ln()).exp()
+}
+
+/// The search's cone: [`random_cone`]'s pose at any [`aperture`].
+fn random_frame(rng: &mut Rng) -> Frame {
+    let k = random_cone(rng);
+    Frame {
+        alpha: aperture(rng),
+        ..k
+    }
+}
+
 fn generic_cone(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let sc = k.scale;
     let a2 = unit_vec(rng);
     let apex = k.apex + unit_vec(rng) * (sc * rng.range(0.2, 2.0));
-    let alpha = rng.range(0.25, 1.2);
+    let alpha = aperture(rng);
     Some(Pose {
         what: format!("tilted cone apex {apex:?} a {a2:?} α {alpha}"),
         partner: cone(frame(apex, a2, alpha, sc)),
@@ -238,7 +257,7 @@ fn generic_cone(rng: &mut Rng, k: &Frame) -> Option<Pose> {
 
 fn parallel_cone(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let sc = k.scale;
-    let alpha = rng.range(0.25, 1.2);
+    let alpha = aperture(rng);
     if (alpha.tan() - k.alpha.tan()).abs() < 0.1 {
         return None;
     }
@@ -253,12 +272,27 @@ fn parallel_cone(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     })
 }
 
+/// A parallel-axis cone of the same aperture: the section is a plane
+/// conic.
+fn parallel_twin(rng: &mut Rng, k: &Frame) -> Option<Pose> {
+    let sc = k.scale;
+    let apex = k.apex
+        + k.radial(rng.range(0.0, TAU)) * (sc * rng.range(0.1, 1.5))
+        + k.a * (sc * rng.range(-1.5, 1.5));
+    let a2 = k.a * sign(rng);
+    Some(Pose {
+        what: format!("parallel twin apex {apex:?} a {a2:?}"),
+        partner: cone(frame(apex, a2, k.alpha, sc)),
+        margin: None,
+    })
+}
+
 fn cone_near_apex(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let sc = k.scale;
     let (q, n) = on_cone(rng, k);
     let shift = sc * offset(rng);
     let apex = q + n * shift;
-    let alpha = rng.range(0.25, 1.2);
+    let alpha = aperture(rng);
     let a2 = unit_vec(rng);
     Some(Pose {
         what: format!("cone near the apex {apex:?} a {a2:?} α {alpha}"),
@@ -275,7 +309,7 @@ fn cone_near_tangent(rng: &mut Rng, k: &Frame) -> Option<Pose> {
         return None;
     }
     let g = g / g.norm();
-    let alpha = rng.range(0.25, 1.2);
+    let alpha = aperture(rng);
     let a2 = g * alpha.cos() + n * (alpha.sin() * sign(rng));
     let shift = sc * offset(rng);
     let apex = q - g * (sc * rng.range(0.3, 2.0) * sign(rng)) + n * shift;
@@ -288,7 +322,7 @@ fn cone_near_tangent(rng: &mut Rng, k: &Frame) -> Option<Pose> {
 
 fn cone_near_asymptote(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let sc = k.scale;
-    let alpha = rng.range(0.25, 1.2);
+    let alpha = aperture(rng);
     let lean = offset(rng) * 0.2;
     let beta = if rng.unit() < 0.5 {
         k.alpha + alpha
@@ -365,8 +399,196 @@ enum Outcome {
     Refused(&'static str),
 }
 
+/// How far from every degeneracy, in units of [`must_answer`]'s scale,
+/// a pose must answer. A tangency's discriminant bump is linear in its
+/// offset, but an apex's, an aperture's and a doubled asymptote's are
+/// quadratic (the discriminant vanishes to second order on a line
+/// through the apex, along the axis, or doubly parallel to an asymptotic
+/// direction), so their refusals reach `√(escalation · scale)`; and the
+/// clearance the charts decide on is a lower bound short of the true one
+/// by the partner's conditioning. Measured over 10⁴ draws at each of
+/// the three ε: no refusal past `447` of these units but a precision
+/// floor's.
+const MUST_ANSWER: f64 = 2e3;
+
+/// The distance from every degeneracy past which a pose at `scale` must
+/// answer: [`MUST_ANSWER`] times the larger of the escalation threshold
+/// and `√(escalation · scale)`.
+fn must_answer(scale: f64) -> f64 {
+    let e = band().escalate();
+    MUST_ANSWER * e.max((e * scale).sqrt())
+}
+
+/// The pose's distance from every degeneracy the search can measure
+/// apart from a tangency (metres): either apex off the other carrier, a
+/// generator along the cylinder's axis, an asymptotic direction the
+/// cones share doubly, parallel cones of nearly one aperture (one
+/// aperture exactly is the plane conic, not a degeneracy). Angles are
+/// levered by four reach radii. Read from the carriers, not the arm.
+fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
+    let lever = 4.0 * reach_of(k).radius;
+    let off_cone = |apex: Point3<f64>, a: Vec3<f64>, alpha: f64, q: Point3<f64>| {
+        let w = q - apex;
+        let h = w.dot(a);
+        ((w - a * h).norm() * alpha.cos() - h.abs() * alpha.sin()).abs()
+    };
+    match *partner {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let d = axis.normalize();
+            let w = k.apex - origin;
+            let apex = ((w - d * w.dot(d)).norm() - radius).abs();
+            let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
+            apex.min(aperture)
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let a2 = axis.normalize();
+            let apexes =
+                off_cone(k.apex, k.a, k.alpha, apex).min(off_cone(apex, a2, half_angle, k.apex));
+            let beta = a2.dot(k.a).clamp(-1.0, 1.0).acos();
+            let directions = if a2.cross(k.a).norm() < 1e-12 {
+                if half_angle == k.alpha {
+                    f64::INFINITY
+                } else {
+                    (half_angle - k.alpha).abs() * lever
+                }
+            } else {
+                [beta, core::f64::consts::PI - beta]
+                    .iter()
+                    .flat_map(|&b| {
+                        [
+                            (b - (k.alpha + half_angle)).abs(),
+                            (b - (k.alpha - half_angle).abs()).abs(),
+                        ]
+                    })
+                    .fold(f64::INFINITY, f64::min)
+                    * lever
+            };
+            apexes.min(directions)
+        }
+        _ => f64::INFINITY,
+    }
+}
+
+/// A chart's precision floor: the representation, not the band, cannot
+/// resolve the pose, and any pose may refuse it.
+fn precision_floor(row: &str) -> bool {
+    row.ends_with("_precision")
+}
+
+/// A partner's ruling chart, read off its carrier.
+fn partner_of(surface: &Surface<f64>, scale: f64) -> Partner {
+    match *surface {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => cylinder(origin, axis.normalize(), radius, scale),
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => cone(frame(apex, axis.normalize(), half_angle, scale)),
+        _ => unreachable!("the search's partners are cylinders and cones"),
+    }
+}
+
+/// `parts` against the section traced on both carriers' charts, the cone
+/// `cone` at scale `scale`: the mismatches, as sentences (module docs).
+/// The rows' check that every witness is on a component of its class.
+pub(super) fn traced_mismatches(
+    cone: &Surface<f64>,
+    partner: &Surface<f64>,
+    scale: f64,
+    parts: &[Component<f64>],
+    single: bool,
+) -> Vec<String> {
+    let &Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = cone
+    else {
+        unreachable!("the first carrier is a cone")
+    };
+    let k = frame(apex, axis.normalize(), half_angle, scale);
+    against_the_trace(&k, &partner_of(partner, scale), parts, single)
+}
+
+/// The mismatches between `parts` and the traced section.
+fn against_the_trace(
+    k: &Frame,
+    partner: &Partner,
+    parts: &[Component<f64>],
+    single: bool,
+) -> Vec<String> {
+    let mut bad = Vec::new();
+    let cone = k.surface();
+    let (s, c) = k.alpha.sin_cos();
+    let mine = ruled(
+        &|u| (k.apex, k.a * c + k.radial(u) * s),
+        k.scale,
+        &partner.surface,
+    );
+    let theirs = ruled(&*partner.line, k.scale, &cone);
+    for (side, traced, flag) in [("cone", &mine, true), ("partner", &theirs, false)] {
+        let mut want = traced.classes.clone();
+        want.sort();
+        let mut got: Vec<Class> = parts
+            .iter()
+            .map(|p| class_on(p, if flag { p.essential_f } else { p.essential_g }))
+            .collect();
+        got.sort();
+        if want != got {
+            bad.push(format!(
+                "on the {side}'s chart traced {want:?}, classified {got:?}"
+            ));
+        }
+        let mut seen = Vec::new();
+        for p in parts {
+            let Some(w) = p.witness else {
+                continue;
+            };
+            let (u, psi) = if flag {
+                let (u, t) = k.chart(w);
+                (u, (t / k.scale).atan())
+            } else {
+                (partner.chart)(w)
+            };
+            let want = class_on(p, if flag { p.essential_f } else { p.essential_g });
+            // The traced chart's `v` is `ψ`; `near` reads it directly.
+            let on: Vec<usize> = traced
+                .near(u, psi)
+                .into_iter()
+                .filter(|&i| traced.classes[i] == want && !seen.contains(&i))
+                .collect();
+            match on.first() {
+                Some(&i) => seen.push(i),
+                None => bad.push(format!(
+                    "on the {side}'s chart the witness {w:?} of a {want:?} part is on no such traced component"
+                )),
+            }
+        }
+    }
+    if single && mine.classes.len() != 1 {
+        bad.push(format!("single, traced {:?}", mine.classes));
+    }
+    bad
+}
+
 /// The mismatches of one pose, as sentences.
-#[allow(clippy::too_many_lines)] // the checks, each labelled
 fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     let cone = k.surface();
     let partner = &pose.partner.surface;
@@ -375,12 +597,19 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     let sec = classify(&cone, partner, reach, b);
     let back = classify(partner, &cone, reach, b);
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
+    let clear = m.min(clear_of(k, partner));
     let mut bad = Vec::new();
     let (parts, single) = match &sec {
         Section::Components { parts, single } => (parts.clone(), *single),
         Section::Tangent(name) => {
             if !matches!(back, Section::Tangent(_)) {
                 bad.push(format!("one order R-tan, the other {back:?}"));
+            }
+            if clear >= must_answer(k.scale) && !precision_floor(name) {
+                bad.push(format!(
+                    "{clear:.3e} m off every degeneracy ({:.1e} of the must-answer floor), refused {name}",
+                    clear / must_answer(k.scale)
+                ));
             }
             return (Outcome::Refused(name), bad);
         }
@@ -418,78 +647,38 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     if m < 0.03 * k.scale || !traceable(k, partner) {
         return (Outcome::Answered, bad);
     }
-    let (s, c) = k.alpha.sin_cos();
-    let mine = ruled(&|u| (k.apex, k.a * c + k.radial(u) * s), k.scale, partner);
-    let theirs = ruled(&*pose.partner.line, k.scale, &cone);
-    for (side, traced, flag) in [("cone", &mine, true), ("partner", &theirs, false)] {
-        let mut want = traced.classes.clone();
-        want.sort();
-        let mut got: Vec<Class> = parts
-            .iter()
-            .map(|p| class_on(p, if flag { p.essential_f } else { p.essential_g }))
-            .collect();
-        got.sort();
-        if want != got {
-            bad.push(format!(
-                "on the {side}'s chart traced {want:?}, classified {got:?}"
-            ));
-        }
-        let mut seen = Vec::new();
-        for p in &parts {
-            let Some(w) = p.witness else {
-                continue;
-            };
-            let (u, psi) = if flag {
-                let (u, t) = k.chart(w);
-                (u, (t / k.scale).atan())
-            } else {
-                (pose.partner.chart)(w)
-            };
-            let want = class_on(p, if flag { p.essential_f } else { p.essential_g });
-            // The traced chart's `v` is `ψ`; `near` reads it directly.
-            let on: Vec<usize> = traced
-                .near(u, psi)
-                .into_iter()
-                .filter(|&i| traced.classes[i] == want && !seen.contains(&i))
-                .collect();
-            match on.first() {
-                Some(&i) => seen.push(i),
-                None => bad.push(format!(
-                    "on the {side}'s chart the witness {w:?} of a {want:?} part is on no such traced component"
-                )),
-            }
-        }
-    }
-    if single && mine.classes.len() != 1 {
-        bad.push(format!("single, traced {:?}", mine.classes));
-    }
+    bad.extend(against_the_trace(k, &pose.partner, &parts, single));
     (Outcome::Answered, bad)
 }
 
 type Poser = fn(&mut Rng, &Frame) -> Option<Pose>;
+
+/// The pose families.
+const ARMS: [(&str, Poser); 10] = [
+    ("oblique cylinder", generic_cylinder),
+    ("cylinder near the apex", cylinder_near_apex),
+    ("cylinder near a tangency", cylinder_near_tangent),
+    ("cylinder near the aperture", cylinder_near_aperture),
+    ("tilted cone", generic_cone),
+    ("parallel cone", parallel_cone),
+    ("parallel twin", parallel_twin),
+    ("cone near an apex", cone_near_apex),
+    ("cone near a tangency", cone_near_tangent),
+    ("cone near the asymptote", cone_near_asymptote),
+];
 
 /// **Every general-pose cone row against the traced section**, 0
 /// mismatches.
 #[test]
 fn the_general_pose_cone_rows_agree_with_the_traced_section() {
     let mut rng = fuzz::start("section_cert_cone_pair_search");
-    let arms: [(&str, Poser); 9] = [
-        ("oblique cylinder", generic_cylinder),
-        ("cylinder near the apex", cylinder_near_apex),
-        ("cylinder near a tangency", cylinder_near_tangent),
-        ("cylinder near the aperture", cylinder_near_aperture),
-        ("tilted cone", generic_cone),
-        ("parallel cone", parallel_cone),
-        ("cone near an apex", cone_near_apex),
-        ("cone near a tangency", cone_near_tangent),
-        ("cone near the asymptote", cone_near_asymptote),
-    ];
     let mut failures = Vec::new();
-    for (name, poser) in arms {
+    for (name, poser) in ARMS {
         let mut tally = std::collections::BTreeMap::<String, usize>::new();
+        let mut farthest = std::collections::BTreeMap::<&str, f64>::new();
         let mut done = 0;
         while done < fuzz::scaled(12) {
-            let k = random_cone(&mut rng);
+            let k = random_frame(&mut rng);
             let Some(pose) = poser(&mut rng, &k) else {
                 continue;
             };
@@ -497,7 +686,17 @@ fn the_general_pose_cone_rows_agree_with_the_traced_section() {
             let (outcome, bad) = check(&k, &pose);
             let key = match outcome {
                 Outcome::Answered => "answered".to_owned(),
-                Outcome::Refused(row) => format!("R-tan {row}"),
+                Outcome::Refused(row) => {
+                    // The farthest a refusal stood off every degeneracy,
+                    // as a share of the must-answer floor.
+                    let clear = pose
+                        .margin
+                        .map_or(f64::INFINITY, f64::abs)
+                        .min(clear_of(&k, &pose.partner.surface));
+                    let far = farthest.entry(row).or_insert(0.0f64);
+                    *far = far.max(clear / must_answer(k.scale));
+                    format!("R-tan {row}")
+                }
             };
             *tally.entry(key).or_default() += 1;
             for b in bad {
@@ -507,7 +706,9 @@ fn the_general_pose_cone_rows_agree_with_the_traced_section() {
                 ));
             }
         }
-        println!("[cone pair search] {name}: {tally:?}");
+        println!(
+            "[cone pair search] {name}: {tally:?}; farthest refusal (share of the must-answer floor) {farthest:?}"
+        );
     }
     assert!(
         failures.is_empty(),
@@ -601,21 +802,10 @@ pub(super) fn dump_line(
 #[ignore = "an oracle dump; run command in the docs"]
 fn dump_for_the_mpmath_oracle() {
     let mut rng = fuzz::start("section_cert_cone_pair_search::dump_for_the_mpmath_oracle");
-    let arms: [(&str, Poser); 9] = [
-        ("oblique cylinder", generic_cylinder),
-        ("cylinder near the apex", cylinder_near_apex),
-        ("cylinder near a tangency", cylinder_near_tangent),
-        ("cylinder near the aperture", cylinder_near_aperture),
-        ("tilted cone", generic_cone),
-        ("parallel cone", parallel_cone),
-        ("cone near an apex", cone_near_apex),
-        ("cone near a tangency", cone_near_tangent),
-        ("cone near the asymptote", cone_near_asymptote),
-    ];
-    for (name, poser) in arms {
+    for (name, poser) in ARMS {
         let mut done = 0;
         while done < fuzz::scaled(10) {
-            let k = random_cone(&mut rng);
+            let k = random_frame(&mut rng);
             let Some(pose) = poser(&mut rng, &k) else {
                 continue;
             };

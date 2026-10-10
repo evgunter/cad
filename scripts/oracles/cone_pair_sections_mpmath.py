@@ -204,7 +204,11 @@ def hot(chart, partner):
     """The chart angles whose lines pass nearest the partner's apex."""
     if partner.kind != "cone":
         return []
-    th, _ = chart.chart(partner.apex)
+    # The apex's azimuth about the chart's axis, either nappe: its part
+    # square to the axis, so an apex in the chart apex's plane reads too.
+    u = sub(partner.apex, chart.apex if chart.kind == "cone" else chart.o)
+    w = sub(u, scale(chart.a, dot(u, chart.a)))
+    th = mp.atan2(dot(w, chart.e2), dot(w, chart.e1))
     return [th, th + mp.pi]
 
 

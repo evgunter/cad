@@ -237,7 +237,12 @@
 //!   chart and the partner's give every component both flags, and their
 //!   counts must agree. An apex on the other carrier, a double root of
 //!   either chart's discriminant or leading coefficient, and (against a
-//!   cylinder) a generator along its axis are R-tan.
+//!   cylinder) a generator along its axis are R-tan; so is a pose whose
+//!   reading the `f64` representation cannot resolve at the band (the
+//!   charts' `_precision` rows). Two cones of one aperture on parallel
+//!   axes share their forms' quadratic part, and their section is a
+//!   plane conic, classified as cone × plane is: an ellipse essential on
+//!   both, or unbounded branches.
 //!
 //! Cone components are listed on the DOUBLE cone: one on the other
 //! nappe from the face carries a witness the face's trim places `Out`.
@@ -1087,12 +1092,7 @@ fn cone_pair<T: Decide>(
     else {
         return Section::Intractable;
     };
-    let cone = Cone {
-        apex,
-        a: unit(axis),
-        sc: half_angle.sin_cos(),
-        u_ref,
-    };
+    let cone = Cone::new(apex, axis, half_angle, u_ref);
     match *p {
         geom::Surface::Plane { origin, normal, .. } => {
             cone_plane(&cone, origin, unit(normal), reach, band)
@@ -1128,30 +1128,42 @@ fn cone_pair<T: Decide>(
                 Ok(_) => essential_pair(true, true),
                 Err(tan) => tan.into(),
             },
-            Pose::Parallel { .. } | Pose::Other => {
-                let other = Cone {
-                    apex: apex2,
-                    a: unit(d),
-                    sc: half_angle2.sin_cos(),
-                    u_ref: u_ref2,
-                };
-                cone_cone(&cone, &other, reach, band)
+            Pose::Parallel { .. } => {
+                let other = Cone::new(apex2, d, half_angle2, u_ref2);
+                cone_cone(&cone, &other, true, reach, band)
+            }
+            Pose::Other => {
+                let other = Cone::new(apex2, d, half_angle2, u_ref2);
+                cone_cone(&cone, &other, false, reach, band)
             }
         },
         _ => Section::Intractable,
     }
 }
 
-/// A cone's carrier, read once: apex, unit axis, `(sin α, cos α)`, and
-/// the seam direction.
+/// A cone's carrier, read once: apex, unit axis, half-angle `α` and
+/// `(sin α, cos α)`, and the unit seam direction square to the axis.
 struct Cone<T: Real> {
     apex: Point3<T>,
     a: Vec3<T>,
+    alpha: T,
     sc: (T, T),
     u_ref: Vec3<T>,
 }
 
 impl<T: Real> Cone<T> {
+    fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
+        let a = unit(axis);
+        let (across, width) = square_to(u_ref, a);
+        Self {
+            apex,
+            a,
+            alpha,
+            sc: alpha.sin_cos(),
+            u_ref: across / width,
+        }
+    }
+
     /// The unit direction of the generator line at the radial direction
     /// `r` (unit, `⊥ a`): `t > 0` along it is the `v > 0` nappe.
     fn generator(&self, r: Vec3<T>) -> Vec3<T> {
@@ -1159,13 +1171,9 @@ impl<T: Real> Cone<T> {
         self.a * c + r * s
     }
 
-    /// A point's elevation off the double carrier, in metres
-    /// (`geom_brep::cone_elevation`'s `ρ cos α − |h| sin α`).
+    /// A point's signed distance from the double carrier, in metres.
     fn elevation(&self, p: Point3<T>) -> T {
-        let (s, c) = self.sc;
-        let q = p - self.apex;
-        let (_, rho) = square_to(q, self.a);
-        rho * c - q.dot(self.a).abs() * s
+        geom_brep::cone_elevation(self.apex, self.a, self.alpha, None, p)
     }
 
     /// The farthest the pair's reach stands from the apex.
@@ -1174,16 +1182,17 @@ impl<T: Real> Cone<T> {
     }
 
     /// The generator lines as a ruling chart: the azimuth `θ` from
-    /// `u_ref`, `t` along the generator.
+    /// `u_ref`, `t` along the generator. Its reach speed is the turn's at
+    /// the reach's farthest distance from the apex.
     fn chart(&self, reach: Reach<T>) -> ruling::Chart<T> {
         let (s, c) = self.sc;
         let zero = Vec3::new(T::zero(), T::zero(), T::zero());
         let lever = self.reach_lever(reach);
         ruling::Chart {
             base: self.apex,
-            offset: ruling::Swing([zero, zero, zero]),
-            dir: ruling::Swing([self.a * c, self.u_ref * s, self.a.cross(self.u_ref) * s]),
-            speed: lever * s,
+            offset: ruling::Swing::fixed(zero),
+            dir: ruling::Swing::round([self.a * c, self.u_ref * s, self.a.cross(self.u_ref) * s]),
+            reach_speed: lever * s,
             lever: lever + lever,
         }
     }
@@ -1269,9 +1278,9 @@ fn cone_cylinder<T: Decide>(
     let zero = Vec3::new(T::zero(), T::zero(), T::zero());
     let wall = ruling::Chart {
         base: foot,
-        offset: ruling::Swing([zero, f1 * rc, f2 * rc]),
-        dir: ruling::Swing([d, zero, zero]),
-        speed: rc,
+        offset: ruling::Swing::round([zero, f1 * rc, f2 * rc]),
+        dir: ruling::Swing::fixed(d),
+        reach_speed: rc,
         lever: lever + lever,
     };
     let on_cone = ruling::read(
@@ -1280,6 +1289,7 @@ fn cone_cylinder<T: Decide>(
         &ruling::ChartRows {
             fold: "section_cone_cylinder_fold",
             asymptote: "section_cone_cylinder_asymptote",
+            precision: "section_cone_cylinder_precision",
             walk: RULING_WALK,
         },
         band,
@@ -1290,6 +1300,7 @@ fn cone_cylinder<T: Decide>(
         &ruling::ChartRows {
             fold: "section_cylinder_cone_fold",
             asymptote: "section_cylinder_cone_asymptote",
+            precision: "section_cylinder_cone_precision",
             walk: RULING_WALK,
         },
         band,
@@ -1299,10 +1310,23 @@ fn cone_cylinder<T: Decide>(
 
 /// **Cone × cone in any pose but coaxial** (the ruling charts,
 /// `section_cert/ruling.rs`), each cone's generators against the
-/// other. Each apex is decided off the other carrier first (a common
-/// apex is both): an apex on the other cone is a node of the section.
-fn cone_cone<T: Decide>(one: &Cone<T>, two: &Cone<T>, reach: Reach<T>, band: Band) -> Section<T> {
+/// other; `parallel`, their axes are parallel. Each apex is decided off
+/// the other carrier first (a common apex is both): an apex on the
+/// other cone is a node of the section.
+///
+/// Parallel axes and one aperture (`cos²α₁ − cos²α₂`, levered by the
+/// charts' longer lever, in the band's zero) give the two forms one
+/// quadratic part, so the section is a plane conic ([`cone_plane_pair`]);
+/// the charts would read `p₂ ≡ 0` there, every root of `E = p₁²` double.
+fn cone_cone<T: Decide>(
+    one: &Cone<T>,
+    two: &Cone<T>,
+    parallel: bool,
+    reach: Reach<T>,
+    band: Band,
+) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
+    const APERTURE: &str = "section_cone_pair_aperture";
     if let Err(tan) = signs(
         [
             (APEX, two.elevation(one.apex)),
@@ -1312,14 +1336,57 @@ fn cone_cone<T: Decide>(one: &Cone<T>, two: &Cone<T>, reach: Reach<T>, band: Ban
     ) {
         return tan.into();
     }
+    if parallel {
+        let lever = one.reach_lever(reach).max(two.reach_lever(reach));
+        let gap = one.sc.1.powi(2) - two.sc.1.powi(2);
+        match sign(APERTURE, Margin::levered(gap, lever + lever), band) {
+            Some(Sign::Zero) => return cone_plane_pair(one, two, reach, band),
+            Some(Sign::Positive | Sign::Negative) => {}
+            None => return Section::Tangent(APERTURE),
+        }
+    }
     let rows = ruling::ChartRows {
         fold: "section_cone_pair_fold",
         asymptote: "section_cone_pair_asymptote",
+        precision: "section_cone_pair_precision",
         walk: RULING_WALK,
     };
     let first = ruling::read(&one.chart(reach), &two.quadric(), &rows, band);
     let second = ruling::read(&two.chart(reach), &one.quadric(), &rows, band);
     charted(first, second, "section_cone_pair_charts")
+}
+
+/// **Two cones of one aperture on parallel axes.** With `M = ââᵀ −
+/// cos²α I` their forms `(X − Aᵢ)ᵀM(X − Aᵢ)` differ by the linear
+/// `−2w·(X − m)`, `w = M(A₁ − A₂)` and `m` the apexes' midpoint, so the
+/// section is either cone's section by the plane `w·(X − m) = 0`
+/// ([`cone_plane`] on the first). `w` is not zero: `M` is invertible and
+/// the apexes are apart. The plane misses both apexes (it meets `A₁`
+/// exactly where `(A₁ − A₂)ᵀM(A₁ − A₂) = 0`, the other apex on the
+/// cone), and its aperture margin `|n·â| − sin α` is the same against
+/// both cones, so each component is essential on both or on neither.
+fn cone_plane_pair<T: Decide>(
+    one: &Cone<T>,
+    two: &Cone<T>,
+    reach: Reach<T>,
+    band: Band,
+) -> Section<T> {
+    let delta = one.apex - two.apex;
+    let w = one.a * one.a.dot(delta) - delta * one.sc.1.powi(2);
+    let mid = two.apex + delta * T::from_f64(0.5);
+    match cone_plane(one, mid, unit(w), reach, band) {
+        Section::Components { parts, single } => Section::Components {
+            parts: parts
+                .into_iter()
+                .map(|p| Component {
+                    essential_g: p.essential_f,
+                    ..p
+                })
+                .collect(),
+            single,
+        },
+        other => other,
+    }
 }
 
 /// The subdivision rows every ruling chart walks under.
