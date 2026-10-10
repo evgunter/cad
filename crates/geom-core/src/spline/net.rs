@@ -24,9 +24,11 @@
 //! [`TensorNet::diff_u`] and [`TensorNet::diff_v`] take the
 //! one-dimensional step as a closure. A net whose directions are
 //! clamped [`KnotVector`]s is a [`TensorCoeffs`], which holds the two
-//! vectors beside the net and differences it through
-//! [`super::hull::SplineCoeffs::derivative_coeffs`] with no step to
-//! pass and no count to check. A caller carrying a direction
+//! vectors beside the net and differences each line with
+//! [`KnotVector::difference_coeffs`] — the one knot-vector step, and the
+//! one count check: it mints the line as the vector's and refuses it
+//! whole (a one-entry answer, which the rule below refuses) when the
+//! count disagrees, never padding or truncating it. A caller carrying a direction
 //! the clamped invariant cannot spell — a derivative whose interior
 //! multiplicity equals the parent degree, so it is genuinely
 //! discontinuous — passes its own step and keeps its own structure.
@@ -51,11 +53,10 @@
 //! consumer as a refusal.
 //!
 //! *Measured reachability, so this is a guard and not a story about
-//! one:* a knot-vector step ([`TensorCoeffs`]'s, and
-//! `geom_brep::props::quad`'s) builds its line at the vector's count
-//! and answers that count less one, which is the line's own length
-//! less one because the net was built at the vector's extent; and
-//! `quad`'s `raw_deriv` answers `n - 1` whenever its degree is at
+//! one:* the knot-vector step ([`KnotVector::difference_coeffs`], from
+//! [`TensorCoeffs`] and `geom_brep::props::quad`) answers `n - 1` for
+//! every line of a net built at its vector's extent, which is every net
+//! either hands it; and `quad`'s `raw_deriv` answers `n - 1` whenever its degree is at
 //! least 1, which its own `Dir` construction guarantees, filling a
 //! DEGENERATE (empty) span with an explicit zero rather than by
 //! returning fewer coefficients. So this is a latent-bug guard on a path no caller
@@ -72,7 +73,7 @@ use core::ops::RangeInclusive;
 
 use std::borrow::Cow;
 
-use super::algebra::CurvePlan;
+use super::algebra::{CurvePlan, KnotAlgebraError, refine_plan_homogeneous};
 use super::knots::KnotVector;
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
@@ -391,20 +392,22 @@ impl TensorNet {
 }
 
 /// A tensor coefficient net with the two knot vectors it is a proof
-/// about — [`super::hull::SplineCoeffs`] in two directions: every `u`-line is
-/// `knots_u`'s coefficient array and every `v`-line `knots_v`'s.
+/// about — [`super::hull::SplineCoeffs`] in two directions: every
+/// `u`-line is `knots_u`'s coefficient array and every `v`-line
+/// `knots_v`'s.
 ///
-/// Built only at the vectors' own extent — [`TensorCoeffs::from_fn`]
+/// Built only at the vectors' own extent: [`TensorCoeffs::from_fn`]
 /// fills `knots_u.control_count() × knots_v.control_count()` entries,
-/// and the derivative doors difference that — so no net of another
-/// extent can sit beside the vectors and no count is ever checked. The
-/// vectors are borrowed, or owned where a derivative door derived one
-/// ([`TensorCoeffs::derivative_u`]).
-///
+/// [`TensorChannels`] does the same per channel and hands its channels
+/// out as these, and the derivative doors difference that — so no net
+/// of another extent can sit beside the vectors. The vectors and the
+/// net are borrowed, or owned where a door derived them.
 /// These rows are library doctests (`cargo test -p geom-core --doc`);
 /// each `compile_fail` block has a twin differing in one respect that
 /// compiles, so a typo shared by both reddens the twin (stable rustdoc
 /// does not check the error code; it was read off `rustc` 1.97.0).
+/// They pin two spellings, not the shape: a new door that takes a net
+/// beside two vectors would compile, and no row here would see it.
 ///
 /// **A net of another extent has no constructor to sit beside the
 /// vectors** — the fields are private:
@@ -415,7 +418,7 @@ impl TensorNet {
 /// use geom_core::spline::{KnotVector, TensorCoeffs, TensorNet};
 /// let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let net = TensorNet::from_fn(2, 3, |_, _| Interval::point(0.0));
-/// let _ = TensorCoeffs { ku: std::borrow::Cow::Borrowed(&k), kv: std::borrow::Cow::Borrowed(&k), net };
+/// let _ = TensorCoeffs { ku: std::borrow::Cow::Borrowed(&k), kv: std::borrow::Cow::Borrowed(&k), net: std::borrow::Cow::Owned(net) };
 /// ```
 ///
 /// The twin builds the net from the vectors, at their extent:
@@ -457,7 +460,7 @@ impl TensorNet {
 pub struct TensorCoeffs<'a> {
     ku: Cow<'a, KnotVector>,
     kv: Cow<'a, KnotVector>,
-    net: TensorNet,
+    net: Cow<'a, TensorNet>,
 }
 
 impl<'a> TensorCoeffs<'a> {
@@ -469,7 +472,11 @@ impl<'a> TensorCoeffs<'a> {
         f: impl Fn(usize, usize) -> Interval,
     ) -> Self {
         Self {
-            net: TensorNet::from_fn(ku.control_count(), kv.control_count(), f),
+            net: Cow::Owned(TensorNet::from_fn(
+                ku.control_count(),
+                kv.control_count(),
+                f,
+            )),
             ku: Cow::Borrowed(ku),
             kv: Cow::Borrowed(kv),
         }
@@ -496,17 +503,17 @@ impl TensorCoeffs<'_> {
     }
 
     /// **The `u` partial's net**: each `u`-line differenced as
-    /// `knots_u`'s ([`super::hull::SplineCoeffs::derivative_coeffs`]), `(nu − 1) × nv`.
+    /// `knots_u`'s ([`KnotVector::difference_coeffs`]), `(nu − 1) × nv`.
     #[must_use]
     pub fn diff_u(&self) -> TensorNet {
-        self.net.diff_u(line_step(&self.ku))
+        self.net.diff_u(|line| self.ku.difference_coeffs(line))
     }
 
     /// **The `v` partial's net**, per [`TensorCoeffs::diff_u`]:
     /// `nu × (nv − 1)`.
     #[must_use]
     pub fn diff_v(&self) -> TensorNet {
-        diff_rows(&self.kv, &self.net)
+        self.net.diff_v(|line| self.kv.difference_coeffs(line))
     }
 
     /// **The mixed partial's net**: [`TensorCoeffs::diff_u`], then each
@@ -515,7 +522,7 @@ impl TensorCoeffs<'_> {
     /// whether or not [`TensorCoeffs::derivative_u`] is.
     #[must_use]
     pub fn diff_uv(&self) -> TensorNet {
-        diff_rows(&self.kv, &self.diff_u())
+        self.diff_u().diff_v(|line| self.kv.difference_coeffs(line))
     }
 
     /// The `u` partial as a pair: [`TensorCoeffs::diff_u`] against
@@ -526,29 +533,8 @@ impl TensorCoeffs<'_> {
         Some(TensorCoeffs {
             ku: Cow::Owned(self.ku.derivative()?),
             kv: Cow::Borrowed(&self.kv),
-            net: self.diff_u(),
+            net: Cow::Owned(self.diff_u()),
         })
-    }
-
-    /// **The net refined along both directions** by insertion chains
-    /// built from these vectors ([`TensorNet::refine_u`],
-    /// [`TensorNet::refine_v`]), paired with each chain's final vector —
-    /// the vector unchanged where a chain is empty. A chain of the wrong
-    /// extent refuses the net at the chain's extent, so the pair's
-    /// extents agree either way.
-    #[must_use]
-    pub fn refine<'s>(
-        &'s self,
-        plans_u: &'s [CurvePlan],
-        plans_v: &'s [CurvePlan],
-    ) -> TensorCoeffs<'s> {
-        let last =
-            |plans: &'s [CurvePlan], kv: &'s KnotVector| plans.last().map_or(kv, CurvePlan::knots);
-        TensorCoeffs {
-            ku: Cow::Borrowed(last(plans_u, &self.ku)),
-            kv: Cow::Borrowed(last(plans_v, &self.kv)),
-            net: self.net.refine_u(plans_u).refine_v(plans_v),
-        }
     }
 
     /// The `v` partial as a pair, per [`TensorCoeffs::derivative_u`].
@@ -557,26 +543,90 @@ impl TensorCoeffs<'_> {
         Some(TensorCoeffs {
             ku: Cow::Borrowed(&self.ku),
             kv: Cow::Owned(self.kv.derivative()?),
-            net: self.diff_v(),
+            net: Cow::Owned(self.diff_v()),
         })
     }
 }
 
-/// `net`'s `v`-lines differenced as `kv`'s. Private: both callers hand
-/// it a net whose `v` extent is `kv`'s by construction.
-fn diff_rows(kv: &KnotVector, net: &TensorNet) -> TensorNet {
-    net.diff_v(line_step(kv))
+/// `C` tensor nets over ONE pair of knot vectors — the channels of one
+/// surface (`w·P` per coordinate, or `w` alone), held so that "the
+/// channels share both vectors" is the type's and not a comment's.
+/// Each channel is a [`TensorCoeffs`] borrowing the shared vectors.
+#[derive(Clone, Debug)]
+pub struct TensorChannels<'a, const C: usize> {
+    ku: Cow<'a, KnotVector>,
+    kv: Cow<'a, KnotVector>,
+    nets: [TensorNet; C],
 }
 
-/// The differencing step for a line along `kv`'s direction: the line
-/// minted as `kv`'s by construction — every line of a [`TensorCoeffs`]
-/// holds `kv.control_count()` entries — and differenced once.
-fn line_step(kv: &KnotVector) -> impl Fn(&[Interval]) -> Vec<Interval> + '_ {
-    move |line| {
-        kv.with_coeffs_from_fn(
-            |i| line.get(i).copied().unwrap_or_else(Interval::refused),
-            |pair| pair.derivative_coeffs(),
-        )
+impl<'a, const C: usize> TensorChannels<'a, C> {
+    /// The channels whose entries at `(i, j)` are `f(i, j)`, at
+    /// `ku × kv`'s extent.
+    #[must_use]
+    pub fn from_fn(
+        ku: &'a KnotVector,
+        kv: &'a KnotVector,
+        f: impl Fn(usize, usize) -> [Interval; C],
+    ) -> Self {
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        Self {
+            nets: core::array::from_fn(|c| TensorNet::from_fn(nu, nv, |i, j| f(i, j)[c])),
+            ku: Cow::Borrowed(ku),
+            kv: Cow::Borrowed(kv),
+        }
+    }
+}
+
+impl<const C: usize> TensorChannels<'_, C> {
+    /// The shared `u` vector.
+    #[must_use]
+    pub fn knots_u(&self) -> &KnotVector {
+        &self.ku
+    }
+
+    /// The shared `v` vector.
+    #[must_use]
+    pub fn knots_v(&self) -> &KnotVector {
+        &self.kv
+    }
+
+    /// Every channel, as a pair over the shared vectors.
+    #[must_use]
+    pub fn channels(&self) -> [TensorCoeffs<'_>; C] {
+        core::array::from_fn(|c| TensorCoeffs {
+            ku: Cow::Borrowed(&self.ku),
+            kv: Cow::Borrowed(&self.kv),
+            net: Cow::Borrowed(&self.nets[c]),
+        })
+    }
+
+    /// **Every channel refined** by inserting `at_u` along `u` and
+    /// `at_v` along `v`, IN INTERVAL ARITHMETIC ([`TensorNet::refine_u`]),
+    /// paired with the refined vectors. The insertion chains are built
+    /// here, from these vectors, so no other vector's chain can reach
+    /// the nets — the refined pair is a proof about what it holds.
+    ///
+    /// # Errors
+    ///
+    /// [`KnotAlgebraError`] when an insertion chain refuses
+    /// ([`refine_plan_homogeneous`]).
+    pub fn refine(
+        &self,
+        at_u: &[f64],
+        at_v: &[f64],
+    ) -> Result<TensorChannels<'_, C>, KnotAlgebraError> {
+        let plans_u = refine_plan_homogeneous(&self.ku, at_u)?;
+        let plans_v = refine_plan_homogeneous(&self.kv, at_v)?;
+        let last = |plans: &[CurvePlan], kv: &KnotVector| {
+            plans
+                .last()
+                .map_or_else(|| kv.clone(), |p| p.knots().clone())
+        };
+        Ok(TensorChannels {
+            ku: Cow::Owned(last(&plans_u, &self.ku)),
+            kv: Cow::Owned(last(&plans_v, &self.kv)),
+            nets: core::array::from_fn(|c| self.nets[c].refine_u(&plans_u).refine_v(&plans_v)),
+        })
     }
 }
 
@@ -744,6 +794,39 @@ mod tests {
         assert!(holds(n.diff_uv().get(0, 0), 2.0));
         // Degree 1 has no clamped derivative vector, so no derivative pair.
         assert!(n.derivative_u().is_none() && n.derivative_v().is_none());
+    }
+
+    /// **Refinement builds its chains from the pair's own vectors**: the
+    /// refined channels are the nets refined by those chains, bit for
+    /// bit, beside the chains' final vectors — the only vectors a
+    /// caller handing in points can land on.
+    #[test]
+    fn refine_pairs_the_nets_with_their_own_refined_vectors() {
+        let k2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let line = [0.0, 0.0, 1.0];
+        let t = TensorChannels::<1>::from_fn(&k2, &k2, |i, j| [pt(line[i] + line[j])]);
+        let r = t.refine(&[0.5], &[0.25, 0.75]).unwrap();
+        let plans_u = crate::spline::algebra::refine_plan_homogeneous(&k2, &[0.5]).unwrap();
+        let plans_v = crate::spline::algebra::refine_plan_homogeneous(&k2, &[0.25, 0.75]).unwrap();
+        assert_eq!(r.knots_u().knots(), plans_u.last().unwrap().knots().knots());
+        assert_eq!(r.knots_v().knots(), plans_v.last().unwrap().knots().knots());
+        let [src] = t.channels();
+        let want = src.net().refine_u(&plans_u).refine_v(&plans_v);
+        let [got] = r.channels();
+        assert_eq!((got.net().nu(), got.net().nv()), (4, 5));
+        for i in 0..4 {
+            for j in 0..5 {
+                let (a, b) = (got.net().get(i, j), want.get(i, j));
+                assert!(a.is_certified(), "({i}, {j}) refused");
+                assert_eq!(
+                    (a.lo().to_bits(), a.hi().to_bits()),
+                    (b.lo().to_bits(), b.hi().to_bits())
+                );
+            }
+        }
+        // No points: the same vectors, the same nets.
+        let same = t.refine(&[], &[]).unwrap();
+        assert_eq!(same.knots_u().knots(), k2.knots());
     }
 
     /// The derivative pair holds the derived vector beside the

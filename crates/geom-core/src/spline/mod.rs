@@ -57,5 +57,5 @@ pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
-pub use net::{TensorCoeffs, TensorNet};
+pub use net::{TensorChannels, TensorCoeffs, TensorNet};
 pub use range::{Param, ParamRange, last_at_or_below};

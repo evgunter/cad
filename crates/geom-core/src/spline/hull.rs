@@ -510,7 +510,10 @@ impl KnotVector {
     /// error it is, never as an empty line.
     ///
     /// This is the one door beside the mints that takes a coefficient
-    /// array, and it takes it only to mint. A consumer whose array is
+    /// array, and it takes it only to mint — which is why it is the line
+    /// step [`super::net::TensorCoeffs`] hands [`super::net::TensorNet::diff_u`]:
+    /// a line of the wrong count comes back as the one-entry refusal
+    /// that refuses the whole line there. A consumer whose array is
     /// its own construction builds it with
     /// [`KnotVector::with_coeffs_from_fn`] instead, and one that
     /// differences a level again holds it as a [`SplineCoeffsBuf`].
