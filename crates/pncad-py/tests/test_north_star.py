@@ -358,17 +358,19 @@ class TestPlateParam(unittest.TestCase):
     )
 
     # Insert order: FRAME, profile, plate, FRAME, tab profile, tab,
-    # union, measure, assertion. The union is index 6 and no longer the
-    # last insert — the fixture gained the measurement pair so the READ
-    # doors below have a document to read.
+    # union, its world placement, measure, assertion. The union is
+    # index 6 and no longer the last insert — the fixture places it and
+    # gained the measurement pair so the READ doors below have a
+    # document to read.
     #
     # Two frames, not one: the plate and its tab are sketched at
     # different heights, so they are drawn on different planes, and a
     # plane is a node each names.
     PROFILE = 1
     UNION = 6
-    MEASURE = 7
-    ASSERTION = 8
+    PLACED = 7
+    MEASURE = 8
+    ASSERTION = 9
 
     def plate(self):
         doc = load(self.FIXTURE.read_text(encoding="utf-8")).doc
@@ -4346,7 +4348,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "datum_frame", "datum_plane", "datum_point",
                 "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
                 "loft", "mate", "measure", "part", "pattern",
-                "placed_union", "placed_union_at",
+                "place_in_world", "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
                 "split", "transform", "transform_by", "tube", "union",
             ],
@@ -4373,7 +4375,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "set_declare",
                 "set_extrude_side",
                 "set_gauge", "set_label", "set_members", "set_offset",
-                "set_param", "set_program", "set_roots",
+                "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",
             ],
@@ -4511,11 +4513,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         #
         # "An expression goes in through no door at all" was the
         # sentence here, and LIB-B-MEASURES made it false without
-        # touching this row's claim: `MeasureExpr.value` and
-        # `Node.assertion`'s bound both take a `Formula` INTO a document,
-        # because the measurement sublanguage's leaves and an
-        # assertion's bound are the two slots whose dimension an
-        # ADDRESS cannot fix. What this row is about is the profile
+        # touching this row's claim: an assertion's value and its bound
+        # both take a `Formula` INTO a document, because they are the
+        # two expressions whose dimension an ADDRESS cannot fix. What this row is about is the profile
         # authoring lattice, where the two doors below still refuse —
         # the residue is narrower than it was, and it is still there.
         #

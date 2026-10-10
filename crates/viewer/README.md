@@ -45,11 +45,17 @@ in the unit it was written in.
 A value typed at a slot — a number, or a written quantity like
 `5 mm` — gives the slot a new variable of its own, whatever it read
 before. When other variables of the same kind hold the same value, the
-slot's row says `same value as` and names each one: click one to make
-the slot read it (one undoable edit; the two then move together), or
-**keep separate** to keep the typed value distinct. A slot whose
-variable has no name has a **name…** button that opens an empty field;
-nothing is stored until you type a name and press **Name** or Enter.
+slot's row says `same value as` and names each one. Clicking a named
+one makes the slot read it, as one undoable edit. Clicking an unnamed
+one opens an empty name field instead, because a variable two slots
+share has a name. Typing a name and pressing **Name** or Enter names the
+variable and makes the slot read it, as one undo step. **keep
+separate** keeps the typed value distinct. A slot reading a shared
+variable is driven by it: a value typed there is refused, naming the
+variable, and the slot's expression text makes it its own again. A
+slot whose variable has no name has a **name…** button that opens an
+empty field; nothing is stored until you type a name and press
+**Name** or Enter.
 
 In the Properties panel, the document-variables list ends with an
 add-variable row (name + dimension + value, written in the working
@@ -511,7 +517,7 @@ rule out.
 The body is the one thing a landing keeps with a cost on the other
 side of the ledger. It is kept so that the
 display fit does not gather the same product a second time — 87 ms
-against an `Arc` clone, on a 165-root, 990-face document — and the
+against an `Arc` clone, on a 165-body, 990-face document — and the
 price is that the session retains one gathered aggregate for the life
 of a landing, beside the `Doc` and `Evaluation` it already holds. One
 at a time: the next landing replaces it, and `Open` drops it with the
@@ -933,8 +939,8 @@ document that replaces this one drops what both hold
 (`ViewerApp::document_replaced`): their ids are the old document's.
 So is the Checks window: its report is the landed run's, and
 `ViewerApp::checks_window` hands `frame::check_rows` that run's
-document, from which each finding's root is said on its button and in
-its sentence. The report refuses another document, but a document's id
+document, from which each finding's body is said on its button and its
+copies in its sentence. The report refuses another document, but a document's id
 survives every edit, so handing it the committed version is the
 call site's mistake to avoid, and the window's test holds it.
 
@@ -1404,7 +1410,7 @@ is where the question of whether it should be broken at all is kept.
 ### A pick id is one index's word
 
 `PickIndex` holds an `IdMap` keyed by a `PictureKey` — the landed
-generation and the δ its roots were tessellated at, one value because
+generation and the δ its copies were tessellated at, one value because
 it is one question — and every id in the drawn mesh's per-corner `ids`
 was minted by the id map of the index that built it. So an id is only a name in the alphabet of the
 index that minted it, and reading one through another index resolves it

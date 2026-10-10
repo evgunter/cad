@@ -996,6 +996,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 point: Point2::new(T::zero(), T::zero()),
                 place: Affine3::translation(p0 - Point3::origin()),
                 vec: p1 - p0,
+                range: crate::mapped::SweepRange::whole(),
             }),
             carrier: Curve3::Line {
                 origin: p0,
@@ -1036,6 +1037,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 axis_origin: center,
                 axis_dir: axis,
                 angle: t1 - t0,
+                range: crate::mapped::SweepRange::whole(),
             }),
             carrier,
             param_start: t0,
@@ -1062,6 +1064,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 point: Point2::new(T::zero(), T::zero()),
                 place: Affine3::translation(start - Point3::origin()),
                 vec: carrier.eval(t1) - start,
+                range: crate::mapped::SweepRange::whole(),
             }),
             carrier,
             param_start: t0,
@@ -1160,6 +1163,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                 axis_origin: center,
                 axis_dir: Vec3::unit_z(),
                 angle: T::tau(),
+                range: crate::mapped::SweepRange::whole(),
             }),
             carrier: Curve3::Circle {
                 center,
@@ -4588,6 +4592,7 @@ mod tests {
                 axis_origin: center,
                 axis_dir: Vec3::unit_z(),
                 angle: TAU,
+                range: crate::mapped::SweepRange::whole(),
             }),
             carrier: Curve3::Circle {
                 center,
@@ -5088,7 +5093,7 @@ mod tests {
             (
                 undecided(CertCheck::Transversality, MarginDiag::INVALID),
                 "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable \
-                 or collapsed margin may indicate a kernel bug worth reporting",
+                 margin may indicate a kernel bug worth reporting",
             ),
             (
                 undecided(CertCheck::EndpointStart, MarginDiag::value(5e-9)),

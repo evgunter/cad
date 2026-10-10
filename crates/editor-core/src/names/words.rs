@@ -727,15 +727,20 @@ fn role_np(role: PieceRole) -> String {
 
 /// A profile piece of `feature`'s profile: its role, and the step that
 /// drew it as the profile pane numbers it — with the profile, unless
-/// `feature` reads that profile alone — or, on a kernel-built section,
-/// which circle. A leg is its step's only piece, so the step alone says
+/// `feature` is that profile or reads it alone — or, on a kernel-built
+/// section, which circle. A leg is its step's only piece, so the step alone says
 /// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
 /// 0 step 2`).
-fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     match e {
         ProfileEdgeRef::Piece { step, role } => {
             let step = match by.step(*step) {
-                Some(at) if by.sole_profile(feature) == Some(at.profile()) => at.to_string(),
+                Some(at)
+                    if feature == at.profile()
+                        || by.sole_profile(feature) == Some(at.profile()) =>
+                {
+                    at.to_string()
+                }
                 Some(at) => format!("{at} in {}", by.node(at.profile())),
                 None => format!("the profile step {step}"),
             };
@@ -964,6 +969,7 @@ fn role<'n, 's>(
         // The part's own steps and nodes are another document's ids,
         // so the part-local name is said by tag.
         RoleSeg::InPart { of } => vec![cites.by_tag(of), text(" in the part")],
+        RoleSeg::Placed { of } => vec![text("the world copy of "), cites.one(of)],
         // A carry or a qualifier is a role only inside a path no
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its

@@ -159,7 +159,7 @@ fn shared(k: f64, g: f64) -> f64 {
 ///   and `24ε` apart, and their section arcs' chords differ by a few ε,
 ///   so the order between the two pairs ties in band
 ///   (`bool_join_nearest`;
-///   `work/join/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
+///   `work/sect/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
 /// - `k = 60`, at the travel order: `24` bands of arc do not clear the
 ///   sites' slack of `60` (`bool_join_arc_clear`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {

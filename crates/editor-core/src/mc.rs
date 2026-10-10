@@ -165,6 +165,28 @@ pub struct McMeasure {
     pub unmeasured: usize,
 }
 
+/// **One asserted value's empirical summary**: the scalar variable an
+/// assertion reads — a measure's output, or a definition over outputs
+/// such as a web `distance − r_a − r_b` — read per sample with its
+/// measures' values bound ([`crate::Evaluation::reading`]). ADVISORY.
+#[derive(Debug, Clone, PartialEq)]
+pub struct McValue {
+    /// The variable.
+    pub var: VarId,
+    /// The sample mean, over the samples where it had a value.
+    pub mean: f64,
+    /// The sample standard deviation (the `N − 1` form).
+    pub sigma: f64,
+    /// The least value.
+    pub min: f64,
+    /// The greatest.
+    pub max: f64,
+    /// How many samples produced a value.
+    pub measured: usize,
+    /// How many produced none. Counted, never averaged over.
+    pub unmeasured: usize,
+}
+
 /// One assertion node's empirical summary.
 #[derive(Debug, Clone, PartialEq)]
 pub struct McAssertion {
@@ -207,6 +229,9 @@ pub struct McReport {
     pub seed: u64,
     /// Per measure node, in node order.
     pub measures: Vec<McMeasure>,
+    /// Per value an assertion reads, each once, in the order of the
+    /// first assertion reading it.
+    pub values: Vec<McValue>,
     /// Per assertion node, in node order.
     pub assertions: Vec<McAssertion>,
     /// The fraction of samples that landed OUTSIDE the analyzed box —
@@ -244,6 +269,20 @@ impl McReport {
                 m.unmeasured
             );
         }
+        for v in &self.values {
+            let _ = writeln!(
+                s,
+                "value {} mean={:016x} sigma={:016x} min={:016x} max={:016x} measured={} \
+                 unmeasured={}",
+                v.var.full(),
+                v.mean.to_bits(),
+                v.sigma.to_bits(),
+                v.min.to_bits(),
+                v.max.to_bits(),
+                v.measured,
+                v.unmeasured
+            );
+        }
         for a in &self.assertions {
             let _ = writeln!(
                 s,
@@ -274,7 +313,7 @@ impl McReport {
     /// # Panics
     ///
     /// When `doc` is not the document the run was drawn from.
-    pub fn render<P>(&self, doc: &Doc<P>) -> String {
+    pub fn render<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this Monte-Carlo report", self.document, doc);
         let tag = format!(
@@ -318,6 +357,32 @@ impl McReport {
                     s,
                     "    {} of {} samples had no measured value at f64 and are not averaged over",
                     m.unmeasured, self.samples
+                );
+            }
+        }
+        for v in &self.values {
+            if v.unmeasured == self.samples {
+                let _ = writeln!(
+                    s,
+                    "  {}: UNMEASURED — no sample had an f64 value for it   [{tag}]",
+                    doc.spoken_value(v.var)
+                );
+                continue;
+            }
+            let _ = writeln!(
+                s,
+                "  {}: mean {} σ {} min {} max {}   [{tag}]",
+                doc.spoken_value(v.var),
+                v.mean,
+                v.sigma,
+                v.min,
+                v.max
+            );
+            if v.unmeasured > 0 {
+                let _ = writeln!(
+                    s,
+                    "    {} of {} samples had no value at f64 and are not averaged over",
+                    v.unmeasured, self.samples
                 );
             }
         }
@@ -411,6 +476,17 @@ pub fn monte_carlo(
         })
         .collect();
 
+    // The values the assertions read, each once, in the order of the
+    // first assertion reading it.
+    let mut values: Vec<VarId> = Vec::new();
+    for &(id, is_measure) in &sinks {
+        if let (false, Some(Node::Assertion { value, .. })) = (is_measure, doc.node(id))
+            && !values.contains(value)
+        {
+            values.push(*value);
+        }
+    }
+
     let one = |index: usize| -> Sample {
         let mut rng = Rng::for_sample(config.seed, index);
         let mut axes = std::collections::BTreeMap::new();
@@ -477,7 +553,18 @@ pub fn monte_carlo(
                 }
             })
             .collect();
-        Sample { readings, outside }
+        let read = values
+            .iter()
+            .map(|&var| match ev.reading(doc, var) {
+                Ok(crate::eval::measure::Observed::Value(v)) => Some(v),
+                _ => None,
+            })
+            .collect();
+        Sample {
+            readings,
+            values: read,
+            outside,
+        }
     };
 
     // D9 idiom 1: an INDEXED map, then one sequential fold — so the two
@@ -530,12 +617,33 @@ pub fn monte_carlo(
             assertions.push(row);
         }
     }
+    let values = values
+        .iter()
+        .enumerate()
+        .map(|(slot, &var)| {
+            let read: Vec<f64> = samples
+                .iter()
+                .filter_map(|s| s.values.get(slot).copied().flatten())
+                .collect();
+            let (mean, sigma, min, max) = summarize(&read);
+            McValue {
+                var,
+                mean,
+                sigma,
+                min,
+                max,
+                measured: read.len(),
+                unmeasured: samples.len() - read.len(),
+            }
+        })
+        .collect();
     let outside = samples.iter().filter(|s| s.outside).count();
     Ok(McReport {
         document: doc.id(),
         samples: samples.len(),
         seed: config.seed,
         measures,
+        values,
         assertions,
         outside_box: outside as f64 / samples.len() as f64,
     })
@@ -551,9 +659,11 @@ fn lane_opts() -> EvalOptions {
     }
 }
 
-/// What one sample read at each sink, in `sinks` order.
+/// What one sample read at each sink, in `sinks` order, and at each
+/// asserted value, in `values` order.
 struct Sample {
     readings: Vec<Reading>,
+    values: Vec<Option<f64>>,
     outside: bool,
 }
 

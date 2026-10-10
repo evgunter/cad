@@ -1269,6 +1269,61 @@ impl Evaluation {
 
 #[pymethods]
 impl Evaluation {
+    /// **A scalar's value in this evaluation, measured values bound**
+    /// (D10): a variable — a measure's output, or a definition over
+    /// outputs — or a formula, such as `Doc.measure`'s `value`. The
+    /// one reader of an observed value outside an assertion.
+    ///
+    /// A measure under it that did not land raises as `value` of that
+    /// measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+    /// `min_clearance` at this point scalar); an evaluation over the
+    /// bound values that refuses raises `ExprError`.
+    fn reading(&self, py: Python<'_>, value: super::doc::Evaluand) -> PyResult<Measurement> {
+        let formula = match value {
+            super::doc::Evaluand::Formula(formula) => self
+                .doc
+                .resolve(&formula.0)
+                .map_err(|fault| super::expr::lower_fault_err(py, &fault))?,
+            super::doc::Evaluand::Var(var) => {
+                let Some(dim) = self.doc.var(var.0).and_then(|held| held.kind().dimension()) else {
+                    return Err(super::expr::eval_err(
+                        py,
+                        &d::EvalError::UnresolvedVar { var: var.0 },
+                        Some(&self.doc),
+                    ));
+                };
+                d::Formula::var(var.0, dim)
+            }
+        };
+        let dim = formula.dim();
+        match self.inner.reading_formula(&self.doc, &formula) {
+            Ok(d::Observed::Value(value)) => Ok(Measurement {
+                dimension: measurement_dimension_tag(dim),
+                value,
+                length: (dim == d::Dimension::Length)
+                    .then(|| Length(pncad::quantity::Length::from_meters(value))),
+            }),
+            Ok(d::Observed::Unavailable(reason)) => {
+                Err(super::measure::measure_unavailable_at_err(py, &reason))
+            }
+            Err(d::ObservedRefusal::Measure(standing)) => {
+                let node = NodeId(standing.node());
+                match self.value(py, &node) {
+                    Err(raised) => Err(raised),
+                    Ok(_) => Err(eval_err(
+                        py,
+                        standing.to_string(),
+                        EvalReason::Standing(standing),
+                        node,
+                    )),
+                }
+            }
+            Err(d::ObservedRefusal::Expr(err)) => {
+                Err(super::expr::eval_err(py, &err, Some(&self.doc)))
+            }
+        }
+    }
+
     /// The node's successful value.
     ///
     /// A node that produced NO value raises under its standing, with
@@ -1870,7 +1925,7 @@ fn export_err(
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
         // `Product` is the WHOLE-DOCUMENT door's refusal: it names
-        // product roots, not this call's node, so it adds no field
+        // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
@@ -2579,7 +2634,9 @@ pub(crate) fn evaluate(
 /// Its two cells cross as `(node, name)` pairs: the input node whose
 /// table names the cell and the name there, the same opaque text the
 /// materializers answer with; a tool cell (the plane a split cuts with)
-/// has no name and crosses as `(node, None)`. `rung` names the door's
+/// has no name and crosses as `(node, None)`, and a profile's own piece
+/// crosses as `(profile, piece)`, the piece's text as a step's pieces
+/// spell it. `rung` names the door's
 /// rung that proved the row structural, `None` where none did, and then
 /// `residual` says what separates the two constructions, or why a
 /// cell's could not be read (`coincide::Unwalked`, said by its sentence
@@ -2610,6 +2667,9 @@ impl Coincidence {
                     Ok((NodeId(*input), Some(super::doc::name_text(py, name)?)))
                 }
                 d::NamedCell::Tool { input } => Ok((NodeId(*input), None)),
+                d::NamedCell::Piece { profile, piece } => {
+                    Ok((NodeId(*profile), Some(super::doc::piece_text(piece)?)))
+                }
             })
             .collect::<PyResult<_>>()?;
         let (rung, residual) = match proof {
@@ -2636,14 +2696,16 @@ impl Coincidence {
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier` or `equal_angles`.
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent` or
+    /// `cusp`. A `profile_junction` row is `tangent` or `cusp` between
+    /// two carriers and `same_oriented` where its pieces continue one.
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `split_on` or `battery_turn`.
+    /// `split_on`, `battery_turn` or `profile_junction`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

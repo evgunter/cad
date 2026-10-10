@@ -32,25 +32,11 @@ fn fin(body: &topo::Body<f64>) -> topo::AtRestBody<f64> {
 const Q: f64 = 0.414_213_562_373_095_03;
 
 fn prism(pts: &[(f64, f64, f64)], z0: f64, h: f64) -> Body<f64> {
-    // Declare every joint where an arc meets a line tangentially (the
-    // probes' arcs are all fillets or chords' bulges).
-    let n = pts.len();
-    let joints = (0..n)
-        .filter(|&i| {
-            let (prev, here) = (pts[(i + n - 1) % n].2, pts[i].2);
-            (prev.abs() == Q) != (here.abs() == Q)
-        })
-        .collect();
     let chain = pts
         .iter()
         .map(|&(x, y, b)| (Point2::new(x, y), b))
         .collect();
-    extruded(
-        sketch_at(z0),
-        vec![bulge_loop(chain).with_tangent_joints(joints)],
-        h,
-        tol(),
-    )
+    extruded(sketch_at(z0), vec![bulge_loop(chain)], h, tol())
 }
 
 fn ell_rounded(r: f64) -> ProfileLoop<f64> {

@@ -65,8 +65,9 @@ centre are what dispatch consumes). There is no polyline rung.
 **C2 — A fitted carrier's certificate has three limbs, all mandatory.**
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
-`|C(t) − S(u*,v*)|` at a certified foot point whose orthogonality
-residual is banded too, so a bad projection cannot launder a bad cache.
+`|C(t) − S(u*,v*)|` at the projected foot point; any point of the
+surface bounds the distance from above, so a foot is owed no limb of
+its own.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
 in certification arithmetic (C9): `geom_core::spline::compose` composes
 the implicit form with the carrier (converted to metres by a constant

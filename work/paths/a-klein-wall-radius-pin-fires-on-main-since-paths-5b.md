@@ -7,7 +7,7 @@ closed: 2026-10-06
 opened: 2026-10-06
 priority: P0
 cost: E
-refs: [pinch-tessellate-row-escalates-at-eps-1e-6]
+refs: [4083]
 ---
 
 
