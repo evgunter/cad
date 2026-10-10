@@ -393,11 +393,12 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
         editor_core::persist::load(&text, Tol::witness()).is_ok(),
         "the premise: the file as saved loads"
     );
-    let key = serde_json::to_value(fillet).expect("an id serializes");
-    let key = key.as_str().expect("a node id is a string").to_owned();
+    let selection = fixture::selection_read(&doc, fillet);
+    let key = serde_json::to_value(selection).expect("an id serializes");
+    let key = key.as_str().expect("a variable id is a string").to_owned();
     for bogus in ["0:0000000000000000", "77777:00000000deadbeef"] {
         let edited = crate::wire::doctored(&text, |body| {
-            let at = &mut body["snapshot"]["nodes"][key.as_str()]["Fillet"]["selection"][0]["path"]
+            let at = &mut body["snapshot"]["vars"][key.as_str()]["def"]["Select"]["names"][0]["path"]
                 [0]["From"]["read"];
             assert_eq!(
                 *at,
@@ -407,8 +408,9 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
             *at = bogus.into();
         });
         match editor_core::persist::load(&edited, Tol::witness()) {
-            Err(editor_core::PersistError::Snapshot(error))
-                if matches!(error, editor_core::SnapshotError::NameReadNotMinted { .. }) => {}
+            Err(editor_core::PersistError::Snapshot(
+                editor_core::SnapshotError::NameReadNotMinted { .. },
+            )) => {}
             other => panic!(
                 "a name carrying {bogus} refuses NameReadNotMinted, got {:?}",
                 other.map(|_| ()).map_err(|e| e.to_string())

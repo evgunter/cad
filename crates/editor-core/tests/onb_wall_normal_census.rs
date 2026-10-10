@@ -181,13 +181,13 @@ fn face_frames_and_the_faces_they_could_sit_on() {
     for doc in corpus::documents() {
         let ev = eval(&doc.doc);
         for id in doc.doc.ids() {
-            let Some(Node::Datum(Datum::FaceFrame { at, .. })) = doc.doc.node(id) else {
+            let Some(Node::Datum(Datum::FaceFrame { face, .. })) = doc.doc.node(id) else {
                 continue;
             };
             frames += 1;
             let at = &doc
                 .doc
-                .operation_of(at.read)
+                .read_operation(*face)
                 .expect("a face frame reads a live body");
             let mut c = SeamClasses::default();
             let named = ev.value(*at).map_or(0, |_| all_faces(&ev, *at).len());

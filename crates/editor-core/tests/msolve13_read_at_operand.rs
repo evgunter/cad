@@ -557,8 +557,7 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
     let (doc, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: t1.into(),
-            face: in_part(s.top, s.top_body, CapEnd::End),
+            face: editor_core::Operand::select(t1, vec![in_part(s.top, s.top_body, CapEnd::End)]),
             spin: fixture::ang(0.0),
         }),
     );
@@ -608,9 +607,8 @@ fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
-            target: t1.into(),
             distance: len(0.1),
-            selection: edges,
+            selection: editor_core::Operand::select(t1, edges),
         },
     );
     let (doc, _) = crate::fixture::place(doc, chamfer);
@@ -632,9 +630,8 @@ fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
         let (doc, shell) = insert(
             doc0.clone(),
             Node::Shell {
-                target: t1.into(),
                 thickness: len(0.1),
-                open: vec![open],
+                open: editor_core::Operand::select(t1, vec![open]),
             },
         );
         (crate::fixture::place(doc, shell).0, shell)

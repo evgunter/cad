@@ -145,8 +145,10 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube.into(),
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -240,8 +242,10 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             side: ExtrudeSide::Along,
         });
         r.insert(Node::Datum(Datum::FaceFrame {
-            at: cube.into(),
-            face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+            ),
             spin: ang(0.0),
         }))
     } else {
@@ -654,8 +658,10 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
             side: ExtrudeSide::Along,
         });
         on = r.insert(Node::Datum(Datum::FaceFrame {
-            at: cube.into(),
-            face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+            ),
             spin: ang(0.0),
         }));
     }
@@ -676,8 +682,10 @@ fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         side: ExtrudeSide::Along,
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube.into(),
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
+        ),
         spin: ang(0.0),
     }))
 }
@@ -696,8 +704,10 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         angle: ang(std::f64::consts::PI),
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: editor_core::Operand::output(rev, 0).into(),
-        face: fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End)),
+        face: editor_core::Operand::select(
+            editor_core::Operand::output(rev, 0),
+            vec![fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End))],
+        ),
         spin: ang(0.0),
     }))
 }

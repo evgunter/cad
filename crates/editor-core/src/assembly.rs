@@ -1552,8 +1552,16 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            let defined_by = |var| doc.defined_by(var).map(|(at, _)| at);
-            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
+            let defined_by = |var| doc.read_operation(var);
+            let selected_body = |var| doc.selection(var).map_or(var, |select| select.body);
+            for step in crate::names::lift(
+                consumer,
+                consumer_node,
+                node,
+                &name,
+                &defined_by,
+                &selected_body,
+            ) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
                         frontier.push_back((consumer, carried));

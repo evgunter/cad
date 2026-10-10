@@ -610,7 +610,10 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
         tol,
     )
     .expect("the detector answers block x boss");
-    assert!(!findings.is_empty(), "the premise: the boss rests on the block");
+    assert!(
+        !findings.is_empty(),
+        "the premise: the boss rests on the block"
+    );
     let line = batch_line(
         &mut session,
         &[

@@ -176,9 +176,8 @@ fn wired() -> (
         "body_operand over a plane datum (Shell)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Body)),
         Node::Shell {
-            target: plane.into(),
             thickness: len(0.1),
-            open: vec![],
+            open: editor_core::Operand::select(plane, vec![]),
         },
         plane,
     );
@@ -188,9 +187,8 @@ fn wired() -> (
         "body_operand over instances (Shell of a pattern)",
         Owes::EditDoor(VarKind::Bodies, SlotKind::Is(VarKind::Body)),
         Node::Shell {
-            target: pattern.into(),
             thickness: len(0.1),
-            open: vec![],
+            open: editor_core::Operand::select(pattern, vec![]),
         },
         pattern,
     );

@@ -451,13 +451,13 @@ fn name_of_key(
 }
 
 fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
-    Node::Datum(Datum::FaceFrame {
-        // Port 0: the body, whether `at` is a revolve (body and axis)
-        // or a node with one output.
-        at: editor_core::Operand::output(at, 0).into(),
+    // Port 0: the body, whether `at` is a revolve (body and axis) or a
+    // node with one output.
+    Node::Datum(Datum::face_frame(
+        editor_core::Operand::output(at, 0),
         face,
-        spin: ang(spin),
-    })
+        ang(spin),
+    ))
 }
 
 fn top_cap(cube: RecipeNodeId) -> StableName {
@@ -658,7 +658,7 @@ fn a3b_spin_turns_right_handed_about_the_outward_normal_on_a_reversed_face() {
 }
 
 /// **A4 — the fillet's failure mode.** `Rebind` the face to a name the
-/// table lacks: the frame refuses `FaceFrameResolve { Vanished }`,
+/// table lacks: the frame refuses `SelectResolve { Vanished }`,
 /// the profile and the extrude above it are POISONED through the
 /// frame, never re-anchored; `Rebind` to a live face repairs all of it.
 #[test]
@@ -688,7 +688,11 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
         apply(
             doc,
-            &DocEdit::Rebind { from, to },
+            &DocEdit::Rebind {
+                body: doc.output(cube, 0),
+                from,
+                to,
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -699,7 +703,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     let ev = eval(&broken);
     match ev.nodes.get(&frame) {
         Some(NodeResult::Failed(NodeError {
-            kind: NodeErrorKind::FaceFrameResolve { error },
+            kind: NodeErrorKind::SelectResolve { error, .. },
             ..
         })) => assert!(
             matches!(**error, ResolveError::Vanished { .. }),
@@ -809,7 +813,9 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
         .ids()
         .iter()
         .filter_map(|id| match loaded.doc.node(*id) {
-            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((at.read, face.clone())),
+            Some(Node::Datum(Datum::FaceFrame { face, .. })) => {
+                loaded.doc.selection(*face).cloned()
+            }
             _ => None,
         })
         .collect();
@@ -818,7 +824,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
         .ids()
         .iter()
         .filter_map(|id| match cd.doc.node(*id) {
-            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((at.read, face.clone())),
+            Some(Node::Datum(Datum::FaceFrame { face, .. })) => cd.doc.selection(*face).cloned(),
             _ => None,
         })
         .collect();

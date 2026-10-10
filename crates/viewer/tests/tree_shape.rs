@@ -195,12 +195,10 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     };
     let measure = common::insert_into(
         &mut doc,
-        Node::Measure {
-            primitive: MeasurePrimitive::Distance {
-                a: cap(CapEnd::Start),
-                b: cap(CapEnd::End),
-            },
-        },
+        Node::measure(&MeasurePrimitive::Distance {
+            a: cap(CapEnd::Start),
+            b: cap(CapEnd::End),
+        }),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);

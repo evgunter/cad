@@ -502,6 +502,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap.clone(),
                 to: target.clone(),
             },
@@ -537,6 +538,7 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
     assert!(
         doc.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap,
                 to: target
             },
@@ -559,6 +561,7 @@ fn rebind_appearance_collision_is_refused_typed() {
     assert_eq!(
         doc.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap.clone(),
                 to: target.clone(),
             },
@@ -588,6 +591,7 @@ fn rebind_appearance_collision_is_refused_typed() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap,
                 to: target.clone(),
             },

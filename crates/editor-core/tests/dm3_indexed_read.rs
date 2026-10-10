@@ -15,7 +15,7 @@ use editor_core::{
     Bodies, BodyRead, DocEdit, EditError, Evaluation, Formula, Node, NodeError, NodeErrorKind,
     NodeResult, OperandSlot, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, VarName,
 };
-use fixture::{insert, insert_refused, len, run, step, table};
+use fixture::{insert, insert_refused, len, run, scl, step, table};
 use geom_core::Tol;
 
 /// A unit cube and a linear pattern of three of it along x at spacing
@@ -24,6 +24,16 @@ fn family(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, cube) = cube_doc(label);
     let (doc, xs) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, 3));
     (doc, cube, xs)
+}
+
+/// A subtract of `from`, cut by `xs[0]`, so the subtract's `from` seat
+/// is the one a refusal probe refuses.
+fn subtract(from: BodyRead<Formula>, xs: RecipeNodeId) -> editor_core::AuthoredNode {
+    Node::Subtract {
+        from,
+        tool: member(xs, 0),
+        declare: Vec::new(),
+    }
 }
 
 /// `xs[i]`.
@@ -125,15 +135,27 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
 fn an_indexed_read_at_a_body_seat_reads_that_member() {
     let (doc, _, xs) = family("dm3-member-at-seat");
     let read = fixture::out(&doc, xs);
-    let ev = eval(&doc);
-    let edge = names(&ev, xs)
-        .into_iter()
-        .find(|n| {
-            n.kind == editor_core::EntityKind::Edge
-                && matches!(n.path.first(), Some(RoleSeg::Instance { i: 1, .. }))
-        })
-        .expect("instance 1 has edges");
-    let (doc, blend) = insert(doc, Node::fillet(member(xs, 1), len(0.1), vec![edge]));
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: member(xs, 1),
+            tool: plane.into(),
+        },
+    );
+    let (doc, lower) = insert(
+        doc,
+        Node::Part {
+            of: editor_core::Operand::output(split, 1).into(),
+            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Below),
+        },
+    );
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -144,11 +166,15 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
     );
     let ev = eval(&doc);
     assert!(
-        (least_x(&ev, blend) - 2.0).abs() < 1e-12,
-        "the fillet's target is instance 1: least x {}",
-        least_x(&ev, blend)
+        (least_x(&ev, lower) - 2.0).abs() < 1e-12,
+        "the split's target is instance 1: least x {}",
+        least_x(&ev, lower)
     );
-    assert!(volume(&ev, blend) < 1.0, "the fillet blended an edge of it");
+    assert!(
+        (volume(&ev, lower) - 0.5).abs() < 1e-9,
+        "the split cut it at half height: volume {}",
+        volume(&ev, lower)
+    );
     assert!(
         (least_x(&ev, cut) - 2.0).abs() < 1e-12 && (volume(&ev, cut) - 1.0).abs() < 1e-9,
         "the subtract cuts instance 1 by the disjoint instance 0: least x {}, volume {}",
@@ -343,10 +369,10 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
     let wrong = BodyRead::indexed(xs, vec![len(1.0)]);
     assert!(
         matches!(
-            insert_refused(&doc, Node::fillet(wrong, len(0.1), Vec::new())),
+            insert_refused(&doc, subtract(wrong, xs)),
             EditError::SlotDimensionMismatch {
                 slot: SlotId::Index {
-                    seat: OperandSlot::Target,
+                    seat: OperandSlot::From,
                     k: 0
                 },
                 ..
@@ -357,9 +383,9 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
     // A body indexed: the read is not a family.
     assert!(
         matches!(
-            insert_refused(&doc, Node::fillet(member(cube, 0), len(0.1), Vec::new())),
+            insert_refused(&doc, subtract(member(cube, 0), xs)),
             EditError::SlotVarKind {
-                slot: SlotId::Operand(OperandSlot::Target),
+                slot: SlotId::Operand(OperandSlot::From),
                 found: editor_core::VarKind::Body,
                 ..
             }
@@ -369,7 +395,7 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
     // A family read whole at a body seat, as before.
     assert!(
         matches!(
-            insert_refused(&doc, Node::fillet(xs, len(0.1), Vec::new())),
+            insert_refused(&doc, subtract(BodyRead::plain(xs), xs)),
             EditError::SlotVarKind {
                 found: editor_core::VarKind::Bodies,
                 ..

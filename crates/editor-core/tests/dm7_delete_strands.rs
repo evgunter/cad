@@ -37,12 +37,19 @@ use fixture::{ang, flush_pairs, fname, insert, len, wall};
 use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
-/// them — the whole of what these rows assert about.
+/// them — the whole of what these rows assert about. A selection's row
+/// is said by the node that reads the selection.
 fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
+            Maintenance::StrandedSelection { readers, name, .. } => {
+                let [reader] = readers.as_slice() else {
+                    panic!("an unnamed selection has one reader: {readers:?}");
+                };
+                Some((reader.id(), name.name().clone()))
+            }
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
@@ -50,6 +57,14 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
+}
+
+/// The selection a blend reads.
+fn selection_of(doc: &ProfileDoc, blend: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(blend) {
+        Some(Node::Fillet { selection, .. } | Node::Chamfer { selection, .. }) => *selection,
+        other => panic!("a blend, got {other:?}"),
+    }
 }
 
 /// The appearance keys an accepted edit reported stranded, in the
@@ -60,6 +75,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
         .filter_map(|row| match row {
             Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::Strand { .. }
+            | Maintenance::StrandedSelection { .. }
             | Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
@@ -256,32 +272,28 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: body.into(),
             radius: len(0.1),
-            selection: vec![f0.clone()],
+            selection: editor_core::Operand::select(body, vec![f0.clone()]),
         },
     );
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
-            target: body.into(),
             distance: len(0.1),
-            selection: vec![f1.clone()],
+            selection: editor_core::Operand::select(body, vec![f1.clone()]),
         },
     );
     let (doc, shell) = insert(
         doc,
         Node::Shell {
-            target: body.into(),
             thickness: len(0.1),
-            open: vec![f2.clone()],
+            open: editor_core::Operand::select(body, vec![f2.clone()]),
         },
     );
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body.into(),
-            face: f3.clone(),
+            face: editor_core::Operand::select(body, vec![f3.clone()]),
             spin: ang(0.0),
         }),
     );
@@ -372,19 +384,22 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // The match is total over `Node`; this says it ran over the
     // document this fixture actually built, so an arm cannot go
     // unreached and look satisfied.
+    // The report walks the payloads, then the selections in the order
+    // they were minted.
+    expected.sort_by_key(|(id, _)| *id != boolean);
     assert_eq!(
         expected.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
         vec![
-            fillet, chamfer, shell, derived, measure, measure, boolean, boolean
+            boolean, boolean, fillet, chamfer, shell, derived, measure, measure
         ],
-        "six carriers, eight names, in document order"
+        "six carriers, eight names: the payloads, then the selections as minted"
     );
 
     let applied = delete(&doc, victim);
     assert_eq!(
         strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
-        "one row per carried name, in document order and then payload order"
+        "one row per carried name, payloads first, each in its own order"
     );
 }
 
@@ -402,9 +417,8 @@ fn a_delete_that_strands_nothing_reports_nothing() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-        target: body.into(),
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, _fillet) = insert(doc, node);
 
@@ -425,9 +439,8 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_self", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node1 = Node::Fillet {
-        target: body.into(),
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node1);
 
@@ -465,17 +478,15 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node2 = Node::Fillet {
-        target: body.into(),
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node2);
     let face = fname(fillet, wall(&doc, fillet, 2));
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: other.into(),
-            face: face.clone(),
+            face: editor_core::Operand::select(other, vec![face.clone()]),
             spin: ang(0.0),
         }),
     );
@@ -509,8 +520,9 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
         panic!("the survivor is still a derived frame")
     };
     assert_eq!(
-        still, &face,
-        "the survivor holds the name unchanged, now resolving to nothing"
+        doc.selection(*still).map(|select| select.names.clone()),
+        Some(vec![face]),
+        "the survivor's selection holds the name unchanged, now resolving to nothing"
     );
 }
 
@@ -706,11 +718,11 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
     );
 }
 
-/// **The payload strands come first, then the appearance strands.**
+/// **The selection strands come first, then the appearance strands.**
 ///
 /// The order on `Applied::maintenance` is a contract, and this is the
 /// edit that produces both kinds at once: one node mints the name a
-/// surviving fillet carries AND the key the store holds. Written out
+/// surviving fillet's selection holds AND the key the store holds. Written out
 /// as one vector, so a walk that ran the store first goes red here
 /// rather than somewhere a consumer finds it.
 #[test]
@@ -718,16 +730,15 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_order", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    // The fillet's own DAG input is `body`; what it NAMES is a face of
-    // `victim`, which is a payload name and not an edge, so deleting
-    // `victim` is accepted and strands it.
+    // The fillet's selection reads `body`; what it NAMES is a face of
+    // `victim`, which is a name and not a read, so deleting `victim` is
+    // accepted and strands it.
     let carried = fname(victim, wall(&doc, victim, 0));
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: body.into(),
             radius: len(0.1),
-            selection: vec![carried.clone()],
+            selection: editor_core::Operand::select(body, vec![carried.clone()]),
         },
     );
     let painted = fname(victim, wall(&doc, victim, 2));
@@ -737,8 +748,9 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![
-            Maintenance::Strand {
-                node: doc.spoken(fillet),
+            Maintenance::StrandedSelection {
+                var: doc.spoken_var(selection_of(&doc, fillet)),
+                readers: vec![doc.spoken(fillet)],
                 name: doc.spoken_name(&carried),
                 took: editor_core::Took::Node
             },
@@ -839,9 +851,8 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node3 = Node::Fillet {
-        target: body.into(),
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node3);
     let on_fillet = fname(fillet, wall(&doc, fillet, 2));

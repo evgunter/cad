@@ -93,9 +93,11 @@ fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) 
     insert(
         doc,
         Node::Fillet {
-            target: editor_core::Operand::output(revolve, 0).into(),
             radius: len(0.05),
-            selection: vec![rim],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![rim],
+            ),
         },
     )
 }

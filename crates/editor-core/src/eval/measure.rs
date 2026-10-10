@@ -303,8 +303,8 @@ pub(crate) enum PrimitiveRefusal {
 
 /// **The v1 primitive evaluator.** One closed form per row of the
 /// module's table; every other pair refuses.
-pub(crate) fn primitive<T: Decide>(
-    prim: &MeasurePrimitive,
+pub(crate) fn primitive<T: Decide, R>(
+    prim: &MeasurePrimitive<R>,
     a: &Carrier<T>,
     b: &Carrier<T>,
     band: Band,

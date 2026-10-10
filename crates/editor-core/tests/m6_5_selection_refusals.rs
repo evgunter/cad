@@ -256,7 +256,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     .expect("deleting a node a NAME references is allowed (N5)")
     .doc;
     refuses(&after, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+        NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::NodeGone { name, edit } => {
                 assert_eq!(name.node, spare_id);
                 assert!(
@@ -288,7 +288,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
         }]
     });
     refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+        NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::Vanished {
                 name,
                 diagnosis,
@@ -350,7 +350,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     .expect("the fillet inserts");
     let fillet = applied.record.minted.expect("a minted id");
     refuses(&applied.doc, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+        NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::Ambiguous {
                 name,
                 candidates,
@@ -383,7 +383,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
     let (doc, fillet) = planted(|doc| vec![face(doc)]);
     let face = face(&doc);
     refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionKind { name, found, .. } => {
+        NodeErrorKind::SelectKind { name, found, .. } => {
             assert_eq!(**name, face);
             assert_eq!(found.kind(), EntityKind::Face);
         }

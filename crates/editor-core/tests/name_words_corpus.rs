@@ -142,7 +142,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
-const SAID_DIGEST: u64 = 0x6ffa_888a_6c89_e1af;
+const SAID_DIGEST: u64 = 0x923c_f479_cf51_72a7;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -413,26 +413,34 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
 /// **A node's resolve failure says which slot**: a corpus fillet's
 /// last selected edge of several, stranded, as the tree row says it.
 fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'static str, String)> {
-    let (doc, ev, fillet, at, edge) = docs
+    let (doc, ev, fillet, var, at, edge) = docs
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
             d.doc.ids().iter().find_map(|&id| match d.doc.node(id) {
-                Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
-                    &d.doc,
-                    ev,
-                    id,
-                    selection.len() - 1,
-                    selection.last()?.clone(),
-                )),
+                Some(Node::Fillet { selection, .. }) => {
+                    let names = &d.doc.selection(*selection)?.names;
+                    (names.len() > 1).then(|| {
+                        (
+                            &d.doc,
+                            ev,
+                            id,
+                            *selection,
+                            names.len() - 1,
+                            names.last().cloned(),
+                        )
+                    })
+                }
                 _ => None,
             })
         })
         .expect("the corpus fillets more than one edge");
+    let edge = edge.expect("a last edge");
     let stranded = NodeError {
         node: fillet,
-        kind: NodeErrorKind::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        kind: NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var,
             error: Box::new(ResolveError::NodeGone {
                 name: edge.clone(),
                 edit: RecipeEditRef::NodeDeleted { node: edge.node },
@@ -446,7 +454,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         stranded.contains(&format!("this fillet's edge {at} is stranded: ")),
         "the row says the slot: {stranded}"
     );
-    vec![("NodeErrorKind::BlendSelectionResolve", stranded)]
+    vec![("NodeErrorKind::SelectResolve", stranded)]
 }
 
 /// Every refusal production says that forwards a name, naming `a` (and

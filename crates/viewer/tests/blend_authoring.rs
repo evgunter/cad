@@ -194,18 +194,15 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         .expect("a tool holding edges commits");
     let fillet = commit(&mut session, &mut tools, op);
 
-    let Some(Node::Fillet {
-        target: stored_target,
-        radius,
-        selection,
-    }) = session.committed_doc().node(fillet)
-    else {
+    let Some(Node::Fillet { radius, selection }) = session.committed_doc().node(fillet) else {
         panic!("the door minted a fillet");
     };
-    assert_eq!(
-        Some(stored_target.read),
-        session.committed_doc().output(target, 0)
-    );
+    let stored = session
+        .committed_doc()
+        .selection(*selection)
+        .expect("the fillet reads a selection");
+    assert_eq!(Some(stored.body), session.committed_doc().output(target, 0));
+    let selection = &stored.names;
     assert!(
         session.committed_doc().free(*radius).is_some(),
         "the radius is a written Length: the slot's own free variable"
@@ -255,17 +252,18 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     let chamfer = commit(&mut session, &mut tools, op);
 
     let Some(Node::Chamfer {
-        target: stored_target,
         distance,
         selection,
     }) = session.committed_doc().node(chamfer)
     else {
         panic!("the door minted a chamfer");
     };
-    assert_eq!(
-        Some(stored_target.read),
-        session.committed_doc().output(target, 0)
-    );
+    let stored = session
+        .committed_doc()
+        .selection(*selection)
+        .expect("the chamfer reads a selection");
+    assert_eq!(Some(stored.body), session.committed_doc().output(target, 0));
+    let selection = &stored.names;
     assert_eq!(
         session
             .committed_doc()
@@ -427,8 +425,9 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
     let fillet = commit(&mut session, &mut tools, op);
     assert!(matches!(
         session.committed_doc().node(fillet),
-        Some(Node::Fillet { target, .. })
-            if session.committed_doc().output(first, 0) == Some(target.read)
+        Some(Node::Fillet { selection, .. })
+            if session.committed_doc().output(first, 0)
+                == session.committed_doc().selection(*selection).map(|s| s.body)
     ));
 }
 
@@ -548,6 +547,11 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
     let Some(Node::Fillet { selection, .. }) = session.committed_doc().node(fillet) else {
         panic!("a fillet was authored");
     };
+    let selection = &session
+        .committed_doc()
+        .selection(*selection)
+        .expect("the fillet reads a selection")
+        .names;
     assert_eq!(selection.len(), wanted, "the stranded name is still stored");
     assert!(selection.contains(&stray));
 
@@ -558,7 +562,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         .and_then(NodeResult::error)
         .expect("the fillet refuses");
     assert!(
-        matches!(error.kind, NodeErrorKind::BlendSelectionResolve { .. }),
+        matches!(error.kind, NodeErrorKind::SelectResolve { .. }),
         "expected a selection-resolve refusal, got {:?}",
         error.kind
     );

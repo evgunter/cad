@@ -120,11 +120,11 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
     let (fillet, target, target_read) = {
         let mut found = None;
         for id in doc.doc.ids() {
-            if let Some(Node::Fillet { target, .. }) = doc.doc.node(id) {
+            if let Some(Node::Fillet { selection, .. }) = doc.doc.node(id) {
                 found = Some((
                     id,
-                    doc.doc.operation_of(target.read).expect("a live target"),
-                    target.read,
+                    doc.doc.read_operation(*selection).expect("a live target"),
+                    doc.doc.selection(*selection).expect("a selection").body,
                 ));
             }
         }

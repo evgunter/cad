@@ -40,7 +40,8 @@ macro_rules! name_free_node {
                 | $crate::node::Datum::Axis { .. }
                 | $crate::node::Datum::Point { .. }
                 | $crate::node::Datum::Frame { .. }
-                | $crate::node::Datum::AxisInPlane { .. },
+                | $crate::node::Datum::AxisInPlane { .. }
+                | $crate::node::Datum::FaceFrame { .. },
         ) | $crate::node::Node::Profile(_)
             | $crate::node::Node::Extrude { .. }
             | $crate::node::Node::Revolve { .. }
@@ -48,12 +49,16 @@ macro_rules! name_free_node {
             | $crate::node::Node::HollowTube { .. }
             | $crate::node::Node::Loft { .. }
             | $crate::node::Node::Sweep { .. }
+            | $crate::node::Node::Fillet { .. }
+            | $crate::node::Node::Chamfer { .. }
+            | $crate::node::Node::Shell { .. }
             | $crate::node::Node::Split { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::PlaceInWorld { .. }
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
+            | $crate::node::Node::Measure { .. }
             | $crate::node::Node::Assertion { .. }
             | $crate::node::Node::Gauge { .. }
     };
@@ -1032,23 +1037,17 @@ pub enum Datum<S: Slot = crate::VarId> {
     /// upstream, the frame moves when the face moves, and it
     /// participates in the memo and content key like every node.
     ///
-    /// The failure mode is the fillet's: a face name that stops
+    /// The failure mode is the fillet's: a selection that stops
     /// resolving fails the frame typed and poisons the sketch above
-    /// it, exactly as a blend's selection does, and the repair is
-    /// `Rebind`. It is the first datum with an N5 failure mode.
+    /// it, and the repair is `Rebind`.
     ///
     /// The normal is the OUTWARD one: the face's orientation sense
     /// times the carrier's chart axis, both read off the face, so a
     /// sketch on the underside of a plate faces out of the plate.
     FaceFrame {
-        /// The body the face is read out of
-        /// ([`crate::OperandSlot::At`]), read as
-        /// [`Datum::AxisInPlane::plane`] is.
-        at: crate::BodyRead<S>,
-        /// The face, as a frozen name resolved through `at`'s value
-        /// under the N5 ladder ([`Node::payload_names`] lists it, so
-        /// the insert door's liveness check and `Rebind` reach it).
-        face: StableName,
+        /// The face: one `Face` read ([`crate::OperandSlot::Face`]),
+        /// whose selection states the body it is read out of.
+        face: S::Read,
         /// The rotation of sketch +x about the outward normal, from
         /// the carrier's u-reference — Angle, [`SlotId::Spin`].
         ///
@@ -1423,14 +1422,18 @@ use expr_table;
 /// resolved through it still points at the minting node while the
 /// geometry has moved.
 ///
-/// **One reader: [`Node::Measure`].** Its reference reads the carrier
-/// out of `at`'s evaluated value, so `at` is an ordinary DAG edge
-/// ([`crate::Doc::upstream`]) and `name` resolves against `at`'s own evaluated
-/// name table, through the N5 ladder every other authored name takes —
-/// the carrier has to be findable there or the measure has nothing to
-/// read. `name` is a bare [`StableName`] because a measure reads a
-/// LENGTH between entities of any kind: a face, an edge, a vertex, a
-/// whole body.
+/// **A measure is authored in it, and stores a read.** A measure's
+/// reference is written as a `SitedRef` and lowers
+/// (`impl From<SitedRef> for Operand`) to the read the node stores: a
+/// whole body's name to a read of `at`'s output, any other name to a
+/// one-name selection of that output (`Operand::Select`), which the
+/// door mints as a `Face`, `Edge` or `Vertex` variable. The selection's
+/// body read is an ordinary DAG edge ([`crate::Doc::upstream`]) and its
+/// name resolves against `at`'s own evaluated name table, through the
+/// N5 ladder every other authored name takes. `name` is a bare
+/// [`StableName`] because a measure reads a LENGTH between entities of
+/// any kind: a face, an edge, a vertex, a whole body. A declared pair's
+/// sides ([`DeclaredPair`]) are the other reader, and keep the shape.
 ///
 /// A mate's head is the other sited reference in the vocabulary and is
 /// its own type, [`SitedFace`] — not this one with a different name in
@@ -1442,11 +1445,13 @@ use expr_table;
 /// There is no `Option` on `at`: "as authored" is spelled
 /// [`SitedRef::at_mint`].
 ///
-/// **`Rebind` never moves a measure's `at`.** A measure's `at` is a
-/// DAG edge the author chose, and an edit that rewrote it would be
-/// re-pointing a dependency behind the author's back; only the NAME
-/// is repaired (`Node::rebind_payload_names`). [`SitedFace`]'s doc
-/// states the other half of that one repair.
+/// **`Rebind` never moves a reference's `at`.** `at` is a DAG edge
+/// the author chose, and an edit that rewrote it would be re-pointing
+/// a dependency behind the author's back; only the NAME is repaired
+/// (a measure's through its selection, `DocEdit::Rebind` with the
+/// selection's body; a declared pair's through
+/// `Node::rebind_payload_names`). [`SitedFace`]'s doc states the other
+/// half of that one repair.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -1635,58 +1640,18 @@ impl SitedFace {
 }
 
 /// **What makes a node's structural content invalid**
-/// ([`Node::input_fault`]; DM5) — one vocabulary for the two edit doors
-/// and the load door's re-check, so each rule has one definition and
-/// three callers rather than three copies.
+/// ([`Node::input_fault`]) — one vocabulary for the two edit doors and
+/// the load door's re-check, so each rule has one definition and three
+/// callers rather than three copies.
 ///
-/// It covers the input list (DM5's own subject) and the NAME
-/// DESIGNATIONS beside it, because the two are one kind of rule: a
-/// structural form that a construction door establishes, and that only
-/// a hand-built variant or a corrupt file can arrive without. Which
-/// form is the payload's own — ORDERED for a shell's `open`, SORTED for
-/// a blend's `selection` — and either way a node that does not hold it
-/// is refused at every door that ADMITS a node rather than repaired at
-/// one. [`crate::DocEdit::Rebind`] repairs, and that is not an
-/// exception: it rewrites through the same canonicalizer the
-/// construction doors use, so what it writes is a node these doors
-/// accept.
+/// It covers the indexed reads at a node's body seats
+/// ([`crate::BodyRead`]): a structural form that only a hand-built
+/// variant or a corrupt file can arrive without, refused at every door
+/// that ADMITS a node rather than repaired at one. A selection's
+/// designation form is the selection's own
+/// ([`crate::SelectionFault`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
-    /// An ORDERED designation names one entity twice. A shell's `open`
-    /// list is the payload that has one: its order is meaning (the
-    /// first designated face of a chart carries the rim), so its
-    /// canonical form is "no repeats" rather than "sorted", and the
-    /// construction door drops a repeat keeping the first occurrence —
-    /// a repeat that reaches a door came from a hand-built variant or
-    /// a corrupt file, and is refused rather than repaired.
-    RepeatedDesignation {
-        /// The position of the entry's first occurrence.
-        first: usize,
-        /// The position at which it is named again.
-        again: usize,
-    },
-    /// A SORTED designation is not in canonical form. A blend's
-    /// `selection` ([`Node::Fillet`], [`Node::Chamfer`]) is the payload
-    /// that has one: its order carries no meaning, so it is stored
-    /// sorted and deduplicated and two recipes picking the same edges
-    /// are bit-identical. That is ONE predicate — the entries strictly
-    /// increase — which a repeat and a swap both break, at the position
-    /// named here. [`Node::fillet`]/[`Node::chamfer`] are the
-    /// construction doors that establish the form; a selection that
-    /// reaches a door without it came from a hand-built variant or a
-    /// corrupt file and is refused rather than re-sorted, because a
-    /// repair would move the node's content key behind the caller's
-    /// back.
-    SelectionNotCanonical {
-        /// The position of the entry that does not sort strictly
-        /// before the one after it. ONE index is the whole content:
-        /// the break is between this entry and its successor, so the
-        /// successor's position is this one plus one. The rendered
-        /// sentence spells both out because a reader comparing two
-        /// entries wants both numbers in front of them; the payload
-        /// carries the one that is data.
-        at: usize,
-    },
     /// A union's or an intersect's family argument carries an index
     /// ([`crate::BodyRead`]): the argument reads the family whole, and
     /// one member read by index is a `Body`, spelled in a list.
@@ -1709,19 +1674,6 @@ pub enum InputFault {
 impl core::fmt::Display for InputFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::RepeatedDesignation { first, again } => write!(
-                f,
-                "the open-face designation names one face twice (entries {first} and {again}) — \
-                 an ordered designation names each face once, the first occurrence carrying the \
-                 rim"
-            ),
-            Self::SelectionNotCanonical { at } => write!(
-                f,
-                "the blend selection is not canonical (entry {at} does not sort strictly before \
-                 entry {}) — a selection is stored sorted and deduplicated, so the same edges \
-                 always make the same recipe",
-                at + 1
-            ),
             Self::IndexedFamily => f.write_str(
                 "the family argument carries an index — a family argument reads every member, \
                  and one member read by index is a body, spelled in a list",
@@ -1739,18 +1691,6 @@ impl core::fmt::Display for InputFault {
 /// [`InputFault`]'s namesake, and so is the sentence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListFault {
-    /// [`InputFault::RepeatedDesignation`].
-    RepeatedDesignation {
-        /// The position of the entry's first occurrence.
-        first: usize,
-        /// The position at which it is named again.
-        again: usize,
-    },
-    /// [`InputFault::SelectionNotCanonical`].
-    SelectionNotCanonical {
-        /// The entry that does not sort strictly before its successor.
-        at: usize,
-    },
     /// [`InputFault::IndexedFamily`].
     IndexedFamily,
     /// [`InputFault::IndexRank`].
@@ -1767,10 +1707,6 @@ impl InputFault {
     #[must_use]
     pub fn list_fault(self) -> ListFault {
         match self {
-            Self::RepeatedDesignation { first, again } => {
-                ListFault::RepeatedDesignation { first, again }
-            }
-            Self::SelectionNotCanonical { at } => ListFault::SelectionNotCanonical { at },
             Self::IndexedFamily => ListFault::IndexedFamily,
             Self::IndexRank { seat, found } => ListFault::IndexRank { seat, found },
         }
@@ -1780,10 +1716,6 @@ impl InputFault {
 impl From<ListFault> for InputFault {
     fn from(fault: ListFault) -> Self {
         match fault {
-            ListFault::RepeatedDesignation { first, again } => {
-                Self::RepeatedDesignation { first, again }
-            }
-            ListFault::SelectionNotCanonical { at } => Self::SelectionNotCanonical { at },
             ListFault::IndexedFamily => Self::IndexedFamily,
             ListFault::IndexRank { seat, found } => Self::IndexRank { seat, found },
         }
@@ -2163,8 +2095,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// must satisfy `1 ≤ degree ≤ stations − 1`.
         v_degree: S,
     },
-    /// Constant-radius rolling-ball fillets on a SELECTION of
-    /// `target`'s edges (M5 PR 12; the selection is M6-5).
+    /// Constant-radius rolling-ball fillets on a selection of one body's
+    /// edges.
     ///
     /// The op is [`sweep::blend::build::fillet_edges`] over the
     /// resolved selection; anything outside its two assembly front
@@ -2172,146 +2104,79 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// ([`crate::eval::NodeErrorKind::Blend`]), never a silent
     /// pass-through of the input body.
     ///
-    /// # The selection FREEZES (ruled, #217)
+    /// # The selection freezes (ruled, #217)
     ///
-    /// `selection` is a set of stable names and nothing else — there
-    /// is no "every edge" variant. A click-selection is a
-    /// **commitment**: an upstream edit that adds edges does NOT
-    /// extend it, and an upstream edit that removes a selected edge is
-    /// a typed refusal, not a silent shrink. To select everything as
-    /// of *now*, call [`all_edges`](crate::all_edges) and store what
-    /// it returns; the result is a frozen set with the same
-    /// semantics, not a live query.
+    /// `selection` reads one `Edges` variable ([`crate::VarDef::Select`]),
+    /// which states the body once and names its edges by stable name and
+    /// nothing else — there is no "every edge" variant. A click-selection
+    /// is a commitment: an upstream edit that adds edges does not extend
+    /// it, and an upstream edit that removes a selected edge is a typed
+    /// refusal at the selection, not a silent shrink. To select
+    /// everything as of now, call [`all_edges`](crate::all_edges) and
+    /// store what it returns.
     ///
-    /// ## What moves a stored selection, exactly
-    ///
-    /// [`crate::DocEdit::Rebind`] rewrites it — that is the REPAIR
-    /// path, and the honest description of its reach: a rebind is a
-    /// 1:1 `from → to` rewrite followed by re-canonicalization, so it
-    /// can SWAP a name or (when `to` is already selected) SHRINK the
-    /// set by one. It cannot make the set larger. Adding an edge to a
-    /// selection means re-authoring the node with a new set — a
-    /// deliberate act, which is the point of freezing.
-    ///
-    /// Freeze is enforced structurally, and its breaks are loud.
-    ///
-    /// # Canonical form
-    ///
-    /// The set is stored sorted and deduplicated, so two recipes that
-    /// select the same edges are bit-identical (the content key reads
-    /// the vector in order). [`Node::fillet`] canonicalizes; every door
-    /// that ADMITS a node ASSERTS the form rather than repairing it,
-    /// through the one predicate [`Node::input_fault`] states
-    /// ([`InputFault::SelectionNotCanonical`]) — so a hand-built
-    /// variant at the insert door and a non-canonical file at the load
-    /// door are refused alike, and a repair at either would move the
-    /// node's content key behind the caller's back.
+    /// [`crate::DocEdit::Rebind`] is the repair: a 1:1 `from → to`
+    /// rewrite of the selections of one body, which can swap a name or,
+    /// when `to` is already selected, shrink the set by one, and cannot
+    /// grow it. Adding an edge means authoring a new selection.
     Fillet {
-        /// The body whose edges are blended.
-        target: crate::BodyRead<S>,
         /// The constant blend radius ([`SlotId::Radius`]).
         radius: S,
-        /// The edges to blend, by stable name — canonical (sorted,
-        /// deduplicated), frozen at authoring time.
-        selection: Vec<StableName>,
+        /// The edges blended: one `Edges` read
+        /// ([`crate::OperandSlot::Selection`]).
+        selection: S::Read,
     },
-    /// Equal-setback flat chamfers on a SELECTION of `target`'s edges
-    /// — [`Node::Fillet`]'s twin.
+    /// Equal-setback flat chamfers on a selection of one body's edges —
+    /// [`Node::Fillet`]'s twin.
     ///
     /// The op is [`sweep::blend::build::chamfer_edges`], which is
     /// `fillet_edges` modulo the size's meaning: `distance` is the
-    /// SETBACK measured along each support from the source edge, not a
-    /// rolling ball's radius. Everything else this node says is the
-    /// fillet's, and deliberately so — the same two assembly front
-    /// doors, the same typed refusal on anything outside them
-    /// ([`crate::eval::NodeErrorKind::Blend`] carrying
-    /// [`sweep::blend::BlendKind::Chamfer`]), never a silent
-    /// pass-through of the input body.
-    ///
-    /// # The selection FREEZES, and the canonical form
-    ///
-    /// Both exactly as [`Node::Fillet`] states them: a set of stable
-    /// names and nothing else, no "every edge" variant,
-    /// [`crate::DocEdit::Rebind`] the one repair, stored sorted and
-    /// deduplicated by [`Node::chamfer`], and a non-canonical set at
-    /// any door refused rather than repaired. The freeze argument does not depend
-    /// on which blend the surgery performs, so it is not restated
-    /// here — read it there.
+    /// setback measured along each support from the source edge, not a
+    /// rolling ball's radius. Everything else is the fillet's: the same
+    /// two assembly front doors, the same typed refusal on anything
+    /// outside them ([`crate::eval::NodeErrorKind::Blend`] carrying
+    /// [`sweep::blend::BlendKind::Chamfer`]), and the same frozen
+    /// selection.
     ///
     /// # Why this is a separate variant and not a flag on `Fillet`
     ///
     /// The two carry different quantities in their size slot
-    /// ([`SlotId::Radius`] vs [`SlotId::ChamferDistance`]), and a
-    /// stored recipe that changed which one a number meant on a
-    /// boolean's value would be a document whose geometry depends on a
-    /// field a reader can miss. Separate variants make the size's
-    /// meaning readable off the node kind, and make the naming
-    /// discrimination structural: the minting node is what tells a
-    /// chamfer's blend from a fillet's at every selector
-    /// (RECIPE-DOORS D3), so the two must be different nodes.
+    /// ([`SlotId::Radius`] vs [`SlotId::ChamferDistance`]); separate
+    /// variants make the size's meaning readable off the node kind, and
+    /// make the naming discrimination structural: the minting node is
+    /// what tells a chamfer's blend from a fillet's at every selector
+    /// (RECIPE-DOORS D3).
     Chamfer {
-        /// The body whose edges are chamfered.
-        target: crate::BodyRead<S>,
         /// The setback along both supports
         /// ([`SlotId::ChamferDistance`]).
         distance: S,
-        /// The edges to chamfer, by stable name — canonical (sorted,
-        /// deduplicated), frozen at authoring time.
-        selection: Vec<StableName>,
+        /// The edges chamfered: one `Edges` read
+        /// ([`crate::OperandSlot::Selection`]).
+        selection: S::Read,
     },
-    /// **Hollow `target` into a thin solid** of wall `thickness`, with
-    /// the faces in `open` re-authored as annular RIMS.
+    /// **Hollow a body into a thin solid** of wall `thickness`, with the
+    /// faces `open` selects re-authored as annular rims.
     ///
     /// The op is the verb seat's `Verb::Shell` over `topo::shell_open`:
     /// every boundary face is replaced by its inward offset and the
-    /// offset boundary inserted as a cavity, then each designated
-    /// chart is lifted into a rim. Every check — the thickness gate,
-    /// the wall-clearance gate, the per-face offset refusals, the
-    /// designation gates, the validation of the result — is the
-    /// kernel's, carried unaltered as
-    /// [`crate::eval::NodeErrorKind::Shell`]; the node never passes
-    /// its input body through.
+    /// offset boundary inserted as a cavity, then each designated chart
+    /// is lifted into a rim. Every check is the kernel's, carried
+    /// unaltered as [`crate::eval::NodeErrorKind::Shell`]; the node
+    /// never passes its input body through.
     ///
-    /// # `open` is ORDERED, not canonical
-    ///
-    /// This is the one place the blend selection's canonical form does
-    /// not transfer, and the reason is the kernel's own record:
-    /// `RimNaming::sources` PRESERVES designation order, and a chart's
-    /// rim is its first designated face, so a caller that wants a
-    /// particular face to carry the rim's identity names it first.
-    /// Sorting would silently change which face the rim inherits.
-    /// [`Node::shell`], the one construction door, therefore keeps the
-    /// order it is given and DEDUPLICATES keeping the first occurrence;
-    /// a repeated name that reaches a door — a hand-built variant at
-    /// the insert door, a corrupt file at the load door — is refused
-    /// ([`InputFault::RepeatedDesignation`], asked of
-    /// [`Node::input_fault`] by both), never quietly repaired.
-    ///
-    /// # Empty `open` is the sealed hollow
-    ///
-    /// Legal, and not a refusal: an empty designation IS the sealed
-    /// form (`topo::shell`), which has no node of its own because the
-    /// seat's own contract says "empty is the sealed hollow". A blend
-    /// of nothing is an unfinished recipe; a shell of nothing opened
-    /// is a closed thin solid, which is a body.
-    ///
-    /// # The freeze
-    ///
-    /// `open` is a set of stable names and nothing else — no "the top
-    /// face" spelling and no filter — frozen at authoring time, with
-    /// [`crate::DocEdit::Rebind`] the one repair, exactly as
-    /// [`Node::Fillet`] states it for its selection. A name resolves
-    /// through the target's table to a FACE; anything else refuses
-    /// typed ([`crate::eval::NodeErrorKind::ShellOpenKind`]).
+    /// `open` reads one `Faces` variable ([`crate::VarDef::Select`]),
+    /// whose body is the one hollowed. Its faces are in designation
+    /// order, because the kernel's `RimNaming::sources` preserves it and
+    /// a chart's rim is its first designated face. An empty selection is
+    /// the sealed hollow (`topo::shell`), not a refusal: a shell of
+    /// nothing opened is a closed thin solid.
     Shell {
-        /// The body hollowed.
-        target: crate::BodyRead<S>,
         /// The wall thickness — a magnitude
         /// ([`SlotId::ShellThickness`], Length).
         thickness: S,
-        /// The faces opened into rims, by stable name, IN DESIGNATION
-        /// ORDER (first occurrence kept; see the variant docs).
-        open: Vec<StableName>,
+        /// The faces opened into rims: one `Faces` read
+        /// ([`crate::OperandSlot::Open`]).
+        open: S::Read,
     },
     /// Split a target body by a tool.
     Split {
@@ -2646,23 +2511,21 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// through a definition. Arithmetic over measured values is a
     /// defined variable over the measures' outputs.
     ///
-    /// # What a reference denotes: the carrier AT a named node
+    /// # What a reference denotes: the carrier in the body it reads
     ///
-    /// A [`SitedRef`] is a pair — the entity's [`StableName`], and the
-    /// node its carrier is READ AT. The second half is what makes a
-    /// measure report placed geometry: a rigid transform is
-    /// identity-preserving (it hands its input's table through and
-    /// contributes no RolePath segment), so a name resolved at its
-    /// minting node reads the UNMOVED carrier. Each `at` is a dependency
-    /// ([`crate::Doc::upstream`], [`Node::measure_sites`]): the measure
-    /// resolves its names against values that must already exist.
-    /// Deleting a referenced node strands the measure's names, reported
-    /// at the delete (`Maintenance::Strand`); a name that stops
-    /// resolving in a live node's table is N5's typed resolution
-    /// refusal, repaired by `Rebind`.
+    /// Each reference reads a variable: a `Body` (a whole body, the scope
+    /// `min_clearance` takes), or a `Face` or `Edge` selection, whose body
+    /// read is what makes a measure report placed geometry: a selection
+    /// of a transform's output names the moved carrier, since a rigid
+    /// transform hands its input's names through unchanged. Deleting the
+    /// body leaves the reference unresolved, reported at the delete
+    /// (`Maintenance::Strand`); a name that stops resolving is the
+    /// selection's typed refusal, repaired by `Rebind`.
     Measure {
-        /// The measurement, over its two references in argument order.
-        primitive: crate::measure::MeasurePrimitive,
+        /// The measurement, over its two references in argument order:
+        /// each a `Body`, `Face` or `Edge` read
+        /// ([`crate::OperandSlot::Measured`]).
+        primitive: crate::measure::MeasurePrimitive<S::Read>,
     },
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data — "this web is at least 0.5 mm" lives
@@ -2849,10 +2712,7 @@ macro_rules! node_rows {
             }
             // Origin and normal come off the face; the spin is the
             // one number an author chooses.
-            Node::Datum(Datum::FaceFrame { at, face: _, spin }) => {
-                $out.push((S::Spin, spin));
-                index_rows!(O::At, at, $rows, $out);
-            }
+            Node::Datum(Datum::FaceFrame { face: _, spin }) => $out.push((S::Spin, spin)),
             // A profile's slots are its program's. The payload keys its
             // rows by program address, so it answers `S::Profile` and
             // no other slot.
@@ -2869,29 +2729,14 @@ macro_rules! node_rows {
                 side: _,
             } => $out.push((S::Distance, distance)),
             Node::Fillet {
-                target,
                 radius,
                 selection: _,
-            } => {
-                $out.push((S::Radius, radius));
-                index_rows!(O::Target, target, $rows, $out);
-            }
+            } => $out.push((S::Radius, radius)),
             Node::Chamfer {
-                target,
                 distance,
                 selection: _,
-            } => {
-                $out.push((S::ChamferDistance, distance));
-                index_rows!(O::Target, target, $rows, $out);
-            }
-            Node::Shell {
-                target,
-                thickness,
-                open: _,
-            } => {
-                $out.push((S::ShellThickness, thickness));
-                index_rows!(O::Target, target, $rows, $out);
-            }
+            } => $out.push((S::ChamferDistance, distance)),
+            Node::Shell { thickness, open: _ } => $out.push((S::ShellThickness, thickness)),
             Node::Revolve {
                 profile: _,
                 axis: _,
@@ -3312,7 +3157,7 @@ impl<P> Node<P> {
                 origin: _,
                 direction: _,
             }) => vec![(O::Frame, *plane)],
-            Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => vec![(O::At, at.read)],
+            Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3347,11 +3192,8 @@ impl<P> Node<P> {
                 parent: _,
                 placement: _,
             }
-            // A measure's references are sited names
-            // ([`Node::measure_sites`]), and an assertion's value is a
-            // payload expression ([`payload_exprs`]): neither is an
-            // operand.
-            | Node::Measure { primitive: _ }
+            // An assertion's value is a payload expression
+            // ([`payload_exprs`]), not an operand.
             | Node::Assertion {
                 value: _,
                 bound: _,
@@ -3392,20 +3234,19 @@ impl<P> Node<P> {
                 v_degree: _,
             } => vec![(O::Profile, *profile), (O::Path, *path)],
             Node::Fillet {
-                target,
                 radius: _,
-                selection: _,
+                selection,
             }
             | Node::Chamfer {
-                target,
                 distance: _,
-                selection: _,
+                selection,
+            } => vec![(O::Selection, *selection)],
+            Node::Shell { thickness: _, open } => vec![(O::Open, *open)],
+            Node::Measure { primitive } => {
+                let verb = primitive.kind();
+                let [a, b] = primitive.refs();
+                vec![(O::Measured(verb, 0), *a), (O::Measured(verb, 1), *b)]
             }
-            | Node::Shell {
-                target,
-                thickness: _,
-                open: _,
-            } => vec![(O::Target, target.read)],
             Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, *tool)],
             Node::Subtract {
                 from,
@@ -3468,11 +3309,7 @@ impl<P> Node<P> {
                 origin: _,
                 direction: _,
             }) => vec![(O::Frame, plane)],
-            Node::Datum(Datum::FaceFrame {
-                at,
-                face: _,
-                spin: _,
-            }) => vec![(O::At, &mut at.read)],
+            Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, face)],
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3505,7 +3342,6 @@ impl<P> Node<P> {
                 parent: _,
                 placement: _,
             }
-            | Node::Measure { primitive: _ }
             | Node::Assertion {
                 value: _,
                 bound: _,
@@ -3550,20 +3386,19 @@ impl<P> Node<P> {
                 v_degree: _,
             } => vec![(O::Profile, profile), (O::Path, path)],
             Node::Fillet {
-                target,
                 radius: _,
-                selection: _,
+                selection,
             }
             | Node::Chamfer {
-                target,
                 distance: _,
-                selection: _,
+                selection,
+            } => vec![(O::Selection, selection)],
+            Node::Shell { thickness: _, open } => vec![(O::Open, open)],
+            Node::Measure { primitive } => {
+                let verb = primitive.kind();
+                let [a, b] = primitive.refs_mut();
+                vec![(O::Measured(verb, 0), a), (O::Measured(verb, 1), b)]
             }
-            | Node::Shell {
-                target,
-                thickness: _,
-                open: _,
-            } => vec![(O::Target, &mut target.read)],
             Node::Split { target, tool } => vec![(O::Target, &mut target.read), (O::Tool, tool)],
             Node::Subtract {
                 from,
@@ -3619,24 +3454,6 @@ impl<P> Node<P> {
         }
     }
 
-    /// **The nodes this node's measure sites are read at**, distinct
-    /// and in argument order: a measure's references are names read at
-    /// a node, and reading is what the measure waits for, so these join
-    /// its upstream ([`crate::Doc::upstream`]). Empty for every other
-    /// node.
-    pub fn measure_sites(&self) -> Vec<RecipeNodeId> {
-        let Node::Measure { primitive } = self else {
-            return Vec::new();
-        };
-        let mut v: Vec<RecipeNodeId> = Vec::with_capacity(2);
-        for r in primitive.refs() {
-            if !v.contains(&r.at) {
-                v.push(r.at);
-            }
-        }
-        v
-    }
-
     /// **E10, stated once**: whether this assertion's bound is
     /// dimensioned differently from its value. `None` for every node
     /// that is not a [`Node::Assertion`], and for one reading a variable
@@ -3668,43 +3485,20 @@ impl<P> Node<P> {
         matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
     }
 
-    /// **What is wrong with this node's name designations**, if
-    /// anything: a designation outside the canonical form its
-    /// construction door establishes.
+    /// **What is wrong with this node's indexed reads**, if anything:
+    /// an index at a family argument, or a read carrying other than its
+    /// family's rank of indices.
     ///
     /// ONE definition with two callers: the edit doors' per-node checks
     /// and the load door's `validate_document`, each rendering it in its
     /// own vocabulary. A repeated read is not a fault (REFERENCES DM5:
-    /// the operation answers it), and a list's length is evaluation's.
+    /// the operation answers it), a list's length is evaluation's, and a
+    /// selection's designation form is the selection's own
+    /// ([`crate::SelectionFault`]).
     pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
-        // The name designations, each against the canonical form its
-        // own construction door establishes. Asked here, once, so every
-        // door that admits a node refuses the same shapes, and neither
-        // form is repaired at any of them.
-        //
-        // The ORDERED payload — a shell's `open` — carries only the
-        // rule the sorted payloads state by their order: no entry
-        // twice.
-        if let Node::Shell { open, .. } = self {
-            for (again, name) in open.iter().enumerate() {
-                if let Some(first) = open[..again].iter().position(|n| n == name) {
-                    return Some(InputFault::RepeatedDesignation { first, again });
-                }
-            }
-        }
-        // The SORTED payload — a blend's selection — states both rules
-        // in one: strictly increasing IS "sorted and deduplicated", so
-        // a swap and a repeat are one fault at one position. An empty
-        // selection holds it vacuously and is evaluation's refusal to
-        // name (`BlendSelectionEmpty`), not this door's.
-        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = self
-            && let Some(at) = selection.windows(2).position(|w| w[0] >= w[1])
-        {
-            return Some(InputFault::SelectionNotCanonical { at });
-        }
         // An indexed read carries its family's rank of indices (one, for
         // every family a node defines today), and a family argument none.
         if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
@@ -3722,11 +3516,10 @@ impl<P> Node<P> {
     }
 
     /// Rewrites every payload reference EXACTLY equal to `from` into
-    /// `to`, returning how many it rewrote — the substrate of `Rebind`,
-    /// N5's one repair. A set-shaped payload re-canonicalizes, because
-    /// `to` may sort elsewhere or already be present: a rebind onto an
-    /// already-selected edge SHRINKS the set by one rather than
-    /// duplicating it.
+    /// `to`, returning how many it rewrote — `Rebind`'s reach into the
+    /// names a node still carries (declared pairs, mate heads, an
+    /// instance's crossings); a selection's names are the document's
+    /// ([`crate::Doc::rewrite_selection_names`]).
     ///
     /// [`Node::rewrite_payload_names`] under the one-pair map; that
     /// walk is the one home for which payloads are rewritten and how
@@ -3807,33 +3600,6 @@ impl<P> Node<P> {
                     hits += rewrite(&mut r.name, map);
                 }
             }
-            // A SORTED payload re-canonicalizes through the same door
-            // that established the form: the repair re-establishes it,
-            // so what a rebind writes is what `Node::input_fault`
-            // accepts and there is no shape a repair can leave behind
-            // that an edit door would refuse.
-            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
-                for name in selection.iter_mut() {
-                    hits += rewrite(name, map);
-                }
-                if hits > 0 {
-                    canonicalize_selection(selection);
-                }
-            }
-            // An ORDERED payload re-canonicalizes to its own form: the
-            // order stays, and a rebind onto a face already designated
-            // keeps the EARLIER occurrence — the one whose position
-            // decides which face carries the rim — and drops the later,
-            // so the list shrinks by one rather than naming one face
-            // twice (which the load door refuses as corrupt).
-            Node::Shell { open, .. } => {
-                for name in open.iter_mut() {
-                    hits += rewrite(name, map);
-                }
-                if hits > 0 {
-                    dedup_keeping_first(open);
-                }
-            }
             // A mate's two references: the NAME rewrites like any
             // other, and a reference read AT ITS OWN MINT stays read
             // at its own mint — the operand follows the name it was
@@ -3852,18 +3618,6 @@ impl<P> Node<P> {
                         r.at = r.name.node;
                     }
                     hits += 1;
-                }
-            }
-            // One name, no set to re-canonicalize.
-            Node::Datum(Datum::FaceFrame { face, .. }) => {
-                hits += rewrite(face, map);
-            }
-            // No re-canonicalization: the order IS argument order, and
-            // a rebind onto the other argument's entity leaves two
-            // arguments naming one entity.
-            Node::Measure { primitive } => {
-                for r in primitive.refs_mut() {
-                    hits += rewrite(&mut r.name, map);
                 }
             }
             // An instance's crossing `outer`s — the reading twin's
@@ -3983,37 +3737,6 @@ where
     }
 }
 
-/// Sorts a name designation and drops its repeats — the canonical form
-/// of a SORTED designation ([`InputFault::SelectionNotCanonical`]),
-/// shared by the two construction doors and the rebind rewrite so the
-/// three cannot disagree about it, exactly as
-/// [`dedup_keeping_first`] is shared for the ordered twin.
-///
-/// It is the establisher of the form [`Node::input_fault`] checks:
-/// what comes back from here always answers `None` there, which is
-/// what makes `Rebind` a repair rather than a second authoring of a
-/// shape the doors would refuse.
-fn canonicalize_selection(names: &mut Vec<StableName>) {
-    names.sort();
-    names.dedup();
-}
-
-/// Drops every repeat of a name, keeping the FIRST occurrence and the
-/// order of what remains — the canonical form of an ordered
-/// designation, shared by the construction door and the rebind
-/// rewrite so the two cannot disagree about it.
-fn dedup_keeping_first(names: &mut Vec<StableName>) {
-    let mut seen: Vec<StableName> = Vec::with_capacity(names.len());
-    names.retain(|n| {
-        if seen.contains(n) {
-            false
-        } else {
-            seen.push(n.clone());
-            true
-        }
-    });
-}
-
 /// `f` over each of `a`'s values, in order: the arrays a slot table
 /// holds, in another slot form.
 pub(crate) fn map_array<S, S2, E, const N: usize>(
@@ -4027,6 +3750,21 @@ pub(crate) fn map_array<S, S2, E, const N: usize>(
     match out.try_into() {
         Ok(mapped) => Ok(mapped),
         Err(_) => unreachable!("{N} values in, {N} out"),
+    }
+}
+
+impl Datum<crate::Formula> {
+    /// A [`Datum::FaceFrame`] on the face `face` names in the body `at`
+    /// reads: the door mints its `Face` selection.
+    pub fn face_frame(
+        at: impl Into<crate::Operand>,
+        face: StableName,
+        spin: crate::Formula,
+    ) -> Self {
+        Datum::FaceFrame {
+            face: crate::Operand::select(at, vec![face]),
+            spin,
+        }
     }
 }
 
@@ -4069,9 +3807,8 @@ impl<S: Slot> Datum<S> {
                 origin: map_array(origin, f)?,
                 direction: map_array(direction, f)?,
             },
-            Datum::FaceFrame { at, face, spin } => Datum::FaceFrame {
-                at: at.try_map(crate::OperandSlot::At, f, read)?,
-                face: face.clone(),
+            Datum::FaceFrame { face, spin } => Datum::FaceFrame {
+                face: read(crate::OperandSlot::Face, face)?,
                 spin: f(spin)?,
             },
         })
@@ -4334,32 +4071,20 @@ impl<P, S: Slot> Node<P, S> {
                 stations: f(stations)?,
                 v_degree: f(v_degree)?,
             },
-            Node::Fillet {
-                target,
-                radius,
-                selection,
-            } => Node::Fillet {
-                target: target.try_map(O::Target, f, read)?,
+            Node::Fillet { radius, selection } => Node::Fillet {
                 radius: f(radius)?,
-                selection: selection.clone(),
+                selection: read(O::Selection, selection)?,
             },
             Node::Chamfer {
-                target,
                 distance,
                 selection,
             } => Node::Chamfer {
-                target: target.try_map(O::Target, f, read)?,
                 distance: f(distance)?,
-                selection: selection.clone(),
+                selection: read(O::Selection, selection)?,
             },
-            Node::Shell {
-                target,
-                thickness,
-                open,
-            } => Node::Shell {
-                target: target.try_map(O::Target, f, read)?,
+            Node::Shell { thickness, open } => Node::Shell {
                 thickness: f(thickness)?,
-                open: open.clone(),
+                open: read(O::Open, open)?,
             },
             Node::Split { target, tool } => Node::Split {
                 target: target.try_map(O::Target, f, read)?,
@@ -4430,9 +4155,17 @@ impl<P, S: Slot> Node<P, S> {
                 class: *class,
                 alignment: alignment.try_map_slots(f)?,
             },
-            Node::Measure { primitive } => Node::Measure {
-                primitive: primitive.clone(),
-            },
+            Node::Measure { primitive } => {
+                let verb = primitive.kind();
+                let mut i = 0u8;
+                Node::Measure {
+                    primitive: primitive.try_map(|r| {
+                        let slot = O::Measured(verb, i);
+                        i += 1;
+                        read(slot, r)
+                    })?,
+                }
+            }
             Node::Assertion {
                 value,
                 bound,
@@ -4453,11 +4186,7 @@ impl<P, S: Slot> Node<P, S> {
     pub fn body_reads(&self) -> Vec<(crate::OperandSlot, &crate::BodyRead<S>)> {
         use crate::OperandSlot as O;
         match self {
-            Node::Datum(Datum::FaceFrame { at, .. }) => vec![(O::At, at)],
-            Node::Fillet { target, .. }
-            | Node::Chamfer { target, .. }
-            | Node::Shell { target, .. }
-            | Node::Split { target, .. } => vec![(O::Target, target)],
+            Node::Split { target, .. } => vec![(O::Target, target)],
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
             Node::PlaceInWorld { body, .. } => vec![(O::Body, body)],
@@ -4466,7 +4195,8 @@ impl<P, S: Slot> Node<P, S> {
                 | Datum::Axis { .. }
                 | Datum::Point { .. }
                 | Datum::Frame { .. }
-                | Datum::AxisInPlane { .. },
+                | Datum::AxisInPlane { .. }
+                | Datum::FaceFrame { .. },
             )
             | Node::Profile(_)
             | Node::Extrude { .. }
@@ -4475,6 +4205,9 @@ impl<P, S: Slot> Node<P, S> {
             | Node::HollowTube { .. }
             | Node::Loft { .. }
             | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
@@ -4523,7 +4256,9 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// bound are read at their variables' dimensions.
     #[must_use]
     pub fn authored(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
-        self.authored_with(doc, &mut crate::Formula::var)
+        self.authored_with(doc, &mut crate::Formula::var, &mut |var| {
+            crate::Operand::Var(var)
+        })
     }
 
     /// **This node as it was written**: each slot the formula its
@@ -4539,21 +4274,31 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// ([`crate::Doc::written_would_not_reproduce`]) and none was
     /// value-edited after its insert (its mint read the old value). A
     /// caller rebuilding a document checks the first and compares the
-    /// ids for the second.
+    /// ids for the second. An anonymous selection an operand reads is
+    /// written as the selection it is ([`crate::Operand::Select`]).
     #[must_use]
     pub fn written(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
-        self.authored_with(doc, &mut |var, dim| {
-            crate::Formula::from(doc.written(&crate::Expr::var(var, dim)))
-        })
+        self.authored_with(
+            doc,
+            &mut |var, dim| crate::Formula::from(doc.written(&crate::Expr::var(var, dim))),
+            &mut |var| match doc.selection(var) {
+                Some(select) if doc.var_name(var).is_none() => {
+                    crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
+                }
+                _ => crate::Operand::Var(var),
+            },
+        )
     }
 
     /// [`Self::authored`], each slot's variable written by `reader`
-    /// (handed the variable and the dimension the slot reads it at).
-    /// A profile's arguments are written by the same `reader`.
+    /// (handed the variable and the dimension the slot reads it at),
+    /// and each operand's read by `operand`. A profile's arguments are
+    /// written by the same `reader`.
     pub(crate) fn authored_with(
         &self,
         doc: &crate::Doc<P>,
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
+        operand: &mut dyn FnMut(VarId) -> crate::Operand,
     ) -> Node<P::Authored, crate::Formula> {
         let mut dims: BTreeMap<VarId, Dimension> = self
             .rows()
@@ -4581,7 +4326,7 @@ impl<P: crate::ProfilePayload> Node<P> {
                     .unwrap_or_else(|| unreachable!("a profile's payload is re-authored once")))
             },
             &mut read,
-            &mut |_, var| Ok(crate::Operand::Var(*var)),
+            &mut |_, var| Ok(operand(*var)),
         );
         let Ok(authored) = reauthored;
         authored
@@ -4714,9 +4459,9 @@ impl<P, S: Slot> Node<P, S> {
     }
 
     /// The [`StableName`]s this payload REFERENCES — declared pairs, a
-    /// blend's selection, a shell's open list, a derived frame's face, a
-    /// measure's references, a mate's two heads, an instance's interface
-    /// crossings' `outer`s. Document data, never DAG
+    /// mate's two heads, an instance's interface crossings' `outer`s; a
+    /// name read through a slot is a selection's
+    /// ([`crate::VarDef::Select`]), not a payload's. Document data, never DAG
     /// edges ([`crate::Doc::upstream`] excludes them): the edit door checks at
     /// insertion that each one names a live node, and a later delete may
     /// strand it, which is NAMING-DESIGN N5's dangling-reference
@@ -4755,25 +4500,12 @@ impl<P, S: Slot> Node<P, S> {
                 .iter()
                 .flat_map(|((a, b), _)| [&a.name, &b.name])
                 .collect(),
-            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
-                selection.iter().collect()
-            }
-            // Designation order, which is meaning here (the first
-            // named face carries the rim), not a click sequence.
-            Node::Shell { open, .. } => open.iter().collect(),
-            // The derived frame's face is a frozen name like a blend's
-            // selection: the insert door checks its node is live, and
-            // `Rebind` is its repair.
-            Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             // A12: a mate's two heads are the instance-qualified
             // names its reading edges are recomputed from. The
             // operands they are read at are node ids, not names, and
             // are listed by [`Node::payload_read_sites`]. A face-based
             // frame holds no name: its face is the head's.
             Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
-            // A measure's references are argument-ORDERED, so they are
-            // listed in that order rather than a canonical one.
-            Node::Measure { primitive } => primitive.refs().map(|r| &r.name).into(),
             // An instance's interface record: each crossing's `outer`,
             // in record order.
             //
@@ -4819,11 +4551,7 @@ impl<P, S: Slot> Node<P, S> {
     /// id is a typo, and a later delete stranding one is N5's
     /// dangling case, refused at the solve rather than at the edit.
     ///
-    /// A measure's `at` is absent here because it is an ordinary
-    /// dependency ([`Node::measure_sites`]), and the measure-site check
-    /// already covers it. A mate's is not: an operand is an A12
-    /// READING edge, and making it consuming would take the mated
-    /// bodies out of A10's root set.
+    /// A mate's operand is an A12 reading edge rather than a read.
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
             Node::Mate { a, b, .. } => vec![a.at, b.at],
@@ -4832,30 +4560,14 @@ impl<P, S: Slot> Node<P, S> {
             // EVALUATION's refusal.
             Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } => Vec::new(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
-            // is classified here or does not compile — the promise
-            // the twins above already keep. Three groups: the
-            // name-free variants, which reference nothing that could
-            // have a read site (one home for that list,
-            // [`name_free_node`]); the named variants whose
-            // references are read at a node the DAG ALREADY CARRIES
-            // — a blend's and a shell's at the body they consume, a
-            // derived frame's at the body it reads and a measure's at
-            // a site [`Node::measure_sites`] reports — so the read and
-            // site checks cover
-            // the site and there is nothing extra to name here; and
-            // an instance, whose interface record holds NO node id at
-            // all ([`InterfaceCrossing::Mate`] argues why). A crossing
-            // is a class and two face names: the `outer` is a payload
-            // name, checked as one by the reading twin's list, and the
-            // `inner` is spelled in the part's id space, which no door
-            // here may read.
-            name_free_node!()
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Datum(Datum::FaceFrame { .. })
-            | Node::InstantiatePart { .. }
-            | Node::Measure { .. } => Vec::new(),
+            // is classified here or does not compile. The name-free
+            // variants reference nothing that could have a read site
+            // ([`name_free_node`]), and an instance's interface record
+            // holds no node id at all ([`InterfaceCrossing::Mate`]
+            // argues why): a crossing's `outer` is a payload name,
+            // checked as one by the reading twin's list, and its
+            // `inner` is spelled in the part's id space.
+            name_free_node!() | Node::InstantiatePart { .. } => Vec::new(),
         }
     }
 
@@ -4878,36 +4590,44 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
+    /// **Where name `reference` of the selection this node reads at
+    /// `slot` sits, as a person reads it**: the node's own noun and the
+    /// place — `("fillet", "edge 2")`, `("frame", "face")` — for a
+    /// refusal that says a name that stopped resolving by where it sits
+    /// rather than by its words. `None` for a seat that reads no
+    /// selection.
+    pub(crate) fn selection_slot(
+        &self,
+        slot: crate::OperandSlot,
+        reference: usize,
+    ) -> Option<(&'static str, String)> {
+        use crate::OperandSlot as O;
+        match (self, slot) {
+            (Node::Fillet { .. }, O::Selection) => Some(("fillet", format!("edge {reference}"))),
+            (Node::Chamfer { .. }, O::Selection) => Some(("chamfer", format!("edge {reference}"))),
+            (Node::Shell { .. }, O::Open) => Some(("shell", format!("open face {reference}"))),
+            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => Some(("frame", "face".to_owned())),
+            (Node::Measure { .. }, O::Measured(_, i)) => {
+                Some(("measure", format!("reference {i}")))
+            }
+            _ => None,
+        }
+    }
+
     /// **Which of this payload's references a refusal is about, as a
-    /// person reads it**: the node's own noun and the slot — `("fillet",
-    /// "edge 2")`, `("frame", "face")` — for a refusal that says a
-    /// reference that stopped resolving by where it sits rather than by
-    /// its words. `reference` is the slot's place among
-    /// [`Node::payload_names`]; a reference is (site, name), so two
-    /// slots holding one name are told apart by it. `None` where the
-    /// slot there does not hold `name` — as authored, or as node `id`'s
-    /// union reads it in member space — or no slot of a node that
-    /// resolves names is there.
+    /// person reads it** — [`Self::selection_slot`]'s twin for a name a
+    /// node still carries in its payload, a declared pair's: the node's
+    /// noun and the side. `reference` is the name's place among
+    /// [`Node::payload_names`]. `None` where the slot there does not hold
+    /// `name` — as authored, or as node `id`'s union reads it in member
+    /// space.
     pub(crate) fn reference_slot(
         &self,
         id: RecipeNodeId,
         reference: usize,
         name: &StableName,
     ) -> Option<(&'static str, String)> {
-        let at = |names: &[StableName]| (names.get(reference)? == name).then_some(reference);
         match self {
-            Node::Fillet { selection, .. } => Some(("fillet", format!("edge {}", at(selection)?))),
-            Node::Chamfer { selection, .. } => {
-                Some(("chamfer", format!("edge {}", at(selection)?)))
-            }
-            Node::Shell { open, .. } => Some(("shell", format!("open face {}", at(open)?))),
-            Node::Datum(Datum::FaceFrame { face, .. }) => {
-                (reference == 0 && face == name).then(|| ("frame", "face".to_owned()))
-            }
-            Node::Measure { primitive } => {
-                let held = primitive.refs().get(reference).copied()?;
-                (held.name == *name).then(|| ("measure", format!("reference {reference}")))
-            }
             Node::Subtract { declare, .. }
             | Node::Union { declare, .. }
             | Node::Intersect { declare, .. } => {
@@ -5040,64 +4760,93 @@ impl<P, S: Slot> Node<P, S> {
             kind: PatternKind::Explicit(placements),
         }
     }
+}
 
-    /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
-    /// deduplicated) — the one construction door, so a recipe's bits
-    /// do not depend on the order a user clicked in. The form comes
-    /// from [`canonicalize_selection`], which every site that
-    /// establishes it shares.
+impl<P> Node<P, crate::Formula> {
+    /// A [`Node::Measure`] over `primitive`, each reference authored as
+    /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
+    /// as the selection of it in the body it is read at).
+    pub fn measure<R: Clone + Into<crate::Operand>>(
+        primitive: &crate::measure::MeasurePrimitive<R>,
+    ) -> Self {
+        Node::Measure {
+            primitive: primitive.map(|r| r.clone().into()),
+        }
+    }
+
+    /// **The names this authored node's selection seats author**
+    /// ([`crate::Operand::Select`]): what the edit door mints selections
+    /// of, in seat order.
+    pub fn selected_names(&self) -> Vec<&StableName> {
+        let seats: Vec<&crate::Operand> = match self {
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => vec![selection],
+            Node::Shell { open, .. } => vec![open],
+            Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
+            Node::Measure { primitive } => primitive.refs().to_vec(),
+            _ => Vec::new(),
+        };
+        seats
+            .into_iter()
+            .flat_map(crate::Operand::selected_names)
+            .collect()
+    }
+
+    /// Builds a [`Node::Fillet`] over the selection of `selection` in
+    /// the body `target` reads, the names in their stored order (sorted,
+    /// deduplicated, [`crate::var::Select::canonical`]), so a recipe's
+    /// bits do not depend on the order a user clicked in. The door mints
+    /// the selection.
     pub fn fillet(
-        target: impl Into<crate::BodyRead<S>>,
-        radius: S,
+        target: impl Into<crate::Operand>,
+        radius: crate::Formula,
         selection: Vec<StableName>,
     ) -> Self {
-        let mut selection = selection;
-        canonicalize_selection(&mut selection);
         Node::Fillet {
-            target: target.into(),
             radius,
-            selection,
+            selection: edges_of(target, selection),
         }
     }
 
-    /// Builds a [`Node::Chamfer`] with a CANONICAL selection (sorted,
-    /// deduplicated) — the one construction door, for the reason
-    /// [`Node::fillet`] is: a recipe's bits must not depend on the
-    /// order a user clicked in.
+    /// Builds a [`Node::Chamfer`] over the selection of `selection` in
+    /// the body `target` reads, as [`Node::fillet`] does.
     pub fn chamfer(
-        target: impl Into<crate::BodyRead<S>>,
-        distance: S,
+        target: impl Into<crate::Operand>,
+        distance: crate::Formula,
         selection: Vec<StableName>,
     ) -> Self {
-        let mut selection = selection;
-        canonicalize_selection(&mut selection);
         Node::Chamfer {
-            target: target.into(),
             distance,
-            selection,
+            selection: edges_of(target, selection),
         }
     }
 
-    /// Builds a [`Node::Shell`] with `open` in DESIGNATION ORDER,
-    /// deduplicated keeping each name's first occurrence — the one
-    /// construction door, and deliberately not [`Node::fillet`]'s
-    /// sort: the first designated face of a chart is the one that
-    /// carries the rim's identity (the variant docs), so the order is
-    /// authored data the kernel reads, and sorting it would silently
-    /// move a rim from one face to another.
+    /// Builds a [`Node::Shell`] over the selection of `open` in the body
+    /// `target` reads, in designation order with each name's first
+    /// occurrence kept ([`crate::var::Select::canonical`]): the first
+    /// designated face of a chart carries the rim's identity, so the
+    /// order is authored data.
     pub fn shell(
-        target: impl Into<crate::BodyRead<S>>,
-        thickness: S,
+        target: impl Into<crate::Operand>,
+        thickness: crate::Formula,
         open: Vec<StableName>,
     ) -> Self {
-        let mut open = open;
-        dedup_keeping_first(&mut open);
         Node::Shell {
-            target: target.into(),
             thickness,
-            open,
+            open: crate::Operand::select(
+                target,
+                crate::var::Select::canonical(crate::VarKind::Faces, open),
+            ),
         }
     }
+}
+
+/// The `Edges` selection of `names` in the body `target` reads, in
+/// stored order.
+fn edges_of(target: impl Into<crate::Operand>, names: Vec<StableName>) -> crate::Operand {
+    crate::Operand::select(
+        target,
+        crate::var::Select::canonical(crate::VarKind::Edges, names),
+    )
 }
 
 impl<P, S> Node<P, S>

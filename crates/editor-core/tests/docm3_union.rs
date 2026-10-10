@@ -672,7 +672,7 @@ fn two_placements_of_one_prototype_are_two_members() {
 /// `SetMembers`, delete the orphaned transform, and re-evaluate with
 /// the previous evaluation as `prior`. Both fillets must still
 /// evaluate `Ok`, with two fewer rim arcs selected (a pip contributes
-/// two rim edges) and no `BlendSelectionResolve` anywhere.
+/// two rim edges) and no `SelectResolve` anywhere.
 ///
 /// Under the pairwise chain this replaces the row goes red for every
 /// pip but the last: a chain records join DEPTH in each name, so
@@ -710,7 +710,9 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         other => panic!("the tour places the die alone, got {other:?}"),
     };
     let box_blend = match doc.node(rim_blend) {
-        Some(Node::Fillet { target, .. }) => doc.operation_of(target.read).expect("a live target"),
+        Some(Node::Fillet { selection, .. }) => {
+            doc.read_operation(*selection).expect("a live target")
+        }
         other => panic!("the die is its rim blend, got {other:?}"),
     };
     assert!(
@@ -724,10 +726,9 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     // again.
     let (rim_target, rim_radius, rims) = match doc.node(blends[1]).map(|n| n.written(&doc)) {
         Some(Node::Fillet {
-            target,
             radius,
-            selection,
-        }) => (target, radius, selection),
+            selection: editor_core::Operand::Select { body, names },
+        }) => (*body, radius, names),
         other => panic!("the die's last node is the rim blend, got {other:?}"),
     };
     assert_eq!(rims.len(), 42, "the die selects two rim arcs per pip");
@@ -833,7 +834,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         // The selections are FROZEN, so they still name every edge they
         // named — including the two rim arcs of the pip that is gone,
         // which the blend now resolves against a body that no longer
-        // has them. That is what `BlendSelectionResolve` would say, and
+        // has them. That is what `SelectResolve` would say, and
         // the assertions above are that it does not.
     }
 }
@@ -956,7 +957,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
 /// How many names a blend node's selection carries.
 fn selection_len(doc: &editor_core::ProfileDoc, blend: RecipeNodeId) -> usize {
     match doc.node(blend) {
-        Some(Node::Fillet { selection, .. }) => selection.len(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(doc, *selection).len(),
         other => panic!("expected a fillet, got {other:?}"),
     }
 }

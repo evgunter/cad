@@ -228,14 +228,14 @@ class TestRefusals(unittest.TestCase):
         self.assertEqual(len(gone), 1, "one wall the box lacks")
         (ghost,) = gone
         node = doc.insert(Node.shell(box, Formula.length_in(T, m), [ghost]))
-        self.assertEqual(self.refusal(doc, node).kind, "shell_open_resolve")
+        self.assertEqual(self.refusal(doc, node).kind, "select_resolve")
 
     def test_an_edge_in_the_open_list_refuses_typed(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
         node = doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
-        self.assertEqual(self.refusal(doc, node).kind, "shell_open_kind")
+        self.assertEqual(self.refusal(doc, node).kind, "select_kind")
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()

@@ -156,18 +156,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "RepeatedDesignation",
-            EditError::RepeatedDesignation {
+            "SelectionShape(Repeated)",
+            EditError::SelectionShape {
                 node: s(5, "Shell"),
-                first: 0,
-                again: 2,
+                slot: SlotId::Operand(editor_core::OperandSlot::Open),
+                fault: editor_core::SelectionFault::Repeated { first: 0, again: 2 },
             },
         ),
         (
-            "SelectionNotCanonical",
-            EditError::SelectionNotCanonical {
+            "SelectionShape(NotCanonical)",
+            EditError::SelectionShape {
                 node: s(5, "Fillet"),
-                at: 1,
+                slot: SlotId::Operand(editor_core::OperandSlot::Selection),
+                fault: editor_core::SelectionFault::NotCanonical { at: 1 },
             },
         ),
         (

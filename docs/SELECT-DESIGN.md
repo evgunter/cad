@@ -425,8 +425,9 @@ sketcher/tree design time):
 
 **The one-type rule.** A GUI selection is the SAME
 value as a recipe reference: `Vec<StableName>` — the exact type the
-structural materializer returns, `Node::Fillet`'s selection stores,
-and declared pairs are built from. G3's "selection feeds the
+structural materializer returns, a selection definition stores (the
+`names` of the `Select { body, names }` a fillet reads), and declared
+pairs are built from. G3's "selection feeds the
 existing edit doors" is this rule stated from the GUI side: click →
 ID-buffer hit → key→name inversion (U7's doors) → `StableName`,
 and from that point the GUI is indistinguishable from a library

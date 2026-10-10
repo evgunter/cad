@@ -106,9 +106,11 @@ fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: editor_core::Operand::output(revolve, 0).into(),
             radius: len(0.05),
-            selection: vec![mouth],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![mouth],
+            ),
         },
     )
 }
@@ -237,9 +239,11 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: editor_core::Operand::output(revolve, 0).into(),
             radius: len(0.05),
-            selection: vec![lip],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![lip],
+            ),
         },
     );
     let ev = run(&doc);
@@ -357,9 +361,11 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: editor_core::Operand::output(revolve, 0).into(),
             radius: len(0.05),
-            selection,
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                selection,
+            ),
         },
     );
     let ev = run(&doc);

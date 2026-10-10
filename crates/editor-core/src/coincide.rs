@@ -381,7 +381,7 @@ fn operation<P>(
     at: RecipeNodeId,
     read: crate::VarId,
 ) -> Result<RecipeNodeId, Unwalked> {
-    doc.operation_of(read).ok_or(Unwalked::Unresolved(at))
+    doc.read_operation(read).ok_or(Unwalked::Unresolved(at))
 }
 
 /// **The read a carried segment at `at` names its entity in**, by the

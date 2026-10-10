@@ -1829,8 +1829,10 @@ pub(crate) enum Lift {
 
 /// **How `node` (the consumer, minted as `consumer`) carries `name`, an
 /// entity of its input `input`**: one [`Lift`] per seat whose read
-/// `defined_by` resolves to `input`, empty when `node` reads none of
-/// `input`'s outputs.
+/// `defined_by` resolves to `input` (a selection's, through its body),
+/// empty when `node` reads none of `input`'s outputs. `selected_body`
+/// answers the body read a selection read reads (the read itself for any
+/// other), which keys a blend's or a shell's carried names.
 ///
 /// The match is exhaustive with no wildcard, and every arm names its
 /// variant's fields (as [`crate::node::Node::operand_rows`] does), so a new
@@ -1844,8 +1846,8 @@ pub(crate) enum Lift {
 ///   name).
 /// - **Spelled under the consumer**, as [`RoleSeg::From`] the seat's
 ///   read: a `Union`'s or `Intersect`'s member, a `Subtract`'s seat, and
-///   a `Fillet`'s, `Chamfer`'s or `Shell`'s target's survivor; a world
-///   placement's copy as `Placed`.
+///   a `Fillet`'s, `Chamfer`'s or `Shell`'s survivor, under its
+///   selection's body read; a world placement's copy as `Placed`.
 /// - **Moved**: a `Transform`, a `Pattern` and a `PlacedUnion` place
 ///   their input again.
 /// - **Dropped**: every other seat — the datum, profile, path, axis
@@ -1856,6 +1858,7 @@ pub(crate) fn lift<P>(
     input: RecipeNodeId,
     name: &StableName,
     defined_by: &dyn Fn(crate::VarId) -> Option<RecipeNodeId>,
+    selected_body: &dyn Fn(crate::VarId) -> crate::VarId,
 ) -> Vec<Lift> {
     use crate::node::{Datum, Node, PatternKind};
     let under = |read: crate::VarId| {
@@ -1913,20 +1916,19 @@ pub(crate) fn lift<P>(
             .flatten()
             .collect(),
         Node::Fillet {
-            target,
             radius: _,
-            selection: _,
+            selection: body,
         }
         | Node::Chamfer {
-            target,
             distance: _,
-            selection: _,
+            selection: body,
         }
         | Node::Shell {
-            target,
             thickness: _,
-            open: _,
-        } => seat(target.read, under(target.read)).into_iter().collect(),
+            open: body,
+        } => seat(*body, under(selected_body(*body)))
+            .into_iter()
+            .collect(),
         Node::Transform {
             input: placed,
             placement: _,
@@ -1959,8 +1961,8 @@ pub(crate) fn lift<P>(
             .into_iter()
             .flatten()
             .collect(),
-        Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
-            seat(at.read, Lift::Dropped).into_iter().collect()
+        Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
+            seat(*face, Lift::Dropped).into_iter().collect()
         }
         Node::Datum(Datum::AxisInPlane {
             frame: plane,
@@ -1970,7 +1972,7 @@ pub(crate) fn lift<P>(
         Node::Measure { primitive } => primitive
             .refs()
             .iter()
-            .any(|r| r.at == input)
+            .any(|&&r| reads(r))
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),
@@ -2960,7 +2962,7 @@ mod tests {
                 path: vec![RoleSeg::OutputBody],
             };
             assert_eq!(
-                lift(cut, &node, input, &name, &defined_by),
+                lift(cut, &node, input, &name, &defined_by, &|read| read),
                 vec![Lift::Spelled(StableName {
                     kind: EntityKind::Face,
                     node: cut,

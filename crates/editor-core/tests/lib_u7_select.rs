@@ -237,7 +237,7 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
         .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, doc.operation_of(target.read)?)),
+            Some(Node::Fillet { selection, .. }) => Some((*id, doc.read_operation(*selection)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");
@@ -298,7 +298,7 @@ fn the_stored_selection_is_the_materialized_set() {
     let doc = die_composed::document();
     let (cube, ball, pipped) = composed_ids(&doc.doc);
     let stored = match doc.doc.node(doc.result.expect("a result node")) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(&doc.doc, *selection),
         other => panic!("expected a fillet, got {other:?}"),
     };
     let mut authored = die_composed::selection(&doc.doc, cube, ball, pipped);

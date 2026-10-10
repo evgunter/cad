@@ -4938,7 +4938,6 @@ mod tests {
         };
         let limb = P::Limb {
             limb: crate::ssi::SsiLimb::OnLocus,
-            value: 2e-8,
             margin: MarginDiag::value(2e-8),
         };
         let unavailable = CertifyError::ChartImageUnavailable {
@@ -5527,7 +5526,6 @@ mod tests {
         }
         let limb = CertifyError::PlaneNurbs(P::Limb {
             limb: SsiLimb::HullSup,
-            value: 5e-7,
             margin: MarginDiag::value(5e-7),
         });
         assert_eq!(limb.ending(Reading::AtRest).unwrap(), KERNEL_LIMIT_RECOURSE);

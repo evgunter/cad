@@ -27,10 +27,10 @@
 //! transform's placement past its first step, completed by a step
 //! index; `mate_frame_step` names one expression of a mate side's frame
 //! offset, completed by the side, a step index and a component; a
-//! loft's `section` and a union's `member` name one entry of a list,
-//! completed by its position; `index` names one index of an indexed
-//! read, completed by the seat it reads at and the index's position.
-//! There is nothing to answer with, so each
+//! loft's `section`, a union's `member` and a measure's `measured`
+//! name one entry of a list, completed by its position; `index` names
+//! one index of an indexed read, completed by the seat it reads at and
+//! the index's position. There is nothing to answer with, so each
 //! answers nothing —
 //! the same stop the forward map makes one level out, where the word
 //! says which kind of slot it is and the rest of the address is in the
@@ -102,7 +102,9 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "members" => SlotId::Operand(OperandSlot::Members),
         "input" => SlotId::Operand(OperandSlot::Input),
         "of" => SlotId::Operand(OperandSlot::Of),
-        "at" => SlotId::Operand(OperandSlot::At),
+        "selection" => SlotId::Operand(OperandSlot::Selection),
+        "open" => SlotId::Operand(OperandSlot::Open),
+        "face" => SlotId::Operand(OperandSlot::Face),
         "body" => SlotId::Operand(OperandSlot::Body),
         _ => return None,
     };

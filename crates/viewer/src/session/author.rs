@@ -10,7 +10,7 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    Bodies, Datum, DeclaredPair, Dimension, DimensionError, Formula, Node, RecipeNodeId,
+    Bodies, Datum, DeclaredPair, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId,
 };
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
@@ -354,8 +354,7 @@ pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
             direction,
         },
         DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame {
-            at: at.into(),
-            face,
+            face: Operand::select(at, vec![face]),
             spin,
         },
     })

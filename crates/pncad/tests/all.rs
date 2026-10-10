@@ -2807,9 +2807,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         .expect("two walls");
     let (doc, measure) = insert(
         doc,
-        Node::Measure {
-            primitive: pncad::document::MeasurePrimitive::Distance { a, b },
-        },
+        Node::measure(&pncad::document::MeasurePrimitive::Distance { a, b }),
     );
     let value = doc.output(measure, 0).expect("a measure defines its value");
     // A distance is a magnitude, so `>= 0` holds for any selection —

@@ -383,15 +383,14 @@ fn the_symbol_survives_a_rename() {
 fn the_door_lowers_names_before_it_mints() {
     let (doc, _, blend) = blended_by_w();
     let w = id(&doc, "w");
-    let Some(Node::Fillet {
-        target, selection, ..
-    }) = doc.node(blend).cloned()
-    else {
+    let Some(Node::Fillet { selection, .. }) = doc.node(blend).cloned() else {
         panic!("a fillet");
     };
-    let by_name = Node::fillet(target.read, named("w"), selection.clone());
+    let picked = doc.selection(selection).cloned().expect("a selection");
+    let (target, selection) = (picked.body, picked.names);
+    let by_name = Node::fillet(target, named("w"), selection.clone());
     let by_id = Node::fillet(
-        target.read,
+        target,
         Formula::var(w, Dimension::Length),
         selection.clone(),
     );

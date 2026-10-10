@@ -329,6 +329,7 @@ pub fn document() -> CorpusDoc {
         attr: Attr::Color(Rgba8::opaque(20, 90, 160)),
     });
     r.push(DocEdit::Rebind {
+        body: None,
         from: a_body,
         to: b_body,
     });

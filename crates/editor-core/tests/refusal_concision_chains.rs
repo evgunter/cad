@@ -197,9 +197,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "AssertionDimension",
     "AxisInDifferentPlane",
     "BlendSelectionEmpty",
-    "BlendSelectionKind",
-    "BlendSelectionResolve/Ambiguous",
-    "BlendSelectionResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DeclareResolve/Ambiguous",
@@ -219,20 +219,20 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
-    "FaceFrameKind",
+    "SelectKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
-    "FaceFrameResolve/Ambiguous",
-    "FaceFrameResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
     "MeasureNonFinite",
     "MeasureNotParallel",
-    "MeasureRefResolve/Ambiguous",
-    "MeasureRefResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
     "MeasureRefUnreadable/NoSuchBody",
@@ -243,7 +243,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/Readback",
     "MeasureRefUnreadable/WholeBody",
     "MeasureRefUnreadable/WrongKind",
-    "MeasureSelectionKind",
     "MeasureUnsupported",
     "MissingInput",
     "MissingSlot",
@@ -273,9 +272,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Seed/UnknownVar",
     "SeedPinnedSection",
     "ShellLaneUnsupported",
-    "ShellOpenKind",
-    "ShellOpenResolve/Ambiguous",
-    "ShellOpenResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
     "VerbArity",
@@ -3433,32 +3432,16 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 5] = [
+    let wraps: [(&str, Wrap); 2] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
             reference: 0,
         }),
-        ("BlendSelectionResolve", |error| {
-            NodeErrorKind::BlendSelectionResolve {
-                verb: sweep::blend::BlendKind::Chamfer,
-                error,
-                reference: 0,
-            }
-        }),
-        ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve {
-                error,
-                reference: 0,
-            }
-        }),
-        ("FaceFrameResolve", |error| {
-            NodeErrorKind::FaceFrameResolve { error }
-        }),
-        ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve {
-                error,
-                reference: 0,
-            }
+        ("SelectResolve", |error| NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
+            error,
+            reference: 0,
         }),
     ];
     for (wrap, build) in wraps {
@@ -3656,7 +3639,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("MeasureRefUnreadable/{n}"),
             NodeErrorKind::MeasureRefUnreadable {
-                name: Box::new(face()),
+                slot: editor_core::OperandSlot::Measured(editor_core::MeasureVerb::Distance, 0),
+                var: editor_core::VarId::new(0, 7),
                 error,
             },
         ));
@@ -4573,10 +4557,7 @@ const REPLACE_FACE_ARMS: [&str; 41] = [
 /// where another kind is wanted.
 fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::measure::MeasurePrimitive;
-    use editor_core::{
-        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
-    };
+    use editor_core::{CancelToken, Datum, EvalOptions, Node, NodeResult, ProfileDoc, evaluate};
     use geom_core::Tol;
     let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
     let (doc, profile) = on_frame(
@@ -4596,21 +4577,14 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     );
     let face = fname(body, wall(&doc, body, 2));
     let edge = fixture::prism_edges(&doc, body, 4).remove(2);
-    let vertex = fixture::cap_vertex(body, CapEnd::End, crate::fixture::vpiece(&doc, body, 0, 0));
     let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
     let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body.into(),
-            face: edge,
+            face: editor_core::Operand::select(body, vec![edge]),
             spin: ang(0.0),
         }),
-    );
-    let (doc, measure) = crate::fixture::measure_node(
-        &doc,
-        MeasurePrimitive::MinClearance { a: 0, b: 1 },
-        vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
     );
     let mut ev = evaluate::<f64>(
         &doc,
@@ -4620,10 +4594,9 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Tol::witness(),
     );
     [
-        ("ShellOpenKind", shell),
-        ("BlendSelectionKind", fillet),
-        ("FaceFrameKind", frame),
-        ("MeasureSelectionKind", measure),
+        ("SelectKind", shell),
+        ("SelectKind", fillet),
+        ("SelectKind", frame),
     ]
     .into_iter()
     .map(|(n, node)| match ev.nodes.remove(&node) {

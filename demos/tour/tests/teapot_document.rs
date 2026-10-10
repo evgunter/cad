@@ -727,7 +727,12 @@ fn a_split_carries_a_held_slits_band() {
         .expect("the lid splits out whole");
     let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);
     let held = match out.part.node(part_holder) {
-        Some(Node::Fillet { selection, .. }) => selection[0].clone(),
+        Some(Node::Fillet { selection, .. }) => out
+            .part
+            .selection(*selection)
+            .expect("the fillet reads a selection")
+            .names[0]
+            .clone(),
         other => panic!("{other:?}"),
     };
     assert_ne!(

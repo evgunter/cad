@@ -1320,9 +1320,8 @@ fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: body.into(),
             radius: len(0.1),
-            selection: vec![name],
+            selection: editor_core::Operand::select(body, vec![name]),
         },
     );
     let cut = doc
@@ -1772,8 +1771,10 @@ fn reshaped_component(
         let (doc, id) = insert(
             doc,
             Node::Datum(editor_core::Datum::FaceFrame {
-                at: e2.into(),
-                face: fixture::fname(e2, RoleSeg::Lateral(dropped.into())),
+                face: editor_core::Operand::select(
+                    e2,
+                    vec![fixture::fname(e2, RoleSeg::Lateral(dropped.into()))],
+                ),
                 spin: fixture::ang(0.0),
             }),
         );
@@ -1881,7 +1882,9 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     let doc = labelled(doc, e2, "walled block");
     let face_frame = face_frame.expect("the stranded frame");
     let dropped = match doc.node(face_frame) {
-        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => face.clone(),
+        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => {
+            doc.selection(*face).expect("a face selection").names[0].clone()
+        }
         other => panic!("a face frame, got {other:?}"),
     };
     let dropped_step = match dropped.path.as_slice() {

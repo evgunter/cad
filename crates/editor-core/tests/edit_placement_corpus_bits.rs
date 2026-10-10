@@ -35,6 +35,11 @@ use editor_core::Node;
 /// **Re-pinned when an id became its mint ordinal and its digest**: a
 /// row names its node by ordinal, and every word moved with the id it
 /// hashes; the ids-masked geometry fence held.
+///
+/// **Re-pinned when a selection became a variable**: the tour document
+/// mints one selection ahead of its transforms, so each of its rows'
+/// ordinals moved by one and its words with them; every other row held,
+/// and so did the ids-masked geometry fence.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 206, 0x1d1f8e2cc2c77841),
     ("die", 217, 0xd99f3cebb7d169d6),
@@ -66,27 +71,27 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("die_pips", 68, 0xa472d779713b2147),
     ("part_select", 64, 0xd5fdf5f3da68de4b),
     ("die_composed", 68, 0xa472d779713b2147),
-    ("die_composed_tour", 71, 0x9d947d1d538118e1),
-    ("die_composed_tour", 80, 0xcebbf7bd9dca1004),
-    ("die_composed_tour", 89, 0x82372caa3c1efd3a),
-    ("die_composed_tour", 98, 0xb04c5e24300ad66c),
-    ("die_composed_tour", 107, 0xaf9e0e368925f49d),
-    ("die_composed_tour", 116, 0xe670ebd78d41a234),
-    ("die_composed_tour", 125, 0x2339fcb3df84cb92),
-    ("die_composed_tour", 134, 0x26e2629e752d9470),
-    ("die_composed_tour", 143, 0x9e1e27abdb9171be),
-    ("die_composed_tour", 152, 0x51b38f38720c1cef),
-    ("die_composed_tour", 161, 0x7f50f0145ce32774),
-    ("die_composed_tour", 170, 0x6bc53ad45356b0f1),
-    ("die_composed_tour", 179, 0xa95c57173aa995cb),
-    ("die_composed_tour", 188, 0x9faacde8163a09e2),
-    ("die_composed_tour", 197, 0xbbeced20116063c9),
-    ("die_composed_tour", 206, 0xad1f83c79c586f71),
-    ("die_composed_tour", 215, 0xdbb01551c8af2beb),
-    ("die_composed_tour", 224, 0xdef4747660d91bf6),
-    ("die_composed_tour", 233, 0x2879f7909c546dc2),
-    ("die_composed_tour", 242, 0x86dd6414ec8103af),
-    ("die_composed_tour", 251, 0x4f9abaac2e3fb7dc),
+    ("die_composed_tour", 72, 0x946fdec16be6d4dd),
+    ("die_composed_tour", 81, 0x8eaed71b23301bfd),
+    ("die_composed_tour", 90, 0xfc3b3de8efc6758e),
+    ("die_composed_tour", 99, 0x33e44e7a6da83e50),
+    ("die_composed_tour", 108, 0x47899f4dbb6e06d1),
+    ("die_composed_tour", 117, 0x55a0e22c09cd72b3),
+    ("die_composed_tour", 126, 0x9393640358f0a14d),
+    ("die_composed_tour", 135, 0xb8f5e9625272f447),
+    ("die_composed_tour", 144, 0xda481e05995355f4),
+    ("die_composed_tour", 153, 0xf2d03fc0ce47d5c1),
+    ("die_composed_tour", 162, 0x3a0663e09342758b),
+    ("die_composed_tour", 171, 0x4ccd69a862624e8b),
+    ("die_composed_tour", 180, 0x50d0d0fe162f7752),
+    ("die_composed_tour", 189, 0x1ca5ce6ab267170f),
+    ("die_composed_tour", 198, 0x714866b5613a5ca2),
+    ("die_composed_tour", 207, 0x3a8ad70f8f177b47),
+    ("die_composed_tour", 216, 0x92f388cd59467203),
+    ("die_composed_tour", 225, 0x5c88068ff4e0ab59),
+    ("die_composed_tour", 234, 0xefcbd4ff15552011),
+    ("die_composed_tour", 243, 0x04565645be915e1e),
+    ("die_composed_tour", 252, 0x822bf60af8fa5633),
 ];
 
 #[test]

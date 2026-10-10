@@ -1328,6 +1328,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: in_part(ids[1], body, CapEnd::Start),
                 to: in_part(ids[2], body, CapEnd::Start),
             },
@@ -1418,6 +1419,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: in_part(ids[1], body, CapEnd::Start),
                 to: in_part(ids[2], body, CapEnd::Start),
             },

@@ -76,7 +76,7 @@ fn selection_of(
     fillet: editor_core::RecipeNodeId,
 ) -> Vec<StableName> {
     match doc.node(fillet) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(doc, *selection),
         other => panic!("expected a fillet node, got {other:?}"),
     }
 }
@@ -86,10 +86,10 @@ fn fillet_and_target(
     doc: &editor_core::ProfileDoc,
 ) -> (editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
     for id in doc.ids() {
-        if let Some(Node::Fillet { target, .. }) = doc.node(id) {
+        if let Some(Node::Fillet { selection, .. }) = doc.node(id) {
             return (
                 id,
-                doc.operation_of(target.read)
+                doc.read_operation(*selection)
                     .expect("the target read is live"),
             );
         }
@@ -103,7 +103,11 @@ fn target_read(
     fillet: editor_core::RecipeNodeId,
 ) -> editor_core::VarId {
     match doc.node(fillet) {
-        Some(Node::Fillet { target, .. }) => target.read,
+        Some(Node::Fillet { selection, .. }) => {
+            doc.selection(*selection)
+                .expect("a fillet reads a selection")
+                .body
+        }
         other => panic!("{fillet} is a fillet, got {other:?}"),
     }
 }
@@ -164,6 +168,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         let d = apply(
             &doc.doc,
             &DocEdit::Rebind {
+                body: doc.doc.output(target, 0),
                 from: selection[0].clone(),
                 to: meridian.clone(),
             },
@@ -376,12 +381,13 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
 #[test]
 fn rebind_repairs_a_selection_and_can_never_grow_it() {
     let doc = die_composed::document();
-    let (fillet, _) = fillet_and_target(&doc.doc);
+    let (fillet, target) = fillet_and_target(&doc.doc);
     let before = selection_of(&doc.doc, fillet);
     let (from, to) = (before[0].clone(), before[1].clone());
     let after = apply(
         &doc.doc,
         &DocEdit::Rebind {
+            body: doc.doc.output(target, 0),
             from: from.clone(),
             to: to.clone(),
         },
