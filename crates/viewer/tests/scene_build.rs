@@ -53,13 +53,20 @@ fn enclosed_volume(scene: &viewer::SceneMesh) -> f64 {
 #[test]
 fn the_spike_document_becomes_a_drawable_scene() {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     assert_eq!(
         doc.ids().len(),
-        3,
-        "the sketch frame, one profile node and one extrude"
+        4,
+        "the sketch frame, one profile node, one extrude and its placement"
     );
-    assert_eq!(doc.roots().len(), 1, "the extrude is the only sink");
+    assert_eq!(
+        doc.placements()
+            .iter()
+            .map(|&placement| viewer::world::seat_of(&doc, placement))
+            .collect::<Vec<_>>(),
+        [extrude],
+        "the extrude is the world"
+    );
 
     let mesh = scene::scene_of(&doc, delta(1.0e-4), tol).expect("the plate tessellates");
     let stats = mesh.stats();
@@ -92,7 +99,7 @@ fn the_spike_document_becomes_a_drawable_scene() {
 #[test]
 fn every_normal_is_a_unit_vector() {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(&doc, delta(1.0e-4), tol).expect("the plate tessellates");
     for (i, n) in mesh.normals().iter().enumerate() {
         let len = (f64::from(n[0]) * f64::from(n[0])
@@ -112,7 +119,7 @@ fn every_normal_is_a_unit_vector() {
 #[test]
 fn the_triangles_wind_outward_and_enclose_the_right_volume() {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(&doc, delta(1.0e-5), tol).expect("the plate tessellates");
     let nominal = common::plate_volume();
     let enclosed = enclosed_volume(&mesh);
@@ -134,7 +141,7 @@ fn the_triangles_wind_outward_and_enclose_the_right_volume() {
 #[test]
 fn a_finer_delta_never_coarsens_the_mesh() {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let nominal = common::plate_volume();
     let mut previous: Option<(usize, f64)> = None;
     for exponent in [3.0f64, 4.0, 5.0, 6.0] {
@@ -181,7 +188,7 @@ fn a_display_tolerance_that_is_not_a_length_is_refused() {
 #[test]
 fn a_camera_framed_on_the_scene_contains_every_vertex() {
     let tol = Tol::witness();
-    let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(&doc, delta(1.0e-4), tol).expect("the plate tessellates");
     let aspect = 16.0 / 9.0;
     let camera = Camera::framing(&mesh.bounds(), aspect).expect("the scene frames");

@@ -121,6 +121,7 @@ fn stand(
         doc = next;
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -164,6 +165,7 @@ fn row_of(
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -337,6 +339,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc = next;
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     // Park the third cube far away, then declare a Tangent against it
     // (unmintable, and not touching, so it contributes no pair).
     let (next, _) = step(
@@ -449,6 +452,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
         inner = next;
         ids.push(id);
     }
+    inner = crate::fixture::place_all(inner, &ids);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {

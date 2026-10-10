@@ -786,17 +786,15 @@ BOUND_AS = {
     # `editor-core`'s `test-support` feature, so through `pncad` a raw
     # target has no constructor in EITHER language. The
     # value that plays the target's role is the `NodePick`, whose
-    # pairing cannot be mis-asserted. The carrier-projection rule reads
-    # out the same way it does for `RootFault` below: a payload's
-    # category follows what its CARRIER does at the crossing, the
+    # pairing cannot be mis-asserted. By the carrier-projection rule a
+    # payload's category follows what its CARRIER does at the crossing, the
     # carrier here is the door's `targets` argument, and that argument
     # crosses holding `NodePick`s.
     "PickTarget": "NodePick",
     "pick_face": "Evaluation.pick_face",
     # `MeshPickError` is `NodePickError::Index`'s payload, and it
-    # crosses by the same rule and at a different spelling from
-    # `RootFault`'s. `EditError::Roots` has no word of its own, so its
-    # payload's arms ARE the carrier's tags. This carrier's arm does: `mesh_index` says which door's invariant
+    # crosses by the same rule. This carrier's arm has a word of its
+    # own: `mesh_index` says which door's invariant
     # broke, and a caller branching on the standing ladder needs it to
     # stay put. So the payload's discriminant arrives BESIDE the
     # carrier's rather than in place of it, at `index_variant`, `None`
@@ -1216,8 +1214,7 @@ BOUND_AS = {
     # The verdict's three PAYLOADS, curated so the arms cross. The
     # carrier-projection rule places them: `Resolution` projects a
     # discriminant (`resolution_status_tag`), so its payloads project
-    # theirs — the `RootFault` reading, on a carrier that is a VALUE
-    # rather than a refusal.
+    # theirs, on a carrier that is a VALUE rather than a refusal.
     #
     # The two enums are one attribute between them, and the merge is
     # deliberate rather than a shortcut: `Resolution.variant` is
@@ -1292,13 +1289,7 @@ BOUND_AS = {
     # as a key type for no gain, since both are read in order and
     # never looked up by one id.
     #
-    # `RootFault` crosses as `EditError.variant`, and the tags are the
-    # FAULT's, not a wrapper's — `root_not_live`, `root_duplicate`,
-    # `root_ancestor`, `root_uncovered` — because which invariant
-    # broke is what a caller branches on. Shared by the edit door and
-    # the persistence validator, exactly as the one Rust type is.
-    #
-    # `PlacementRuleFault` likewise crosses as `EditError.variant`
+    # `PlacementRuleFault` crosses as `EditError.variant`
     # (`placement_rule_mismatch`, `empty_placement_list`,
     # `non_finite_placement`, `improper_placement`). It sat in the
     # `gap` roster carrying the reason "a placement is set by an edit
@@ -1339,7 +1330,6 @@ BOUND_AS = {
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
-    "RootFault": "EditError.variant",
     # What a `RootInvalid` refusal lists, one per failing source body;
     # the arm crosses as its tag word, its first failing root as
     # `node`, and every root, output and finding in its message.
@@ -1674,9 +1664,7 @@ FAMILIES: dict[str, str] = {
 #:   `InterrogateError` at the read-back doors themselves, where the
 #:   kernel's own `ReadbackError` arms arrive under their own tags
 #:   rather than a wrapper's — one Rust type, two Python classes,
-#:   because the two doors refuse different CALLS; `EditError.variant`
-#:   for `RootFault`, the `Roots` arm's payload, whose four arms are
-#:   the four `root_*` tags;
+#:   because the two doors refuse different CALLS;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
@@ -1885,10 +1873,10 @@ FAMILIES: dict[str, str] = {
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
 #: `InlineOutcome`, `SplitError`, `InlineError`, `NodeMap`,
-#: `InterfaceRecord`, `InterfaceCrossing`) and explicit product roots
-#: (`product`, `product_named`, `ProductError`, `RootFault`).
+#: `InterfaceRecord`, `InterfaceCrossing`) and the product
+#: (`product`, `product_named`, `ProductError`).
 #:
-#: Thirty-nine are top-level names in `pncad.pyi`; four are in
+#: Most are top-level names in `pncad.pyi`; the rest are in
 #: `BOUND_AS` and the comment there says why each has a different
 #: Python shape. NOTE the collision the mapping rule kept honest:
 #: top-level `split` is the document REFACTORING, and `Node.split` is
@@ -2723,11 +2711,9 @@ NOT_BOUND = {
     "BlendKind": INTERIOR,
     # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
     # prelude-carried `BlendError` is matchable THROUGH the prelude.
-    # `INTERIOR` by the rule the `RootFault` and CUR4 cases together
-    # settle: **a payload's category follows what its CARRIER does at
-    # the crossing.** `EditError` projects its arms as tags, so
-    # `RootFault` is in `BOUND_AS` at `EditError.variant` and its arms
-    # ARE four tags. `BlendError` projects no arms at all —
+    # `INTERIOR` by the rule the CUR4 cases settle: **a payload's
+    # category follows what its CARRIER does at the crossing.**
+    # `BlendError` projects no arms at all —
     # `node_error_tag` reads the VERB, so the whole refusal arrives as
     # one `fillet`/`chamfer` tag plus the kernel's `Display` prose — so
     # there is no tag to split, none to pin, and nothing for a Python
@@ -2902,10 +2888,6 @@ NOT_BOUND = {
     # failure's tag word and prose, the checks refusal as
     # `product_unavailable` and the refusal's prose.
     "ProductRefusal": INTERIOR,
-    # What `ProductError::PlacedUnderTwoRoots` places twice — the input
-    # its recourse branches on. The sentence a Python caller reads
-    # already says which recourse; the kind behind it is interior.
-    "PlacedTwice": INTERIOR,
     # The one generic both wrappers above are spellings of; Python holds
     # neither, so it holds no instance of this either.
     "Refusal": INTERIOR,
@@ -3340,11 +3322,11 @@ NOT_BOUND = {
     # `tests/test_measures.py`.
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
     # families held 43 names — the pin-update door, the at-rest gate,
-    # mates and the solve, instantiated parts, split/inline, explicit
-    # product roots — and every one of them is now accounted for:
-    # thirty-nine name-for-name in `pncad.pyi`, and four in `BOUND_AS`
-    # because their Python shape differs (`NodeMap`, `RootFault`,
-    # `PlacementRuleFault`, and `MateSide`, which is both). The
+    # mates and the solve, instantiated parts, split/inline, the
+    # product — and every one of them is accounted for: name-for-name
+    # in `pncad.pyi`, or in `BOUND_AS` because their Python shape
+    # differs (`NodeMap`, `PlacementRuleFault`, and `MateSide`, which
+    # is both). The
     # positive form is `tests/test_assembly_author.py`.
     # B-CHECKS IS GONE FROM THIS ROSTER, closed at LIB-B-CHECKS, and
     # the id is gone from `FAMILIES` with it — a charter no entry
@@ -3670,6 +3652,8 @@ MEMBERS_BOUND_AS = {
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
     "EditError::PartHalfPort": "EditError.variant",
+    "EditError::ReadsWorldCopy": "EditError.variant",
+    "EditError::MeasuresWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
@@ -3732,7 +3716,6 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNonFinite": "EditError.variant",
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
-    "EditError::Roots": "EditError.variant",
     "EditError::OffsetOnNonInstance": "EditError.variant",
     "EditError::GaugeOnNonPlaced": "EditError.variant",
     "EditError::GaugeNotLive": "EditError.variant",
@@ -3776,7 +3759,8 @@ MEMBERS_BOUND_AS = {
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
-    "InlineError::InstanceConsumed": "InlineError.variant",
+    "InlineError::PlacementPoseCrosses": "InlineError.variant",
+    "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
@@ -3879,9 +3863,8 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
     "ProductError::Root": "ProductError.variant",
-    "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
-    "ProductError::Naming": "ProductError.variant",
-    "ProductError::NoBodyRoots": "ProductError.variant",
+    "ProductError::EmptyProduct": "ProductError.variant",
+    "ProductError::StrandedPlacement": "ProductError.variant",
     "ProductError::Unplaced": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
@@ -3919,6 +3902,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
+    "SplitError::RemainderReadUncarried": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
     "SplitError::SeveredGauge": "SplitError.variant",
@@ -3937,6 +3921,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
+    "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
     "SplitError::PartEdit": "SplitError.variant",
     "SplitError::RemainderEdit": "SplitError.variant",

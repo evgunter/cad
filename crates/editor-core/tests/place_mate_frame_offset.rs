@@ -31,6 +31,14 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
+/// **An instance of `part`, placed in `doc`'s world at the identity**
+/// (A10): each instance here is in the product, as the product roots
+/// were.
+fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, Node::instantiate_part(part));
+    (crate::fixture::place(doc, id).0, id)
+}
+
 fn slide() -> VarName {
     VarName::from_static("slide")
 }
@@ -84,8 +92,8 @@ fn seated(
 ) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let p = parts(label);
     let doc = prelude(ProfileDoc::empty(DocumentId::derive(label), Tol::witness()));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, base) = instance(doc, p.base);
+    let (doc, top) = instance(doc, p.top);
     let opts = p.opts();
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
     let (doc, m) = step_with(
@@ -143,6 +151,8 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
     // The base part grows on disk; its names hold, its pin moves.
     let (base_doc, base_body) = block(&format!("{label}-base"), 3.0, 1.0);
     assert_eq!(base_body, p.base_body, "the same base document");
+    // As stored: its body placed in its world.
+    let base_doc = crate::fixture::place(base_doc, base_body).0;
     let (grown, _) = step(
         base_doc,
         DocEdit::SetParam {
@@ -312,7 +322,7 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     // No offset of its own, so the base stays the group's root.
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = step(
@@ -459,7 +469,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     let before = top_corner(&doc, &o, top);
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, m]),
+        &cut(&doc, &[base, top, m]),
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -490,7 +500,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     // A kept declaring mate reading `slide`: a third block on its own
     // gauge, its lower cap on the top's upper cap slid by `slide`.
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
-    let (doc, k) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, k) = instance(doc, p.top);
     let doc = set_gauge(doc, k, Some(g));
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(
@@ -507,7 +517,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     );
     let err = editor_core::split(
         &doc,
-        &cut(&[base, top, m]),
+        &cut(&doc, &[base, top, m]),
         DocumentId::derive(&format!("{label}-part2")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -533,7 +543,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     );
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, plain.expect("minted")]),
+        &cut(&doc, &[base, top, plain.expect("minted")]),
         DocumentId::derive(&format!("{label}-part3")),
         Tol::witness(),
         o.resolver.as_ref(),

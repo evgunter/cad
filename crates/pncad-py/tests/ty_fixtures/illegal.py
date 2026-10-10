@@ -337,9 +337,8 @@ Node.instantiate_part(doc.id)  # ty: error
 # translation-only shortcut that would hide it.
 DocEdit.set_offset(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
-# The designate door is TOTAL and takes the whole list; one node is
-# not a root list.
-DocEdit.set_roots(solid)  # ty: error
+# A placement's pose is a `Placement`, not a translation tuple.
+doc.place(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 
 # A mate's reference is a node AND a name: the node it is read at, then
 # the stable NAME TEXT `Evaluation.select` answers in. A node id where
