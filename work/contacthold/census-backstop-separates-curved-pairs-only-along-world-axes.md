@@ -2,7 +2,8 @@
 id: census-backstop-separates-curved-pairs-only-along-world-axes
 kind: issue
 title: The census backstop clears a curved cross-solid pair only by a gap along a world axis, so a pair's verdict depends on how the body is turned
-status: open
+status: review
+pr: 4550
 opened: 2026-10-03
 priority: P1
 cost: M
@@ -36,12 +37,14 @@ own normal where it is planar) makes the clear a fact about the pair.
 The world axes can stay as the first candidates; what the row asks is
 that they not be the only ones.
 
-`crates/topo/README.md`'s census paragraph (the exclusion step) also
-says the touch analysis reads every curved face of a touch's star
-"through that box (its corners' signed distances from the candidate
-plane)". The touch analysis as built answers `Unreadable` for any curved
-face (`census::Said::CurvedTouch`), so that sentence describes no code
-today; correct it with this row.
+`crates/topo/README.md`'s census paragraph (the exclusion step) says
+the touch analysis reads every curved face of a touch's star "through
+that box". That sentence is decision C1 of Ev's ruling on PR #3422
+(fork log row 13): ratified, and not yet built. The code answers
+`Unreadable` for a curved star face today. The gap between page and
+code is carried by `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box`
+and `declared-only-meetings-clear-at-the-census-gate-unread`, not by
+this row.
 
 ## Claimed by CONTACTHOLD (2026-10-10)
 
@@ -58,3 +61,11 @@ tube face strictly on the plane's far side. The same pairs refuse with
 the cube moved 0.05 off; at 20 off it passes. The witness row
 `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime`
 rides with this one. (CONTACTHOLD orchestrator)
+
+## Arm 1 landed; arm 2 split off (2026-10-10)
+
+Arm 1 now clears along the axis between the two faces' anchors and
+either face's own normal where it is planar, after the world axes
+(`census::backstop_apart`, over `boolean::separating::apart`). Arm 2's
+world-axis containment gate is
+`census-containment-gate-reads-instances-along-world-axes-only`.
