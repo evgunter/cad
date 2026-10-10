@@ -84,7 +84,7 @@ fn main() {
     // Interval widths: exact inputs; then angle carrying 1 ulp; then wide axis origin.
     println!("{:<22} {:>10} {:>10} {:>10} {:>10}   (widest over s=i/16)", "fixture / case", "shipped", "I-R@p", "q+R(p-q)", "rodr@p");
     for f in &fx {
-        for (case, aw, qw) in [("exact", 0.0, 0.0), ("angle±ulp", 1.0, 0.0), ("q±1e-12", 0.0, 1e-12), ("q±1e-9", 0.0, 1e-9), ("p±1e-12", 0.0, -1e-12)] {
+        for (case, aw, qw) in [("exact", 0.0, 0.0), ("angle±ulp", 1.0, 0.0), ("q±1e-12", 0.0, 1e-12), ("q±1e-9", 0.0, 1e-9), ("p±1e-12", 0.0, -1e-12), ("p=q+v q±2e-12", 0.0, 2e-12), ("p=q+v q±2e-9", 0.0, 2e-9)] {
             let mut worst = [0.0f64; 4];
             let mut at0 = [0.0f64; 4];
             for i in 0..=16 {
@@ -93,6 +93,7 @@ fn main() {
                 let pwid = if qw < 0.0 { -qw } else { 0.0 }; let qw = qw.max(0.0);
                 let qi = Point3::new(Interval::from_bounds(f.q.x - qw, f.q.x + qw), Interval::from_bounds(f.q.y - qw, f.q.y + qw), Interval::from_bounds(f.q.z - qw, f.q.z + qw));
                 let p = Point3::new(Interval::from_bounds(f.p.x - pwid, f.p.x + pwid), Interval::from_bounds(f.p.y - pwid, f.p.y + pwid), Interval::from_bounds(f.p.z - pwid, f.p.z + pwid)); let n = ivv(f.n);
+                let p = if qw > 1.5e-12 && (qw - 2e-12).abs() < 1e-18 || (qw - 2e-9).abs() < 1e-18 { let dv = f.p - f.q; qi + ivv(dv) } else { p };
                 let o = [pw(s0(p, qi, n, th)), pw(s1(p, qi, n, th)), pw(s2(p, qi, n, th)), pw(s3(p, qi, n, th))];
                 for k in 0..4 { worst[k] = worst[k].max(o[k]); if i == 0 { at0[k] = o[k]; } }
             }
