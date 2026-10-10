@@ -889,8 +889,7 @@ mod tests {
                 carrier.eval(t1),
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1: wall,
-                        s2: rim_plane,
+                        pair: geom_brep::SurfacePair::new(wall, rim_plane),
                         witness: carrier.mid_point(0.0, t1),
                     },
                     carrier: carrier.clone(),

@@ -131,7 +131,7 @@ pub use intersect::{
     cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
     plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};

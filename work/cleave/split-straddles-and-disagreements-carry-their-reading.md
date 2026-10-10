@@ -2,12 +2,13 @@
 id: split-straddles-and-disagreements-carry-their-reading
 kind: unit
 title: split's straddles and disagreements mint INVALID: a straddle goes on the log as its enclosure, a disagreement is typed (mints C6-C9)
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [split-escalations-end-a-poisoned-margin-in-the-plane-lever]
+branch: cleave/split-straddles-carry-reading
 ---
 
 Unit 2 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
