@@ -492,11 +492,12 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
-        vec![Maintenance::Strand {
-            node: r.doc.spoken(fillet),
-            name: r.doc.spoken_name(&crease).steps_respoken(&applied.doc),
-            took: editor_core::Took::Step
-        }],
+        vec![fixture::selection_strand(
+            &r.doc,
+            fillet,
+            r.doc.spoken_name(&crease).steps_respoken(&applied.doc),
+            editor_core::Took::Step,
+        )],
         "the crease's name strands, its dropped step said by its tag"
     );
     assert_eq!(selection_of(&applied.doc, fillet), vec![crease.clone()]);
@@ -689,11 +690,12 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![
-            Maintenance::Strand {
-                node: doc.spoken(frame),
-                name: doc.spoken_name(&right).steps_respoken(&applied.doc),
-                took: editor_core::Took::Step
-            },
+            fixture::selection_strand(
+                &doc,
+                frame,
+                doc.spoken_name(&right).steps_respoken(&applied.doc),
+                editor_core::Took::Step,
+            ),
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(&right).steps_respoken(&applied.doc),
                 took: editor_core::Took::Step
@@ -1725,11 +1727,7 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![
-            Maintenance::Strand {
-                node: doc.spoken(frame),
-                name: said.clone(),
-                took: editor_core::Took::Piece
-            },
+            fixture::selection_strand(&doc, frame, said.clone(), editor_core::Took::Piece,),
             Maintenance::StrandedAppearance {
                 name: said,
                 took: editor_core::Took::Piece
@@ -1808,11 +1806,12 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     let keep = || vec![sharp_to_filleted(&old)];
     // The kept leg is said at its row in the program the edit made.
     let strand = |after: &ProfileDoc| {
-        vec![Maintenance::Strand {
-            node: doc.spoken(frame),
-            name: doc.spoken_name(&up).steps_respoken(after),
-            took: editor_core::Took::Piece,
-        }]
+        vec![fixture::selection_strand(
+            &doc,
+            frame,
+            doc.spoken_name(&up).steps_respoken(after),
+            editor_core::Took::Piece,
+        )]
     };
 
     let replaying = accepted(&doc, profile, vec![corner(true)], keep());
@@ -1866,11 +1865,12 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
     );
     assert_eq!(
         crate::fixture::without_anonymous(&via_program.maintenance),
-        vec![Maintenance::Strand {
-            node: doc.spoken(frame),
-            name: doc.spoken_name(&run_out),
-            took: editor_core::Took::Piece
-        }],
+        vec![fixture::selection_strand(
+            &doc,
+            frame,
+            doc.spoken_name(&run_out),
+            editor_core::Took::Piece,
+        )],
         "the reshaping strands the run its value leaves undrawn"
     );
     assert_eq!(
@@ -2056,9 +2056,9 @@ fn report_matches_resolution(
         .maintenance
         .iter()
         .filter_map(|m| match m {
-            Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name, .. } => {
-                Some(name.name().clone())
-            }
+            Maintenance::Strand { name, .. }
+            | Maintenance::StrandedSelection { name, .. }
+            | Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::AnonymousVarRemoved { var, .. } => {
                 assert!(
                     var.name().is_none(),
@@ -2519,11 +2519,12 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
                 took: editor_core::Took::Step,
             }
         } else {
-            Maintenance::Strand {
-                node: doc.spoken(blend),
-                name: doc.spoken_name(n).steps_respoken(after),
-                took: editor_core::Took::Step,
-            }
+            fixture::selection_strand(
+                &doc,
+                blend,
+                doc.spoken_name(n).steps_respoken(after),
+                editor_core::Took::Step,
+            )
         }
     };
     let live = |doc: &ProfileDoc| {

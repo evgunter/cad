@@ -75,6 +75,8 @@ pub enum VarKind {
     Face,
     /// One edge of a body ([`VarDef::Select`]).
     Edge,
+    /// One vertex of a body ([`VarDef::Select`]): a measure's point.
+    Vertex,
     /// A set of faces of one body ([`VarDef::Select`]).
     Faces,
     /// A set of edges of one body ([`VarDef::Select`]).
@@ -101,6 +103,7 @@ impl VarKind {
             | Self::Profile
             | Self::Face
             | Self::Edge
+            | Self::Vertex
             | Self::Faces
             | Self::Edges => return None,
         })
@@ -114,6 +117,7 @@ impl VarKind {
         match self {
             Self::Face => Some((EntityKind::Face, false)),
             Self::Edge => Some((EntityKind::Edge, false)),
+            Self::Vertex => Some((EntityKind::Vertex, false)),
             Self::Faces => Some((EntityKind::Face, true)),
             Self::Edges => Some((EntityKind::Edge, true)),
             Self::Length
@@ -155,6 +159,7 @@ impl VarKind {
             | Self::Profile
             | Self::Face
             | Self::Edge
+            | Self::Vertex
             | Self::Faces
             | Self::Edges => None,
         }
@@ -189,6 +194,7 @@ impl core::fmt::Display for VarKind {
                 Self::Profile => "profile",
                 Self::Face => "face",
                 Self::Edge => "edge",
+                Self::Vertex => "vertex",
                 Self::Faces => "set of faces",
                 Self::Edges => "set of edges",
                 Self::Length | Self::Angle | Self::Scalar | Self::Count => {
@@ -253,8 +259,9 @@ pub struct Selection {
 impl Selection {
     /// **Why `names` is not a stored selection of `kind`**, or `None`:
     /// a kind that is not a selection, a singleton not holding exactly
-    /// one name, a name of another entity kind, or a set out of its
-    /// stored order ([`Selection`]).
+    /// one name, or a set out of its stored order ([`Selection`]). What
+    /// each name denotes is evaluation's to check, where the name
+    /// resolves (`NodeErrorKind::SelectKind`).
     #[must_use]
     pub fn fault(kind: VarKind, names: &[crate::names::StableName]) -> Option<SelectionFault> {
         let Some((entity, set)) = kind.selection() else {
@@ -262,12 +269,6 @@ impl Selection {
         };
         if !set && names.len() != 1 {
             return Some(SelectionFault::Singleton { count: names.len() });
-        }
-        if let Some(name) = names.iter().find(|n| n.kind != entity) {
-            return Some(SelectionFault::Kind {
-                name: Box::new(name.clone()),
-                expected: entity,
-            });
         }
         if entity == crate::names::EntityKind::Edge {
             names
@@ -319,8 +320,8 @@ pub enum SelectionFault {
         /// The kind.
         kind: VarKind,
     },
-    /// The seat reads no selection of this entity kind (a measure reads
-    /// a face or an edge, not a vertex; a whole body is read as the body).
+    /// The seat reads no selection of this entity kind (a blend reads
+    /// edges, a shell faces; a whole body is read as the body).
     Seat {
         /// The entity kind the names name.
         entity: crate::names::EntityKind,
@@ -329,13 +330,6 @@ pub enum SelectionFault {
     Singleton {
         /// How many it holds.
         count: usize,
-    },
-    /// A name of another entity kind than the selection's.
-    Kind {
-        /// The name.
-        name: Box<crate::names::StableName>,
-        /// The selection's entity kind.
-        expected: crate::names::EntityKind,
     },
     /// An edge set not strictly increasing at `at`: a swap or a repeat
     /// (sorted and deduplicated is one rule).
@@ -366,14 +360,6 @@ impl core::fmt::Display for SelectionFault {
             }
             Self::Singleton { count } => {
                 write!(f, "a selection of one entity holds {count} names")
-            }
-            Self::Kind { name, expected } => {
-                write!(
-                    f,
-                    "{name} does not name {} {}",
-                    expected.article(),
-                    expected.noun()
-                )
             }
             Self::NotCanonical { at } => write!(
                 f,

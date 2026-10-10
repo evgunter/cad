@@ -360,7 +360,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         a: wall(site_a),
         b: wall(site_b),
     };
-    let measure = insert(&mut doc, Node::Measure { primitive }, tol);
+    let measure = insert(&mut doc, Node::measure(&primitive), tol);
     let distance = doc.output(measure, 0).expect("a measure defines its value");
     let web = Formula::sub(
         Formula::var(distance, Dimension::Length),

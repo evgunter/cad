@@ -57,7 +57,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
         Tol::witness(),
     );
     match ev.nodes.get(&node) {
-        Some(NodeResult::Failed(e)) => e.kind.to_string(),
+        Some(NodeResult::Failed(e)) => e.kind_spoken(doc),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
@@ -131,27 +131,21 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection names the side wall over the profile step {wall} of \
-             node {cube}, which is a face, not an edge",
+            "this fillet's edge 0 names the side wall over loop 0 step 1 of Extrude {cube}, \
+             which is a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the side wall over piece 7 of the profile \
-             step {ghost} of node {cube} no longer resolves in this evaluation: the recorded \
-             reference disagrees with the recipe as it stands on the derivation path (node \
-             {cube}'s payload differs)",
+            "this fillet's edge 0 no longer resolves in this evaluation: the recorded reference \
+             disagrees with the recipe as it stands on the derivation path (Extrude {cube}'s \
+             payload differs)",
         ),
     ];
-    let (doc, cube) = cube_doc();
-    let wall = fixture::step_of(&fixture::piece(&doc, cube, 0, 0)).to_string();
-    let ghost = fixture::step_of(&fixture::no_piece_of(&doc)).to_string();
+    let (_, cube) = cube_doc();
     let cube = test_utils::refusal::tag(cube.0.digest());
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
-        let expected = expected
-            .replace("{cube}", &cube)
-            .replace("{wall}", &wall)
-            .replace("{ghost}", &ghost);
+        let expected = expected.replace("{cube}", &cube);
         assert_eq!(actual, &expected, "the fillet's {label} refusal text moved");
     }
     // The op row is pinned by PREFIX, not whole. Its tail is the

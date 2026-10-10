@@ -112,9 +112,9 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
 }
 
 /// **(B, test 5) A delete leaves a typed reader.** Deleting the extrude
-/// under a fillet is accepted and reports the fillet's `target` read
-/// stranded, beside the strands of the names the extrude minted; the
-/// fillet then refuses `UnresolvedRead` at its target. The stranded
+/// under a fillet is accepted and reports the fillet's selection's body
+/// read stranded, beside the strands of the names the extrude minted;
+/// the fillet then refuses `UnresolvedRead` at its selection. The stranded
 /// document saves and loads as itself, and the stranded reader deletes.
 #[test]
 fn a_delete_leaves_its_reader_unresolved_and_typed() {
@@ -138,18 +138,19 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
         .collect();
     assert_eq!(
         reads,
-        vec![(fillet, OperandSlot::Target, target)],
+        vec![(fillet, OperandSlot::Selection, target)],
         "one stranded read"
     );
     let names: Vec<_> = deleted
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand {
-                node,
+            Maintenance::StrandedSelection {
+                readers,
                 name,
                 took: Took::Node,
-            } => Some((node.id(), name.name().clone())),
+                ..
+            } => Some((readers[0].id(), name.name().clone())),
             _ => None,
         })
         .collect();
@@ -171,7 +172,7 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
     assert!(
         matches!(
             ev.node_error(fillet).map(|e| &e.kind),
-            Some(NodeErrorKind::UnresolvedRead { slot: OperandSlot::Target, var }) if *var == target
+            Some(NodeErrorKind::UnresolvedRead { slot: OperandSlot::Selection, var }) if *var == target
         ),
         "{:?}",
         ev.node_error(fillet)
@@ -288,25 +289,33 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     );
 
     // A name the re-point takes out of reach: a fillet of `a` selecting
-    // one of `a`'s edges, re-pointed at `b`, reports the edge stranded
-    // by reach and is written.
+    // one of `a`'s edges, re-pointed at the selection of that edge in
+    // `b`, reports the edge stranded by reach and is written.
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     let edge = editor_core::all_edges(&ev, a)
         .into_iter()
         .next()
         .expect("a block has edges");
     let (filleted, fillet) = insert(doc.clone(), Node::fillet(a, len(0.1), vec![edge.clone()]));
-    let re_pointed = applied(&filleted, set(fillet, OperandSlot::Target, b.into()));
+    let re_pointed = applied(
+        &filleted,
+        set(
+            fillet,
+            OperandSlot::Selection,
+            editor_core::Operand::select(b, vec![edge.clone()]),
+        ),
+    );
     assert_eq!(
         re_pointed
             .maintenance
             .iter()
             .filter_map(|row| match row {
-                Maintenance::Strand {
-                    node,
+                Maintenance::StrandedSelection {
+                    readers,
                     name,
                     took: Took::Reach,
-                } => Some((node.id(), name.name().clone())),
+                    ..
+                } => Some((readers[0].id(), name.name().clone())),
                 _ => None,
             })
             .collect::<Vec<_>>(),

@@ -4835,6 +4835,17 @@ impl<P, S: Slot> Node<P, S> {
 }
 
 impl<P> Node<P, crate::Formula> {
+    /// A [`Node::Measure`] over `primitive`, each reference authored as
+    /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
+    /// as the selection of it in the body it is read at).
+    pub fn measure<R: Clone + Into<crate::Operand>>(
+        primitive: &crate::measure::MeasurePrimitive<R>,
+    ) -> Self {
+        Node::Measure {
+            primitive: primitive.map(|r| r.clone().into()),
+        }
+    }
+
     /// **The names this authored node's selection seats author**
     /// ([`crate::Operand::Select`]): what the edit door mints selections
     /// of, in seat order.

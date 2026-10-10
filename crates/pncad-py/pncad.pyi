@@ -130,17 +130,15 @@ class EditError(PncadError):
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
       attribute carries one.
-    - `first` and `again` are POSITIONS in a node's name designation,
-      and `variant` decides what `first` means. On
-      `repeated_designation` (a shell's ordered `open` list) the two
-      are the entry's first occurrence and the position it is named
-      again. On `selection_not_canonical` (a blend's sorted selection)
-      `first` alone is the entry that does not sort strictly before
-      the one after it, and `again` is `None` — the break is between
-      that entry and its successor, so the second position is the
-      first plus one and is not carried. One position is one
-      attribute: a second int would be a second spelling of the same
-      thing, which the variant already distinguishes.
+    - `first` and `again` are POSITIONS in a selection's names, and
+      the fault (`fault`) decides what `first` means. On `repeated` (a
+      face set names a face twice) the two are the entry's first
+      occurrence and the position it is named again. On
+      `not_canonical` (an edge set out of sorted order) `first` alone
+      is the entry that does not sort strictly before the one after
+      it, and `again` is `None` — the break is between that entry and
+      its successor, so the second position is the first plus one and
+      is not carried.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -2365,8 +2363,8 @@ class Node:
         u-reference, right-handed. There is no default: pass
         `0 * rad` to take the u-reference unturned.
 
-        Refuses typed at `evaluate`, never here — `face_frame_resolve`
-        for a name that stopped denoting, `face_frame_kind` for an
+        Refuses typed at `evaluate`, never here — `select_resolve`
+        for a name that stopped denoting, `select_kind` for an
         edge or vertex name, `face_frame_not_planar` for a curved
         carrier, `face_frame_readback` for unreadable geometry.
         """
@@ -2654,7 +2652,7 @@ class Node:
         as a `strand` on the measure, like any other reader's.
 
         Nothing is pre-checked here: a name that no longer resolves
-        (`measure_ref_resolve`), a carrier pair with no v1 closed form
+        (`select_resolve`), a carrier pair with no v1 closed form
         (`measure_unsupported`), a `min_clearance` handed an edge
         (`measure_selection_kind`) and a non-finite result
         (`measure_non_finite`) are the kernel's own typed refusals at
@@ -3628,19 +3626,21 @@ class DocEdit:
         program that does not close, replay or validate."""
 
     @staticmethod
-    def rebind(from_name: str, to_name: str) -> DocEdit:
-        """Repair a stored name: rewrite every document site that
-        references `from_name` EXACTLY to reference `to_name`.
+    def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:
+        """Repair a stored name, addressed by body and name: with `body`
+        (`Doc.output(node)`), rewrite every selection of that body that
+        names `from_name` EXACTLY to name `to_name`; with no body, every
+        site no selection holds (a declaration's pairs, a mate's heads,
+        an appearance key).
 
-        THE name repair, and the only one. A selection is stored as a
-        stable name — a fillet's edges, a chamfer's, a shell's open
-        faces, a declaration's pairs — and an upstream edit can leave
-        one denoting something else or nothing at all. This says what
-        it now denotes, ONCE: no alias table persists and nothing
-        follows automatically, so a second name needing the same
-        repair is a second edit. Each rewritten site re-canonicalizes
-        as its own node would — a blend selection is a set, a shell's
-        designation an ordered list that drops a repeat.
+        THE name repair, and the only one. A selection stores stable
+        names — a fillet's edges, a chamfer's, a shell's open faces —
+        and an upstream edit can leave one denoting something else or
+        nothing at all. This says what it now denotes, ONCE: no alias
+        table persists and nothing follows automatically, so a second
+        name needing the same repair is a second edit. Each rewritten
+        selection re-canonicalizes as its kind does — an edge set
+        re-sorts, a face set drops a repeat.
 
         Neither half keeps the kernel's bare word (`from` is a Python
         keyword), so both take the role suffix, as

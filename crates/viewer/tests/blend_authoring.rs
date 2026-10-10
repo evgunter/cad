@@ -557,7 +557,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         .and_then(NodeResult::error)
         .expect("the fillet refuses");
     assert!(
-        matches!(error.kind, NodeErrorKind::BlendSelectionResolve { .. }),
+        matches!(error.kind, NodeErrorKind::SelectResolve { .. }),
         "expected a selection-resolve refusal, got {:?}",
         error.kind
     );

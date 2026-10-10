@@ -87,6 +87,11 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
 
 /// The refusal `node` evaluates to, rendered.
 fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
+    failure(doc, node).kind
+}
+
+/// The refusal `node` evaluates to, whole.
+fn failure(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> editor_core::NodeError {
     let mut ev = evaluate::<f64>(
         doc,
         None,
@@ -95,7 +100,7 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
         Tol::witness(),
     );
     match ev.nodes.remove(&node) {
-        Some(NodeResult::Failed(e)) => e.kind,
+        Some(NodeResult::Failed(e)) => e,
         other => panic!("expected a refusal at {node:?}, got {other:?}"),
     }
 }
@@ -109,12 +114,12 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         (
             "an edge",
             EntityKind::Edge,
-            "the shell's open face names {name}, which is an edge, not a face",
+            "this shell's open face 0 names {name}, which is an edge, not a face",
         ),
         (
             "a vertex",
             EntityKind::Vertex,
-            "the shell's open face names {name}, which is a vertex, not a face",
+            "this shell's open face 0 names {name}, which is a vertex, not a face",
         ),
     ] {
         let (doc, body, _, edge, vertex) = solid();
@@ -123,14 +128,18 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         } else {
             vertex
         };
-        let said = name.to_string();
+        let said = doc.spoken_name(&name).to_string();
         let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![name]));
-        let got = refusal(&doc, shell);
+        let got = failure(&doc, shell);
         assert!(
-            matches!(got, NodeErrorKind::SelectKind { .. }),
+            matches!(got.kind, NodeErrorKind::SelectKind { .. }),
             "{what}: the shell's own refusal, not another road's: {got:?}"
         );
-        assert_eq!(got.to_string(), want.replace("{name}", &said), "{what}");
+        assert_eq!(
+            got.kind_spoken(&doc),
+            want.replace("{name}", &said),
+            "{what}"
+        );
     }
 }
 
@@ -143,23 +152,27 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         (
             "fillet",
             Node::fillet as fn(RecipeNodeId, editor_core::Formula, Vec<StableName>) -> _,
-            "the fillet selection names {name}, which is a face, not an edge",
+            "this fillet's edge 0 names {name}, which is a face, not an edge",
         ),
         (
             "chamfer",
             Node::chamfer as fn(RecipeNodeId, editor_core::Formula, Vec<StableName>) -> _,
-            "the chamfer selection names {name}, which is a face, not an edge",
+            "this chamfer's edge 0 names {name}, which is a face, not an edge",
         ),
     ] {
         let (doc, body, face, _, _) = solid();
-        let said = face.to_string();
+        let said = doc.spoken_name(&face).to_string();
         let (doc, blend) = insert(doc, node(body, len(0.1), vec![face]));
-        let got = refusal(&doc, blend);
+        let got = failure(&doc, blend);
         assert!(
-            matches!(got, NodeErrorKind::SelectKind { .. }),
+            matches!(got.kind, NodeErrorKind::SelectKind { .. }),
             "{what}: the blend's own refusal: {got:?}"
         );
-        assert_eq!(got.to_string(), want.replace("{name}", &said), "{what}");
+        assert_eq!(
+            got.kind_spoken(&doc),
+            want.replace("{name}", &said),
+            "{what}"
+        );
     }
 }
 
@@ -169,7 +182,7 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
 #[test]
 fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     let (doc, body, _, edge, _) = solid();
-    let said = edge.to_string();
+    let said = doc.spoken_name(&edge).to_string();
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
@@ -177,14 +190,14 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
             spin: ang(0.0),
         }),
     );
-    let got = refusal(&doc, frame);
+    let got = failure(&doc, frame);
     assert!(
-        matches!(got, NodeErrorKind::SelectKind { .. }),
+        matches!(got.kind, NodeErrorKind::SelectKind { .. }),
         "the frame's own refusal: {got:?}"
     );
     assert_eq!(
-        got.to_string(),
-        format!("the derived frame's face names {said}, which is an edge, not a face")
+        got.kind_spoken(&doc),
+        format!("this frame's face names {said}, which is an edge, not a face")
     );
 }
 

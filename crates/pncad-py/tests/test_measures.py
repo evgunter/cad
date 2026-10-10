@@ -686,7 +686,7 @@ class TestTheRefusals(unittest.TestCase):
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(measure)
-        self.assertEqual(caught.exception.kind, "measure_ref_resolve")
+        self.assertEqual(caught.exception.kind, "select_resolve")
 
     def test_the_load_door_refuses_a_construction_reading_a_measured_value(self):
         """The edit door refuses a construction reading a measure's

@@ -55,6 +55,14 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
     )
 }
 
+/// The selection a face frame reads.
+fn face_of(doc: &ProfileDoc, frame: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(frame) {
+        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => *face,
+        other => panic!("a face frame, got {other:?}"),
+    }
+}
+
 /// **A strand survives only while its carrier still holds the stranded
 /// name.** Deleting a block strands the frame's name on it; a `Rebind`
 /// in the same action repairs it onto the kept block, so the action
@@ -70,8 +78,9 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
     let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: victim }]);
     assert_eq!(
         alone,
-        vec![Maintenance::Strand {
-            node: doc.spoken(carrier),
+        vec![Maintenance::StrandedSelection {
+            var: doc.spoken_var(face_of(&doc, carrier)),
+            readers: vec![doc.spoken(carrier)],
             name: doc.spoken_name(&named),
             took: editor_core::Took::Node
         }]
@@ -81,7 +90,7 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
         vec![
             DocEdit::DeleteNode { id: victim },
             DocEdit::Rebind {
-                body: None,
+                body: doc.output(kept, 0),
                 from: named,
                 to: fname(kept, wall(&doc, kept, 0)),
             },

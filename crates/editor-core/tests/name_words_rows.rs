@@ -665,8 +665,8 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
-            SitedRef::new(block, cap.clone()),
-            SitedRef::new(split, cap.clone()),
+            editor_core::Operand::select(block, vec![cap.clone()]),
+            editor_core::Operand::select(editor_core::Operand::output(split, 0), vec![cap.clone()]),
         ],
     );
     let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);

@@ -40,7 +40,7 @@ use editor_core::ExtrudeSide;
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{
     CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    RecipeNodeId, SlotId, StableName, evaluate,
+    RecipeNodeId, SlotId, evaluate,
 };
 use geom_core::Tol;
 
@@ -166,20 +166,19 @@ fn the_distance_slot_is_named_and_dimensioned_for_the_setback() {
     assert!(node.expr(SlotId::ChamferDistance).is_some());
 }
 
-/// **The payload's names are the selection**, so `Rebind` reaches
-/// them and the insert door checks their heads — the `Fillet`
-/// contract, which `payload_names` is the single answer for.
+/// **The selection's names are the chamfer's selected names**, so the
+/// insert door checks their heads, and they are no payload of the node
+/// — `Rebind` reaches them through the selection the door mints.
 #[test]
-fn the_selection_is_payload_names() {
+fn the_selection_names_are_no_payload() {
     let a = fixture::ename(
         RecipeNodeId::new(0, 1),
         editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
     let node: AuthoredNode =
         Node::chamfer(RecipeNodeId::new(0, 1), fixture::len(0.1), vec![a.clone()]);
-    let names: Vec<&StableName> = node.payload_names();
-    assert_eq!(names, vec![&a]);
-    assert_eq!(node.named_nodes(), vec![RecipeNodeId::new(0, 1)]);
+    assert_eq!(node.selected_names(), vec![&a]);
+    assert!(node.payload_names().is_empty());
 }
 
 /// **An empty selection refuses, naming the chamfer.** A blend of

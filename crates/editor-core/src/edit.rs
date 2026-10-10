@@ -1873,9 +1873,9 @@ pub enum EditError {
         input: SpokenNode,
     },
     /// A selection this edit authors at `slot` is not one the
-    /// document can store ([`crate::var::SelectionFault`]): names of
-    /// another entity kind than the seat reads, a singleton not naming
-    /// one entity, or a set out of its stored order (edges sorted and
+    /// document can store ([`crate::var::SelectionFault`]): names of an
+    /// entity kind the seat reads no selection of, a singleton not
+    /// naming one entity, or a set out of its stored order (edges sorted and
     /// deduplicated, faces each once). The construction doors
     /// ([`Node::fillet`], [`Node::chamfer`], [`Node::shell`]) write the
     /// stored order; a selection that arrives without it is refused
@@ -4369,6 +4369,9 @@ pub enum Maintenance {
     StrandedSelection {
         /// The surviving selection that names it.
         var: SpokenVar,
+        /// The nodes that read it, in document order: an unnamed
+        /// selection has one, and is spoken by it (VR2).
+        readers: Vec<SpokenNode>,
         /// The name.
         name: SpokenName,
         /// What the edit took.
@@ -4540,12 +4543,25 @@ impl core::fmt::Display for Maintenance {
                 "{node}'s {slot} reads {var}, which this edit deleted with its operation, so \
                  {node} refuses until the {slot} reads a live value"
             ),
-            Self::StrandedSelection { var, name, took } => write!(
-                f,
-                "{var} selects {name}; this edit {}, so every reader of {var} refuses until \
-                 the name is rebound",
-                took.said(name)
-            ),
+            Self::StrandedSelection {
+                var,
+                readers,
+                name,
+                took,
+            } => match (var.name(), readers.as_slice()) {
+                (None, [reader]) => write!(
+                    f,
+                    "{reader} selects {name}; this edit {}, so {reader} refuses until the name \
+                     is rebound",
+                    took.said(name)
+                ),
+                _ => write!(
+                    f,
+                    "{var} selects {name}; this edit {}, so every reader of {var} refuses until \
+                     the name is rebound",
+                    took.said(name)
+                ),
+            },
             Self::StrandedAppearance { name, took } => write!(
                 f,
                 "the appearance store holds an attachment under a name for {}; this edit \
@@ -4626,8 +4642,10 @@ fn stranded_references<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     deleted: RecipeNodeId,
 ) -> Vec<Maintenance> {
+    let goes = selections_going(doc);
     doc.name_carriers()
         .filter(|carrier| carrier.name().node == deleted)
+        .filter(|carrier| !matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(var)))
         .map(|carrier| match carrier {
             NameCarrier::Payload { node, name } => Maintenance::Strand {
                 node: before.spoken(node),
@@ -4636,6 +4654,7 @@ fn stranded_references<P: crate::ProfilePayload>(
             },
             NameCarrier::Select { var, name } => Maintenance::StrandedSelection {
                 var: before.spoken_var(var),
+                readers: selection_readers(before, doc, var),
                 name: before.spoken_name(name),
                 took: Took::Node,
             },
@@ -4779,7 +4798,11 @@ fn stranded_steps<P: crate::ProfilePayload>(
     }
     let mut strands = Vec::new();
     let mut keys = Vec::new();
+    let goes = selections_going(doc);
     for carrier in doc.name_carriers() {
+        if matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(&var)) {
+            continue;
+        }
         let pieces = carrier.name().step_pieces();
         let took = if pieces
             .iter()
@@ -4799,6 +4822,7 @@ fn stranded_steps<P: crate::ProfilePayload>(
             }),
             NameCarrier::Select { var, name } => strands.push(Maintenance::StrandedSelection {
                 var: before.spoken_var(var),
+                readers: selection_readers(before, doc, var),
                 name: before.spoken_name(name).steps_respoken(doc),
                 took,
             }),
@@ -5109,9 +5133,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
             outputs: Vec::with_capacity(primitives.len()),
         };
         for primitive in primitives {
-            let id = self.insert(Node::Measure {
-                primitive: primitive.map(|r| r.clone().into()),
-            })?;
+            let id = self.insert(Node::measure(primitive))?;
             let Some(output) = self.doc().output(id, 0) else {
                 unreachable!("an inserted measure defines its value")
             };
@@ -5778,16 +5800,25 @@ fn write_reads<P: crate::ProfilePayload>(
     })
 }
 
-/// **The payload names a re-point of `id`'s reads strands**: for `id`
-/// and every node downstream of it in `new`, each name it carries
-/// whose minting node was upstream of it in `before` and is not in
-/// `new`. In document order, and within a node in
-/// [`Node::payload_names`]' order.
+/// **The names a re-point of `id`'s reads strands**: for `id` and every
+/// node downstream of it in `new`, each payload name it carries whose
+/// minting node was upstream of it in `before` and is not in `new`; then
+/// each name of a selection those nodes read that its body cannot reach
+/// in `new` — the body's operation or upstream of it — where it could in
+/// `before`, or where the edit authored the selection. In document
+/// order, and within a node in [`Node::payload_names`]' order.
 fn stranded_by_repoint<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &Doc<P>,
     id: RecipeNodeId,
 ) -> Vec<Maintenance> {
+    let reach = |doc: &Doc<P>, var: VarId| -> Option<std::collections::BTreeSet<RecipeNodeId>> {
+        let at = doc.read_operation(var)?;
+        let mut reach = crate::doc::strict_ancestors(doc, at);
+        reach.insert(at);
+        Some(reach)
+    };
+    let mut selections: Vec<VarId> = Vec::new();
     let mut rows = Vec::new();
     for (&carrier, node) in &new.nodes {
         let names = node.payload_names();
@@ -5803,6 +5834,33 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             if was.contains(&name.node) && !after.contains(&name.node) {
                 rows.push(Maintenance::Strand {
                     node: before.spoken(carrier),
+                    name: before.spoken_name(name),
+                    took: Took::Reach,
+                });
+            }
+        }
+    }
+    for (&reader, node) in &new.nodes {
+        if reader != id && !crate::doc::strict_ancestors(new, reader).contains(&id) {
+            continue;
+        }
+        for (_, var) in node.operand_rows() {
+            if new.selection(var).is_some() && !selections.contains(&var) {
+                selections.push(var);
+            }
+        }
+    }
+    for var in selections {
+        let (Some(select), Some(after)) = (new.selection(var), reach(new, var)) else {
+            continue;
+        };
+        let was = before.selection(var).and_then(|_| reach(before, var));
+        for name in &select.names {
+            let reached = was.as_ref().is_none_or(|was| was.contains(&name.node));
+            if reached && !after.contains(&name.node) {
+                rows.push(Maintenance::StrandedSelection {
+                    var: new.spoken_var(var),
+                    readers: selection_readers(before, new, var),
                     name: before.spoken_name(name),
                     took: Took::Reach,
                 });
@@ -7496,6 +7554,38 @@ fn remove_node<P: crate::ProfilePayload>(
         new.var_names.remove(&var);
     }
     reported
+}
+
+/// The nodes of `doc` that read the selection `var`, in document order,
+/// spoken from `before`.
+fn selection_readers<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    var: VarId,
+) -> Vec<SpokenNode> {
+    doc.ids()
+        .into_iter()
+        .filter(|&id| {
+            doc.node(id)
+                .is_some_and(|node| node.operand_rows().iter().any(|&(_, read)| read == var))
+        })
+        .map(|id| before.spoken(id))
+        .collect()
+}
+
+/// **The selections of `doc` that go with the edit** (VR7): unnamed,
+/// with no reader left. A name one holds is stranded by nothing.
+fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections::BTreeSet<VarId> {
+    let readers = doc.reader_counts();
+    doc.vars()
+        .iter()
+        .filter(|(id, var)| {
+            var.def().select().is_some()
+                && doc.var_name(**id).is_none()
+                && readers.get(id).copied().unwrap_or(0) == 0
+        })
+        .map(|(&id, _)| id)
+        .collect()
 }
 
 /// **Every operand of `doc` reading one of `removed`**, directly or as

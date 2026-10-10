@@ -1226,13 +1226,13 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::DeclareResolve { .. }
         | NodeErrorKind::UndeclaredCoincidence { .. }
         | NodeErrorKind::UndeclarableContact { .. }
-        | NodeErrorKind::BlendSelectionResolve { .. }
-        | NodeErrorKind::BlendSelectionKind { .. }
-        | NodeErrorKind::ShellOpenResolve { .. }
-        | NodeErrorKind::ShellOpenKind { .. }
-        | NodeErrorKind::FaceFrameResolve { .. }
-        | NodeErrorKind::FaceFrameKind { .. }
-        | NodeErrorKind::MeasureRefResolve { .. }
+        | NodeErrorKind::SelectResolve { .. }
+        | NodeErrorKind::SelectKind { .. }
+        | NodeErrorKind::SelectResolve { .. }
+        | NodeErrorKind::SelectKind { .. }
+        | NodeErrorKind::SelectResolve { .. }
+        | NodeErrorKind::SelectKind { .. }
+        | NodeErrorKind::SelectResolve { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
         // Name no node beside the failing one.

@@ -3128,13 +3128,14 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::StrandedSelection {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                readers: vec![held(5, "Datum frame (on face)")],
                 name: spoken_face_name(),
                 took: editor_core::Took::Piece,
             },
             vec![
-                "selects the end cap of Extrude 000000000007",
+                "Datum frame (on face) 000000000005 selects the end cap of Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
-                "refuses until the name is rebound",
+                "so Datum frame (on face) 000000000005 refuses until the name is rebound",
             ],
         ),
         (

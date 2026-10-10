@@ -589,8 +589,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // through `Node.union` and `DocEdit.set_members` — the node
         // whose members are a list and the edit that rewrites one.
         EditError::DuplicateInput { .. } => "duplicate_input",
-        EditError::RepeatedDesignation { .. } => "repeated_designation",
-        EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
+        EditError::SelectionShape { .. } => "selection_shape",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
         EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
@@ -608,7 +607,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::DefinesNothing { .. } => "defines_nothing",
         EditError::PartHalfPort { .. } => "part_half_port",
         EditError::ReadsWorldCopy { .. } => "reads_world_copy",
-        EditError::MeasuresWorldCopy { .. } => "measures_world_copy",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -950,7 +948,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Loft => "loft",
         C::CurvedSolidFrontier => "curved_solid_frontier",
         C::MissingInput => "missing_input",
-        C::MeasureRefResolve => "measure_ref_resolve",
         C::MeasureRefUnreadable => "measure_ref_unreadable",
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
@@ -984,9 +981,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
-        // A measure's site was deleted: the delete reported the names
-        // it stranded.
-        C::UnresolvedSite => "unresolved_site",
+        // A selection a node reads: a name the ladder refused, or one
+        // denoting another entity kind than the selection's.
+        C::SelectResolve => "select_resolve",
+        C::SelectKind => "select_kind",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
@@ -1024,25 +1022,16 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // against a row the union's own fold minted, which no sited
         // declaration names.
         C::UndeclarableContact => "undeclarable_contact",
-        C::FilletSelectionResolve => "fillet_selection_resolve",
-        C::ChamferSelectionResolve => "chamfer_selection_resolve",
-        C::FilletSelectionKind => "fillet_selection_kind",
-        C::ChamferSelectionKind => "chamfer_selection_kind",
         C::FilletSelectionEmpty => "fillet_selection_empty",
         C::ChamferSelectionEmpty => "chamfer_selection_empty",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
-        // are prose in the message), the two open-list refusals in the
-        // `chamfer_selection_*` spelling, and the lane refusal.
+        // are prose in the message), and the lane refusal.
         C::Shell => "shell",
-        C::ShellOpenResolve => "shell_open_resolve",
-        C::ShellOpenKind => "shell_open_kind",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
-        // The derived sketch frame's refusals (DOCM-1): the fillet's
-        // ladder and kind refusals, one carrier-kind refusal, one
-        // read-back refusal, and the section refusal DM1c adds.
-        C::FaceFrameResolve => "face_frame_resolve",
-        C::FaceFrameKind => "face_frame_kind",
+        // The derived sketch frame's refusals (DOCM-1): one
+        // carrier-kind refusal, one read-back refusal, and the section
+        // refusal DM1c adds.
         C::FaceFrameNotPlanar => "face_frame_not_planar",
         C::FaceFrameReadback => "face_frame_readback",
         C::DerivedFrameSection => "derived_frame_section",
@@ -1178,7 +1167,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
-        NodeErrorKind::UnresolvedSite { .. } => None,
+        NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
+        NodeErrorKind::SelectKind { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
@@ -1217,15 +1207,9 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The row it names crosses in the message; there is no inner
         // refusal to delegate to.
         NodeErrorKind::UndeclarableContact { .. } => None,
-        NodeErrorKind::BlendSelectionResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::BlendSelectionKind { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
-        NodeErrorKind::ShellOpenResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::ShellOpenKind { .. } => None,
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
-        NodeErrorKind::FaceFrameResolve { error } => Some(resolve_error_tag(error)),
-        NodeErrorKind::FaceFrameKind { .. } => None,
         NodeErrorKind::FaceFrameNotPlanar { .. } => None,
         NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
         NodeErrorKind::DerivedFrameSection { .. } => None,
@@ -1238,7 +1222,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The placement's own refusal is a whole `NodeErrorKind`: its
         // word is the arm, as for `PlacementAxis`.
         NodeErrorKind::PlacementRefused { error, .. } => Some(node_error_tag(error.kind().class())),
-        NodeErrorKind::MeasureRefResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Some(interrogate_error_tag(error)),
         NodeErrorKind::MeasureNonFinite { source } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureNotParallel { .. } => None,
@@ -1281,8 +1264,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
         EditError::DuplicateInput { .. } => None,
-        EditError::RepeatedDesignation { .. } => None,
-        EditError::SelectionNotCanonical { .. } => None,
+        EditError::SelectionShape { fault, .. } => Some(selection_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
         EditError::SetDeclareOnNonDeclaring { .. } => None,
         EditError::DeclaredSiteNotAnOperand { .. } => None,
@@ -1297,7 +1279,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DefinesNothing { .. } => None,
         EditError::PartHalfPort { .. } => None,
         EditError::ReadsWorldCopy { .. } => None,
-        EditError::MeasuresWorldCopy { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -2046,7 +2027,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
         SnapshotError::PartHalfPort { .. } => "part_half_port",
         SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
-        SnapshotError::MeasuresWorldCopy { .. } => "measures_world_copy",
+        SnapshotError::SelectionShape { .. } => "selection_shape",
+        SnapshotError::SelectionBody { .. } => "selection_body",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
@@ -3476,5 +3458,18 @@ pub fn step_handle_refusal_tag(refusal: &StepHandleRefusal) -> &'static str {
 pub fn interface_crossing_tag(crossing: &InterfaceCrossing) -> &'static str {
     match crossing {
         InterfaceCrossing::Mate { .. } => "mate",
+    }
+}
+
+/// **A selection's shape fault, as Python spells it** — the inner word
+/// of `selection_shape`.
+pub(crate) fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static str {
+    use pncad::document::SelectionFault as F;
+    match fault {
+        F::NotASelection { .. } => "not_a_selection",
+        F::Seat { .. } => "seat",
+        F::Singleton { .. } => "singleton",
+        F::NotCanonical { .. } => "not_canonical",
+        F::Repeated { .. } => "repeated",
     }
 }

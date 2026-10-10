@@ -217,14 +217,15 @@ impl core::fmt::Display for OperandSlot {
 /// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
 /// one body or a list of them), and [`SlotKind::Measured`]
-/// `{Body, Face, Edge}` (a measure reads one entity, or a whole body).
+/// `{Body, Face, Edge, Vertex}` (a measure reads one entity, or a whole
+/// body).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
     Is(VarKind),
     /// `Body` or `Bodies`.
     Placeable,
-    /// `Body`, `Face` or `Edge`.
+    /// `Body`, `Face`, `Edge` or `Vertex`.
     Measured,
 }
 
@@ -236,7 +237,10 @@ impl SlotKind {
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
-            Self::Measured => matches!(kind, VarKind::Body | VarKind::Face | VarKind::Edge),
+            Self::Measured => matches!(
+                kind,
+                VarKind::Body | VarKind::Face | VarKind::Edge | VarKind::Vertex
+            ),
         }
     }
 
@@ -253,7 +257,8 @@ impl SlotKind {
             Self::Measured => match entity {
                 E::Face => Some(VarKind::Face),
                 E::Edge => Some(VarKind::Edge),
-                E::Body | E::Vertex => None,
+                E::Vertex => Some(VarKind::Vertex),
+                E::Body => None,
             },
             Self::Placeable => None,
         }
@@ -265,7 +270,7 @@ impl core::fmt::Display for SlotKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
-            Self::Measured => f.write_str("a body, a face or an edge"),
+            Self::Measured => f.write_str("a body, a face, an edge or a vertex"),
         }
     }
 }

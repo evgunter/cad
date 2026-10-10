@@ -2493,25 +2493,30 @@ impl crate::spoken::Say for NodeErrorKind {
                 ),
                 None => write!(
                     f,
-                    "its {slot} reads a selection whose name {reference} failed to resolve: {}",
+                    "a selected name failed to resolve: {}",
                     crate::spoken::Said(error.as_ref(), by)
                 ),
             },
             Self::SelectKind {
                 slot,
-                var: _,
+                var,
                 name,
                 expected,
                 found,
-            } => write!(
-                f,
-                "its {slot} reads a selection naming {}, which is {} {}, not {} {}",
-                by.name(name),
-                found.article(),
-                found.noun(),
-                expected.article(),
-                expected.noun()
-            ),
+            } => {
+                match by.selection_name(*slot, *var, name) {
+                    Some(at) => write!(f, "{at} names {}", by.name(name))?,
+                    None => write!(f, "a selection names {}", by.name(name))?,
+                }
+                write!(
+                    f,
+                    ", which is {} {}, not {} {}",
+                    found.article(),
+                    found.noun(),
+                    expected.article(),
+                    expected.noun()
+                )
+            }
             Self::ToleranceConflict {
                 document_eps,
                 process_eps,
@@ -3094,12 +3099,15 @@ impl NodeError {
     }
 
     /// **The kind's prose alone, spoken from `doc`**: each node and
-    /// each formula's reader as `doc` holds them now. What a consumer
-    /// that names the node itself quotes as the cause, in place of the
-    /// kind's documentless `Display`, which writes a reader `#<16 hex>`.
+    /// each formula's reader as `doc` holds them now, and the failing
+    /// node as `this <noun>` where the prose names one of its seats.
+    /// What a consumer that names the node itself quotes as the cause,
+    /// in place of the kind's documentless `Display`, which writes a
+    /// reader `#<16 hex>`.
     #[must_use]
     pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc)).to_string()
+        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node))
+            .to_string()
     }
 }
 
@@ -4872,16 +4880,19 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v11: a measure writes one primitive and the place of
-            /// each reference's site among its upstream keys, where it
-            /// wrote a measured expression and the sites' ids; an
-            /// assertion's payload is its value and its bound. (v10:
+            /// v12: a blend, a shell, a face frame and a measure write
+            /// the names of the selections they read, the measure each
+            /// reference's names (none for a whole body) where it wrote
+            /// its sites' places. (v11: a measure writes one primitive
+            /// and the place of each reference's site among its
+            /// upstream keys; an assertion's payload is its value and
+            /// its bound. v10:
             /// each read feeds the port it reads beside its operation's
             /// key (D10), one entry per read rather than one per
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 11,
+            VERSION = 12,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.

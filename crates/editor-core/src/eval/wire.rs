@@ -2402,9 +2402,8 @@ fn select<T: Decide>(
         let read: fn(names::EntityKey) -> Option<()> = match entity {
             names::EntityKind::Face => |key| names::EntityKey::face(key).map(|_| ()),
             names::EntityKind::Edge => |key| names::EntityKey::edge(key).map(|_| ()),
-            names::EntityKind::Body | names::EntityKind::Vertex => {
-                unreachable!("a selection names faces or edges")
-            }
+            names::EntityKind::Vertex => |key| names::EntityKey::vertex(key).map(|_| ()),
+            names::EntityKind::Body => unreachable!("a selection names faces, edges or vertices"),
         };
         super::entity_door::entity(ent.key, read, |found| NodeErrorKind::SelectKind {
             slot,

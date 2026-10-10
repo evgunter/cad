@@ -728,7 +728,7 @@ fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
 /// same class of refusal as a string where a `SketchPlane` belongs,
 /// with no kernel refusal to forward. A WELL-FORMED name that denotes
 /// nothing in this document refuses at the kernel's own door
-/// (`fillet_selection_resolve`), which is where that belongs.
+/// (`select_resolve`), which is where that belongs.
 pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
     pncad::prelude::StableName::from_json(text).map_err(|err| {
         pyo3::exceptions::PyValueError::new_err(format!(
@@ -2722,10 +2722,10 @@ impl Node {
     /// two facts `Evaluation.face_frame` hands out — so a sketch on
     /// the underside of a plate faces out of the plate.
     ///
-    /// Refuses typed at `evaluate`, never here: `face_frame_resolve`
-    /// for a name that stopped denoting (the repair is
-    /// `DocEdit.update_reference`), `face_frame_kind` for an edge or
-    /// vertex name, `face_frame_not_planar` for a curved carrier — a
+    /// Refuses typed at `evaluate`, never here: `select_resolve` for a
+    /// name that stopped denoting (the repair is `DocEdit.rebind`),
+    /// `select_kind` for an edge or vertex name, `face_frame_not_planar`
+    /// for a curved carrier — a
     /// sketch frame wants a plane, and `Evaluation.face_carrier_kind`
     /// is the door that answers which carrier it found — and
     /// `face_frame_readback` for a body whose stored geometry cannot
@@ -2739,11 +2739,11 @@ impl Node {
     ) -> PyResult<Self> {
         let spin = slot_expr(py, d::SlotId::Spin, &spin)?;
         Ok(Self {
-            inner: d::Node::Datum(d::Datum::FaceFrame {
-                at: at.read(),
-                face: name_from_text(face)?,
+            inner: d::Node::Datum(d::Datum::face_frame(
+                at.read(),
+                name_from_text(face)?,
                 spin,
-            }),
+            )),
         })
     }
 
@@ -2882,8 +2882,8 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. An
     /// EMPTY selection (`fillet_selection_empty`), a name that
-    /// resolves to nothing (`fillet_selection_resolve`), a name of the
-    /// wrong kind (`fillet_selection_kind`), a tangential edge the
+    /// resolves to nothing (`select_resolve`), a name of the
+    /// wrong kind (`select_kind`), a tangential edge the
     /// roller cannot enter (`fillet`) — every one of those is the
     /// kernel's own typed refusal at `evaluate`.
     ///
@@ -2927,8 +2927,8 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. An
     /// EMPTY selection (`chamfer_selection_empty`), a name that
-    /// resolves to nothing (`chamfer_selection_resolve`), a name of
-    /// the wrong kind (`chamfer_selection_kind`), an edge whose two
+    /// resolves to nothing (`select_resolve`), a name of
+    /// the wrong kind (`select_kind`), an edge whose two
     /// supports are not both planes (`chamfer`) — every one of those
     /// is the kernel's own typed refusal at `evaluate`.
     ///
@@ -2981,8 +2981,8 @@ impl Node {
     /// solid's never names them. The
     /// designation FREEZES in the sense `Node.fillet` states.
     ///
-    /// A name that resolves to nothing (`shell_open_resolve`), a name
-    /// of the wrong kind (`shell_open_kind`), a non-positive wall or a
+    /// A name that resolves to nothing (`select_resolve`), a name
+    /// of the wrong kind (`select_kind`), a non-positive wall or a
     /// wall two facing faces cannot both afford, a rim the kernel cannot
     /// build or read (`shell`) — every one of those is the kernel's own
     /// typed refusal at `evaluate`.
@@ -3470,7 +3470,7 @@ impl Node {
     /// a `strand` on the measure, like any other reader's.
     ///
     /// Nothing is pre-checked here: a name that no longer resolves
-    /// (`measure_ref_resolve`), a carrier pair with no v1 closed form
+    /// (`select_resolve`), a carrier pair with no v1 closed form
     /// (`measure_unsupported`), a `min_clearance` handed an edge
     /// (`measure_selection_kind`) and a non-finite result
     /// (`measure_non_finite`) are all the kernel's own typed refusals
@@ -4777,11 +4777,13 @@ impl DocEdit {
     /// nothing follows automatically afterwards, so a second name
     /// that needs the same repair is a second edit.
     ///
-    /// **A one-shot recorded intent, not a rename.** The sites
-    /// rewritten are the payloads that carry a name, and every one of
-    /// them re-canonicalizes as its own node would: a blend selection
-    /// is a set, a shell's designation an ordered list that drops a
-    /// repeat and keeps the earlier position.
+    /// **A one-shot recorded intent, not a rename**, addressed by body
+    /// and name: with `body` (the `Var` of a body, `Doc.output(node)`),
+    /// the selections of that body naming `from_name` are rewritten,
+    /// each re-canonicalizing as its kind does — an edge set re-sorts,
+    /// a face set drops a repeat and keeps the earlier position; with
+    /// no body, the names no selection holds (declared pairs, mate
+    /// heads, appearance keys).
     ///
     /// Neither half keeps the kernel's bare word — `from` is a Python
     /// keyword — so both take the role suffix, exactly as
@@ -4800,9 +4802,11 @@ impl DocEdit {
     /// source, so there is nothing to repair — a GUI's selection is
     /// not document state, and repairing one is re-selecting).
     #[staticmethod]
-    fn rebind(from_name: &str, to_name: &str) -> PyResult<Self> {
+    #[pyo3(signature = (from_name, to_name, body=None))]
+    fn rebind(from_name: &str, to_name: &str, body: Option<Var>) -> PyResult<Self> {
         Ok(Self {
             inner: d::DocEdit::Rebind {
+                body: body.map(|var| var.0),
                 from: name_from_text(from_name)?,
                 to: name_from_text(to_name)?,
             },

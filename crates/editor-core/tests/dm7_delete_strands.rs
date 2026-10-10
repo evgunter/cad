@@ -38,16 +38,18 @@ use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
 /// them — the whole of what these rows assert about. A selection's row
-/// is said by the node in `doc` that reads the selection.
-fn strands(doc: &ProfileDoc, applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
+/// is said by the node that reads the selection.
+fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
-            Maintenance::StrandedSelection { var, name, .. } => Some((
-                crate::fixture::selection_reader(doc, var.id()),
-                name.name().clone(),
-            )),
+            Maintenance::StrandedSelection { readers, name, .. } => {
+                let [reader] = readers.as_slice() else {
+                    panic!("an unnamed selection has one reader: {readers:?}");
+                };
+                Some((reader.id(), name.name().clone()))
+            }
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
@@ -55,6 +57,14 @@ fn strands(doc: &ProfileDoc, applied: &[Maintenance]) -> Vec<(RecipeNodeId, Stab
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
+}
+
+/// The selection a blend reads.
+fn selection_of(doc: &ProfileDoc, blend: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(blend) {
+        Some(Node::Fillet { selection, .. } | Node::Chamfer { selection, .. }) => *selection,
+        other => panic!("a blend, got {other:?}"),
+    }
 }
 
 /// The appearance keys an accepted edit reported stranded, in the
@@ -213,10 +223,7 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
         "one name per pair is minted in the deleted member"
     );
     assert_eq!(
-        strands(
-            &applied.doc,
-            &crate::fixture::without_anonymous(&applied.maintenance)
-        ),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
         "the accepted delete names every stranded name, in the payload's own order, and no site"
     );
@@ -387,10 +394,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        strands(
-            &applied.doc,
-            &crate::fixture::without_anonymous(&applied.maintenance)
-        ),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
         "one row per carried name, payloads first, each in its own order"
     );
@@ -443,10 +447,9 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.extend(strands(
-            &applied.doc,
-            &crate::fixture::without_anonymous(&applied.maintenance),
-        ));
+        reported.extend(strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert!(
@@ -497,10 +500,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
         let applied = delete(&doc, id);
         per_step.push((
             id,
-            strands(
-                &applied.doc,
-                &crate::fixture::without_anonymous(&applied.maintenance),
-            ),
+            strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         ));
         doc = applied.doc;
     }
@@ -591,10 +591,7 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
 
     let applied = delete(&doc, ia);
     assert_eq!(
-        strands(
-            &applied.doc,
-            &crate::fixture::without_anonymous(&applied.maintenance)
-        ),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![(mate, head_a)],
         "the head is a name and is reported; the operand at the same id is not"
     );
@@ -718,11 +715,11 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
     );
 }
 
-/// **The payload strands come first, then the appearance strands.**
+/// **The selection strands come first, then the appearance strands.**
 ///
 /// The order on `Applied::maintenance` is a contract, and this is the
 /// edit that produces both kinds at once: one node mints the name a
-/// surviving fillet carries AND the key the store holds. Written out
+/// surviving fillet's selection holds AND the key the store holds. Written out
 /// as one vector, so a walk that ran the store first goes red here
 /// rather than somewhere a consumer finds it.
 #[test]
@@ -730,9 +727,9 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_order", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    // The fillet's own DAG input is `body`; what it NAMES is a face of
-    // `victim`, which is a payload name and not an edge, so deleting
-    // `victim` is accepted and strands it.
+    // The fillet's selection reads `body`; what it NAMES is a face of
+    // `victim`, which is a name and not a read, so deleting `victim` is
+    // accepted and strands it.
     let carried = fname(victim, wall(&doc, victim, 0));
     let (doc, fillet) = insert(
         doc,
@@ -748,8 +745,9 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![
-            Maintenance::Strand {
-                node: doc.spoken(fillet),
+            Maintenance::StrandedSelection {
+                var: doc.spoken_var(selection_of(&doc, fillet)),
+                readers: vec![doc.spoken(fillet)],
                 name: doc.spoken_name(&carried),
                 took: editor_core::Took::Node
             },
