@@ -25,7 +25,7 @@
 //! Interval-multiplying those three-component enclosures gives an
 //! enclosure `M ⊇ { S_u(u,v) × S_v(u,v) : (u,v) ∈ cell }`. THREE
 //! sound lower bounds on `‖m‖` are assembled and the largest wins —
-//! the speed meter's two-assembly join, lifted and extended:
+//! the speed meter's chord join, lifted and extended:
 //!
 //! - **Componentwise mignitude**: `‖m‖ = √(Σ_c m_c²) ≥ √(Σ_c mig(M_c)²)`,
 //!   where `mig(I)` is the smallest `|x|` for `x ∈ I` (zero when `I`
