@@ -24,8 +24,12 @@ Newton iterate, a certified hull bound, f64 box arithmetic), enter it
 through `Real::from_computed`, one unknown per call. Each fix deletes
 its entry; the gate's STALE rule holds the list to the tree.
 
-Pins: `crates/editor-core/tests/revalue_corpus.rs` lists the corpus
-decisions it sees laundered and the row each is owed to; a fix here
-that clears one moves that pin, which is the evidence the fix landed.
-A move to `from_computed` can only lose symbolic `Zero`s, never
-geometry: say which `symbolic_zero` counts moved.
+Pins: the corpus row (`crates/editor-core/tests/revalue_corpus.rs`)
+lists no laundering today, and none of its documents was shown to
+reach a site this unit owes. A fix here therefore has no corpus pin
+to move, and each fix owes its own: a unit row at `Sym<f64>` with the
+site's inputs as parameters, asserting that what it returns re-values
+with them (`chart_region.rs`'s `the_wrap_band_keeps_its_corners_in_t`
+is the shape), red on the code before the fix. A move to
+`from_computed` can only lose symbolic `Zero`s, never geometry: say
+which `symbolic_zero` counts moved.

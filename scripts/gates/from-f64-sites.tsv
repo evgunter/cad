@@ -50,7 +50,7 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-comput
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.0	a certified span bound computed from the carrier
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.1	a certified span bound computed from the carrier
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (d0 + d1)	a projected net's knot-domain midpoint
-crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	if r <= p - m	a piece breakpoint on the stored knots (the reader cuts the argument at its brace)
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	<block> if r <= p - m	a piece breakpoint on the stored knots (the reader cuts the argument at its brace)
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j + 1 + i - r]	a projected net's stored knot
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j - p + i]	a projected net's stored knot
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	net.weights()[i]	a projected net's stored weight
@@ -109,7 +109,7 @@ crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[1
 crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[2]	a reach cell's corner, f64 box arithmetic over the faces
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	hi[k]	a box corner, f64 box arithmetic
-crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	if i >> k & 1 == 0	a box corner, f64 box arithmetic (the reader cuts the argument at its brace)
+crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	<block> if i >> k & 1 == 0	a box corner, f64 box arithmetic (the reader cuts the argument at its brace)
 crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	lo[k]	a box corner, f64 box arithmetic
 crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
 crates/sweep/src/loft.rs	1	launders(sweep-keeps-computed-values-in-t)	<fn>	a section wire built in f64, lifted
@@ -131,6 +131,8 @@ crates/topo/src/boolean/ops.rs	1	launders(topo-keeps-computed-values-in-t)	margi
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
 crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
+crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
+crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
 crates/topo/src/boolean/sectors.rs	1	constant	2.0 * other.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count

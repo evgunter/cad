@@ -124,7 +124,7 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
                     _ => Some(kid(0)? * kid(1)?),
                 },
                 SymOp::Neg => Some(-kid(0)?),
-                SymOp::Powi => Some(kid(0)?.powi(n.payload as u32 as i32)),
+                SymOp::Powi => Some(Real::powi(kid(0)?, n.payload as u32 as i32)),
                 SymOp::Inv => Some(1.0 / kid(0)?),
                 SymOp::Sqrt => Some(Real::sqrt(kid(0)?)),
                 SymOp::Abs => Some(Real::abs(kid(0)?)),

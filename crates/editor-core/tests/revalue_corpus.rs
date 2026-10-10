@@ -57,7 +57,11 @@ enum Move {
     /// All by the same relative [`MOVE`], a zero one not at all: two
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
-    /// The fallback for a document whose branches [`Move::Apart`] moves.
+    /// The census's fallback for a document whose branches
+    /// [`Move::Apart`] moves, never a gating row's: on a document of
+    /// lengths it is a dilation, so a laundered quantity that depends
+    /// only on ratios of the variables (an angle, a unit normal's
+    /// component, a fraction of a domain) does not move under it.
     InStep,
 }
 
@@ -66,9 +70,13 @@ enum Move {
 struct Found {
     /// Decisions the two builds took, in step.
     compared: usize,
-    /// Decisions whose margin moved between `p0` and `p1` — the row's
-    /// power: a document where nothing moved proves nothing.
+    /// Decisions whose margin moved between `p0` and `p1` AND re-valued
+    /// — the row's power: a margin that moved but went opaque proves
+    /// nothing, and neither does a document where nothing moved.
     moved: usize,
+    /// Decisions whose DAG, re-valued at `p0` itself, is not the `p0`
+    /// build's own bits: `revalue` has drifted from how `Sym` builds.
+    drifted: usize,
     /// Decisions whose DAG reached an opaque value.
     opaque: usize,
     /// Predicates whose re-valued margin is not the `p1` build's.
@@ -177,10 +185,12 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
     let vars = continuous_vars(doc);
     let at_p1 = offsets(&vars, mode);
     let at_p0: BTreeMap<VarId, f64> = at_p1.keys().map(|id| (*id, 0.0)).collect();
-    let env: BTreeMap<ParamSymbol, f64> = at_p1
-        .iter()
-        .map(|(id, d)| (ParamSymbol::new(id.0.digest()), *d))
-        .collect();
+    let env_at = |at: &BTreeMap<VarId, f64>| -> BTreeMap<ParamSymbol, f64> {
+        at.iter()
+            .map(|(id, d)| (ParamSymbol::new(id.0.digest()), *d))
+            .collect()
+    };
+    let (env, env0) = (env_at(&at_p1), env_at(&at_p0));
     let p1 = session(|| build(doc, &options(&at_p1)));
     session(|| {
         let p0 = build(doc, &options(&at_p0));
@@ -200,13 +210,21 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
             found.compared += 1;
             *found.seen.entry(a.predicate).or_default() += 1;
             let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
-            if v0.to_bits() != v1.to_bits() {
-                found.moved += 1;
+            let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
+            if revalue(a.node, &|s| env0.get(&s).copied()).is_some_and(|r| !same(r, v0)) {
+                found.drifted += 1;
             }
             match revalue(a.node, &|s| env.get(&s).copied()) {
                 None => found.opaque += 1,
-                Some(r) if r.to_bits() == v1.to_bits() || (r.is_nan() && v1.is_nan()) => {}
+                Some(r) if same(r, v1) => {
+                    if !same(v0, v1) {
+                        found.moved += 1;
+                    }
+                }
                 Some(r) => {
+                    if !same(v0, v1) {
+                        found.moved += 1;
+                    }
                     if std::env::var_os("REVALUE_DETAIL").is_some() {
                         eprintln!(
                             "  laundered #{} {}: p0 {v0:e}, re-valued {r:e}, p1 {v1:e}",
@@ -225,15 +243,28 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
-fn holds(name: &str, owed: &[(&str, &str)]) {
+fn holds(name: &str, floor: usize, owed: &[(&str, &str)]) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
         .unwrap_or_else(|| panic!("{name} is not a corpus document"));
     let found = compare(name, &cd.doc);
+    assert_eq!(
+        found.drifted, 0,
+        "{name}: a decision's DAG re-valued at p0 is not the p0 build's own bits — revalue no \
+         longer computes an op as Sym builds it ({found:?})"
+    );
+    assert_eq!(
+        found.mode,
+        Some(Move::Apart),
+        "{name}: the row fell back to the in-step move, under which a laundered quantity that \
+         depends only on ratios of the variables does not move ({found:?})"
+    );
     assert!(
-        found.moved > 0,
-        "{name}: no margin moved between p0 and p1, so the row compared nothing that could launder"
+        found.moved >= floor,
+        "{name}: {} margins moved and re-valued, under the row's floor of {floor} — the row \
+         compares less than it did ({found:?})",
+        found.moved
     );
     let want: BTreeSet<&str> = owed.iter().map(|(p, _)| *p).collect();
     let got: BTreeSet<&str> = found.laundered.iter().copied().collect();
@@ -248,25 +279,27 @@ fn holds(name: &str, owed: &[(&str, &str)]) {
 // at `Sym<f64>` in seconds. The others (`die`, `cup`, `tube_ring`, …) run
 // through `revalue_census`; `kiss_carry` changes branch under both moves
 // and is not compared.
+// Each row's floor is half the margins it moved and re-valued when it was
+// pinned, so a change that makes a row opaque or static goes red.
 macro_rules! rows {
-    ($($row:ident: $doc:literal, [$($owed:expr),*];)*) => {$(
+    ($($row:ident: $doc:literal, $floor:literal, [$($owed:expr),*];)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, &[$($owed),*]);
+            holds($doc, $floor, &[$($owed),*]);
         }
     )*};
 }
 
 rows! {
-    revalue_plate_param: "plate_param", [];
-    revalue_boss_union: "boss_union", [];
-    revalue_cut_cylinder: "cut_cylinder", [];
-    revalue_die_chamfer: "die_chamfer", [];
-    revalue_face_sketch: "face_sketch", [];
-    revalue_heat_sink_fins: "heat_sink_fins", [];
-    revalue_loft_prism: "loft_prism", [];
-    revalue_measured_web: "measured_web", [];
-    revalue_declared_tangency: "declared_tangency", [];
+    revalue_plate_param: "plate_param", 650, [];
+    revalue_boss_union: "boss_union", 560, [];
+    revalue_cut_cylinder: "cut_cylinder", 290, [];
+    revalue_die_chamfer: "die_chamfer", 740, [];
+    revalue_face_sketch: "face_sketch", 250, [];
+    revalue_heat_sink_fins: "heat_sink_fins", 190, [];
+    revalue_loft_prism: "loft_prism", 3, [];
+    revalue_measured_web: "measured_web", 45, [];
+    revalue_declared_tangency: "declared_tangency", 160, [];
 }
 
 /// The census over the whole corpus, one document per run with
@@ -294,6 +327,7 @@ fn revalue_census() {
         let Found {
             compared,
             moved,
+            drifted,
             opaque,
             laundered,
             mode,
@@ -301,7 +335,7 @@ fn revalue_census() {
             parted,
         } = &found;
         eprintln!(
-            "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, opaque {opaque}, \
+            "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
              laundered {laundered:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
@@ -361,5 +395,82 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
         rows,
         [Some(false), Some(true), None],
         "laundered / kept in the scalar / from_computed, each re-valued at p1 against the p1 build"
+    );
+}
+
+/// Every op `revalue` mirrors, re-valued at `p1` against `Sym<f64>`'s own
+/// build there: one decision per op, over two parameters, each inside
+/// its op's domain at both points. A drifted arm is a false laundering
+/// on every corpus row that reaches the op; this row names the op.
+#[test]
+fn revalue_mirrors_every_op_as_sym_builds_it() {
+    use geom_core::Real;
+    use geom_core::predicate::{Band, Margin};
+    let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+    let (x, y) = (ParamSymbol::new(11), ParamSymbol::new(12));
+    let ops = |d: f64| -> Vec<(&'static str, Sym<f64>)> {
+        let a = Sym::<f64>::from_f64(0.3) + Sym::param(x, d);
+        let b = Sym::<f64>::from_f64(-1.7) + Sym::param(y, 2.0 * d);
+        vec![
+            ("add", a + b),
+            ("sub", a - b),
+            ("mul", a * b),
+            ("div", a / b),
+            ("neg", -a),
+            ("powi", a.powi(3)),
+            ("powi0", a.powi(0)),
+            ("sqrt", a.sqrt()),
+            ("abs", b.abs()),
+            ("sin", b.sin()),
+            ("cos", b.cos()),
+            ("tan", a.tan()),
+            ("asin", a.asin()),
+            ("acos", a.acos()),
+            ("atan", b.atan()),
+            ("atan2", a.atan2(b)),
+            ("min", a.min(b)),
+            ("max", a.max(b)),
+            ("floor", b.floor()),
+            ("copysign", a.copysign(b)),
+            ("select", b.select_le_zero(a, b)),
+            ("pi", a * Sym::pi()),
+            ("tau", a * Sym::tau()),
+        ]
+    };
+    let decide_all = |d: f64| {
+        record(|| {
+            for (_, m) in ops(d) {
+                let _ = geom_core::k_stats::decide("revalue_op", Margin::of(m), band);
+            }
+        })
+        .1
+    };
+    let p1 = session(|| decide_all(0.01));
+    let names: Vec<&str> = ops(0.0).iter().map(|(n, _)| *n).collect();
+    let drifted: Vec<&str> = session(|| {
+        let p0 = decide_all(0.0);
+        let env = |s: ParamSymbol| {
+            Some(if s == x {
+                0.01
+            } else if s == y {
+                0.02
+            } else {
+                return None;
+            })
+        };
+        p0.iter()
+            .zip(&p1)
+            .zip(&names)
+            .filter(|((a, b), _)| {
+                let v1 = b.value.unwrap();
+                revalue(a.node, &env).is_none_or(|r| r.to_bits() != v1.to_bits())
+            })
+            .map(|(_, n)| *n)
+            .collect()
+    });
+    assert_eq!(names.len(), p1.len(), "one decision per op");
+    assert!(
+        drifted.is_empty(),
+        "ops whose re-valued margin is not Sym<f64>'s at p1: {drifted:?}"
     );
 }

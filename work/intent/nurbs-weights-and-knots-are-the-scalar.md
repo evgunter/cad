@@ -38,6 +38,12 @@ proves too large; (b) `from_computed` per read, which is sound but makes
 two reads of one weight two unknowns, so no identity over a NURBS
 carrier would discharge.
 
-Whether this gates stage 4 C+D is the re-valuation row's to say: the
-corpus scenes whose decisions reach a computed weight or knot are
-pinned there as known reds naming this row.
+Whether this gates stage 4 C+D was the re-valuation row's to say. On
+the whole corpus at unit 1's merge, no document showed a laundering
+attributable to a weight or a knot (PR 4543's body), so it does not
+gate C+D on that evidence. The evidence is silence: no counter says
+which listed sites a document reaches, so a scene that reaches a
+stored weight without moving it is indistinguishable from one that
+never reaches it. This unit's fix owes its own pin, as
+`*-keeps-computed-values-in-t` do: a revolve with a variable angle at
+`Sym<f64>`, whose rational weight re-values with the angle.

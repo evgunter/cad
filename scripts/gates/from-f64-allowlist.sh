@@ -29,7 +29,9 @@
 # paths (`f64::consts::PI`, `ARC_SAMPLES`, `geom_core::UNIT_ROUNDOFF`),
 # `as f64`, parentheses and `+ - * /` — `8.0 * f64::EPSILON`,
 # `ARC_SAMPLES as f64`. Each is a constant at compile time, so it cannot
-# be a laundered value.
+# be a laundered value. An argument the statement view cut at a `{` (a
+# block, an `if`) is never exempt, whatever its prefix reads: it is keyed
+# `<block> <prefix>` and listed.
 #
 # THE KEY of a listed site is its file and its argument's text with
 # whitespace collapsed (`<fn>` for a point-free use), and the entry
@@ -43,9 +45,6 @@
 #                 sample schedule's fraction, a tolerance or band, a
 #                 float bit pattern chosen by the code;
 #   fixture       test-support code compiled into the library;
-#   bracket       a concrete non-symbolic scalar (`Interval::from_f64`,
-#                 a certification bracket's endpoint), which no `Sym`
-#                 lane reaches;
 #   launders(R)   a computed value re-entered as a constant, owed to the
 #                 work item R, which owns its fix;
 #   stored-carrier-data(R)
@@ -62,16 +61,25 @@
 #             landed: drop or lower the entry in the same change);
 #   CLASS     an entry whose class is not one of the above, whose reason
 #             is empty, or whose owed class names a work item that is not
-#             a file under `work/`.
+#             an open file under `work/` (none, or `status: closed`).
 #
-# KNOWN GAPS: a value that leaves `T` and comes back by another door
-# (`T::zero() + …` built from `f64` arithmetic on `lo()`, a crate outside
-# FROM_F64_CRATES) is not a `from_f64` and this scan does not see it;
-# the re-valuation row does, wherever the corpus reaches it. A
-# point-free use bound to a name (`let f = T::from_f64;`) is one listed
-# `<fn>` site, and the calls through `f` are not read. The statement
-# view cuts a record at `{`, so an argument holding a block (`if … {`)
-# is keyed by its text up to the brace. A macro body is read as written.
+# KNOWN GAPS. What a token scan of these four crates cannot see; the
+# re-valuation row sees each wherever the corpus reaches it.
+#   - Another door: a helper OUTSIDE the scanned crates that re-enters an
+#     `f64` it is handed (`geom_core::predicate::Margin::lift` was one,
+#     and lifts through `from_computed`), or one inside them whose `f64`
+#     parameter is listed by what today's callers pass (`separating.rs`'s
+#     `apart_along(.., pad: f64, ..)` is `constant` because every caller
+#     passes `sweep_pad`): a new caller handing it a computed value adds
+#     no `from_f64` site.
+#   - A name: a point-free use bound to a local (`let f = T::from_f64;`)
+#     is one `<fn>` site and the calls through `f` are not read; every
+#     `<fn>` site in a file shares one key, so fixing one listed lift
+#     while adding a laundering one keeps the count. A SCREAMING_CASE
+#     local (`#[allow(non_snake_case)] let N = x.lo();`) reads as a
+#     constant path.
+#   - Crates outside FROM_F64_CRATES, test code, and a macro body as
+#     expanded.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -85,7 +93,7 @@ from_f64_rule_message() {
   case "$1" in
     UNLISTED) printf '%s' "a from_f64 site that is neither a literal nor a listed site. Keep a computed value in T, or enter it through Real::from_computed (one unknown per call at Sym); a genuine constant goes on $FROM_F64_LIST with its class and reason" ;;
     STALE) printf '%s' "a listed from_f64 site is gone (or fewer remain than listed) — drop or lower its entry in $FROM_F64_LIST in the change that removed it" ;;
-    CLASS) printf '%s' "an entry in $FROM_F64_LIST has an unknown class, an empty reason, or an owed class naming no work item under work/" ;;
+    CLASS) printf '%s' "an entry in $FROM_F64_LIST has an unknown class, an empty reason, or an owed class naming no open work item under work/" ;;
   esac
 }
 
@@ -102,7 +110,7 @@ from_f64_sites() {
         s = RSTART + (substr(t, RSTART, 1) ~ /[A-Za-z0-9_]/ ? 0 : 1) + 8
         rest = substr(t, s)
         t = rest
-        if (pre ~ /fn[ \t]+$/ || pre ~ /fn[ \t]+f$/) continue
+        if (pre ~ /fn[ \t]+$/) continue
         sub(/^[ \t]+/, "", rest)
         if (substr(rest, 1, 1) != "(") { print GR_FILE "\t<fn>"; continue }
         d = 0; a = ""
@@ -114,6 +122,8 @@ from_f64_sites() {
         }
         # rustfmt leaves a trailing comma on a call it wraps.
         gsub(/[ \t]+/, " ", a); sub(/^ /, "", a); sub(/ ?,? ?$/, "", a)
+        # The record ended inside the call: the view cut it at a `{`.
+        if (d != 0 || a == "") a = "<block> " a
         print GR_FILE "\t" a
       }
     }'
@@ -121,8 +131,11 @@ from_f64_sites() {
 
 # One token of an exempt argument, once `as f64`, the operators and the
 # parentheses are spaces: a numeric literal or a constant path.
-FROM_F64_TOKEN_RE='^([0-9][0-9_]*(\.[0-9_]*)?([eE][0-9]+)?(_?f64)?|([A-Za-z_][A-Za-z0-9_]*::)*[A-Z][A-Z0-9_]*)$'
-FROM_F64_CLASS_RE='^(constant|fixture|bracket|launders\([A-Za-z0-9_.-]+\)|stored-carrier-data\([A-Za-z0-9_.-]+\))$'
+# Bracket classes, never `\.` or `\(`: the patterns reach `awk` through
+# `-v`, which processes backslash escapes, and gawk and mawk do not agree
+# on what is left (`certification-doors.sh`, CERT_GLOB_RE).
+FROM_F64_TOKEN_RE='^([0-9][0-9_]*([.][0-9_]*)?([eE][0-9]+)?(_?f64)?|([A-Za-z_][A-Za-z0-9_]*::)*[A-Z][A-Z0-9_]*)$'
+FROM_F64_CLASS_RE='^(constant|fixture|launders[(][A-Za-z0-9_.-]+[)]|stored-carrier-data[(][A-Za-z0-9_.-]+[)])$'
 
 gate() {
   gate_require_crate_sources
@@ -154,7 +167,7 @@ gate() {
     -v TOKEN_RE="$FROM_F64_TOKEN_RE" \
     -v CLASS_RE="$FROM_F64_CLASS_RE" '
     function constant_shape(a,    k, n, tok) {
-      if (a == "<fn>") return 0
+      if (a == "<fn>" || a ~ /^<block>/) return 0
       gsub(/[ \t]as[ \t]+f64/, " ", a)
       gsub(/[eE][-+]/, "e", a)
       gsub(/[-+*\/()]/, " ", a)
@@ -193,13 +206,17 @@ gate() {
       printf "COUNT %d %d %d\n", lit + 0, listed_n + 0, owed_n + 0
     }') || status=$?
   [ "$status" -eq 0 ] || gate_reader_died_refusal "the list walk" "$status" "What it did not compare is unknown."
-  # An owed class names a work item: an item file under `work/`.
-  local owed row entry
+  # An owed class names an open work item: an item file under `work/`
+  # whose header is not `status: closed`.
+  local owed row entry item
   owed=$(printf '%s\n' "$verdicts" | sed -n 's/^OWED //p' | sort -u)
   while IFS=$'\t' read -r row entry; do
     [ -n "$row" ] || continue
-    if [ -z "$(find work -name "$row.md" -type f 2>/dev/null | head -1)" ]; then
+    item=$(find work -name "$row.md" -type f 2>/dev/null | head -1)
+    if [ -z "$item" ]; then
       verdicts=$(printf '%s\nCLASS %s (no work item %s)' "$verdicts" "$entry" "$row")
+    elif grep -q '^status: closed' "$item"; then
+      verdicts=$(printf '%s\nCLASS %s (work item %s is closed)' "$verdicts" "$entry" "$row")
     fi
   done < <(printf '%s\n' "$owed" | awk -F'\t' '{ r = $1; $1 = ""; sub(/^\t/, ""); print r "\t" $0 }' OFS='\t')
   local rule line hit any=false
@@ -261,6 +278,11 @@ plant_unlisted_other_crate() {
   mkdir -p "$1/crates/topo/src"
   printf 'pub fn g<T: Real>(u1: f64, u0: f64) -> T {\n    T::from_f64(u1 - u0)\n}\n' > "$1/crates/topo/src/lib.rs"
 }
+plant_unlisted_block() { printf 'pub fn g<T: Real>(r: R) -> T {\n    T::from_f64({ r.lo() })\n}\n' >> "$1/$fixture_file"; }
+plant_unlisted_block_constant_prefix() {
+  printf 'pub fn g<T: Real>(r: R) -> T {\n    T::from_f64(SCALE * {\n        let m = r.lo();\n        m\n    })\n}\n' >> "$1/$fixture_file"
+}
+plant_closed_row() { printf -- '---\nid: owed-row\nstatus: closed\n---\n' > "$1/work/geom/owed-row.md"; }
 plant_stale() { sed -i 's/T::from_f64(foot.x)/foot_t/' "$1/$fixture_file"; }
 plant_bad_class() { printf '%s\t1\tfine\tz\tit is fine\n' "$fixture_file" >> "$1/$FROM_F64_LIST"; }
 plant_empty_reason() { printf '%s\t1\tconstant\tz\t\n' "$fixture_file" >> "$1/$FROM_F64_LIST"; }
@@ -290,13 +312,16 @@ gate_selftest() {
   from_f64_case UNLISTED plant_unlisted_point_free
   from_f64_case UNLISTED plant_one_more_listed
   from_f64_case UNLISTED plant_unlisted_other_crate
+  from_f64_case UNLISTED plant_unlisted_block
+  from_f64_case UNLISTED plant_unlisted_block_constant_prefix
   from_f64_case STALE plant_stale
   from_f64_case CLASS plant_bad_class
   from_f64_case CLASS plant_empty_reason
   from_f64_case CLASS plant_missing_row
+  from_f64_case CLASS plant_closed_row
   gate_selftest_passes "a comment, a string literal, longer names, a definition, literals and a SCREAMING_CASE constant in a listed file, and a computed site in a crate outside the scan" \
     plant_near_misses
-  printf '%s selftest OK: passes a clean fixture (literals, a literal ratio, a constant path, a wrapped listed call, a point-free listed use, a cfg(test) site); fires UNLISTED on a computed call, one wrapped over lines, a point-free use, one site more than listed and a site in another scanned crate; STALE on a listed site that went away; CLASS on an unknown class, an empty reason and an owed class naming no work item; passes every near miss; and stays RED when awk cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture (literals, a literal ratio, a constant path, a wrapped listed call, a point-free listed use, a cfg(test) site); fires UNLISTED on a computed call, one wrapped over lines, a point-free use, one site more than listed, a site in another scanned crate, and a block argument whether its prefix is empty or reads as a constant; STALE on a listed site that went away; CLASS on an unknown class, an empty reason, an owed class naming no work item and one naming a closed item; passes every near miss; and stays RED when awk cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
