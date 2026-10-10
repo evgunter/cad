@@ -301,8 +301,9 @@ fn the_chain_reads_epsilon_at_one_site() {
 /// the census counting nothing.
 #[test]
 fn no_production_file_reaches_the_numeric_target_routines() {
-    const AT_ROUTINES: [&str; 5] = [
+    const AT_ROUTINES: [&str; 6] = [
         "fit_offset_at(",
+        "refine_rounds_at(",
         "certify_offset_at(",
         "certify_offset_over_at(",
         "approx_offset_surface_at(",

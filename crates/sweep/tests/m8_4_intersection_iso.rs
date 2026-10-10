@@ -1100,3 +1100,127 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
     mesh::validate::check_mesh(&got)
         .unwrap_or_else(|e| panic!("E2: the General-imaged body's mesh is watertight: {e:?}"));
 }
+
+/// `surface_curve_residual`'s certified sup of `image` against the
+/// seam's carrier on the bowed wall, with `spans` uniform breaks
+/// injected the way the SSI hull injects its grid.
+fn composite_sup(
+    wall: &NurbsSurface<f64>,
+    carrier: &geom::NurbsCurve3<f64>,
+    image: (&KnotVector, &[Vec<f64>]),
+    spans: usize,
+) -> f64 {
+    use geom_core::Interval;
+    use geom_core::interval::certification::Certification;
+    use geom_core::spline::compose::CurveCertData;
+    use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
+    let (t0, t1) = carrier.domain();
+    let interior: Vec<f64> = carrier.knots().interior_knots().map(|(k, _)| k).collect();
+    let extra = geom_core::spline::algebra::range_grid_points(t0, t1, spans, &interior);
+    let sc = wall.certified_coords();
+    let sd = SurfaceCertData::new(wall.knots_u(), wall.knots_v(), wall.weights(), &sc).unwrap();
+    let cc = carrier.certified_coords();
+    let cd = CurveCertData::new(carrier.knots(), carrier.weights(), &cc).unwrap();
+    let (kv, coords) = image;
+    let lifted: Vec<Vec<Interval>> = coords
+        .iter()
+        .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
+        .collect();
+    let weights = vec![1.0; kv.control_count()];
+    let pd = CurveCertData::new(kv, &weights, &lifted).unwrap();
+    surface_curve_residual(&sd, &pd, &cd, &extra)
+        .unwrap()
+        .sup_bound()
+}
+
+/// **An exact pcurve image certifies no worse than an interpolated
+/// one.** The bowed wall's `u = 1` column IS the seam's carrier, so the
+/// 2-control line `(1, t)` is its exact image; the degree-1
+/// interpolant through the f64 feet at the composite's own breaks is
+/// the other. The wall is one Bézier patch, so every window lies in its
+/// one cell and the comparison is about the curves' decomposition alone:
+/// an image whose one span the extra breaks are cut into must not pay
+/// for each break it is cut at. Each piece's row is the blossom of the
+/// span's, as the interpolant's rows are its own coefficients, so the
+/// two certify alike at the SSI's 32 spans (measured bit-identical, at
+/// 4.677e-15 m) and the exact image's bound holds flat as the grid
+/// refines.
+#[test]
+fn an_exact_image_certifies_no_worse_than_its_interpolant() {
+    // 1.5 times the measured 4.677e-15 m, so a uniform widening of the
+    // composite that keeps the two images level still fails here.
+    const CEILING: f64 = 7.0e-15;
+    let body = prism(1.0);
+    let (edge, _, bowed, _) = flat_bowed_seam(&body, 1.0);
+    let wall = chart_of(&body, bowed);
+    let Some(topo::CurveGeom::Certified(c)) =
+        body.get_curve_geom(body.get_edge(edge).unwrap().curve)
+    else {
+        panic!("the seam's carrier is certified")
+    };
+    let Curve3::Nurbs(carrier) = c.carrier() else {
+        panic!("the seam's carrier is a spline")
+    };
+    let column = geom_brep::boundary_iso_u(&wall, true).unwrap();
+    assert!(
+        column.knots().knots() == carrier.knots().knots()
+            && column.weights() == carrier.weights()
+            && column
+                .control()
+                .iter()
+                .zip(carrier.control())
+                .all(|(a, b)| a.x == b.x && a.y == b.y && a.z == b.z),
+        "the fixture's premise: the carrier is the wall's u = 1 column, bit for bit"
+    );
+    let (t0, t1) = carrier.domain();
+    let (_, u1) = wall.knots_u().domain();
+    let (v0, v1) = wall.knots_v().domain();
+    let line = KnotVector::clamped(vec![t0, t0, t1, t1], 1).unwrap();
+    let exact = |spans| {
+        composite_sup(
+            &wall,
+            carrier,
+            (&line, &[vec![u1, u1], vec![v0, v1]]),
+            spans,
+        )
+    };
+    let interpolated = |spans: usize| {
+        #[allow(clippy::cast_precision_loss)]
+        let ts: Vec<f64> = (0..=spans)
+            .map(|i| t0 + (t1 - t0) * (i as f64 / spans as f64))
+            .collect();
+        let feet: Vec<_> = ts
+            .iter()
+            .map(|&t| wall.project_from_seed(carrier.eval(t), u1, t).unwrap())
+            .collect();
+        let mut knots = vec![t0];
+        knots.extend(&ts);
+        knots.push(t1);
+        let kv = KnotVector::clamped(knots, 1).unwrap();
+        let coords = [
+            feet.iter().map(|f| f.u).collect(),
+            feet.iter().map(|f| f.v).collect(),
+        ];
+        composite_sup(&wall, carrier, (&kv, &coords), spans)
+    };
+    let spans = geom_brep::ssi::SSI_CERT_SPANS;
+    let (e, i) = (exact(spans), interpolated(spans));
+    let (coarse, fine) = (exact(8), exact(64));
+    println!(
+        "exact image {e:e} m, interpolated {i:e} m at {spans} spans; exact {coarse:e} m at 8, \
+         {fine:e} m at 64"
+    );
+    assert!(
+        e <= i,
+        "the exact image certifies {e:e} m against the interpolant's {i:e} m at {spans} spans"
+    );
+    assert!(
+        e <= CEILING,
+        "the exact image's bound {e:e} m is past {CEILING:e} m, 1.5 times its measured 4.677e-15"
+    );
+    assert!(
+        fine <= 1.5 * coarse,
+        "refining the grid from 8 to 64 spans loosens the exact image's bound from \
+         {coarse:e} to {fine:e} m"
+    );
+}
