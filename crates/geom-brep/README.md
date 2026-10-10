@@ -189,7 +189,7 @@ midpoint, the state Newton started from: in the band the surfaces are
 near tangent there (`SsiError::TransversalityBand`), undecided the
 decision escalates (`SsiError::Escalated` on `ssi_transversality`), and
 either is the refusal, with the clearer angle's lever; clear of it, the
-gap is one refinement cannot halve. Where the refused margin stops
+gap is one refinement cannot halve. Where the refused residual stops
 falling over two consecutive rounds (two definite margins, the later no
 smaller, or two in the band, whatever their values), limb 3 is asked
 once of the carrier, and its refusal stands: a carrier across two
@@ -205,9 +205,9 @@ further, the certificate's refusal stands, naming where refinement
 stopped (gaps whose half falls in the band, midpoints that did not
 settle, midpoints that settled outside the domain) and the limb and
 margin each earlier round refused (`SsiError::RefinementExhausted`). At
-the wall, a margin that stopped falling over the last two rounds ends
-in the tolerance as the arithmetic's floor; one still falling ends as
-the curvature-held march's does.
+the wall, a refused residual that stopped falling over the last two
+rounds ends in the tolerance as the arithmetic's floor; one still
+falling ends as the curvature-held march's does.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
