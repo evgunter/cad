@@ -160,4 +160,3 @@ fn dual_interval_channels_contain_pointwise_duals() {
         }
     }
 }
-

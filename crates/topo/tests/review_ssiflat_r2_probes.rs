@@ -7,9 +7,9 @@
 //! one), so the door is driven directly.
 //!
 //! **ε posture**: every band here is built with [`Band::new`], not from
-//! `Tol::witness()`, so the escalation these probes pin can be driven at
-//! any process ε — they run identically under `CAD_TOLERANCE_EPS` of
-//! 1e-6, 1e-9 or 1e-12.
+//! `Tol::witness()`, so what these probes pin can be driven at any
+//! process ε — they run identically under `CAD_TOLERANCE_EPS` of 1e-6,
+//! 1e-9 or 1e-12.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -111,18 +111,20 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 }
 
 /// PROBE 2 (claim C1/C3, the payload): at the interval scalar the same
-/// route escalates at the same band, and the refusal carries a REAL
-/// enclosure — not a poison and not a hole — at any process ε.
+/// route escalates at a band below its own residuals, and the refusal
+/// carries a REAL enclosure — not a poison and not a hole — at any
+/// process ε. The described carrier's residuals sit near `4e-15`, so a
+/// `1e-15` band is inside their enclosures and limb 1 escalates first.
 #[test]
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;
-    let err = certify_at::<Interval>(1.0, ARC, tight_band())
-        .expect_err("the interval lane escalates at a 1e-12 band");
+    let err = certify_at::<Interval>(1.0, ARC, Band::new(1e-15, 1e-14).unwrap())
+        .expect_err("the interval lane escalates at a 1e-15 band");
     let SsiError::CertificateEscalated { ref cause, .. } = err else {
         panic!("the door must refuse through its escalation arm: {err:?}");
     };
     let (what, margin) = (cause.predicate.unwrap_or("<unnamed>"), Some(cause.margin));
-    assert_eq!(what, "ssi_hull_sup");
+    assert_eq!(what, "ssi_on_locus");
     let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
         margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
     else {
@@ -153,84 +155,28 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     );
 }
 
-/// PROBE 3 (claim C3, the terminal-sliver argument): the PR and the
-/// re-scoped row both say of this escalation that "there is nothing to
-/// tighten and nothing to subdivide". `ssi_hull_sup` bounds the
-/// CARRIER's incidence with the sphere — a quantity whose true value is
-/// exactly zero, since the circle lies on the sphere — and the bound is
-/// a control-hull bound over `SSI_CERT_SPANS` spans of the arc, whose
-/// own doc (`ssi/certify.rs:164-167`) reads "More spans ⇒ tighter hulls
-/// and a tighter tube".
-///
-/// This probe MEASURES that, over eight span lengths from a full turn
-/// (`div = 0.25`) down to 1/64 of a quarter (`div = 64`), and asserts
-/// the escalation is a property of THIS SPAN rather than a floor:
-///
-/// - the quarter turn escalates, at about 1.02e-12;
-/// - a SHORTER arc certifies — so there is something to subdivide;
-/// - a LONGER arc certifies too — so the escalation is not a monotone
-///   floor the bound is pressed against, it is where this one span
-///   happens to sit.
-///
-/// Either of the last two alone falsifies "there is nothing to tighten
-/// and nothing to subdivide"; together they say the quarter turn is
-/// singular among its neighbours in both directions, which is a
-/// stronger and more useful statement than a monotone trend would be.
-///
-/// **This row was re-pointed when `insert_once_ring` took the convex
-/// insertion form, because its previous claim went vacuous.** Under the
-/// lerp form the bound was dominated by the width the ring data carried
-/// rather than by the span, so four spans sat within 1.6x of each other
-/// (1.80e-12, 1.30e-12, 1.14e-12, 1.14e-12) and NONE certified; the row
-/// asserted a strict decrease across them. The convex form took that
-/// floor away, every arc but the quarter turn now certifies, and a
-/// "strictly smaller bound" loop over them compares nothing — every
-/// iteration passes on `None`. A row named for span dependence that
-/// measures no span dependence is the defect, not the re-baseline.
+/// PROBE 3 (claim C3): `ssi_hull_sup` bounds the carrier's incidence
+/// with the sphere, whose true value is exactly zero since the circle
+/// lies on the sphere. Read off the described carrier, every arc from a
+/// half turn (`div = 0.5`) down to 1/64 of a quarter certifies at the
+/// 1e-12 band at the interval scalar, the quarter turn included. A
+/// certificate that refines the carrier through an `f64` ratio reads a
+/// neighbour of it instead, and the quarter turn then escalates at
+/// about 1.02e-12.
 ///
 /// The full turn is not in the list: over a rung-3 chain carrier its
 /// map residual at the interval scalar reaches the 1e-12 band (sample
 /// 6, `pcurve_map_residual`) before the hull limb is read, so it
 /// measures that check rather than this one.
 #[test]
-fn the_interval_hull_bound_is_span_dependent() {
-    /// The `ssi_hull_sup` bound this route certifies at the interval
-    /// scalar, for an arc of `1/div` of a quarter turn — `None` when the
-    /// route certifies instead.
-    fn hull_sup_at_interval(div: f64) -> Option<f64> {
-        use geom_core::interval::Interval;
+fn the_interval_route_certifies_every_arc_at_a_1e_12_band() {
+    use geom_core::interval::Interval;
+    for div in [0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0] {
         let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
-        match certify_at::<Interval>(1.0, arc, tight_band()) {
-            Ok(_) => None,
-            Err(SsiError::CertificateEscalated { cause, .. })
-                if cause.predicate == Some("ssi_hull_sup") =>
-            {
-                Some(upper(cause.margin))
-            }
-            Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
+        if let Err(e) = certify_at::<Interval>(1.0, arc, tight_band()) {
+            panic!("the arc of 1/{div} of a quarter turn refused at a 1e-12 band: {e:?}");
         }
     }
-    let bounds: Vec<(f64, Option<f64>)> = [0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0]
-        .into_iter()
-        .map(|d| (d, hull_sup_at_interval(d)))
-        .collect();
-    println!("ssi_hull_sup vs span divisor: {bounds:?}");
-    let quarter = bounds
-        .iter()
-        .find(|(d, _)| *d == 1.0)
-        .and_then(|(_, b)| *b)
-        .unwrap_or_else(|| panic!("the quarter turn no longer escalates: {bounds:?}"));
-    assert!(
-        bounds.iter().any(|(d, b)| *d > 1.0 && b.is_none()),
-        "no arc SHORTER than the quarter turn certifies, so there is nothing to subdivide \
-         after all — the quarter turn escalates at {quarter:e}: {bounds:?}"
-    );
-    assert!(
-        bounds.iter().any(|(d, b)| *d < 1.0 && b.is_none()),
-        "no arc LONGER than the quarter turn certifies, so the escalation reads as a floor \
-         the bound is pressed against rather than as this span's own — the quarter turn \
-         escalates at {quarter:e}: {bounds:?}"
-    );
 }
 
 /// PROBE 4 (claim C2): a structural tube refusal carries no margin.

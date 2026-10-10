@@ -40,12 +40,11 @@ use crate::fixture::arc_chain;
 /// `review_ssiflat_r2_probes` reads the same number off its own
 /// escalations). Probe 3 uses it as a STRICT ceiling for
 /// the f64 lane's own bound; probe 1 uses it to pick the arm.
-/// **Re-measured when the C9 ring became a newtype over
-/// `interval-transcendentals`' `DInterval`**
-/// (`1.799_393_940_644_834_8e-12` before): the backend pads only where
-/// an operation is inexact, so the bound is tighter. Probe 3's
-/// strict-ceiling claim and probe 1's arm selection are unmoved.
-const HULL_SUP_AT_INTERVAL: f64 = 1.016_430_181_835_071_8e-12;
+/// It is read off the described carrier, cut at the certificate's
+/// breaks in the ring; a carrier refined through an `f64` ratio reads
+/// a neighbour of it at `1.016_430_181_835_071_8e-12`. At that bound no
+/// CI ε reaches probe 1's escalation arm.
+const HULL_SUP_AT_INTERVAL: f64 = 4.999_777_651_742_331e-15;
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
@@ -237,7 +236,7 @@ mod interval_lane {
             "an escalation must render the band it was judged against: {text}"
         );
         assert_eq!(
-            text.matches("1.0164301818350718e-12").count(),
+            text.matches("4.999777651742331e-15").count(),
             2,
             "both enclosure endpoints must be visible: {text}"
         );

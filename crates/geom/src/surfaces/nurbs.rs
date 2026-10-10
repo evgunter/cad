@@ -39,10 +39,10 @@
 //! both directions, deterministic.
 
 use core::num::NonZeroUsize;
+use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotMirrorError, KnotVector, Span, SpanLocate, SplineError,
 };
-use geom_core::spline::algebra::ProjectiveScalar;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::net;
@@ -954,7 +954,6 @@ impl<T: Real> NurbsSurface<T> {
             weights,
         }
     }
-
 }
 
 /// The knot algebra: at the evaluation scalars only

@@ -156,7 +156,7 @@
 //! with `λ` lifted once per combination.
 
 use core::num::NonZeroUsize;
-use geom_core::spline::algebra::ProjectiveScalar;
+use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 
@@ -1656,4 +1656,3 @@ impl<T: Real> NurbsCurve3<T> {
         net::is_placeholder(&self.control)
     }
 }
-

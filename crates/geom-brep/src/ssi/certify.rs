@@ -114,7 +114,6 @@ use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::{domain_grid_points, range_grid_points, refine_plan_homogeneous};
-use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
@@ -314,22 +313,27 @@ fn cert_grid(kv: &KnotVector) -> Vec<f64> {
     domain_grid_points(kv, SSI_CERT_SPANS)
 }
 
-/// The carrier's control net refined at [`cert_grid`]: its homogeneous
+/// A carrier's control net refined at [`cert_grid`]: its homogeneous
 /// channels `(w·P, w)` through
 /// [`geom_core::spline::CurvePlan::apply_certified`], then
 /// de-homogenized, so every point encloses the refined net of the
 /// described carrier. Paired with the refined vector; `None` when the
 /// insertion chain refuses.
-fn refined_net<T: Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
+fn refined_net(
+    kv: &KnotVector,
+    weights: &[f64],
+    coords: &[Vec<Interval>],
 ) -> Option<(KnotVector, [Vec<Interval>; 3])> {
-    let kv = carrier.knots();
     let plans = refine_plan_homogeneous(kv, &cert_grid(kv)).ok()?;
     let refine = |channel: Vec<Interval>| -> Vec<Interval> {
-        plans.iter().fold(channel, |c, plan| plan.apply_certified(&c))
+        plans
+            .iter()
+            .fold(channel, |c, plan| plan.apply_certified(&c))
     };
-    let w: Vec<Interval> = carrier.weights().iter().map(|w| Interval::point(*w)).collect();
-    let coords = carrier.certified_coords();
+    let w: Vec<Interval> = weights
+        .iter()
+        .map(|w| Interval::from_bounds(*w, *w))
+        .collect();
     let rw = refine(w.clone());
     let net = core::array::from_fn(|d| {
         let homogeneous = coords
@@ -342,7 +346,9 @@ fn refined_net<T: Bounds + CertifiedEnclosure>(
             .map(|(a, w)| *a / *w)
             .collect()
     });
-    let fine = plans.last().map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+    let fine = plans
+        .last()
+        .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
     Some((fine, net))
 }
 
@@ -721,7 +727,11 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     let mut out = Vec::new();
     // A refused insertion chain returns an EMPTY chain, which limb 3
     // reads as a definite refusal (no box, so nothing banked).
-    let Some((kv, coords)) = refined_net(carrier) else {
+    let Some((kv, coords)) = refined_net(
+        carrier.knots(),
+        carrier.weights(),
+        &carrier.certified_coords(),
+    ) else {
         return out;
     };
     let kv = &kv;

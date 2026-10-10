@@ -155,8 +155,8 @@ use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, CurvePlan, KnotVector, Param, ParamRange, SplineCoeffs, SplineCoeffsBuf, TensorChannels,
-    last_at_or_below,
+    CoeffWindow, CurvePlan, KnotVector, Param, ParamRange, SplineCoeffs, SplineCoeffsBuf,
+    TensorChannels, last_at_or_below,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -2762,14 +2762,15 @@ fn refine_dir(
         })
         .collect();
     for line in &mut cur {
-        let channels: [Vec<Interval>; 3] = core::array::from_fn(|c| {
-            refine_channel(&plans, line.iter().map(|q| q[c]).collect())
-        });
+        let channels: [Vec<Interval>; 3] =
+            core::array::from_fn(|c| refine_channel(&plans, line.iter().map(|q| q[c]).collect()));
         *line = (0..channels[0].len())
             .map(|i| [channels[0][i], channels[1][i], channels[2][i]])
             .collect();
     }
-    let cur_kv = plans.last().map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+    let cur_kv = plans
+        .last()
+        .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
     let new_count = cur_kv.control_count();
     let (rows, cols) = if along_u {
         (new_count, other)
@@ -7050,7 +7051,10 @@ mod tests {
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = (Interval::from_bounds(1.0 - d, 1.0), pt(1.0));
         let mut g = general(&[(1.0 - d, 1.0), (0.0, 0.0)], 0.0);
-        g.a = (Interval::from_bounds(1.0 - 1.5 * d, 1.0 - 0.25 * d), pt(1.0));
+        g.a = (
+            Interval::from_bounds(1.0 - 1.5 * d, 1.0 - 0.25 * d),
+            pt(1.0),
+        );
         g.piece.as_mut().unwrap().control[0] = g.a;
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(

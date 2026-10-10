@@ -46,6 +46,7 @@ pub mod hull;
 pub mod knots;
 pub mod locate;
 pub mod net;
+pub mod projective;
 pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
@@ -58,4 +59,5 @@ pub use knots::{
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
+pub use projective::ProjectiveScalar;
 pub use range::{Param, ParamRange, last_at_or_below};
