@@ -7,6 +7,7 @@ opened: 2026-10-07
 priority: P2
 cost: M
 branch: germ/pn-apex-point-snap
+pr: 4478
 ---
 
 ## What
