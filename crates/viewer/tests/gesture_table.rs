@@ -363,6 +363,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             node,
             slot: SlotId::Distance,
             var,
+            name: None,
         },
         SessionOp::DeclineOffer {
             node,

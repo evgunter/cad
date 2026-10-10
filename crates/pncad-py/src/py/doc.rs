@@ -4370,7 +4370,8 @@ impl DocEdit {
     /// (`unknown_var`), a name another variable holds
     /// (`var_name_taken`), the name the variable already has
     /// (`var_name_unchanged`), and clearing the name of a variable
-    /// nothing reads (`anonymous_var_unread`).
+    /// nothing reads (`anonymous_var_unread`) or more than one reader
+    /// reads (`shared_var_needs_name`: an unnamed variable has one).
     #[staticmethod]
     #[pyo3(signature = (var, name))]
     fn rename_var(var: VarArg, name: Option<&VarName>) -> Self {

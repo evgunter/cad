@@ -417,7 +417,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
 - `ProfileLoop.tangent_joints` (`profile/src/lib.rs:474`), `with_tangent_joints` (`:564`, `:578`), the `from_chain` parameter (`:651`) and `structure.rs:634` go.
 - `ValidatedLoop` derives the set:
   - the constructors' joints (`.tangent()`, the fillet, the continuations, and `.cusp()` for the reverse joint), which the program lowering already knows;
-  - the junctions `seg::joint_tangency` decides Zero, each recorded as a `Coincidence { relation: Tangent, site: ProfileJunction }`.
+  - the junctions `seg::joint_tangency` decides Zero, each recorded as a `Coincidence { site: ProfileJunction }`: `relation: Tangent` between two carriers (`aligned: false` at a cusp), `SameOriented` where the two segments continue one carrier.
 - **Refusals.**
   - `UndeclaredTangency` (`validate.rs:1090`) retires.
   - `TangencyContradicted` (`:1104`) stays for a constructor-made joint the geometry contradicts ("verified, never trusted").

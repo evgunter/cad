@@ -629,8 +629,10 @@ pub struct LoopCanonical {
     pub reversed: bool,
     /// The canonical chain's per-segment shapes.
     pub segments: Vec<SegmentShape>,
-    /// The canonical chain's declared tangent joints, sorted and
-    /// deduplicated.
+    /// The canonical chain's tangent joints
+    /// ([`crate::ValidatedLoop::tangent_joints`]), sorted and
+    /// deduplicated: derived from its constructors and its junction
+    /// verdicts, and recorded so a lane re-deriving them is compared.
     pub tangent_joints: Vec<usize>,
     /// Which of those joints reverse the heading — the cusps, sorted
     /// ([`crate::ValidatedLoop::cusp_joints`]).
@@ -744,12 +746,12 @@ pub enum Decision {
         /// The pre-canonical segment index.
         segment: usize,
     },
-    /// A loop's declared tangent-joint set after canonicalization.
+    /// A loop's derived tangent-joint set after canonicalization.
     TangentJoints {
         /// The loop's input index.
         loop_: usize,
     },
-    /// Which of a loop's declared joints are cusps, after
+    /// Which of a loop's tangent joints are cusps, after
     /// canonicalization.
     CuspJoints {
         /// The loop's input index.
@@ -917,9 +919,9 @@ impl core::fmt::Display for Decision {
                 write!(f, "which segment the radius at emission {at} drew")
             }
             Self::Piece { segment } => write!(f, "which piece segment {segment} is"),
-            Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s declared tangent joints"),
+            Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s tangent joints"),
             Self::CuspJoints { loop_ } => {
-                write!(f, "which of loop {loop_}'s declared joints are cusps")
+                write!(f, "which of loop {loop_}'s tangent joints are cusps")
             }
             Self::GuideNotInstalled => {
                 write!(f, "the guide's installation into the chain's core")
@@ -1051,7 +1053,7 @@ impl<T: Real> Guide<T> {
     ///
     /// Returns the signs the emission must use. Under guidance those
     /// are the RECORDED ones: a fit sign decides whether a straight
-    /// piece and its declared joint exist at all, so the lane's own
+    /// piece and its constructed joint exist at all, so the lane's own
     /// answer is compared and reported, never adopted.
     pub(crate) fn line_fits(
         &mut self,

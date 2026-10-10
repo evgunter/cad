@@ -3740,7 +3740,8 @@ class DocEdit:
         (`unknown_var`), a name another variable holds
         (`var_name_taken`), the name it already has
         (`var_name_unchanged`), and clearing the name of a variable
-        nothing reads (`anonymous_var_unread`)."""
+        nothing reads (`anonymous_var_unread`) or more than one reader
+        reads (`shared_var_needs_name`: an unnamed variable has one)."""
     @staticmethod
     def delete_var(var: Var | VarName) -> DocEdit:
         """Delete a named variable. Its readers stay, unresolved:
@@ -6920,7 +6921,9 @@ class CheckEvidence:
     as `coincidence`) — a node decided two cells one from values and
     the coincidence door does not prove it structural. `reason` says
     what separates the two constructions, or why a cell's could not be
-    read. A report, never a refusal."""
+    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    between two carriers and `same_oriented` on one. A report, never a
+    refusal."""
 
     @property
     def variant(self) -> str: ...
@@ -6962,10 +6965,13 @@ class Coincidence:
 
     `cells` are `(node, name)` pairs: the input node whose table names
     the cell, and the name there (the opaque text the materializers
-    answer with); the plane a split cuts with is `(node, None)`.
-    `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
-    `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
-    `split_on` or `battery_turn`. `rung` is the door's rung that proved
+    answer with); the plane a split cuts with is `(node, None)`, and a
+    profile's own piece is `(profile, piece)`. `relation` is
+    `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
+    `tangent` or `cusp`; `site` is `plane_ladder`, `carrier_ladder`,
+    `split_on`, `battery_turn` or `profile_junction`. A `profile_junction`
+    row is `tangent` or `cusp` between two carriers and `same_oriented`
+    where its two pieces continue one carrier. `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 

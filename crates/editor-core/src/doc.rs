@@ -1214,11 +1214,60 @@ impl<P> Doc<P> {
         !self.var_names.contains_key(&var) && self.free(var).is_some()
     }
 
+    /// **How many readers each variable has** (VR2): each slot holding
+    /// it — a measure's value leaves and an assertion's bound among
+    /// them (VR4) — each operand reading it, and each definition reading
+    /// it, however often that one definition reads it. The one census
+    /// of readers: the VR7 sweep ([`Self::unread_anonymous_vars`]) and
+    /// the share check ([`Self::shared_unnamed_vars`]) both ask it.
+    pub fn reader_counts(&self) -> BTreeMap<VarId, usize>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut readers: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            let slots = node.exprs().into_iter().copied();
+            let operands = node.operand_rows().into_iter().map(|(_, var)| var);
+            for var in slots.chain(operands) {
+                *readers.entry(var).or_default() += 1;
+            }
+        }
+        for var in self.vars.keys() {
+            for read in self
+                .definition_reads(*var)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+            {
+                *readers.entry(read).or_default() += 1;
+            }
+        }
+        readers
+    }
+
+    /// **The unnamed variables more than one reader reads**, in id
+    /// order: what no door admits (VR2, VR7) and the load door refuses
+    /// (VR9). An output is not among them: it is read by its readers
+    /// and named by its operation and port.
+    pub fn shared_unnamed_vars(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        self.vars
+            .iter()
+            .filter(|(id, var)| {
+                !self.var_names.contains_key(id)
+                    && var.def().output().is_none()
+                    && readers.get(id).is_some_and(|&n| n > 1)
+            })
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
     /// **The anonymous variables [`Node::written`] would not reproduce**:
-    /// one read more than once — by two slots, as a fresh entry shared
-    /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and a count read by a
-    /// definition, which written there reads back as the integer
+    /// one its one reader's formula reads more than once, which a
+    /// written re-insert splits into one per read, and a count read by
+    /// a definition, which written there reads back as the integer
     /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
@@ -1260,45 +1309,44 @@ impl<P> Doc<P> {
     }
 
     /// **The anonymous variables nothing live reads** (VR7), in the
-    /// order a cascading removal reports them: a variable is live when
-    /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. An output is not among them: it lives
-    /// exactly as long as its node. Each round takes, in declaration order,
-    /// the anonymous variables read by no node and by no definition of
-    /// a variable still standing — so a defined variable comes before
-    /// the variables only its definition read.
+    /// order a cascading removal reports them: an unnamed variable with
+    /// no reader ([`Self::reader_counts`]) goes, and so, round by round,
+    /// does one whose only readers were definitions of variables that
+    /// went. An output is not among them: it lives exactly as long as
+    /// its node. Each round is in declaration order, so a defined
+    /// variable comes before the variables only its definition read.
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
     {
-        let mut node_read = BTreeSet::new();
-        for node in self.nodes.values() {
-            node_read.extend(node.exprs().into_iter().copied());
-        }
+        let counts = self.reader_counts();
         let edges = self.definition_edges();
         let unheld = |at: usize| {
             let id = edges.ids[at];
             !self.var_names.contains_key(&id)
-                && !node_read.contains(&id)
                 && self
                     .vars
                     .get(&id)
                     .is_some_and(|var| var.def().output().is_none())
         };
-        // How many standing definitions read each variable: a round
-        // removes its variables' reads, and a variable whose count
-        // falls to none joins the next round.
-        let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
+        // Each variable's readers still standing: a round removes its
+        // variables' definitions, and a variable whose count falls to
+        // none joins the next round.
+        let mut readers: Vec<usize> = edges
+            .ids
+            .iter()
+            .map(|id| counts.get(id).copied().unwrap_or(0))
+            .collect();
         let mut round: Vec<usize> = (0..edges.ids.len())
-            .filter(|&at| holders[at] == 0 && unheld(at))
+            .filter(|&at| readers[at] == 0 && unheld(at))
             .collect();
         let mut removed = Vec::new();
         while !round.is_empty() {
             let mut next = Vec::new();
             for &at in &round {
                 for &read in &edges.reads[at] {
-                    holders[read] -= 1;
-                    if holders[read] == 0 && unheld(read) {
+                    readers[read] -= 1;
+                    if readers[read] == 0 && unheld(read) {
                         next.push(read);
                     }
                 }
@@ -1470,7 +1518,10 @@ impl<P> Doc<P> {
     /// of an anonymous one by what it holds ([`Self::written`]) — a
     /// written value in its unit (`5 mm`), a definition expanded — and
     /// a reader of a variable the document does not hold by its full id
-    /// ([`crate::unparse`]).
+    /// ([`crate::unparse`]). An anonymous variable has one reader
+    /// (VR2), so the text set back where it was read re-mints it for
+    /// that reader alone: no share is split, and a shared variable is
+    /// written by its name.
     pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
         crate::expr::unparse(&self.written_formula(&expr.to_formula()), &|id| {
             self.var_names.get(&id)

@@ -1117,6 +1117,7 @@ test_utils::f6_variants! {
         SlotVarKind,
         PayloadVarKind,
         AnonymousVarUnread,
+        SharedVarNeedsName,
         DefinitionReadsUnmintedVar,
         DefinitionVarKind,
         DefinitionCycle,
@@ -1346,6 +1347,15 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "#0:0000000000070000 has no name and nothing reads it",
                 "one something reads",
+            ],
+        ),
+        (
+            SnapshotError::SharedVarNeedsName {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec![
+                "#0:0000000000070000 has no name and more than one reader",
+                "regenerate the file",
             ],
         ),
         (
@@ -3156,7 +3166,7 @@ fn maintenance_display_says_what_the_edit_did() {
             },
             vec![
                 "nothing reading #0:0000000000070000",
-                "went with its last reader",
+                "went with its reader",
             ],
         ),
         (
