@@ -171,6 +171,7 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
+                        // Read only through `mid()`: nothing escapes at `Sym`, so no pin can observe this lift.
                         let d = win.eval_in_span(T::from_computed(u), T::from_computed(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
@@ -274,6 +275,7 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             iterations += 1;
             // Acceptance: parameter stagnation, measured in meters
             // through the chart (domain-edge feet land here).
+            // Read only through `mid()`: nothing escapes at `Sym`, so no pin can observe this lift.
             let moved = j.du * T::from_computed(un - u) + j.dv * T::from_computed(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
                 let Some(win) = self.window_at(un, vn) else {
