@@ -336,8 +336,8 @@ fn r1_join_abstention_logic() {
 
     // (2) A per-span chord exactly collapsed (P_span == P_{span-p} for
     // one span) while the global chord is fine: the per-span arm
-    // abstains and the join must equal the global arm's real value
-    // exactly — never NaN, never a fabricated max.
+    // abstains, and the join is real, at least the global arm's value
+    // (the piece assembly may raise it), and sound — never NaN.
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let c = NurbsCurve3::<f64>::new(
         kv,
@@ -353,9 +353,14 @@ fn r1_join_abstention_logic() {
     let m = c.speed_lower_bound().get();
     let old = old_arm(&c);
     assert!(
-        !m.is_nan() && (m - old).abs() == 0.0,
-        "per-span collapse must abstain and hand back the global arm \
-         bit-for-bit: got {m}, global {old}"
+        !m.is_nan() && m >= old,
+        "per-span collapse must abstain and keep the global arm as a \
+         floor: got {m}, global {old}"
+    );
+    let truth = sampled_min_speed(&c, fuzz::scaled(2_000));
+    assert!(
+        m <= truth + 1e-12,
+        "per-span abstention unsound: {m} > {truth}"
     );
 
     // (3) BOTH collapsed: closed square whose middle span chord also
@@ -374,11 +379,30 @@ fn r1_join_abstention_logic() {
     )
     .unwrap();
     // Global chord: last == first -> abstains. Span 2 chord P_0..P_2
-    // collapses -> per-span poisons. Both abstain -> poison.
+    // collapses -> per-span poisons. The piece assembly still answers,
+    // and the curve turns back on itself, so its answer is real and
+    // not positive.
+    let m = c.speed_lower_bound().get();
+    assert!(
+        !m.is_nan() && !(m > 0.0),
+        "both chord assemblies collapsed on a turn-around: the piece \
+         assembly answers real and non-positive, got {m}"
+    );
+
+    // (3b) EVERY assembly collapsed: a degree-1 segment whose two
+    // control points coincide. Global chord, span chord and the one
+    // piece coefficient sum are all zero: the join is poison.
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let c = NurbsCurve3::<f64>::new(
+        kv,
+        vec![Point3::new(1.0, 2.0, 3.0), Point3::new(1.0, 2.0, 3.0)],
+        vec![1.0; 2],
+    )
+    .unwrap();
     let m = c.speed_lower_bound().get();
     assert!(
         m.is_nan(),
-        "both assemblies collapsed: the join must be poison, got {m}"
+        "every assembly collapsed: the join must be poison, got {m}"
     );
 
     // (4) Poison INPUT (non-finite interior control point, finite

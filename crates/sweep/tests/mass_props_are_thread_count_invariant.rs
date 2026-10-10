@@ -437,6 +437,17 @@ fn digest() -> String {
 /// `num` 596 → 604; `sym_thin_strip` 652 → 660, `num` 604 → 612).
 /// Every verdict hash, pad, volume, refusal and `frozen` column is
 /// unchanged.
+///
+/// **Re-cut at all three ε when the integral speed meter took a third,
+/// per-piece assembly** (`geom::NurbsCurve3::speed_lower_bound`'s
+/// `piece_assembly`). Only `sym_arc_loft`'s `validate_geometric`
+/// `frozen` column moves, by 67 at every ε (607 → 674 / 539 → 606 /
+/// 606 → 673 at ε = 1e-6 / 1e-9 / 1e-12): the meter's margin is now a
+/// join over sixteen pieces a span, built outside the session, and the
+/// walk freezes those operands as absent from its table. Decisions,
+/// discharges, shapes and every verdict are unchanged. Measured by
+/// disabling only that assembly on a probe build, which restores the
+/// old column.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
