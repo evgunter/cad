@@ -54,9 +54,11 @@ Bernstein row on `[a, b]`; a bare Bernstein row mints
 `KnotVector::bezier(p, (s0, s1))`. `compose`'s Bézier decomposition is
 `restrict` per span and piece, and `insert_once_ring` and `sub_segment`
 are retired. Routed through it: `ssi/enclose::bezier_on`,
-`ssi/section::sub_piece`, `props/quad`'s `de_boor` (inside the span's
-closure) and `bezier_bisect`, and `pcurve_cache/projected::piece_controls`
-through `SpanLocate::restrict_window`. The per-site table, including
+`ssi/section::sub_piece`, `props/quad`'s `bezier_bisect`, and
+`pcurve_cache/projected::piece_controls` through
+`SpanLocate::restrict_window`. `props/quad`'s `de_boor` is not: routed,
+it broke step-import's native/import bit identity by one ulp, filed as
+`quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`. The per-site table, including
 the sites not routed and why, is in PR 4551's body.
 `apply_certified` and `TensorNet::refine_*` keep their Boehm schedules
 and step through the door.
