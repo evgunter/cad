@@ -128,7 +128,7 @@ pub fn flush_declarations<S: Scalar>(
 
 /// The oracle: volume of a boolean result vs the exact expectation.
 /// `Good` carries the whole [`BooleanBody`] (body + kind + the
-/// declared contacts the 3′ gate consumes); the two failure shapes
+/// contact records the 3′ gate consumes); the two failure shapes
 /// carry what actually happened, for narration.
 // Size skew vs the slim failure variants is inherent (same posture as
 // the kernel's own `BooleanResult`).
