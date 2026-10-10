@@ -5,7 +5,7 @@ title: The circle-root subdivision doors decide a piece's side, the ON test and 
 status: open
 opened: 2026-10-10
 priority: P3
-cost: S
+cost: E
 refs: [degree-2-subdivision-doors-carry-no-root-slack-meter, 4522]
 ---
 
