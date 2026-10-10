@@ -28,7 +28,7 @@ feeds a decision, every walk is bounded.
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
-| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
+| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
 
 The census's sweeps and backstop examine only pairs whose padded boxes
@@ -52,9 +52,8 @@ operands. Three objects carry the design:
 - a **decision** (`Coincidence`, `crate::coincidence`) is a
   coincidence an operation decided from values: which two of its
   inputs' cells, what relation, where, and the margin read;
-- a **record** (`ContactRecords`: `VvContact`, `VeContact`,
-  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is a touch
-  a result body carries, citing the decisions that back it (`Cites`):
+- a **record** (`ContactRecords`, one list of unordered pairs of the
+  body's cells) is a touch a result body carries, citing the decisions that back it (`Cites`):
   rows of the producing operation's own coincidences
   (`Backing::Decided`), or a record of an input it carries in
   (`Backing::Carried`, which cites its own). A record cannot be built
@@ -111,8 +110,11 @@ separation/crossing by geometry, in-band ⇒ escalate. The exclusion step
 is `census::sweep_cross_solid_backstop`. A cross-solid pair with a curved
 side clears only
 
-- on a definitely-positive separation margin from certified reach boxes
-  (`face_reach`), or
+- on a definitely-positive separation margin between certified reach boxes
+  (`face_reach_in`), read along each world axis and then along the
+  directions that turn with the pair: the axis between the two faces'
+  anchors, and either face's normal where it is planar
+  (`boolean::separating::apart`), or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and
@@ -141,13 +143,20 @@ the reduction decided (`DecisionSite::VertexFusion`), and a pair a
 chain of such identities implies cites every one on each shortest
 chain.
 
-- `CurveContact { face_a, face_b, witness }` is a certified curve touch:
-  the jet schedule along the witness edge's carrier (coincidence within
-  ε, normal opposition within ε·κ_rel, κ_rel definitely positive, hull
-  bounds between samples). Its endpoints are bounded by vertex records or
-  the locus's closure; an unbacked bound is `UndeclaredContact`.
-- `PatchContact { face_a, face_b }` is a certified conformal patch,
-  backed by a `SameOpposite` decision (for a mate's patch, the at-rest
+A record's kind is its two cells' dimensions; the face-level kinds
+are edge–face and face–face pairs, and the census reads which touch a
+pair is from the two cells' carriers:
+
+- A **curve touch** is certified by the jet schedule along its locus
+  (coincidence within ε, normal opposition within ε·κ_rel, κ_rel
+  definitely positive, hull bounds between samples). For an edge–face
+  pair the locus is the edge's carrier; for a face–face pair on two
+  carriers the census derives it from the carriers, on the closed-form
+  lane the deciding operation used, and refuses typed where no such lane
+  exists. Its endpoints are bounded by vertex records or the locus's
+  closure; an unbacked bound is `UndeclaredContact`.
+- A **patch** is a face–face pair on one carrier, backed by a
+  `SameOpposite` decision (for a mate's patch, the at-rest
   census's `CensusAtRest` row; the mate places and never checks):
   carrier identity by the carrier ladder (a margin
   decided Zero, or a declaration bridging one in band), senses opposed
@@ -407,7 +416,7 @@ cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
 **Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a `PatchContact`. Findings attribute to mates as Declined, Unattributed
+a face–face record (a patch). Findings attribute to mates as Declined, Unattributed
 or Refuted (`StaleContactDeclaration`); all-Declined is the `Uncertified`
 frontier, and any Unattributed is a hard `AtRest` error
 (`crates/editor-core/ASSEMBLY.md`).
@@ -448,17 +457,21 @@ establishes the smooth precondition; the census is otherwise
 sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
-`ef_bound_backed` confine by structural incidence only, so they can back
-an event outside the pair's overlap region. Each migrates to the unified
-strength one at a time, measured. The edge-on-face lane cuts an edge
-at every boundary vertex on it and every place a boundary edge crosses
-it, each placed in metres along both (a crossing within the band of an
-arc's end is that end's vertex), and refuses a face whose spiric or
-spline edge it cannot clear, so no cell spans the face's boundary on a
-decided reading. `ef_bound_backed`'s migration is parked with the
-declared-pair machinery D10 retires
-(`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
+`ve_face_backed`, and the face-pair arms of `ee_bound_backed` confine by
+structural incidence only, so they can back an event outside the pair's
+overlap region. Each migrates to the unified strength one at a time,
+measured. `ef_bound_backed`'s face-pair arms hold the unified strength
+(`Declared::vf_face_backed_confined`): a declared pair incident to the
+bound backs it only where the pair passes Door 1 and Door 2 reaches
+`PositiveArea`. Incidence puts the bound in the closed intersection of
+the two regions, the licence the crossing rung reads; a curved pair
+answers nothing there.
+
+The edge-on-face lane cuts an edge at every boundary vertex on it and
+every place a boundary edge crosses it, each placed in metres along
+both (a crossing within the band of an arc's end is that end's vertex),
+and refuses a face whose spiric or spline edge it cannot clear, so no
+cell spans the face's boundary on a decided reading.
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is
@@ -489,8 +502,6 @@ left).
 ## Open
 
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration is parked
-  (`ef-bound-backed-migrates-to-region-confinement`, D10).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key

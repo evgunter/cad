@@ -187,6 +187,7 @@ mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_derive;
+pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
@@ -896,6 +897,7 @@ pub use merge_faces::{
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_derive::{CornerVerdict, SectionLane, SectionVerdict};
+pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{
@@ -923,7 +925,9 @@ pub use replace_face::{
 };
 #[cfg(any(feature = "test-support", feature = "sweep-testing"))]
 #[doc(hidden)]
-pub use replace_face::{offset_corner_arms_for_tests, offset_edge_plans_for_tests};
+pub use replace_face::{
+    offset_corner_arms_for_tests, offset_edge_plans_for_tests, offset_edge_specs_for_tests,
+};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
