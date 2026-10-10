@@ -24,7 +24,7 @@
 use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    AssertionRelation, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
     ProfileProgram, SitedRef, VarName,
 };
 use geom_core::Tol;
@@ -142,7 +142,7 @@ pub fn document() -> CorpusDoc {
     let _assertion = r.insert(Node::Assertion {
         value: web,
         bound: len(MIN_WEB),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     r.place(plate);
 

@@ -104,7 +104,7 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    AssertionRelation, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
     Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
     RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
@@ -550,7 +550,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Assertion {
             value: Formula::var(position, Dimension::Length),
             bound: len(bound),
-            dir: AssertionDir::AtMost,
+            relation: AssertionRelation::AtMost,
         },
         tol,
     );

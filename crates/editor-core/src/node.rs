@@ -1372,7 +1372,7 @@ macro_rules! expr_table {
             Node::Assertion {
                 value,
                 bound,
-                dir: _,
+                relation: _,
             } => $wrap(vec![value, bound]),
             $rest @ (Node::Datum(_)
             | Node::Profile(_)
@@ -2734,7 +2734,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// radians with metres.
         bound: S,
         /// Which side of the bound the measure must fall on.
-        dir: crate::measure::AssertionDir,
+        relation: crate::measure::AssertionRelation,
     },
 }
 
@@ -3049,7 +3049,7 @@ macro_rules! node_rows {
             | Node::Assertion {
                 value: _,
                 bound: _,
-                dir: _,
+                relation: _,
             } => {}
         }
     }};
@@ -3372,7 +3372,7 @@ impl<P> Node<P> {
             | Node::Assertion {
                 value: _,
                 bound: _,
-                dir: _,
+                relation: _,
             } => Vec::new(),
             Node::Profile(p) => p.frame_read().map(|r| (O::Frame, r)).into_iter().collect(),
             Node::Extrude {
@@ -3523,7 +3523,7 @@ impl<P> Node<P> {
             | Node::Assertion {
                 value: _,
                 bound: _,
-                dir: _,
+                relation: _,
             } => Vec::new(),
             Node::Profile(p) => p
                 .frame_read_mut()
@@ -4525,10 +4525,14 @@ impl<P, S: Slot> Node<P, S> {
             Node::Measure { primitive } => Node::Measure {
                 primitive: primitive.clone(),
             },
-            Node::Assertion { value, bound, dir } => Node::Assertion {
+            Node::Assertion {
+                value,
+                bound,
+                relation,
+            } => Node::Assertion {
                 value: f(value)?,
                 bound: f(bound)?,
-                dir: *dir,
+                relation: *relation,
             },
         })
     }

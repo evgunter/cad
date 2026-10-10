@@ -31,7 +31,7 @@ import unittest
 
 import pncad
 from pncad import (
-    AssertionDir,
+    AssertionRelation,
     DEFAULT_SAMPLES,
     DEFAULT_SEED,
     Distribution,
@@ -118,7 +118,7 @@ def scene(distribution=None, bound=None):
     assertion = None
     if bound is not None:
         assertion = doc.insert(
-            Node.assertion(doc.output(measure), AssertionDir.AtLeast, doc.parse_formula(bound))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula(bound))
         )
     return doc, analyzed_box(doc), measure, assertion
 
@@ -203,7 +203,7 @@ class TestTheEstimateIsTheAuthoring(unittest.TestCase):
         doc.insert(
             Node.assertion(
                 doc.parse_formula("height - 1 mm"),
-                AssertionDir.AtLeast,
+                AssertionRelation.AtLeast,
                 doc.parse_formula("0 m"),
             )
         )
@@ -279,7 +279,7 @@ class TestTheAssertionRowsAreEmpirical(unittest.TestCase):
             Node.measure(MeasurePrimitive.min_clearance((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, NOMINAL))))
         )
         assertion = doc.insert(
-            Node.assertion(doc.output(clearance), AssertionDir.AtLeast, doc.parse_formula("1 mm"))
+            Node.assertion(doc.output(clearance), AssertionRelation.AtLeast, doc.parse_formula("1 mm"))
         )
         report = monte_carlo(doc, analyzed_box(doc), McConfig(samples=8))
         row = next(r for r in report.assertions if r.node == assertion)

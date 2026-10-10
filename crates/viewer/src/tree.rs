@@ -183,8 +183,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
-    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc,
+    Evaluation, Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
     NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
     ValuePayload, VarId, node_kind_noun,
 };
@@ -464,7 +464,7 @@ pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
     /// Which side of the bound the measure must fall on.
-    pub dir: AssertionDir,
+    pub relation: AssertionRelation,
     /// The measure under the value the assertion bounds — the
     /// `min_clearance` one when there is one, since that is the measure
     /// a point scalar cannot answer — or `None` for a value no measure
@@ -499,7 +499,7 @@ impl Asserted {
             | AssertionVerdict::Violated { measured, bound } => Some(format!(
                 "{} {} {}",
                 measured.spelled(notation),
-                self.dir.symbol(),
+                self.relation.symbol(),
                 bound.spelled(notation)
             )),
             AssertionVerdict::Unevaluated { .. } => None,
@@ -901,7 +901,10 @@ fn asserted(
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
 ) -> Asserted {
-    let Node::Assertion { value, dir, .. } = node else {
+    let Node::Assertion {
+        value, relation, ..
+    } = node
+    else {
         unreachable!("only an assertion node evaluates to a verdict")
     };
     let dim = || match doc.var(*value).and_then(|var| var.kind().dimension()) {
@@ -926,7 +929,7 @@ fn asserted(
             canonical: number,
             dimension: dim(),
         }),
-        dir: *dir,
+        relation: *relation,
         measure: clearance
             .or_else(|| measures.first().copied())
             .map(|measure| doc.spoken(measure)),
