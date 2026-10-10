@@ -1,6 +1,6 @@
-//! The tier-3′ **global coincidence census** + declared-contact
-//! certification (M3 PR 6a; F1/F2) — the injectivity pass tier 3
-//! defers, run at rest against a body's declared-contact records.
+//! The tier-3′ **global coincidence census** + contact-record
+//! certification (F1/F2) — the injectivity pass tier 3 defers, run
+//! at rest against a body's contact records.
 //!
 //! **Sweep shape**: five vertex-granular sweeps in arena order
 //! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge),

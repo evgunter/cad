@@ -4,7 +4,7 @@ This spec carries `work/germ/boolean-sector-algebra-has-no-cone-arm.md`
 (P1, H). It measures the whole chain of doors a cone operand meets past
 the pair gate (§0), specifies each door's arm (§1), checks each against
 the D10 hold (§2), and cuts the units (§3). Every unit here lands below
-the operand gate and precedes `docs/GERM-VERBS-CONE-SPEC.md`'s U7 (the
+the operand gate and precedes the cone admission spec's U7 (`docs/doc-ledger/germ-verbs-cone-spec.md`) (the
 roster flip). The spec is deleted when its last unit merges.
 
 Read on `c333c6ac65`. Line numbers ride beside names and may rot.
@@ -94,7 +94,7 @@ its own arm back off with the rest left on.
   germs are matched, before `bool_connect` dispatches the pair. TANG's
   "plane×cone germ lane" opened the frame and the dispatch together.
 - **Two more doors stand behind the chord: D6 and D7.** D6 is the
-  section certificate's cone rows (`GERM-VERBS-CONE-SPEC.md` U4). It is
+  section certificate's cone rows (the cone admission spec's U4). It is
   decided before the join and raised after it, only where a body would be
   returned. So D6 is the last refusal on the crossings path, and it fires
   even when every join door is open.
@@ -122,12 +122,12 @@ Two things the probe saw that are not wrong answers:
 - `point_in_solid` on R2's result refused at 872 of the 1500 points,
   `PartialConeFace`. The ∩ leaves an apex-closed cone sector, and
   `cone_trimmed_window` (`solid_contain.rs` :1715) refuses it. That is
-  `GERM-VERBS-CONE-SPEC.md`'s U3 (`cone-apex-closure`).
+  the cone admission spec's U3 (`cone-apex-closure`).
 - The ∪ and cone ∖ other results that keep a ring on the cone face
   refused at D7: built, then refused typed at the result door.
 
 **What this does not cover.** These are 20 poses, not a search. In
-particular, `GERM-VERBS-CONE-SPEC.md`'s P3 is not among them (the edges
+particular, the cone admission spec's P3 is not among them (the edges
 from nappe to nappe that `(Negative, Negative)` clears silently).
 REACH's lane closed that arm for the cone (R6 is its pose here); its
 certificate-row consequence is U4's to pin. The bypass also stopped
@@ -289,7 +289,7 @@ hyperbola's typed refusal (R1).
 
 ### 1.7 D6 and D7: not this spec's arms
 
-- **D6** is `GERM-VERBS-CONE-SPEC.md`'s U4 (the certificate's cone rows:
+- **D6** is the cone admission spec's U4 (the certificate's cone rows:
   cone × plane, the coaxial pairs). §0.2 says what the mutant that skips
   it returned on these poses. It says nothing about the poses U4 exists
   for: the premise-S pose P3, and the null loops.
@@ -344,7 +344,7 @@ rows pin them as refusals, never as bodies.
 
 ## 3. Units, in dependency order
 
-**How the units stay safe.** Like `GERM-VERBS-CONE-SPEC.md`'s, every
+**How the units stay safe.** Like the cone admission spec's, every
 unit here leaves `boolean_arm_exists` untouched. The cone keeps refusing
 at the operand gate, and the gate pins stay green:
 
@@ -369,12 +369,12 @@ optional.
 | U-S4 `plane-cone-join-lane` | D4 + D5: the dispatch arms and the chord guard (§1.4, §1.5) | U-S3 | M | dual |
 | U-S5 `cone-ring-volume` (not on U7's path) | D7: rings on a cone face in `face_flux`, the quadrature lane reading rings (§1.7) | — | H | dual |
 | U-S6 `near-apex-join-poison` | R6: measure the poison input, refuse at its source (§1.6) | U-S1, U-S2 | E–M | single |
-| — then `GERM-VERBS-CONE-SPEC.md` U4 (D6), U6, **U7** | | U-S1–U-S4, U-S6 | | |
+| — then the cone admission spec U4 (D6), U6, **U7** | | U-S1–U-S4, U-S6 | | |
 | U-H1 `cone-tangent-lump` | **HELD by D10**: the second-order lump on a cone pair | `d10-one-way-to-say-intent-is-unbuilt` | M | dual |
 | U-H2 `cone-on-carrier-sector` | **HELD by D10**: a cone sector on a curved face | `d10-one-way-to-say-intent-is-unbuilt` | H | dual |
 
 U-S1, U-S2 and U-S3 are independent and may land in any order. U-S4
-needs the frame. This spec's U-S3 + U-S4 is `GERM-VERBS-CONE-SPEC.md`'s
+needs the frame. This spec's U-S3 + U-S4 is the cone admission spec's
 U8 (the axis-normal join, "after the flip") and its Q1's ellipse, moved
 before the flip: the item says it must precede U7, and §0 measured that
 U8's own fixture (P5, here B4) answers once these land. Q1 asks how to
@@ -479,7 +479,7 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
 
 ## 4. Open questions (⚑ = design fork)
 
-- **Q1 Reconciling with `GERM-VERBS-CONE-SPEC.md`.** Its U8 (the
+- **Q1 Reconciling with the cone admission spec.** Its U8 (the
   axis-normal join, after the flip) and Q1 (the tilted ellipse, ruled
   in by Ev on 2026-10-01) are this spec's U-S3 + U-S4, before the flip.
   Recommendation: retire U8 there and point it here. The orchestrator
