@@ -3098,6 +3098,9 @@ NOT_BOUND = {
     # Python reads the verdict (`AssemblyError` with `variant ==
     # "own_space"`), never the spaces themselves.
     "OwnSpace": INTERIOR,
+    # One of a product's at-rest decisions, interior with its `Product`:
+    # Python reads them as the unproven-coincidence lint's findings.
+    "AtRestRow": INTERIOR,
     "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
@@ -4232,13 +4235,6 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
-    # The kernel's coincidence row is curated beside the named row
-    # Python spells (`Coincidence`, `NamedCoincidence`'s binding). The
-    # margin is a reporting reading (`MarginDiag`, for error text only)
-    # and the discharge has one arm, so Python reads neither: the row's
-    # finding says whether the door proved it.
-    "Coincidence::margin": SHAPE,
-    "Coincidence::discharge": SHAPE,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to
