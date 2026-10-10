@@ -2,11 +2,13 @@
 id: wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex
 kind: issue
 title: wedge_classes reads a corner whose reflex edge is flat within the band at its short bounds as convex, and classes long edges wrong far out of band
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
 branch: cleave/wedge-classes-flat
+closed: 2026-10-10
+pr: 4564
 ---
 
 Filed by PR 4289's fourth review (m1). Pre-existing: main (8d11c126)
@@ -109,3 +111,12 @@ both dent signs, six op orders; red on main, in the fast set),
 (each read against a closed form; the last two red on main's arms), and
 the fuzz's long-probe column. Filed:
 `work/hone/boolean-reads-two-faces-coplanar-three-ways-at-three-levers.md`.
+
+## Closed (PR 4564, 2026-10-10)
+
+An `On` or in-band reading no longer votes convex. It votes nothing only where the plane it
+reads is one plane with the bound's own face, or with the face across, facing one way, out to the
+farthest reach the verdict speaks for (`bool_corner_one_plane`, `|n̂ − n̂′|`). Otherwise the corner
+reads as a polygon cone. Met and hollow corners route their in-band rows alike, and the two-face
+arm follows the same rule. `cone_fuzz` asserts every reading again, with 0 wrong over 9 seeds. The
+three coplanarity spellings are filed on HONE.
