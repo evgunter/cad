@@ -8,6 +8,8 @@ github: 1057
 refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
+design: true
+branch: germ/torus-plane-frame-spec
 ---
 
 ## From GitHub issue 1057
