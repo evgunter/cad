@@ -179,6 +179,18 @@ fn compare_prefix(doc: &ProfileDoc) -> Found {
     if a.compared >= b.compared { a } else { b }
 }
 
+/// How many decisions the two builds took in step: the same predicate,
+/// answered with the same sign. A sign that differs is a branch the two
+/// builds parted at even where the next predicate they decide has one
+/// name — `topo`'s volume backstop decides `volume_backstop` on its
+/// open arm and on its magnitude arm alike, over two different margins.
+fn in_step(p0: &[Decision], p1: &[Decision]) -> usize {
+    p0.iter()
+        .zip(p1)
+        .take_while(|(a, b)| a.predicate == b.predicate && a.sign == b.sign)
+        .count()
+}
+
 /// `None` when the two builds did not take the same decisions, unless
 /// `prefix`, which compares the decisions before the first difference.
 fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
@@ -194,16 +206,33 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
     let p1 = session(|| build(doc, &options(&at_p1)));
     session(|| {
         let p0 = build(doc, &options(&at_p0));
-        let predicates = |d: &[Decision]| d.iter().map(|x| x.predicate).collect::<Vec<_>>();
-        let (n0, n1) = (predicates(&p0), predicates(&p1));
-        let common = n0.iter().zip(&n1).take_while(|(a, b)| a == b).count();
-        if n0 != n1 && !prefix {
+        let common = in_step(&p0, &p1);
+        let parts = common < p0.len().max(p1.len());
+        if let (true, Some(a), Some(b)) = (
+            parts && std::env::var_os("REVALUE_DETAIL").is_some(),
+            p0.get(common),
+            p1.get(common),
+        ) {
+            eprintln!(
+                "  parted #{}: p0 {} {:?} {:?}, p1 {} {:?} {:?}",
+                common + 1,
+                a.predicate,
+                a.sign,
+                a.value,
+                b.predicate,
+                b.sign,
+                b.value
+            );
+        }
+        if parts && !prefix {
             return None;
         }
         let mut found = Found {
             mode: Some(mode),
-            parted: (n0 != n1)
-                .then(|| (common, n0.len(), n0.get(common).copied().unwrap_or("<end>"))),
+            parted: parts.then(|| {
+                let at = p0.get(common).map_or("<end>", |d| d.predicate);
+                (common, p0.len(), at)
+            }),
             ..Found::default()
         };
         for (a, b) in p0.iter().zip(&p1).take(common) {
@@ -243,12 +272,28 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
-fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
+///
+/// `parts`: where the row's builds part, for a document whose move
+/// changes a branch — the decisions before it are compared, and a
+/// parting anywhere else is read.
+fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)], parts: Option<&str>) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
         .unwrap_or_else(|| panic!("{name} is not a corpus document"));
-    let found = compare(name, &cd.doc);
+    let found = match parts {
+        None => compare(name, &cd.doc),
+        Some(at) => {
+            let found =
+                compare_moved(&cd.doc, mode, true).expect("a prefix comparison always answers");
+            assert_eq!(
+                found.parted.map(|(_, _, p)| p),
+                Some(at),
+                "{name}: the row's builds part somewhere other than its pin ({found:?})"
+            );
+            found
+        }
+    };
     assert_eq!(
         found.drifted, 0,
         "{name}: a decision's DAG re-valued at p0 is not the p0 build's own bits — revalue no \
@@ -287,13 +332,26 @@ macro_rules! rows {
     ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*];)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, Move::$mode, $floor, &[$($owed),*]);
+            holds($doc, Move::$mode, $floor, &[$($owed),*], None);
         }
     )*};
 }
 
+/// Parts under both moves at `bool_join_nearest`, decision 6423: a
+/// distance exactly zero at `p0` is 2.5e-8 (in step) or 3.9e-7 (apart)
+/// at `p1`, and re-values to it bit for bit. Compared to there.
+#[test]
+fn revalue_plate_param() {
+    holds(
+        "plate_param",
+        Move::Apart,
+        290,
+        &[],
+        Some("bool_join_nearest"),
+    );
+}
+
 rows! {
-    revalue_plate_param: "plate_param", Apart, 650, [];
     revalue_boss_union: "boss_union", Apart, 560, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
@@ -405,6 +463,57 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
         rows,
         [Some(false), Some(true), None],
         "laundered / kept in the scalar / from_computed, each re-valued at p1 against the p1 build"
+    );
+}
+
+/// Two builds that decide one predicate with different signs have
+/// parted there, even where the decisions after it share their names:
+/// the shape of `topo`'s volume backstop, whose exact-band violation
+/// read answers `Zero` on a margin that cancels exactly at `p0` and
+/// `Negative` on its rounding at `p1`, and whose next decision is
+/// `volume_backstop` either way, over the open arm's `lo` at `p1` and
+/// the magnitude arm's `hi` at `p0`. Paired by name, the `p0` margin
+/// re-valued at `p1` is not the `p1` build's and reads as a laundering
+/// (`die`'s census candidate at decision #10548).
+#[test]
+fn a_decision_answered_with_another_sign_parts_the_builds() {
+    use geom_core::Real;
+    use geom_core::predicate::{Band, Margin};
+    let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+    let w = ParamSymbol::new(9);
+    let decide =
+        |name: &'static str, m: Sym<f64>| geom_core::k_stats::decide(name, Margin::of(m), band);
+    let build = |d: f64| {
+        let x = Sym::param(w, d);
+        record(|| {
+            let split = decide("revalue_split", x);
+            let arm = if matches!(split, Ok(geom_core::predicate::Sign::Zero)) {
+                x
+            } else {
+                x * Sym::from_f64(3.0)
+            };
+            let _ = decide("revalue_arm", arm);
+        })
+        .1
+    };
+    let p1 = session(|| build(1.0e-6));
+    let (paired_by_name_differs, steps) = session(|| {
+        let p0 = build(0.0);
+        let names = |d: &[Decision]| d.iter().map(|x| x.predicate).collect::<Vec<_>>();
+        assert_eq!(names(&p0), names(&p1), "both builds decide the same names");
+        let r = revalue(p0[1].node, &|s| (s == w).then_some(1.0e-6)).unwrap();
+        (
+            r.to_bits() != p1[1].value.unwrap().to_bits(),
+            in_step(&p0, &p1),
+        )
+    });
+    assert!(
+        paired_by_name_differs,
+        "the fixture's second decisions are over different margins"
+    );
+    assert_eq!(
+        steps, 0,
+        "the builds part at the split their signs differ on, so the arm is never compared"
     );
 }
 

@@ -28,6 +28,7 @@ use std::collections::HashMap;
 
 use super::{ParamSymbol, SESSION, SymId, SymOp};
 use crate::Real;
+use crate::predicate::{Decided, Indeterminate, Sign};
 
 /// One decision a `Sym` lane took, in the order it took it (D9).
 #[derive(Clone, Debug)]
@@ -40,6 +41,10 @@ pub struct Decision {
     /// from its `Debug` rendering, which at `f64` is round-trip exact
     /// (the scalar's bits are reached through no other door here).
     pub value: Option<f64>,
+    /// The sign the decision answered; `None` where it answered none
+    /// (indeterminate, or refused). Two builds that decided one
+    /// predicate with different signs took different branches after it.
+    pub sign: Option<Sign>,
 }
 
 thread_local! {
@@ -63,16 +68,32 @@ pub fn record<R>(f: impl FnOnce() -> R) -> (R, Vec<Decision>) {
     (out, decisions)
 }
 
-/// The hook `Sym::sign_within` calls: one thread-local read when no
-/// recorder is installed.
-pub(super) fn note<T: Real>(node: SymId, value: T) {
+/// The hook `Sym::sign_within` calls before it decides: one
+/// thread-local read when no recorder is installed. Returns the
+/// decision's index for [`settle`].
+pub(super) fn note<T: Real>(node: SymId, value: T) -> Option<usize> {
     RECORDER.with(|r| {
-        if let Some(v) = r.borrow_mut().as_mut() {
+        r.borrow_mut().as_mut().map(|v| {
             v.push(Decision {
                 predicate: crate::k_stats::current_predicate(),
                 node,
                 value: format!("{value:?}").parse::<f64>().ok(),
+                sign: None,
             });
+            v.len() - 1
+        })
+    })
+}
+
+/// The hook `Sym::sign_within` calls with what it decided: the sign of
+/// the decision [`note`] numbered.
+pub(super) fn settle(noted: Option<usize>, decided: &Result<Decided, Indeterminate>) {
+    let (Some(i), Ok(d)) = (noted, decided) else {
+        return;
+    };
+    RECORDER.with(|r| {
+        if let Some(x) = r.borrow_mut().as_mut().and_then(|v| v.get_mut(i)) {
+            x.sign = Some(d.sign);
         }
     });
 }

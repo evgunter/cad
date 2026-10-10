@@ -43,7 +43,10 @@
 #
 #   constant      a constant of the model or the algorithm: a count, a
 #                 sample schedule's fraction, a tolerance or band, a
-#                 float bit pattern chosen by the code;
+#                 float bit pattern chosen by the code, an authored
+#                 value `f64` by type in the document; and the door
+#                 itself, a `Real` impl's `from_f64` or `from_computed`
+#                 forwarding to its value scalar's;
 #   fixture       test-support code compiled into the library;
 #   launders(R)   a computed value re-entered as a constant, owed to the
 #                 work item R, which owns its fix;
@@ -63,11 +66,10 @@
 #             is empty, or whose owed class names a work item that is not
 #             an open file under `work/` (none, or `status: closed`).
 #
-# KNOWN GAPS. What a token scan of these four crates cannot see; the
+# KNOWN GAPS. What a token scan of these crates cannot see; the
 # re-valuation row sees each wherever the corpus reaches it.
 #   - Another door: a helper OUTSIDE the scanned crates that re-enters an
-#     `f64` it is handed (`geom_core::predicate::Margin::lift` was one,
-#     and lifts through `from_computed`), or one inside them whose `f64`
+#     `f64` it is handed, or one inside them whose `f64`
 #     parameter is listed by what today's callers pass (`separating.rs`'s
 #     `apart_along(.., pad: f64, ..)` is `constant` because every caller
 #     passes `sweep_pad`): a new caller handing it a computed value adds
@@ -84,7 +86,7 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-FROM_F64_CRATES=(geom geom-brep sweep topo)
+FROM_F64_CRATES=(editor-core geom geom-brep geom-core profile sweep topo)
 FROM_F64_LIST=scripts/gates/from-f64-sites.tsv
 
 FROM_F64_RULES=(UNLISTED STALE CLASS)
