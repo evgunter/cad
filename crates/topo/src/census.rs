@@ -2623,7 +2623,10 @@ fn ee_cross_backed<T: Decide>(
             proven(&body.faces, fa, EntityId::Face),
             proven(&body.faces, fb, EntityId::Face),
         );
-        let (sa, sb) = (body.face_surface_linked(fa, da), body.face_surface_linked(fb, db));
+        let (sa, sb) = (
+            body.face_surface_linked(fa, da),
+            body.face_surface_linked(fb, db),
+        );
         let arm_extent = ea.len.min(eb.len);
         // The Smooth-site precondition, established rather than
         // assumed. After the edge screen a definitely-Transverse

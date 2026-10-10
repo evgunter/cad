@@ -159,7 +159,11 @@ fn r2_an_unrelated_declared_pair_backs_no_ef_bound() {
             .collect()
     };
     let bare = errors(&body, &ContactRecords::default(), Tol::witness());
-    assert_eq!(count_ef(&undeclared(&bare)), 3, "the bare baseline: {bare:?}");
+    assert_eq!(
+        count_ef(&undeclared(&bare)),
+        3,
+        "the bare baseline: {bare:?}"
+    );
     let unrelated = errors(
         &body,
         &records(&[(side_ha, shelf_side), (side_ab, shelf_side)]),
