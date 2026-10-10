@@ -1,7 +1,7 @@
 ---
 id: pxn-wall-refinement-may-be-unneeded-for-the-tube
 kind: issue
-title: edge_nurbs: localized() refines every plane x NURBS wall to 16 spans for a tube reason the cut derivative box may have removed
+title: edge_nurbs: does the plane x NURBS tube need the wall refined to PXN_WALL_SPANS? (measured: it does)
 status: open
 opened: 2026-10-02
 priority: P3

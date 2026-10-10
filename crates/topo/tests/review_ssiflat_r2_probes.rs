@@ -214,3 +214,50 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
         "the refusal must name the empty ladder as its cause: {rendered}"
     );
 }
+
+/// PROBE 5 (the `ssi_hull_sup` payload): at the interval scalar, limb
+/// 2's hull bound escalates with its margin as an ENCLOSURE, and the
+/// consumer-visible text carries both of its ends. The band sits between
+/// the two limbs' readings on the quarter turn: limb 1's worst sample
+/// reads `[0, 4.0e-15]`, under the band, and limb 2's bound
+/// `[5.0e-15, 5.0e-15]`, inside it, so limb 2 is the one that escalates.
+/// Red if the margin is flattened to one `f64` (a value has one end, and
+/// renders as one) or the escalation moves to another predicate.
+#[test]
+fn the_interval_hull_bound_escalates_with_an_enclosure() {
+    use geom_core::interval::Interval;
+    use geom_core::{Bounds, ErrorTextReading, MarginDiag};
+    let cert = certify_at::<Interval>(1.0, ARC, tight_band())
+        .expect("the quarter turn certifies at a 1e-12 band");
+    let (locus, hull) = (cert.on_locus_max.hi(), cert.hull_sup);
+    let band = Band::new(4.5e-15, 5.5e-15).unwrap();
+    assert!(
+        locus < band.zero() && band.zero() < hull.lo() && hull.hi() < band.escalate(),
+        "the band must sit between limb 1 ({locus:e}) and limb 2 ([{:e}, {:e}])",
+        hull.lo(),
+        hull.hi()
+    );
+    let err = certify_at::<Interval>(1.0, ARC, band).expect_err("limb 2 escalates in-band");
+    let SsiError::CertificateEscalated { ref cause, .. } = err else {
+        panic!("the door must refuse through its escalation arm: {err:?}");
+    };
+    assert_eq!(cause.predicate, Some("ssi_hull_sup"));
+    let ErrorTextReading::Enclosure { lo, hi } =
+        MarginDiag::diagnostic_f64_for_error_text(cause.margin)
+    else {
+        panic!(
+            "limb 2's margin at Interval must read as an enclosure: {:?}",
+            cause.margin
+        );
+    };
+    assert_eq!(
+        (lo.to_bits(), hi.to_bits()),
+        (hull.lo().to_bits(), hull.hi().to_bits()),
+        "the escalation must carry the hull bound's own ends"
+    );
+    let shown = err.to_string();
+    assert!(
+        shown.contains("enclosure [") && !shown.contains("NaN"),
+        "the consumer-visible text must render the enclosure: {shown}"
+    );
+}

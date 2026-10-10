@@ -1693,7 +1693,7 @@ mod tests {
             }
             missed
         };
-        let missed = misses(grid.points(), grid.weights());
+        let missed = misses(&grid.points(), &grid.weights());
         assert!(
             missed.is_empty(),
             "the grid missed the exact net at {missed:?}"

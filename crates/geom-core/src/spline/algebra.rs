@@ -47,6 +47,7 @@ use super::projective::{ProjectivePoint, ProjectiveScalar};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
+use crate::real::Bounds;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -337,20 +338,6 @@ impl CurvePlan {
         self.apply_ratios(old, Interval::refused(), |x, y, r| {
             convex_step(x, y, r.lo, r.hi, r.inserted)
         })
-    }
-
-    /// **One channel through a plan chain, in the certification ring**:
-    /// `channel` through every plan of `chain` in order, each by
-    /// [`CurvePlan::apply_certified`], so the result encloses the refined
-    /// channel of the described net. The one spelling of a ring
-    /// refinement: a homogeneous channel (`w·P` per coordinate, or `w`)
-    /// or a unit-weight one, which a plain convex combination refines.
-    /// An empty chain is the identity.
-    #[must_use]
-    pub fn refine_certified(chain: &[CurvePlan], channel: &[Interval]) -> Vec<Interval> {
-        chain
-            .iter()
-            .fold(channel.to_vec(), |c, plan| plan.apply_certified(&c))
     }
 
     /// The fold both homogeneous appliers are: `Carry` copies, a ratio
@@ -699,6 +686,108 @@ pub fn equal_split_plan(
     splits: usize,
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
+}
+
+/// **A knot refinement in the certification ring**: the insertion chain
+/// from a vector, and the vector it ends on. The one spelling of a ring
+/// refinement. It owns the refined vector ([`RingRefinement::knots`],
+/// the source itself when nothing is inserted) and the extent guard
+/// ([`RingRefinement::refine`] refuses a channel that is not one entry
+/// per source control point), so no caller re-derives either.
+///
+/// A channel is homogeneous (`w·P` per coordinate, or `w`) or
+/// unit-weight, which a plain convex combination refines; a rational
+/// net goes through it as its homogeneous channels and comes back
+/// through [`dehomogenize`].
+#[derive(Clone, Debug)]
+pub struct RingRefinement {
+    plans: Vec<CurvePlan>,
+    source: usize,
+    knots: KnotVector,
+}
+
+impl RingRefinement {
+    /// `add` inserted into `kv` ([`refine_plan_homogeneous`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`refine_plan`].
+    pub fn new(kv: &KnotVector, add: &[f64]) -> Result<Self, KnotAlgebraError> {
+        Ok(Self::of_chain(kv, refine_plan_homogeneous(kv, add)?))
+    }
+
+    /// Every nonempty span of `kv` split into `splits` equal pieces
+    /// ([`equal_split_plan`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`refine_plan`].
+    pub fn equal_split(kv: &KnotVector, splits: usize) -> Result<Self, KnotAlgebraError> {
+        Ok(Self::of_chain(kv, equal_split_plan(kv, splits)?))
+    }
+
+    fn of_chain(kv: &KnotVector, plans: Vec<CurvePlan>) -> Self {
+        let knots = plans
+            .last()
+            .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+        Self {
+            plans,
+            source: kv.control_count(),
+            knots,
+        }
+    }
+
+    /// The refined vector.
+    #[must_use]
+    pub fn knots(&self) -> &KnotVector {
+        &self.knots
+    }
+
+    /// The source vector's control count: the length a channel must
+    /// have.
+    #[must_use]
+    pub fn source_count(&self) -> usize {
+        self.source
+    }
+
+    /// The insertion chain, one plan per inserted point: for an applier
+    /// at another scalar (`SpanLocate::refine_homogeneous`).
+    #[must_use]
+    pub fn plans(&self) -> &[CurvePlan] {
+        &self.plans
+    }
+
+    /// `channel` through every plan in order, each by
+    /// [`CurvePlan::apply_certified`], so the result encloses the refined
+    /// channel of the described net. A channel that is not
+    /// [`RingRefinement::source_count`] long refuses: every entry of the
+    /// refined length is refused.
+    #[must_use]
+    pub fn refine(&self, channel: &[Interval]) -> Vec<Interval> {
+        if channel.len() != self.source {
+            return vec![Interval::refused(); self.knots.control_count()];
+        }
+        self.plans
+            .iter()
+            .fold(channel.to_vec(), |c, plan| plan.apply_certified(&c))
+    }
+}
+
+/// Every weight certified and its enclosure strictly positive: the
+/// weights a de-homogenization may divide by, and the convex-combination
+/// licence of a rational net's hulls. The one spelling of that guard.
+#[must_use]
+pub fn certainly_positive(weights: &[Interval]) -> bool {
+    weights.iter().all(|w| w.is_certified() && w.lo() > 0.0)
+}
+
+/// A refined homogeneous channel `w·x` read back as `x`: the quotient by
+/// the refined weights `w`, entry by entry. `None` unless the two are
+/// one length and the weights are [`certainly_positive`].
+#[must_use]
+pub fn dehomogenize(channel: &[Interval], weights: &[Interval]) -> Option<Vec<Interval>> {
+    (channel.len() == weights.len() && certainly_positive(weights))
+        .then(|| channel.iter().zip(weights).map(|(a, w)| *a / *w).collect())
 }
 
 /// How close a grid point may come to a mandatory point (a knot, a

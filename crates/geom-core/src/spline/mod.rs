@@ -49,13 +49,14 @@ pub mod net;
 pub mod projective;
 pub mod range;
 
-pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
+pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
 pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
+    knot_difference,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};

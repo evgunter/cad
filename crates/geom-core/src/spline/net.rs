@@ -73,7 +73,7 @@ use core::ops::RangeInclusive;
 
 use std::borrow::Cow;
 
-use super::algebra::{CurvePlan, KnotAlgebraError, equal_split_plan};
+use super::algebra::{KnotAlgebraError, RingRefinement};
 use super::knots::KnotVector;
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
@@ -303,47 +303,37 @@ impl TensorNet {
         }
     }
 
-    /// **Refines the net along `u` IN INTERVAL ARITHMETIC**: the insertion chain is
-    /// applied to each `u`-line by [`CurvePlan::apply_certified`], so the
-    /// answer ENCLOSES the refined net of the described coefficients
-    /// instead of being a rounded copy of it. That is the difference
-    /// between a bound on the patch a caller described and a bound on
-    /// the one `f64` refinement happened to produce.
+    /// **Refines the net along `u` IN INTERVAL ARITHMETIC**: each `u`-line
+    /// through [`RingRefinement::refine`], so the answer ENCLOSES the
+    /// refined net of the described coefficients instead of being a
+    /// rounded copy of it. That is the difference between a bound on the
+    /// patch a caller described and a bound on the one `f64` refinement
+    /// happened to produce.
     ///
     /// The net must be HOMOGENEOUS for this to mean what it says — the
     /// weight net `w`, or one channel of `w·P` — because that is the
-    /// form in which insertion is the plain affine combination interval arithmetic
-    /// applier takes.
+    /// form in which insertion is the plain affine combination interval
+    /// arithmetic applier takes.
     ///
     /// One schedule for every line: a Boehm step's targets, sources and
     /// ratio come from the knot structure alone, which the `u` direction
-    /// shares across all `nv` lines. An empty chain is the identity.
+    /// shares across all `nv` lines. An empty refinement is the identity.
     ///
-    /// **A net whose extent the schedule was not built for REFUSES**, at
-    /// the new extent, and the guard is on the extent rather than on the
-    /// answer's length because the answer's length cannot report it.
-    /// [`CurvePlan::apply_certified`] answers its own plan's control count
-    /// whatever it is handed — that is what makes it total — so a line
-    /// LONGER than the schedule expects comes back the right length with
-    /// its tail silently dropped, which is a hull over fewer
-    /// coefficients than the net has and therefore too NARROW. A shorter
-    /// line refuses on its own, through the missing sources. Neither is
-    /// reachable from a caller that built the schedule from the same
-    /// direction it is refining, and both are refused rather than
-    /// argued: an insertion chain adds exactly one coefficient per plan,
-    /// so `nu_new == nu + plans.len()` is the whole test.
+    /// **A net whose extent the refinement was not built for REFUSES**,
+    /// at the new extent: every line is the wrong length, and
+    /// [`RingRefinement::refine`] refuses each. The guard is on the
+    /// extent rather than on the answer's length because
+    /// [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified) answers its own plan's control
+    /// count whatever it is handed, so a line LONGER than the schedule
+    /// expects would come back the right length with its tail silently
+    /// dropped: a hull over fewer coefficients than the net has, and
+    /// therefore too NARROW.
     #[must_use]
-    pub fn refine_u(&self, plans: &[CurvePlan]) -> Self {
-        let Some(last) = plans.last() else {
-            return self.clone();
-        };
-        let nu_new = last.knots().control_count();
-        if nu_new != self.nu + plans.len() {
-            return Self::refused(nu_new, self.nv);
-        }
+    pub fn refine_u(&self, refinement: &RingRefinement) -> Self {
+        let nu_new = refinement.knots().control_count();
         let mut c = vec![Interval::refused(); nu_new * self.nv];
         for j in 0..self.nv {
-            let line = CurvePlan::refine_certified(plans, &self.column(j));
+            let line = refinement.refine(&self.column(j));
             for (i, q) in line.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * self.nv + j) {
                     *slot = *q;
@@ -360,17 +350,11 @@ impl TensorNet {
     /// [`TensorNet::refine_u`] along `v`, per `v`-line, with the same
     /// extent guard.
     #[must_use]
-    pub fn refine_v(&self, plans: &[CurvePlan]) -> Self {
-        let Some(last) = plans.last() else {
-            return self.clone();
-        };
-        let nv_new = last.knots().control_count();
-        if nv_new != self.nv + plans.len() {
-            return Self::refused(self.nu, nv_new);
-        }
+    pub fn refine_v(&self, refinement: &RingRefinement) -> Self {
+        let nv_new = refinement.knots().control_count();
         let mut c = vec![Interval::refused(); self.nu * nv_new];
         for i in 0..self.nu {
-            let line = CurvePlan::refine_certified(plans, self.row(i));
+            let line = refinement.refine(self.row(i));
             for (j, q) in line.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * nv_new + j) {
                     *slot = *q;
@@ -608,17 +592,12 @@ impl<const C: usize> TensorChannels<'_, C> {
         &self,
         splits: usize,
     ) -> Result<TensorChannels<'_, C>, KnotAlgebraError> {
-        let plans_u = equal_split_plan(&self.ku, splits)?;
-        let plans_v = equal_split_plan(&self.kv, splits)?;
-        fn last<'k>(plans: &[CurvePlan], kv: &'k KnotVector) -> Cow<'k, KnotVector> {
-            plans
-                .last()
-                .map_or(Cow::Borrowed(kv), |p| Cow::Owned(p.knots().clone()))
-        }
+        let ref_u = RingRefinement::equal_split(&self.ku, splits)?;
+        let ref_v = RingRefinement::equal_split(&self.kv, splits)?;
         Ok(TensorChannels {
-            ku: last(&plans_u, &self.ku),
-            kv: last(&plans_v, &self.kv),
-            nets: core::array::from_fn(|c| self.nets[c].refine_u(&plans_u).refine_v(&plans_v)),
+            nets: core::array::from_fn(|c| self.nets[c].refine_u(&ref_u).refine_v(&ref_v)),
+            ku: Cow::Owned(ref_u.knots().clone()),
+            kv: Cow::Owned(ref_v.knots().clone()),
         })
     }
 }
@@ -635,8 +614,8 @@ mod tests {
 
     /// The refinement schedule for one direction: every nonempty span of
     /// `kv` cut into `splits` equal pieces.
-    fn chain(kv: &KnotVector, splits: usize) -> Vec<crate::spline::CurvePlan> {
-        crate::spline::algebra::equal_split_plan(kv, splits).unwrap()
+    fn chain(kv: &KnotVector, splits: usize) -> RingRefinement {
+        RingRefinement::equal_split(kv, splits).unwrap()
     }
 
     /// **Ring refinement is the per-line chain, scattered back** — each
@@ -655,13 +634,10 @@ mod tests {
         let plans_u = chain(&kv_u, 3);
         let refined_u = net.refine_u(&plans_u);
         assert_eq!(refined_u.nv(), nv);
-        assert_eq!(
-            refined_u.nu(),
-            plans_u.last().unwrap().knots().control_count()
-        );
+        assert_eq!(refined_u.nu(), plans_u.knots().control_count());
         for j in 0..nv {
             let mut want = net.column(j);
-            for plan in &plans_u {
+            for plan in plans_u.plans() {
                 want = plan.apply_certified(&want);
             }
             let got = refined_u.column(j);
@@ -681,13 +657,10 @@ mod tests {
         let plans_v = chain(&kv_v, 4);
         let refined_v = net.refine_v(&plans_v);
         assert_eq!(refined_v.nu(), nu);
-        assert_eq!(
-            refined_v.nv(),
-            plans_v.last().unwrap().knots().control_count()
-        );
+        assert_eq!(refined_v.nv(), plans_v.knots().control_count());
         for i in 0..nu {
             let mut want = net.row(i).to_vec();
-            for plan in &plans_v {
+            for plan in plans_v.plans() {
                 want = plan.apply_certified(&want);
             }
             let got = refined_v.row(i);
@@ -699,8 +672,10 @@ mod tests {
                 );
             }
         }
-        // An empty chain is the identity, bitwise, in both directions.
-        for identity in [net.refine_u(&[]), net.refine_v(&[])] {
+        // An empty refinement is the identity, bitwise, in both directions.
+        let (none_u, none_v) = (chain(&kv_u, 1), chain(&kv_v, 1));
+        assert!(none_u.plans().is_empty() && none_v.plans().is_empty());
+        for identity in [net.refine_u(&none_u), net.refine_v(&none_v)] {
             assert_eq!((identity.nu(), identity.nv()), (nu, nv));
             for (a, b) in identity.as_flat().iter().zip(net.as_flat()) {
                 assert_eq!(a.lo().to_bits(), b.lo().to_bits());
@@ -719,7 +694,7 @@ mod tests {
     fn refining_a_net_of_the_wrong_extent_refuses_rather_than_answers() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let plans = chain(&kv, 2);
-        let n_new = plans.last().unwrap().knots().control_count();
+        let n_new = plans.knots().control_count();
         // The schedule is for 3 coefficients per line. BOTH directions of
         // mismatch: 5 would be silently truncated by the applier, 2 would
         // refuse through its missing sources. Neither may answer finitely.
@@ -800,8 +775,8 @@ mod tests {
         let t = TensorChannels::<1>::from_fn(&k2, &k2, |i, j| [pt(line[i] + line[j])]);
         let r = t.refine_equal_split(3).unwrap();
         let plans = chain(&k2, 3);
-        assert_eq!(r.knots_u().knots(), plans.last().unwrap().knots().knots());
-        assert_eq!(r.knots_v().knots(), plans.last().unwrap().knots().knots());
+        assert_eq!(r.knots_u().knots(), plans.knots().knots());
+        assert_eq!(r.knots_v().knots(), plans.knots().knots());
         let [src] = t.channels();
         let want = src.net().refine_u(&plans).refine_v(&plans);
         let [got] = r.channels();

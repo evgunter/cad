@@ -112,9 +112,9 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::algebra::{domain_grid_points, range_grid_points, refine_plan_homogeneous};
+use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
-use geom_core::spline::{CurvePlan, KnotVector};
+use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
     Real, Sign, Vec3,
@@ -317,44 +317,35 @@ fn cert_grid(kv: &KnotVector) -> Vec<f64> {
 }
 
 /// A carrier's control net refined at [`cert_grid`]: its homogeneous
-/// channels `(w·P, w)` through
-/// [`geom_core::spline::CurvePlan::apply_certified`], then
-/// de-homogenized, so every point encloses the refined net of the
-/// described carrier. Paired with the refined vector; `None` when the
-/// insertion chain refuses, or `coords` is not three channels of one
-/// entry per weight.
+/// channels `(w·P, w)` through [`RingRefinement::refine`], then
+/// de-homogenized ([`dehomogenize`]), so every point encloses the
+/// refined net of the described carrier. Paired with the refined
+/// vector; `None` when the insertion chain refuses, `coords` is not
+/// three channels, or a refined weight is not certainly positive. A
+/// channel that is not one entry per weight comes back refused entry by
+/// entry ([`RingRefinement::refine`]'s extent guard), which every hull
+/// read off it refuses.
 fn refined_net(
     kv: &KnotVector,
     weights: &[f64],
     coords: &[Vec<Interval>],
 ) -> Option<(KnotVector, [Vec<Interval>; 3])> {
-    let plans = refine_plan_homogeneous(kv, &cert_grid(kv)).ok()?;
-    // Three coordinate channels, each one weight per control point: any
-    // other shape is a malformed carrier and refuses, rather than
-    // refining an empty channel into an all-refused one.
+    let refinement = RingRefinement::new(kv, &cert_grid(kv)).ok()?;
     let [cx, cy, cz] = coords else {
         return None;
     };
-    if [cx, cy, cz].iter().any(|c| c.len() != weights.len()) {
-        return None;
-    }
     let w: Vec<Interval> = weights
         .iter()
         .map(|w| Interval::from_bounds(*w, *w))
         .collect();
-    let rw = CurvePlan::refine_certified(&plans, &w);
-    let net = [cx, cy, cz].map(|c| {
+    let rw = refinement.refine(&w);
+    let mut net = [cx, cy, cz].into_iter().map(|c| {
         let homogeneous: Vec<Interval> = c.iter().zip(&w).map(|(x, w)| *x * *w).collect();
-        CurvePlan::refine_certified(&plans, &homogeneous)
-            .iter()
-            .zip(&rw)
-            .map(|(a, w)| *a / *w)
-            .collect()
+        let refined = refinement.refine(&homogeneous);
+        dehomogenize(&refined, &rw)
     });
-    let fine = plans
-        .last()
-        .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
-    Some((fine, net))
+    let net = [net.next()??, net.next()??, net.next()??];
+    Some((refinement.knots().clone(), net))
 }
 
 /// The exact `f64` a structural surface parameter stands for, or `None`
@@ -2033,7 +2024,9 @@ mod tests {
     /// insertion in exact rationals (`crate::exact_q`). The contrast arm
     /// refines the same carrier at `f64` (`refine_knots`) and lifts it
     /// thin, which misses the exact net where an insertion rounds: the
-    /// shape this row is red for. A malformed coordinate set refuses.
+    /// shape this row is red for. Two coordinate channels, or a zero
+    /// weight, refuse the net; a channel of the wrong length refuses its
+    /// own entries.
     #[test]
     #[allow(clippy::unwrap_used, clippy::expect_used)]
     fn refined_net_encloses_the_exact_refined_net() {
@@ -2105,6 +2098,16 @@ mod tests {
              the two apart"
         );
         assert!(super::refined_net(&kv, &weights, &coords[..2]).is_none());
+        // A refined weight not certainly positive refuses the net.
+        let mut zero = weights.clone();
+        zero[0] = 0.0;
+        assert!(super::refined_net(&kv, &zero, &coords).is_none());
+        // A channel of the wrong length comes back refused, entry by entry.
+        let mut short = coords.clone();
+        short[1].pop();
+        let (_, net) = super::refined_net(&kv, &weights, &short).unwrap();
+        assert!(net[1].iter().all(|x| !x.is_certified()));
+        assert!(net[0].iter().all(|x| x.is_certified()));
     }
 
     /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`

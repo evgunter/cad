@@ -155,7 +155,7 @@ use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, CurvePlan, KnotVector, Param, ParamRange, SplineCoeffs, SplineCoeffsBuf,
+    CoeffWindow, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
     TensorChannels, last_at_or_below,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
@@ -2729,16 +2729,16 @@ fn refine_dir(
         return None;
     }
     let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS);
-    let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
+    let refinement = RingRefinement::new(kv, &add).ok()?;
     // Each coordinate a tensor net refined along this direction, per
-    // line in ascending index, through the plan chain (D9).
+    // line in ascending index, through the insertion chain (D9).
     let nu = net.len() / nv;
     let [x, y, z] = core::array::from_fn(|c| {
         let channel = TensorNet::from_flat(nu, nv, net.iter().map(|q| q[c]).collect());
         if along_u {
-            channel.refine_u(&plans)
+            channel.refine_u(&refinement)
         } else {
-            channel.refine_v(&plans)
+            channel.refine_v(&refinement)
         }
     });
     let out = x
@@ -2748,9 +2748,7 @@ fn refine_dir(
         .zip(z.as_flat())
         .map(|((x, y), z)| [*x, *y, *z])
         .collect();
-    let cur_kv = plans
-        .last()
-        .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+    let cur_kv = refinement.knots().clone();
     let new_count = cur_kv.control_count();
     Some((cur_kv, out, new_count))
 }
@@ -4119,6 +4117,17 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
     (left, right)
 }
 
+/// Why [`bezier_blocks`] refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BlockRefusal {
+    /// A weight is not `1.0`: the blocks' hulls would not be the
+    /// polynomial convex-hull fact.
+    Rational,
+    /// A zero degree, a net and weights not one per control point, or
+    /// a refusing knot algebra.
+    Malformed,
+}
+
 /// **Bézier extraction of a bracketed image net** at its own knots and
 /// `m − 1` uniform cuts: every interior break is raised to
 /// multiplicity `degree`, so the refined polygon splits into per-span
@@ -4127,17 +4136,20 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
 /// convex-hull property). Knot insertion is exact in ℝ, so a block is
 /// a statement about the same arc.
 ///
-/// The net's weights are all `1.0`, which its one caller refuses
-/// otherwise, typed; that is what makes each axis its own homogeneous
-/// channel below.
-///
-/// `None` when the knot algebra refuses (a malformed net) or the
-/// degree is zero — the caller then refuses typed.
-fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
+/// The net's weights must all be `1.0`: that makes each axis its own
+/// homogeneous channel below, and the blocks' hulls the polynomial
+/// convex-hull fact. A rational net refuses
+/// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
+/// degree, a net and weights not one per control point, or a knot
+/// algebra that refuses ([`BlockRefusal::Malformed`]).
+fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {
     let kv = &img.knots;
     let p = kv.degree();
     if p == 0 || img.control.len() != kv.control_count() || img.weights.len() != img.control.len() {
-        return None;
+        return Err(BlockRefusal::Malformed);
+    }
+    if img.weights.iter().any(|w| *w != 1.0) {
+        return Err(BlockRefusal::Rational);
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
     // A uniform cut near a knot is dropped and the knot stands: the
@@ -4155,22 +4167,20 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     }
     // Unit weights make the chart net its own homogeneous form, so
     // each axis refines as a channel in the certification ring.
-    let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
+    let refinement = RingRefinement::new(kv, &add).map_err(|_| BlockRefusal::Malformed)?;
     let cu: Vec<Interval> = img.control.iter().map(|q| q.0).collect();
     let cv: Vec<Interval> = img.control.iter().map(|q| q.1).collect();
-    let (cu, cv) = (
-        CurvePlan::refine_certified(&plans, &cu),
-        CurvePlan::refine_certified(&plans, &cv),
-    );
-    let ctl: Vec<RPt2> = cu.into_iter().zip(cv).collect();
+    let ctl: Vec<RPt2> = refinement
+        .refine(&cu)
+        .into_iter()
+        .zip(refinement.refine(&cv))
+        .collect();
     if ctl.len() < p + 1 || !(ctl.len() - 1).is_multiple_of(p) {
-        return None;
+        return Err(BlockRefusal::Malformed);
     }
-    Some(
-        (0..(ctl.len() - 1) / p)
-            .map(|k| ctl[k * p..=k * p + p].to_vec())
-            .collect(),
-    )
+    Ok((0..(ctl.len() - 1) / p)
+        .map(|k| ctl[k * p..=k * p + p].to_vec())
+        .collect())
 }
 
 /// The axis-aligned chart box of a bracketed control block — the
@@ -4401,20 +4411,18 @@ fn trim_cells<T: Decide>(
             });
             continue;
         };
-        if img.weights.iter().any(|w| *w != 1.0) {
-            return Err(PropsError::QuadratureUnsupported {
+        let blocks = bezier_blocks(img, m).map_err(|refusal| match refusal {
+            BlockRefusal::Rational => PropsError::QuadratureUnsupported {
                 what: "a RATIONAL General trim image reached the trimmed lane — the piece \
                        boxes and the monotonicity row are the polynomial convex-hull fact, \
                        and no shipped producer mints one (general_image_lane interpolates \
                        with unit weights)",
-            });
-        }
-        let Some(blocks) = bezier_blocks(img, m) else {
-            return Err(PropsError::QuadratureUnsupported {
+            },
+            BlockRefusal::Malformed => PropsError::QuadratureUnsupported {
                 what: "a General trim image whose knot algebra refused its Bézier \
                        extraction — a malformed stored net",
-            });
-        };
+            },
+        })?;
         // The traversal, not the storage: a half-edge walked backwards
         // presents its image's pieces in reverse and each piece's own
         // polygon reversed, so the polygon below is one closed walk.
@@ -7277,6 +7285,29 @@ mod tests {
             assert!(u.lo() <= start && start <= u.hi(), "{u:?} vs {start}");
             assert!(u.hi() - u.lo() < 1e-12, "{u:?}");
         }
+    }
+
+    /// `bezier_blocks` holds its unit-weight invariant itself: an image
+    /// with a non-unit weight refuses as `Rational`, whoever calls it,
+    /// and a weight list of the wrong length as `Malformed`.
+    #[test]
+    fn bezier_blocks_refuses_a_rational_image_by_name() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control: Vec<RPt2> = [0.0, 0.5, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect();
+        let img = |weights: Vec<f64>| TrimPiece {
+            knots: kv.clone(),
+            control: control.clone(),
+            weights,
+        };
+        assert_eq!(
+            bezier_blocks(&img(vec![1.0, 0.5, 1.0]), 4).err(),
+            Some(BlockRefusal::Rational)
+        );
+        assert_eq!(
+            bezier_blocks(&img(vec![1.0; 2]), 4).err(),
+            Some(BlockRefusal::Malformed)
+        );
+        assert!(bezier_blocks(&img(vec![1.0; 3]), 4).is_ok());
     }
 
     /// `bezier_blocks`' breaks are the DISTINCT interior knots: a

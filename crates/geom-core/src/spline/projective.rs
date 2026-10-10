@@ -10,6 +10,7 @@
 //! caller's generic scalar.
 
 use super::algebra::CurvePlan;
+use super::knots::knot_difference;
 use super::locate::SpanLocate;
 use crate::real::Real;
 use crate::{Point2, Point3};
@@ -31,6 +32,7 @@ use crate::{Point2, Point3};
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
+/// use geom_core::interval::certification::Certification;
 /// use geom_core::spline::{KnotVector, algebra::refine_plan};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
@@ -41,17 +43,18 @@ use crate::{Point2, Point3};
 ///
 /// The points are bounded with it ([`ProjectivePoint`]), so `λ` cannot
 /// stay an `f64` while the points it combines are ring enclosures —
-/// the shape that lifts `λ` inside the closure does not typecheck
-/// either:
+/// the shape that lifts `λ` inside the closure (an `f64` scalar over
+/// `Interval` points) does not typecheck either:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
+/// use geom_core::interval::certification::Certification;
 /// use geom_core::spline::{KnotVector, algebra::refine_plan};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
 /// let pt = |x: f64| Interval::from_bounds(x, x);
 /// let old = [pt(0.0), pt(1.0), pt(2.0)];
-/// let _ = plan.apply_points(&old, Interval::refused(), |x: Interval, y, l: f64| {
+/// let _ = plan.apply_points::<f64, Interval>(&old, Interval::refused(), |x, y, l| {
 ///     x + (y - x) * Interval::from_bounds(l, l)
 /// });
 /// ```
@@ -126,21 +129,22 @@ impl CurvePlan {
     /// It has no hull meet, which `Real` cannot spell, so it is not the
     /// ring's step: a caller generic over the scalar refines through
     /// [`SpanLocate::refine_homogeneous`], which is this at every
-    /// scalar but `Interval` and [`CurvePlan::refine_certified`] there,
-    /// and a caller that holds `Interval` channels uses
-    /// [`CurvePlan::apply_certified`].
+    /// scalar but `Interval` and
+    /// [`RingRefinement::refine`](super::RingRefinement::refine) there,
+    /// and a caller that holds `Interval` channels refines through
+    /// [`RingRefinement`](super::RingRefinement).
     ///
     /// Total: a ratio-less step (elevation, removal), a malformed plan
     /// or a short channel yields `T`'s poison (`from_f64(NaN)`) in the
     /// targets it reaches.
     pub fn apply_homogeneous<T: Real>(&self, old: &[T]) -> Vec<T> {
         self.apply_ratios(old, T::from_f64(f64::NAN), |x, y, r| {
+            let span = knot_difference::<T>(r.lo, r.hi);
             let (lo, hi, u) = (
                 T::from_f64(r.lo),
                 T::from_f64(r.hi),
                 T::from_f64(r.inserted),
             );
-            let span = hi - lo;
             x * ((hi - u) / span) + y * ((u - lo) / span)
         })
     }

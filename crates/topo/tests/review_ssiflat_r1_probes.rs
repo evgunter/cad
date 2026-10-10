@@ -1,22 +1,13 @@
-//! Independent-review probes for VERBS-SSIFLAT (PR #931), kept for
-//! regression value. The PR's own row pins the MARGIN PAYLOAD
-//! (`Some(Enclosure)` with both endpoints bit-exact); the row here pins
-//! what the PR argued but did not pin: the four margin shapes are
-//! pairwise distinguishable in Display — a poisoned margin says so in
-//! words, an enclosure carries two endpoints, a value one, a hole none
-//! — red if two shapes ever collapse into one rendering again (the #925
-//! conflation, one layer up).
+//! Independent-review probe for VERBS-SSIFLAT (PR #931): the four
+//! margin shapes a `PcurveCertifyError` can carry (a value, an
+//! enclosure, a poisoned margin, no margin) render pairwise
+//! distinguishably in Display. A poisoned margin says so in words, an
+//! enclosure carries both endpoints, a value one, a hole none, and every
+//! escalation renders the band it was judged against. Red if two shapes
+//! collapse into one rendering (the #925 conflation, one layer up).
 //!
-//! Two probes are retired. Probe 1 (an interval-lane `ssi_hull_sup`
-//! escalation renders both enclosure endpoints) reached its escalation
-//! arm only at a process ε under the hull bound, which on the described
-//! carrier is about `5e-15`, below every CI ε;
-//! `review_ssiflat_r2_probes`' probe 2 pins the same legibility at an
-//! explicit band, at any ε. Probe 3 (the `f64` lane's hull bound sits
-//! strictly under the interval lane's) stood on the interval lane
-//! reading `1.02e-12`, which was the width of a ring refinement taken in
-//! the projective form; on the described carrier both lanes read about
-//! `4e-15` to `5e-15`, and the inequality states nothing.
+//! The interval-lane `ssi_hull_sup` escalation's own payload is held by
+//! `review_ssiflat_r2_probes` at an explicit band.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

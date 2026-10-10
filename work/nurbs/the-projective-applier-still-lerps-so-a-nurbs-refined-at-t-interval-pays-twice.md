@@ -168,6 +168,13 @@ compile errors, and each now says what it refines:
   homogeneous / unit-weight channels with `apply_certified`;
   `ring_lerp` and `bezier_blocks`' `f64`-λ Lipschitz pad are retired.
 
+Every ring refinement above goes through one spelling,
+`geom_core::spline::RingRefinement`: it owns the refined vector and the
+extent guard, and a rational net comes back through
+`algebra::dehomogenize`, whose `certainly_positive` is the one weight
+guard (the meter's is `SpanLocate::refine_weights`, the same guard per
+scalar).
+
 Certified degree elevation and removal are not built: no certification
 consumer elevates or removes in the ring. The Interval-vs-`f64`
 containment rows (`nurbs_interval::knot_algebra_interval_contains_f64`,

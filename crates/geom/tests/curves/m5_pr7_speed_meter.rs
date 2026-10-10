@@ -496,9 +496,10 @@ fn the_interval_meter_brackets_the_f64_meter() {
 
 /// **A carrier on non-dyadic knots meters at both scalars**: its `f64`
 /// reading is real and under the sampled speed, and the `Interval`
-/// reading brackets it. The knot differences round in `f64` (`0.7 − 0.1`
-/// does), so the derivative scale at `Interval` is the outward
-/// enclosure of the exact difference rather than the rounded one.
+/// reading is real and brackets it. That is all it shows: a meter that
+/// took the knot difference as `T::from_f64(hi − lo)` reads this carrier
+/// alike. The difference's own enclosure is held by
+/// `knot_difference`'s exact row in `geom_core::spline::knots`.
 #[test]
 fn a_carrier_on_non_dyadic_knots_meters_at_both_scalars() {
     use geom_core::{Bounds, Interval};
