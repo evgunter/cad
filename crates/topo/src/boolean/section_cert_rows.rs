@@ -23,7 +23,7 @@ use crate::{
 };
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Point3, Tol, Vec3};
 
 pub(super) const LEVER: f64 = 5.0;
@@ -1159,8 +1159,7 @@ fn full_rim(
     let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), normal));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: cyl,
-            s2: rim_plane,
+            pair: SurfacePair::new(cyl, rim_plane),
             witness: p(-1.0, 0.0, z),
         },
         carrier: Curve3::Circle {
@@ -1656,8 +1655,7 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
         let rim_plane = body.add_surface(plane(p(0.0, 0.0, 1.0), Vec3::unit_z()));
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: cone,
-                s2: rim_plane,
+                pair: SurfacePair::new(cone, rim_plane),
                 witness: rim_at(0.5 * (t0 + t1)),
             },
             carrier: Curve3::Circle {
@@ -1889,8 +1887,7 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
                 let rim_plane = body.add_surface(plane(p(0.0, 0.0, h), Vec3::unit_z()));
                 let spec = EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: cone,
-                        s2: rim_plane,
+                        pair: SurfacePair::new(cone, rim_plane),
                         witness: cone_at(h, 0.5 * (t0 + t1)),
                     },
                     // A descending arc runs forward on the reversed
@@ -2068,8 +2065,7 @@ fn torus_iso(
     let cut = body.add_surface(cut);
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: torus,
-            s2: cut,
+            pair: SurfacePair::new(torus, cut),
             witness: torus_at((major, minor), mid),
         },
         carrier: Curve3::Circle {

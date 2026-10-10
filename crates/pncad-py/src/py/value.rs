@@ -684,6 +684,9 @@ impl Body {
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
+/// * `crossing_side` — an `"edge_edge_cross"`'s side verdict:
+///   `"same_side"` is interpenetration, `"opposite_sides"` a contact,
+///   `"undecided"` neither; `None` on every other finding.
 /// * `stale_kind` — which contact record the census could not confirm
 ///   (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
 ///   `"edge_edge"`, `"edge_face"`, `"patch"`). A record a declaration
@@ -732,6 +735,12 @@ impl ValidationFinding {
         self.0.contact_kind
     }
 
+    /// An in-plane crossing's side verdict.
+    #[getter]
+    fn crossing_side(&self) -> Option<&'static str> {
+        self.0.crossing_side
+    }
+
     /// Which declared record lost its witness.
     #[getter]
     fn stale_kind(&self) -> Option<&'static str> {
@@ -753,12 +762,13 @@ impl ValidationFinding {
         }
         format!(
             "ValidationFinding(variant='{}', subject_kind={}, \
-             entity_kind={}, contact_kind={}, stale_kind={}, \
-             ring_contact_kind={})",
+             entity_kind={}, contact_kind={}, crossing_side={}, \
+             stale_kind={}, ring_contact_kind={})",
             self.0.variant,
             word(self.0.subject_kind),
             word(self.0.entity_kind),
             word(self.0.contact_kind),
+            word(self.0.crossing_side),
             word(self.0.stale_kind),
             word(self.0.ring_contact_kind)
         )

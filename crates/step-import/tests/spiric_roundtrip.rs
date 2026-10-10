@@ -111,11 +111,10 @@ fn vessel_cavity() -> topo::Body<f64> {
 
 /// **Where the trip lands.** The cavity writes out with one cubic
 /// `B_SPLINE_CURVE_WITH_KNOTS` per spiric rim, and the import door
-/// itself refuses. The native body stops at tier 3's props frontier,
-/// `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`: a
-/// CAP's `loop_vector_area` (the oval's area is an elliptic integral),
-/// because the cap is first in arena order and the torus wall behind it
-/// carries a spiric pcurve.
+/// itself refuses. The native body passes tier 3: check 7 measures its
+/// spiric-bounded caps and torus wall by the spiric quadrature lane (it
+/// stood at `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`,
+/// a cap's `loop_vector_area`, before that lane).
 ///
 /// The import stops earlier, at adoption. The rim comes back as a
 /// spline, the export's sagitta-bounded stand-in for the spiric
@@ -155,20 +154,10 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
         rims,
         "one export-only spline per spiric rim"
     );
-    let native_tier3 = topo::validate_geometric(&native, tol());
-    println!("[roundtrip] native tier 3: {native_tier3:?}");
-    assert!(
-        matches!(
-            native_tier3.as_ref().map_err(Vec::as_slice),
-            Err([topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::Unimplemented,
-                    ..
-                },
-                ..
-            }])
-        ),
-        "the native cavity stops at a cap's loop area, got {native_tier3:?}"
+    assert_eq!(
+        topo::validate_geometric(&native, tol()),
+        Ok(()),
+        "the native cavity passes tier 3, its spiric faces measured"
     );
 
     let back = import_step(&text, &ImportOptions::default(), tol());

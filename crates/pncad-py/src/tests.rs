@@ -4103,6 +4103,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: Some("entity"),
             entity_kind: Some("edge"),
             contact_kind: None,
+            crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
         }
@@ -4121,6 +4122,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: Some("face_pair"),
             entity_kind: None,
             contact_kind: None,
+            crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
         }
@@ -4154,6 +4156,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: None,
             entity_kind: None,
             contact_kind: None,
+            crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
         }
@@ -5060,6 +5063,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "listed_with_count",
             "stepped_without_count",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "crossing_side_tag",
+        values: &["opposite_sides", "same_side", "undecided"],
         delegates: &[],
     },
     TagEntry {
@@ -6433,6 +6441,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unlocalized_tag",
+        values: &[
+            "containment",
+            "empty",
+            "invalid",
+            "lane",
+            "refused",
+            "unnamed",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "unmirrored_select_tag",
         // Twice on purpose: one word for two arms, and the multiset is
         // what says the two are held equal here rather than by prose.
@@ -6618,6 +6638,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("circle_circle", 2),
     ("coaxial", 2),
     ("contact_contradicted", 2),
+    ("containment", 2),
     ("corrupt", 2),
     ("cosurface_escalated", 2),
     // One fact at two doors: `node::declared_side_fault`, asked by the
@@ -6659,7 +6680,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_along_edge", 2),
     // One fact, as `circle_circle`.
     ("edge_edge_point", 2),
-    ("empty", 2),
+    ("empty", 3),
     ("empty_boolean", 2),
     // Coincidence, not one fact: a profile loop authored with no vertex,
     // refused at validation, and a body face's empty (scaffolding) loop,
@@ -6775,7 +6796,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_node", 5),
     ("unknown_param", 3),
     ("unminted", 2),
-    ("unnamed", 2),
+    ("unnamed", 3),
     // One fact (A11 (2)): a group nothing places — the node that read
     // across its space, the inline that has no frame to splice at, the
     // STEP export that writes one world, and the world gather a
