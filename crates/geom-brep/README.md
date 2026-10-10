@@ -527,15 +527,21 @@ table is a function of recipe structure and verdicts only.
 **C7 — `TangentIntersection` and second-order sector classification.**
 `EdgeDescription::TangentIntersection { s1, s2, witness }` mirrors
 `Intersection` one differential order up. Its jet (`tangent.rs`,
-`TangentJet { sin_theta, kappa_rel }`) is certified per sample: surface
-coincidence within ε, normal parallelism within the derived angle at
-lever arm `1/κ_rel`, and the relative transverse normal curvature
+`TangentJet { sin_theta, kappa_rel }`) is certified per sample, one
+reading per equation of the jet system, each a length at its own lever:
+the witness within ε of each surface, normal parallelism within the
+derived angle at lever arm `1/κ_rel` (the witness's offset across the
+locus), and the relative transverse normal curvature
 `κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
 system), with C2's hull bounds and tube between samples. Where
 first-order sector ranking ties exactly, classification descends one
 order (`enters_material_order2`, consumed by
 `topo::splitting::neighborhood` and `topo::boolean::sectors`); an in-band
-second-order tie escalates. Tier 3 has two levels: every
+second-order tie escalates. Readings of different equations are never
+summed: the witness's offset along the shared normal and across the
+locus are perpendicular, and a residual is a defect of its equation, not
+a distance to the locus (as for `Intersection`). Two terms are summed
+only when both move one reading, as a residual and its span sag do. Tier 3 has two levels: every
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
