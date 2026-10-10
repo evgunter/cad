@@ -2,7 +2,7 @@
 id: contacthold
 kind: program
 title: CONTACTHOLD — CONTACT's parked rows: the D10 hold on declared contacts, the coincidence door and the declared-pair retirement
-status: blocked
+status: ready
 opened: 2026-10-09
 area: kernel
 prefix: contacthold/
@@ -13,9 +13,10 @@ keep_out: [opened 2026-10-09 by CONTACT's closing cut on its priority seam (Ev i
 priority: P0
 ---
 
-**Nothing here is dispatchable, and nobody holds the track.** Every
-row waits on a named trigger (`work/README.md`: a blocked track never
-has an orchestrator). All 21 are parked on the D10 hold
+**Seven rows are dispatchable, and nobody holds the track.** INTENT
+stage 4 E (`booleans-glue-on-zero`) released the seven that waited on
+it, each with a note on what E changed for it. The rest wait on a named
+trigger. All 21 were parked on the D10 hold
 (`work/intent/plan.md`), through INTENT's stage-4 units:
 `coincidences-are-recorded-at-one-door`, `booleans-glue-on-zero` and
 `declared-pairs-retire`, or the stage-4 umbrella
