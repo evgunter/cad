@@ -16,9 +16,9 @@
 //! What is recorded is what a ladder decides from a margin and the
 //! result holds. A pair on one surface key is structure and is not
 //! recorded, and an ON verdict that only places topology is not a
-//! coincidence (D1): a boolean's face-pair decision is recorded only
-//! where the two faces meet, and a vertex identity only where a record
-//! citing it survives.
+//! coincidence (D1): a vertex identity is recorded only where a record
+//! citing it survives, and a boolean's face-pair decision only where
+//! the two faces meet, at a point, an edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -165,8 +165,11 @@ pub enum DecisionSite {
     /// The at-rest census: two faces of placed copies decided one
     /// carrier, opposed.
     CensusAtRest,
-    /// An imported file's vertex anchor: two of the body's vertices
-    /// decided at one point.
+    /// An imported file's vertex anchor: two of the body's vertices each
+    /// read within the file's ε_in of the anchor's point. The margin is
+    /// the farther vertex's distance from that point, not the two
+    /// vertices' distance from each other, and it is read against the
+    /// file's ε_in rather than classified against the band.
     ImportAnchor,
 }
 
@@ -280,7 +283,13 @@ impl Cites {
 
 /// **A contact record and the decisions that back it.** The record's
 /// cells read through it, so a reader of cells needs no unwrapping; a
-/// record cannot be built without its [`Cites`].
+/// record cannot be built without its [`Cites`], which is never empty.
+/// That each citation resolves is the producing operation's to keep,
+/// not the type's: the boolean's carry refuses a citation of a decision
+/// it did not make.
+///
+/// Two `Cited` are equal when their records and their citations are; a
+/// `Cited` against a bare record compares the record alone.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cited<R> {
     /// The record.

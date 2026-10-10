@@ -704,6 +704,73 @@ impl ContactRecords {
             .chain(patches.iter().map(|c| &c.cites))
     }
 
+    /// Every record's citations, mutably, in [`Self::cites`] order.
+    pub fn cites_mut(&mut self) -> impl Iterator<Item = &mut Cites> + '_ {
+        let Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        } = self;
+        vv.iter_mut()
+            .map(|c| &mut c.cites)
+            .chain(a_on_b.iter_mut().chain(b_on_a).map(|c| &mut c.cites))
+            .chain(ve.iter_mut().map(|c| &mut c.cites))
+            .chain(ee.iter_mut().map(|c| &mut c.cites))
+            .chain(curves.iter_mut().map(|c| &mut c.cites))
+            .chain(patches.iter_mut().map(|c| &mut c.cites))
+    }
+
+    /// Every row of the producing op's own list some record cites
+    /// ([`Backing::Decided`]), ascending and once each.
+    #[must_use]
+    pub fn decided(&self) -> Vec<u32> {
+        let mut used: Vec<u32> = self
+            .cites()
+            .flat_map(Cites::iter)
+            .filter_map(|b| match b {
+                Backing::Decided(k) => Some(k),
+                Backing::Carried { .. } => None,
+            })
+            .collect();
+        used.sort_unstable();
+        used.dedup();
+        used
+    }
+
+    /// Every record's [`Backing::Decided`] citations renumbered through
+    /// `row`, the citation dropped where `row` answers `None`; carried
+    /// citations stay. A record left citing nothing refuses with its
+    /// index in [`Self::rows`], and the records are left as they were.
+    ///
+    /// # Errors
+    ///
+    /// The index of the first record whose citations all dropped.
+    pub fn renumber_decided(&mut self, row: impl Fn(u32) -> Option<u32>) -> Result<(), usize> {
+        let mapped = self
+            .cites()
+            .enumerate()
+            .map(|(k, cites)| {
+                cites
+                    .try_map(|b| {
+                        Ok::<_, core::convert::Infallible>(match b {
+                            Backing::Decided(i) => row(i).map(Backing::Decided),
+                            carried @ Backing::Carried { .. } => Some(carried),
+                        })
+                    })
+                    .unwrap_or_else(|never| match never {})
+                    .ok_or(k)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for (cites, new) in self.cites_mut().zip(mapped) {
+            *cites = new;
+        }
+        Ok(())
+    }
+
     /// Every record as its cell pair and its citations, in list order
     /// ([`Self::cites`]).
     pub fn rows(&self) -> impl Iterator<Item = ((Cell, Cell), &Cites)> + '_ {
@@ -1919,7 +1986,9 @@ pub struct BooleanReduction<T: Real> {
     pub a: Body<T>,
     /// The annotated B clone.
     pub b: Body<T>,
-    /// The declared-contact records (the three ON-sets).
+    /// The declared-contact records (the three ON-sets). Each cites
+    /// the reduction's own decisions (`pending`), which the carry onto
+    /// the result renumbers onto the result's coincidences.
     pub contacts: ContactRecords,
     /// Every null edge minted, both operands, insertion order.
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,

@@ -1099,11 +1099,16 @@ fn a_same_member_declared_pair_with_no_record_refuses_at_every_door() {
     let (doc, last) = declared_union(doc, &[far, a], carried.clone());
     let (doc, first) = declared_union(doc, &[a, far, far2], carried);
     let ev = run(&doc);
-    for (what, id) in [("pair", pair), ("last", last), ("first", first)] {
+    for (what, id, at_union_step) in [
+        ("pair", pair, false),
+        ("last", last, true),
+        ("first", first, true),
+    ] {
         assert!(
             matches!(
                 failure(&ev, id),
-                Some(NodeErrorKind::DeclaredContactUnbacked { reference: 0 })
+                Some(&NodeErrorKind::DeclaredContactUnbacked { reference: 0, at_union_step: u })
+                    if u == at_union_step
             ),
             "{what}: {:?}",
             failure(&ev, id)

@@ -518,8 +518,9 @@ pub fn decide<T: Decide>(
 /// ([`Decided`]): for a decision whose refusal quotes it — a sized
 /// decision's tolerance offer (D4 ¶1 (i)), and a residual's definite
 /// miss, which the import door reads against the file's ε_in.
-/// Classification and recording are [`decide`]'s; the margin is for
-/// error reporting only ([`MarginDiag`]).
+/// Classification and recording are [`decide`]'s; the margin is a
+/// reading of the decision ([`MarginDiag`]), quoted by a refusal or
+/// recorded beside a Zero (`topo::Coincidence`), and never decides.
 ///
 /// # Errors
 ///

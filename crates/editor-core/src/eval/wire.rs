@@ -2928,9 +2928,18 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // The judgement's rows, named in the two members' own tables:
             // the union's coincidences are its pairwise judgement's (#4323:
             // the pass is the union's coincidence door, rows in member
-            // space), each pair's in the author's list order.
+            // space), each pair's in the author's list order. A vertex
+            // identity is a row only where a record cites it (D1), and
+            // the judgement's records are not the union's: the fold step
+            // that keeps the touch publishes the row its record cites.
+            let judged: Vec<topo::Coincidence> = out
+                .coincidences
+                .iter()
+                .filter(|row| row.site != topo::DecisionSite::VertexFusion)
+                .copied()
+                .collect();
             let rows = crate::coincide::name_rows(
-                &out.coincidences,
+                &judged,
                 &crate::coincide::RowInputs {
                     a: (members[p], own_tables[p]),
                     b: Some((members[q], own_tables[q])),
@@ -3817,7 +3826,10 @@ fn resolve_declarations<'n>(
                 topo::Operand::B => b_records,
             }
             .and_then(|records| records.position(pair))
-            .ok_or(NodeErrorKind::DeclaredContactUnbacked { reference: *r1 })
+            .ok_or(NodeErrorKind::DeclaredContactUnbacked {
+                reference: *r1,
+                at_union_step: a_records.is_none(),
+            })
         };
         match step {
             DeclaredStep::CrossFaces(sides) => {

@@ -13,8 +13,9 @@
 //! pair takes the arm a verified declaration of that class opens, and
 //! the declaration door records the decision ([`crate::coincidence`]),
 //! so a declared and an undeclared scene are one body. The decision is
-//! kept only where the two faces meet ([`touched`]): the boxes offer a
-//! frame-dependent superset of the pairs that do.
+//! kept only where the two faces meet, at a point, an edge or an area
+//! ([`touched`]): the boxes offer a frame-dependent superset of the
+//! pairs that do.
 //!
 //! A pair whose coincidence does not decide (in band, or poisoned) is
 //! left to the stage that meets it, which refuses it there: two faces
@@ -220,15 +221,16 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
     Ok(rows)
 }
 
-/// **The face-pair rows whose glue took effect**: each row deciding
-/// faces `fa` of A and `fb` of B one carrier, tangent or coaxial is
-/// kept only where the reduction placed a cell of `fa`'s closure on a
-/// cell of `fb`'s ([`super::reduce::PendingRow`], read back to the
-/// input's keys), so the two faces meet. A pair the boxes offered whose
-/// faces never meet decided nothing the result holds, and is not a
-/// coincidence (D1): which such pairs a box sweep offers depends on
-/// the frame, and whether two faces meet does not. Rows of any other
-/// shape are kept as they are.
+/// **The face-pair rows whose faces meet**: each row deciding faces
+/// `fa` of A and `fb` of B one carrier, tangent or coaxial is kept only
+/// where the reduction placed a cell of `fa`'s closure on a cell of
+/// `fb`'s ([`super::reduce::PendingRow`], read back to the input's
+/// keys), so the two faces meet, at a point, an edge or an area. Which
+/// pairs a box sweep offers depends on the frame, and whether two faces
+/// meet does not. A row is kept where the faces meet whether or not the
+/// decision shaped the result: two faces meeting at one corner keep
+/// theirs (`intent/a-face-pair-row-only-where-its-decision-shaped-the-result`).
+/// Rows of any other shape are kept as they are.
 pub(crate) fn touched<T: geom_core::Real>(
     rows: &[crate::Coincidence],
     pending: &[super::reduce::PendingRow],
@@ -236,17 +238,24 @@ pub(crate) fn touched<T: geom_core::Real>(
     [a, b]: [&Body<T>; 2],
 ) -> Vec<crate::Coincidence> {
     use crate::{Cell, RowCell};
-    let body = |input| if input == Operand::A { a } else { b };
-    // `face`'s closure in its input: the face, its edges and their ends.
-    let closure = |input: Operand, face: FaceKey| {
-        let body = body(input);
-        let mut cells = vec![Cell::Face(face)];
+    // Each face's closure in its input, read once: the face, its edges
+    // and their ends.
+    let closures = |body: &Body<T>| {
+        let mut out: std::collections::BTreeMap<FaceKey, Vec<Cell>> =
+            std::collections::BTreeMap::new();
         for (he, h) in body.half_edges() {
-            if body.face_of_half_edge(he) == Some(face) {
-                cells.extend([Cell::Edge(h.edge), Cell::Vertex(h.start)]);
+            if let Some(face) = body.face_of_half_edge(he) {
+                out.entry(face)
+                    .or_insert_with(|| vec![Cell::Face(face)])
+                    .extend([Cell::Edge(h.edge), Cell::Vertex(h.start)]);
             }
         }
-        cells
+        out
+    };
+    let (of_a, of_b) = (closures(a), closures(b));
+    let closure = |input: Operand, face: FaceKey| {
+        let of = if input == Operand::A { &of_a } else { &of_b };
+        of.get(&face).map_or(&[][..], Vec::as_slice)
     };
     let landed: Vec<[RowCell; 2]> = pending
         .iter()
@@ -272,8 +281,8 @@ pub(crate) fn touched<T: geom_core::Real>(
                 matches!(cell, RowCell::Input { input: i, cell } if *i == input && set.contains(cell))
             };
             landed.iter().any(|[x, y]| {
-                (on(x, Operand::A, &on_a) && on(y, Operand::B, &on_b))
-                    || (on(y, Operand::A, &on_a) && on(x, Operand::B, &on_b))
+                (on(x, Operand::A, on_a) && on(y, Operand::B, on_b))
+                    || (on(y, Operand::A, on_a) && on(x, Operand::B, on_b))
             })
         })
         .cloned()

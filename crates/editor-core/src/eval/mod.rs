@@ -1907,15 +1907,19 @@ pub enum NodeErrorKind {
         cross_operand: bool,
     },
     /// A declared pair of two entities of ONE operand is a contact that
-    /// operand carries in, and it names no contact record of that
-    /// operand's: nothing decided the touch it states (D1 (ii), D10), so
-    /// it backs no record of this node. At a union's fold step the
-    /// operand is the step's accumulation or member, whose records are
-    /// not cited from the union, so every such pair refuses there.
+    /// operand carries in, and no record this node can cite backs it
+    /// (D1 (ii), D10): the operand records no contact between the two,
+    /// so nothing decided the touch it states, or the pair is declared
+    /// at a union, whose fold steps' records are not cited from the
+    /// union, so every such pair refuses there whatever its member
+    /// records.
     DeclaredContactUnbacked {
         /// Which of the node's references is the pair's first side: its
         /// place among [`crate::Node::payload_names`].
         reference: usize,
+        /// Whether the pair is declared at a union, where no member's
+        /// record is cited.
+        at_union_step: bool,
     },
     /// A blend node's selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
@@ -2662,12 +2666,25 @@ impl crate::spoken::Say for NodeErrorKind {
                 kinds.0.noun(),
                 kinds.1.noun()
             ),
-            Self::DeclaredContactUnbacked { reference } => write!(
+            Self::DeclaredContactUnbacked {
+                reference,
+                at_union_step: false,
+            } => write!(
                 f,
                 "the pair declared at reference {reference} names two entities of one operand \
                  that the operand records no contact between, so nothing decided the touch it \
                  states — remove the declaration, or build the operand so its own operation \
                  records the contact"
+            ),
+            Self::DeclaredContactUnbacked {
+                reference,
+                at_union_step: true,
+            } => write!(
+                f,
+                "the pair declared at reference {reference} names two entities of one member of \
+                 a union, and a union cites no member's contact records, so nothing it holds \
+                 backs the touch the pair states — remove the declaration, or declare it on a \
+                 two-operand boolean whose operand records the contact"
             ),
             // The menu is what this arm owns and the payload cannot
             // spell — stated through the finding sink as the arm's

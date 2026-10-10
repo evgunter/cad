@@ -1235,7 +1235,12 @@ pub fn run_checks_on<
     }
     if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
         report.skipped.push(CheckId::UnprovenCoincidence);
-    } else if let Subject::Unavailable { refusal } = &subject {
+    } else if let Subject::Unavailable { refusal } = &subject
+        && holds_a_mate(doc)
+    {
+        // The at-rest rows are the mates' and ride the product, so a
+        // document with a mate and no product has rows nobody can read.
+        // One with no mate has none, and its node rows need no product.
         return Err(ChecksError::Product {
             refusal: refusal.clone(),
         });
@@ -1255,6 +1260,14 @@ pub fn run_checks_on<
         separation(&subject, tol, &mut report);
     }
     Ok(report)
+}
+
+/// Whether `doc` holds a mate: a node whose pair the at-rest census
+/// decides on the gathered product, as the mint walks them.
+fn holds_a_mate<P>(doc: &Doc<P>) -> bool {
+    doc.ids()
+        .into_iter()
+        .any(|id| matches!(doc.node(id), Some(crate::Node::Mate { .. })))
 }
 
 /// The `unproven-coincidence` resident's pass (D10): every evaluated

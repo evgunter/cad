@@ -481,16 +481,7 @@ pub(crate) fn publish_cited(
     inputs: &RowInputs<'_>,
     published: &mut Vec<NamedCoincidence>,
 ) -> Result<topo::ContactRecords, NamingError> {
-    let mut used: Vec<u32> = records
-        .cites()
-        .flat_map(topo::Cites::iter)
-        .filter_map(|b| match b {
-            topo::Backing::Decided(k) => Some(k),
-            topo::Backing::Carried { .. } => None,
-        })
-        .collect();
-    used.sort_unstable();
-    used.dedup();
+    let used = records.decided();
     let cited: Vec<topo::Coincidence> = used
         .iter()
         .map(|&k| {
@@ -501,44 +492,14 @@ pub(crate) fn publish_cited(
         .collect::<Result<_, _>>()?;
     let base = published.len();
     published.extend(name_rows(&cited, inputs)?);
-    let renumber = |cites: &topo::Cites| {
-        cites
-            .try_map(|b| {
-                Ok::<_, core::convert::Infallible>(Some(match b {
-                    topo::Backing::Decided(k) => {
-                        let rank = used.binary_search(&k).unwrap_or_else(|_| {
-                            unreachable!("every decided citation is in `used`")
-                        });
-                        topo::Backing::Decided(u32::try_from(base + rank).unwrap_or(u32::MAX))
-                    }
-                    carried @ topo::Backing::Carried { .. } => carried,
-                }))
-            })
-            .unwrap_or_else(|never| match never {})
-            .unwrap_or_else(|| unreachable!("a non-empty set renumbers to a non-empty set"))
-    };
     let mut out = records.clone();
-    let topo::ContactRecords {
-        vv,
-        a_on_b,
-        b_on_a,
-        ve,
-        ee,
-        curves,
-        patches,
-    } = &mut out;
-    for cites in vv
-        .iter_mut()
-        .map(|c| &mut c.cites)
-        .chain(a_on_b.iter_mut().map(|c| &mut c.cites))
-        .chain(b_on_a.iter_mut().map(|c| &mut c.cites))
-        .chain(ve.iter_mut().map(|c| &mut c.cites))
-        .chain(ee.iter_mut().map(|c| &mut c.cites))
-        .chain(curves.iter_mut().map(|c| &mut c.cites))
-        .chain(patches.iter_mut().map(|c| &mut c.cites))
-    {
-        *cites = renumber(cites);
-    }
+    out.renumber_decided(|k| {
+        let rank = used
+            .binary_search(&k)
+            .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
+        Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
+    })
+    .unwrap_or_else(|_| unreachable!("every decided citation renumbers"));
     Ok(out)
 }
 

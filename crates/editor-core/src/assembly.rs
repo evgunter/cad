@@ -1299,12 +1299,13 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
             refusals: product.unminted.clone(),
         });
     }
-    // The census's findings for the mated pairs it refused at the mint,
-    // which minted no record, then the gate's over the records.
-    let mut errors = product.refused_at_rest.clone();
-    if let Err(gate) = T::gate_at_rest_declared(&product.body, &product.contacts, tol) {
-        errors.extend(gate);
-    }
+    // The gate's findings over the records, then the census's findings
+    // for the mated pairs it refused at the mint, which minted no
+    // record: the gate's own order, as when it read those pairs itself.
+    let mut errors = T::gate_at_rest_declared(&product.body, &product.contacts, tol)
+        .err()
+        .unwrap_or_default();
+    errors.extend(product.refused_at_rest.iter().cloned());
     if errors.is_empty() {
         return Ok(());
     }

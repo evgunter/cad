@@ -916,7 +916,10 @@ mod tests {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
             },
-            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked { reference: 0 },
+            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked {
+                reference: 0,
+                at_union_step: false,
+            },
             C::UnionFoldStep => K::UnionFoldStep {
                 member: n(2),
                 refusal: Box::new(K::UnschedulableCycle),

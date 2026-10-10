@@ -240,6 +240,30 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
 }
 
+/// **The coincidence lint needs the product only for the mates' rows.**
+/// A document with no mate whose gather refuses (two placed copies
+/// crossing): with Separation off and the lint on, the run reports the
+/// nodes' rows rather than refusing, since none of its rows rides the
+/// product.
+#[test]
+fn the_coincidence_lint_reports_node_rows_when_a_mateless_gather_refuses() {
+    let tol = Tol::witness();
+    let cfg = ChecksConfig {
+        separation: Advisory::Off,
+        unproven_coincidence: Advisory::Warn,
+        ..ChecksConfig::default()
+    };
+    let (collide, opts) = crate::fixture::unplaced_world("docm5-lint-collide");
+    let ev: Evaluation<f64> = crate::fixture::run(&collide, &opts);
+    assert!(
+        product_recorded(&collide, &ev, tol).is_err(),
+        "the premise: this document's gather refuses"
+    );
+    let report =
+        run_checks(&collide, &ev, &cfg, tol).expect("no mate, so no row needs the product");
+    assert!(!report.skipped.contains(&CheckId::UnprovenCoincidence));
+}
+
 /// **DI3 at the door.** (R2's two rows, adopted.)
 ///
 /// `run_checks_on` binds `doc` to `ev` itself rather than inheriting a

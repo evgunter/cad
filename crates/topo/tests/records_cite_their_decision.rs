@@ -269,3 +269,99 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
         assert_eq!(face_pair_rows(&r), 0, "{z:?}: {r:?}");
     }
 }
+
+/// **A pair a vertex group implies cites only shortest chains, when one
+/// result cell is reached from both operands.** The corner kiss `K`
+/// unioned with a block `C` standing beside `A` with its corner at the
+/// kiss: `C`'s corner is decided one with each kissing vertex, and in
+/// the result `A`'s kissing vertex and `C`'s corner are one cell. The
+/// pair of `B`'s kissing vertex and that cell is one hop from `C`'s
+/// corner, so it cites that one decision; the decision joining `A`'s
+/// vertex to `C`'s lies only on a longer chain. Red if a result cell is
+/// read once per side and the pair's citations are their union.
+#[test]
+fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
+    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
+    let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
+    let kiss = union(&a, &b, &BooleanDeclarations::none());
+    let c = box_of((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), "c");
+    let r = union(&kiss.body, &c, &BooleanDeclarations::none());
+    let cited = cited_rows(&r);
+    assert_eq!(cited.len(), 2, "two records: {:?}", r.contacts);
+    for rows in &cited {
+        assert_eq!(
+            rows.len(),
+            1,
+            "each record cites its one-hop decision: {rows:?}"
+        );
+    }
+    let fusions = r
+        .coincidences
+        .iter()
+        .filter(|c| c.site == DecisionSite::VertexFusion)
+        .count();
+    assert_eq!(fusions, 2, "only the cited decisions: {:?}", r.coincidences);
+}
+
+/// **A carried vertex-on-face record cites its operand's record**: a
+/// unit cube balanced on one corner on the middle of a block's top
+/// face, its corner the one point it touches. The kiss's one record is
+/// that vertex on the block's top, citing the decision that placed it;
+/// carried into a union with a far box, it comes out citing the kiss's
+/// record by index and nothing of the second union's. Red if the
+/// carried vertex-on-face row loses its citation or is re-decided.
+#[test]
+fn a_carried_vertex_on_face_record_cites_its_operands_record() {
+    use geom_core::{Affine3, Point3, Vec3};
+    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
+    let cube = brick((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5), tol());
+    // The corner (−½, −½, −½) turned to point straight down.
+    let turn = Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, -1.0, 0.0),
+        (1.0_f64 / 3.0_f64.sqrt()).acos(),
+    );
+    let turned = topo::transform_rigid(&cube, &turn, tol()).expect("a rigid turn");
+    let low = turned
+        .vertex_points()
+        .map(|(_, p)| p)
+        .min_by(|p, q| p.z.total_cmp(&q.z))
+        .expect("a vertex");
+    let lift = Affine3::translation(Vec3::new(0.5 - low.x, 0.5 - low.y, 1.0 - low.z));
+    let on_corner = finished(
+        "the cube on its corner",
+        topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),
+        tol(),
+    );
+    let kiss = union(&a, &on_corner, &BooleanDeclarations::none());
+    assert_eq!(
+        (
+            kiss.contacts.a_on_b.len() + kiss.contacts.b_on_a.len(),
+            kiss.contacts.vv.len()
+        ),
+        (1, 0),
+        "one vertex-on-face record: {:?}",
+        kiss.contacts
+    );
+    let k = kiss
+        .contacts
+        .rows()
+        .position(|((x, y), _)| matches!((x, y), (Cell::Vertex(_), Cell::Face(_))))
+        .expect("the vertex-on-face record");
+    let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
+    let decls = BooleanDeclarations {
+        carried_a: kiss.contacts.carried(ContactClass::Rest),
+        ..BooleanDeclarations::none()
+    };
+    let r = union(&kiss.body, &far, &decls);
+    let carried: Vec<_> = r.contacts.rows().map(|(_, cites)| cites.clone()).collect();
+    assert_eq!(
+        carried,
+        [topo::Cites::one(Backing::Carried {
+            input: 0,
+            record: u32::try_from(k).expect("small"),
+        })],
+        "the carried vertex-on-face record cites the kiss's record {k}: {:?}",
+        r.contacts
+    );
+}
