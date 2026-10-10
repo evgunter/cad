@@ -853,3 +853,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the item `the-m-tier-miss-at-dr-147-owes-a-short-readout` (`needs_ev`), merged via 4577;
     - subscribed to 4576.
   - The foot now reads: tally 37, fair pairs with a MAJOR 61, toward the next full readout 2, and one miss after DR-144.
+- 2026-10-10 19:27 — PR 4574 (the k-lint zero-arm tally): the single review is in, saved at `scratchpad/r4574/report.md`.
+  - Verdict: **APPROVE**, 0 MAJOR, 2 MINOR, 2 NIT, with style notes.
+  - 14 mutants were run: every gating rule is still pinned, and the tally condition matches base exactly, measured on 19,145 rows.
+  - The fixes, to land before merge once the lane goes idle:
+    - MINOR-1: no test pins `zero_arm`'s order or its tie-break;
+    - MINOR-2: PROXIMITY_FACTOR's ceiling is still called "binding" (`lib.rs:274`, `threshold_provenance.rs:600`, K-REPORT);
+    - NITs: one label spelled two ways; a hone item that claims dev-probe goes green.
