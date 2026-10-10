@@ -515,3 +515,159 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
         inlined.maintenance
     );
 }
+
+fn stranded_selections(rows: &[editor_core::Maintenance]) -> usize {
+    rows.iter()
+        .filter(|row| matches!(row, editor_core::Maintenance::StrandedSelection { .. }))
+        .count()
+}
+
+fn union_of(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: a.into(),
+            b: b.into(),
+            declare: Vec::new(),
+        },
+    )
+}
+
+/// **A re-point strands a named selection whether or not anything
+/// reads it**, as a delete does. A fillet's selection of a union is
+/// named and the fillet deleted; re-pointing the union's first operand
+/// away from the prism the name was minted on reports the selection,
+/// once, exactly as deleting that prism does.
+#[test]
+fn a_re_point_reports_an_unread_named_selection_as_a_delete_does() {
+    let (doc, p) = prism(blank("s2e-repoint-unread"), 0.0);
+    let (doc, q) = prism(doc, 4.0);
+    let (doc, r) = prism(doc, 8.0);
+    let (doc, u) = union_of(doc, p.node, q.node);
+    let (doc, fillet) = insert(doc, Node::fillet(u, len(0.05), vec![p.edges[0].clone()]));
+    let doc = push(
+        &doc,
+        &DocEdit::RenameVar {
+            var: editor_core::VarRef::Id(fixture::selection_read(&doc, fillet)),
+            name: Some(VarName::from_static("kept")),
+        },
+    );
+    let doc = push(&doc, &DocEdit::DeleteNode { id: fillet });
+    let edit = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
+        apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+            .expect("the edit applies")
+            .maintenance
+    };
+    let repointed = edit(
+        &doc,
+        DocEdit::SetParam {
+            node: u,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+            value: editor_core::SlotValue::Read(Operand::Node(r.node)),
+            fresh: Vec::new(),
+        },
+    );
+    let deleted = edit(&doc, DocEdit::DeleteNode { id: p.node });
+    assert_eq!(stranded_selections(&repointed), 1, "{repointed:?}");
+    assert_eq!(stranded_selections(&deleted), 1, "{deleted:?}");
+}
+
+/// **A selection a slot write authors strands nothing**, as one the
+/// insert door authors does not: a name off the selection's body is
+/// evaluation's to refuse (`SelectResolve`), and neither door reports
+/// it as something an edit took.
+#[test]
+fn a_selection_authored_off_its_body_is_reported_by_neither_door() {
+    let (doc, p) = prism(blank("s2e-authored-off-body"), 0.0);
+    let (doc, q) = prism(doc, 4.0);
+    let off = || Operand::select(q.node, vec![p.edges[0].clone()]);
+    let inserted = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Fillet {
+                radius: len(0.05),
+                selection: off(),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the insert applies");
+    assert_eq!(stranded_selections(&inserted.maintenance), 0);
+    let (doc, fillet) = insert(
+        doc,
+        Node::fillet(q.node, len(0.05), vec![q.edges[0].clone()]),
+    );
+    let written = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: fillet,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Selection),
+            value: editor_core::SlotValue::Read(off()),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the slot write applies");
+    assert_eq!(stranded_selections(&written.maintenance), 0);
+}
+
+/// **FORK-VTX at the slot door**: re-pointing a `min_clearance`
+/// reference to an edge refuses as the seat's kind, whether the edge is
+/// a selection authored at the write or a variable read by name.
+#[test]
+fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
+    let (doc, p) = prism(blank("s2e-vtx-slot"), 0.0);
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::MinClearance { a: 0, b: 1 },
+        vec![
+            SitedRef::at_mint(p.faces[0].clone()),
+            SitedRef::at_mint(p.faces[1].clone()),
+        ],
+    );
+    let (doc, fillet) = insert(
+        doc,
+        Node::fillet(p.node, len(0.05), vec![p.edges[0].clone()]),
+    );
+    let doc = push(
+        &doc,
+        &DocEdit::RenameVar {
+            var: editor_core::VarRef::Id(fixture::selection_read(&doc, fillet)),
+            name: Some(VarName::from_static("strut")),
+        },
+    );
+    for read in [
+        Operand::select(p.node, vec![p.edges[1].clone()]),
+        Operand::Name(VarName::from_static("strut")),
+    ] {
+        let refused = apply(
+            &doc,
+            &DocEdit::SetParam {
+                node: measure,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measured(
+                    MeasureVerb::MinClearance,
+                    0,
+                )),
+                value: editor_core::SlotValue::Read(read.clone()),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        );
+        assert!(
+            matches!(
+                refused,
+                Err(EditError::SlotVarKind {
+                    expected: SlotKind::Measured(MeasureVerb::MinClearance),
+                    ..
+                })
+            ),
+            "{read}: {:?}",
+            refused.map(|_| ())
+        );
+    }
+}

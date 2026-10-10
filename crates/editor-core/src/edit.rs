@@ -5808,10 +5808,13 @@ fn write_reads<P: crate::ProfilePayload>(
 /// **The names a re-point of `id`'s reads strands**: for `id` and every
 /// node downstream of it in `new`, each payload name it carries whose
 /// minting node was upstream of it in `before` and is not in `new`; then
-/// each name of a selection those nodes read that its body cannot reach
-/// in `new` — the body's operation or upstream of it — where it could in
-/// `before`, or where the edit authored the selection. In document
-/// order, and within a node in [`Node::payload_names`]' order.
+/// each name of a selection whose body is `id` or downstream of it,
+/// read or not, or which `id` or a node downstream of it reads, that
+/// its body cannot reach in `new` — the body's
+/// operation or upstream of it — where it could in `before`, or, for a
+/// selection the edit authored at `id`, where the read it replaced
+/// there could. Payload rows in document order, within a node in
+/// [`Node::payload_names`]' order; then selection rows.
 fn stranded_by_repoint<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &Doc<P>,
@@ -5845,6 +5848,17 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             }
         }
     }
+    for (&var, held) in new.vars() {
+        if held.def().select().is_none() {
+            continue;
+        }
+        let Some(at) = new.read_operation(var) else {
+            continue;
+        };
+        if at == id || crate::doc::strict_ancestors(new, at).contains(&id) {
+            selections.push(var);
+        }
+    }
     for (&reader, node) in &new.nodes {
         if reader != id && !crate::doc::strict_ancestors(new, reader).contains(&id) {
             continue;
@@ -5859,10 +5873,36 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         let (Some(select), Some(after)) = (new.selection(var), reach(new, var)) else {
             continue;
         };
-        let was = before.selection(var).and_then(|_| reach(before, var));
+        // A selection this edit authored at `id` is held to the read
+        // it replaced there: a name that read could reach and this one
+        // cannot is one the edit took. A name no read there ever
+        // reached is evaluation's to refuse, as at the insert door.
+        let replaced = || {
+            let slot = new
+                .nodes
+                .get(&id)?
+                .operand_rows()
+                .into_iter()
+                .find(|(_, v)| *v == var)?
+                .0;
+            let old = before
+                .nodes
+                .get(&id)?
+                .operand_rows()
+                .into_iter()
+                .find(|(at, _)| *at == slot)?
+                .1;
+            reach(before, old)
+        };
+        let was = match before.selection(var) {
+            Some(_) => reach(before, var),
+            None => replaced(),
+        };
+        let Some(was) = was else {
+            continue;
+        };
         for name in &select.names {
-            let reached = was.as_ref().is_none_or(|was| was.contains(&name.node));
-            if reached && !after.contains(&name.node) {
+            if was.contains(&name.node) && !after.contains(&name.node) {
                 rows.push(Maintenance::StrandedSelection {
                     var: new.spoken_var(var),
                     readers: selection_readers(before, new, var),
