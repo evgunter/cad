@@ -5555,7 +5555,7 @@ where
         // which is the rule `Loft`'s profiles already run on; whether
         // the argument is a family or spelled is payload, fed below.
         Node::Union { .. } => 31,
-        Node::Intersect { .. } => 37,
+        Node::Intersect { .. } => 38,
         // The derived sketch frame. It does NOT share the authored
         // frame's 27 even though it evaluates to the same value kind:
         // the two carry different payloads (a body edge, a face name
@@ -6789,7 +6789,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RevolveCap => 13,
         S::Pole => 14,
         S::AxisEdge => 15,
-        S::From => 51,
+        S::From => 52,
         S::Seam => 18,
         S::Crossing => 47,
         S::EdgeCrossing => 48,
@@ -7446,7 +7446,7 @@ mod tag_vocabulary_tests {
         // shell's three roles, read off the source the numbers were
         // committed in.
         for (seg, want) in [
-            (SegTag::From, 51),
+            (SegTag::From, 52),
             (SegTag::Inner, 42),
             (SegTag::Rim, 43),
             (SegTag::HoleRim, 44),

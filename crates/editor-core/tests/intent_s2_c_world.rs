@@ -12,9 +12,9 @@ use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    AssertionDir, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
-    InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
+    AssertionDir, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide, InlineError,
+    Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
 };
 use geom_core::Tol;
 
@@ -549,18 +549,21 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         "SetParam",
     );
 
-    // The same read written into a file: the boolean's `a` swapped for
-    // the copy, on the wire.
+    // The same read written into a file: the union's first member
+    // swapped for the copy, on the wire.
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let wire = |var| serde_json::to_string(&var).expect("an id serializes");
     let body_a = doc.output(a, 0).expect("the block's body");
-    let read = format!("\"a\": {}", wire(body_a));
-    assert_eq!(
-        text.matches(&read).count(),
-        1,
-        "the boolean's one read of the block"
-    );
-    let forged = text.replace(&read, &format!("\"a\": {}", wire(copy)));
+    let key = serde_json::to_value(fused).expect("an id serializes");
+    let key = key.as_str().expect("a node id is a string");
+    let forged = crate::wire::doctored(&text, |body| {
+        let member = &mut body["snapshot"]["nodes"][key]["Union"]["members"]["Spelled"][0];
+        assert_eq!(
+            *member,
+            serde_json::to_value(body_a).expect("an id serializes"),
+            "the union's first member is the block's body"
+        );
+        *member = serde_json::to_value(copy).expect("an id serializes");
+    });
     match editor_core::persist::load(&forged, Tol::witness()) {
         Err(error) => {
             let said = error.to_string();

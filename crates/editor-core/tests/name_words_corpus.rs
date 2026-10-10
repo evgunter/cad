@@ -60,8 +60,8 @@ use topo::BooleanOp;
 /// The crossing row says its claimed name by tag, which says each read
 /// a carry came through.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    ("SelectRefusal::PairInBand", 80),
-    ("NodeErrorKind::CrossingUnverified", 86),
+    ("SelectRefusal::PairInBand", 82),
+    ("NodeErrorKind::CrossingUnverified", 80),
 ];
 
 /// **The rows whose own prose states its recourse in words the standard
@@ -99,10 +99,12 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// through ("…, joined at Union d1aa from Extrude e548"), where a pair
 /// boolean's `a` operand was silent and its `b` said the join alone. A
 /// list has no primary member, so the longer names are the reading, not
-/// a regression.
+/// a regression. Merged over INTENT stage 2 C and D, both effects add:
+/// a world copy says its body's name, joins and all, under "the world
+/// copy of".
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 39, 57, 42_058]),
-    ("full", [19, 117, 196, 303_239]),
+    ("scoped faces", [16, 43, 57, 55_693]),
+    ("full", [19, 123, 196, 411_350]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -136,7 +138,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
-const SAID_DIGEST: u64 = 0xfa26dd1a1f6cedae;
+const SAID_DIGEST: u64 = 0x3a99_2833_ddc3_fb0b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
