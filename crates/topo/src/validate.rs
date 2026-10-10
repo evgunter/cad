@@ -16002,7 +16002,6 @@ mod certify_escalation_rows {
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::OnLocus,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
@@ -16025,7 +16024,6 @@ mod certify_escalation_rows {
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::HullSup,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
@@ -16038,7 +16036,6 @@ mod certify_escalation_rows {
                     geom_brep::AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
                         limb: geom_brep::ssi::SsiLimb::HullSup,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
