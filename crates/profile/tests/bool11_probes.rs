@@ -22,7 +22,7 @@
 
 use crate::common;
 
-use common::pinned;
+use common::{pinned, pinned_constructed};
 use geom_core::{Point2, Tol};
 use profile::{ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
 
@@ -76,17 +76,12 @@ fn subdivided_square(t: Tol) -> ClosedLoop<f64> {
 }
 
 /// **End to end.** The subdivided square closes through the lattice,
-/// carries its eight authored vertices in order, declares no tangency,
-/// and passes the data gate.
-///
-/// `tangent_joints` empty is the load-bearing half: the four collinear
-/// joints the continuations minted are carrier IDENTITY, and identity
-/// is not tangency — nothing was declared, so nothing is claimed about
-/// independently-typed numbers at the verify layer.
+/// carries its eight authored vertices in order, constructs the four
+/// collinear joints its continuations minted, and passes the data gate.
 #[test]
 fn the_subdivided_square_closes_and_validates() {
     let t = Tol::witness();
-    let loop_ = pinned(subdivided_square(t));
+    let loop_ = pinned_constructed(subdivided_square(t));
     // EIGHT vertices, not nine: the closer's target is the entry, which
     // the loop already carries, so the closing leg mints nothing.
     assert_eq!(loop_.vertices().len(), 8);
@@ -114,9 +109,9 @@ fn the_subdivided_square_closes_and_validates() {
             got.y
         );
     }
-    // The four `continue_to` joints are DECLARED tangent joints since
-    // the 2026-09-02 ruling; the four corners turn.
-    assert_eq!(loop_.tangent_joints(), &[1, 3, 5, 7]);
+    // The four `continue_to` joints are constructed tangent joints
+    // (every zero-turn joint is one, 2026-09-02); the four corners turn.
+    assert_eq!(loop_.constructed_joints(), &[1, 3, 5, 7]);
     validate_ok(&loop_);
 }
 
@@ -318,17 +313,13 @@ fn a_target_behind_the_departure_is_a_nonpositive_leg() {
 /// **Carrier-blind, as the §2c axiom requires**: the row reads the
 /// tangent and nothing about the leg that produced it, so off an
 /// ARC-carrier point the same spelling authors a line TANGENT to that
-/// arc and declares nothing. Legal to write here; refused at the DATA
-/// gate, where an undeclared tangency between distinct carriers is
-/// exactly what is caught. Declaring it is `.tangent()`'s job, and the
-/// declared spelling is a different verb.
+/// arc, and constructs that joint as it constructs a collinear one.
 ///
 /// The fixture makes the end tangent nameable: a quarter arc left off
 /// `+x` ends heading `+y`, so a target straight above the arc's end IS
-/// on the departing ray and the check passes — which is the point. The
-/// refusal that follows is the data gate's, not the algebra's.
+/// on the departing ray and the check passes — which is the point.
 #[test]
-fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
+fn a_continuation_off_an_arc_is_a_constructed_tangency() {
     use profile::{ArcSide, Sweep};
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();
@@ -351,17 +342,17 @@ fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
         .unwrap()
         .line_to(Start, t)
         .unwrap();
-    let loop_ = pinned(closed);
-    // RULED (Ev, in-chat, 2026-09-02): a continuation verb DECLARES
-    // the zero-turn joint it mints, so the arc/line tangency this row
-    // was written about is no longer undeclared and the data gate
-    // accepts it. BOOL-8's recorded carrier-blindness hole — the door
-    // could not see the arc carrier, so the gate had to catch it — is
-    // closed by the declaration rather than by a lookup.
-    assert!(loop_.tangent_joints().contains(&1));
-    Profile::new(SketchPlane::xy(), vec![loop_])
+    let loop_ = pinned_constructed(closed);
+    // A continuation verb CONSTRUCTS the zero-turn joint it mints, so
+    // the arc/line tangency this row was written about is verified,
+    // not decided from values. BOOL-8's recorded carrier-blindness
+    // hole — the door could not see the arc carrier, so the gate had to
+    // catch it — is closed by the construction rather than by a lookup.
+    assert!(loop_.constructed_joints().contains(&1));
+    let vp = profile::ConstructedProfile::new(SketchPlane::xy(), vec![loop_])
         .validate(Tol::witness())
-        .expect("the continuation declared the joint, so the gate accepts it");
+        .expect("the continuation constructed the joint, so the gate verifies it");
+    assert!(vp.loops()[0].decided_joints().is_empty());
 }
 
 /// **BOOL-8's measured residual, accepted.** The corner of lily's kite

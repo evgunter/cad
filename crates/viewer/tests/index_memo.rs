@@ -5,9 +5,9 @@
 //! index lives, so it is where any reuse across edits happens. Whatever
 //! it keeps between builds, the picture it answers has ONE definition:
 //! the index the plain door ([`PickIndex::build`]) builds from the same
-//! landed run, whose meshes are `mesh::tessellate` of each root body.
+//! landed run, whose meshes are `mesh::tessellate` of each placed copy.
 //! Every row here opens a document, indexes it through the seam, then
-//! runs a sequence of edits — change a parameter, change another,
+//! runs a sequence of edits — change a variable, change another,
 //! revert the first — and after every landing asserts that the seam's
 //! meshes are byte-identical to the plain door's (the D9 goldens'
 //! digest, over every position, patch and boundary) and that a fixed
@@ -108,10 +108,16 @@ impl Edit {
 /// The corpus document's own bump edit — every parametric corpus
 /// document carries one — and the text that reverts it.
 fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
-    let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
+    let DocEdit::SetParam {
+        node,
+        slot,
+        value: pncad::document::SlotValue::Formula(expr),
+        ..
+    } = c.bump.clone()
+    else {
         return None;
     };
-    let original = c.doc.node(node)?.expr(slot)?;
+    let original = c.doc.slot_expansion(node, slot)?;
     Some((
         Edit { node, slot, expr },
         Edit {
@@ -122,17 +128,19 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
     ))
 }
 
-/// A second parameter to change: the first literal length slot on a
+/// A second variable to change: the first literal length slot on a
 /// node other than `not`, scaled — "change another", when the document
 /// has another to change.
 fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
-    for &node in doc.order() {
+    for node in doc.ids() {
         if node == not {
             continue;
         }
         let n = doc.node(node)?;
         for slot in n.slots() {
-            let Some(expr) = n.expr(slot) else { continue };
+            let Some(expr) = doc.slot_expansion(node, slot) else {
+                continue;
+            };
             if expr.dim() != Dimension::Length {
                 continue;
             }
@@ -185,7 +193,7 @@ fn answer(seam: &mut impl IndexService, request: IndexRequest) -> IndexDone {
 }
 
 /// The seam's answer for the session's landed run at `at`: the index,
-/// or the refusal (a failed or poisoned root is an ordinary editing
+/// or the refusal (a failed or poisoned placement is an ordinary editing
 /// state).
 fn seam_index_at(
     seam: &mut InlineIndexer,
@@ -281,7 +289,7 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     // different places: a patch entry is stamped in `PatchMemo::record`
     // and a table in `MeshPick::build_with`, which never runs when the
     // tessellation it would follow refuses. `PickIndex::build_with`
-    // closes the picture either way, so a root that refuses partway
+    // closes the picture either way, so a placement that refuses partway
     // leaves its counted patch hits alive with no tables beside them,
     // and the NEXT picture can report `face_hits > table_hits`
     // legitimately. Every document this differential drives lands (the
@@ -600,13 +608,13 @@ fn assert_same_picture(
 /// the memo answered. The measured counts (this row under
 /// `--nocapture`) with a little slack, and the reason each is what it
 /// is:
-/// - `die_composed_tour`, the first edit (one pip moved): one root,
+/// - `die_composed_tour`, the first edit (one pip moved): one copy,
 ///   recomputed, 85 of 89 faces bit-identical — level 2's case.
 /// - `die`, the first edit: 106 of 111 faces bit-identical.
-/// - `kitchen_sink`, the first edit (8 roots, the bump feeds 3): five
-///   roots reused whole — level 1's case.
-/// - `heat_sink`, the second edit (6 roots, the second slot feeds 1):
-///   five roots reused whole.
+/// - `kitchen_sink`, the first edit (8 copies, the bump feeds 3): five
+///   copies reused whole — level 1's case.
+/// - `heat_sink`, the second edit (6 copies, the second slot feeds 1):
+///   five copies reused whole.
 ///
 /// **And a memo that hit EVERYTHING would pass them**, which is the
 /// other half of the same defect: the edited face's key must change,
@@ -667,7 +675,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         "{name}: the document indexes as opened: {index:?}"
     );
     let opened = assert_same_answer(name, "open", &index, &fresh, &session);
-    // Faces answered at open are hits WITHIN the picture: two roots
+    // Faces answered at open are hits WITHIN the picture: two copies
     // drawing one bit-identical face (the heat sink's fins) share an
     // entry. That count is the document's, not δ's, and the δ row
     // below expects exactly it again.
@@ -785,7 +793,7 @@ const TIED_LANDINGS_FLOOR: usize = 80;
 /// but one, and asserts that each answer is the plain door's and that
 /// the picture after the skipped one is served from the memo at node
 /// level: the revert returns the document to the state the worker
-/// last indexed, so every root's content and naming keys match and
+/// last indexed, so every copy's content and naming keys match and
 /// nothing is tessellated.
 #[cfg(not(target_family = "wasm"))]
 #[test]
@@ -861,11 +869,7 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
-    let original = doc
-        .node(node)
-        .expect("a node")
-        .expr(slot)
-        .expect("its slot");
+    let original = doc.slot_expansion(node, slot).expect("its slot");
     let bump = Edit { node, slot, expr };
     let revert = Edit {
         node,
@@ -1314,7 +1318,7 @@ const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 /// something.
 const REACH: f64 = 1.48;
 
-/// The ring probe's answer: the chord point's parameter as the
+/// The ring probe's answer: the chord point's variable as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;

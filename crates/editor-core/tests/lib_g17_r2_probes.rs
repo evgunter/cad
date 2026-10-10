@@ -21,7 +21,7 @@ fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
 }
 
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -112,20 +112,24 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     let raw = Node::Shell {
-        target: blank,
         thickness: fixture::len(cup::T),
-        open: vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
+        open: editor_core::Operand::select(
+            blank,
+            vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
+        ),
     };
     match apply(
         &d.doc,
         &DocEdit::InsertNode {
             node: Box::new(raw),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(editor_core::EditError::RepeatedDesignation {
-            first: 0, again: 2, ..
+        Err(editor_core::EditError::SelectionShape {
+            fault: editor_core::SelectionFault::Repeated { first: 0, again: 2 },
+            ..
         }) => {}
         other => panic!("P2: the edit door must refuse the raw repeat typed, got {other:?}"),
     }
@@ -138,7 +142,10 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     ) else {
         panic!("the door builds a shell")
     };
-    assert_eq!(open, vec![cup::top(blank), cup::bottom(blank)]);
+    assert_eq!(
+        fixture::authored_names(&open),
+        vec![cup::top(blank), cup::bottom(blank)]
+    );
 }
 
 /// P3 — `Rebind` onto an already-designated face: the list shrinks and
@@ -160,13 +167,14 @@ fn p3_rebind_keeps_the_earlier_position() {
         ),
     );
     let open_of = |doc: &ProfileDoc| match doc.node(id) {
-        Some(Node::Shell { open, .. }) => open.clone(),
+        Some(Node::Shell { open, .. }) => fixture::selected(doc, *open),
         other => panic!("{other:?}"),
     };
     // c → a: a is earlier, so [a, b].
     let r = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(blank, 0),
             from: c.clone(),
             to: a.clone(),
         },
@@ -181,6 +189,7 @@ fn p3_rebind_keeps_the_earlier_position() {
     let r = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(blank, 0),
             from: a.clone(),
             to: c.clone(),
         },
@@ -204,7 +213,8 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
             &DocEdit::SetParam {
                 node: shell,
                 slot: SlotId::ShellThickness,
-                expr: fixture::len(t),
+                value: fixture::len(t).into(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -339,6 +349,7 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     let doc = apply(
         &d.doc,
         &DocEdit::Rebind {
+            body: d.doc.output(blank, 0),
             from: cup::top(blank),
             to: cup::bottom(blank),
         },
@@ -387,12 +398,12 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     .unwrap();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![outer, hole],
         ids: Vec::new(),
     }));
     let blank = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: fixture::len(1.0),
         side: ExtrudeSide::Along,
     });

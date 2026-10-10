@@ -59,7 +59,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -108,8 +108,8 @@ fn slot() -> Slot {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -128,7 +128,8 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.tr,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -264,6 +265,8 @@ fn one_node_eval(
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
@@ -286,6 +289,7 @@ fn one_node_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 
@@ -436,7 +440,10 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             .name_table
             .iter()
             .filter_map(|(n, e)| {
-                let hit = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
+                // The plate's rim pieces: the bar's own edges are lone
+                // pieces whose ends the slide moves.
+                let hit = matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                    && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();

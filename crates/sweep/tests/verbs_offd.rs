@@ -190,11 +190,12 @@ fn the_cylinder_wall_offsets_at_both_signs() {
     }
 }
 
-/// The untouched wall's declared meridian's PARAMETER range follows the
-/// moved cap: the vessel's angle-π meridian, a segment from `y = 0` to
-/// `y = 0.4`, now ends at `y = 0.4 + d`, and its authoritative sketch
-/// datum says so — the door re-states the segment rather than patching
-/// the carrier around it.
+/// The untouched wall's declared meridians' PARAMETER range follows the
+/// moved cap: the vessel's angle-0 and angle-π meridians — segments from
+/// `y = 0` to `y = 0.4`, each parting the wall's two π-bands and so
+/// each a declared image at rest (no wrap edge, D1) — now end at
+/// `y = 0.4 + d`, and their authoritative sketch data say so — the door
+/// re-states the segment rather than patching the carrier around it.
 #[test]
 fn the_untouched_walls_declared_meridian_is_re_anchored() {
     let d = 0.05;
@@ -210,8 +211,12 @@ fn the_untouched_walls_declared_meridian_is_re_anchored() {
             let c = body
                 .get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)?;
-            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::PlacedSegment {
-                segment: geom_brep::SketchSegment::Line { a, b },
+            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+                source:
+                    geom_brep::MappedSource::PlacedSegment {
+                        segment: geom_brep::SketchSegment::Line { a, b },
+                        ..
+                    },
                 ..
             }) = c.authority()
             else {
@@ -223,8 +228,8 @@ fn the_untouched_walls_declared_meridian_is_re_anchored() {
         .collect();
     assert_eq!(
         meridians.len(),
-        1,
-        "the wall's one declared meridian, got {meridians:?}"
+        2,
+        "the wall's two declared meridians, got {meridians:?}"
     );
     assert!(
         meridians
@@ -352,47 +357,73 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
 
 /// **What the coaxial arm bought, measured at the door.** With
 /// `cone × cylinder` routed, the coned tube's cone reaches PAST the C5
-/// gate and stops at the next honest door: the per-chart re-anchor.
-///
-/// The magnitude is pinned, not just the variant. The cone's rims stand
-/// on cylinders that did NOT move, and the door transports the shared
-/// vertex by this ONE chart's own offset action — a displacement of `d`
-/// along the cone's normal, whose radial component `d·cos α` is exactly
-/// how far the vertex ends up off the untouched cylinder it must still
-/// stand on. At `d = 0.05` and `cos α = 0.6` that is `0.03` m of real
-/// corner error, correctly refused rather than built: the per-chart
-/// door offsets one chart, and a body of revolution wanting all of them
-/// at once goes through the simultaneous axial door instead.
+/// gate, and the per-chart door derives each rim as the moved cone's
+/// coaxial section with the cylinder that did NOT move: a circle of
+/// that cylinder's own radius, its corner where the cone's seam meets
+/// it. The shared vertex slides along the untouched cylinder rather
+/// than following the cone's normal off it.
 #[test]
-fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
+fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
     let mut body = coned_tube();
     let face = cone_face(&body);
-    let before = format!("{body:?}");
-    let e = topo::replace_face_offset(&mut body, face, 0.05, Tol::witness())
-        .expect_err("the untouched cylinders cannot hold the cone's moved rims");
-    assert!(
-        !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
-        "cone x cylinder is routed; the C5 gate must not shadow the honest door, got {e}"
-    );
-    let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-        panic!("expected the per-chart re-anchor refusal, got {e}");
+    topo::replace_face_offset(&mut body, face, 0.05, Tol::witness())
+        .expect("the cone moves between its untouched cylinders");
+    let cone = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+        .expect("the moved cone");
+    let geom::Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = cone
+    else {
+        panic!("the moved face is a cone")
     };
-    assert!(
-        (gap - 0.03).abs() < 1e-12,
-        "the corner error is d·cos alpha: got {gap}"
-    );
-    assert_eq!(
-        format!("{body:?}"),
-        before,
-        "the body is BIT-untouched on Err, not merely radius-untouched"
-    );
+    let on_cone = |p: geom_core::Point3<f64>| {
+        let w = p - apex;
+        let h = w.dot(axis);
+        ((w - axis * h).norm() - h.abs() * half_angle.tan()).abs() < 1e-9
+    };
+    let cylinders: Vec<f64> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+            _ => None,
+        })
+        .collect();
+    let mut rims = 0;
+    for (he, h) in body.half_edges() {
+        if body.face_of_half_edge(he) != Some(face) {
+            continue;
+        }
+        let curve = body
+            .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
+            .and_then(topo::CurveGeom::certified)
+            .expect("a certified rim");
+        if let geom::Curve3::Circle { radius, .. } = *curve.carrier() {
+            assert!(
+                cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
+                "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
+            );
+            let (t0, t1) = curve.params();
+            for t in [t0, 0.5 * (t0 + t1), t1] {
+                let p = curve.carrier().eval(t);
+                assert!(on_cone(p), "a rim point at {p:?} is off the moved cone");
+            }
+            rims += 1;
+        }
+    }
+    assert_eq!(rims, 2, "the moved cone keeps both rims");
 }
 
 /// **The apex window.** The cone's `v`-window, shifted by the offset's
 /// `d·cot α`, reaches the apex: the mint would put the face's own
 /// window on the mirror nappe, so the door refuses BEFORE the boundary
 /// is even planned (the row above is the same face at a smaller `|d|`,
-/// which reaches the rims instead).
+/// which moves).
 ///
 /// This wall sits BELOW its apex, and `d` is along the chart normal at
 /// the face, so the offset that reaches the apex is the negative one —

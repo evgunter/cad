@@ -120,7 +120,7 @@ Where #347's cylinder poses stand now:
 | pose | door now |
 |---|---|
 | parallel, equal r, one height (this row's pose) | `UndeclaredCoincidence` on the coplanar cap discs — a declaration's |
-| parallel, equal r, staggered heights, `d` 0.3 to 1.6 | `CurvedSectorSideUnsupported { Negative }` (`work/reach/slab-cut-cylinder-refuses-sector-side.md`) |
+| parallel, equal r, staggered heights, `d` 0.3 to 1.6 | `CurvedSectorSideUnsupported { Negative }` (`slab-cut-cylinder-refuses-sector-side` (REACH, closed by PR 3627)) |
 | parallel, equal r, staggered, `d` 1.9 | `Join(SectionArcWindow { NoChartedRun })`, the pierce ring (`pierce-ring-has-no-join-arm`) |
 | parallel, equal r, staggered, `d` 2 (rims tangent to the walls) | `CurvedPierceUnsupported` on a rim circle: a tangency escalates |
 | coaxial, equal r | `CurvedPierceUnsupported`, the rim lying on the wall: a declaration's |

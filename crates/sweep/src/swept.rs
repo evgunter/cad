@@ -1,7 +1,8 @@
 //! The lowering every profile sweep shares: the swept-traversal record
 //! and the builder that fills it, the carrier class of one swept
 //! segment, the sketch-level quantities derived from it (apex, span,
-//! turn-signed axis), the arc material-side rule, the edge spec a
+//! turn-signed axis), the arc material-side rule, a sliver join's
+//! sentence, the edge spec a
 //! placed segment mints, the cap-plane point list, the cosurface
 //! decision, and the two crate-wide accessors (the classification
 //! funnel, a face's surface key).
@@ -46,14 +47,16 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, newell_plane,
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError, SketchSegment,
+    newell_plane,
 };
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::SegmentKind;
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, MefSite, MevSite, SurfaceKey,
+    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, MefSite,
+    MevSite, SurfaceKey,
 };
 
 /// The classification funnel of this shared lowering, and of `extrude`
@@ -128,6 +131,34 @@ pub(crate) fn decide_reported<T: Decide>(
 /// function and not a rule each verb spells for itself.
 pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
     !turn_negates(canonical_turn)
+}
+
+/// A sliver join's or rim's sentence, `what` naming the edge: a
+/// first-order reading could call it neither a corner nor smooth; a
+/// second-order one leaves undecided whether its smooth faces bend apart,
+/// in the coincidence levers its payload's own sentence ends in.
+pub(crate) fn sliver_text(
+    f: &mut core::fmt::Formatter<'_>,
+    what: &str,
+    reading: DihedralReading,
+    source: &Indeterminate,
+) -> core::fmt::Result {
+    match reading {
+        DihedralReading::Lever(_) => write!(
+            f,
+            "{what} is neither a definite corner nor definitely smooth: {source}"
+        ),
+        DihedralReading::Bend => write!(
+            f,
+            "{}",
+            source.undecided(
+                format_args!(
+                    "whether the faces at {what} curve apart there or share their curvature"
+                ),
+                source.ending(geom_core::COINCIDENCE_RECOURSE),
+            )
+        ),
+    }
 }
 
 /// A carrier class in SWEPT traversal order: the validated
@@ -550,10 +581,11 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
-    let description = EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-        segment: sketch_segment(seg),
-        place,
-    });
+    let description =
+        EdgeDescriptionSpec::Scaffold(MappedCurve::whole(MappedSource::PlacedSegment {
+            segment: sketch_segment(seg),
+            place,
+        }));
     match seg.kind().get() {
         SegmentKind::Line => EdgeCurveSpec {
             description,
@@ -843,11 +875,70 @@ pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
     })
 }
 
+/// **Plants a hole's ring** in the face `anchor` runs in (§9.3's
+/// state): a bridge strut from `anchor`'s start to `at`, killed at once
+/// into an empty ring whose lone vertex, returned beside it, sits at
+/// `at`. The bridge is construction scaffolding and does not outlive
+/// this call.
+pub(crate) fn plant_hole_ring<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    anchor: HalfEdgeKey,
+    at: Point3<T>,
+    tol: Tol,
+) -> Result<(topo::LoopKey, topo::VertexKey), EulerOpError> {
+    let bridge = body.mev_line(
+        MevSite::Fan {
+            he1: anchor,
+            he2: anchor,
+        },
+        at,
+        tol,
+    )?;
+    let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
+    Ok((ring, bridge.vertex))
+}
+
+/// The transient disc a hole closes in its ring, on its cap's surface
+/// `cap`: `kfmrh` consumes it into that cap at once, so nothing reads
+/// its bit.
+pub(crate) fn transient_disc<T: Real>(cap: SurfaceKey) -> FaceSurface<T> {
+    FaceSurface::Shared {
+        key: cap,
+        sense: false,
+    }
+}
+
+/// **A one-segment hole, whole**: its ring planted at its FAR vertex
+/// `far` ([`plant_hole_ring`]) — it is swept whole there, far rim first
+/// ([`build_full_turn`]), so the ring keeps the far rim — the turn
+/// swept into that ring by `sweep`, handed the [`transient_disc`] on
+/// `near_cap`'s surface as its near face, and that disc consumed into
+/// `near_cap`: its loop becomes the cap's ring.
+pub(crate) fn full_turn_hole<T, S, E>(
+    body: &mut Body<T>,
+    anchor: HalfEdgeKey,
+    far: Point3<T>,
+    near_cap: FaceKey,
+    tol: Tol,
+    sweep: impl FnOnce(&mut Body<T>, topo::LoopKey, FaceSurface<T>) -> Result<(FullTurn, S), E>,
+) -> Result<(FullTurn, S), E>
+where
+    T: Decide + topo::AtRestPolicy,
+    E: From<EulerOpError>,
+{
+    let (ring, _) = plant_hole_ring(body, anchor, far, tol)?;
+    let disc = transient_disc(face_surface_key(body, near_cap));
+    let (turn, swept) = sweep(body, ring, disc)?;
+    body.kfmrh(near_cap, turn.near_face)?;
+    Ok((turn, swept))
+}
+
 /// Re-describes `edge`, both of whose halves bound one face on `wall`,
-/// as that chart's seam (`EdgeDescriptionSpec::seam`): the certified
-/// carrier and interval kept verbatim. Extrude's one-segment strut and
-/// a full revolve's periodic meridian both go through here.
-pub(crate) fn describe_seam<T: Decide + topo::AtRestPolicy>(
+/// as that face's wrap edge (D1, `EdgeDescriptionSpec::wrap`): the
+/// certified carrier and interval kept verbatim. A one-segment loop's
+/// strut — extrude's and a revolve's — and a full revolve's periodic
+/// meridian all go through here.
+pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
@@ -867,7 +958,7 @@ pub(crate) fn describe_seam<T: Decide + topo::AtRestPolicy>(
     body.set_edge_curve(
         edge,
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(wall),
+            description: EdgeDescriptionSpec::wrap(wall),
             carrier,
             param_start,
             param_end,
@@ -1274,6 +1365,26 @@ mod tests {
     use geom_core::sym::{session_counts, with_session};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
 
+    /// **A must-carry escalation keeps which question escalated**: the
+    /// first-order arm and wedge by rung, the second-order sagitta as the
+    /// bend, each with its own diagnostics.
+    #[test]
+    fn the_must_carry_reading_keeps_which_question_escalated() {
+        use geom_brep::LeverRung;
+        use must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, want) in [
+            (arm(), DihedralReading::Lever(LeverRung::Arm)),
+            (wedge(), DihedralReading::Lever(LeverRung::Reading)),
+            (second_order(), DihedralReading::Bend),
+        ] {
+            assert_eq!(
+                DihedralReading::of_must_carry(escalation),
+                (want, escalation.diag()),
+                "{escalation:?}"
+            );
+        }
+    }
+
     /// A run starts at every join that is not [`Join::Run`]; a loop of
     /// cuts is one run per segment.
     #[test]
@@ -1606,8 +1717,12 @@ mod tests {
         turn: Sign,
     ) -> Vec<(&'static str, &'static str)> {
         let lit = T::from_f64;
-        let EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-            segment: SketchSegment::Arc { arc, .. },
+        let EdgeDescriptionSpec::Scaffold(MappedCurve {
+            source:
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc { arc, .. },
+                    ..
+                },
             ..
         }) = spec.description
         else {
@@ -1676,6 +1791,91 @@ mod tests {
                 "Sym<Interval> over [{lo}, {hi}], {name}: every sample's cosine and sine \
                  must be a theorem: {rows:?} ({counts:?})"
             );
+        }
+    }
+}
+
+/// One must-carry escalation per reading, for the rows that pin how each
+/// caller ends them: no fixture a verb builds reaches a first-order
+/// station past a witness that read smooth.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+pub(crate) mod must_carry_fixtures {
+    use geom::{Curve3, Surface};
+    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_core::{Band, Indeterminate, MarginDiag, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the run's band forms")
+    }
+
+    /// The band's geometric mean: strictly inside `(ε, K·ε)` at every ε.
+    pub(crate) fn in_band() -> f64 {
+        (band().zero() * band().escalate()).sqrt()
+    }
+
+    fn in_band_at(
+        s1: &Surface<f64>,
+        s2: &Surface<f64>,
+        line: &Curve3<f64>,
+        extent: f64,
+    ) -> MustCarryEscalation {
+        match must_carry_over_edge(s1, s2, line, 0.0, extent, extent, band()) {
+            MustCarryVerdict::InBand(escalation) => escalation,
+            other => panic!("the fixture must read in band, not {other:?}"),
+        }
+    }
+
+    /// The first-order arm: a cylinder resting on a plane, over an
+    /// extent in band.
+    pub(crate) fn arm() -> MustCarryEscalation {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.25, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.25,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        in_band_at(&plane, &cylinder, &z_axis(), in_band())
+    }
+
+    /// The first-order wedge: two planes through the z axis at a sliver
+    /// angle whose wedge over the extent is in band.
+    pub(crate) fn wedge() -> MustCarryEscalation {
+        let extent = 0.25;
+        let sin_theta = in_band() / extent;
+        let cos_theta = (1.0 - sin_theta * sin_theta).sqrt();
+        let flat = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tilted = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(-sin_theta, cos_theta, 0.0),
+            u_ref: Vec3::new(cos_theta, sin_theta, 0.0),
+        };
+        in_band_at(&flat, &tilted, &z_axis(), extent)
+    }
+
+    /// The second-order sagitta, in band.
+    pub(crate) fn second_order() -> MustCarryEscalation {
+        MustCarryEscalation::SecondOrder(Indeterminate {
+            margin: MarginDiag::value(in_band()),
+            band: band(),
+            predicate: Some("tangent_second_order"),
+            terminal_sliver: false,
+        })
+    }
+
+    fn z_axis() -> Curve3<f64> {
+        Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
         }
     }
 }

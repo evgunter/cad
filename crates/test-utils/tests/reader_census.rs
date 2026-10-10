@@ -425,6 +425,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // `Body`'s surgery-depth field declaration, code view
     },
     Entry {
+        path: "crates/topo/src/tier3_tests.rs",
+        disposition: Shared, // the one-walk guard over validate.rs and rim_wedge.rs, code view
+    },
+    Entry {
         path: "crates/topo/src/validate.rs",
         disposition: Shared, // the at-rest door roster, prose view and code view
     },
@@ -483,10 +487,6 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/tree_badges.rs",
         disposition: Shared, // the standing doors' as-drawn census, code view
-    },
-    Entry {
-        path: "tools/k-lint/tests/construction_coupled.rs",
-        disposition: Shared, // rule (5)'s pin on the fitted lane: code view to locate, literal view to read
     },
     Entry {
         path: "tools/k-lint/tests/predicate_roster.rs",

@@ -140,7 +140,7 @@
 //! for rule (a)'s Fig. 14.8 coplanar-edge-goes-below choice.
 
 use geom_brep::{EntersMaterial, WallBend, enters_material};
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
@@ -163,6 +163,11 @@ use crate::validate::decide;
 /// into its material), which rule (b) reads rather than deciding the
 /// tangency again. A wall that bends away from its material is a knife
 /// edge, refused here ([`SplitReduceError::KnifeEdge`]).
+///
+/// A wall's rows read its face extent over its edges' spans alone,
+/// while the split's chords through the same wall read the agreed
+/// section (`chord_join::agreed_section`), so a sector read grazed here
+/// can still escalate at its chord.
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -239,10 +244,9 @@ pub(super) fn apply_rule_a<T: Decide>(
                                     "a {kind:?} wall reached rule (a): `sector_face` admits \
                                      only planes, cylinders and cones"
                                 ),
-                                geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
-                                    diag,
-                                    ..
-                                }) => sliver(diag),
+                                geom_brep::WallBendError::Lever(escalation) => {
+                                    sliver(escalation.diag())
+                                }
                             })?;
                             match bend {
                                 WallBend::IntoMaterial => {
@@ -317,7 +321,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     "enters_material",
                 )));
             }
-            Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+            Err(escalation) => return Err(sliver(escalation.diag())),
         };
         entries[k].class = class;
         entries[(k + 1) % n].class = class;
@@ -432,7 +436,7 @@ fn edge_wedge<T: Decide>(
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
         Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
         Ok(geom_brep::DihedralClass::Transverse) => {}
-        Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+        Err(escalation) => return Err(sliver(escalation.diag())),
     }
     // The mate runs the edge backwards, so its face's interior lies at
     // `n_mate × (−along)` (interior-left, the orbit conventions in
@@ -446,7 +450,7 @@ fn edge_wedge<T: Decide>(
         // so only the two normal reads' rounding can land here; it reads
         // as smooth.
         Ok(EntersMaterial::Tangent) => Ok(None),
-        Err(geom_brep::LeverEscalation { diag, .. }) => Err(sliver(diag)),
+        Err(escalation) => Err(sliver(escalation.diag())),
     }
 }
 
@@ -486,7 +490,7 @@ fn wall_graze<T: Decide>(
                         "wall_bend_order2",
                     )));
                 }
-                Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+                Err(escalation) => return Err(sliver(escalation.diag())),
             }
         } else {
             side.opposite()
@@ -507,7 +511,7 @@ fn wall_graze<T: Decide>(
 /// The face-extent lever arm for the coplanarity/sense predicates: the
 /// farthest distance from the base vertex to any point of the face's
 /// boundary — its vertices, and each curved edge's far reach
-/// ([`edge_reach`]), so a one-vertex face bounded by a closed edge has
+/// ([`face_reach_from`]), so a one-vertex face bounded by a closed edge has
 /// the arm its edge spans, not zero — the largest displacement a
 /// normal-angle error can induce across this face (D4 ¶1's "face
 /// extent" arm, computed, named).
@@ -544,59 +548,144 @@ pub(crate) fn face_extent<T: Decide>(
     vertex: VertexKey,
     face: FaceKey,
 ) -> Result<T, UnboundedFace> {
-    let p_base = body.resolve_vertex_point(vertex, Proven);
+    face_reach_from(body, face, body.resolve_vertex_point(vertex, Proven))
+}
+
+/// [`face_extent`] from any point `at`: the farthest `face`'s boundary
+/// stands from it, each certified edge levered as its
+/// [`geom_brep::Reach::Span`] is. The refusal is [`face_extent`]'s.
+///
+/// On a plane or a cylinder that is the face's own reach: the line or
+/// ruling through an interior point meets the boundary both ways, and a
+/// distance is convex along it. So an edge there is read over the span
+/// it holds ([`geom_brep::Reach::span_reach_from`]: a circle arc
+/// exactly, an ellipse arc by its quarters' chords and bulges, a
+/// segment's ends). Elsewhere the face
+/// can stand farthest inside its boundary (a sphere's or a torus's far
+/// side, a cone's apex), and an edge is levered round its whole carrier
+/// ([`geom_brep::Reach::lever_from`]).
+pub(crate) fn face_reach_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+) -> Result<T, UnboundedFace> {
+    let over_span = matches!(
+        face_surface(body, face),
+        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
+    );
+    boundary_reach(
+        body,
+        face,
+        |p| (p - at).norm(),
+        |curve| {
+            let span = span_of(curve);
+            if over_span {
+                span.span_reach_from(at)
+            } else {
+                span.lever_from(at)
+            }
+        },
+    )
+}
+
+/// [`face_reach_from`] with every edge levered round its whole carrier
+/// ([`geom_brep::Reach::lever_from`]) whatever the face it bounds: the
+/// measure the germ frame reads beside the span's, serving only where
+/// the two agree. The refusal is [`face_extent`]'s.
+pub(crate) fn face_reach_round_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+) -> Result<T, UnboundedFace> {
+    boundary_reach(
+        body,
+        face,
+        |p| (p - at).norm(),
+        |curve| span_of(curve).lever_from(at),
+    )
+}
+
+/// **How far a face reaches from `at` either way along `axis`** (unit):
+/// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
+/// over `face`'s boundary, each at least zero: its vertices, and each
+/// certified edge's carrier over the span it holds
+/// ([`geom_brep::Reach::range_along`] of its [`geom_brep::Reach::Span`]),
+/// so a curved edge's bulge past every vertex is reached. A coordinate
+/// along an axis has no interior extremum on a plane or a cylinder about
+/// that axis, so the boundary's bounds are the face's. They lever a tilt
+/// of `axis` read at `at`'s foot on it, whose reading moves by the tilt
+/// times the axial distance: never inside the face, never past
+/// [`face_reach_from`] the same point, and exact wherever the boundary's
+/// edges are segments and conic arcs. A spiric edge is read at its
+/// torus's support and a spline at its whole control net, which can
+/// reach past the span the edge holds.
+///
+/// The refusal is [`face_extent`]'s, on the same loop shapes.
+pub(crate) fn face_axial_range<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    axis: geom_core::Vec3<T>,
+) -> Result<(T, T), UnboundedFace> {
+    let along = |p: Point3<T>| (p - at).dot(axis);
+    let above = boundary_reach(body, face, along, |curve| {
+        span_of(curve).range_along(at, axis).1
+    })?;
+    let below = boundary_reach(
+        body,
+        face,
+        |p| -along(p),
+        |curve| -span_of(curve).range_along(at, axis).0,
+    )?;
+    Ok((below, above))
+}
+
+/// A certified edge as the reach of the span it holds.
+fn span_of<T: Decide>(curve: &geom_brep::EdgeCurve<T>) -> geom_brep::Reach<T> {
+    let (t0, t1) = curve.params();
+    geom_brep::Reach::Span {
+        carrier: curve.carrier().clone(),
+        t0,
+        t1,
+    }
+}
+
+/// The farthest `face`'s boundary reaches by a measure: `point` of each
+/// boundary vertex, `edge` of each certified edge, refusing a face whose
+/// outer loop is a lone vertex ([`face_extent`]'s docs).
+fn boundary_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    point: impl Fn(Point3<T>) -> T,
+    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
+) -> Result<T, UnboundedFace> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = T::zero();
     let outer = face_data.outer;
     for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
         for member in members {
             let p = match member {
-                // An unbounded face has no finite lever arm (docs above).
+                // An unbounded face has no finite lever arm.
                 BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
-                BoundaryMember::Edge { he, half, ek, edge } => {
-                    if let Some(curve) = body.edge_curve_linked(ek, edge).certified() {
-                        extent = extent.max(edge_reach(curve.carrier(), p_base));
+                BoundaryMember::Edge {
+                    he,
+                    half,
+                    ek,
+                    edge: data,
+                } => {
+                    if let Some(curve) = body.edge_curve_linked(ek, data).certified() {
+                        extent = extent.max(edge(curve));
                     }
                     body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
             };
-            extent = extent.max((p - p_base).norm());
+            extent = extent.max(point(p));
         }
     }
     Ok(extent)
-}
-
-/// An over-estimate of how far from `p` any point of a curved
-/// `carrier` lies, whatever span of it an edge holds: a conic's or
-/// spiric's centre distance plus its largest radius (a spiric lies on
-/// its torus, within R + r of the centre), a spline's farthest control
-/// point (its convex hull holds it, every weight being positive). A
-/// line's points lie between its endpoints, which are vertices, so it
-/// adds nothing.
-fn edge_reach<T: Real>(carrier: &geom::Curve3<T>, p: Point3<T>) -> T {
-    match carrier {
-        geom::Curve3::Line { .. } => T::zero(),
-        geom::Curve3::Circle { center, radius, .. } => (*center - p).norm() + radius.abs(),
-        geom::Curve3::Ellipse {
-            center,
-            major,
-            minor,
-            ..
-        } => (*center - p).norm() + major.abs().max(minor.abs()),
-        geom::Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => (*center - p).norm() + major_radius.abs() + minor_radius.abs(),
-        geom::Curve3::Nurbs(curve) => curve
-            .control()
-            .iter()
-            .fold(T::zero(), |far, &q| far.max((q - p).norm())),
-    }
 }
 
 /// [`face_extent`]'s refusal: `face`'s outer loop is the lone `vertex`.
@@ -641,6 +730,121 @@ mod tests {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| face_extent(b, vertex, face),
         );
+    }
+
+    /// **A face's axial range reaches its rim's bulge past every vertex,
+    /// and not round the wall.** The wall about `z` trimmed at `φ`, its
+    /// rim one closed ellipse on the seam vertex (`oblique_rim_wall`), the
+    /// rim's highest point at `φ > 0` and its lowest at `φ < 0`: from that
+    /// vertex the rim reaches `2·tan |φ|` down the axis (its low crest) or
+    /// up it (its high one) and nothing the other way, which the vertex
+    /// alone (zero) misses, and [`face_extent`]'s distance round the rim,
+    /// `2/cos φ`, over-states.
+    #[test]
+    fn a_faces_axial_extent_reaches_its_rims_bulge() {
+        for phi in [0.2, core::f64::consts::FRAC_PI_4, 1.2, -0.2, -1.2] {
+            let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
+            let at = body.resolve_vertex_point(vertex, Proven);
+            let (below, above) =
+                face_axial_range(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
+            let euclid = face_extent(&body, vertex, face).unwrap();
+            let bulge = 2.0 * phi.tan().abs();
+            let (far, near) = if phi > 0.0 {
+                (below, above)
+            } else {
+                (above, below)
+            };
+            assert!(
+                (far - bulge).abs() <= 1e-12 * bulge && near.abs() <= 1e-12,
+                "φ = {phi}: the rim reaches {below} below and {above} above, not the bulge {bulge}"
+            );
+            assert!(
+                (euclid - 2.0 / phi.cos()).abs() <= 1e-12 * euclid,
+                "φ = {phi}: the face extent {euclid} is the distance round the rim"
+            );
+        }
+    }
+
+    /// **A face's reach reads an arc over its span only where the
+    /// boundary bounds the face.** One face whose boundary is the arc of
+    /// the unit circle about `z` from `(1, 0, 0)` a hundredth of a turn
+    /// round, read from its start. On a cylinder about `z` (a rim arc)
+    /// the face reaches the arc's far end, its chord. On the unit sphere
+    /// (an equator arc) a face can stand farthest inside its boundary,
+    /// out to the far side 2 away, so the arc is levered round its whole
+    /// turn.
+    #[test]
+    fn a_faces_reach_reads_an_arc_over_its_span_only_on_a_ruled_face() {
+        use geom_core::Vec3;
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let t1 = 0.01 * core::f64::consts::TAU;
+        let chord = (carrier.eval(t1) - carrier.eval(0.0)).norm();
+        for (surface, want) in [
+            (
+                geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                chord,
+            ),
+            (
+                geom::Surface::Sphere {
+                    center: Point3::origin(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                    axis: Vec3::unit_z(),
+                },
+                2.0,
+            ),
+        ] {
+            let mut body = Body::<f64>::new();
+            let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
+            .unwrap();
+            let wall = body.get_face(seed.face).unwrap().surface;
+            let rim_plane = body.add_surface(geom::Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            body.mev(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                carrier.eval(t1),
+                geom_brep::EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::Intersection {
+                        s1: wall,
+                        s2: rim_plane,
+                        witness: carrier.mid_point(0.0, t1),
+                    },
+                    carrier: carrier.clone(),
+                    param_start: 0.0,
+                    param_end: t1,
+                },
+                Tol::witness(),
+            )
+            .unwrap();
+            let got = face_extent(&body, seed.vertex, seed.face).unwrap();
+            let slack = (1.0 - (t1 / 8.0).cos()) + 1e-15;
+            assert!(
+                got >= want - 1e-15 && got <= want + slack,
+                "{surface:?}: the face reaches {got} from the arc's start, not {want}"
+            );
+        }
     }
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {

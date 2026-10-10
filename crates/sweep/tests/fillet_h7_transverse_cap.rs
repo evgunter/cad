@@ -28,6 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::Bracket;
@@ -88,8 +89,13 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     let (v0, e0, f0) = census(source);
     let vol0 = volume(source);
 
-    let out = fillet_edges(source, &creases, R, tol())
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(
         out.corner_faces.is_empty() && out.band_faces.is_empty(),
@@ -306,8 +312,8 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
     let source = rod_with_flat(tol());
     assert_eq!(
         census(&source),
-        (6, 8, 4),
-        "the boolean's rod: seam-split cap arcs"
+        (4, 6, 4),
+        "the boolean's rod: each cap one arc and one chord"
     );
     let bracket = Bracket::open();
     let _ = carve_and_check(&source, "rod ∖ box");
@@ -327,12 +333,12 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
 /// crease survives untouched.
 #[test]
 fn one_crease_alone_carves_at_half_the_prism() {
-    let source = rod_with_flat(tol());
+    let source = sweep::test_support::finished("source", rod_with_flat(tol()), tol());
     let creases = rod_creases(&source);
     let vol0 = volume(&source);
     for &e in &creases {
         let out = fillet_edges(&source, &[e], R, tol()).expect("one crease carves");
-        assert_eq!(census(&out.body), (8, 11, 5));
+        assert_eq!(census(&out.body), (6, 9, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
         assert!(
@@ -452,8 +458,13 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             (vec![creases[1]], two),
             (creases.clone(), one + two),
         ] {
-            let out = fillet_edges(below, &request, R, tol())
-                .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
+            let out = fillet_edges(
+                &sweep::test_support::at_rest(below, tol()),
+                &request,
+                R,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
             assert_naming_totality(below, &out, &request, &what);
@@ -669,14 +680,15 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 
 /// **Phase-1 ground, kept as pins.** The `CylinderCylinderCylinder`
 /// consumer — two parallel cylinders of one height, overlapping,
-/// unioned — has no body: the rims' crossings of the walls are
-/// certified, but the two pairs of cap discs overlap in their planes,
-/// an undeclared coincidence the boolean never infers, so the concave
-/// ruled band has no fixture. And a box's single edge, which is not a
+/// unioned — has a body: the rims' crossings of the walls are
+/// certified, and the two pairs of cap discs, one plane each by margin,
+/// glue whether or not they are declared, so the union is the declared
+/// union bit for bit (D10) at its closed form, the fixture the concave
+/// ruled band can be cut from. And a box's single edge, which is not a
 /// ruled link, is cut off at its end faces by the plane–plane band's
 /// own cut-off.
 #[test]
-fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
+fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     let cyl = |cx: f64| {
         let lp = profile::circle(Point2::new(cx, 0.0), 0.5, tol()).unwrap();
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
@@ -694,15 +706,29 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
         .body;
         finished("the cylinder", body, tol())
     };
-    let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
-    assert!(
-        matches!(err, topo::BooleanError::UndeclaredCoincidence { .. }),
-        "the boolean's undeclared-coincidence door on the cap discs, got {err:?}"
+    let (a, b) = (cyl(0.0), cyl(0.6));
+    let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
+    let declared = topo::union_with(&a, &b, &d, tol());
+    let undeclared = topo::union(&a, &b, tol());
+    assert_eq!(d.coincident_faces.len(), 2, "the two cap-disc pairs");
+    let Ok(topo::BooleanResult::Body(bb)) = &declared else {
+        panic!("the declared parallel pair builds: {declared:?}");
+    };
+    // Two r = 1/2 discs whose centres are 0.6 apart, one high.
+    let lens = 0.5 * 0.6_f64.acos() - 0.3 * 0.8;
+    let want = 2.0 * core::f64::consts::PI * 0.25 - lens;
+    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+    assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
+    assert_eq!(
+        outcome(&undeclared),
+        outcome(&declared),
+        "undeclared is the declared union"
     );
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];
-    fillet_edges(&body, &[e], R, tol()).expect("one box edge is cut off at its end faces");
+    fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], R, tol())
+        .expect("one box edge is cut off at its end faces");
 }
 
 /// **The lever `corner_at` hands `fillet3_cap_transverse` is the link's
@@ -747,7 +773,12 @@ fn the_cap_lever_is_the_links_extent() {
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
         for e in creases {
-            match fillet_edges(below, &[e], ROD_FILLET, tol()) {
+            match fillet_edges(
+                &sweep::test_support::at_rest(below, tol()),
+                &[e],
+                ROD_FILLET,
+                tol(),
+            ) {
                 Ok(out) if axes_apart > door.escalate() => {
                     validate_geometric(&out.body, tol()).expect("tier 3");
                 }
@@ -803,14 +834,18 @@ fn the_cap_lever_is_the_links_extent() {
 /// upper end.
 #[test]
 fn a_curved_end_face_refuses_typed_before_metering() {
-    let body = revolved_about_y(
-        vec![
-            (Point2::new(0.5, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 1.0), 0.3),
-            (Point2::new(0.5, 1.0), 0.0),
-        ],
-        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+    let body = sweep::test_support::finished(
+        "body",
+        revolved_about_y(
+            vec![
+                (Point2::new(0.5, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.3),
+                (Point2::new(0.5, 1.0), 0.0),
+            ],
+            sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+            tol(),
+        ),
         tol(),
     );
     validate_geometric(&body, tol()).expect("the wedge is tier-3 valid");

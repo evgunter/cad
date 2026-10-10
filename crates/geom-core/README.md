@@ -49,7 +49,7 @@ clause:
   from. A door taking `(structure, proof)` has two arguments nothing
   relates; a door taking only the proof has nothing to relate.
 - **The mints are `&self`, and they are the only ones.**
-  `KnotVector::{span, span_at, span_range}` for a `Span`;
+  `KnotVector::{span, span_at, span_of, span_range}` for a `Span`;
   `KnotVector::with_coeffs` for a `SplineCoeffs` and
   `KnotVector::with_rational_coeffs` for a `RationalCoeffs`, each
   pair's `{span, span_at}` for its window;
@@ -57,9 +57,11 @@ clause:
   for a window. So a window names the curve or surface that minted it,
   and that is the one it answers for.
 - **No pairing guard, and no poison route for one.** The state a guard
-  would test is not representable, so these doors are total on their
-  inputs and D9's "the kernel never panics on any input" holds by
-  construction rather than by check. There is no `admits` predicate on
+  would test is not representable, so no door checks that a span,
+  window or coefficient array belongs to the structure beside it, none
+  has a refusal for a mismatch, and D9's "the kernel never panics on
+  any input" holds for the pairing by construction rather than by
+  check. There is no `admits` predicate on
   `KnotVector` or on `NurbsSurface`.
 - **Equality on all three types is address equality on the borrow**,
   plus the indices. A proof is about *that* structure; two bit-equal
@@ -111,9 +113,22 @@ in both directions — as is a span of another vector beside the pair;
 each is a `compile_fail` doctest with a legal twin on the type it
 concerns. No free function in `hull` takes a coefficient array; the one
 door beside the mints that takes one, `KnotVector::difference_coeffs`
-(the knot-differencing step or a one-element poison vector, the one
-home of that answer for the tensor nets and the derivative ladders),
-mints first. Weight positivity stays a per-window check at the rational
+(the knot-differencing step or a one-element poison vector), mints
+first; it is also the line step a tensor pair differences with, so a
+line of the wrong count refuses whole. An array that is a consumer's
+own construction is minted by construction instead —
+`KnotVector::with_coeffs_from_fn` builds it at the vector's count — and
+a derivative that is differenced again travels as a `SplineCoeffsBuf`,
+the owned pair `SplineCoeffs::derivative` answers with the derived
+vector. `TensorNet` stays the unpaired tensor storage; a net held
+beside the clamped vectors it is a proof about is a `TensorCoeffs`
+(one channel, its partial nets as doors) or a `TensorChannels` (the
+channels of one surface over one pair of vectors, refined only by
+chains it builds from those vectors). The `compile_fail` rows on
+`TensorCoeffs` pin two retired spellings — a grid beside two vectors
+at `PatchSpans::decompose`, a struct literal of another extent — and
+not the shape: a new door taking a net beside two vectors would
+compile, and only a sweep finds it. Weight positivity stays a per-window check at the rational
 door: it is a *value* precondition of the claim on exactly the weights a
 window reads, where the count is a *pairing* fact and the mint's
 business. The count relation at `NurbsCurve::new` and
@@ -125,6 +140,28 @@ The family is closed, with one deliberate exception: `InteriorKnot` — a
 value proved interior to one vector's domain, carried without that
 vector — stays crate-private for it, the type being a guard only in
 combination with the privacy of its two consumers, argued at its doc.
+
+## Choosing among spellings of one quantity (W1)
+
+**W1 — a spelling is chosen by what its width and its error scale
+with.** When two spellings of one value disagree at some scalar (a
+point turned about an axis, a point on an arc, a restricted range of a
+description's parameter):
+
+- **Scale.** Width or error proportional to the geometry's own scale (a
+  radius, a chord, the split parameter's own rounding) is the floor.
+  Width proportional to the distance from the world origin, or
+  inherited width multiplied at each restriction, insertion or cut a
+  value goes through, is a defect: it rejects the spelling at every
+  scalar. Rounding added once per step is the floor.
+- **Among spellings that pass:**
+  - a difference of a few ulps of the coordinates at f64 decides
+    nothing;
+  - prefer the spelling that is the quantity's definition;
+  - break a remaining tie on Interval width at the input widths real
+    producers hand it, since a width no producer makes is not evidence;
+  - and on f64 error against an exact reference, never against a
+    carrier, whose agreement is not accuracy.
 
 ## Related pages
 

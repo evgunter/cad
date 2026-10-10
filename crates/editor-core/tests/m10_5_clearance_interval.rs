@@ -209,12 +209,12 @@ fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(depth),
         side: ExtrudeSide::Along,
     })
@@ -706,7 +706,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
 #[test]
 fn a_node_that_does_not_exist_refuses_at_the_selection() {
     let (doc, _minted, _at) = hexagon();
-    let sel = Selection::body_of(RecipeNodeId(9999));
+    let sel = Selection::body_of(RecipeNodeId::new(0, 9999));
     let report = clearance(
         &doc,
         &box_of(&doc, "place"),
@@ -1150,7 +1150,7 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
         ))));
     }
     let loft = r.insert(Node::Loft {
-        profiles,
+        profiles: profiles.into_iter().map(Into::into).collect(),
         v_degree: Formula::count(2),
     });
     let doc = r.doc;

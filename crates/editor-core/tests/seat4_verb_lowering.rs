@@ -72,12 +72,12 @@ fn both_blends() -> BothBlends {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
@@ -212,12 +212,39 @@ fn both_blends_evaluate_in_one_document() {
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
+///
+/// RE-BLESSED, every row that moved, for INTENT stage 4 E (booleans
+/// glue on Zero): a body no longer carries provenance side tables
+/// (`GeomSource` stamps, field and axis sources), and the digest feeds
+/// each body's `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for INTENT stage 2 PR E (a selection is a variable): each
+/// blend reads a selection variable its insert mints, so the blend's id
+/// moved and every name it mints with it. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched. Merged over stage 4 E, the two numbers were re-taken
+/// once more, where both changes meet.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xd3bc_cb75_265e_a675u64),
-        ("die_chamfer", 0xe497_df5e_3a54_45f1),
+        ("die_fillet", 0xf0b2_cbd3_0d01_cb92u64),
+        ("die_chamfer", 0x1ab2_dc1c_301a_5a30),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -325,17 +352,33 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// rows (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`) held
 /// untouched, and every row of a document that declares nothing held
 /// its word.
-/// Re-blessed when contact records gained the `(vertex, edge)` and
-/// edge-edge kinds: the digest feeds the records' `Debug`, which now
-/// prints empty `ve` and `ee` lists; with those fields stripped every
-/// constant here held.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
+///
+/// RE-BLESSED, every row that moved, for INTENT stage 4 E (booleans
+/// glue on Zero): a body no longer carries provenance side tables
+/// (`GeomSource` stamps, field and axis sources), and the digest feeds
+/// each body's `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd8f6_906e_a04c_d10eu64),
-        ("heat_sink", 0xf02f_3477_7067_6658),
-        ("kiss_carry", 0xd6a4_029a_dfd6_d8d1),
+        ("crossing_slots", 0x8c4a_a1e9_6791_d8b3u64),
+        ("heat_sink", 0x8dae_ba61_42a1_9b5a),
+        ("kiss_carry", 0x6855_2051_fce2_82cc),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -387,6 +430,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -394,30 +443,30 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
     let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1,
+        frame: xy_frame_1.into(),
         loops: vec![square(0.0)],
         ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
-        profile: pa,
+        profile: pa.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_2,
+        frame: xy_frame_2.into(),
         loops: vec![square(3.0)],
         ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
-        profile: pb,
+        profile: pb.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
     let boolean = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Intersect,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
@@ -433,7 +482,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xbfd9_320e_299c_1f44,
+        got, 0xe40c4fd49ed9f9be,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

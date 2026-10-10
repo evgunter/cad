@@ -144,7 +144,7 @@ fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
 
 fn record(verb: &Verb<f64>, operand: &Body<f64>) -> BlendNaming {
     let out = verb
-        .run(operand, tol())
+        .run(&sweep::test_support::at_rest(operand, tol()), tol())
         .expect("the fixture is inside the door");
     let VerbRecord::Blend(naming) = out.record else {
         panic!("a blend run produced another family's record");
@@ -247,7 +247,7 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     let b = topo::AtRestBody::validate(b, tol()).expect("the shifted cube is a finished body");
     let out = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: BooleanDeclarations::none(),
+        declare: Box::new(BooleanDeclarations::none()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .expect("the crossing union is inside the door");

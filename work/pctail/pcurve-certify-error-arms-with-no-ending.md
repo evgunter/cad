@@ -16,7 +16,7 @@ in the recourse its decision earns", which closed
 (`crates/geom-brep/src/pcurve_cache.rs`, ~1779) returns `None` for
 fourteen arms: `UnsupportedChart`, `UnsupportedCarrier`,
 `CarrierOffChart`, `ImageMismatch`, `FittedLaneUnsupported`,
-`FittedMateMissing`, `ArcNearPole`, `IsoUnsupported`, `ChartRow`,
+`FittedMateMissing`, `SectorRefused`, `IsoUnsupported`, `ChartRow`,
 `FittedCertificate`, `CarrierDomain`, `ChartWindingUnsupported`,
 `PlaceholderChart` and `Band`. The match ends in a grouped `return None`,
 so a new arm can join the group silently.
@@ -39,3 +39,7 @@ existing table (`PcurveCheck::recourse`, `crate::recourse::Unsized`, the
 defect and not-yet endings), make the match exhaustive with no grouped
 `None`, and retire the validator's fallback table once nothing reaches
 it. `FittedCertificate` can carry the SSI ending it flattened.
+
+Re-listed on `pcert/projected-image` (2026-10-08): `ArcNearPole` is
+retired with the Hermite image, and the projected image's
+`SectorRefused` joins the grouped `None` in its place.

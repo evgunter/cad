@@ -63,6 +63,7 @@ fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Rec
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -91,7 +92,7 @@ fn block(
     insert(
         &doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -299,8 +300,8 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: blank,
-            b: far,
+            a: blank.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );
@@ -341,7 +342,8 @@ fn the_downstream_reference_survives_an_upstream_bump() {
         &DocEdit::SetParam {
             node: cube,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -405,7 +407,8 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
         &DocEdit::SetParam {
             node: cube,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -413,7 +416,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
     .expect("the bump applies")
     .doc;
     let stored = match bumped.node(blank) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(&bumped, *selection),
         other => panic!("expected a fillet, got {other:?}"),
     };
     assert_eq!(stored, materialized, "the materialized set froze");
@@ -441,5 +444,5 @@ fn all_edges_of_a_nameless_node_is_empty() {
     // A profile node has no output body and so an empty table.
     assert!(editor_core::all_edges(&ev, p).is_empty());
     // A node that is not in the evaluation at all: also empty.
-    assert!(editor_core::all_edges(&ev, RecipeNodeId(999)).is_empty());
+    assert!(editor_core::all_edges(&ev, RecipeNodeId::new(0, 999)).is_empty());
 }

@@ -42,7 +42,7 @@ fn block(
     let (doc, e) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -64,13 +64,16 @@ fn sited(node: RecipeNodeId) -> SitedRef {
     SitedRef::at_mint(cap(node))
 }
 
-/// Disjoint blocks A, B, C, D, plus a union `decl` of A and D whose
+/// Disjoint blocks A, B, C, D, plus a union `decl` of A, C and D whose
 /// declared pair names A's cap read at A and B's cap read at D.
 ///
-/// Every side is sited at a member and names a cap minted before the
-/// union — the rule every door that writes a pair asks. Neither B nor
-/// C is a member, so deleting either is allowed: a declared name is a
-/// reference, not a DAG edge. Whether D's table carries B's cap is the
+/// Every side is sited at a member and names a cap the union read when
+/// the pair was written — the rule every door that writes a pair asks
+/// (D10: a declaration names what its node reads). The union was
+/// inserted over A, B and D and its members then set to A, C and D: a
+/// re-point that reports B's cap out of reach and never refuses it. So
+/// B is no member, and deleting it is allowed: a declared name is a
+/// reference, not a read. Whether D's table carries B's cap is the
 /// evaluation's question (`Vanished`), not these doors'.
 struct Three {
     doc: ProfileDoc,
@@ -90,8 +93,15 @@ fn three() -> Three {
     let (doc, decl) = insert(
         doc,
         Node::Union {
-            members: vec![a, d],
+            members: vec![a.into(), b.into(), d.into()],
             declare: editor_core::declare_rest(vec![(sited(a), SitedRef::new(d, cap(b)))]),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: decl,
+            members: vec![a.into(), c.into(), d.into()],
         },
     );
     Three {
@@ -121,6 +131,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
         .doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap(t.b),
                 to: cap(t.c),
             },
@@ -143,6 +154,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
             .doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.a),
                 },
@@ -179,6 +191,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: cap(t.b),
             to: cap(t.c),
         },
@@ -270,6 +283,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.b),
                 },
@@ -291,6 +305,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: body_c,
                 },
@@ -309,6 +324,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         doc_del
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.c),
                 },
@@ -321,11 +337,12 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         }
     );
     // Never-minted source id: a typo, not a NodeGone repair.
-    let foreign = cap(RecipeNodeId(9999));
+    let foreign = cap(RecipeNodeId::new(0, 9999));
     assert_eq!(
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: foreign.clone(),
                     to: cap(t.c),
                 },
@@ -344,6 +361,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     assert_eq!(
         late.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap(t.b),
                 to: cap(e),
             },
@@ -361,6 +379,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
                     to: cap(t.c),
                 },
@@ -376,6 +395,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.c), // referenced nowhere
                     to: cap(t.a),
                 },
@@ -434,7 +454,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
     assert_eq!(
         doc.apply(
             &DocEdit::ReWitness {
-                node: RecipeNodeId(9999),
+                node: RecipeNodeId::new(0, 9999),
                 witness: w.clone(),
             },
             Tol::witness(),
@@ -442,7 +462,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
         )
         .unwrap_err(),
         EditError::UnknownNode {
-            id: editor_core::SpokenNode::absent(RecipeNodeId(9999))
+            id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 9999))
         }
     );
     // Replay determinism: same edits, bit-identical document
@@ -599,7 +619,7 @@ fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
         },
         implicated: vec![
             Implicated::Constraint(3),
-            Implicated::Entity(cap(RecipeNodeId(0))),
+            Implicated::Entity(cap(RecipeNodeId::new(0, 0))),
         ],
         witness_age: WitnessAge {
             solved_under: b"d=12".to_vec(),

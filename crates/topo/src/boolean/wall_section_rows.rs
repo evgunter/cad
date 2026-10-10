@@ -341,7 +341,6 @@ fn a_wall_no_ray_reaches_never_escalates_the_query() {
     let wall = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.5, 2.0),
         (0.0, 1.0),
         tol,
@@ -460,6 +459,6 @@ fn the_window_construction_sites_are_the_ones_listed() {
     );
     assert_eq!(
         sites(include_str!("contain.rs")),
-        named(&["curved_face_placement"])
+        named(&["curved_interior_placement"])
     );
 }

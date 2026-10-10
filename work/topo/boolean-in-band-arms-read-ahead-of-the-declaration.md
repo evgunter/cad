@@ -2,9 +2,9 @@
 id: boolean-in-band-arms-read-ahead-of-the-declaration
 kind: issue
 title: topo: in-band arms read ahead of the declaration — the Boolean's sweep and sector primitives escalate before any face-pair declaration is read, so a declared pair refuses exactly as an undeclared one
-status: parked
+status: closed
+closed: 2026-10-09
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -112,3 +112,16 @@ read. The repair shape is unchanged: a site that comes to read the
 pair's declaration first, and to let it settle the question, adds the
 question to `Coincide::settled_by` and passes the classes its door
 admits.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the repair reads the face-pair declaration before the in-band arm; stage 4 retires declarations and in-band then refuses as the sliver band (D10 Booleans). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-09, INTENT stage 4 E (`intent/s4-e-glue-on-zero`))
+
+D10 rules the opposite of this row's repair, and E builds that ruling. A margin in the sliver band refuses whether or not the pair is declared (`docs/INTENT-STAGE4-SPEC.md:313`, test 16 at `:515`). A pair decided Zero glues undeclared, because the glue door declares it itself (`crates/topo/src/boolean/glue.rs:40`, `:72`–`:78`). The executed evidence turns as D10 says it should:
+
+- At the zero-band gap, the undeclared union is now the declared one.
+- At the mid-band gap, both refuse alike.
+
+"A declared pair refuses exactly as an undeclared one" is the intended behaviour, not a defect. Letting a declaration settle an in-band residue is what D10 retires. The declared rungs that still bridge in band leave with `declared-pairs-retire` (F).

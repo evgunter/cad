@@ -17,7 +17,6 @@
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
-use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
@@ -125,7 +124,7 @@ fn filleted_block() -> Body<f64> {
     // Corner at (1, 1) filleted with radius 0.25: the arc runs from
     // (1, 0.75) to (0.75, 1), bulge tan(π/8) (a CCW quarter arc).
     let b = (std::f64::consts::PI / 8.0).tan();
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
         (Point2::new(1.0, 0.75), b),
@@ -134,7 +133,6 @@ fn filleted_block() -> Body<f64> {
     ]);
     // The tangency is authored, so it is DECLARED (the #101
     // discipline): joints 3 (arc→line) and 2 (line→arc).
-    lp = lp.with_tangent_joints(vec![2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -206,13 +204,13 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     // The conventional description extrude would have kept: the
     // extruded profile point under the identity placement.
     let spec = geom_brep::EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Scaffold(
-            geom_brep::MappedCurve::ExtrudedPoint {
+        description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::ExtrudedPoint {
                 point: Point2::new(origin.x, origin.y),
                 place: geom_core::Affine3::identity(),
                 vec: dir * (t1 - t0),
             },
-        ),
+        )),
         carrier: geom::Curve3::Line { origin, dir },
         param_start: t0,
         param_end: t1,

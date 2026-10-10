@@ -126,7 +126,7 @@ fn volume(body: &Body<f64>) -> f64 {
 #[test]
 fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
     // A CONCAVE seam-split rim, and a CONVEX one on the same body.
-    let body = waisted(tol());
+    let body = sweep::test_support::finished("body", waisted(tol()), tol());
     for (name, rim_r, rim_y) in [
         ("the concave waist", 0.5, 0.5),
         ("the convex base", 1.0, 0.0),
@@ -169,8 +169,13 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, LIP_R, TOP);
     assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
-    let out = fillet_edges(&source, &arcs, r, tol())
-        .unwrap_or_else(|e| panic!("the lip fillets whole, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the lip fillets whole, got {e:?}"));
     let removed = volume(&source) - volume(&out.body);
 
     // The hand form. Corner K, ball centre c (r below the top plane,
@@ -223,10 +228,12 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
 /// change must not admit. It is stopped one gate EARLIER than the
 /// resolver: chain G1 breaks the cycle at every definite turn between
 /// its plane–plane links, so it is six open chains and never a closed
-/// one, and each turn — two of a vertex's three edges requested —
-/// refuses as `CornerConfig::Turn`. So the seam-split resolver's own
-/// checks are only ever asked about G1-closed, torus-armed chains; the
-/// two retired refusals were never the outer fence.
+/// one, and each turn — two of a vertex's three edges requested, the
+/// cube's faces symmetric about the third — is a mitre. So the
+/// seam-split resolver's own checks are only ever asked about
+/// G1-closed, torus-armed chains; the two retired refusals were never
+/// the outer fence. The six bands remove their sections less the six
+/// corner overlaps, `(5/3 − π/2)·r³` each.
 #[test]
 fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let body = cube(1.0, tol());
@@ -264,13 +271,29 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         })
         .collect();
     assert_eq!(edges.len(), 6, "the Petrie hexagon has six edges");
-    match fillet_edges(&body, &edges, 0.1, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedCorner {
-            corner: sweep::blend::CornerConfig::Turn,
-            ..
-        }) => {}
-        other => panic!("a sharp-cornered hexagon cycle refuses at its turns, got {other:?}"),
-    }
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|r| panic!("a sharp-cornered hexagon cycle mitres its turns, got {r}"));
+    validate_geometric(&out.body, tol()).expect("the mitred hexagon is tier-3 valid");
+    let rec = out.naming.as_ref().expect("births");
+    assert_eq!(
+        (rec.mitres.len(), out.blend_faces.len()),
+        (6, 6),
+        "six open bands, a mitre at each turn"
+    );
+    let r: f64 = 0.1;
+    let removed = 6.0 * (1.0 - core::f64::consts::PI / 4.0) * r * r
+        - 6.0 * (5.0 / 3.0 - core::f64::consts::FRAC_PI_2) * r.powi(3);
+    let props = mass_properties(&out.body, tol()).expect("certified props");
+    assert!(
+        ((1.0 - props.volume) - removed).abs() < 1e-8 + props.volume_pad,
+        "ΔV {} vs the closed form {removed}",
+        1.0 - props.volume
+    );
 }
 
 // ------------------------------------------------------------------
@@ -292,7 +315,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 /// recourse that names a door has to reach one.
 #[test]
 fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 2, "the neck rim is two arcs");
     let (a0, b0) = faces_of(&source, arcs[0]);
@@ -371,7 +394,14 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);
-    match fillet_edges(&body, &req, 0.05, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &req,
+        0.05,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
@@ -394,7 +424,7 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
 
 #[test]
 fn p6_one_edge_rims_bit_dump_for_the_merge_base_differential() {
-    let source = bored_lantern();
+    let source = sweep::test_support::finished("source", bored_lantern(), tol());
     let rims = [
         ("neck", 1.0, 0.0),
         ("shoulder", SHOULDER.0, SHOULDER.1),

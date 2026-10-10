@@ -33,11 +33,14 @@
 //! asserts and renders; the offcuts' chords chamfer the same way, each
 //! inside its own solid. The fillet builds too, each band cut off in an
 //! arc of the side wall's elliptic section of its cylinder, at
-//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell the
-//! cut-off does not build at this plane and setback: both section
-//! faces' whole rims chamfered (the turn, two of each corner's three
-//! edges requested — `CornerConfig::Turn`)
-//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`).
+//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell no band
+//! builds at this plane: both section faces' whole rims chamfered. Each
+//! corner of a section face is a turn, two of its three edges
+//! requested, whose dihedrals differ — a right angle at the cap chord,
+//! 45° or 135° at the section edge on the side wall — so one band
+//! reaches past the mitre, the overrun
+//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
+//! step 5).
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
 //! litmus fixture (`tools/k-lint/tests/litmus.rs`).
@@ -51,9 +54,9 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
-    BlendError, CancelToken, CornerConfig, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
-    Evaluation, Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat,
-    SegTag, Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
+    BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation,
+    Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag,
+    Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -111,6 +114,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -139,7 +143,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: frame,
+            frame: frame.into(),
             loops: vec![
                 LoopProgram::from_recorded(&outline(tol).program)
                     .expect("a literal recording lifts"),
@@ -151,7 +155,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let body = insert(
         &mut doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(DEPTH),
             side: ExtrudeSide::Along,
         },
@@ -162,10 +166,18 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
 
 /// This scene's recipe, as a document the GUI can open: the bracket,
 /// trimmed flush at `x + y = CUT`, its corner piece's four cap chords
-/// chamfered by name.
+/// chamfered by name, placed in the world.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
-    trimmed_and_broken(&doc, body, tol).doc
+    let trimmed = trimmed_and_broken(&doc, body, tol);
+    apply(
+        &trimmed.doc,
+        &DocEdit::place(trimmed.chamfer, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the chamfered corner places")
+    .doc
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.
@@ -198,11 +210,18 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
         }),
         tol,
     );
-    let split = insert(&mut doc, Node::Split { target: body, tool }, tol);
+    let split = insert(
+        &mut doc,
+        Node::Split {
+            target: body.into(),
+            tool: tool.into(),
+        },
+        tol,
+    );
     let corner = insert(
         &mut doc,
         Node::Part {
-            of: split,
+            of: pncad::document::Operand::output(split, SplitHalf::Below.port()),
             select: PartSelect::SplitHalf(SplitHalf::Below),
         },
         tol,
@@ -284,7 +303,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let offcuts = insert(
         &mut doc,
         Node::Part {
-            of: *split,
+            of: pncad::document::Operand::output(*split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         tol,
@@ -357,8 +376,8 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
         pinned: |e| {
             matches!(
                 e,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::Turn,
+                BlendError::UnsupportedRunOut {
+                    detail: pncad::sweep::blend::battery::TURN_NOT_ISOSCELES,
                     ..
                 }
             )
@@ -394,7 +413,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
          (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}; filleted at r = \
          {SETBACK}, each band cut off in an elliptic arc, they reach V = {filleted:.6} and \
          {off_filleted:.6} (less 4·(1 − π/4)·r²·√2), and breaking the section faces' whole \
-         rims refuses (wall 3)"
+         rims refuses as the overrun past an asymmetric mitre (wall 3)"
     )
 }
 

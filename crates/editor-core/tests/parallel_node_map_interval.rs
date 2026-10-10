@@ -36,11 +36,11 @@ type Lane = Sym<Interval>;
 
 /// Every node's content key and verdict log, in node order — what "the
 /// same decisions" means for a whole evaluation.
-fn decisions(ev: &Evaluation<Lane>) -> Vec<(u64, ContentKey, Vec<Verdict>)> {
+fn decisions(ev: &Evaluation<Lane>) -> Vec<(editor_core::RecipeNodeId, ContentKey, Vec<Verdict>)> {
     ev.nodes
         .iter()
         .map(|(&id, result)| match result {
-            NodeResult::Ok(v) => (id.0, v.content_key, v.verdicts.to_vec()),
+            NodeResult::Ok(v) => (id, v.content_key, v.verdicts.to_vec()),
             NodeResult::Failed(e) => panic!("node {} failed: {}", id.0, e.kind),
             NodeResult::Poisoned { through } => {
                 panic!("node {} poisoned through node {}", id.0, through.0)
@@ -58,7 +58,12 @@ fn opts(parallel: bool) -> EvalOptions {
 
 /// The document evaluated at `Sym<Interval>` inside a session: its
 /// decisions and the session's receipt.
-fn in_a_session(parallel: bool) -> (Vec<(u64, ContentKey, Vec<Verdict>)>, SymCounts) {
+fn in_a_session(
+    parallel: bool,
+) -> (
+    Vec<(editor_core::RecipeNodeId, ContentKey, Vec<Verdict>)>,
+    SymCounts,
+) {
     let (doc, _) = two_blocks_and_their_union("parallel-node-map-session");
     let budget = SymBudget {
         max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,

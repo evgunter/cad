@@ -2,11 +2,10 @@
 id: a-two-pinch-union-ships-a-pinch-its-records-do-not-declare
 kind: issue
 title: A union that welds two pinches ships a touching its contact records do not declare, so the tier-3′ pass refuses it UndeclaredContact
-status: parked
+status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -35,3 +34,11 @@ census. Whether it should is Ev's question on `[ev]` PR 3870.
 Find which touching goes unrecorded (the census names it) and record
 it where the door makes it, or refuse there. Gating tier 3′ at the door
 refuses all 16 until this lands.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: an unrecorded self-touch refused UndeclaredContact at tier 3′; at stage 4 that refusal becomes a finding and contacts are recorded at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not reach this. The unrecorded touching is at a pinch, an edge or vertex contact, and E records only the face pairs its glue door decides (`crates/topo/src/boolean/glue.rs:40`). The census still raises `UndeclaredContact` for it (`crates/topo/src/census.rs:1388`). Not re-measured on E. The fix stands: find the touching the census names and record it where the door makes it.

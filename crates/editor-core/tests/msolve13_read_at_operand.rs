@@ -46,7 +46,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -54,8 +54,9 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Two slab instances and one block instance, with their resolver and
-/// part bodies. The first slab carries the world offset and roots the
-/// group; the others sit where their mates put them.
+/// part bodies, the slabs placed in the world. The first slab carries
+/// the world offset and roots the group; the others sit where their
+/// mates put them.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -91,6 +92,10 @@ fn scene_with(label: &str, two: bool) -> Scene {
         (doc, base1)
     };
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    // The slabs are in the world; each row places what it builds over
+    // `top`.
+    let bases: &[RecipeNodeId] = if two { &[base1, base2] } else { &[base1] };
+    let doc = fixture::place_all(doc, bases);
     Scene {
         doc,
         opts,
@@ -159,6 +164,7 @@ fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(mate),
+            fresh: Vec::new(),
         },
     );
     (doc, id.expect("the mate inserts"))
@@ -199,15 +205,11 @@ fn fused(s: &Scene, at_t1: impl Fn(RecipeNodeId, RecipeNodeId) -> SitedFace) -> 
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, t2],
+            members: vec![t1.into(), t2.into()],
             declare: Vec::new(),
         },
     );
-    assert!(
-        doc.roots().contains(&union) && !doc.roots().contains(&t1),
-        "the union consumes both transforms: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, union);
     let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at_t1(t1, union)));
     let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
     Fused {
@@ -276,11 +278,7 @@ fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
     );
     let (doc, t3) = insert(doc, xform(t1, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-    assert!(
-        doc.roots().contains(&t3) && !doc.roots().contains(&t1),
-        "t3 consumes t1's root: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, t3);
     let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(t1, s.top_cap())));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -356,10 +354,11 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, t2],
+            members: vec![t1.into(), t2.into()],
             declare: Vec::new(),
         },
     );
+    let (doc, _) = crate::fixture::place(doc, union);
     let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
     let (doc, coax) = mated(
         doc,
@@ -407,7 +406,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
     let (doc, pattern) = insert(
         s.doc.clone(),
         Node::Pattern {
-            input: s.top,
+            input: s.top.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -418,10 +417,11 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(Formula::count(1)),
         },
     );
+    let (doc, _) = crate::fixture::place(doc, part);
     let copy1 = in_copy(pattern, 1, s.top_cap());
     let (doc, coax) = mated(
         doc,
@@ -477,7 +477,7 @@ fn local_block(doc: ProfileDoc, at: [f64; 3], w: f64, h: f64) -> (ProfileDoc, Re
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -508,12 +508,12 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: t1,
-            b: far,
+            a: t1.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );
-    assert!(doc.roots().contains(&fused), "{:?}", doc.roots());
+    let (doc, _) = crate::fixture::place(doc, fused);
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the boolean carries the face: {gated:?}");
@@ -548,8 +548,7 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
     let (doc, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: t1,
-            face: in_part(s.top, s.top_body, CapEnd::End),
+            face: editor_core::Operand::select(t1, vec![in_part(s.top, s.top_body, CapEnd::End)]),
             spin: fixture::ang(0.0),
         }),
     );
@@ -558,16 +557,16 @@ fn vanished_names_the_consumer_that_lost_the_face_not_a_reading_datum() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Intersect,
-            a: t1,
-            b: far,
+            a: t1.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );
-    let positions = doc.positions();
     assert!(
-        positions[&datum] < positions[&empty],
+        datum < empty,
         "the premise: the datum is the earlier consumer"
     );
+    let (doc, _) = crate::fixture::place(doc, empty);
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("the boolean consumes the face");
     assert_eq!(
@@ -601,12 +600,11 @@ fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
-            target: t1,
             distance: len(0.1),
-            selection: edges,
+            selection: editor_core::Operand::select(t1, edges),
         },
     );
-    assert!(doc.roots().contains(&chamfer), "{:?}", doc.roots());
+    let (doc, _) = crate::fixture::place(doc, chamfer);
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the chamfer carries the face: {gated:?}");
@@ -622,14 +620,14 @@ fn a_shell_above_the_operand_carries_a_survivor_and_loses_an_opened_face() {
     let s = scene_with("msolve13-lift-shell", false);
     let (doc0, t1, mate) = seated_at_t1(&s);
     let shell = |open: StableName| {
-        insert(
+        let (doc, shell) = insert(
             doc0.clone(),
             Node::Shell {
-                target: t1,
                 thickness: len(0.1),
-                open: vec![open],
+                open: editor_core::Operand::select(t1, vec![open]),
             },
-        )
+        );
+        (crate::fixture::place(doc, shell).0, shell)
     };
     let (doc, _) = shell(in_part(s.top, s.top_body, CapEnd::End));
     let ev = run(&doc, &s.opts);
@@ -664,7 +662,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, far],
+            members: vec![t1.into(), far.into()],
             declare: Vec::new(),
         },
     );
@@ -672,10 +670,11 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: moved,
+            of: moved.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
+    let (doc, placement) = crate::fixture::place(doc, part);
     let head = head_at(part, member_name(union, t1, s.top_cap()));
     let m = member_of(&doc, &head).expect("the walk descends the union below the Part");
     assert_eq!(m.instance, s.top);
@@ -690,13 +689,20 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         "a Part over one body refuses: {:?}",
         ev.result(part)
     );
-    let err = gate(&doc, &ev).expect_err("the gather refuses the failed root");
+    let err = gate(&doc, &ev).expect_err("the gather refuses the poisoned placement");
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node }) if node == part)
+                if matches!(
+                    **e,
+                    editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                        node,
+                        through,
+                    }) if (node, through) == (placement, part)
+                )
         ),
-        "the gather refuses at the Part, before any reference is read: {err:?}"
+        "the gather refuses at the Part's placement, poisoned through the Part, before any \
+         reference is read: {err:?}"
     );
 }

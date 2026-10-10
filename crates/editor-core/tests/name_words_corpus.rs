@@ -46,7 +46,15 @@ use editor_core::{
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
-const OVER_BUDGET: &[(&str, usize)] = &[];
+///
+/// Two rows, one word over, since INTENT stage 2 PR C: every placed
+/// body's names are held twice, by the body and by its world copy, so
+/// the 90th-percentile name is a longer one of the same corpus (37
+/// words in full). No name a document held before grew.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    ("SelectRefusal::PairInBand", 76),
+    ("NodeErrorKind::CrossingUnverified", 76),
+];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -64,9 +72,22 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// full. A ratchet: a number that grows fails, one that shrinks lowers
 /// it. The total moves with a word said once more by every name of a
 /// kind, which the quantiles of a long tail need not.
+///
+/// Raised by INTENT stage 2 PR C (the product is the world): each
+/// corpus document places its bodies, and a copy's names are its
+/// body's under the placement, said "the world copy of …", four words
+/// over the body's own. The p99s rise by those four words and the
+/// totals by the copies' names; the p50s and the maxima held.
+///
+/// Merged with main's blend change (`d5a518b1b2`, the die's blend ends
+/// with the join), which on main moved the full p99 97 → 98 and the
+/// total down: the die's names are said once more each as their copy's,
+/// so its longer names weigh twice in the tail and the full p99 reads
+/// 106. The total fell by twice main's drop; the p50s, the scoped row
+/// and the maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 69, 111, 248_708]),
+    ("scoped faces", [16, 38, 38, 49_844]),
+    ("full", [19, 106, 181, 365_724]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -74,7 +95,40 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// evaluation, in the corpus's order: a wrong word of the same length
 /// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
 /// that moved, said in the PR that moves them.
-const SAID_DIGEST: u64 = 0x02c5_d48f_27c8_0034;
+///
+/// INTENT-LITERALS PR C: the words that moved are the node tags (`Extrude
+/// e548`): every slot holds a variable's id, so every node is minted
+/// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
+/// fewer.
+///
+/// Ids as their mint ordinal and digest: a `Borders` refusal lists its
+/// walls in mint order now (it listed them by digest), and nothing else
+/// moved — the node tags are still the digest's. Re-taken on PR 4228's
+/// tree (a cited line, and `Ends` on every piece), whose words moved
+/// it. On that tree the ids reorder an `Ends` list the same way they
+/// reorder a `Borders` one (mint order, not digest order), and move no
+/// other word.
+///
+/// INTENT stage 2 PR C: the words that moved are the copies' names, new
+/// with the placements ("the world copy of …"), and the node tags of
+/// the placements; no name a document held before says another word.
+/// Re-taken merged with main's blend change, whose die names it says.
+///
+/// INTENT stage 2 PR D, merged over C: three words moved, all in
+/// `measured_web` — its placement's tag (`PlaceInWorld 57cd328e4061` is
+/// now `… 1d7dbb564bd2`), said three times. The placement is minted
+/// after the measure, whose preimage D changed. No other word moved.
+///
+/// INTENT stage 5 PR A: the same tag again (`… 1d7dbb564bd2` is now
+/// `… cd9c076ade6a`). The placement is minted after the assertion,
+/// whose stored field `dir` became `relation`.
+///
+/// INTENT stage 2 PR E, merged over stage 5 A: 6558 of 46614 words
+/// moved, every one a node tag — with each tag masked the two word
+/// lists are equal. A blend, shell, face frame or measure now reads a
+/// selection its insert mints, so its id and every id minted after it
+/// in the seven documents that hold one moved.
+const SAID_DIGEST: u64 = 0x163c_215a_961e_d3a1;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -117,7 +171,7 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     let full = Speaker::of(doc);
     let scoped = full.within(ev);
     let mut out = Census::default();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(value) = ev.value(id) else { continue };
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
         for (name, _) in value.name_table.iter() {
@@ -345,26 +399,34 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
 /// **A node's resolve failure says which slot**: a corpus fillet's
 /// last selected edge of several, stranded, as the tree row says it.
 fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'static str, String)> {
-    let (doc, ev, fillet, at, edge) = docs
+    let (doc, ev, fillet, var, at, edge) = docs
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
-            d.doc.order().iter().find_map(|&id| match d.doc.node(id) {
-                Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
-                    &d.doc,
-                    ev,
-                    id,
-                    selection.len() - 1,
-                    selection.last()?.clone(),
-                )),
+            d.doc.ids().iter().find_map(|&id| match d.doc.node(id) {
+                Some(Node::Fillet { selection, .. }) => {
+                    let names = &d.doc.selection(*selection)?.names;
+                    (names.len() > 1).then(|| {
+                        (
+                            &d.doc,
+                            ev,
+                            id,
+                            *selection,
+                            names.len() - 1,
+                            names.last().cloned(),
+                        )
+                    })
+                }
                 _ => None,
             })
         })
         .expect("the corpus fillets more than one edge");
+    let edge = edge.expect("a last edge");
     let stranded = NodeError {
         node: fillet,
-        kind: NodeErrorKind::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        kind: NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var,
             error: Box::new(ResolveError::NodeGone {
                 name: edge.clone(),
                 edit: RecipeEditRef::NodeDeleted { node: edge.node },
@@ -378,7 +440,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         stranded.contains(&format!("this fillet's edge {at} is stranded: ")),
         "the row says the slot: {stranded}"
     );
-    vec![("NodeErrorKind::BlendSelectionResolve", stranded)]
+    vec![("NodeErrorKind::SelectResolve", stranded)]
 }
 
 /// Every refusal production says that forwards a name, naming `a` (and
@@ -417,7 +479,7 @@ fn refusals(
         t_hi: 1.0,
         point: geom_core::Point3::new(0.0, 0.0, 0.0),
     };
-    let instance = RecipeNodeId(test_utils::refusal::tagged(1));
+    let instance = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
     vec![
         (
             "ResolveError::Vanished",
@@ -498,7 +560,7 @@ fn refusals(
 
 fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(distance),
         side: ExtrudeSide::Along,
     })
@@ -511,8 +573,8 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Boolean {
         op,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     })
 }
@@ -591,7 +653,10 @@ fn documents_outside_the_corpus_read_apart_too() {
         origin: [len(0.0), len(0.5), len(0.0)],
         normal: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    r.insert(Node::Split { target: cut, tool });
+    r.insert(Node::Split {
+        target: cut.into(),
+        tool: tool.into(),
+    });
     docs.push(("pattern and split".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();
@@ -618,7 +683,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         let block = extrude(&mut r, block, 1.0);
         let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
@@ -682,7 +747,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -690,7 +755,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, rod) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(2.0),
             side: editor_core::ExtrudeSide::Along,
         },
@@ -724,6 +789,7 @@ fn respoken_after_a_dropped_step() {
                 node: profile,
                 loops: vec![rod_loop(true)],
                 ids,
+                fresh: Vec::new(),
             },
             tol,
             &RefusingReach,
@@ -772,7 +838,10 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
-        let join = format!(", {verb} at {noun} {}", test_utils::refusal::tag(at.0));
+        let join = format!(
+            ", {verb} at {noun} {}",
+            test_utils::refusal::tag(at.0.digest())
+        );
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)
@@ -862,7 +931,7 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
         .map(|d| (&d.doc, fixture::run(&d.doc, &EvalOptions::default())))
         .filter_map(|(doc, ev)| {
             let node = doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())

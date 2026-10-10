@@ -25,12 +25,8 @@ fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
     topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
 }
 
-fn declared() -> PlaneIdentity<'static> {
-    PlaneIdentity {
-        s1: None,
-        s2: None,
-        declared: true,
-    }
+fn declared() -> PlaneIdentity {
+    PlaneIdentity::DECLARED
 }
 
 fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
@@ -177,17 +173,15 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
     // matrix's own lower leg (adopted-probe fix, M9-1 fix pass).
     let b = band();
     let near = tilt(b.zero() * 0.001);
-    assert!(
-        matches!(
-            carrier_eq(&base, &near, PlaneIdentity::NONE, &at(1.0), band()),
-            Err(CarrierEqError::Undeclared { .. })
-        ),
-        "in-band, undeclared: refuses"
+    assert_eq!(
+        carrier_eq(&base, &near, PlaneIdentity::NONE, &at(1.0), band()).unwrap(),
+        CarrierRelation::SameOpposite,
+        "sub-band, undeclared: one carrier"
     );
     assert_eq!(
         carrier_eq(&base, &near, declared(), &at(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite,
-        "in-band, declared: bridged"
+        "sub-band, declared: one carrier"
     );
     // Definite tilt: three orders above the escalate edge at the same
     // 1 m arm.
@@ -241,10 +235,13 @@ fn probe_replay_partial_eq_bites_on_mutation() {
     } else {
         // No vv rows: mutate by inserting a fabricated patch row.
         let fk = x.body.faces().next().map(|(k, _)| k).unwrap();
-        mutated.patches.push(topo::PatchContact {
-            face_a: fk,
-            face_b: fk,
-        });
+        mutated.patches.push(topo::Cited::new(
+            topo::PatchContact {
+                face_a: fk,
+                face_b: fk,
+            },
+            topo::Cites::decided(0),
+        ));
         assert_ne!(mutated, x.contacts, "an added row must show");
     }
 }
@@ -269,16 +266,22 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
     let f1 = face_of(edge.he_plus);
     let f2 = face_of(edge.he_minus);
     let mut contacts = ContactRecords::default();
-    contacts.curves.push(topo::CurveContact {
-        face_a: f1,
-        face_b: f2,
-        witness: ek,
-    });
+    contacts.curves.push(topo::Cited::new(
+        topo::CurveContact {
+            face_a: f1,
+            face_b: f2,
+            witness: ek,
+        },
+        topo::Cites::decided(0),
+    ));
     let fk = a.faces().next().map(|(k, _)| k).unwrap();
-    contacts.patches.push(topo::PatchContact {
-        face_a: fk,
-        face_b: fk,
-    });
+    contacts.patches.push(topo::Cited::new(
+        topo::PatchContact {
+            face_a: fk,
+            face_b: fk,
+        },
+        topo::Cites::decided(0),
+    ));
     let errors = topo::validate_pseudomanifold(&a, &contacts, Tol::witness())
         .expect_err("fabricated contact records must be refused at rest");
     assert!(

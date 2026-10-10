@@ -134,7 +134,7 @@
 //! carries its verdicts and samples and leaves the escalation out. The
 //! tangency certificate (`geom_brep::certify`) does; `topo`'s contact
 //! ladder does not yet
-//! (`work/contact/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
+//! (`work/contacthold/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
 //!
 //! A predicate's own indeterminacy is produced here too. A predicate
 //! whose question is only validly posed under a condition on the margin
@@ -516,9 +516,11 @@ pub fn decide<T: Decide>(
 
 /// [`decide`], keeping the reporting margin the classifier decided on
 /// ([`Decided`]): for a decision whose refusal quotes it — a sized
-/// decision's tolerance offer (D4 ¶1 (i)). Classification and
-/// recording are [`decide`]'s; the margin is for error reporting only
-/// ([`MarginDiag`]).
+/// decision's tolerance offer (D4 ¶1 (i)), and a residual's definite
+/// miss, which the import door reads against the file's ε_in.
+/// Classification and recording are [`decide`]'s; the margin is a
+/// reading of the decision ([`MarginDiag`]), quoted by a refusal or
+/// recorded beside a Zero (`topo::Coincidence`), and never decides.
 ///
 /// # Errors
 ///
@@ -793,10 +795,29 @@ pub fn decide_magnitude<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
+    decide_magnitude_reported(name, margin, band).map(|(magnitude, _)| magnitude)
+}
+
+/// [`decide_magnitude`], keeping the reporting margin the classifier
+/// decided on, as [`decide_reported`] keeps it: for a Zero a record
+/// cites.
+///
+/// # Errors
+///
+/// As [`decide_magnitude`].
+///
+/// # Panics
+///
+/// As [`decide_magnitude`].
+pub fn decide_magnitude_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(Magnitude, MarginDiag), Indeterminate> {
     let Decided { sign, margin } = classify(name, margin.value(), band)?;
     match sign {
-        Sign::Zero => Ok(Magnitude::Zero),
-        Sign::Positive => Ok(Magnitude::Positive),
+        Sign::Zero => Ok((Magnitude::Zero, margin)),
+        Sign::Positive => Ok((Magnitude::Positive, margin)),
         Sign::Negative => unreachable!(
             "`{name}` decided a magnitude Negative (margin {margin:e}, band ({:e}, {:e})): the \
              quantity is nonnegative by construction (a norm, a sqrt, a max from zero), so no \
@@ -1608,10 +1629,16 @@ impl crate::real::CertifiedEnclosure for Probe {
 /// `Probe` locates spans through its `f64` (module docs of
 /// [`crate::spline::locate`]): it IS an `f64` with a recorder, and span
 /// selection is structure selection, not a recorded decision — no
-/// margin sample is emitted (span choice never drives topology).
+/// margin sample is emitted (span choice never drives topology). The
+/// one branch it takes, locating nothing at NaN, is a poison test on
+/// the value, not a margin compared against a band, so it records
+/// nothing either.
 #[cfg(feature = "probe")]
 impl crate::spline::SpanLocate for Probe {
-    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
+    fn locate_spans<'a>(
+        self,
+        knots: &'a crate::spline::KnotVector,
+    ) -> Option<crate::spline::SpanSet<'a>> {
         crate::spline::SpanLocate::locate_spans(self.0, knots)
     }
 

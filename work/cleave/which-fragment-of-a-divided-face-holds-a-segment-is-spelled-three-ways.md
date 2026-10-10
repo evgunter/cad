@@ -66,7 +66,7 @@ arc its pairing names. `rest::fragment_holding` and
   tests, refused by the curve's lane on the first half's face (37,
   `SectionInvariant`) or the join's `mekr` (27, `NotSameFace`). The
   half-selection defect behind them is
-  `work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`.
+  `a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share` (JOIN, closed by PR 4364).
 - The one-pass mint-order lineage and the fixpoint agreed on every call
   measured; every caller hands rows in mint order.
 

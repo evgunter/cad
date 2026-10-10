@@ -31,7 +31,6 @@ fn sheet() -> (Body<f64>, FaceKey) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         tol(),

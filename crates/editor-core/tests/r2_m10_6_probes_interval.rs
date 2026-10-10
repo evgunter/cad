@@ -59,10 +59,10 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload,
-    VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -78,7 +78,7 @@ use fixture::{Recorder, ang, len, scl};
 /// A variable as the free mass doors' refusals speak it.
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(0),
+        editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
 }
@@ -157,7 +157,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -165,7 +165,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -182,28 +182,26 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         },
     ));
     // The two facing walls of the unit square: their distance is 1.0.
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
-                ),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
+            ),
+        ],
     );
+    let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
         bound: len(1.0),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, assertion)
 }
@@ -292,7 +290,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -300,7 +298,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             ids: Vec::new(),
         }));
         r_.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         })
@@ -389,7 +387,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -410,12 +408,12 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let c = r.insert(Node::Extrude {
-        profile: c_profile,
+        profile: c_profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
     let block_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(2.2, 0.1), (2.8, 0.1), (2.8, 0.7), (2.2, 0.7)])
                 .expect("finite corners"),
@@ -423,24 +421,22 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: block_profile,
+        profile: block_profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(c, bname(c)),
-                SitedRef::new(block, bname(block)),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(c, bname(c)),
+            SitedRef::new(block, bname(block)),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(bound),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

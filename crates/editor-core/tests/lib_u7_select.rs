@@ -56,7 +56,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -116,7 +116,7 @@ fn the_siblings_and_the_selector_are_empty_for_a_valueless_node() {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let ev = eval(&doc);
-    let absent = RecipeNodeId(999);
+    let absent = RecipeNodeId::new(0, 999);
     for node in [p, absent] {
         assert!(editor_core::all_faces(&ev, node).is_empty());
         assert!(editor_core::all_vertices(&ev, node).is_empty());
@@ -237,10 +237,10 @@ fn composed_ids(
     ev: &editor_core::Evaluation<f64>,
 ) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
-        .order()
+        .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, *target)),
+            Some(Node::Fillet { selection, .. }) => Some((*id, doc.read_operation(*selection)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");
@@ -303,7 +303,7 @@ fn the_stored_selection_is_the_materialized_set() {
     let ev = eval(&doc.doc);
     let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
     let stored = match doc.doc.node(doc.result.expect("a result node")) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(&doc.doc, *selection),
         other => panic!("expected a fillet, got {other:?}"),
     };
     let mut authored = die_composed::selection(&doc.doc, cube, ball, pipped);
@@ -324,7 +324,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
     let selected = editor_core::select(&ev, pipped, &die_composed::selector());
     let all = editor_core::all_edges(&ev, pipped);
     assert_eq!(all.len(), 16, "the target's edge table");
-    for meridian in die_composed::excluded_meridians(&doc.doc, ball, pipped) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, &ev, ball, pipped) {
         assert!(all.contains(&meridian), "the meridian is a live edge");
         assert!(
             !selected.contains(&meridian),

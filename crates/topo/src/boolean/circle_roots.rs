@@ -184,6 +184,11 @@ pub(super) enum CircleRoots<T> {
     /// The quartic's constructed roots disagree in number with its
     /// certified count ([`TorusRoots::CountDisagrees`]).
     CountDisagrees,
+    /// A root within the band of a cone's apex, where the surface has no
+    /// tangent plane and its quadric form's gradient vanishes: no
+    /// crossing there can be read, and the door refuses rather than
+    /// answer.
+    AtApex,
 }
 
 impl<T: geom_core::Real> From<TorusRoots<T>> for CircleRoots<T> {
@@ -253,7 +258,11 @@ pub(super) struct SubdivisionFrame<T> {
 /// hand it: `residual`, the surface's residual (metres) at a carrier
 /// parameter carried with a running bound on its own rounding, and
 /// `f_per_metre_hi`, a CEILING on `|F| / |residual|` near the surface
-/// (where a root the band reads ON it lies).
+/// (where a root the band reads ON it lies). A caller may instead read
+/// `F` itself (in `F`'s units, the circle × torus door's quartic in m⁴)
+/// and pass a ceiling of `1`: the reading then bounds the true `|F|` at
+/// the root directly, and every "metres of residual" below reads as
+/// `F`'s units.
 ///
 /// A root located on its monotone piece is off the true one by at most
 /// `|residual(θ)| + error` metres of residual — the reading's own
@@ -346,6 +355,9 @@ const POLE_CANDIDATES: u32 = 32;
 /// `F`'s sign. The answer is [`certified_subdivision`]'s; the half-angle
 /// ladder runs first and only its escalations are kept.
 ///
+/// `slack` is the subdivision's root-slack meter, where the caller has
+/// one.
+///
 /// # Errors
 ///
 /// The ladder's escalation as `rows.decision`, and
@@ -356,6 +368,7 @@ pub(super) fn half_angle_roots<T: Decide>(
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
+    slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
     if f.degree > 2 {
@@ -364,7 +377,7 @@ pub(super) fn half_angle_roots<T: Decide>(
         });
     }
     ladder_roots(f, &residual, &frame, rows, band)?;
-    certified_subdivision(f, &residual, &frame.walk, &rows.verify, None, band)
+    certified_subdivision(f, &residual, &frame.walk, &rows.verify, slack, band)
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle

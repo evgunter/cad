@@ -254,6 +254,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "graft_disjoint_all",
         "returns `graft_disjoint_all_keyed`'s solids — same body, same assertion",
     ),
+    (
+        "split_edge",
+        "calls `split_edge_minting` with the carrier's own point — same body, same assertion",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",
@@ -262,6 +266,43 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
+    ),
+    (
+        "merge_unjoined",
+        "test support: calls `merge_coplanar_faces_unjoined`, which runs \
+         `merge_coplanar_faces_staged` and asserts tier 1 through its surgery scope",
+    ),
+    (
+        "join_edges",
+        "stages `kev_describing` kills on a clone, each asserting the tier-1 postcondition \
+         (the planar arm's re-description writes a curve and no topology), re-mints the \
+         clone's pcurves, then adopts the clone",
+    ),
+    (
+        "join_edges_within",
+        "a pipeline of `kev_describing` kills over the vertices the caller's scope holds, \
+         each asserting the tier-1 postcondition (the planar arm's re-description writes a \
+         curve and no topology), then a scoped re-mint, which writes rows and no topology",
+    ),
+    (
+        "merge_coplanar_faces_declared",
+        "runs `merge_coplanar_faces_staged`, which asserts tier 1 through its surgery \
+         scope and runs `join_edges` on its staging clone before adopting it",
+    ),
+    (
+        "replace_faces_offset",
+        "runs `replace_faces_offset_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
+    ),
+    (
+        "offset_planes_together",
+        "runs `offset_planes_together_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
+    ),
+    (
+        "offset_charts_together",
+        "runs `offset_charts_together_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
     ),
     // ---- Setters declaring the tier-1 postcondition. ----
     (
@@ -342,9 +383,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "cyl_wall_sheet_keyed",
         "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
-         (asserting), places the cylinder key through `set_face_surface` and records it \
-         through `set_surface_source`, both on this list below for writing fields tier 1 \
-         does not constrain. Its rim planes go in through `add_surface`, which is on \
+         (asserting) and places the cylinder key through `set_face_surface`, on this list \
+         below for writing fields tier 1 does not constrain. Its rim planes go in through `add_surface`, which is on \
          NEITHER half: crate-internal raw insertion that makes no promise at all. What \
          covers it is the `mev` that follows — a plane is an orphan surface until the rim \
          edge naming it exists, and that operator's postcondition is taken over a body \
@@ -363,22 +403,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          and tier 1 does not see it; what asserts is the close, in the door that opened it",
     ),
     ("set_face_sense", "writes one `bool`; sense is tier 3's"),
-    ("set_surface_source", "GeomSource metadata, no arena key"),
-    ("set_curve_source", "GeomSource metadata, no arena key"),
-    ("set_point_source", "GeomSource metadata, no arena key"),
-    ("clear_geom_sources", "GeomSource metadata, no arena key"),
-    (
-        "mark_imported",
-        "origin metadata beside the GeomSource maps (`crate::GeomOrigin`), no arena key",
-    ),
-    (
-        "set_surface_field_source",
-        "ParamSource metadata, no arena key (a per-field side record beside the surface)",
-    ),
-    (
-        "set_surface_axis_source",
-        "axis-channel metadata, no arena key (a per-component side record beside the surface)",
-    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     (
@@ -550,12 +574,17 @@ fn every_public_mutation_path_preserves_tier1() {
     // that erased `sweep_and_close` from every scoped door would move
     // them all to `unlisted` and red — but one that erased
     // `begin_surgery` too would move them to `asserting`/`unlisted`
-    // silently. This names a door the walk must see as scoped.
+    // silently. The merge is the door whose scope composes tens of ring
+    // surgeries; since its public spellings end with the join, the
+    // scope sits one call down, in `merge_coplanar_faces_staged`,
+    // which the walk (public doors only) does not visit, so the pin
+    // reads that body's source directly.
+    let staged = crate::source_walk::fn_body("merge_faces", "merge_coplanar_faces_staged");
     assert!(
-        scoped
-            .iter()
-            .any(|s| s.ends_with("::merge_coplanar_faces_declared")),
-        "`merge_coplanar_faces_declared` no longer reads as opening and closing a surgery \
+        staged
+            .as_deref()
+            .is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
+        "`merge_coplanar_faces_staged` no longer reads as opening and closing a surgery \
          scope. Either the door stopped scoping — a finding, it composes tens of ring \
          surgeries — or the source read lost the calls.",
     );

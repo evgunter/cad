@@ -16,7 +16,7 @@ thickness decides where the frame lands (`TestTheFrameIsRead`), the
 body is a DAG INPUT the document refuses to delete out from under it
 (`test_the_body_is_a_dag_input`), and a face name that stops denoting
 fails the frame typed instead of quietly keeping nine stale numbers
-(`face_frame_resolve`). A transcribed frame could do none of those.
+(`select_resolve`). A transcribed frame could do none of those.
 
 NOTHING HERE READS INSIDE A NAME. Every face name is a materializer's
 opaque text handed straight back to the constructor, which is the
@@ -47,7 +47,6 @@ import unittest
 from pncad import (
     Doc,
     DocEdit,
-    EditError,
     EntityKind,
     EvaluationError,
     Formula,
@@ -91,17 +90,21 @@ def top_face(ev, node, height):
 def ring(doc):
     """A solid ring torus about the world z axis — a CURVED carrier,
     which is what a non-planar refusal needs."""
-    spine = doc.insert(Node.datum_axis((
+    frame = doc.insert(Node.datum_frame((
         Formula.length_in(0, m),
         Formula.length_in(0, m),
         Formula.length_in(0, m),
     ), (
+        Formula.literal(1.0),
         Formula.literal(0.0),
+        Formula.literal(0.0),
+    ), (
         Formula.literal(0.0),
         Formula.literal(1.0),
+        Formula.literal(0.0),
     )))
     return doc.insert(
-        Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
+        Node.tube(frame, Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
     )
 
 
@@ -204,18 +207,22 @@ class TestTheOrientationSense(unittest.TestCase):
         is `-axis` there and the bool is the only thing that says so.
         Four faces, two of them inner."""
         doc = Doc()
-        spine = doc.insert(Node.datum_axis((
+        frame = doc.insert(Node.datum_frame((
             Formula.length_in(0, m),
             Formula.length_in(0, m),
             Formula.length_in(0, m),
         ), (
+            Formula.literal(1.0),
             Formula.literal(0.0),
+            Formula.literal(0.0),
+        ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         tube = doc.insert(
             Node.hollow_tube(
-                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
+                frame, Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
             )
         )
         ev = evaluate(doc)
@@ -390,21 +397,22 @@ class TestTheFrameIsRead(unittest.TestCase):
                 origin = evaluate(doc).value(frame).datum().origin
                 self.assertAlmostEqual(origin[2].meters, thickness, delta=1e-12)
 
-    def test_the_body_is_a_dag_input(self):
-        """`at` is an INPUT, exactly as `datum_axis_in_plane`'s plane
-        is — so the document refuses to delete the body out from under
-        the frame, naming both nodes."""
+    def test_the_body_is_a_read(self):
+        """`at` is a READ, exactly as `datum_axis_in_plane`'s plane is —
+        so deleting the body out from under the frame is accepted and
+        reported, naming the frame, which refuses until re-pointed."""
         doc = Doc()
         node = plate(doc, 0.2 * m)
         ev = evaluate(doc)
         frame = doc.insert(
             Node.datum_face_frame(node, top_face(ev, node, 0.2), Formula.angle_in(0, rad))
         )
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(node))
-        err = caught.exception
-        self.assertEqual(err.variant, "delete_would_dangle")
-        self.assertIsInstance(frame, NodeId)
+        doc.apply(DocEdit.delete_node(node))
+        stranded = [m.node for m in doc.last_maintenance if m.variant == "stranded_read"]
+        self.assertEqual(stranded, [frame])
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(frame)
+        self.assertEqual(caught.exception.kind, "unresolved_read")
 
 
 class TestTheDerivedFrameRefuses(unittest.TestCase):
@@ -435,7 +443,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         edge = self.ev.all_edges(self.plate)[0]
         node = self.doc.insert(Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad)))
         err = self.kind_of(node)
-        self.assertEqual(err.kind, "face_frame_kind")
+        self.assertEqual(err.kind, "select_kind")
         self.assertEqual(err.node, node)
 
     def test_a_curved_carrier_refuses_face_frame_not_planar(self):
@@ -452,13 +460,13 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         self.assertIn("torus", str(err))
         self.assertIs(ev.face_carrier_kind(torus, face), SurfaceKind.Torus)
 
-    def test_a_name_that_does_not_denote_here_refuses_face_frame_resolve(self):
+    def test_a_name_that_does_not_denote_here_refuses_select_resolve(self):
         """The N5 failure mode, and the evidence that the frame is
         READ: a transcribed frame could not fail this way. The repair
         is a rebind, not an edit of nine numbers."""
         second = plate(self.doc, 0.2 * m)
         node = self.doc.insert(Node.datum_face_frame(second, self.top, Formula.angle_in(0, rad)))
-        self.assertEqual(self.kind_of(node).kind, "face_frame_resolve")
+        self.assertEqual(self.kind_of(node).kind, "select_resolve")
 
     def test_a_failed_frame_poisons_the_sketch_above_it(self):
         """The fillet's failure mode, one node out: a sketch drawn on
@@ -470,7 +478,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         err = self.kind_of(pad)
         self.assertEqual(err.reason, "poisoned")
         self.assertEqual(err.through, frame)
-        self.assertEqual(err.kind, "face_frame_kind")
+        self.assertEqual(err.kind, "select_kind")
 
     def test_text_that_is_no_name_at_all_is_a_boundary_refusal(self):
         with self.assertRaises(ValueError):

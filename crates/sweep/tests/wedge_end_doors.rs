@@ -301,9 +301,14 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
 /// typed at the op** — internal (the crescent a subtract would leave),
 /// external (the doubled slit a union would leave), and a plane cutter
 /// tangent to a hole wall. None of these is a wedge-specific door yet:
-/// the crossing layer's frontier refuses first, and the declared route
-/// is `work/tang/declared-cusps-second-order-wedge-arm.md` item 3, which
-/// has to land the undeclared refusal in the same change.
+/// the internal kiss stops at the crossing layer's frontier, the plane
+/// cutter at the join; the declared route is
+/// `work/tang/declared-cusps-second-order-wedge-arm.md` item 3. The
+/// external kiss's coplanar caps glue and its walls' tangency is
+/// verified and declared, as its declared twin's are, and both then
+/// refuse `ClassificationInvariant` — an odd count of surviving
+/// crossing records at a vertex pair, the classification's own
+/// invariant, which is a kernel defect rather than a frontier.
 #[test]
 fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
     let disc = |what: &str, c: ProfileLoop<f64>, z0: f64, z1: f64| {
@@ -327,7 +332,7 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
         (
             "external kiss, union",
             topo::union(&left, &right, tol()),
-            BooleanErrorKind::CurvedPierceUnsupported,
+            BooleanErrorKind::ClassificationInvariant,
         ),
         (
             "plane tangent to a hole, subtract",
@@ -339,6 +344,36 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
             BooleanErrorKind::CurvedBooleanUnsupported,
         ),
     ];
+    // The external kiss, its coplanar caps declared continuations and
+    // its walls `Tangent`: the boolean declares the same itself.
+    let walls = |b: &Body<f64>| -> Vec<topo::FaceKey> {
+        b.faces()
+            .filter(|(_, f)| {
+                matches!(
+                    b.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { .. })
+                )
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let mut kiss = topo::flush::declare_all(
+        &topo::flush::find_flush_candidates(&left, &right, tol()).unwrap(),
+    );
+    for fa in walls(&left) {
+        for fb in walls(&right) {
+            kiss.coincident_faces.push(topo::FacePairDeclaration::new(
+                fa,
+                fb,
+                topo::ContactClass::Tangent,
+            ));
+        }
+    }
+    assert_eq!(
+        crate::common::outcomes::outcome(&topo::union(&left, &right, tol())),
+        crate::common::outcomes::outcome(&topo::union_with(&left, &right, &kiss, tol())),
+        "external kiss, union: undeclared is the declared outcome"
+    );
     for (name, got, want) in rows {
         match got {
             Err(e) => assert_eq!(e.kind(), want, "{name}: {e}"),
@@ -365,14 +400,15 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             .copied()
             .find(|&e| tangent_edges(&built.body).iter().any(|(t, _)| *t == e))
             .expect("the strut the cusp joint swept is marked Tangent");
+        let operand = sweep::test_support::at_rest(&built.body, tol());
         for (verb, got) in [
             (
                 "chamfer",
-                chamfer_edges(&built.body, &[strut], 0.05, tol()).map(|_| ()),
+                chamfer_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
             ),
             (
                 "fillet",
-                fillet_edges(&built.body, &[strut], 0.05, tol()).map(|_| ()),
+                fillet_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
             ),
         ] {
             match got {

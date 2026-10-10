@@ -21,7 +21,8 @@
 //! [`ContactRefusal`] and [`ContainError`]; every `CertifyError`,
 //! [`PcurveMintError`], [`MassPropsError`], `OffsetFitError` and
 //! [`BandError`]; every margin shape an [`Indeterminate`] renders;
-//! every [`CensusContact`], [`StaleDeclaration`] and [`RingContact`];
+//! every [`CensusContact`], [`StaleDeclaration`], [`RingContact`] and
+//! [`RingPairContact`];
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
@@ -57,8 +58,8 @@ use crate::geometry::{CurveKey, PointKey};
 use crate::pcurves::PcurveMintError;
 use crate::props::MassPropsError;
 use crate::validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
-    ValidationError, WedgeCheck,
+    CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, RingPairContact,
+    StaleDeclaration, ValidationError, WedgeCheck,
 };
 
 fn band() -> Band {
@@ -147,15 +148,17 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             r#loop: LoopKey::default(),
         },
         ChartRegionError::RayExhausted,
-        ChartRegionError::WitnessBudgetExhausted {
-            segments: crate::chart_region::WITNESS_BUDGET.segments + 1,
-            cells: 0,
+        ChartRegionError::WitnessSegmentCapExceeded {
+            segments: crate::chart_region::WITNESS_SEGMENT_CAP + 1,
+        },
+        ChartRegionError::WitnessCellCapExceeded {
+            segments: crate::chart_region::WITNESS_SEGMENT_CAP,
+            cells: crate::chart_region::WITNESS_CELL_CAP,
         },
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
-        detail: "same GeomSource with non-bit-identical descriptions — the same-source \
-                 theorem violated (forged or corrupted source attachment)",
+        detail: "two descriptions that do not read bit-identical — no one chart holds both",
     });
     v.extend(diags().into_iter().map(ChartRegionError::Escalated));
     v
@@ -209,6 +212,8 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
         S::ZeroVolumeBody,
         S::Loop(L::Escalated {
             r#loop,
+            decision: crate::splitting::LoopDecision::Boundary,
+            escalation: crate::splitting::Escalation::Margin,
             diag: diag(),
         }),
         S::Loop(L::RayExhausted { r#loop }),
@@ -249,21 +254,54 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
 }
 
 fn contain_errors() -> Vec<ContainError> {
-    vec![
-        ContainError::Escalated(diag()),
+    use crate::boolean::ContainDecision;
+    use crate::splitting::{Escalation, LoopDecision};
+    let [value, _, poisoned] = diags();
+    let over_wound = Indeterminate {
+        margin: MarginDiag::value(-5e-9),
+        ..value
+    };
+    // Each ending form a site can raise: the valued tighten (or the lever
+    // alone where the margin gives none), the lever with the
+    // unreadable-margin note, a straddle of two bounds, and a row decided
+    // and still refused. The span rule escalates only on an over-wound
+    // margin or a straddle.
+    let arc_span = Some(ContainDecision::Loop(LoopDecision::ArcSpan));
+    let escalated = |decision, escalation, diag| ContainError::Escalated {
+        decision,
+        escalation,
+        diag,
+    };
+    // Every pair a site raises (`boolean::CONTAINMENT_RAISED`), in each form
+    // its reading can take there.
+    let mut v: Vec<ContainError> = crate::boolean::CONTAINMENT_RAISED
+        .into_iter()
+        .flat_map(|(decision, escalation)| match escalation {
+            Escalation::Margin if decision == arc_span => {
+                vec![escalated(decision, escalation, over_wound)]
+            }
+            Escalation::Margin => vec![
+                escalated(decision, escalation, value),
+                escalated(decision, escalation, poisoned),
+            ],
+            Escalation::Straddle | Escalation::Decided => {
+                vec![escalated(decision, escalation, poisoned)]
+            }
+        })
+        .collect();
+    v.extend([
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
         ContainError::LoopUnreadable(LoopKey::default()),
         ContainError::Uncrossable(uncrossable()),
-    ]
-    .into_iter()
-    .chain(
+    ]);
+    v.extend(
         point_in_solid_errors()
             .into_iter()
             .map(ContainError::Curved),
-    )
-    .collect()
+    );
+    v
 }
 
 /// The carrier-domain refusal on a width that overflows.
@@ -294,6 +332,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         },
         PlaneNurbsRefusal::NotTransverse {
             sample: 3,
+            lever: geom_brep::ssi::PointLever::CurvatureRadius,
             verdict: zero_verdict(0.0),
         },
         PlaneNurbsRefusal::PcurveFit,
@@ -301,7 +340,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
-            value: 1e-7,
+            margin: MarginDiag::value(1e-7),
         },
         PlaneNurbsRefusal::TubeStraddles {
             verdict: Refused::Zero(Classified {
@@ -373,7 +412,7 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
         CertifyError::IntersectionSameSurface { key },
-        CertifyError::SeamOnNonPeriodic,
+        CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {
@@ -389,10 +428,28 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
             sample: 4,
+            margin: MarginDiag::value(3e-8),
         },
         CertifyError::NotTransverse {
+            lever: None,
             sample: 4,
             verdict: zero_verdict(5e-10),
+        },
+        // A lever arm or a spline's metered length that is not there:
+        // one a smaller tolerance decides, and one of no length at all.
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero_verdict(5e-10),
+        },
+        CertifyError::SpanMeterCollapsed {
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::SpanMeterCollapsed {
+            verdict: negative_verdict(-1e-3),
         },
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
@@ -410,6 +467,16 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: 4,
             cause: diag(),
         },
+        CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            sample: 4,
+            cause: diag(),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            cause: diag(),
+        },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));
     v.extend(
@@ -417,7 +484,51 @@ fn certify_errors() -> Vec<CertifyError> {
             .into_iter()
             .map(CertifyError::PlaneNurbs),
     );
+    v.extend(
+        analytic_rung3_refusals()
+            .into_iter()
+            .map(CertifyError::AnalyticRung3),
+    );
     v
+}
+
+fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
+    use geom_brep::AnalyticRung3Refusal as A;
+    vec![
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::SsiLimb::HullSup,
+            margin: MarginDiag::value(7.5e-5),
+        },
+        A::Escalated {
+            operand: Some(geom::SurfaceKind::Cylinder),
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        A::Escalated {
+            operand: None,
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        A::NoOffsetBound {
+            operand: geom::SurfaceKind::Cone,
+            why: geom_brep::SectorChannel::Lever.describe(),
+        },
+        A::TubeStraddles {
+            verdict: Refused::Zero(Classified {
+                margin: MarginDiag::value(0.0),
+                band: band(),
+            }),
+            boxes: 12,
+        },
+        A::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        A::Unsupported {
+            what: "the analytic rung-3 certificate reads two analytic operands",
+        },
+    ]
 }
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
@@ -427,8 +538,13 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Nurbs,
+            class: geom_brep::UncoveredClass::NoFittedClass,
+        },
+        PcurveCertifyError::CarrierGrazesChart {
+            chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
-            class: geom_brep::UncoveredClass::TorusGeneralCircle,
+            grazer: geom_brep::Grazer::TorusCircle,
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
@@ -441,7 +557,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
-        PcurveCertifyError::ArcNearPole,
+        PcurveCertifyError::SectorRefused {
+            piece: 0,
+            channel: geom_brep::SectorChannel::Azimuth,
+        },
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },
@@ -462,6 +581,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::TubePeriodExceeded,
         PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
@@ -699,6 +819,18 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
+        // The mint's: the loop's NaN residual, and its certification
+        // sampling the accepted fit above the tolerance.
+        OffsetFitError::MintLimb {
+            limb: OffsetLimb::OnLocus,
+            bound: f64::NAN,
+            tolerance: 1e-6,
+        },
+        OffsetFitError::MintLimb {
+            limb: OffsetLimb::OnLocus,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
         // The payload the elevation's own `check_weights` produces.
         OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
             geom_core::spline::SplineError::NonPositiveWeight {
@@ -798,6 +930,36 @@ fn ring_contacts() -> Vec<RingContact> {
     ]
 }
 
+fn ring_pair_contacts() -> Vec<RingPairContact> {
+    let (vertex, edge, r#loop) = (VertexKey::default(), EdgeKey::default(), LoopKey::default());
+    vec![
+        RingPairContact::Vertex {
+            ring_vertex: vertex,
+            other_vertex: vertex,
+        },
+        RingPairContact::VertexOnEdge {
+            ring_vertex: vertex,
+            other_edge: edge,
+        },
+        RingPairContact::Edge {
+            ring_edge: edge,
+            other_edge: edge,
+        },
+        RingPairContact::OtherVertexOnEdge {
+            other_vertex: vertex,
+            ring_edge: edge,
+        },
+        RingPairContact::Circles {
+            ring_loop: r#loop,
+            other_loop: r#loop,
+        },
+        RingPairContact::EdgesMeet {
+            ring_edge: edge,
+            other_edge: edge,
+        },
+    ]
+}
+
 /// `arm/Variant`, the variant read off the nested value's `Debug`.
 fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
     let debug = format!("{nested:?}");
@@ -823,6 +985,24 @@ fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
         path = format!("{path}/{head}");
         match rest[head.len()..].strip_prefix('(') {
             Some(inner) if matches!(head.as_str(), "Curved" | "Loop") => rest = inner,
+            // An escalation's ending differs by its decision, how its
+            // reading stood, and its margin's kind.
+            _ if head == "Escalated" && rest.contains("escalation: ") => {
+                let field = |name: &str| {
+                    rest.split_once(name)
+                        .map_or("", |(_, tail)| tail.split([',', ' ']).next().unwrap_or(""))
+                };
+                let decision = rest
+                    .split_once("decision: ")
+                    .and_then(|(_, tail)| tail.split_once(", escalation"))
+                    .map_or("", |(d, _)| d);
+                let kind = rest.split_once("margin: ").map_or("", |(_, tail)| {
+                    tail.split(|c: char| !c.is_alphanumeric())
+                        .next()
+                        .unwrap_or("")
+                });
+                return format!("{path}/{decision}/{}/{kind}", field("escalation: "));
+            }
             // An off-plane loop's refusals differ by cause alone.
             _ if head == "OffPlane" => match rest.split_once("cause: ") {
                 Some((_, cause)) => rest = cause,
@@ -981,8 +1161,27 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PlanarBoundaryResidual { face, edge },
         ValidationError::TransverseNotIntrinsic { edge },
         ValidationError::ScaffoldAtRest { edge },
+        ValidationError::JoinableVertexAtRest { vertex },
+        ValidationError::JoinUndecidedAtRest {
+            undecided: crate::boolean::JoinUndecided {
+                vertex,
+                reading: crate::boolean::JoinReading::Regularity(diag()),
+            },
+        },
+        ValidationError::JoinUndecidedAtRest {
+            undecided: crate::boolean::JoinUndecided {
+                vertex,
+                reading: crate::boolean::JoinReading::ChartClass(
+                    geom_brep::IsoFamilyRefusal::Undecided(diag()),
+                ),
+            },
+        },
         ValidationError::TangentNotIntrinsic { edge },
         ValidationError::LaminaWedge { edge },
+        ValidationError::NoDihedralArm {
+            edge,
+            verdict: zero_verdict(0.0),
+        },
         ValidationError::LoopRoleInverted {
             face,
             r#loop: loop_,
@@ -994,6 +1193,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ring: loop_,
             ring_vertex: vertex,
         },
+        ValidationError::PinchCornerCrossed { face, vertex, edge },
         ValidationError::CensusLaneUnsupported { subject: pair },
         ValidationError::InstanceInterference {
             outer: solid,
@@ -1072,6 +1272,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     for error in certify_errors() {
         let l = match &error {
             CertifyError::PlaneNurbs(r) => label("EdgeCertification/PlaneNurbs", r),
+            CertifyError::AnalyticRung3(r) => label("EdgeCertification/AnalyticRung3", r),
             other => label("EdgeCertification", other),
         };
         s.push((l, ValidationError::EdgeCertification { edge, error }));
@@ -1104,6 +1305,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 },
             ),
             (
+                "RingPairContactEscalated",
+                ValidationError::RingPairContactEscalated {
+                    face,
+                    ring: loop_,
+                    other: loop_,
+                    source: cause,
+                },
+            ),
+            (
+                "PinchCornerEscalated",
+                ValidationError::PinchCornerEscalated {
+                    face,
+                    vertex,
+                    source: cause,
+                },
+            ),
+            (
                 "CensusEscalated",
                 ValidationError::CensusEscalated { cause },
             ),
@@ -1114,6 +1332,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             WedgeCheck::Arm,
             WedgeCheck::Dihedral,
             WedgeCheck::SecondOrder,
+            WedgeCheck::MaterialPairing,
             WedgeCheck::MaterialSide,
         ] {
             s.push((
@@ -1142,6 +1361,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::RingMeetsOuter {
                 face,
                 ring: loop_,
+                contact,
+            },
+        ));
+    }
+    for contact in ring_pair_contacts() {
+        s.push((
+            label("RingMeetsRing", &contact),
+            ValidationError::RingMeetsRing {
+                face,
+                ring: loop_,
+                other: loop_,
                 contact,
             },
         ));
@@ -1184,6 +1414,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             error: crate::ShellClassifyError::Straddles {
                 shell: ShellKey::default(),
             },
+            sliver: None,
         },
     ));
 
@@ -1282,7 +1513,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Every `what` the backstop raises, on the pair kind its arm raises
     // it on (`Undecided` is their one source).
-    for why in Undecided::iter() {
+    let carried = crate::splitting::LoopDecision::ALL
+        .map(|decision| Undecided::WitnessTooClose(Some(decision)));
+    for why in Undecided::iter().chain(carried) {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {
@@ -1325,7 +1558,8 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
-        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, StaleDeclarationKind,
+        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, RingPairContactKind,
+        StaleDeclarationKind,
     };
     use geom_brep::certify::CertifyErrorKind;
     use geom_brep::edge_nurbs::PlaneNurbsRefusalKind;
@@ -1388,6 +1622,10 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "PlaneNurbsRefusal",
         &plane_nurbs_refusals(),
     ));
+    out.extend(gaps::<_, geom_brep::edge_nurbs::AnalyticRung3RefusalKind>(
+        "AnalyticRung3Refusal",
+        &analytic_rung3_refusals(),
+    ));
     out.extend(gaps::<_, PcurveMintErrorKind>(
         "PcurveMintError",
         &pcurve_mint_errors(),
@@ -1416,5 +1654,40 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &stale_declarations(),
     ));
     out.extend(gaps::<_, RingContactKind>("RingContact", &ring_contacts()));
+    out.extend(gaps::<_, RingPairContactKind>(
+        "RingPairContact",
+        &ring_pair_contacts(),
+    ));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    /// **Every certification refusal ends alike at rest and at the import
+    /// door but for the file's ε_in** (D4 ¶1: one recourse per decision,
+    /// wherever it is read): the door's ending departs from the at-rest
+    /// one only through its ε_in sentences, which name ε_in. The roster is
+    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
+    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
+    /// variant. Red where the door's ending departs from the at-rest one
+    /// without naming ε_in.
+    #[test]
+    fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
+        let file = FileCoincidence::new(1e-6);
+        let split: Vec<String> = super::certify_errors()
+            .iter()
+            .filter(|e| {
+                let door = e.ending(file);
+                e.ending(Reading::AtRest) != door && !door.is_some_and(|d| d.contains("ε_in"))
+            })
+            .map(|e| format!("{e:?}"))
+            .collect();
+        assert!(
+            split.is_empty(),
+            "the doors end apart, beyond the file's ε_in: {split:#?}"
+        );
+    }
 }

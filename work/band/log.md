@@ -631,3 +631,159 @@ The class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally
 The cost of the 42-link request fell from about 4 s to 0.3 s at
 `Interval`. Filed: `blend-reach-takes-an-open-arc-link-over-the-whole-turn`
 (P3), plus a second seed on VACUITY's pick-face guard. This unholds PR 4092.
+
+## 2026-10-07 — sided radius headroom landed (PR #4092): r is limited only where a support bends toward the ball
+
+Predicate 1 (`fillet3_radius_headroom`) reads each support's curvature on the
+side the ball rolls (`geom_brep::SurfaceSide`, `min_radius_of_curvature_toward`).
+A ball outside a bore, boss or dimple is no longer limited by that radius.
+Bodies built at the Pappus closed forms to 1e-12.
+
+The full review's MAJOR (a convex band past a thin wall's far face, which
+the old two-sided limit happened to refuse) was held on the P0 and is now
+closed by PR 4143's reach meter, without touching the headroom. The
+reviewer's `thin_flare` is a row: `r = 1.5` and `1.6` refuse `FaceClearance`
+on the far face at a definite negative margin at all three eps rows, and
+`r = 1.4` builds. The Klein inner corner gives the same refusals, held in
+its scene.
+
+The minors were taken in full:
+- the cone-foot row closed as unreachable (spine regularity refuses first);
+- the torus arms stated unreachable through `fillet_edges`;
+- `SurfaceSide` replaces the bool;
+- the margin tightened to `r·(1 − r/arm)`.
+
+The tour rocker's wall 1 retired. Filed:
+`rocker-crease-radius-stays-at-the-eye-after-wall-1-retired` (P3).
+
+## 2026-10-07 — run-out step 4 landed (PR #4209): two requested edges at an isosceles corner meet in a mitre
+
+Under Ev's PR 4085 ruling and INTENT's option (b), two requested edges at a
+trivalent vertex whose third edge L is unrequested now meet in a mitre, chamfer
+or fillet, on both convexities, where `fillet3_turn_isosceles` decides the
+trihedron isosceles.
+- **The verdict.** The margin is the larger of the levered face-angle cosine
+  difference and the gap between the two feet on L. The feet term came from
+  the dual review: it is stricter, never looser, so Zero puts the midpoint
+  foot within band of both trimlines at acute angles too. A definite verdict
+  refuses `UnsupportedRunOut { TURN_NOT_ISOSCELES }` (renamed from
+  `TURN_OVERRUN`, whose text was false at supplementary angles); in band it
+  escalates.
+- **The geometry.** The mitre is a chord, or `cylinder_cylinder_section`'s
+  ellipse; L splits at the turn foot.
+- **Names and coincidences.** The new roles are `Mitre` and `TurnFoot`, with
+  content tags 49/50, because main's `Crossing`/`EdgeCrossing` took 47/48
+  while the PR was open. The Zero verdict is recorded as
+  `DecidedCoincidence::IsoscelesTurn`, a typed seam until D10 has a door
+  (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
+- **Clearance.** The mitre needs no new reach code: each link's window
+  closes at the other band's support plane. Void and island rows refuse with
+  the meter and go red without it.
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the oblique-turn cap pad pinned;
+- the turn-feet arm of `shared_rims_clear` pinned where the screen passes;
+- `core`'s window padded at a planar end;
+- in-band `SectionError` escalates `MitreSection`;
+- the frustum checked against exact and point-membership oracles;
+- one turn reading per vertex.
+
+The bracket's wall 3 stays (its section-face corners are not isosceles). The
+run-out row stays open for step 5: the overrun at a non-isosceles turn,
+including the supplementary chamfer whose feet coincide, then deleting the
+residue.
+
+## 2026-10-07 — the run-out row closes at step 4; step 5 split
+
+Per the ruling's build order, `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
+before its spec) is now its own row,
+`a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
+whole-face planar path step 5 was to delete went at step 2.
+
+## 2026-10-07 — the reach meters an end face away from its vertex (PR #4254)
+
+A link's reach now skips only its chain's supports and the faces its own
+window is capped by (recorded by `straight_reach` as it builds the caps,
+plus a corner patch's supports at a patch end), not every face at any
+vertex of its chain. In production a multi-link chain spans valence-2
+joints only, so the hole lived at a jointed chain's far end face; that
+witness is pinned
+(`a_jointed_chains_far_end_face_is_metered_against_the_near_link`; red
+with the chain-wide skip put back). A curved face where a straight window
+ends fails loud (`SurgeryInvariant`), so the skip's premise is structural.
+
+`band_reach_for_tests` now breaks chains at turns as production does
+(`battery::broken_at_turns`); no reach row moved under it (256 tests
+diffed). One row moved for the structural skip: a circular reach has no
+caps, so an open arc's flat is now metered (latent; open arcs refuse
+upstream). Single full review (APPROVE-WITH-FIXES, no MAJOR), taken in
+full. Filed: `tint/tipped-rod-join-escalates-at-1e-12` (main's red). Not
+chased: `point_in_solid` answering `VolumeUncertified` on 533 sample
+points of a tier-3-valid jointed-chain body (the review's probe K control).
+
+## 2026-10-07 — the blend doors take a finished operand (PR #4252)
+
+`fillet_edges` and `chamfer_edges` take `&AtRestBody<T>`. At a dual they read
+`gate_unverdicted` first (`build.rs::operand_gate`) and refuse
+`InsideOutOperand` / `ScaffoldingOperand`. At f64 and `Interval` an inside-out
+or scaffolded body cannot be finished, so it never reaches either door. The
+clockwise wedge and the slit dome are pinned, both verbs, red without the
+door read. The change is threaded through editor-core, verbs, pncad-py, the
+tour, and ~500 test call sites (`test_support::at_rest`, `#[track_caller]`).
+`topo::Unfinished` is public; its refusal texts are one home (consts), true
+for a `ShellWinding` finding.
+
+**Behaviour change:** editor-core's blend node now pays tier 3 on its
+target, which roughly doubles a chained blend node's cost (tier 3 ≈ the
+blend). No corpus, tour or guide document regressed. `UnfinishedOperand`'s
+text names the input's operation, and every arm fits the 75-word budget.
+
+**Review.** Cost M: a full review raised a MAJOR, so a second full review
+followed the fix pass, and it raised another of the same class. Both MAJORs
+were the PR having deleted the only row of an arm a FINISHED body still
+reaches: the half-band gate's curved single host, and the hostless host
+gate (a pinched planar host). Both are now witnessed rows. The filed
+`blend-scaffolding-arms-behind-the-operand-gate` closed: its two remaining
+screen arms are provably unreachable through the doors (tier 2 checks 1
+and 4), and are kept as stated defence for direct `run_battery` callers.
+Declined: `#[non_exhaustive]` on `Unfinished`, because the one foreign match
+should break the build on a new case. Filed:
+`restfront/dual-operand-read-passes-an-orientation-it-cannot-measure`.
+Not changed: `common::cavity::cut`'s re-gate (66 callers).
+
+## 2026-10-07 — a straight cap edge clear of the cut-off's sliver carves (PR #4271)
+
+The cut-off sliver's clearance meter read a cap edge only as wholly inside
+the ball's section, wholly beyond the reach, or wholly short of the floor,
+so an edge that left the enclosure Ω by different faces refused where it
+was clear. `line_clearance` now reads a straight edge exactly: the least of
+Ω's defining function over its ends, the radial foot and the terms'
+pairwise crossings, at every scalar (a quotient whose divisor's bracket
+meets zero is skipped; soundness against the sliver rests on the ends).
+Three rectangular-hole witnesses carve, at `Interval` too, and the
+keyhole at `r = BR` carves at its closed form. The half-plane wedge near
+the feet had no witness on main (pinned as a row).
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the `Interval` collapse at a floor-parallel edge;
+- a cancellation far from the centre;
+- a candidate-set fuzzer that can go red, at both scalars;
+- an independent Ω oracle;
+- the filed rows corrected.
+
+Filed: `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`,
+`cap-sliver-meter-reads-a-curved-edge-term-by-term`.
+
+Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
+unit row stays open, re-titled to that question: may a blend delete an
+authored feature wholly inside the material it removes? It goes to Ev
+after the designer protocol (both designers recommend building it).
+- 2026-10-09 — Seam note from ENCL (PR 4411, merged): `geom_brep::must_carry_over_edge` now reads the second-order sagitta on every pair (tier 3's walk), so an in-band sagitta escalates `InBand(SecondOrder)` out of lane too; `UnderDetermined` out of lane means every station read Positive (or a station read Zero/Negative). An out-of-lane all-Positive pair now costs `CERT_SAMPLES−2` `tangent_second_order` samples. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL: dispatching `encl/sweep-must-carry-escalation`. `sweep::blend::surgery`'s contact-edge, `sweep::extrude` (strut, cap rim) and `sweep::revolve::upgrade` will map `MustCarryEscalation` exhaustively instead of `.diag()`. The blend's second-order reading gets its `AnySign` tolerance ending back, and a first-order station stops reading as `ContactSecondOrder`. Texts may move on in-band must-carry refusals. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4474, merged): the material pairing is a decision. `geom_brep::MATERIAL_PAIRING` and `MATERIAL_PAIRING_CLAUSE` end it at tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`), with a true tolerance offer. Where the wedge would re-decide below m/K, `pairing_at_wedge` quotes the wedge and offers w/K, as `at_wedge` does. `MaterialStations`' `Break` is `MaterialStop { check, cause }`. The cusp-side Zero reads via `decide_nonzero`. New k_stats predicates appear on the refusal path only: "material_pairing_offer_wedge" and "material_pairing_wedge". (ENCL orchestrator)

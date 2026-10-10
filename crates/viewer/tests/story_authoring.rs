@@ -100,11 +100,19 @@ const MERLON_OFF: f64 = 0.009;
 /// the rook is drawn on five different heights up its axis, and a
 /// profile names the plane it sits on.
 const CARVED_STATES: usize = 23;
-/// Edits on the FINAL saved path: the twenty-two carving edits
-/// (`CARVED_STATES` less the root) plus the taller-drum edit. Equal to
-/// `CARVED_STATES` only because one root and one drum edit cancel —
-/// the two constants count different quantities (states vs edits).
-const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + 1;
+/// The world's own edits among the carving actions (A10), each riding
+/// in the action that caused it: five extrudes each placed (5); the
+/// chamfer re-pointing the plinth's placement (1); four booleans each
+/// re-pointing their first operand's placement and deleting the
+/// second's (8); the transform of the cutter that boolean already
+/// withdrew, which places nothing (0); and the last boolean, whose
+/// second operand nothing places, re-pointing only (1).
+const WORLD_EDITS: usize = 15;
+/// Edits on the FINAL saved path: the twenty-two carving actions'
+/// own edits (`CARVED_STATES` less the root), the world's edits among
+/// them, and the taller-drum edit — edits, where `CARVED_STATES`
+/// counts states.
+const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -240,7 +248,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         .expect("a self-boolean refuses")
         .to_string();
     assert!(
-        rendered.contains(&format!("Chamfer {}", test_utils::refusal::tag(softened.0))),
+        rendered.contains(&format!(
+            "Chamfer {}",
+            test_utils::refusal::tag(softened.0.digest())
+        )),
         "the refusal names the double-picked node: {rendered}"
     );
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
@@ -358,9 +369,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(session.history().len(), CARVED_STATES);
     assert_eq!(
-        session.committed_doc().roots(),
-        &[carved],
-        "one product root: the rook"
+        common::world(session.committed_doc()),
+        [carved],
+        "the world is one copy: the rook"
     );
     let carved_doc = session.committed_doc().clone();
 
@@ -479,33 +490,41 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── Deleting the experiment: the affordance prices the cascade
     //    BEFORE the click, the delete takes the cone as one action ───
+    // The crenellated rook's world placement reads the union, so it is
+    // in the cone too (A10): the cascade takes the copy with the body.
+    let rook_copy = common::copy_of(session.committed_doc(), crenellated);
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
         format!(
-            "Delete Extrude {} and 3 dependent features",
-            test_utils::refusal::tag(block.0)
+            "Delete Extrude {} and 4 dependent features",
+            test_utils::refusal::tag(block.0.digest())
         )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            ["1 × Pattern", "1 × PlacedUnion", "1 × Boolean"]
-                .iter()
-                .all(|kind| hover.contains(kind))
+            [
+                "1 × Pattern",
+                "1 × PlacedUnion",
+                "1 × Boolean",
+                "1 × PlaceInWorld",
+            ]
+            .iter()
+            .all(|kind| hover.contains(kind))
         }),
         "the hover names each dependent by kind: {:?}",
         affordance.hover
     );
     assert_eq!(
         affordance.cascade,
-        vec![crenellated, merlons, pattern, block],
+        vec![rook_copy, crenellated, merlons, pattern, block],
         "consumers first, the target last"
     );
     let deleted = session.perform(SessionOp::DeleteNode { node: block });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     assert_eq!(
         deleted.committed.len(),
-        4,
+        5,
         "one delete per doomed node, recorded as ONE action"
     );
     for (edit, want) in deleted.committed.iter().zip(&affordance.cascade) {
@@ -523,7 +542,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert!(
         doc.node(axis).is_some() && doc.node(block_profile).is_some(),
-        "nodes that only FED the target survive as roots of their own"
+        "nodes that only FED the target survive"
     );
     assert_eq!(session.history().len(), CARVED_STATES + 8);
 
@@ -627,7 +646,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     {
         let rows = session.tree_rows();
-        assert_eq!(rows.len(), CARVED_STATES - 1, "one row per feature");
+        assert_eq!(
+            rows.len(),
+            CARVED_STATES,
+            "one row per feature, and the rook's world placement"
+        );
         assert!(
             rows.iter().all(|row| row.status == RowStatus::Ok),
             "every feature is green: {rows:?}"

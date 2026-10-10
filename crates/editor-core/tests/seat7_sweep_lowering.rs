@@ -1,51 +1,36 @@
-//! **The sweeps moved onto the verb substrate, the profile's own
-//! radius reaches the walls they mint, and one declared parameter
-//! reaches the cyl×cyl germ from a document.**
+//! **The sweeps run on the verb substrate, the profile's own radius
+//! reaches the walls they mint, and a document's cyl×cyl pinch reads as
+//! its kernel-built twin's.**
 //!
 //! Three claims, three groups of rows, in that order.
 //!
 //! # 1. Nothing observable moved (the SEAT-4/5 method)
 //!
-//! `Node::Extrude` and `Node::Revolve` now build a `verbs::Verb`, run
-//! it through the profile door and read their birth record out of the
-//! closed record channel. That is a re-plumbing, and a re-plumbing's
-//! failure mode is a difference nobody looks for — so the wire format
-//! is pinned by a byte-identical round trip over a document carrying
-//! both sweeps, and each sweep-carrying corpus document's evaluation is
-//! pinned to a committed digest that says WHICH document moved.
+//! `Node::Extrude` and `Node::Revolve` build a `verbs::Verb`, run it
+//! through the profile door and read their birth record out of the
+//! closed record channel. The wire format is pinned by a byte-identical
+//! round trip over a document carrying both sweeps, and each
+//! sweep-carrying corpus document's evaluation is pinned to a committed
+//! digest that says WHICH document moved. `m10_p_fence` digests every
+//! body point's bits corpus-wide and `lib_g16_corpus_name_digests`
+//! digests every name table; neither says which document moved.
 //!
-//! What already covers this and what these rows add is the same
-//! division SEAT-4 recorded: `m10_p_fence` digests every body point's
-//! bits corpus-wide and `lib_g16_corpus_name_digests` digests every
-//! name table, so either would catch a lowering that changed geometry
-//! or names — and neither says which document did it, nor reaches the
-//! provenance tables. **Those two goldens hold UNCHANGED across this
-//! migration**, which is the corpus-wide half of the differential and
-//! cost no re-blessing: the constants below were minted here and
-//! re-taken on the extracted merge base with this file copied onto it.
+//! # 2. The profile's radius, at the walls and in the key
 //!
-//! # 2. The per-edge flow, attached and read back
-//!
-//! The extrude's distance and the revolve's angle are extents and reach
-//! no stored field — declared as empty rows, and asserted empty over
-//! real bodies. What DOES reach a field is the operand profile's own
-//! carrier radius: an extruded circle's wall is a cylinder whose stored
-//! radius is that circle's, a revolved circle's wall is a torus whose
-//! minor radius is, and both carry the lowered identity of the
-//! expression the profile holds.
-//!
-//! Every row here reads the channel through the KERNEL's own evidence
-//! door, never through a stored token's `Debug`: the claim under test
-//! is what a boolean germ would see.
+//! An extruded circle's wall is a cylinder whose stored radius is that
+//! circle's, a revolved circle's wall is a torus whose minor radius is,
+//! and a chain's arc steps each draw their own wall at their own
+//! radius. The expression a profile's carrier radius is spelled in is
+//! an input to the profile's content key, so a re-spelling never shares
+//! a memo entry with its old spelling.
 //!
 //! # 3. The germ, end to end from a document
 //!
-//! The row `SEAT-6` could not write, and the reason its residue item
-//! stayed open: two extruded circles at one declared `r`, spun off the
-//! pinch, unioned — and the pinch refusal the kernel returns carries
-//! `Declared`, computed with zero numerics from two walls a recipe
-//! minted. The kernel-direct twin at bit-identical radii carries
-//! `None`, permanently (P3).
+//! Two extruded circles at one declared `r`, spun off the pinch,
+//! unioned: the pinch refusal the kernel returns names the equal-radius
+//! configuration, exactly as the kernel-direct twin at bit-identical
+//! radii does — the margins decide the radii equal, and no recipe
+//! channel enters the decision.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -63,15 +48,13 @@ use editor_core::{
 };
 use fixture::digest::digest;
 use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
-use geom_brep::RadiusEvidence;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use topo::{Body, BooleanError, FaceKey, SurfaceField};
+use topo::{Body, BooleanError, FaceKey};
 
 /// The declared radius every document below draws its circles at,
 /// meters (dyadic).
 const R: f64 = 1.0;
-/// The second declared radius — a hole's, and the peg the outer wall
-/// must NOT declare against (dyadic).
+/// The second declared radius (dyadic).
 const Q: f64 = 0.25;
 /// The extrusion half-height (dyadic).
 const H: f64 = 1.2;
@@ -107,7 +90,7 @@ fn circle_on_frame(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius,
@@ -125,7 +108,7 @@ fn cylinder(doc: ProfileDoc, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(2.0 * H),
             side: ExtrudeSide::Along,
         },
@@ -174,12 +157,12 @@ fn both_sweeps() -> BothSweeps {
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
     let frame = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![square_loop],
         ids: Vec::new(),
     }));
     let extruded = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -187,14 +170,14 @@ fn both_sweeps() -> BothSweeps {
     // its own frame, spun about an axis written in that same frame.
     let rev_frame = r.insert(xy_frame());
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: rev_frame,
+        frame: rev_frame.into(),
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
     let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
     let revolved = r.insert(Node::Revolve {
-        profile: rev_profile,
-        axis,
+        profile: rev_profile.into(),
+        axis: axis.into(),
         angle: ang(PI / 2.0),
     });
     BothSweeps {
@@ -247,23 +230,16 @@ fn both_sweeps_evaluate_in_one_document() {
     }
 }
 
-// The digest these rows pin with is `fixture::digest::digest` — ONE feed
-// for every verb-migration suite, stated at that home. It deliberately
-// does NOT feed the per-field parameter sources this unit adds: those
-// are pinned in their own rows through the kernel's evidence door.
-
 /// **The sweep-carrying corpus documents' evaluations are
-/// bit-identical**, body and name table, one committed number each.
+/// bit-identical**, body and name table, one committed number each
+/// (`fixture::digest::digest`, the one feed every verb suite shares).
 ///
 /// The registry is FULL of extrudes — every solid in it starts as one —
 /// so this is the widest differential the verb migration has had. The
 /// five rows are chosen to cover the shapes the lowering can differ on:
-/// `die` and `corner_table` are polygon extrudes (no carrier radius, so
-/// the per-edge flow attaches nothing and the digest must be untouched
-/// by it), `cut_cylinder` and `boss_union` carry the two carrier loop
-/// forms (`circle` and `circle_split` — where the flow DOES attach, and
-/// the digest must STILL be untouched, since a field source is not in
-/// this feed), and `kitchen_sink` is the registry's revolve.
+/// `die` and `corner_table` are polygon extrudes, `cut_cylinder` and
+/// `boss_union` carry the two carrier loop forms (`circle` and
+/// `circle_split`), and `kitchen_sink` is the registry's revolve.
 ///
 /// RE-MINTED when the digest moved to its one home
 /// (`fixture::digest`) and gained the boolean and split arms every
@@ -307,14 +283,59 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a chart
+/// image's flag became `wrap` (the wrap edge, D1): the digest feeds each
+/// curve's `Debug`, whose field name moved; with `wrap: ` read back as
+/// `seam: ` the feed reproduces every old constant, so no evaluation
+/// moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a swept point's description began
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
+///
+/// RE-BLESSED, all five, for INTENT stage 2 PR C (the product is the
+/// world): each document now places its bodies, and every placement is
+/// a node with a value and a name table of its own, so the evaluation
+/// this digest walks holds those copies. No node evaluated before moved:
+/// `intent_s2_c_world`'s migration check holds each product to its
+/// pre-C digest.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
+///
+/// RE-BLESSED, all five, for INTENT stage 4 E (booleans glue on Zero):
+/// a body no longer carries provenance side tables (`GeomSource`
+/// stamps, field and axis sources), and the digest feeds each body's
+/// `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xfa04_f1a7_d1c4_847d),
-        ("corner_table", 0x9eac_7a27_8532_4700),
-        ("cut_cylinder", 0xbad2_4a97_64d1_ce35),
-        ("boss_union", 0x5e2d_5400_8255_ea04),
-        ("kitchen_sink", 0x0de0_b3b7_9cde_affd),
+        ("die", 0x3fb1_d208_1d37_5a93),
+        ("corner_table", 0xdb95_b8fc_06b7_a993),
+        ("cut_cylinder", 0x4318_92f9_c696_0fd1),
+        ("boss_union", 0x05b4_17a8_c844_6429),
+        ("kitchen_sink", 0x98c0_fba7_09be_e02d),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -339,225 +360,69 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
 }
 
 // ------------------------------------------------------------------
-// 2. The per-edge flow
+// 2. The profile's radius, at the walls and in the key
 // ------------------------------------------------------------------
 
-/// One face of `body` whose carrier is a cylinder.
-fn a_cylinder_face(body: &Body<f64>) -> FaceKey {
-    topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("an extruded circle has cylindrical walls")
-}
-
-/// One face of `body` whose carrier is a torus.
-fn a_torus_face(body: &Body<f64>) -> FaceKey {
-    topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Torus { .. }))
-        })
-        .expect("a revolved circle has toroidal walls")
-}
-
-/// Whether `face`'s carrier holds a source for `field`.
-fn sourced(body: &Body<f64>, face: FaceKey, field: SurfaceField) -> bool {
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, field).is_some()
-}
-
-/// The evidence between one cylinder wall of each body.
-fn cyl_evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
-    topo::field_source_evidence(
-        a,
-        a_cylinder_face(a),
-        b,
-        a_cylinder_face(b),
-        SurfaceField::CylinderRadius,
-    )
-}
-
-/// **The acceptance row for the extrude's flow: one declared radius
-/// reaching two bodies' walls is `Declared` at the germ's evidence
-/// door.**
-///
-/// Two independent extrude nodes over two profiles, one shared document
-/// parameter — and the evidence the kernel reads is `Declared`,
-/// computed with zero numerics from the two walls' tokens. Nothing
-/// compared a radius.
-#[test]
-fn one_shared_radius_declares_across_two_extruded_circles() {
-    let doc = doc_with_r("seat7-extrude-flow");
-    let (doc, a) = cylinder(doc, param("r"));
-    let (doc, b) = cylinder(doc, param("r"));
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "shared-r document:\n{}", bad.join("\n"));
-    let (a, b) = (body_of(&ev, a), body_of(&ev, b));
-    assert!(
-        sourced(a, a_cylinder_face(a), SurfaceField::CylinderRadius),
-        "the extruded circle's wall carries no radius source"
-    );
-    assert_eq!(
-        cyl_evidence(a, b),
-        RadiusEvidence::Declared,
-        "two walls swept from one declared radius must be declared-equal"
-    );
-}
-
-/// **A different expression is a different wall.** `r` and `r/2` are
-/// two expressions, so the two walls' tokens differ and the evidence is
-/// `None` — the answer the general rung is for.
-#[test]
-fn two_radii_spelled_differently_do_not_declare() {
-    let doc = doc_with_r("seat7-two-radii");
-    let (doc, a) = cylinder(doc, param("r"));
-    let (doc, b) = cylinder(doc, Formula::div(param("r"), scl(2.0)).unwrap());
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "two-radii document:\n{}", bad.join("\n"));
-    assert_eq!(
-        cyl_evidence(body_of(&ev, a), body_of(&ev, b)),
-        RadiusEvidence::None
-    );
-}
-
-/// **The same geometry with no channel is `None`, permanently.** The
-/// body is built by the kernel's own doors at the same radius — the
-/// hand-built and imported posture — so the values coincide exactly and
-/// the evidence is still `None` (P3).
-#[test]
-fn a_kernel_built_cylinder_has_no_channel() {
-    let doc = doc_with_r("seat7-absence");
-    let (doc, a) = cylinder(doc, param("r"));
-    let ev = eval::<f64>(&doc);
-    let evaluated = body_of(&ev, a);
-    let raw = raw_cylinder(R, H);
-    assert_eq!(
-        cyl_evidence(evaluated, &raw),
-        RadiusEvidence::None,
-        "an unsourced wall must route the general rung whatever its radius reads"
-    );
-    assert_eq!(
-        cyl_evidence(&raw, &raw),
-        RadiusEvidence::None,
-        "two unsourced walls agree on nothing — absence is not identity"
-    );
-}
-
-/// **A polygon profile attaches nothing, because it carries no radius
-/// to attach.**
-///
-/// The row is the per-edge source's own emptiness statement: every
-/// edge of a polygon is a straight one, so there is no expression to
-/// lower and the walls it sweeps are planes besides. An attach that
-/// stamped something here would be inventing an address.
-#[test]
-fn a_polygon_profile_attaches_nothing() {
-    let doc = ProfileDoc::empty(DocumentId::derive("seat7-polygon"), tol());
-    let (doc, plane) = insert(doc, xy_frame());
+/// A profile of `loops` on a frame at `z`, extruded — returns the doc,
+/// the profile node and the swept body node.
+fn extruded(
+    doc: ProfileDoc,
+    z: f64,
+    loops: Vec<LoopProgram<Formula>>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
+            frame: plane.into(),
+            loops,
             ids: Vec::new(),
         }),
     );
-    let (doc, cube) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
-            distance: len(1.0),
+            profile: profile.into(),
+            distance: len(2.0 * H),
             side: ExtrudeSide::Along,
         },
     );
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "polygon document:\n{}", bad.join("\n"));
-    let body = body_of(&ev, cube);
-    for face in topo::query::all_faces(body) {
-        for &field in SurfaceField::ALL {
-            assert!(
-                !sourced(body, face, field),
-                "a polygon extrusion stamped {field:?} on {face:?}"
-            );
-        }
+    (doc, profile, body)
+}
+
+/// A circle at the origin of the given radius expression.
+fn circle_loop(radius: Formula) -> LoopProgram<Formula> {
+    LoopProgram::Circle {
+        centre: [len(0.0), len(0.0)],
+        radius,
     }
 }
 
-/// **The revolve's half of the same flow**: a revolved circle's walls
-/// are tori, and their MINOR radius is the profile circle's — carrying
-/// the declared expression's identity, while the major radius (the
-/// distance from the axis, which the document holds nowhere as a
-/// scalar) carries nothing.
-///
-/// The major-radius half is the row that would fire if the declared
-/// field role ever widened to "every radius the carrier stores".
-#[test]
-fn a_revolved_circle_sources_its_minor_radius_only() {
-    let doc = doc_with_r("seat7-revolve-flow");
-    let (doc, plane) = insert(doc, xy_frame());
-    // Negative y: the door's half-plane about the +x axis is
-    // `(p − origin).perp_dot(dir) ≥ 0`, which is `−y`.
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![LoopProgram::Circle {
-                centre: [len(0.0), len(-3.0)],
-                radius: param("r"),
-            }],
-            ids: Vec::new(),
-        }),
-    );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
-    let (doc, torus) = insert(
-        doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(2.0 * PI),
-        },
-    );
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "revolve document:\n{}", bad.join("\n"));
-    let body = body_of(&ev, torus);
-    let wall = a_torus_face(body);
-    assert!(
-        sourced(body, wall, SurfaceField::TorusMinorRadius),
-        "the revolved circle's minor radius is the profile's declared one"
-    );
-    assert!(
-        !sourced(body, wall, SurfaceField::TorusMajorRadius),
-        "the major radius is the distance from the axis, which no slot holds"
-    );
+/// Every cylindrical face of `body`, with the radius its carrier
+/// stores.
+fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
+    topo::query::all_faces(body)
+        .into_iter()
+        .filter_map(|f| {
+            let s = body.get_surface(body.get_face(f)?.surface)?;
+            match s {
+                geom::Surface::Cylinder { radius, .. } => Some((f, *radius)),
+                _ => None,
+            }
+        })
+        .collect()
 }
 
-/// **A revolve whose profile has an ON-AXIS edge attaches by POSITION,
-/// not by order.**
+/// **A revolve whose profile has an ON-AXIS edge mints no wall for
+/// it**, and the arc's wall is a torus at the arc's own radius.
 ///
 /// A segment lying on the axis of revolution sweeps nothing: the record
 /// exports `None` at its position, and the positions after it are still
-/// their own segments' walls. So a reader that closed that hole —
-/// dropping the `None` and handing back a shorter list — would hand the
-/// arc's radius token to the wall of a different edge, and every wall
-/// after the gap would be off by one. The chain here puts the on-axis
-/// edge FIRST, so the whole rest of the loop is displaced by such a
-/// reader.
-///
-/// Read through the carriers rather than through the record: the one
-/// toroidal wall is the arc's, and it is the only face of the body that
-/// carries any field source at all.
+/// their own segments' walls. The chain puts the on-axis edge FIRST, so
+/// a reader that closed that hole would displace the whole rest of the
+/// loop.
 #[test]
-fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
+fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     let doc = doc_with_r("seat7-revolve-on-axis");
     let (doc, plane) = insert(doc, xy_frame());
     // Negative y is the door's half-plane about the +x axis, and the
@@ -580,7 +445,7 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -589,8 +454,8 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let (doc, solid) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(2.0 * PI),
         },
     );
@@ -601,11 +466,6 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
         "on-axis revolve document:\n{}",
         bad.join("\n")
     );
-    // The fixture's own premise: FOUR segments, and one of them minted
-    // no wall. A full revolution splits each CURVED wall at its seam and
-    // builds the plane disc whole, so the three that did mint one are
-    // five faces; a fourth wall — a degenerate one from the on-axis edge
-    // — would be more.
     let editor_core::ValuePayload::Profile(pv) =
         &ev.value(profile).expect("the profile evaluates").payload
     else {
@@ -616,6 +476,9 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
         4,
         "the chain replays to four segments, one of them the on-axis leg"
     );
+    // A full revolution splits each CURVED wall at its seam and builds
+    // the plane disc whole, so the three segments that mint a wall are
+    // five faces; a degenerate wall from the on-axis edge would be more.
     let body = body_of(&ev, solid);
     assert_eq!(
         topo::query::all_faces(body).len(),
@@ -628,241 +491,18 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))
             .expect("a live face on a carrier");
-        let is_torus = matches!(carrier, geom::Surface::Torus { .. });
-        for &field in SurfaceField::ALL {
-            // The arc is the only edge of this loop drawn at a radius,
-            // and a torus is the only carrier its wall can have.
-            let want = is_torus && field == SurfaceField::TorusMinorRadius;
-            assert_eq!(
-                sourced(body, face, field),
-                want,
-                "{face:?} on a {} carrier: {field:?}",
-                if is_torus {
-                    "toroidal"
-                } else {
-                    "straight edge's"
-                }
+        if let geom::Surface::Torus { minor_radius, .. } = carrier {
+            assert!(
+                (minor_radius - R).abs() < 1e-9,
+                "{face:?}: the arc's wall has minor radius {minor_radius}, not the arc's {R}"
             );
+            tori += 1;
         }
-        tori += usize::from(is_torus);
     }
     assert!(
         tori > 0,
         "the fixture's arc minted a wall at all, or the row above is vacuous"
     );
-}
-
-/// **The extents attach nothing**, which is what their declaredly empty
-/// rows say, asserted over bodies that really ran.
-///
-/// What this row can and cannot separate, stated: the distance and the
-/// angle reach no field, and no carrier of a POLYGON extrusion stores
-/// any scalar at all — so `a_polygon_profile_attaches_nothing` already
-/// covers the outcome there. What this adds is the CIRCLE case, where
-/// fields exist and are stamped: the walls carry exactly one source
-/// each (the radius), and the caps — planes positioned by the distance
-/// — carry none. An attach that read the extent's row as reaching the
-/// walls would stamp twice and red here.
-#[test]
-fn the_extent_slots_reach_no_field() {
-    let doc = doc_with_r("seat7-extent");
-    let (doc, cyl) = cylinder(doc, param("r"));
-    let ev = eval::<f64>(&doc);
-    let body = body_of(&ev, cyl);
-    for face in topo::query::all_faces(body) {
-        let sourced_fields: Vec<SurfaceField> = SurfaceField::ALL
-            .iter()
-            .copied()
-            .filter(|&f| sourced(body, face, f))
-            .collect();
-        let is_wall = body
-            .get_face(face)
-            .and_then(|fd| body.get_surface(fd.surface))
-            .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }));
-        if is_wall {
-            assert_eq!(
-                sourced_fields,
-                vec![SurfaceField::CylinderRadius],
-                "a wall carries the radius and nothing else"
-            );
-        } else {
-            assert!(
-                sourced_fields.is_empty(),
-                "a cap carries {sourced_fields:?}; the distance reaches no field"
-            );
-        }
-    }
-}
-
-/// A profile of `loops` on a frame at `z`, extruded — returns the doc,
-/// the profile node and the swept body node.
-fn extruded(
-    doc: ProfileDoc,
-    z: f64,
-    loops: Vec<LoopProgram<Formula>>,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            plane,
-            loops,
-            ids: Vec::new(),
-        }),
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(2.0 * H),
-            side: ExtrudeSide::Along,
-        },
-    );
-    (doc, profile, body)
-}
-
-/// A circle at the origin of the given radius expression.
-fn circle_loop(radius: Formula) -> LoopProgram<Formula> {
-    LoopProgram::Circle {
-        centre: [len(0.0), len(0.0)],
-        radius,
-    }
-}
-
-/// Every cylindrical face of `body`, with the radius its carrier
-/// stores — the test's own way of asking WHICH wall it is holding. The
-/// claim under test is read through the evidence door below; this only
-/// picks the face.
-fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
-    topo::query::all_faces(body)
-        .into_iter()
-        .filter_map(|f| {
-            let s = body.get_surface(body.get_face(f)?.surface)?;
-            match s {
-                geom::Surface::Cylinder { radius, .. } => Some((f, *radius)),
-                _ => None,
-            }
-        })
-        .collect()
-}
-
-/// The evidence between two named cylinder faces.
-fn wall_evidence(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> RadiusEvidence {
-    topo::field_source_evidence(a, fa, b, fb, SurfaceField::CylinderRadius)
-}
-
-/// **A HOLED profile authored hole-first**: every loop's walls carry
-/// that loop's own radius, and the naming anchor — which carries each
-/// canonical loop to the program loop holding its expressions — is
-/// what makes that true.
-///
-/// Canonicalization puts the OUTER loop first whatever the author
-/// wrote, so a profile authored `[hole, outer]` is a transposition:
-/// canonical loop 0 is program loop 1. The walls a sweep's record
-/// exports are indexed by CANONICAL loop; the expressions live at
-/// PROGRAM loops. Reading the program loops in canonical order — the
-/// one-line mistake available at this site — swaps the two radii here
-/// and stamps every outer wall with the hole's expression, which no
-/// single-loop row can see and which the germ would then read as a
-/// declaration between two bodies that share no parameter.
-///
-/// Two pegs make it visible through the evidence door alone: a
-/// single-circle extrude at `r` and another at `q`. The annulus's
-/// outer walls must declare against `r`'s peg and NOT against `q`'s,
-/// and its hole walls the other way round.
-#[test]
-fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
-    let doc = doc_with_r("seat7-hole-first");
-    let (doc, _) = step(
-        doc,
-        DocEdit::DeclareVar {
-            name: VarName::from_static("q"),
-            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
-        },
-    );
-    // Hole first, deliberately.
-    let (doc, _, annulus) = extruded(
-        doc,
-        -H,
-        vec![circle_loop(param("q")), circle_loop(param("r"))],
-    );
-    let (doc, _, peg_r) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
-    let (doc, _, peg_q) = extruded(doc, 20.0, vec![circle_loop(param("q"))]);
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "hole-first document:\n{}", bad.join("\n"));
-    let (annulus, peg_r, peg_q) = (
-        body_of(&ev, annulus),
-        body_of(&ev, peg_r),
-        body_of(&ev, peg_q),
-    );
-    let (face_r, _) = cylinder_walls(peg_r)[0];
-    let (face_q, _) = cylinder_walls(peg_q)[0];
-    let walls = cylinder_walls(annulus);
-    assert_eq!(walls.len(), 4, "two loops, two semicircular walls each");
-    for (wall, radius) in walls {
-        let ((same, same_face), (other, other_face), which) = if radius == R {
-            ((peg_r, face_r), (peg_q, face_q), "an outer")
-        } else {
-            assert_eq!(radius, Q, "a wall at neither declared radius");
-            ((peg_q, face_q), (peg_r, face_r), "a hole")
-        };
-        assert_eq!(
-            wall_evidence(annulus, wall, same, same_face),
-            RadiusEvidence::Declared,
-            "{which} wall must declare against the peg at its own parameter"
-        );
-        assert_eq!(
-            wall_evidence(annulus, wall, other, other_face),
-            RadiusEvidence::None,
-            "{which} wall declared against the OTHER parameter's peg"
-        );
-    }
-}
-
-/// **The other carrier loop form, at a subdivision the anchor cannot
-/// hide behind**: `circle_split` at n = 3 mints three walls, and all
-/// three carry the one expression the loop is drawn at — pairwise, and
-/// against a plain circle at the same parameter.
-///
-/// One radius per LOOP is the whole claim the per-edge source rests
-/// on, and a split is where it would break if a wall were addressed by
-/// anything finer than its loop.
-#[test]
-fn every_wall_of_a_split_carrier_carries_the_loops_one_radius() {
-    let doc = doc_with_r("seat7-split");
-    let (doc, _, split) = extruded(
-        doc,
-        -H,
-        vec![LoopProgram::CircleSplit {
-            centre: [len(0.0), len(0.0)],
-            radius: param("r"),
-            n: 3,
-            phase: ang(0.3),
-        }],
-    );
-    let (doc, _, plain) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "split document:\n{}", bad.join("\n"));
-    let (split, plain) = (body_of(&ev, split), body_of(&ev, plain));
-    let walls = cylinder_walls(split);
-    assert_eq!(walls.len(), 3, "n = 3 mints three walls");
-    let (plain_face, _) = cylinder_walls(plain)[0];
-    for &(w, _) in &walls {
-        assert_eq!(
-            wall_evidence(split, w, plain, plain_face),
-            RadiusEvidence::Declared,
-            "a split wall must declare against the plain circle at the same parameter"
-        );
-        for &(w2, _) in &walls {
-            assert_eq!(
-                wall_evidence(split, w, split, w2),
-                RadiusEvidence::Declared,
-                "two walls of one loop must declare against each other"
-            );
-        }
-    }
 }
 
 /// One evaluation, optionally served from a prior one.
@@ -876,38 +516,23 @@ fn memo_eval(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> 
     )
 }
 
-/// **The memo never serves a sweep a token the document no longer
-/// holds** — SEAT-6's stale-token row, for the source the OPERAND
-/// carries.
+/// **The memo never serves a sweep under a spelling the document no
+/// longer holds.**
 ///
-/// SEAT-6 closed this class for a verb's own slot, and the key feed
-/// for the profile's carrier radius (format v5) is the same fix at the
-/// node that HOLDS the expression. What pins it there today is a key
-/// INEQUALITY (`switch_program_key::resolved_values_feed_the_key`),
-/// which is a fact about a hash and not about a served body. This is
-/// the served-body row: A and B extrude circles at `r`, then A's
-/// profile radius is re-spelled as the literal of the same value. The
-/// geometry is bit-identical, so a key over resolved values alone
-/// would hand A's profile — and with it A's extrude — straight back
-/// out of the memo, carrying `r`'s token while the document says A is
-/// a literal. The evidence would read `Declared` between two walls
-/// that share no expression, and when `r` then moves, B re-runs at the
-/// new radius while A stays at the old one: two radii under one token.
-///
-/// The third step runs that move, so the row fails on the value as
-/// well as on the channel if the memo ever does serve the stale entry.
+/// A and B extrude circles at `r`; then A's profile radius is
+/// re-spelled as the literal of the same value. The geometry is
+/// bit-identical, so a key over resolved values alone would hand A's
+/// profile straight back out of the memo as the `r` spelling — and when
+/// `r` then moves, A would follow it. The profile's key moves at the
+/// re-spelling, and after the move A stays at the literal's radius
+/// while B re-runs at the new one.
 #[test]
-fn the_memo_never_serves_a_stale_sweep_token() {
+fn the_memo_never_serves_a_sweep_a_stale_spelling() {
     let doc = doc_with_r("seat7-memo");
     let (doc, profile_a, a) = extruded(doc, -H, vec![circle_loop(param("r"))]);
     let (doc, _, b) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
-    assert_eq!(
-        cyl_evidence(body_of(&ev1, a), body_of(&ev1, b)),
-        RadiusEvidence::Declared,
-        "two circles at one parameter declare"
-    );
 
     // A's carrier radius becomes the LITERAL of the same value.
     let (doc, _) = step(
@@ -919,7 +544,8 @@ fn the_memo_never_serves_a_stale_sweep_token() {
                 step: 0,
                 arg: StepArg::Radius,
             },
-            expr: len(R),
+            value: len(R).into(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));
@@ -928,45 +554,38 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         ev2.reused > 0,
         "B's half of the document is memo-served, or the row proves nothing about the memo"
     );
-    assert_eq!(
-        cyl_evidence(body_of(&ev2, a), body_of(&ev2, b)),
-        RadiusEvidence::None,
-        "A is a literal in the document and B is `r`; a memo-served wall would still say `r`"
+    assert_ne!(
+        key_of(&ev1, profile_a),
+        key_of(&ev2, profile_a),
+        "a carrier radius re-spelled value-preservingly must not share a memo entry \
+         with its old spelling"
     );
 
-    // Now move `r`. B re-runs at the new radius; A must not be left at
-    // the old one under a token that claims `r`.
+    // Now move `r`. B re-runs at the new radius; A stays at the literal's.
     let (doc, _) = step(
         doc,
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            fresh: Vec::new(),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
     assert!(failures(&ev3).is_empty(), "{:?}", failures(&ev3));
-    let (ba, bb) = (body_of(&ev3, a), body_of(&ev3, b));
-    let (ra, rb) = (cylinder_walls(ba)[0].1, cylinder_walls(bb)[0].1);
-    assert!(
-        (ra - rb).abs() > 1e-9,
-        "the fixture needs two radii after the move: {ra} vs {rb}"
-    );
+    let ra = cylinder_walls(body_of(&ev3, a))[0].1;
+    let rb = cylinder_walls(body_of(&ev3, b))[0].1;
     assert_eq!(
-        cyl_evidence(ba, bb),
-        RadiusEvidence::None,
-        "radii {ra} vs {rb} under one token would be a document-reachable contradiction"
+        ra, R,
+        "A is the literal {R}; a memo-served A would follow `r`"
     );
+    assert_eq!(rb, 2.0 * R, "B is `r`, which moved to {}", 2.0 * R);
 }
 
 // ------------------------------------------------------------------
 // 2b. A CHAIN loop's per-step arc radii
 //
-// The per-edge source's other loop shape. A carrier loop is drawn at
-// one radius and every wall of it carries that one expression (§2
-// above); a chain's arc steps each carry their own, so the address is
-// the profile EDGE and two walls of ONE loop can carry two different
-// expressions. The rows below read the same evidence door §2 does, so
-// what they claim is what a boolean germ would see.
+// A carrier loop is drawn at one radius; a chain's arc steps each carry
+// their own, so two walls of ONE loop can stand at two radii.
 // ------------------------------------------------------------------
 
 /// One quarter-turn arc at `r`, departing along the incoming tangent.
@@ -975,8 +594,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
 /// `line(len)` — so it needs a bound departure direction and
 /// `ProgramStep::Tangent` is what binds one from the incoming tangent.
 /// Neither of those two steps emits a segment; the arc emits exactly
-/// one, which is what makes it the step a per-edge radius is
-/// addressable at.
+/// one.
 fn tangent_arc(r: Formula, side: profile::ArcSide) -> [ProgramStep<Formula>; 2] {
     [
         ProgramStep::Tangent,
@@ -989,12 +607,8 @@ fn tangent_arc(r: Formula, side: profile::ArcSide) -> [ProgramStep<Formula>; 2] 
 }
 
 /// A chain heading `+x` from the origin, straight for `4`, then one
-/// quarter-turn arc at `r`, then straight back to the start.
-///
-/// Three segments, one of them an arc: the wall a sweep mints from
-/// segment 1 is a cylinder at `r` and the other two are planes, so a
-/// row can ask for the cylinder by its stored radius and know which
-/// edge it came from.
+/// quarter-turn arc at `r`, then straight back to the start: three
+/// segments, of which the arc's wall is the one cylinder.
 fn one_arc_chain(r: Formula) -> LoopProgram<Formula> {
     let mut steps = vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -1014,12 +628,7 @@ fn one_arc_chain(r: Formula) -> LoopProgram<Formula> {
 const ARC_STEP: u32 = 4;
 
 /// The same chain with a SECOND quarter-turn arc at `r2`, after two
-/// more units of straight.
-///
-/// Five segments, two of them arcs at different radii. The radii are
-/// the row's discriminator: `cylinder_walls` reports each wall's stored
-/// radius, so a wall at `R` must declare against `r`'s peg and a wall
-/// at `Q` against `q`'s.
+/// more units of straight: five segments, two of them arcs.
 ///
 /// `side` turns the whole chain: `Left` authors it counterclockwise and
 /// canonicalization leaves the segment numbering alone, `Right` authors
@@ -1047,51 +656,33 @@ fn key_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::ContentKey {
     ev.value(node).expect("the profile evaluates").content_key
 }
 
-/// **A chain arc's radius reaches the wall it drew, and its SPELLING is
-/// an input to the profile's content key** — the two halves of the
-/// per-edge channel for the loop shape that has more than one radius,
-/// in one row because they are not separable in the safe direction.
+/// **A chain arc's radius SPELLING is an input to the profile's content
+/// key.**
 ///
-/// The attach half: the chain's arc wall must declare against a peg
-/// extruded from a circle at the same parameter, exactly as a carrier
-/// loop's wall does. Until the door answered per segment there was no
-/// token on that wall at all and the evidence read `None`.
-///
-/// The key half is what makes the attach safe, and it is the reason the
-/// two landed together. Re-spell the arc's radius as the LITERAL of the
-/// same value: the geometry is bit-identical, so a key over resolved
-/// values alone would serve this profile — and the extrude above it —
-/// straight back out of the memo, carrying `r`'s token while the
-/// document says the arc is a literal. The row asserts the key moves
-/// and then asserts what that buys: the served wall's evidence drops to
-/// `None`, because A is a literal and the peg is `r`.
+/// Re-spell the arc's radius as the LITERAL of the same value: the
+/// geometry is bit-identical, so a key over resolved values alone would
+/// serve this profile — and the extrude above it — straight back out of
+/// the memo under the old spelling. The key moves, the rest of the
+/// document is memo-served, and the wall stands where it stood.
 ///
 /// (The spelling pair is param → literal, not two unit spellings of one
 /// number: display units never enter the key by ratified design (D7,
 /// `switch_program_key::display_units_never_enter_the_key`), so
 /// `10 mm` → `0.01 m` is the same expression and moves nothing.)
 #[test]
-fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
+fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
     let doc = doc_with_r("seat7-chain-arc");
     let (doc, profile_a, a) = extruded(doc, -H, vec![one_arc_chain(param("r"))]);
     let (doc, _, peg) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
-    let (chain, peg_body) = (body_of(&ev1, a), body_of(&ev1, peg));
-    let walls = cylinder_walls(chain);
+    let walls = cylinder_walls(body_of(&ev1, a));
     assert_eq!(
         walls.len(),
         1,
         "the chain has exactly one arc, so exactly one cylindrical wall"
     );
-    let (arc_wall, radius) = walls[0];
-    assert_eq!(radius, R, "the arc wall is the one drawn at `r`");
-    let (peg_face, _) = cylinder_walls(peg_body)[0];
-    assert_eq!(
-        wall_evidence(chain, arc_wall, peg_body, peg_face),
-        RadiusEvidence::Declared,
-        "a chain arc's wall carries the identity of the radius its own step authored"
-    );
+    assert_eq!(walls[0].1, R, "the arc wall is the one drawn at `r`");
 
     // The arc's radius becomes the LITERAL of the same value.
     let (doc, _) = step(
@@ -1103,7 +694,8 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
                 step: ARC_STEP,
                 arg: StepArg::CarrierRadius,
             },
-            expr: len(R),
+            value: len(R).into(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));
@@ -1111,59 +703,53 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
     assert_ne!(
         key_of(&ev1, profile_a),
         key_of(&ev2, profile_a),
-        "a chain radius re-spelled value-preservingly reaches a stored field, so it must \
-         not share a memo entry with its old spelling"
+        "a chain radius re-spelled value-preservingly must not share a memo entry with \
+         its old spelling"
     );
     assert!(
         ev2.reused > 0,
         "the peg's half of the document is memo-served, or the row proves nothing about \
          the memo"
     );
-    let (chain, peg_body) = (body_of(&ev2, a), body_of(&ev2, peg));
-    let (arc_wall, _) = cylinder_walls(chain)[0];
-    let (peg_face, _) = cylinder_walls(peg_body)[0];
     assert_eq!(
-        wall_evidence(chain, arc_wall, peg_body, peg_face),
-        RadiusEvidence::None,
-        "the arc is a literal in the document and the peg is `r`; a memo-served wall \
-         would still say `r`"
+        format!("{:?}", body_of(&ev2, peg)),
+        format!("{:?}", body_of(&ev1, peg)),
+        "the memo-served peg is the peg"
     );
+    let walls = cylinder_walls(body_of(&ev2, a));
+    assert_eq!(
+        walls.len(),
+        1,
+        "the re-spelled chain still has one arc wall"
+    );
+    assert_eq!(walls[0].1, R, "the literal is the value `r` held");
 }
 
-/// **Two arcs of one chain carry two different tokens**, each its own
-/// step's.
+/// **Two arcs of one chain mint their walls at their own steps'
+/// radii.**
 ///
-/// The mutant this reds is a door that hands every wall of a loop the
-/// loop's FIRST arc radius — the shape the carrier forms' one-radius-
-/// per-loop rule invites, and one that no single-arc row can see. Two
-/// pegs make it visible through the evidence door alone: the wall at
-/// `R` must declare against `r`'s peg and NOT against `q`'s, and the
-/// wall at `Q` the other way round.
+/// The mutant this reds is a lowering that draws every arc of a loop
+/// at the loop's FIRST arc radius — the shape a carrier form's
+/// one-radius-per-loop rule invites, and one no single-arc row sees.
 #[test]
-fn each_arc_of_a_chain_carries_its_own_steps_radius() {
-    assert_two_arcs_declare_apart("seat7-chain-two-arcs", profile::ArcSide::Left, false);
+fn each_arc_of_a_chain_mints_its_wall_at_its_own_steps_radius() {
+    assert_two_arcs_at_their_own_radii("seat7-chain-two-arcs", profile::ArcSide::Left, false);
 }
 
-/// **The same claim on a chain canonicalization REVERSED**, which is
-/// where the token list's indexing is actually load-bearing.
-///
-/// The walls a sweep exports are indexed by CANONICAL segment and the
-/// expressions live at PROGRAM segments, so the attach hops between the
-/// two through the naming anchor. On a counterclockwise chain that hop
-/// is the identity and the row above cannot see it at all; here the
-/// author wrote the mirror image, canonicalization reverses the chain
-/// to reach the outer role's winding, and a token list built in
-/// canonical order stamps each arc's wall with the other arc's
-/// expression — or with a plane's nothing.
+/// **The same claim on a chain canonicalization REVERSED**, where
+/// canonical segment `k` is not program segment `k`.
 #[test]
-fn each_arc_of_a_reversed_chain_carries_its_own_steps_radius() {
-    assert_two_arcs_declare_apart("seat7-chain-two-arcs-cw", profile::ArcSide::Right, true);
+fn each_arc_of_a_reversed_chain_mints_its_wall_at_its_own_steps_radius() {
+    assert_two_arcs_at_their_own_radii("seat7-chain-two-arcs-cw", profile::ArcSide::Right, true);
 }
 
 /// The shared body of the two rows above: a two-arc chain at `r` and
-/// `q`, and a peg extruded from a circle at each, with every arc wall
-/// required to declare against its own step's peg and against no other.
-fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_reversed: bool) {
+/// `q`, whose walls stand one at each radius.
+fn assert_two_arcs_at_their_own_radii(
+    id: &'static str,
+    side: profile::ArcSide,
+    want_reversed: bool,
+) {
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
@@ -1174,8 +760,6 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
     );
     let (doc, profile_node, chain) =
         extruded(doc, -H, vec![two_arc_chain(param("r"), param("q"), side)]);
-    let (doc, _, peg_r) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
-    let (doc, _, peg_q) = extruded(doc, 20.0, vec![circle_loop(param("q"))]);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(
@@ -1183,11 +767,8 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
         "two-arc chain document:\n{}",
         bad.join("\n")
     );
-    // The fixture's own premise, asserted before anything is asserted
-    // about the attach. A canonical-order token list is visible only on
-    // a loop whose anchor hop is NOT the identity, so a row written to
-    // be the reversed case and silently canonicalized to the identity
-    // one would pass while proving nothing.
+    // The fixture's own premise: a row written to be the reversed case
+    // and silently canonicalized to the identity one proves nothing.
     let editor_core::ValuePayload::Profile(pv) = &ev
         .value(profile_node)
         .expect("the profile evaluates")
@@ -1205,72 +786,19 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
             "identity"
         }
     );
-    let (chain, peg_r, peg_q) = (
-        body_of(&ev, chain),
-        body_of(&ev, peg_r),
-        body_of(&ev, peg_q),
+    let mut radii: Vec<f64> = cylinder_walls(body_of(&ev, chain))
+        .into_iter()
+        .map(|(_, r)| r)
+        .collect();
+    radii.sort_by(f64::total_cmp);
+    // A chain arc's carrier radius reaches the wall through the replay's
+    // own construction, so it is `R` and `Q` to within a rounding step
+    // and not to the bit.
+    assert_eq!(radii.len(), 2, "{id}: two arc steps, two cylindrical walls");
+    assert!(
+        (radii[0] - Q).abs() < 1e-9 && (radii[1] - R).abs() < 1e-9,
+        "{id}: the walls stand at {radii:?}, not one at q = {Q} and one at r = {R}"
     );
-    let (face_r, _) = cylinder_walls(peg_r)[0];
-    let (face_q, _) = cylinder_walls(peg_q)[0];
-    let walls = cylinder_walls(chain);
-    assert_eq!(walls.len(), 2, "two arc steps, two cylindrical walls");
-    for (wall, radius) in walls {
-        // Which wall this is, read off the geometry rather than off the
-        // channel under test. A chain arc's carrier radius reaches the
-        // wall through the replay's own construction, so it is `R` and
-        // `Q` to within a rounding step and not to the bit — unlike a
-        // carrier loop's, which the sweep takes verbatim.
-        let ((same, same_face), (other, other_face), which) = if (radius - R).abs() < 1e-9 {
-            ((peg_r, face_r), (peg_q, face_q), "the `r` arc's")
-        } else {
-            assert!(
-                (radius - Q).abs() < 1e-9,
-                "a wall at neither declared radius: {radius}"
-            );
-            ((peg_q, face_q), (peg_r, face_r), "the `q` arc's")
-        };
-        assert_eq!(
-            wall_evidence(chain, wall, same, same_face),
-            RadiusEvidence::Declared,
-            "{which} wall must declare against the peg at its own step's parameter"
-        );
-        assert_eq!(
-            wall_evidence(chain, wall, other, other_face),
-            RadiusEvidence::None,
-            "{which} wall declared against the OTHER step's parameter"
-        );
-    }
-}
-
-/// **A chain's STRAIGHT walls carry nothing**, in the same body whose
-/// arc walls carry their tokens.
-///
-/// [`a_polygon_profile_attaches_nothing`] makes this claim about a
-/// profile with no radius anywhere, which a per-LOOP attach satisfies
-/// for free. This is the claim a per-EDGE attach has to earn: the loop
-/// does hold radii, and the planes swept from its straight edges must
-/// still hold no field source at all.
-#[test]
-fn a_chains_straight_walls_carry_no_radius() {
-    let doc = doc_with_r("seat7-chain-straights");
-    let (doc, _, chain) = extruded(doc, -H, vec![one_arc_chain(param("r"))]);
-    let ev = eval::<f64>(&doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "chain document:\n{}", bad.join("\n"));
-    let body = body_of(&ev, chain);
-    let arcs: Vec<FaceKey> = cylinder_walls(body).into_iter().map(|(f, _)| f).collect();
-    assert_eq!(arcs.len(), 1, "one arc step, one cylindrical wall");
-    for face in topo::query::all_faces(body) {
-        if arcs.contains(&face) {
-            continue;
-        }
-        for &field in SurfaceField::ALL {
-            assert!(
-                !sourced(body, face, field),
-                "a straight edge's wall (or a cap) stamped {field:?} on {face:?}"
-            );
-        }
-    }
 }
 
 // ------------------------------------------------------------------
@@ -1278,8 +806,7 @@ fn a_chains_straight_walls_carry_no_radius() {
 // ------------------------------------------------------------------
 
 /// The kernel-direct twin of [`cylinder`]: the same profile, the same
-/// extrude, at the same radius — and no recipe layer above them, so no
-/// records anywhere.
+/// extrude, at the same radius — and no recipe layer above them.
 fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).unwrap();
     let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
@@ -1308,18 +835,18 @@ fn raw_spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     .unwrap()
 }
 
-/// The evidence a cyl×cyl pinch refusal carries, or a loud failure.
-fn pinch_evidence(err: &BooleanError) -> RadiusEvidence {
+/// Whether a cyl×cyl pinch refusal decided its radii equal, or a loud
+/// failure.
+fn pinch_equal_radii(err: &BooleanError) -> bool {
     match err {
-        BooleanError::GermFrameCylinderPinch { evidence, .. } => *evidence,
+        BooleanError::GermFrameCylinderPinch { equal_radii, .. } => *equal_radii,
         other => panic!("the equal-radius pair refused with {other:?}, not the pinch"),
     }
 }
 
-/// **THE END-TO-END ROW** (VERB-SEAT-DESIGN §6's second acceptance,
-/// and the item `seat6-germ-end-to-end-awaits-seat7` waited on): one
-/// declared radius parameter, two extruded circles, one boolean — and
-/// the germ reads `Declared`.
+/// **THE END-TO-END ROW**: one declared radius parameter, two extruded
+/// circles, one boolean — and the germ decides the radii equal, as it
+/// does for the kernel-built twin at bit-identical radii.
 ///
 /// The pose is the germ fixture's own (`sweep`'s `verbs_germarms2`):
 /// the classic Steinmetz pair never reaches the join at all, because
@@ -1328,15 +855,12 @@ fn pinch_evidence(err: &BooleanError) -> RadiusEvidence {
 /// a motion a cylinder of revolution is invariant under, which moves
 /// the charts and not the surfaces.
 ///
-/// What the union RETURNS is a refusal, and that is not a weakness of
-/// the row: the equal-radius intersecting-axes locus is two ellipses
-/// crossing at two valence-4 pinch vertices, which is not one conic and
-/// therefore has no frame to hand over. The refusal carries the
-/// evidence, so what is pinned is exactly the channel: `Declared` says
-/// the kernel PROVED the configuration from the recipe's own
-/// parameter, with no radius ever compared.
+/// What the union RETURNS is a refusal: the equal-radius
+/// intersecting-axes locus is two ellipses crossing at two valence-4
+/// pinch vertices, which is not one conic and therefore has no frame
+/// to hand over. The refusal names which locus it is.
 #[test]
-fn one_declared_radius_reaches_the_germ_from_a_document() {
+fn one_declared_radius_pinches_at_the_germ_as_its_kernel_twin_does() {
     let doc = doc_with_r("seat7-germ");
     let (doc, a) = cylinder(doc, param("r"));
     let (doc, b) = cylinder(doc, param("r"));
@@ -1349,27 +873,24 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
     let ev = eval::<f64>(&doc);
-    let evidence = match ev.nodes.get(&union) {
+    let from_document = match ev.nodes.get(&union) {
         Some(editor_core::NodeResult::Failed(e)) => match &e.kind {
-            editor_core::NodeErrorKind::Boolean(err) => pinch_evidence(err),
+            editor_core::NodeErrorKind::Boolean(err) => pinch_equal_radii(err),
             other => panic!("the union refused with {other:?}, not a boolean refusal"),
         },
         other => panic!("the union did not refuse: {other:?}"),
     };
-    assert_eq!(
-        evidence,
-        RadiusEvidence::Declared,
-        "one declared parameter must reach the germ as a declaration"
+    assert!(
+        from_document,
+        "one declared parameter's two walls must pinch as equal radii"
     );
 
-    // The twin: the same two solids at bit-identical radii, built
-    // through the kernel's own doors with no recipe above them.
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let raw_b = raw_spin(
         &raw_spin(&raw_cylinder(R, H), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
@@ -1379,9 +900,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
     let raw_a = topo::test_support::finished("the raw spun cylinder A", raw_a, tol());
     let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
     let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
-    assert_eq!(
-        pinch_evidence(&raw),
-        RadiusEvidence::None,
-        "a hand-built pair declares nothing, whatever its radii read"
+    assert!(
+        pinch_equal_radii(&raw),
+        "the kernel-built twin at bit-identical radii pinches as equal radii too"
     );
 }

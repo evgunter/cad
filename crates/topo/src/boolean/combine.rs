@@ -67,6 +67,8 @@ use geom_core::Tol;
 pub(crate) struct GraftMap {
     /// Source vertex → result vertex.
     pub vertices: SecondaryMap<VertexKey, VertexKey>,
+    /// Source point → result point.
+    pub points: SecondaryMap<PointKey, PointKey>,
     /// Source face → result face.
     pub faces: SecondaryMap<FaceKey, FaceKey>,
     /// Source edge → result edge (naming emission, M4 PR 3).
@@ -361,6 +363,7 @@ impl GraftMap {
         }
         Self {
             vertices: chain(&self.vertices, &next.vertices),
+            points: chain(&self.points, &next.points),
             faces: chain(&self.faces, &next.faces),
             edges: chain(&self.edges, &next.edges),
             dead_edges: self
@@ -449,24 +452,11 @@ fn graft_solids_impl<T: geom_core::Decide>(
     for (k, p) in src.points.iter() {
         let dk = dst.points.insert(*p);
         points.insert(k, dk);
-        // The description's provenance row rides every graft: a
-        // transplanted description came from where it came from, which
-        // no graft changes, and N6's recipe identity is that row's
-        // `Recipe` arm (`crate::GeomOrigin`, which states the carry
-        // obligation and the totality this reads).
-        let Some(origin) = src.point_origins.get(k) else {
-            unreachable!(
-                "grafted point {k:?} is live in the source body and carries no origin row: \
-                 the origin map is total over live keys (kernel bug)"
-            )
-        };
-        dst.point_origins.insert(dk, origin.clone());
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
     for (k, sfc) in src.surfaces.iter() {
         let dk = dst.surfaces.insert(sfc.clone());
         surfaces.insert(k, dk);
-        dst.carry_surface_rows(dk, src, k);
     }
 
     // ---- Topology arenas, pass 1: clone with source-internal keys
@@ -506,13 +496,6 @@ fn graft_solids_impl<T: geom_core::Decide>(
         };
         let dk = dst.curves.insert(mapped);
         curves.insert(k, dk);
-        let Some(origin) = src.curve_origins.get(k) else {
-            unreachable!(
-                "grafted curve {k:?} is live in the source body and carries no origin row: \
-                 the origin map is total over live keys (kernel bug)"
-            )
-        };
-        dst.curve_origins.insert(dk, origin.clone());
     }
     let mut half_edges: SecondaryMap<HalfEdgeKey, HalfEdgeKey> = SecondaryMap::new();
     for (k, he) in src.half_edges.iter() {
@@ -824,7 +807,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
                     "surface",
                 ),
                 image: Some(c.pcurve.clone()),
-                seam: c.seam,
+                wrap: c.wrap,
                 declared: match curve.authority() {
                     geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
                     geom_brep::EdgeAuthority::Derived => None,
@@ -895,6 +878,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
 
     let map = GraftMap {
         vertices,
+        points,
         faces,
         edges,
         dead_edges,

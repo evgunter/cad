@@ -45,6 +45,14 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
+/// **An instance of `part`, placed in `doc`'s world at the identity**
+/// (A10): each instance here is in the product, as the product roots
+/// were.
+fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, Node::instantiate_part(part));
+    (fixture::place(doc, id).0, id)
+}
+
 pub(crate) fn split(
     doc: &ProfileDoc,
     ids: &[RecipeNodeId],
@@ -53,7 +61,7 @@ pub(crate) fn split(
 ) -> Result<SplitOutcome, SplitError> {
     editor_core::split(
         doc,
-        &cut(ids),
+        &cut(doc, ids),
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -99,6 +107,24 @@ pub(crate) fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], 
 }
 
 /// `name` wrapped at `instance`, as a host spells a face of its part.
+/// **`name`, an entity of a body `part` places, as `part`'s product
+/// names it**: under the copy of the one world placement in `part`
+/// whose body is `name`'s minting node (A10).
+fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
+    let copies: Vec<RecipeNodeId> = part
+        .placements()
+        .into_iter()
+        .filter(|&at| {
+            matches!(part.node(at), Some(Node::PlaceInWorld { body, .. })
+                if part.operation_of(*body) == Some(name.node))
+        })
+        .collect();
+    let [copy] = copies[..] else {
+        panic!("one placement places {:?}, not {copies:?}", name.node);
+    };
+    name.in_copy(copy)
+}
+
 fn wrap(instance: RecipeNodeId, name: StableName) -> StableName {
     editor_core::FaceName::new(name)
         .expect("a face")
@@ -107,6 +133,14 @@ fn wrap(instance: RecipeNodeId, name: StableName) -> StableName {
 }
 
 /// The base block's bottom cap at `base`.
+/// The document `instance` in `doc` references.
+fn part_id_of(doc: &ProfileDoc, instance: RecipeNodeId) -> DocumentId {
+    match doc.node(instance) {
+        Some(Node::InstantiatePart { doc_ref, .. }) => doc_ref.id,
+        other => panic!("an instance: {other:?}"),
+    }
+}
+
 fn base_bottom(p: &Parts, base: RecipeNodeId) -> StableName {
     in_part(base, p.base_body, CapEnd::Start)
 }
@@ -157,10 +191,10 @@ fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
     let doc = ProfileDoc::empty(DocumentId::derive("s2-verbatim"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
-    let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_k) = instance(doc, p.base);
     let doc = set_gauge(doc, on_k, Some(k));
     let doc = set_offset(doc, on_k, Some(literal([0.0, 0.0, 4.0])));
-    let (doc, on_g) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, on_g) = instance(doc, p.top);
     let doc = set_gauge(doc, on_g, Some(g));
     let doc = set_offset(doc, on_g, Some(literal([16.0, 0.0, 0.0])));
     let (doc, _) = step(
@@ -230,7 +264,7 @@ fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
             resolves(&doc, &o, &face),
             "{face:?} resolves before the split"
         );
-        let through = wrap(out.instance, in_part);
+        let through = wrap(out.instance, in_world_of(&out.part, in_part));
         assert!(
             resolves(&out.remainder, &split_o, &through),
             "{through:?} resolves after the split"
@@ -246,7 +280,7 @@ fn s2_a_gauge_inserted_after_its_instance_is_carried_first() {
     let p = parts("s2-order");
     let build = |label: &str| {
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, early) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, early) = instance(doc, p.base);
         let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 2.0])));
         (set_gauge(doc, early, Some(k)), early, k)
     };
@@ -258,7 +292,7 @@ fn s2_a_gauge_inserted_after_its_instance_is_carried_first() {
     let mut store = p.store.clone();
     let part_ref = store.insert(build("s2-order-sub").0, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("s2-order-host"), Tol::witness());
-    let (host, h) = insert(host, Node::instantiate_part(part_ref));
+    let (host, h) = instance(host, part_ref);
     let back = inline(&host, h, &store);
     let carried = back.node_map[&early];
     assert_eq!(
@@ -278,9 +312,9 @@ fn s3_a_kept_instance_or_gauge_on_a_cut_gauge_refuses_severed_gauge() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("s3-severed"), Tol::witness());
     let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-    let (doc, cut_on_k) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, cut_on_k) = instance(doc, p.top);
     let doc = set_gauge(doc, cut_on_k, Some(k));
-    let (with_instance, kept) = insert(doc.clone(), Node::instantiate_part(p.base));
+    let (with_instance, kept) = instance(doc.clone(), p.base);
     let with_instance = set_gauge(with_instance, kept, Some(k));
     let (with_gauge, k2) = insert(doc, Node::gauge(Some(k), literal([1.0, 0.0, 0.0])));
     for (doc, kept, what) in [
@@ -320,7 +354,7 @@ fn s4_cut_gauges_vote_their_parents_and_an_unplaced_group_votes_its_gauge() {
     let doc = ProfileDoc::empty(DocumentId::derive("s4-vote"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.0])));
-    let (doc, on_world) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, on_world) = instance(doc, p.top);
     let err = split(&doc, &[k, on_world], "s4-vote", &o).expect_err("two anchors");
     assert!(
         matches!(&err, SplitError::TwoAnchors { node, first, second }
@@ -341,7 +375,7 @@ fn s4_cut_gauges_vote_their_parents_and_an_unplaced_group_votes_its_gauge() {
     assert!(err.to_string().contains("Recourse:"), "{err}");
 
     // D2: the unplaced group's gauge is not lost.
-    let (doc, unplaced) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, unplaced) = instance(doc, p.base);
     let doc = set_gauge(doc, unplaced, Some(g));
     let doc = set_offset(doc, unplaced, None);
     let err = split(&doc, &[on_world, unplaced], "s4-vote", &o)
@@ -354,7 +388,7 @@ fn s4_cut_gauges_vote_their_parents_and_an_unplaced_group_votes_its_gauge() {
         "{err:?}"
     );
     // Beside a placed instance on its own gauge, it anchors there.
-    let (doc, placed) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, placed) = instance(doc, p.top);
     let doc = set_gauge(doc, placed, Some(g));
     let out = split(&doc, &[unplaced, placed], "s4-vote", &o).expect("one anchor");
     assert_eq!(
@@ -378,11 +412,11 @@ fn s5_a_kept_mate_reading_a_root_on_a_cut_gauge_refuses_the_frame_rule() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("s5-frame"), Tol::witness());
     let (doc, k) = insert(doc, Node::gauge(None, literal([8.0, 0.0, 0.0])));
-    let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_k) = instance(doc, p.base);
     let doc = set_gauge(doc, on_k, Some(k));
-    let (doc, on_world) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_world) = instance(doc, p.base);
     let (doc, h) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 0.0])));
-    let (doc, kept) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, kept) = instance(doc, p.top);
     let doc = set_gauge(doc, kept, Some(h));
     let declaring = |doc: &ProfileDoc, base: RecipeNodeId| {
         insert(
@@ -416,9 +450,9 @@ fn s6_a_declaring_mate_from_the_anchor_into_a_cut_gauge_would_start_placing() {
     let doc = ProfileDoc::empty(DocumentId::derive("s6-placing"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([4.0, 0.0, 0.0])));
-    let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_k) = instance(doc, p.base);
     let doc = set_gauge(doc, on_k, Some(k));
-    let (doc, kept) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, kept) = instance(doc, p.top);
     let doc = set_gauge(doc, kept, Some(g));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(kept)), head(p.base_cap(on_k))));
     let err = split(&doc, &[k, on_k], "s6-placing", &o).expect_err("would start placing");
@@ -435,8 +469,8 @@ fn s6_a_declaring_mate_from_the_anchor_into_a_cut_gauge_would_start_placing() {
 /// the root of its group at the empty chain.
 fn two_groups(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let sub = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (sub, first) = insert(sub, Node::instantiate_part(p.base));
-    let (sub, second) = insert(sub, Node::instantiate_part(p.base));
+    let (sub, first) = instance(sub, p.base);
+    let (sub, second) = instance(sub, p.base);
     (
         set_offset(sub, second, Some(literal([16.0, 0.0, 0.0]))),
         first,
@@ -450,7 +484,7 @@ fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, [
     let sub_ref = store.insert(sub, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, h) = insert(doc, Node::instantiate_part(sub_ref));
+    let (doc, h) = instance(doc, sub_ref);
     let doc = set_gauge(doc, h, Some(g));
     let doc = set_offset(doc, h, Some(literal([2.0, 0.0, 4.0])));
     let (doc, _) = step(
@@ -468,7 +502,7 @@ fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, [
 fn minted_gauge(doc: &ProfileDoc, out: &InlineOutcome) -> RecipeNodeId {
     let fresh: Vec<RecipeNodeId> = out
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(out.doc.node(id), Some(Node::Gauge { .. })))
@@ -493,8 +527,8 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
     // in the world: g at [0, 8, 0], o at [2, 0, 4], then the part's own.
     let two = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-two"), Tol::witness());
-        let (sub, first) = insert(sub, Node::instantiate_part(p.base));
-        let (sub, second) = insert(sub, Node::instantiate_part(p.base));
+        let (sub, first) = instance(sub, p.base);
+        let (sub, second) = instance(sub, p.base);
         let sub = set_offset(sub, second, Some(literal([16.0, 0.0, 0.0])));
         (
             sub,
@@ -503,14 +537,14 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
     };
     let shifted = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-shifted"), Tol::witness());
-        let (sub, root) = insert(sub, Node::instantiate_part(p.base));
+        let (sub, root) = instance(sub, p.base);
         let sub = set_offset(sub, root, Some(literal([1.0, 0.0, 0.0])));
         (sub, vec![(root, [3.0, 8.0, 4.0])])
     };
     let gauged = {
         let sub = ProfileDoc::empty(DocumentId::derive("i1-gauged"), Tol::witness());
         let (sub, k) = insert(sub, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-        let (sub, on_k) = insert(sub, Node::instantiate_part(p.base));
+        let (sub, on_k) = instance(sub, p.base);
         (set_gauge(sub, on_k, Some(k)), vec![(on_k, [2.0, 8.0, 6.0])])
     };
     for ((sub, corners), what) in [
@@ -545,18 +579,11 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
                 );
             }
         }
-        // The roots: the minted gauge at the instance's position, then
-        // the part's roots in its own order.
-        let at = doc
-            .roots()
-            .iter()
-            .position(|&r| r == h)
-            .expect("h is a root");
-        let spliced: Vec<RecipeNodeId> = sub.roots().iter().map(|r| out.node_map[r]).collect();
-        assert_eq!(
-            out.doc.roots()[at..at + 1 + spliced.len()],
-            [vec![minted], spliced].concat(),
-            "{what}: the minted gauge takes the instance's place in the root list"
+        // The world: the part's placements, carried in its own order.
+        let spliced: Vec<RecipeNodeId> = sub.placements().iter().map(|r| out.node_map[r]).collect();
+        assert!(
+            out.doc.placements().ends_with(&spliced),
+            "{what}: the part's placements are the host's"
         );
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
@@ -589,13 +616,11 @@ fn member_through_a_mate_of(
     first: RecipeNodeId,
     label: &str,
 ) -> (ProfileDoc, PartStore, [RecipeNodeId; 4]) {
+    let inner = in_world_of(&sub, p.base_cap(first));
     let (doc, store, [g, h]) = host_of(p, sub, label);
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, top) = instance(doc, p.top);
     let doc = set_gauge(doc, top, Some(g));
-    let (doc, mate) = insert(
-        doc,
-        seat(head(p.top_cap(top)), head(wrap(h, p.base_cap(first)))),
-    );
+    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(wrap(h, inner))));
     (doc, store, [h, top, mate, first])
 }
 
@@ -652,7 +677,7 @@ fn i2_a_member_the_instance_placed_moves_onto_the_minted_gauge() {
 fn i3_a_moved_member_with_a_further_offset_refuses() {
     let p = parts("i3-offset");
     let one = ProfileDoc::empty(DocumentId::derive("i3-offset-one"), Tol::witness());
-    let (one, only) = insert(one, Node::instantiate_part(p.base));
+    let (one, only) = instance(one, p.base);
     let one = set_offset(one, only, Some(Placement::IDENTITY));
     for (doc, store, [h, top, _, _]) in [
         member_through_a_mate(&p, "i3-offset"),
@@ -701,15 +726,16 @@ fn mate_placed(label: &str) -> (Parts, PartStore, ProfileDoc, [RecipeNodeId; 5])
     let (doc, _) = step(doc, DocEdit::Promote { instance: base });
     let out = split(&doc, &[base, top, mate], label, &p.opts()).expect("the promoted group");
     let (part_base, part_top) = (out.node_map[&base], out.node_map[&top]);
+    let bottom = in_world_of(&out.part, base_bottom(&p, part_base));
     let mut store = p.store.clone();
     let part_ref = store.insert(out.part, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
-    let (host, ht) = insert(host, Node::instantiate_part(p.top));
-    let (host, i) = insert(host, Node::instantiate_part(part_ref));
+    let (host, ht) = instance(host, p.top);
+    let (host, i) = instance(host, part_ref);
     let (host, m) = insert(
         host,
         seat_on(
-            head(wrap(i, base_bottom(&p, part_base))),
+            head(wrap(i, bottom)),
             head(p.top_upper_cap(ht)),
             [0.0, 0.0, TOP_HEIGHT],
         ),
@@ -757,15 +783,19 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     let out = inline(&stated, i, &store);
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
-        Some(editor_core::test_support::stored_placement(&checked)),
+        Some(editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &checked
+        )),
         "the root carries the checked offset"
     );
 
     // Through the top, which is not the part's root.
+    let top_cap = in_world_of(&store.doc(part_id_of(&host, i)), p.top_cap(part_top));
     let (through_top, by_top) = insert(
         step(host, DocEdit::DeleteNode { id: m }).0,
         seat_on(
-            head(wrap(i, p.top_cap(part_top))),
+            head(wrap(i, top_cap)),
             head(p.top_upper_cap(ht)),
             [0.0, 0.0, TOP_HEIGHT],
         ),
@@ -793,6 +823,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
         DocEdit::SetOffset {
             instance: part_base,
             offset: Some(literal([1.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let mut shifted_store = store.clone();
@@ -822,6 +853,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
     );
 
     let (two, first) = two_groups(&p, "i5-mate-placed-part");
+    let first_bottom = in_world_of(&two, base_bottom(&p, first));
     let mut two_store = p.store.clone();
     let two_ref = two_store.insert(two, Tol::witness());
     let (other, _) = step(
@@ -834,7 +866,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
     let (other, mate) = insert(
         other,
         seat_on(
-            head(wrap(i, base_bottom(&p, first))),
+            head(wrap(i, first_bottom)),
             head(p.top_upper_cap(ht)),
             [0.0, 0.0, TOP_HEIGHT],
         ),
@@ -853,7 +885,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
     let gauged = {
         let sub = ProfileDoc::empty(DocumentId::derive("i5-mate-placed-part"), Tol::witness());
         let (sub, k) = insert(sub, Node::gauge(None, literal([0.0, 0.0, 2.0])));
-        let (sub, root) = insert(sub, Node::instantiate_part(p.base));
+        let (sub, root) = instance(sub, p.base);
         (set_gauge(sub, root, Some(k)), k, root)
     };
     let (gauged, k, gauged_root) = gauged;
@@ -869,7 +901,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
     let (on_gauge, _) = insert(
         on_gauge,
         seat_on(
-            head(wrap(i, base_bottom(&p, gauged_root))),
+            head(wrap(i, in_world_of(&gauged, base_bottom(&p, gauged_root)))),
             head(p.top_upper_cap(ht)),
             [0.0, 0.0, TOP_HEIGHT],
         ),
@@ -908,15 +940,15 @@ fn r1_a_cut_holding_nested_gauges_round_trips_exactly() {
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, crate::p2_gauges::lifting_gauge(Some(g), 0.0));
     let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([4.0, 0.0, 0.0])));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     let doc = set_gauge(doc, base, Some(k));
     let doc = set_offset(doc, base, Some(literal([0.0, 2.0, 0.0])));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, top) = instance(doc, p.top);
     let doc = set_gauge(doc, top, Some(k));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let (doc, deep) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, deep) = instance(doc, p.base);
     let doc = set_gauge(doc, deep, Some(k2));
-    let (doc, kept) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, kept) = instance(doc, p.top);
     let doc = set_gauge(doc, kept, Some(g));
     let out = round_trip(&doc, &[k, k2, base, top, mate, deep], &p, "r1-nested");
     assert_eq!(
@@ -961,7 +993,7 @@ fn r1_a_checked_offset_under_a_carried_placing_mate_round_trips_exactly() {
         "the checked offset is true"
     );
     let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_k) = instance(doc, p.base);
     let doc = set_gauge(doc, on_k, Some(k));
     let out = round_trip(&doc, &[base, top, mate, k, on_k], &p, "r1-checked");
     assert_eq!(
@@ -991,17 +1023,17 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("no-material"), Tol::witness());
     let (doc, k) = insert(doc, Node::gauge(None, literal([1.0, 0.0, 0.0])));
-    let (doc, _kept) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, _kept) = instance(doc, p.base);
     let (chain, k2) = insert(doc.clone(), Node::gauge(Some(k), literal([0.0, 1.0, 0.0])));
     let (block, _) = crate::p2_gauges::block("no-material-datum", 2.0, 1.0);
     let frame = *block
-        .order()
+        .ids()
         .iter()
         .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
         .expect("the block's frame");
     let (with_datum, spare) = insert(
         block.clone(),
-        block.node(frame).map(Node::authored).expect("live"),
+        block.node(frame).map(|n| n.written(&block)).expect("live"),
     );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),
@@ -1025,7 +1057,7 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
 fn s2_a_gauge_chain_inserted_backwards_is_carried_parent_first() {
     let p = parts("s2-chain-order");
     let doc = ProfileDoc::empty(DocumentId::derive("s2-chain-order"), Tol::witness());
-    let (doc, instance) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, instance) = instance(doc, p.base);
     let (doc, k2) = insert(doc, Node::gauge(None, literal([1.0, 0.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 2.0])));
     let doc = set_gauge(doc, instance, Some(k2));
@@ -1072,12 +1104,12 @@ fn comparator_scene(p: &Parts, tweak: Tweak) -> (ProfileDoc, [RecipeNodeId; 5]) 
     );
     let (doc, k2) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, base, top) = if tweak == Tweak::Order {
-        let (doc, top) = insert(doc, Node::instantiate_part(p.top));
-        let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, top) = instance(doc, p.top);
+        let (doc, base) = instance(doc, p.base);
         (doc, base, top)
     } else {
-        let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-        let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+        let (doc, base) = instance(doc, p.base);
+        let (doc, top) = instance(doc, p.top);
         (doc, base, top)
     };
     let doc = set_gauge(doc, base, Some(k));
@@ -1095,7 +1127,7 @@ fn comparator_scene(p: &Parts, tweak: Tweak) -> (ProfileDoc, [RecipeNodeId; 5]) 
         [1.0, 1.0, crate::p2_gauges::BASE_HEIGHT]
     };
     let (doc, mate) = insert(doc, seat_on(head(p.top_cap(top)), head(onto), at));
-    let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, lone) = instance(doc, p.base);
     let gauge = if tweak == Tweak::GaugeRef { k } else { k2 };
     let doc = set_gauge(doc, lone, Some(gauge));
     (doc, [k, base, top, mate, lone])
@@ -1116,7 +1148,7 @@ fn r1_the_comparator_reads_every_field() {
     // A variant's ids, read by position: the scenes insert alike.
     let by_position = |b: &ProfileDoc| {
         let live = |d: &ProfileDoc| -> Vec<RecipeNodeId> {
-            d.order()
+            d.ids()
                 .iter()
                 .copied()
                 .filter(|&id| d.node(id).is_some())
@@ -1190,23 +1222,6 @@ fn r1_the_comparator_reads_every_field() {
         said.lines().any(|l| l.starts_with("injective")),
         "collapse: {said}"
     );
-    // An extra root: a gauge only the second holds.
-    let (extra, _) = insert(a.clone(), Node::gauge(None, literal([5.0, 0.0, 0.0])));
-    let said = fails(&extra, &nodes, &steps);
-    assert!(
-        said.lines().any(|l| l.starts_with("roots")),
-        "roots: {said}"
-    );
-    // The same roots in another order: the product's solid order moved.
-    let mut reversed = a.roots().to_vec();
-    reversed.reverse();
-    assert_ne!(reversed, a.roots(), "the scene has two roots or more");
-    let (reordered, _) = step(a.clone(), DocEdit::SetRoots { roots: reversed });
-    let said = fails(&reordered, &nodes, &steps);
-    assert!(
-        said.lines().any(|l| l.starts_with("roots")),
-        "root order: {said}"
-    );
 }
 
 /// **The comparator over a round trip that keeps a profile** (a block
@@ -1216,7 +1231,7 @@ fn r1_a_round_trip_keeping_a_profile_compares_equal() {
     let p = parts("r1-profile");
     let (doc, _) = crate::p2_gauges::block("r1-profile", 2.0, 1.0);
     let (doc, k) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, on_k) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_k) = instance(doc, p.base);
     let doc = set_gauge(doc, on_k, Some(k));
     round_trip(&doc, &[k, on_k], &p, "r1-profile");
 }
@@ -1236,10 +1251,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     let o = p.opts();
     let empty = |label: &str| ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement<Formula>| {
-        let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, base) = instance(doc, p.base);
         let doc = set_gauge(doc, base, gauge);
         let doc = set_offset(doc, base, Some(at));
-        let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+        let (doc, top) = instance(doc, p.top);
         let doc = set_gauge(doc, top, gauge);
         let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
         (doc, [base, top, mate])
@@ -1258,9 +1273,9 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         (doc, vec![base, top, mate])
     };
     let lone = || -> Scene {
-        let (doc, kept) = insert(empty("r1-lone"), Node::instantiate_part(p.top));
+        let (doc, kept) = instance(empty("r1-lone"), p.top);
         let doc = set_offset(doc, kept, Some(literal([0.0, 9.0, 0.0])));
-        let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, lone) = instance(doc, p.base);
         let doc = set_offset(doc, lone, Some(literal([4.0, 0.0, 0.0])));
         (doc, vec![lone])
     };
@@ -1304,11 +1319,11 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         );
         let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
         let (doc, pair) = pair_on(doc, Some(k), literal([0.0, 2.0, 0.0]));
-        let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, lone) = instance(doc, p.base);
         let doc = set_gauge(doc, lone, Some(k));
         let doc = set_offset(doc, lone, Some(literal([16.0, 0.0, 0.0])));
         let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([4.0, 0.0, 0.0])));
-        let (doc, deep) = insert(doc, Node::instantiate_part(p.top));
+        let (doc, deep) = instance(doc, p.top);
         let doc = set_gauge(doc, deep, Some(k2));
         (doc, [&[k, lone, k2, deep][..], &pair].concat())
     };
@@ -1321,8 +1336,9 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         (doc, ids.to_vec())
     };
     let plain = || -> Scene {
-        let (doc, _) = crate::p2_gauges::block("r1-plain", 2.0, 1.0);
-        let all = doc.order().to_vec();
+        let (doc, body) = crate::p2_gauges::block("r1-plain", 2.0, 1.0);
+        let doc = fixture::place(doc, body).0;
+        let all = doc.ids().to_vec();
         (doc, all)
     };
     let scenes: [(&str, &dyn Fn() -> Scene); 9] = [
@@ -1348,15 +1364,19 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     }
 }
 
-/// **A cut root that sits on no gauge refuses where the cut anchors on
-/// a gauge** (R1's other half): a placed pair on gauge g, and a root
-/// that is no instance, mate or gauge — a measure of the base's two
-/// caps, or an assertion over it. Each lives in no space and casts no
-/// vote, so the cut anchors on g, and inline could not put the root
-/// back on g; split refuses `UnplaceableRoot` naming the root and g.
-/// A face frame read off the base lives in the world, so it votes the
-/// world and refuses `TwoAnchors` first. Folding g, the recourse, makes
-/// each cut round-trip.
+/// **A cut placement that is not an instance at the identity refuses
+/// where the cut anchors on a gauge** (R1's other half): a placed pair
+/// on gauge g, and a second top on g that nothing places, lifted by a
+/// transform whose result is placed. That placement lives in the
+/// unplaced group's own space and casts no vote, so the cut
+/// anchors on g, and inline could not put it back on g; split refuses
+/// `UnplaceableRoot` naming the placement and g. Folding g, the
+/// recourse, makes the cut round-trip.
+///
+/// (Restated for A10: a measure, an assertion and a face frame were
+/// roots while the product was the sink list; none is in the world now,
+/// and the world's counterpart is a placement that is no instance at
+/// the identity.)
 #[test]
 fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     let p = parts("r1-no-gauge");
@@ -1365,79 +1385,40 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
         ProfileDoc::empty(DocumentId::derive("r1-no-gauge"), Tol::witness()),
         Node::gauge(None, literal([0.0, 8.0, 0.0])),
     );
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     let doc = set_gauge(doc, base, Some(g));
     let doc = set_offset(doc, base, Some(literal([4.0, 0.0, 0.0])));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, top) = instance(doc, p.top);
     let doc = set_gauge(doc, top, Some(g));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let measure_of = |doc: ProfileDoc| {
-        insert(
-            doc,
-            Node::measure(
-                editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
-                    a: 0,
-                    b: 1,
-                }),
-                vec![
-                    editor_core::SitedRef::new(base, p.base_cap(base)),
-                    editor_core::SitedRef::new(base, base_bottom(&p, base)),
-                ],
-            )
-            .expect("both indices address a reference"),
-        )
-    };
-    let (measured, measure) = measure_of(doc.clone());
-    let (asserted, assertion) = insert(
-        measured.clone(),
-        Node::Assertion {
-            measure,
-            bound: fixture::len(1.0),
-            dir: editor_core::AssertionDir::AtLeast,
-        },
+    // A second top on g in a group no offset places, lifted by a
+    // transform, and the lift placed: a copy that is no instance at the
+    // identity, living in that group's own space.
+    let (blocked, loose) = insert(doc.clone(), Node::instantiate_part(p.top));
+    let blocked = set_gauge(blocked, loose, Some(g));
+    let blocked = set_offset(blocked, loose, None);
+    let (blocked, lifted) = insert(
+        blocked,
+        fixture::xform(loose, [0.0, 0.0, 30.0], [0.0, 0.0, 1.0], 0.0),
     );
-    let (framed, frame) = insert(
-        doc.clone(),
-        Node::Datum(editor_core::Datum::FaceFrame {
-            at: base,
-            face: p.base_cap(base),
-            spin: fixture::ang(0.0),
-        }),
-    );
-    for (what, doc, root, extra) in [
-        ("a measure", measured, measure, vec![measure]),
-        (
-            "an assertion",
-            asserted,
-            assertion,
-            vec![measure, assertion],
-        ),
-    ] {
-        let ids = [&[base, top, mate][..], &extra].concat();
-        let err = split(&doc, &ids, what, &o).expect_err(what);
-        assert!(
-            matches!(&err, SplitError::UnplaceableRoot { root: r, anchor } if r.id() == root && anchor.id() == g),
-            "{what}: {err:?}"
-        );
-        let said = err.to_string();
-        assert!(
-            said.contains(&format!(
-                "Recourse: add {g} and what sits on it to the cut, or fold {g} (Fold), then split",
-                g = doc.spoken(g)
-            )),
-            "{what}: {said}"
-        );
-        let (folded, _) = step(doc, DocEdit::Fold { gauge: g });
-        round_trip(&folded, &ids, &p, what);
-    }
-    let ids = [base, top, mate, frame];
-    let err = split(&framed, &ids, "a face frame", &o).expect_err("a face frame");
+    let (blocked, local_copy) = fixture::place(blocked, lifted);
+    let ids = [base, top, mate, loose, lifted];
+    let err = split(&blocked, &ids, "a lifted copy", &o).expect_err("a lifted copy");
     assert!(
-        matches!(&err, SplitError::TwoAnchors { node, .. } if node.id() == frame),
-        "a face frame: {err:?}"
+        matches!(&err, SplitError::UnplaceableRoot { root: r, anchor }
+            if r.id() == local_copy && anchor.id() == g),
+        "a lifted copy: {err:?}"
     );
-    let (folded, _) = step(framed, DocEdit::Fold { gauge: g });
-    round_trip(&folded, &ids, &p, "a face frame");
+    let said = err.to_string();
+    assert!(
+        said.contains(&format!(
+            "Recourse: add {g} and what sits on it to the cut, or fold {g} (Fold), then split",
+            g = blocked.spoken(g)
+        )),
+        "a lifted copy: {said}"
+    );
+    let (folded, _) = step(blocked, DocEdit::Fold { gauge: g });
+    round_trip(&folded, &ids, &p, "a lifted copy");
 }
 
 /// **A cut a kept root separates comes back regrouped** (A10's
@@ -1452,33 +1433,17 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
 fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
     let p = parts("r1-interleaved");
     let doc = ProfileDoc::empty(DocumentId::derive("r1-interleaved"), Tol::witness());
-    let (doc, x) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, x) = instance(doc, p.base);
     let doc = set_offset(doc, x, Some(literal([4.0, 0.0, 0.0])));
-    let (doc, y) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, y) = instance(doc, p.base);
     let doc = set_offset(doc, y, Some(literal([0.0, 9.0, 0.0])));
-    let (doc, z) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, z) = instance(doc, p.top);
     let doc = set_offset(doc, z, Some(literal([0.0, 0.0, 7.0])));
     let out = split(&doc, &[x, z], "r1-interleaved", &p.opts()).expect("two lone instances");
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
-    assert_eq!(
-        back.doc.roots(),
-        &[map[&x], map[&z], y],
-        "the cut's roots come together where x was, y after them"
-    );
-    let said = same_up_to_ids(&doc, &back.doc, &map, &steps).expect_err("z comes before y");
-    assert!(
-        said.lines().all(|l| l.starts_with("roots")) && said.lines().count() == 1,
-        "only the root order moves: {said}"
-    );
+    same_up_to_ids(&doc, &back.doc, &map, &steps).expect("the round trip is the document");
     round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
-    let (together, _) = step(
-        doc,
-        DocEdit::SetRoots {
-            roots: vec![x, z, y],
-        },
-    );
-    round_trip(&together, &[x, z], &p, "the cut's roots together");
 }

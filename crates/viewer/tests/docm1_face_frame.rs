@@ -46,7 +46,7 @@ fn boxed(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -69,11 +69,7 @@ fn boxed_with_face_frame(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, Recipe
     let (doc, cube) = boxed(tol);
     let (doc, frame) = inserted(
         &doc,
-        Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: cap_of(cube),
-            spin: common::ang(0.0),
-        }),
+        Node::Datum(Datum::face_frame(cube, cap_of(cube), common::ang(0.0))),
         tol,
     );
     (doc, cube, frame)
@@ -85,13 +81,12 @@ fn boxed_with_face_frame(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, Recipe
 fn a7_the_viewer_takes_a_derived_frame_by_value() {
     let tol = Tol::witness();
     let (doc, _cube, frame) = boxed_with_face_frame(tol);
-    let node = doc.node(frame).expect("the frame is live");
     assert!(
-        admits(Some(node), NodeKindWanted::Frame),
+        admits(&doc, frame, NodeKindWanted::Frame),
         "the frame seat admits it"
     );
     assert!(
-        !admits(Some(node), NodeKindWanted::Plane),
+        !admits(&doc, frame, NodeKindWanted::Plane),
         "and only the frame seat"
     );
     assert_eq!(doc.spoken(frame).kind(), Some("Datum frame (on face)"));
@@ -136,11 +131,7 @@ fn the_chrome_mints_what_the_document_door_mints() {
     let spin = common::ang(0.3);
     let (hand, _) = inserted(
         &doc,
-        Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: cap_of(cube),
-            spin: spin.clone(),
-        }),
+        Node::Datum(Datum::face_frame(cube, cap_of(cube), spin.clone())),
         tol,
     );
 
@@ -160,7 +151,7 @@ fn the_chrome_mints_what_the_document_door_mints() {
         "the op's document is the document door's, bit for bit"
     );
     assert!(
-        admits(session.committed_doc().node(minted), NodeKindWanted::Frame),
+        admits(session.committed_doc(), minted, NodeKindWanted::Frame),
         "and what it minted is a frame to the seats"
     );
 }
@@ -363,8 +354,8 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
     let (doc, split) = inserted(
         &doc,
         Node::Split {
-            target: cube,
-            tool: knife,
+            target: cube.into(),
+            tool: knife.into(),
         },
         tol,
     );
@@ -429,7 +420,7 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
     let (doc, pattern) = inserted(
         &doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: Formula::count(2),
             kind: pncad::document::PatternKind::Linear {
                 direction: common::scl3([1.0, 0.0, 0.0]),

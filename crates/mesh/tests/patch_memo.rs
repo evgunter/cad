@@ -23,7 +23,7 @@ use core::f64::consts::TAU;
 use sweep::ExtrudeSide;
 
 use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::{FocalImage, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
@@ -285,7 +285,7 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
         }
         // The re-chart drops a face's pcurve rows when it cannot see the
         // two keys as one chart, and an equal surface under a fresh key
-        // with no `GeomSource` is exactly that case
+        // is exactly that case
         // (`topo::Body::set_face_surface`'s rule, which the describing
         // door keeps). Re-minting is the door's
         // own prescription, and on a surface equal to the one it
@@ -358,7 +358,7 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
 /// the bodies that can tell them apart.** Putting a face on a fresh key
 /// holding the surface it already had is a chart change the setter
 /// cannot see through when the surface is ANALYTIC — two keys, an equal
-/// surface, no `GeomSource` — and the face's rows go, which is the
+/// surface — and the face's rows go, which is the
 /// bound the row above re-mints past. A described-NURBS or `Approx`
 /// surface is a shared payload: cloning the `Surface` clones the `Arc`,
 /// the setter's predicate reads the two keys as one chart, and the rows
@@ -594,6 +594,9 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 breaks,
             },
             Pcurve::Fitted(_) | Pcurve::General(_) => panic!("an analytic chart carries no fit"),
+            // A whole-period shift is a translation of the chart, which
+            // the projected image's deck map absorbs.
+            projected @ Pcurve::Projected(_) => projected.shift_branch(1.0, TAU),
             // The fixture's charts are a cylinder's and a plane's, so
             // no spiric image is stored on them; the azimuth shift is
             // still the one field, were one to arrive.
@@ -621,22 +624,27 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                     }
                 },
             },
-            // Likewise no cone chart here; `u0` is the one field.
-            Pcurve::ConeSection {
+            // Likewise no cone or torus chart here; `u0` is the one
+            // field.
+            Pcurve::FocalSection(FocalImage {
                 u0,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
-            } => Pcurve::ConeSection {
+            }) => Pcurve::FocalSection(FocalImage {
                 u0: u0 + TAU,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
-            },
+            }),
         };
         let (t0, t1) = cache.params();
         let he = base.get_half_edge(hek).unwrap();

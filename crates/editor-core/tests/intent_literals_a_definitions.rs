@@ -16,20 +16,20 @@ use std::sync::Arc;
 
 use crate::corpus::{body_of, failures};
 use crate::fixture::resolver::PartStore;
+use crate::fixture::split_world as split;
 use crate::fixture::{Recorder, insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, Maintenance,
-    MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
+    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
+    Maintenance, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
-    inline, load, save, split, var_env_over,
+    inline, load, save, var_env_over,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, FaceKey, SurfaceField};
 
 /// The input's value, metres (dyadic, so `2·w` and `w + w` agree to
 /// the bit).
@@ -43,13 +43,9 @@ fn named(name: &'static str) -> Formula {
     Formula::named(n(name), Dimension::Length)
 }
 
-fn scalar(value: f64) -> Formula {
-    Formula::literal(value, Dimension::Scalar).unwrap()
-}
-
 /// `k · name`.
-fn times(k: f64, name: &'static str) -> Formula {
-    Formula::mul(scalar(k), named(name)).unwrap()
+fn times(k: i64, name: &'static str) -> Formula {
+    Formula::mul(Formula::ratio(k, 1).unwrap(), named(name)).unwrap()
 }
 
 fn try_step(
@@ -79,7 +75,7 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
 fn w_and_h(seed: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
     let doc = declare(&doc, "w", free(W));
-    declare(&doc, "h", VarDecl::defined(times(2.0, "w")))
+    declare(&doc, "h", VarDecl::defined(times(2, "w")))
 }
 
 /// A unit square at `cx` extruded by `depth`: the frame, the profile
@@ -92,11 +88,11 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.order()[doc.order().len() - 2];
+    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: depth,
             side: ExtrudeSide::Along,
         },
@@ -121,20 +117,10 @@ fn eval_after(doc: &ProfileDoc, prev: Option<&Evaluation<f64>>) -> Evaluation<f6
     )
 }
 
-/// The radius token a blend's first cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face: FaceKey = topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends");
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, editor_core::SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 /// The doc's snapshot saved, doctored by `edit`, and loaded.
@@ -165,6 +151,7 @@ fn a_definition_reading_itself_back_refuses_as_a_cycle() {
         DocEdit::DefineVar {
             var: n("w").into(),
             def: VarDecl::defined(plus),
+            fresh: Vec::new(),
         },
     )
     .unwrap_err();
@@ -231,23 +218,17 @@ fn a_file_holding_a_definition_cycle_refuses_at_load() {
 fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
     let doc = w_and_h("intent-literals-a-pushforward");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let applied = step(
+    // A tolerance on `w`, so the stackup varies it (VR8: an untoleranced
+    // variable is a constant of the analysis).
+    let doc = step(
         &doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::measure(MeasureExpr::value(named("h")), Vec::new()).unwrap()),
+        DocEdit::SetVarDistribution {
+            var: w.into(),
+            distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
         },
-    );
-    let measure = applied.record.minted.expect("an insert mints");
-    let entries = sensitivities(
-        &applied.doc,
-        measure,
-        None,
-        None,
-        false,
-        None,
-        Tol::witness(),
     )
-    .unwrap();
+    .doc;
+    let entries = sensitivities(&doc, h, None, None, false, None, Tol::witness()).unwrap();
     assert_eq!(
         entries.iter().map(|e| e.param).collect::<Vec<_>>(),
         vec![w],
@@ -258,7 +239,7 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
         ref other => panic!("{other:?}"),
     }
     match seed_env::<f64, _>(&doc, doc.var_env(), h) {
-        Err(SeedError::SeedOnDefinedVar { var }) => assert_eq!(var.id(), h),
+        Err(SeedError::SeedOnNonFreeVar { var }) => assert_eq!(var.id(), h),
         other => panic!("a seed on a defined variable refuses, got {other:?}"),
     }
 }
@@ -311,18 +292,18 @@ fn an_input_edit_closes_the_diff_over_its_definitions() {
 fn a_reader_of_a_definition_lowers_as_the_definition() {
     let doc = w_and_h("intent-literals-a-token");
     let (doc, by_h) = filleted(doc, 0.0, named("h"));
-    let (doc, by_formula) = filleted(doc, 4.0, times(2.0, "w"));
-    let (doc, by_other) = filleted(doc, 8.0, times(3.0, "w"));
+    let (doc, by_formula) = filleted(doc, 4.0, times(2, "w"));
+    let (doc, by_other) = filleted(doc, 8.0, times(3, "w"));
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
+    let token = |blend| radius_spelling(&doc, blend);
     assert_eq!(token(by_h), token(by_formula), "h is its formula");
     assert_ne!(token(by_h), token(by_other));
 }
 
 /// A definition respelled to the same value re-runs a flow-bearing
-/// reader: the content key writes the expansion, so the memo cannot
-/// serve a body whose token names the old formula.
+/// reader, since the content key writes the expansion, and builds the
+/// body a cold run of the new spelling builds.
 #[test]
 fn a_respelled_definition_reruns_its_flow_bearing_reader() {
     let doc = w_and_h("intent-literals-a-key");
@@ -333,6 +314,7 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -345,16 +327,15 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
     );
     let cold = eval_after(&fresh, None);
     assert_eq!(
-        radius_token(body_of(&again, blend)),
-        radius_token(body_of(&cold, by_sum)),
-        "and carries the new formula's token"
+        format!("{:?}", body_of(&again, blend)),
+        format!("{:?}", body_of(&cold, by_sum)),
+        "and builds the new spelling's body"
     );
 }
 
 /// A profile's carrier radius read through a definition is in the
 /// profile's key the same way: respelled to the same value, the
-/// profile and its sweep re-run, and the swept wall carries the new
-/// formula's token.
+/// profile and its sweep re-run, and build the new spelling's body.
 #[test]
 fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     let disc = |doc: ProfileDoc, radius: Formula| {
@@ -365,7 +346,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![editor_core::LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius,
@@ -376,7 +357,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -390,6 +371,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -401,8 +383,8 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     );
     let cold = eval_after(&fresh, None);
     assert_eq!(
-        radius_token(body_of(&again, rod)),
-        radius_token(body_of(&cold, by_sum))
+        format!("{:?}", body_of(&again, rod)),
+        format!("{:?}", body_of(&cold, by_sum))
     );
 }
 
@@ -475,9 +457,9 @@ fn a_definition_reads_only_what_the_document_holds() {
         Err(EditError::DefinitionUnknownVarName { name, .. }) => assert_eq!(name, n("nope")),
         other => panic!("an unheld name, got {other:?}"),
     }
-    match declare_in(&doc, Formula::var(VarId(0x5eed), Dimension::Length)) {
+    match declare_in(&doc, Formula::var(VarId::new(0, 0x5eed), Dimension::Length)) {
         Err(EditError::DefinitionUnresolvedVar { read, .. }) => {
-            assert_eq!(read.id(), VarId(0x5eed))
+            assert_eq!(read.id(), VarId::new(0, 0x5eed))
         }
         other => panic!("an unminted id, got {other:?}"),
     }
@@ -493,7 +475,7 @@ fn a_definition_reads_only_what_the_document_holds() {
             ..
         }) => assert_eq!(
             (read.id(), declared, referenced),
-            (w, Dimension::Length, Dimension::Angle)
+            (w, editor_core::VarKind::Length, Dimension::Angle)
         ),
         other => panic!("a read at the wrong kind, got {other:?}"),
     }
@@ -539,6 +521,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
         DocEdit::DefineVar {
             var: n("w").into(),
             def: VarDecl::defined(Formula::add(named("v"), named("v")).unwrap()),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::DefinitionTooLarge { var, .. }) => {
@@ -551,7 +534,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
 // ---------------------------------------------------- the lifecycle
 
 /// An anonymous variable read only by an anonymous definition goes with
-/// it: the edit that detaches the definition's last reader removes the
+/// it: the edit that detaches the definition's reader removes the
 /// defined variable, then its input — and the mint log keeps both ids.
 #[test]
 fn the_anonymous_lifecycle_cascades_through_definitions() {
@@ -571,26 +554,27 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
     let doc = unname(&doc, h);
     // `w` is read by `h`'s definition, and `h` by a slot: both live.
     let doc = unname(&doc, w);
-    assert_eq!(doc.vars().len(), 2);
+    assert!(doc.var(w).is_some() && doc.var(h).is_some());
     assert_eq!(doc.var_readers(w), vec![extrude], "a reader of h reads w");
     let applied = step(
         &doc,
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.0),
+            value: len(1.0).into(),
+            fresh: Vec::new(),
         },
     );
     let removed: Vec<VarId> = applied
         .maintenance
         .iter()
         .map(|m| match m {
-            Maintenance::AnonymousVarRemoved { var } => var.id(),
+            Maintenance::AnonymousVarRemoved { var, .. } => var.id(),
             other => panic!("{other:?}"),
         })
         .collect();
     assert_eq!(removed, vec![h, w], "the definition, then its input");
-    assert!(applied.doc.vars().is_empty());
+    assert!(applied.doc.var(h).is_none() && applied.doc.var(w).is_none());
     assert!(applied.doc.has_minted_var(h) && applied.doc.has_minted_var(w));
 }
 
@@ -652,12 +636,13 @@ fn definitions_bind_after_what_they_read() {
         &doc,
         DocEdit::DefineVar {
             var: n("h").into(),
-            def: VarDecl::defined(times(2.0, "w")),
+            def: VarDecl::defined(times(2, "w")),
+            fresh: Vec::new(),
         },
     )
     .doc;
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    assert_eq!(doc.var_order(), &[h, w]);
+    assert_eq!(doc.var_ids(), &[h, w]);
     assert_eq!(doc.definition_order(), vec![w, h]);
     let env = doc.var_env::<f64>();
     assert_eq!(
@@ -720,12 +705,14 @@ fn split_and_inline_carry_definitions() {
         &doc,
         DocEdit::DefineVar {
             var: n("h").into(),
-            def: VarDecl::defined(times(2.0, "w")),
+            def: VarDecl::defined(times(2, "w")),
+            fresh: Vec::new(),
         },
     )
     .doc;
     let (doc, cut) = block(doc, 0.0, named("h"));
-    let (doc, _) = block(doc, 10.0, named("kept"));
+    let (doc, kept) = block(doc, 10.0, named("kept"));
+    let doc = crate::fixture::place_all(doc, &[cut[2], kept[2]]);
     let out = split(
         &doc,
         &BTreeSet::from(cut),
@@ -739,7 +726,7 @@ fn split_and_inline_carry_definitions() {
         out.part.var(part_h).and_then(|v| v.def().defined()),
         Some(
             &editor_core::Expr::mul(
-                editor_core::test_support::stored_expr(&scalar(2.0)),
+                editor_core::Expr::ratio(2, 1).unwrap(),
                 editor_core::Expr::var(part_w, Dimension::Length)
             )
             .unwrap()
@@ -765,7 +752,7 @@ fn split_and_inline_carry_definitions() {
         inlined.doc.var(host_h).and_then(|v| v.def().defined()),
         Some(
             &editor_core::Expr::mul(
-                editor_core::test_support::stored_expr(&scalar(2.0)),
+                editor_core::Expr::ratio(2, 1).unwrap(),
                 editor_core::Expr::var(host_w, Dimension::Length)
             )
             .unwrap()
@@ -791,7 +778,7 @@ fn a_definition_round_trips_through_snapshot_and_log() {
     });
     r.push(DocEdit::DeclareVar {
         name: n("h"),
-        def: VarDecl::defined(times(2.0, "w")),
+        def: VarDecl::defined(times(2, "w")),
     });
     let empty = ProfileDoc::empty_derived("mod", Tol::witness());
     let text = save(&empty, &r.edits, Tol::witness()).unwrap();
@@ -821,10 +808,12 @@ fn a_definition_no_door_wrote_refuses_at_load() {
         matches!(&err, PersistError::Unreadable { detail, .. } if detail.contains("unknown variant `Name`")),
         "{err:?}"
     );
-    let err = load_doctored(&doc, |snap| def(snap, wire_var(VarId(0x5eed), "Length")));
+    let err = load_doctored(&doc, |snap| {
+        def(snap, wire_var(VarId::new(0, 0x5eed), "Length"))
+    });
     assert!(
         matches!(&err, PersistError::Snapshot(SnapshotError::DefinitionReadsUnmintedVar { var, read })
-            if var.id() == h && *read == VarId(0x5eed)),
+            if var.id() == h && *read == VarId::new(0, 0x5eed)),
         "{err:?}"
     );
     let err = load_doctored(&doc, |snap| {
@@ -833,7 +822,7 @@ fn a_definition_no_door_wrote_refuses_at_load() {
     });
     assert!(
         matches!(&err, PersistError::Snapshot(SnapshotError::DefinitionVarKind { read, declared, referenced, .. })
-            if read.id() == w && *declared == Dimension::Length && *referenced == Dimension::Angle),
+            if read.id() == w && *declared == editor_core::VarKind::Length && *referenced == Dimension::Angle),
         "{err:?}"
     );
     // A stored kind its definition does not hold is the kind walk's.
@@ -905,20 +894,20 @@ fn the_load_door_reads_liveness_through_definitions() {
 
 // ------------------------------------------------ the review's rows
 
-/// A slot reading `g := h`, `h := 2·w` lowers to the token a slot
-/// spelling `2·w` writes: the expansion goes all the way down, not one
+/// A slot reading `g := h`, `h := 2·w` spells as a slot spelling `2·w`
+/// does: the expansion goes all the way down, not one
 /// definition deep.
 #[test]
 fn a_nested_definition_lowers_as_its_whole_expansion() {
     let doc = w_and_h("intent-literals-a-nested-token");
     let doc = declare(&doc, "g", VarDecl::defined(named("h")));
     let (doc, by_g) = filleted(doc, 0.0, named("g"));
-    let (doc, by_formula) = filleted(doc, 4.0, times(2.0, "w"));
+    let (doc, by_formula) = filleted(doc, 4.0, times(2, "w"));
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_eq!(
-        radius_token(body_of(&ev, by_g)),
-        radius_token(body_of(&ev, by_formula))
+        radius_spelling(&doc, by_g),
+        radius_spelling(&doc, by_formula)
     );
 }
 
@@ -954,6 +943,7 @@ fn the_bound_counts_a_reader_declared_before_what_it_reads() {
         DocEdit::DefineVar {
             var: n("x").into(),
             def: VarDecl::defined(Formula::add(named("c10"), named("c10")).unwrap()),
+            fresh: Vec::new(),
         },
     ) {
         Err(EditError::DefinitionTooLarge { var, nodes }) => {
@@ -963,7 +953,7 @@ fn the_bound_counts_a_reader_declared_before_what_it_reads() {
     }
 }
 
-/// `g := h + 1 mm` declared first, `h := w + w`, and `w` deleted: `h`
+/// `g := 2·h` declared first, `h := w + w`, and `w` deleted: `h`
 /// is still ordered before `g` though its read is dead, so `g` refuses
 /// with the refusal it came through, not as a read of an unbound `h`.
 #[test]
@@ -980,7 +970,8 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
         &doc,
         DocEdit::DefineVar {
             var: n("g").into(),
-            def: VarDecl::defined(Formula::add(named("h"), len(0.001)).unwrap()),
+            def: VarDecl::defined(times(2, "h")),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -989,6 +980,7 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
         DocEdit::DefineVar {
             var: n("h").into(),
             def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+            fresh: Vec::new(),
         },
     )
     .doc;
@@ -1003,36 +995,61 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
     );
 }
 
-/// Inlining into a host that already holds the part's `w` and
-/// `h := w + w` under the same names, at other ids, shares them: the
-/// part's definition is compared re-pointed at the host's ids.
-#[test]
-fn inline_shares_a_definition_the_host_already_holds() {
-    let with_definition = |seed: &str| {
-        let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
-        let doc = declare(&doc, "w", free(W));
-        declare(
-            &doc,
-            "h",
-            VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
-        )
-    };
-    let part = with_definition("intent-literals-a-shared-part");
+/// A part holding `w` and `h := w + w`, reading `h`, published to a
+/// store: the part, the store and its reference.
+fn part_defining_h(seed: &str) -> (ProfileDoc, PartStore, editor_core::DocRef) {
+    let part = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
+    let part = declare(&part, "w", free(W));
+    let part = declare(
+        &part,
+        "h",
+        VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+    );
     let (part, _) = block(part, 0.0, named("h"));
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());
+    (part, store, doc_ref)
+}
+
+/// Inlining into a host that already holds the part's `w` and
+/// `h := w + w` under the same names, bit for bit, refuses at `w`: the
+/// equal definitions are two variables, never merged.
+#[test]
+fn inline_refuses_a_definition_the_host_already_holds() {
+    let (_, store, doc_ref) = part_defining_h("intent-literals-a-shared-part");
     let host = ProfileDoc::empty(
         DocumentId::derive("intent-literals-a-shared-host"),
         Tol::witness(),
     );
-    let host = declare(&host, "z", free(1.0));
     let host = declare(&host, "w", free(W));
     let host = declare(
         &host,
         "h",
         VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
     );
-    assert_ne!(id(&host, "w"), id(&part, "w"), "the ids differ");
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
+        Err(InlineError::VarNameConflict { name }) => assert_eq!(name, n("w")),
+        other => panic!("expected VarNameConflict on w, got {other:?}"),
+    }
+}
+
+/// Inlining into a host holding neither name carries `w` and `h` as
+/// ids the host mints, and the carried `h` reads the carried `w`, not
+/// the part's.
+#[test]
+fn inline_carries_a_definition_at_the_carried_ids() {
+    let (part, store, doc_ref) = part_defining_h("intent-literals-a-carried-part");
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-a-carried-host"),
+        Tol::witness(),
+    );
+    let host = declare(&host, "z", free(1.0));
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
     let inlined = inline(
         &host,
@@ -1040,19 +1057,29 @@ fn inline_shares_a_definition_the_host_already_holds() {
         &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
         Tol::witness(),
     )
-    .expect("the host's w and h are the part's");
+    .expect("no name clashes");
+    let (w, h) = (id(&inlined.doc, "w"), id(&inlined.doc, "h"));
+    assert_ne!(w, id(&part, "w"), "the host mints its own w");
+    assert_ne!(h, id(&part, "h"), "and its own h");
+    let mut reads = Vec::new();
+    inlined
+        .doc
+        .var(h)
+        .and_then(|held| held.def().defined())
+        .expect("h stays defined")
+        .var_reads(&mut reads);
     assert_eq!(
-        inlined.doc.var_order(),
-        host.var_order(),
-        "nothing declared twice"
+        reads.iter().map(|(read, _)| *read).collect::<Vec<_>>(),
+        vec![w, w],
+        "the carried h reads the carried w"
     );
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
-/// Monte Carlo over a document holding `h := 2·w`, `w` toleranced:
-/// every draw binds `h` from that draw's `w`, so `h`'s summary is
-/// exactly twice `w`'s (doubling is exact in binary), and no draw goes
-/// unmeasured.
+/// Monte Carlo over a document holding `h := 2·w`, `w` toleranced, and
+/// a measure whose value is each: every draw binds `h` from that draw's
+/// `w`, so `h`'s summary is exactly twice `w`'s (doubling is exact in
+/// binary), and no draw goes unmeasured.
 #[test]
 fn monte_carlo_binds_a_definition_in_every_draw() {
     let doc = w_and_h("intent-literals-a-mc");
@@ -1064,16 +1091,15 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
         },
     )
     .doc;
-    let mut doc = doc;
+    // A measure whose value is each variable's own.
+    let mut r = crate::fixture::Recorder {
+        doc,
+        edits: Vec::new(),
+    };
     for name in ["w", "h"] {
-        doc = step(
-            &doc,
-            DocEdit::InsertNode {
-                node: Box::new(Node::measure(MeasureExpr::value(named(name)), Vec::new()).unwrap()),
-            },
-        )
-        .doc;
+        r.measure_of_translation(name);
     }
+    let doc = r.doc;
     let config = editor_core::mc::McConfig {
         samples: 64,
         ..editor_core::mc::McConfig::default()

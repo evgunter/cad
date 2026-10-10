@@ -118,12 +118,12 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: param("depth"),
         side: ExtrudeSide::Along,
     });
@@ -165,7 +165,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [len(0.5), height],
@@ -176,7 +176,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -213,7 +213,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1,
+        frame: xy_frame_1.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite plate corners"),
@@ -225,7 +225,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: param("depth"),
         side: ExtrudeSide::Along,
     });
@@ -256,12 +256,12 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     });
     let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_2,
+        frame: xy_frame_2.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -351,11 +351,14 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     // ALSO the numerically wider one there, which is the case a
     // relative rule and an absolute rule agree on. The row below is the
     // one that separates them.
-    axes.insert(VarId(1), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
-    axes.insert(VarId(2), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    axes.insert(VarId::new(0, 1), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root = ParamBox::from_axes(axes.clone());
-    axes.insert(VarId(2), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
-    assert_eq!(ParamBox::from_axes(axes).split_axis(&root), Some(VarId(1)));
+    axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
+    assert_eq!(
+        ParamBox::from_axes(axes).split_axis(&root),
+        Some(VarId::new(0, 1))
+    );
 
     // Relative vs absolute, separated: `wide`'s root axis is a hundred
     // times `narrow`'s, and the sub-box has already been bisected on
@@ -363,16 +366,16 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     // is relatively wider, and relative is what the rule reads.
     let mut root2 = BTreeMap::new();
     root2.insert(
-        VarId(3),
+        VarId::new(0, 3),
         BoxAxis::Varying {
             lo: -0.01,
             hi: 0.01,
         },
     );
-    root2.insert(VarId(4), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
+    root2.insert(VarId::new(0, 4), BoxAxis::Varying { lo: -1.0, hi: 1.0 });
     let root2b = ParamBox::from_axes(root2.clone());
     root2.insert(
-        VarId(4),
+        VarId::new(0, 4),
         BoxAxis::Varying {
             lo: 0.0,
             hi: 2.0 / 128.0,
@@ -380,17 +383,17 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     );
     assert_eq!(
         ParamBox::from_axes(root2).split_axis(&root2b),
-        Some(VarId(3))
+        Some(VarId::new(0, 3))
     );
 
     // The tie — both axes at full relative width — goes to the lowest
     // axis index, which is id order.
-    assert_eq!(root.split_axis(&root), Some(VarId(1)));
-    let (lo, hi) = root.split(VarId(1)).expect("a splits");
-    assert_eq!(lo.get(VarId(1)).unwrap().span(), (-1.0, 0.0));
-    assert_eq!(hi.get(VarId(1)).unwrap().span(), (0.0, 1.0));
+    assert_eq!(root.split_axis(&root), Some(VarId::new(0, 1)));
+    let (lo, hi) = root.split(VarId::new(0, 1)).expect("a splits");
+    assert_eq!(lo.get(VarId::new(0, 1)).unwrap().span(), (-1.0, 0.0));
+    assert_eq!(hi.get(VarId::new(0, 1)).unwrap().span(), (0.0, 1.0));
     // The other axis is untouched: one axis per bisection.
-    assert_eq!(lo.get(VarId(2)).unwrap().span(), (-1.0, 1.0));
+    assert_eq!(lo.get(VarId::new(0, 2)).unwrap().span(), (-1.0, 1.0));
 }
 
 // -------------------------------------------------------------- e2e

@@ -24,8 +24,8 @@ use editor_core::ExtrudeSide;
 use pncad::document::{
     AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
-    apply, evaluate,
+    NodeErrorKind, PartFault, Placement, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload,
+    VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -139,6 +139,7 @@ pub fn try_inserted(
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
     )?;
@@ -181,7 +182,7 @@ pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram<Formula> 
 /// moves `origin`.
 pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
     })
@@ -195,7 +196,7 @@ pub fn square(plane: RecipeNodeId, side: f64) -> AuthoredNode {
 
 // --- documents built from the doors above ---------------------------
 
-/// **A document holding one declared parameter and nothing else** —
+/// **A document holding one declared variable and nothing else** —
 /// the fixture both panel suites build their parameter rows on.
 ///
 /// `label` is the document's derived name, so two fixtures in one
@@ -213,6 +214,16 @@ pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<Pr
         tol,
     )
     .0
+}
+
+/// **`doc` with `body` placed in the world** at the identity (A10),
+/// answering the document and the placement.
+pub fn placed(
+    doc: &Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    inserted(doc, Node::place_in_world(body, Placement::IDENTITY), tol)
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and
@@ -254,14 +265,13 @@ pub const BOSS_HEIGHT: f64 = 0.004;
 
 /// **A block and a boss drawn on its top cap**, answering the document,
 /// the block and the boss — FLUSH with each other at that cap by
-/// construction, which is the whole point of the scene: their union
-/// refuses until the contact is declared.
+/// construction, which is the whole point of the scene.
 ///
 /// The boss's frame is read off the block's top cap
 /// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
 /// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
 /// scene through the op vocabulary, because the gesture is what that
-/// row is about; this is the scene alone. Its union's volume is
+/// row is about; this is the scene alone, each body placed. Its union's volume is
 /// [`boss_on_block_union_volume`].
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
@@ -274,7 +284,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, block) = inserted(
         &doc,
         Node::Extrude {
-            profile: section,
+            profile: section.into(),
             distance: len(depth),
             side: ExtrudeSide::Along,
         },
@@ -283,12 +293,14 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, frame) = inserted(
         &doc,
         Node::Datum(Datum::FaceFrame {
-            at: block,
-            face: StableName {
-                kind: EntityKind::Face,
-                node: block,
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
+            face: pncad::document::Operand::select(
+                block,
+                vec![StableName {
+                    kind: EntityKind::Face,
+                    node: block,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }],
+            ),
             spin: ang(0.0),
         }),
         tol,
@@ -296,7 +308,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, disc) = inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: frame,
+            frame: frame.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -305,20 +317,16 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, boss) = inserted(
         &doc,
         Node::Extrude {
-            profile: disc,
+            profile: disc.into(),
             distance: len(BOSS_HEIGHT),
             side: ExtrudeSide::Along,
         },
         tol,
     );
+    // Both bodies are the world (A10), block first.
+    let (doc, _) = placed(&doc, block, tol);
+    let (doc, _) = placed(&doc, boss, tol);
     (doc, block, boss)
-}
-
-/// The closed-form volume of [`boss_on_block`]'s union: the block's
-/// box and the boss's cylinder, which meet only at the cap.
-pub fn boss_on_block_union_volume() -> f64 {
-    let [width, height, depth] = BOSS_BLOCK;
-    width * height * depth + core::f64::consts::PI * BOSS_RADIUS * BOSS_RADIUS * BOSS_HEIGHT
 }
 
 /// **`doc` with `node` inserted, evaluated from scratch** — what the
@@ -401,15 +409,15 @@ pub fn plate_delta() -> DisplayTolerance {
 }
 
 /// **The spike plate, evaluated and indexed at [`plate_delta`]**, with
-/// the extrude whose body it draws — the picture a unit row marks, loads
-/// or names edges in.
+/// the world placement whose copy it draws — the picture a unit row
+/// marks, loads or names edges in, keyed by that placement.
 ///
 /// Evaluated through the kernel door rather than through a session: the
 /// rows that read it are vocabularies and a session is a driver
 /// (`crates/viewer/README.md`, Module boundaries), and the index only
 /// ever wanted the evaluation.
 pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
-    let (doc, extrude) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = crate::scene::plate_with_hole(tol).expect("the plate authors");
     let eval = evaluate(
         &doc,
         None,
@@ -424,7 +432,10 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
         tol,
     )
     .expect("the plate indexes");
-    (eval, index, extrude)
+    let [placement] = doc.placements()[..] else {
+        panic!("the plate is placed once")
+    };
+    (eval, index, placement)
 }
 
 /// **The naming layer's refusal for a drawn edge of `node`'s output

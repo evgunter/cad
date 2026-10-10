@@ -110,7 +110,10 @@ pub(crate) fn edit_door_ui(
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
-    ui.label(format!("profile on {}", session.doc().spoken(edit.plane())));
+    match edit.plane() {
+        Some(frame) => ui.label(format!("profile on {}", session.doc().spoken(frame))),
+        None => ui.label("profile on a frame a delete removed"),
+    };
     let loops = edit.loops().len();
     let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
@@ -621,7 +624,7 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1119,7 +1122,7 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }),
@@ -1128,7 +1131,7 @@ mod tests {
         let (doc, extrude) = inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: crate::test_support::len(0.01),
                 side: ExtrudeSide::Along,
             },
@@ -1151,8 +1154,7 @@ mod tests {
         let (doc, carrier) = inserted(
             &doc,
             Node::Datum(Datum::FaceFrame {
-                at: extrude,
-                face: wall.clone(),
+                face: pncad::document::Operand::select(extrude, vec![wall.clone()]),
                 spin: crate::test_support::ang(0.0),
             }),
             tol,
@@ -1256,7 +1258,9 @@ mod tests {
         assert!(
             matches!(
                 session.committed_doc().node(carrier),
-                Some(Node::Datum(Datum::FaceFrame { face, .. })) if *face == wall
+                Some(Node::Datum(Datum::FaceFrame { face, .. }))
+                    if session.committed_doc().selection(*face).map(|s| s.names.clone())
+                        == Some(vec![wall.clone()])
             ),
             "the carrier's name is untouched"
         );
@@ -1307,7 +1311,7 @@ mod tests {
         let undrawn: Doc<ProfileProgram> = Doc::empty_derived("undrawn", Tol::witness());
         assert!(
             hovered.contains(&format!(
-                "{} carries a name for {}",
+                "{} selects {}",
                 committed.spoken(carrier),
                 committed.spoken_name(&wall).steps_respoken(&undrawn)
             )),
@@ -1362,12 +1366,30 @@ mod tests {
             name.to_string().contains("the profile step "),
             "a removed step is said by its tag: {name}"
         );
-        let expected = vec![Maintenance::Strand {
-            node: before.spoken(carrier),
+        let Some(Node::Datum(pncad::document::Datum::FaceFrame { face, .. })) =
+            before.node(carrier)
+        else {
+            panic!("the carrier is a face frame")
+        };
+        let expected = vec![Maintenance::StrandedSelection {
+            var: before.spoken_var(*face),
+            readers: vec![before.spoken(carrier)],
             name,
             took: pncad::document::Took::Step,
         }];
-        assert_eq!(out.maintenance, expected, "the door reports the strand");
+        // Beside the strand, the outcome carries the anonymous
+        // variables the rewritten arguments were written in, which the
+        // status line does not say (`frame::maintenance_notice`).
+        let (anonymous, named): (Vec<_>, Vec<_>) = out
+            .maintenance
+            .iter()
+            .cloned()
+            .partition(Maintenance::is_silent_retirement);
+        assert_eq!(named, expected, "the door reports the strand");
+        assert!(
+            !anonymous.is_empty(),
+            "the reshaping retires the variables it rewrote"
+        );
         let line: Vec<String> = crate::frame::outcome_notices(&out)
             .map(|notice| notice.text().to_owned())
             .collect();

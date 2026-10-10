@@ -77,8 +77,7 @@ is what the arm repairs). Nothing in v1 keys on tree identity, so
 sharing changes no v1 behavior: named parameters remain the
 declared marginals and the M10 leaves after sharing exactly as
 before (a shared subterm is an anonymous comoving intermediate, not
-a marginal), and `DistinctRecord`'s `ParamName` keying is
-sharing-proof.
+a marginal).
 
 ## PL2 — Predicates and rungs (all exact; no funnel site in v1)
 
@@ -110,10 +109,8 @@ names/flush.rs):
    trees IS family-level equality (identical trees over the same
    params are equal at every assignment — the point-vs-family
    principle realized structurally).
-2. **declared-distinct** — a recorded disavowal: "equal by
-   coincidence, keep independent" (PL3).
-3. **refusing/reporting** — coincident, no record: the finding,
-   carrying both names, the shared value, and the two-arm menu.
+2. **reporting** — coincident: the finding, carrying both names, the
+   shared value, and the repair (unify, PL3).
 
 **DS-Q2, proposed resolution (ratifies the recorded lean):** with
 no normalizer in the substrate, `width/2` vs `0.5*width` (the v2
@@ -122,18 +119,13 @@ spelling* as the menu arm; the structural rung does not extend to
 symbolic equivalence. Cheap to revisit if a canonicalizer ever
 exists; the substrate argues it should not exist for this purpose.
 
-## PL3 — Vocabulary, persistence, and the two repairs
+## PL3 — Vocabulary and the repair
 
-**Declared-distinct is data; declared-same is a refactoring.**
+**Declared-same is a refactoring, and the one repair.** There is no
+disavowal record (D10 retires the declared-distinct arm): a pair the
+author means to keep independent stays a finding, which the report
+door lists and nothing gates on.
 
-- *Declared-distinct*: a document-level store
-  `Doc.param_relations: BTreeMap<(ParamName, ParamName), DistinctRecord>`
-  (canonical name order; record carries provenance per DS7's
-  ladder). Document-level, not node-level, because the relation is
-  about the table's leaves, not any consuming node — the
-  `AppearanceMap` precedent. Persistence: strict serde module, per
-  the bullet above. `Doc::bit_eq` and `diff.rs` each gain a
-  clause.
 - *Declared-same (unify)*: no record — the repair rewrites the
   document so the coincidence becomes structural: elaboration-style
   pure function returning `Vec<DocEdit>` (`SetExpression` replacing
@@ -147,19 +139,8 @@ exists; the substrate argues it should not exist for this purpose.
   param is still an M10 marginal — stranding it is a lie by
   omission).
 
-**Two-directional certification from day one** (the round-4
-lesson, not repeated): every `DistinctRecord` must be consumed by a
-live coincident pair —
-
-- a record naming a dead `ParamName` is stale (the dead-key class);
-- a record whose pair's values have **diverged** is stale in the
-  vacuous direction: the disavowal is about nothing. Reported as
-  prunable, never an error (a disavowal cannot be contradicted —
-  there is no geometric claim in it; staleness is its only failure
-  mode).
-
 Finding type in the flush mold (rung enum + evidence + Display with
-one story and the two-arm menu), rendered through the shared sink
+one story and the unify repair), rendered through the shared sink
 (#981 part 1 when it lands; locally until then).
 
 ## PL4 — Doors and the dial
@@ -171,7 +152,7 @@ one story and the two-arm menu), rendered through the shared sink
   discipline never needs one; this is what makes it grade 3 and not
   a `CheckId`), re-exported via `pncad::document`.
 - **Enforce door** with the grade-3 dial: `require` refuses
-  reporting-rung findings and stale records; `ignore` doesn't. The
+  reporting-rung findings; `ignore` doesn't. The
   `auto-record` middle position is **deferred with DS-Q5** — its
   diff-basis/acknowledgment machinery is an editor-session design
   pass this unit should not improvise.
@@ -188,34 +169,26 @@ one story and the two-arm menu), rendered through the shared sink
 
 This unit is where the grade-3 discipline machinery materializes —
 built as shared shape, not lint-local: the rung-enum/evidence/
-finding pattern, the two-directional record certification walk, and
-the declare/undeclare edit vocabulary should be written so the
+finding pattern and the unify edit vocabulary should be written so the
 right-angle discipline (DS4, reserved) can instantiate them without
 re-implementation. The predicates stay local per DS1. What must NOT
 be built speculatively: verify-table machinery for geometric
-contradiction (this discipline has none — a disavowal is
-uncontradictable), the auto-record diff basis (DS-Q5), and any
+contradiction (this discipline has none), the auto-record diff basis (DS-Q5), and any
 funnel plumbing (v1 has no decided predicate).
 
 ## PL6 — The M10 contract (recorded for ERROR-DESIGN's consumer)
 
 Same name ⇒ one marginal, comoving everywhere it is referenced.
-Distinct names ⇒ independent marginals, **whether or not declared**
-— the `DistinctRecord` adds no semantics to evaluation; it records
-that the independence at an observed coincidence is intended, so
-the lint stays quiet and a future reader (human or stackup report)
-sees intent rather than accident. Derived expressions need nothing:
-they comove through evaluation. This is why the record can never be
-load-bearing in a build — the DS3 invariant holds for the whole
-unit by construction.
+Distinct names ⇒ independent marginals. Derived expressions need
+nothing: they comove through evaluation. Nothing the lint reports is
+load-bearing in a build — the DS3 invariant holds for the whole unit
+by construction.
 
 ## PL7 — Sizing, sequencing, acceptance
 
-Sizing **M** (one PR): store + serde + ledger + bit_eq/diff
-clauses; report door + enforce door; unify elaboration +
+Sizing **M** (one PR): report door + enforce door; unify elaboration +
 `RemoveDocParam`; findings/Display; tests (table-driven — equal
-pairs report, declared-distinct silences, dead-key and diverged
-records stale, unify elaboration round-trips and re-validates,
+pairs report, unify elaboration round-trips and re-validates,
 determinism, Count and Continuous arms, cross-dimension pairs never
 compare); a small demo exercise through `pncad`. Sequenced after
 #981 part 1 (the sink) if that has landed, locally otherwise —
@@ -224,10 +197,9 @@ soft ordering, not a gate.
 Review claims to falsify: (1) no ε anywhere — grep-level and
 behavioral; (2) DS3 — no config/record changes any evaluated body
 or any content key; (3) the unify elaboration is atomic-by-purity
-and leaves no stranded references at any failure point; (4) stale
-detection is two-directional on the reviewer's own fixtures;
-(5) report determinism cross-process; (6) e2e through pncad as a
-first-time user.
+and leaves no stranded references at any failure point; (4) report
+determinism cross-process; (5) e2e through pncad as a first-time
+user.
 
 ## Open for Ev (beyond the two proposals marked above)
 

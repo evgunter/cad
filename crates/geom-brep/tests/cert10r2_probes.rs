@@ -26,7 +26,7 @@ use geom_core::Point3;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
-use geom_core::spline::net::TensorNet;
+use geom_core::spline::TensorCoeffs;
 
 fn contains(iv: Interval, x: f64) -> bool {
     iv.lo() <= x && x <= iv.hi()
@@ -329,7 +329,7 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
         let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
         // A staggered-peak net: extremes pushed to different corners.
-        let base = TensorNet::from_fn(nu, nv, |i, j| {
+        let base = TensorCoeffs::from_fn(&kv_u, &kv_v, |i, j| {
             let x = (i as f64 * 1.3).sin() * 7.0 - (j as f64 * 0.9).cos() * 5.0
                 + if (i, j) == (0, 0) { 40.0 } else { 0.0 }
                 + if (i, j) == (nu - 1, nv - 1) {
@@ -339,13 +339,11 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
                 };
             Interval::point(x)
         });
-        let kv_u1 = patch_bound::derived_knots(&kv_u).unwrap();
-        let kv_v1 = patch_bound::derived_knots(&kv_v).unwrap();
-        let d10 = base.diff_u_knots(&kv_u);
-        let d01 = base.diff_v_knots(&kv_v);
-        let d11 = d10.diff_v_knots(&kv_v);
-        let d20 = d10.diff_u_knots(&kv_u1);
-        let d02 = d01.diff_v_knots(&kv_v1);
+        let d10 = base.diff_u();
+        let d01 = base.diff_v();
+        let d11 = base.diff_uv();
+        let d20 = base.derivative_u().unwrap().diff_u();
+        let d02 = base.derivative_v().unwrap().diff_v();
         // Union-of-window hull per net, over nonempty span pairs.
         let mut hulls: [Option<Interval>; 5] = [None; 5];
         for su in kv_u.first_span()..=kv_u.last_span() {

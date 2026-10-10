@@ -3,7 +3,7 @@
 Every document here is AUTHORED — profile, extrude, boolean, through
 the ordinary doors — and every finding is one the kernel produced from
 that geometry. Nothing is stubbed: the disjoint union really has two
-components, the overlapping roots really deny the separation
+components, the overlapping placed bodies really deny the separation
 certificate, and the touching union really fails to evaluate.
 
 ONE EXCEPTION, and it is deliberate:
@@ -34,12 +34,15 @@ is the document that trips nothing, so a finding here means the check
 fired on the geometry and not on every document it is handed.
 """
 
+import math
 import unittest
 
 import pncad
 from pncad import (
     Advisory,
+    ArcSweep,
     BooleanOp,
+    Center,
     CheckId,
     CheckKind,
     CheckRefusal,
@@ -50,7 +53,9 @@ from pncad import (
     DocRef,
     Formula,
     Node,
+    Open,
     Severity,
+    Start,
     enforce_checks,
     evaluate,
     m,
@@ -78,25 +83,28 @@ def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
 
 
 def disjoint_union():
-    """Two boxes three metres apart, deliberately united: ONE root,
-    one body, two components."""
+    """Two boxes three metres apart, deliberately united and placed:
+    ONE copy, one body, two components. Answers the placement — the
+    node a finding attributes its subject to — and the first box."""
     doc = Doc("checks-disjoint")
     a = slab(doc, 0.0, 1.0)
     b = slab(doc, 3.0, 4.0)
-    root = doc.insert(Node.boolean(BooleanOp.Union, a, b))
-    return doc, root, a
+    placed = doc.place(doc.insert(Node.boolean(BooleanOp.Union, a, b)))
+    return doc, placed, a
 
 
 def one_box():
+    """One box, placed; answers its placement."""
     doc = Doc("checks-connected")
-    return doc, slab(doc, 0.0, 1.0)
+    return doc, doc.place(slab(doc, 0.0, 1.0))
 
 
-def two_roots(x0):
-    """Two independent roots — nothing consumes either, so the
-    document's product gathers both."""
-    doc = Doc("checks-two-roots")
-    return doc, slab(doc, 0.0, 1.0), slab(doc, x0, x0 + 1.0)
+def two_placed(x0):
+    """Two boxes, each placed — the document's product gathers both.
+    Answers the two placements."""
+    doc = Doc("checks-two-placed")
+    first = doc.place(slab(doc, 0.0, 1.0))
+    return doc, first, doc.place(slab(doc, x0, x0 + 1.0))
 
 
 class TestTheConnectednessResident(unittest.TestCase):
@@ -108,6 +116,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         self.assertEqual(finding.check, CheckId.Connectedness)
         self.assertEqual(finding.root, root)
         self.assertEqual(finding.output_ix, 0)
+        self.assertIsNone(finding.node, "a root output's finding is about no lone node")
         self.assertEqual(finding.evidence.variant, "connectedness")
         self.assertEqual(finding.evidence.actual, 2)
         self.assertEqual(finding.evidence.expected, 1)
@@ -164,8 +173,8 @@ class TestTheConnectednessResident(unittest.TestCase):
 
 
 class TestTheSeparationResident(unittest.TestCase):
-    def test_interpenetrating_roots_deny_the_certificate(self):
-        doc, first, second = two_roots(0.5)
+    def test_interpenetrating_copies_deny_the_certificate(self):
+        doc, first, second = two_placed(0.5)
         report = run_checks(doc, evaluate(doc))
         (finding,) = report.findings
         self.assertEqual(finding.check, CheckId.Separation)
@@ -175,8 +184,8 @@ class TestTheSeparationResident(unittest.TestCase):
         self.assertEqual(finding.evidence.other_output, 0)
         self.assertIsNone(finding.evidence.actual)
 
-    def test_roots_that_are_apart_are_clean(self):
-        doc, _, _ = two_roots(5.0)
+    def test_copies_that_are_apart_are_clean(self):
+        doc, _, _ = two_placed(5.0)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_the_separation_knob_cannot_express_error(self):
@@ -261,9 +270,9 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertEqual(cfg, ChecksConfig(connectedness=Severity.Error,
                                            separation=Advisory.Off))
 
-    def test_a_report_speaks_its_roots_from_the_evaluated_document(self):
+    def test_a_report_speaks_its_placements_from_the_evaluated_document(self):
         """`str()` of the report, of a finding and of the refusal says
-        each root as the evaluated document holds it — kind, label and
+        each placement as the evaluated document holds it — kind, label and
         tag — and `repr()` keeps the full id. A label set after
         `evaluate` is not the evaluated document's, so it is not said."""
         doc, root, _ = disjoint_union()
@@ -273,13 +282,13 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: Boolean "joined" ('
+        spoken = 'check connectedness: PlaceInWorld "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
         full = repr(root).removeprefix("NodeId(").removesuffix(")")
         self.assertNotIn(f"root {full[:12]}", str(finding))
-        self.assertIn(f"node {full},", repr(finding))
+        self.assertIn(f"root {full},", repr(finding))
         with self.assertRaises(CheckRefusal) as caught:
             enforce_checks(report, strict)
         self.assertIn(spoken, str(caught.exception))
@@ -292,8 +301,8 @@ class TestTheRegistryVocabulary(unittest.TestCase):
 
         def checked(seed, text):
             doc = Doc(seed)
-            first = slab(doc, 0.0, 1.0)
-            slab(doc, 0.5, 1.5)
+            first = doc.place(slab(doc, 0.0, 1.0))
+            doc.place(slab(doc, 0.5, 1.5))
             doc.apply(DocEdit.set_label(first, text))
             report = run_checks(doc, evaluate(doc))
             return first, report
@@ -332,20 +341,21 @@ class TestSubjectBody(unittest.TestCase):
         Measured rather than assumed, and it is the narrower of the
         two readings: the `None` is about SUBJECTHOOD only where the
         value is missing. An expectation keyed at a node the union
-        CONSUMED is stale — that node is no root, so no subject
+        CONSUMED is stale — nothing places that node, so no subject
         consumed the entry — and yet its body still resolves here,
         because the node evaluated. Staleness is a fact about the
-        root list; this door is a fact about the evaluation."""
+        placements; this door is a fact about the evaluation."""
         doc, root, consumed = disjoint_union()
         ev = evaluate(doc)
         self.assertIsNone(subject_body(ev, root, 7))
         self.assertIsNotNone(subject_body(ev, consumed, 0))
 
-        touching = Doc("checks-touching-subject")
-        a = slab(touching, 0.0, 1.0)
-        b = slab(touching, 1.0, 2.0)
-        failed = touching.insert(Node.boolean(BooleanOp.Union, a, b))
-        self.assertIsNone(subject_body(evaluate(touching), failed, 0))
+        sliver = Doc("checks-sliver-subject")
+        a = slab(sliver, 0.0, 1.0)
+        # 2 nm apart: in band, so the union refuses and has no value.
+        b = slab(sliver, 1.0 + 2e-9, 2.0)
+        failed = sliver.insert(Node.boolean(BooleanOp.Union, a, b))
+        self.assertIsNone(subject_body(evaluate(sliver), failed, 0))
 
 
 class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
@@ -375,7 +385,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     """
 
     def instance_of_the_stand(self):
-        """A one-root document instantiating the bench scene's mated stand.
+        """A document placing one instance of the bench scene's mated stand.
 
         The stand's product carries the records its two mates minted,
         and those cross the document seam with the instance — so this
@@ -387,6 +397,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
         )
+        doc.place(instance)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -429,12 +440,13 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
     def test_a_root_without_a_value_refuses_typed(self):
         """A report over a partial evaluation would claim more than
         was checked. `evaluate` is total, so the failure arrives as a
-        valueless root and the registry refuses on it rather than
+        valueless placement and the registry refuses on it rather than
         reporting over what did evaluate."""
-        doc = Doc("checks-touching")
+        doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        b = slab(doc, 1.0, 2.0)
-        root = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        # 2 nm apart: in band, so the union refuses.
+        b = slab(doc, 1.0 + 2e-9, 2.0)
+        root = doc.place(doc.insert(Node.boolean(BooleanOp.Union, a, b)))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
@@ -443,5 +455,110 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         self.assertIsInstance(caught.exception, pncad.PncadError)
 
 
+class TestTheUnprovenCoincidenceResident(unittest.TestCase):
+    """The `unproven-coincidence` lint (D10): a plate resting flush on
+    a block, unioned under the declared `Rest` the flush detector
+    offers. The declaration is verified from values, so the union
+    records one coincidence, and the door does not prove it: the two
+    caps are two constructions. The report's rows are the evaluation's
+    unproven rows, word for word."""
+
+    def test_a_declared_rest_is_one_unproven_coincidence(self):
+        doc = Doc()
+        lower = slab(doc, 0.0, 1.0)
+        upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+        )
+        ev = evaluate(doc)
+        rows = ev.coincidences(glued)
+        self.assertEqual(len(rows), 1)
+        (row,) = rows
+        self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
+        self.assertIsNone(row.rung)
+        self.assertEqual(row.residual, "the two cells are two constructions")
+        self.assertEqual([node for node, _ in row.cells], [lower, upper])
+        self.assertTrue(all(name is not None for _, name in row.cells))
+
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            separation=Advisory.Off,
+            unproven_coincidence=Advisory.Warn,
+        )
+        report = run_checks(doc, ev, cfg)
+        self.assertEqual(len(report.findings), 1)
+        (finding,) = report.findings
+        self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
+        self.assertEqual(finding.check.kind, CheckKind.Certified)
+        self.assertEqual(finding.node, glued)
+        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.output_ix)
+        evidence = finding.evidence
+        self.assertEqual(evidence.variant, "unproven_coincidence")
+        self.assertEqual(
+            (evidence.relation, evidence.site, evidence.reason),
+            (row.relation, row.site, row.residual),
+        )
+        self.assertEqual(evidence.coincidence.cells, row.cells)
+
+        off = run_checks(doc, ev, ChecksConfig(unproven_coincidence=Advisory.Off))
+        self.assertIn(CheckId.UnprovenCoincidence, off.skipped)
+        self.assertEqual(
+            [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAProfileJunctionDecidedTangent(unittest.TestCase):
+    """D1's profile tangency: a junction no constructor made, which
+    validation decides tangent from its carriers, builds and is one
+    coincidence on the profile's own node, its cells the profile's two
+    pieces. A line meets an arc at a turn of `sqrt(eps)` at the default
+    eps: a corner to the lattice, Zero to the carrier clearance."""
+
+    def test_the_junction_is_one_row_on_its_profile(self):
+        phi = math.sqrt(1e-9)
+        cx, cy = 1.0 - math.sin(phi), math.cos(phi)
+        loop = (
+            Open.at((0 * m, 0 * m))
+            .line_to((1 * m, 0 * m))
+            .arc_to(Center((cx * m, cy * m), ArcSweep.Ccw, (cx * m, (cy + 1.0) * m)))
+            .line_to(Start)
+        )
+        doc = Doc()
+        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node))
+        rows = ev.coincidences(node)
+        self.assertEqual(len(rows), 1)
+        (row,) = rows
+        self.assertEqual((row.relation, row.site), ("tangent", "profile_junction"))
+        self.assertIsNone(row.rung)
+        self.assertEqual([at for at, _ in row.cells], [node, node])
+        (_, line), (_, arc) = row.cells
+        self.assertNotEqual(line, arc)
+
+    def test_a_junction_on_one_carrier_is_same_oriented(self):
+        # A leg of 1e-10 m turns off the line by its whole length: a
+        # corner to the lattice, one carrier continuing to validation,
+        # so the row is carrier identity, not a tangency of two.
+        loop = (
+            Open.at((0 * m, 0 * m))
+            .line_to((10 * m, 0 * m))
+            .line_to((10.001 * m, 1e-10 * m))
+            .line_to((10.001 * m, 5 * m))
+            .line_to(Start)
+        )
+        doc = Doc()
+        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(node))
+        rows = ev.coincidences(node)
+        self.assertEqual(
+            [(r.relation, r.site) for r in rows],
+            [("same_oriented", "profile_junction")],
+        )

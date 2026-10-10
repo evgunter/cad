@@ -1,10 +1,11 @@
 """Authoring a measurement, and reading the web back (LIB-B-MEASURES).
 
 The census family B-MEASURES chartered the AUTHORING half of
-ERROR-DESIGN E3/E10: `MeasureExpr`'s constructors, `MeasurePrimitive`'s
-four verbs and `AssertionDir` onto `Node.measure` / `Node.assertion`,
-with `MeasureNodeFault` as the refusal a caller dispatches on and
-`MeasureUnavailableAt` as the one the fourth verb adds. The READING
+ERROR-DESIGN E3/E10: `MeasurePrimitive`'s four verbs and `AssertionRelation`
+onto `Node.measure` / `Doc.measure` / `Node.assertion`, with
+`MeasureUnavailableAt` as the refusal the fourth verb adds. Arithmetic
+over measured values is an ordinary formula over the measures' outputs:
+there is no second arithmetic language. The READING
 half — `Value.measure` answering a `Measurement`, `Value.assertion` a
 `Verdict` — already shipped, and it is what every row here reads the
 authored web back through.
@@ -39,7 +40,7 @@ import unittest
 
 import pncad
 from pncad import (
-    AssertionDir,
+    AssertionRelation,
     Doc,
     DocEdit,
     FreeVar,
@@ -49,7 +50,6 @@ from pncad import (
     EvaluationError,
     Formula,
     GeomPred,
-    MeasureExpr,
     MeasurePrimitive,
     NamePat,
     Node,
@@ -126,16 +126,25 @@ def verdict(doc, node):
     return evaluate(doc).value(node).assertion()
 
 
+def two_faces():
+    """A slab's bottom and top faces, as `(node, name)` references."""
+    doc = Doc()
+    node = slab(doc, 0.0)
+    ev = evaluate(doc)
+    return (node, face_at_height(ev, node, 0.0)), (node, face_at_height(ev, node, 1.0))
+
+
 class TestTheVerbVocabulary(unittest.TestCase):
     """The four primitives as VALUES: what each one says about itself
-    before any document exists."""
+    before it is a node."""
 
     def test_each_verb_names_itself_and_its_dimension(self):
+        a, b = two_faces()
         rows = [
-            (MeasurePrimitive.distance(0, 1), "distance", "length"),
-            (MeasurePrimitive.angle(0, 1), "angle", "angle"),
-            (MeasurePrimitive.min_clearance(0, 1), "min_clearance", "length"),
-            (MeasurePrimitive.gap(0, 1), "gap", "length"),
+            (MeasurePrimitive.distance(a, b), "distance", "length"),
+            (MeasurePrimitive.angle(a, b), "angle", "angle"),
+            (MeasurePrimitive.min_clearance(a, b), "min_clearance", "length"),
+            (MeasurePrimitive.gap(a, b), "gap", "length"),
         ]
         for prim, verb, dimension in rows:
             with self.subTest(verb=verb):
@@ -145,115 +154,72 @@ class TestTheVerbVocabulary(unittest.TestCase):
     def test_a_gaps_pair_keeps_its_roles_and_is_not_re_sorted(self):
         """C5's formulas are asymmetric in the mating roles, so the
         order is authored data rather than a set."""
-        self.assertEqual(MeasurePrimitive.gap(6, 7).refs, (6, 7))
-        self.assertEqual(MeasurePrimitive.gap(7, 6).refs, (7, 6))
-        self.assertNotEqual(MeasurePrimitive.gap(6, 7), MeasurePrimitive.gap(7, 6))
+        a, b = two_faces()
+        self.assertEqual(MeasurePrimitive.gap(a, b).refs, (a, b))
+        self.assertEqual(MeasurePrimitive.gap(b, a).refs, (b, a))
+        self.assertNotEqual(MeasurePrimitive.gap(a, b), MeasurePrimitive.gap(b, a))
 
     def test_primitives_are_values_comparable_and_hashable(self):
-        one = MeasurePrimitive.distance(0, 1)
-        same = MeasurePrimitive.distance(0, 1)
+        a, b = two_faces()
+        one = MeasurePrimitive.distance(a, b)
+        same = MeasurePrimitive.distance(a, b)
         self.assertEqual(one, same)
         self.assertEqual(hash(one), hash(same))
         # A verb is part of the value: two primitives over the same
         # references measuring different things are different values.
-        self.assertNotEqual(one, MeasurePrimitive.angle(0, 1))
-        self.assertEqual(len({one, same, MeasurePrimitive.angle(0, 1)}), 2)
-        self.assertEqual(repr(one), "MeasurePrimitive.distance(0, 1)")
+        self.assertNotEqual(one, MeasurePrimitive.angle(a, b))
+        self.assertEqual(len({one, same, MeasurePrimitive.angle(a, b)}), 2)
+        self.assertEqual(repr(one), "MeasurePrimitive.distance(…)")
 
-    def test_a_negative_index_is_not_a_position(self):
-        """An index is a POSITION in the reference list, so a negative
-        one is not a value the argument can hold — refused at the call,
-        never wrapped round to the end."""
-        with self.assertRaises(OverflowError):
-            MeasurePrimitive.distance(-1, 0)
+    def test_a_name_that_is_not_a_name_refuses_at_the_constructor(self):
+        (node, _), _ = two_faces()
+        with self.assertRaises(ValueError):
+            MeasurePrimitive.distance((node, "the top face"), (node, "the other"))
 
-    def test_the_two_directions_keep_the_kernels_symbols(self):
-        self.assertEqual(AssertionDir.AtLeast.symbol, ">=")
-        self.assertEqual(AssertionDir.AtMost.symbol, "<=")
-        self.assertEqual(AssertionDir.AtLeast, AssertionDir.AtLeast)
-        self.assertNotEqual(AssertionDir.AtLeast, AssertionDir.AtMost)
+    def test_the_three_relations_keep_the_kernels_symbols(self):
+        self.assertEqual(AssertionRelation.AtLeast.symbol, ">=")
+        self.assertEqual(AssertionRelation.AtMost.symbol, "<=")
+        self.assertEqual(AssertionRelation.Equal.symbol, "=")
+        self.assertEqual(AssertionRelation.AtLeast, AssertionRelation.AtLeast)
+        self.assertNotEqual(AssertionRelation.AtLeast, AssertionRelation.AtMost)
+        self.assertNotEqual(AssertionRelation.Equal, AssertionRelation.AtLeast)
 
 
-class TestTheExpressionLanguage(unittest.TestCase):
-    """`MeasureExpr` before any node: the arithmetic, its dimension and
-    the refusal a mis-dimensioned tree earns AT CONSTRUCTION."""
+class TestTheArithmeticIsAFormula(unittest.TestCase):
+    """A measurement with arithmetic is measures and a formula over
+    their outputs: `Doc.measure` records the measures as one action, and
+    the arithmetic is the document's own expression language."""
 
-    def test_the_dimension_rides_the_expression(self):
-        length = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-        angle = MeasureExpr.primitive(MeasurePrimitive.angle(0, 1))
-        self.assertEqual(length.dimension, "length")
-        self.assertEqual(angle.dimension, "angle")
-        self.assertEqual(MeasureExpr.neg(angle).dimension, "angle")
-        self.assertEqual(MeasureExpr.add(length, length).dimension, "length")
-
-    def test_a_document_expression_enters_as_a_leaf(self):
-        """The only door inward is the TEXT one: `Doc.parse_formula` runs
-        the checking parser, and a `MeasureExpr` leaf carries what it
-        answered."""
+    def test_doc_measure_records_one_measure_per_primitive(self):
         doc = Doc()
-        doc.apply(DocEdit.declare_var(VarName("pad"), FreeVar.length(1 * mm)))
-        leaf = MeasureExpr.value(doc.parse_formula("pad"))
-        self.assertEqual(leaf.dimension, "length")
-        # A value leaf holds no primitive: it reaches out of the
-        # document's arithmetic, never into geometry.
-        self.assertEqual(leaf.primitives, [])
-
-    def test_the_f1_lattice_refuses_at_the_constructor(self):
-        """A mis-dimensioned tree does not exist to be handed around.
-
-        The refusal is `LiteralError` carrying the kernel's own
-        mismatch tag — the same refusal a document expression earns,
-        because this language asks `Formula`'s constructors rather than
-        restating the table. `value` is `None`: the door refuses over
-        two operands' DIMENSIONS and has no single number to name.
-        """
-        length = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-        angle = MeasureExpr.primitive(MeasurePrimitive.angle(0, 1))
-        with self.assertRaises(pncad.LiteralError) as caught:
-            MeasureExpr.add(length, angle)
-        self.assertEqual(caught.exception.kind, "mismatch")
-        self.assertIsNone(caught.exception.value)
-
-    def test_the_product_and_quotient_rules_are_the_kernels(self):
-        doc = Doc()
-        doc.apply(DocEdit.declare_var(VarName("half"), FreeVar.scalar(0.5)))
-        length = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-        scalar = MeasureExpr.value(doc.parse_formula("half"))
-        self.assertEqual(MeasureExpr.mul(length, scalar).dimension, "length")
-        self.assertEqual(MeasureExpr.div(length, scalar).dimension, "length")
-        # Two lengths multiplied is not a length, and this language has
-        # no area: the F1 rule refuses rather than inventing one.
-        with self.assertRaises(pncad.LiteralError) as caught:
-            MeasureExpr.mul(length, length)
-        self.assertEqual(caught.exception.kind, "mul_needs_scalar")
-        with self.assertRaises(pncad.LiteralError) as caught:
-            MeasureExpr.div(scalar, length)
-        self.assertEqual(caught.exception.kind, "div_needs_scalar_divisor")
-
-    def test_min_and_max_take_the_same_dimension(self):
-        a = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
-        b = MeasureExpr.primitive(MeasurePrimitive.gap(0, 1))
-        self.assertEqual(MeasureExpr.min(a, b).dimension, "length")
-        self.assertEqual(MeasureExpr.max(a, b).dimension, "length")
-        with self.assertRaises(pncad.LiteralError):
-            MeasureExpr.min(a, MeasureExpr.primitive(MeasurePrimitive.angle(0, 1)))
-
-    def test_the_primitives_come_back_in_pre_order(self):
-        """One order, two consumers: the construction door's bounds
-        check runs over it and the evaluation reads the leaves back in
-        it, so a caller inspecting a tree sees the same order both."""
-        first = MeasurePrimitive.distance(0, 1)
-        second = MeasurePrimitive.gap(2, 3)
-        tree = MeasureExpr.sub(
-            MeasureExpr.primitive(first), MeasureExpr.primitive(second)
+        node = slab(doc, 0.0, height=2.0)
+        ev = evaluate(doc)
+        a = (node, face_at_height(ev, node, 0.0))
+        b = (node, face_at_height(ev, node, 2.0))
+        recorded = doc.measure(
+            [MeasurePrimitive.distance(a, b), MeasurePrimitive.angle(a, b)]
         )
-        self.assertEqual(tree.primitives, [first, second])
+        self.assertEqual(len(recorded.measures), 2)
         self.assertEqual(
-            MeasureExpr.sub(
-                MeasureExpr.primitive(second), MeasureExpr.primitive(first)
-            ).primitives,
-            [second, first],
+            [doc.output(m) for m in recorded.measures], recorded.outputs
         )
+        self.assertEqual([v.kind for v in recorded.outputs], ["length", "angle"])
+        self.assertTrue(all(doc.node_kind(m) == "measure" for m in recorded.measures))
+
+    def test_the_lattice_is_the_formulas(self):
+        """The arithmetic over a measured value is checked by the
+        formula's own rules: a length plus an angle refuses at the text
+        door, as any document expression does."""
+        doc = Doc()
+        node = slab(doc, 0.0)
+        ev = evaluate(doc)
+        a = (node, face_at_height(ev, node, 0.0))
+        b = (node, face_at_height(ev, node, 1.0))
+        recorded = doc.measure([MeasurePrimitive.distance(a, b)])
+        doc.apply(DocEdit.rename_var(recorded.outputs[0], VarName("depth")))
+        self.assertEqual(doc.parse_formula("depth - 1 mm").dimension, "length")
+        with self.assertRaises(pncad.ParseError):
+            doc.parse_formula("depth + 1 rad")
 
 
 class TestTheClosedForms(unittest.TestCase):
@@ -266,10 +232,7 @@ class TestTheClosedForms(unittest.TestCase):
         right = cylinder(doc, offset, 0.2)
         ev = evaluate(doc)
         node = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(left, wall(ev, left)), (right, wall(ev, right))],
-            )
+            Node.measure(MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right))))
         )
         answer = measured(doc, node)
         self.assertEqual(answer.dimension, "Length")
@@ -288,13 +251,7 @@ class TestTheClosedForms(unittest.TestCase):
         prism = slab(doc, 0.0, height=0.4)
         ev = evaluate(doc)
         node = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.angle(0, 1)),
-                [
-                    (prism, face_at_height(ev, prism, 0.0)),
-                    (prism, face_at_height(ev, prism, 0.4)),
-                ],
-            )
+            Node.measure(MeasurePrimitive.angle((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, 0.4))))
         )
         answer = measured(doc, node)
         self.assertEqual(answer.dimension, "Angle")
@@ -319,10 +276,7 @@ class TestTheClosedForms(unittest.TestCase):
         for outer, inner in (facing, list(reversed(facing))):
             with self.subTest(outer=outer[0]):
                 node = doc.insert(
-                    Node.measure(
-                        MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
-                        [outer, inner],
-                    )
+                    Node.measure(MeasurePrimitive.gap(outer, inner))
                 )
                 self.assertAlmostEqual(measured(doc, node).value, air, places=12)
 
@@ -337,10 +291,7 @@ class TestTheClosedForms(unittest.TestCase):
                 pin = cylinder(doc, 0.0, pin_r)
                 ev = evaluate(doc)
                 node = doc.insert(
-                    Node.measure(
-                        MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
-                        [(bore, wall(ev, bore)), (pin, wall(ev, pin))],
-                    )
+                    Node.measure(MeasurePrimitive.gap((bore, wall(ev, bore)), (pin, wall(ev, pin))))
                 )
                 answer = measured(doc, node)
                 self.assertEqual(answer.dimension, "Length")
@@ -358,17 +309,23 @@ class TestTheClosedForms(unittest.TestCase):
         left = cylinder(doc, -offset, radius)
         right = cylinder(doc, offset, radius)
         ev = evaluate(doc)
-        r = MeasureExpr.value(doc.parse_formula("hole_r"))
-        web = MeasureExpr.sub(
-            MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-            MeasureExpr.add(r, r),
+        recorded = doc.measure(
+            [MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right)))]
         )
-        node = doc.insert(
-            Node.measure(web, [(left, wall(ev, left)), (right, wall(ev, right))])
+        doc.apply(DocEdit.rename_var(recorded.outputs[0], VarName("span")))
+        web = doc.parse_formula("span - (hole_r + hole_r)")
+        # One measure, the distance; the arithmetic is a formula over
+        # its output that no node holds.
+        self.assertEqual(len(recorded.measures), 1)
+        self.assertEqual(len(recorded.outputs), 1)
+        self.assertAlmostEqual(
+            measured(doc, recorded.measures[0]).value, 2 * offset, places=12
         )
         # 0.60 between the axes, less both radii.
         self.assertAlmostEqual(
-            measured(doc, node).value, 2 * offset - 2 * radius, places=12
+            evaluate(doc).reading(web).value,
+            2 * offset - 2 * radius,
+            places=12,
         )
 
     def test_a_measure_reads_the_placed_carrier(self):
@@ -400,20 +357,14 @@ class TestTheClosedForms(unittest.TestCase):
         corner = sorted(ev.all_vertices(moved))[0]
         self.assertIn(corner, ev.all_vertices(prism), "a transform mints no name")
         placed = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(prism, corner), (moved, corner)],
-            )
+            Node.measure(MeasurePrimitive.distance((prism, corner), (moved, corner)))
         )
         self.assertAlmostEqual(measured(doc, placed).value, travel, places=9)
         # The same name read at ONE site measures against itself: zero,
         # which is what makes the number above the translation and not
         # an artefact of which vertex was picked.
         authored = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(prism, corner), (prism, corner)],
-            )
+            Node.measure(MeasurePrimitive.distance((prism, corner), (prism, corner)))
         )
         self.assertAlmostEqual(measured(doc, authored).value, 0.0, places=12)
 
@@ -428,10 +379,7 @@ class TestTheFourthVerb(unittest.TestCase):
         right = cylinder(doc, 0.30, 0.2)
         ev = evaluate(doc)
         node = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.min_clearance(0, 1)),
-                [(left, wall(ev, left)), (right, wall(ev, right))],
-            )
+            Node.measure(MeasurePrimitive.min_clearance((left, wall(ev, left)), (right, wall(ev, right))))
         )
         return doc, node
 
@@ -472,7 +420,7 @@ class TestTheFourthVerb(unittest.TestCase):
         hidden. NOT a poisoning — the measure did not fail."""
         doc, node = self.clearance_document()
         assertion = doc.insert(
-            Node.assertion(node, AssertionDir.AtLeast, doc.parse_formula("1 mm"))
+            Node.assertion(doc.output(node), AssertionRelation.AtLeast, doc.parse_formula("1 mm"))
         )
         answer = verdict(doc, assertion)
         self.assertEqual(answer.status, "Unevaluated")
@@ -484,20 +432,17 @@ class TestTheFourthVerb(unittest.TestCase):
 
     def test_it_refuses_typed_on_an_edge_reference(self):
         """A reference's entity kind is the selection's face scope, and
-        an edge names no faces at all."""
+        an edge names no faces at all: a `min_clearance` reference reads
+        a body or a face, so the insert refuses by the seat's kind."""
         doc = Doc()
         left = slab(doc, 0.0)
         right = slab(doc, 4.0)
         ev = evaluate(doc)
-        node = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.min_clearance(0, 1)),
-                [(left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])],
+        with self.assertRaises(EditError) as caught:
+            doc.insert(
+                Node.measure(MeasurePrimitive.min_clearance((left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])))
             )
-        )
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(node)
-        self.assertEqual(caught.exception.kind, "measure_selection_kind")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
 
 class TestTheAssertion(unittest.TestCase):
@@ -515,10 +460,7 @@ class TestTheAssertion(unittest.TestCase):
         right = cylinder(doc, 0.30, 0.2)
         ev = evaluate(doc)
         measure = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(left, wall(ev, left)), (right, wall(ev, right))],
-            )
+            Node.measure(MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right))))
         )
         return doc, measure
 
@@ -528,7 +470,7 @@ class TestTheAssertion(unittest.TestCase):
         re-authoring the node."""
         doc, measure = self.web_document(500.0)
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("bound"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula("bound"))
         )
         self.assertEqual(doc.node_kind(assertion), "assertion")
 
@@ -555,7 +497,7 @@ class TestTheAssertion(unittest.TestCase):
     def test_the_other_direction_gates_the_other_way(self):
         doc, measure = self.web_document(700.0)
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("bound"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtMost, doc.parse_formula("bound"))
         )
         self.assertEqual(verdict(doc, assertion).status, "Holds")
         doc.apply(
@@ -565,6 +507,22 @@ class TestTheAssertion(unittest.TestCase):
         )
         self.assertEqual(verdict(doc, assertion).status, "Violated")
 
+    def test_equal_holds_only_at_the_bound(self):
+        """`relation=AssertionRelation.Equal`: the 0.6 m web equals a
+        600 mm bound and is violated by 500 mm and 700 mm alike."""
+        doc, measure = self.web_document(600.0)
+        assertion = doc.insert(
+            Node.assertion(
+                doc.output(measure),
+                relation=AssertionRelation.Equal,
+                bound=doc.parse_formula("bound"),
+            )
+        )
+        self.assertEqual(verdict(doc, assertion).status, "Holds")
+        for off in (500, 700):
+            doc.apply(DocEdit.set_var_value(VarName("bound"), FreeValue.length(off * mm)))
+            self.assertEqual(verdict(doc, assertion).status, "Violated", off)
+
     def test_a_verdict_is_report_only(self):
         """A `Violated` assertion changes no downstream outcome: the
         same document with and without it saves the same recipe for
@@ -572,7 +530,7 @@ class TestTheAssertion(unittest.TestCase):
         doc, measure = self.web_document(700.0)
         without = doc.save()
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("bound"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula("bound"))
         )
         self.assertEqual(verdict(doc, assertion).status, "Violated")
         # Every node that existed before the assertion still evaluates
@@ -588,25 +546,34 @@ class TestTheAssertion(unittest.TestCase):
         nothing, so the assertion is poisoned rather than
         `Unevaluated`."""
         doc = Doc()
-        doc.apply(DocEdit.declare_var(VarName("s"), FreeVar.scalar(0.0)))
-        # `13 m / s` with `s` bound to zero — the DIVISION is the
-        # measure language's, so each leaf evaluates fine and the
-        # measure arithmetic is what goes non-finite.
-        over_zero = MeasureExpr.div(
-            MeasureExpr.value(doc.parse_formula("13 m")),
-            MeasureExpr.value(doc.parse_formula("s")),
-        )
-        measure = doc.insert(Node.measure(over_zero, []))
+        node = slab(doc, 0.0)
+        ev = evaluate(doc)
+        bottom = face_at_height(ev, node, 0.0)
+        side = next(f for f in ev.all_faces(node) if f not in (bottom, face_at_height(ev, node, 1.0)))
+        # A cap and a side wall are not parallel, so the gap fails.
+        measure = doc.insert(Node.measure(MeasurePrimitive.gap((node, bottom), (node, side))))
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("1 m"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula("1 m"))
         )
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(measure)
-        self.assertEqual(caught.exception.kind, "measure_non_finite")
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(assertion)
-        self.assertEqual(caught.exception.kind, "measure_non_finite")
+        self.assertEqual(caught.exception.kind, "measure_not_parallel")
         self.assertEqual(caught.exception.through, measure)
+
+    def test_an_assertion_over_a_non_finite_value_fails_itself(self):
+        """Arithmetic over measured values is a formula the assertion
+        reads, so a value that goes non-finite fails the assertion's own
+        payload — no measure failed, and nothing is poisoned."""
+        doc = Doc()
+        doc.apply(DocEdit.declare_var(VarName("s"), FreeVar.scalar(0.0)))
+        # `13 m / s` with `s` bound to zero.
+        over_zero = doc.parse_formula("13 m / s")
+        assertion = doc.insert(
+            Node.assertion(over_zero, AssertionRelation.AtLeast, doc.parse_formula("1 m"))
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(assertion)
+        self.assertEqual(caught.exception.kind, "payload_expr")
 
 
 class TestTheRefusals(unittest.TestCase):
@@ -617,62 +584,35 @@ class TestTheRefusals(unittest.TestCase):
         node = slab(doc, 0.0)
         return doc, node, face_at_height(evaluate(doc), node, 0.0)
 
-    def test_an_index_past_the_end_refuses_at_the_constructor(self):
-        """`MeasureNodeFault`'s one arm, raised where it is written —
-        the timing the construction door buys over the `Doc.apply`
-        after it."""
-        _doc, node, face = self.one_face()
-        with self.assertRaises(pncad.MeasureNodeFault) as caught:
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(node, face)],
-            )
-        fault = caught.exception
-        self.assertEqual(fault.variant, "ref_index_out_of_range")
-        self.assertEqual(fault.verb, "distance")
-        self.assertEqual(fault.index, 1)
-        self.assertEqual(fault.refs, 1)
-        # The verb is the ONE vocabulary: what the fault names is what
-        # the primitive calls itself.
-        self.assertEqual(fault.verb, MeasurePrimitive.distance(0, 1).verb)
-
-    def test_a_reference_list_that_is_long_enough_is_accepted(self):
-        """The mirror of the row above — an index the list DOES carry
-        is not refused, so the check is about the bound and not about
-        indices in general."""
+    def test_a_measure_over_two_references_is_accepted(self):
         doc, node, face = self.one_face()
         top = face_at_height(evaluate(doc), node, 1.0)
-        built = Node.measure(
-            MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-            [(node, face), (node, top)],
-        )
-        self.assertEqual(doc.node_kind(doc.insert(built)), "measure")
-
-    def test_an_unread_reference_is_carried_and_not_bounded_against(self):
-        """A reference no primitive indexes is carried data. The bounds
-        check runs over the indices the EXPRESSION reads, so a longer
-        list is legal."""
-        doc, node, face = self.one_face()
-        top = face_at_height(evaluate(doc), node, 1.0)
-        built = Node.measure(
-            MeasureExpr.primitive(MeasurePrimitive.gap(1, 0)),
-            [(node, face), (node, top), (node, face)],
-        )
+        built = Node.measure(MeasurePrimitive.distance((node, face), (node, top)))
         self.assertEqual(doc.node_kind(doc.insert(built)), "measure")
 
     def test_a_name_that_is_not_a_name_refuses_at_the_boundary(self):
         _doc, node, _ = self.one_face()
         with self.assertRaises(ValueError):
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(node, "the top face"), (node, "the other one")],
-            )
+            Node.measure(MeasurePrimitive.distance((node, "the top face"), (node, "the other one")))
 
-    def test_an_assertion_must_reference_a_measure(self):
+    def test_an_assertion_must_read_a_scalar(self):
         doc, node, _ = self.one_face()
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.assertion(node, AssertionDir.AtLeast, doc.parse_formula("1 m")))
-        self.assertEqual(caught.exception.variant, "assertion_target")
+            doc.insert(Node.assertion(doc.output(node), AssertionRelation.AtLeast, doc.parse_formula("1 m")))
+        self.assertEqual(caught.exception.variant, "payload_var_kind")
+
+    def test_a_construction_cannot_read_a_measured_value(self):
+        """A measure's output is observed (D10): only an assertion reads
+        it, and a construction's slot reading it refuses at the door."""
+        doc, node, face = self.one_face()
+        top = face_at_height(evaluate(doc), node, 1.0)
+        measure = doc.insert(
+            Node.measure(MeasurePrimitive.distance((node, face), (node, top)))
+        )
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(node, "distance", doc.output(measure)))
+        self.assertEqual(caught.exception.variant, "construction_reads_observed")
+        self.assertEqual(caught.exception.node, node)
 
     def test_an_assertion_compares_like_with_like_or_not_at_all(self):
         """The bound's dimension is the MEASURE's, and the edit door is
@@ -682,59 +622,67 @@ class TestTheRefusals(unittest.TestCase):
         node = slab(doc, 0.0)
         ev = evaluate(doc)
         measure = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.angle(0, 1)),
-                [
-                    (node, face_at_height(ev, node, 0.0)),
-                    (node, face_at_height(ev, node, 1.0)),
-                ],
-            )
+            Node.measure(MeasurePrimitive.angle((node, face_at_height(ev, node, 0.0)), (node, face_at_height(ev, node, 1.0))))
         )
         with self.assertRaises(EditError) as caught:
             doc.insert(
-                Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("1 m"))
+                Node.assertion(doc.output(measure), AssertionRelation.AtMost, doc.parse_formula("1 m"))
             )
         self.assertEqual(caught.exception.variant, "assertion_dimension")
         # And the matching dimension is accepted, so the row above is
         # about the mismatch rather than about assertions on angles.
-        doc.insert(Node.assertion(measure, AssertionDir.AtMost, doc.parse_formula("4 rad")))
+        doc.insert(Node.assertion(doc.output(measure), AssertionRelation.AtMost, doc.parse_formula("4 rad")))
 
-    def test_deleting_a_referenced_node_is_refused(self):
+    def test_deleting_a_referenced_node_strands_the_measure(self):
         """A measure CONSUMES the values it names, so its references
-        are recipe edges — the one place this node kind departs from
-        the declared-pair/`Mate` name carve-out."""
+        are selections that read their body — and, like every read,
+        deleting that body is accepted and reported on the measure
+        twice: its selections read an output the delete took, and name
+        entities it minted. It refuses at evaluation until re-pointed."""
         doc = Doc()
         node = slab(doc, 0.0)
         ev = evaluate(doc)
-        doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
-                [
-                    (node, face_at_height(ev, node, 0.0)),
-                    (node, face_at_height(ev, node, 1.0)),
-                ],
-            )
+        measure = doc.insert(
+            Node.measure(MeasurePrimitive.gap((node, face_at_height(ev, node, 0.0)), (node, face_at_height(ev, node, 1.0))))
         )
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(node))
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        doc.apply(DocEdit.delete_node(node))
+        self.assertEqual(
+            {
+                (m.variant, m.node)
+                for m in doc.last_maintenance
+                if m.variant != "anonymous_var_removed"
+            },
+            {("stranded_read", measure), ("stranded_selection", measure)},
+        )
+        with self.assertRaises(EvaluationError):
+            evaluate(doc).value(measure)
 
     def test_a_carrier_pair_with_no_closed_form_refuses_naming_the_pair(self):
-        """A whole BODY has no carrier, and the refusal names the pair
-        class rather than guessing an arm."""
+        """A plane against a cylinder has no v1 closed form, and the
+        refusal names the pair class rather than guessing an arm."""
         doc = Doc()
-        left = slab(doc, 0.0)
-        right = slab(doc, 4.0)
+        block = slab(doc, 2.0)
+        post = cylinder(doc, 0.0, 0.2)
         ev = evaluate(doc)
         node = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(left, ev.all_bodies(left)[0]), (right, ev.all_bodies(right)[0])],
-            )
+            Node.measure(MeasurePrimitive.distance((block, face_at_height(ev, block, 2.0)), (post, wall(ev, post))))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node).measure()
         self.assertEqual(caught.exception.kind, "measure_unsupported")
+
+    def test_a_whole_body_is_no_distance_reference(self):
+        """A `distance` reads a face, an edge or a vertex, so a whole
+        body refuses at insert by the seat's kind."""
+        doc = Doc()
+        left = slab(doc, 0.0)
+        right = slab(doc, 4.0)
+        ev = evaluate(doc)
+        with self.assertRaises(EditError) as caught:
+            doc.insert(
+                Node.measure(MeasurePrimitive.distance((left, ev.all_bodies(left)[0]), (right, ev.all_bodies(right)[0])))
+            )
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_a_gap_between_non_parallel_planes_refuses(self):
         """C5's plane arm is about a SEPARATION along a shared normal,
@@ -748,10 +696,7 @@ class TestTheRefusals(unittest.TestCase):
         top = face_at_height(ev, node, 1.0)
         side = next(f for f in ev.all_faces(node) if f not in (bottom, top))
         measure = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.gap(0, 1)),
-                [(node, bottom), (node, side)],
-            )
+            Node.measure(MeasurePrimitive.gap((node, bottom), (node, side)))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(measure).measure()
@@ -768,45 +713,46 @@ class TestTheRefusals(unittest.TestCase):
         ev = evaluate(doc)
         alien = face_at_height(ev, here, 0.0)
         measure = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(elsewhere, alien), (elsewhere, face_at_height(ev, elsewhere, 4.0))],
-            )
+            Node.measure(MeasurePrimitive.distance((elsewhere, alien), (elsewhere, face_at_height(ev, elsewhere, 4.0))))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(measure)
-        self.assertEqual(caught.exception.kind, "measure_ref_resolve")
+        self.assertEqual(caught.exception.kind, "select_resolve")
 
-    def test_the_load_door_re_checks_the_reference_indices(self):
-        """`Node.measure` cannot mint an out-of-range index, so the
-        only way one reaches a document is a hand-edited file — and the
-        load door runs the SAME check, refusing with the fault's own
-        prose.
+    def test_the_load_door_refuses_a_construction_reading_a_measured_value(self):
+        """The edit door refuses a construction reading a measure's
+        output (`construction_reads_observed`), so the only way one
+        reaches a document is a hand-edited file — and the load door
+        runs the same rule, refusing in the snapshot's own words.
 
-        MEASURED, and reported: it arrives as `PersistError` with
-        `variant == "snapshot"`, so the fault is in the message and not
-        in a branchable tag. The edit door's `measure_malformed` is
-        unreachable from Python for the same reason the construction
-        door exists.
+        It arrives as `PersistError` with `variant == "snapshot"`, the
+        rule in the message.
         """
+        import json
+
         doc = Doc()
         node = slab(doc, 0.0)
         ev = evaluate(doc)
-        doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [
-                    (node, face_at_height(ev, node, 0.0)),
-                    (node, face_at_height(ev, node, 1.0)),
-                ],
-            )
+        measure = doc.insert(
+            Node.measure(MeasurePrimitive.distance((node, face_at_height(ev, node, 0.0)), (node, face_at_height(ev, node, 1.0))))
         )
-        tampered = doc.save().replace('"b": 1', '"b": 7')
-        self.assertNotEqual(tampered, doc.save(), "the tamper found its slot")
+        slab(doc, 4.0)
+        output = doc.output(measure)
+        self.assertIsNotNone(output)
+        header, body = doc.save().split("\n", 1)
+        wire = json.loads(body)
+        nodes = wire["snapshot"]["nodes"]
+        extrudes = sorted(
+            (key for key, held in nodes.items() if "Extrude" in held),
+            key=lambda key: int(key.split(":")[0]),
+        )
+        # The later slab's depth is re-pointed at the measured value.
+        nodes[extrudes[-1]]["Extrude"]["distance"] = output.hex
+        tampered = header + "\n" + json.dumps(wire, indent=2) + "\n"
         with self.assertRaises(pncad.PersistError) as caught:
             load(tampered)
         self.assertEqual(caught.exception.variant, "snapshot")
-        self.assertIn("reads reference 7", str(caught.exception))
+        self.assertIn("a measured value, which only an assertion reads", str(caught.exception))
 
     def test_a_value_that_is_not_a_measure_says_so(self):
         doc = Doc()
@@ -829,17 +775,18 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
         ev = evaluate(doc)
-        web = MeasureExpr.sub(
-            MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-            MeasureExpr.value(doc.parse_formula("bound")),
+        recorded = doc.measure(
+            [MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right)))]
         )
-        measure = doc.insert(
-            Node.measure(web, [(left, wall(ev, left)), (right, wall(ev, right))])
-        )
+        doc.apply(DocEdit.rename_var(recorded.outputs[0], VarName("span")))
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula("0.1 m"))
+            Node.assertion(
+                doc.parse_formula("span - bound"),
+                AssertionRelation.AtLeast,
+                doc.parse_formula("0.1 m"),
+            )
         )
-        return doc, measure, assertion
+        return doc, recorded.measures[0], assertion
 
     def test_a_document_carrying_a_measure_saves_and_loads(self):
         doc, measure, assertion = self.authored()
@@ -869,74 +816,45 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         self.assertEqual(ev.value(measure).kind, "measure")
         self.assertEqual(ev.value(assertion).kind, "assertion")
 
-    def test_a_measure_over_a_non_root_leaves_the_product_alone(self):
+    def test_a_measure_over_an_unplaced_body_leaves_the_product_alone(self):
         """The ordinary case, and the one the worked example is in:
-        the measure's references sit UNDER something else, so the
-        measure is a fresh sink, the product root above them is
-        untouched, and the gathered solid is the same one."""
+        the measure's references sit UNDER the placed union, the
+        measure places nothing, and the gathered solid is the same
+        one."""
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
-        union = doc.insert(Node.boolean(pncad.BooleanOp.Union, left, right))
+        placed = doc.place(doc.insert(Node.boolean(pncad.BooleanOp.Union, left, right)))
         before = pncad.product(doc, evaluate(doc)).mass_properties().volume
         ev = evaluate(doc)
         doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(left, wall(ev, left)), (right, wall(ev, right))],
-            )
+            Node.measure(MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right))))
         )
-        self.assertIn(union, doc.roots)
+        self.assertEqual(doc.placements(), [placed])
         self.assertAlmostEqual(
             pncad.product(doc, evaluate(doc)).mass_properties().volume,
             before,
             places=12,
         )
 
-    def test_a_measure_over_the_product_roots_takes_them(self):
-        """**Measured, and reported as a finding rather than asserted
-        to be right.**
-
-        A measure's references are recipe EDGES, so a measure over the
-        nodes that are currently product roots is a sink consuming
-        them: D-3's tip transfer moves the root onto the measure, and
-        a measure denotes no body — so the document that had a solid
-        product now has none. `DocEdit.set_roots` cannot restore one:
-        listing the bodies alone leaves the measure uncovered, and
-        listing the measure beside them is an ancestor pair.
-
-        This row exists so the behaviour is visible and so a kernel
-        change to it goes red HERE with the argument in hand, not so
-        the behaviour is preserved.
-        """
+    def test_a_measure_over_the_placed_bodies_takes_nothing(self):
+        """A measure reads the bodies it measures and places nothing,
+        so measuring the two placed bodies leaves the world as it was:
+        the product is still both, whatever reads them."""
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
-        self.assertEqual(doc.roots, [left, right])
-        self.assertGreater(
-            pncad.product(doc, evaluate(doc)).mass_properties().volume, 0.0
-        )
+        placed = [doc.place(left), doc.place(right)]
+        before = pncad.product(doc, evaluate(doc)).mass_properties().volume
+        self.assertGreater(before, 0.0)
         ev = evaluate(doc)
-        measure = doc.insert(
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)),
-                [(left, wall(ev, left)), (right, wall(ev, right))],
-            )
+        doc.insert(
+            Node.measure(MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right))))
         )
-        self.assertEqual(doc.roots, [measure])
-        with self.assertRaises(pncad.ProductError) as caught:
-            pncad.product(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "no_body_roots")
-        # And neither root list D-2 would accept puts a body back.
-        for roots, refusal in (
-            ([left, right], "root_uncovered"),
-            ([left, right, measure], "root_ancestor"),
-        ):
-            with self.subTest(roots=roots):
-                fresh = load(doc.save()).doc
-                with self.assertRaises(EditError) as caught:
-                    fresh.apply(DocEdit.set_roots(roots))
-                self.assertEqual(caught.exception.variant, refusal)
+        self.assertEqual(doc.placements(), placed)
+        self.assertEqual(
+            pncad.product(doc, evaluate(doc)).mass_properties().volume, before
+        )
 
 
 if __name__ == "__main__":

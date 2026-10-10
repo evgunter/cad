@@ -92,7 +92,7 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, Observed, ProfileDoc, RecipeNodeId,
     RefusingReach, ValuePayload, VarId, apply, evaluate,
 };
 use pncad::geom::Surface;
@@ -134,7 +134,8 @@ struct Sample {
     /// `(centre_x, centre_y, radius)` per hole, read off the stored
     /// `Cylinder` of the body that sample built.
     holes: [(f64, f64, f64); 2],
-    /// The web `Measure`'s value at this sample.
+    /// The web at this sample: the assertion's value, read with the
+    /// measure under it bound.
     web: f64,
 }
 
@@ -207,13 +208,9 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                 hole_circle(&body_at(&ev, base.holes[0])),
                 hole_circle(&body_at(&ev, base.holes[1])),
             ];
-            let web = match &ev
-                .value(base.measure)
-                .expect("the measure evaluated")
-                .payload
-            {
-                ValuePayload::Measure { value, .. } => *value,
-                other => panic!("the web node is a measure, got {other:?}"),
+            let web = match ev.reading(&doc, base.web) {
+                Ok(Observed::Value(web)) => web,
+                other => panic!("the web reads at f64, got {other:?}"),
             };
             Sample { holes, web }
         })
@@ -235,10 +232,10 @@ pub fn narration(tol: Tol) -> String {
 
     let report = monte_carlo(&base.doc, &analyzed, &config, tol).expect("the nominal builds");
     let row = report
-        .measures
+        .values
         .iter()
-        .find(|m| m.node == base.measure)
-        .expect("the web measure has a row");
+        .find(|v| v.var == base.web)
+        .expect("the web an assertion reads has a row");
 
     let samples = replay(&base, config.samples, &config, tol);
     let webs: Vec<f64> = samples.iter().map(|s| s.web).collect();
@@ -663,4 +660,53 @@ fn sheet(
 
     out.push_str("</svg>\n");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// FNV-1a over `bytes`, folded into `h`.
+    fn fnv(h: &mut u64, bytes: &[u8]) {
+        for &b in bytes {
+            *h ^= u64::from(b);
+            *h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
+    /// **The Monte Carlo sheet does not move** (INTENT-LITERALS spec §8
+    /// row 9): the draw matrix — every sample's offsets, each keyed by
+    /// its variable's NAME, the varying axes in declaration order, since
+    /// an id's digest moves when minting does — and the
+    /// sheet's own bytes are the numbers measured on the tree before a
+    /// slot held a variable. Only a distributed variable draws, so a
+    /// typed value's anonymous variable enters neither.
+    #[test]
+    fn the_monte_carlo_sheet_is_pinned() {
+        let tol = Tol::witness();
+        let base = real_study(tol);
+        let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
+        let config = McConfig {
+            samples: DEFAULT_SAMPLES,
+            parallel: false,
+            ..McConfig::default()
+        };
+        let mut draws = 0xcbf2_9ce4_8422_2325_u64;
+        for i in 0..config.samples {
+            let offsets = sample_offsets(&base.doc, &analyzed, &config, i).expect("sampleable");
+            for (var, _) in analyzed.varying() {
+                let name = base.doc.var_name(var).expect("the study's axes are named");
+                fnv(&mut draws, name.as_str().as_bytes());
+                fnv(&mut draws, &offsets[&var].to_bits().to_le_bytes());
+            }
+        }
+        let mut sheet = 0xcbf2_9ce4_8422_2325_u64;
+        fnv(&mut sheet, narration(tol).as_bytes());
+        println!("mcplate draws {draws:#018x} sheet {sheet:#018x}");
+        assert_eq!(
+            (draws, sheet),
+            (0xd633_699a_f382_1806, 0x6d3e_4b0b_0201_2542),
+            "the Monte Carlo sheet moved"
+        );
+    }
 }

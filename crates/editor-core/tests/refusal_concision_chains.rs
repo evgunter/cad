@@ -30,7 +30,7 @@ use test_utils::refusal::tagged;
 /// A `NodeErrorKind` as the feature tree's fault line draws it.
 pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
     NodeError {
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
     }
@@ -65,6 +65,8 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
+    "UnfinishedOperand/ScaffoldingEmptyLoop",
+    "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",
     "Blend/BodyNotIntact",
     "Blend/SurgeryInvariant",
@@ -85,13 +87,13 @@ const KERNEL_KEYED: &[&str] = &[
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // A check finding's labels as its own `Display` says them, with no
-    // document at hand (`check separation: root 000000000004 output 0:
-    // …`): the check the person ran, named as the menu names it, and
-    // the root it ran on, by its tag.
+    // document at hand (`check separation: placement 000000000004 output
+    // 0: …`): the check the person ran, named as the menu names it, and
+    // the placement it ran on, by its tag.
     ("Check/", "check separation"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
-    ("Check/", "root 000000000004 output 0"),
+    ("Check/", "placement 000000000004 output 0"),
     // The mate solve names the mate it refused (`mate 9: …`).
     ("Mate/", "mate 000000000009"),
     // A pair's corner list names each corner it could not fillet.
@@ -195,9 +197,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "AssertionDimension",
     "AxisInDifferentPlane",
     "BlendSelectionEmpty",
-    "BlendSelectionKind",
-    "BlendSelectionResolve/Ambiguous",
-    "BlendSelectionResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DeclareResolve/Ambiguous",
@@ -214,23 +216,23 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
+    "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
-    "FaceFrameKind",
+    "SelectKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
-    "FaceFrameResolve/Ambiguous",
-    "FaceFrameResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
-    "MeasureMalformed",
     "MeasureNonFinite",
     "MeasureNotParallel",
-    "MeasureRefResolve/Ambiguous",
-    "MeasureRefResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
     "MeasureRefUnreadable/NoSuchBody",
@@ -241,7 +243,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/Readback",
     "MeasureRefUnreadable/WholeBody",
     "MeasureRefUnreadable/WrongKind",
-    "MeasureSelectionKind",
     "MeasureUnsupported",
     "MissingInput",
     "MissingSlot",
@@ -256,8 +257,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    "ParamSourceAttach/FieldNotOnKind",
-    "ParamSourceAttach/StaleKey",
     "PayloadExpr",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
@@ -273,9 +272,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Seed/UnknownVar",
     "SeedPinnedSection",
     "ShellLaneUnsupported",
-    "ShellOpenKind",
-    "ShellOpenResolve/Ambiguous",
-    "ShellOpenResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
     "VerbArity",
@@ -293,8 +292,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/SliverLoop",
     "Profile/Structure",
     "Profile/TangencyContradicted",
-    "Profile/TangentJointOutOfRange",
-    "Profile/UndeclaredTangency",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
     "ProfileReplay/Path/ArcViaCollinear",
@@ -711,7 +708,7 @@ fn every_node_refusal_renders_within_the_budget() {
 /// ([`NodeErrorKind::carried_chain`]).
 fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
     let error = NodeError {
-        node: RecipeNodeId(tagged(5)),
+        node: RecipeNodeId::new(0, tagged(5)),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
     };
@@ -760,7 +757,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         doc_ref: doc_ref(),
         fault: PartFault::PartRootFailed {
             held: Default::default(),
-            node: RecipeNodeId(tagged(node)),
+            node: RecipeNodeId::new(0, tagged(node)),
             refusal: refusal.into(),
         },
     };
@@ -775,9 +772,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
             "Carried/PlacerRefused",
             1,
             NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-                mate: RecipeNodeId(tagged(9)),
+                mate: RecipeNodeId::new(0, tagged(9)),
                 side: MateSide::B,
-                placer: RecipeNodeId(tagged(4)),
+                placer: RecipeNodeId::new(0, tagged(4)),
                 error: inner().into(),
                 placer_row: editor_core::PlacerRow::Silent,
             })),
@@ -812,9 +809,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     // carried: the refusal is drawn once, on the placer's row.
     let placer = |placer_row| {
         NodeErrorKind::Mate(Box::new(MateFault::PlacerRefused {
-            mate: RecipeNodeId(tagged(9)),
+            mate: RecipeNodeId::new(0, tagged(9)),
             side: MateSide::B,
-            placer: RecipeNodeId(tagged(4)),
+            placer: RecipeNodeId::new(0, tagged(4)),
             error: inner().into(),
             placer_row,
         }))
@@ -835,8 +832,8 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     assert_eq!(
         documents,
         vec![
-            (Some(&part_ref), RecipeNodeId(tagged(7))),
-            (Some(&part_ref), RecipeNodeId(tagged(4))),
+            (Some(&part_ref), RecipeNodeId::new(0, tagged(7))),
+            (Some(&part_ref), RecipeNodeId::new(0, tagged(4))),
         ],
         "the placer's level is in the part the mate is in"
     );
@@ -859,9 +856,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
-    let routed = meter_escalations();
-    let verdicts = meter_verdicts();
-    let mut pinned = 0;
+    let (mut pinned, mut mint_limbs, mut at_rest_limbs) = (0, 0, 0);
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
         assert_eq!(
@@ -873,10 +868,18 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             !text.contains(geom_core::COINCIDENCE_RECOURSE),
             "{name}: {text}"
         );
-        let arm = name
-            .strip_prefix("Shell/Face/Fit/")
-            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
-            .expect("every offset-fit row is on one of the two routes");
+        // The shell user sets the curvature meter's size as a wall
+        // thickness, the transform's as an offset distance.
+        let (arm, curvature) = match name.strip_prefix("Shell/Face/Fit/") {
+            Some(arm) => (arm, WALL),
+            None => (
+                name.strip_prefix("Transform/ApproxRecertify/")
+                    .expect("every offset-fit row is on one of the two routes"),
+                DISTANCE,
+            ),
+        };
+        let (routed, verdicts) = (meter_escalations(curvature), meter_verdicts(curvature));
+        let wall = (curvature == WALL).then(wall_endings);
         let ending = routed
             .iter()
             .find(|(route, _, _)| arm == format!("Meter/Escalated/{route}"))
@@ -884,6 +887,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             .or_else(|| {
                 verdicts
                     .iter()
+                    .chain(wall.iter().flatten())
                     .find(|(row, _)| arm == *row)
                     .map(|(_, ending)| ending)
             });
@@ -894,17 +898,47 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         if arm.starts_with("Meter/") {
             assert!(!text.contains("lower"), "{name}: {text}");
         }
-        if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
+        if curvature == WALL {
+            assert!(
+                !text.contains("offset distance") && !text.contains("other side"),
+                "{name}: a shell user sets a wall, not a distance or a side: {text}"
+            );
+        }
+        if arm.starts_with("Fit/") || arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
             assert!(
                 text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
                 "{name}: {text}"
             );
         }
+        // At rest a limb's repair is the re-fit; at the mint the re-fit
+        // is the call that refused, and nothing is stored.
+        if arm.starts_with("MintLimb") {
+            mint_limbs += 1;
+            assert!(
+                !text.contains("stored") && !text.contains("Recourse"),
+                "{name}: {text}"
+            );
+        } else if arm.starts_with("Limb") {
+            at_rest_limbs += 1;
+            assert!(
+                text.ends_with(geom_brep::offset_fit::LIMB_REFIT_RECOURSE),
+                "{name}: {text}"
+            );
+        }
     }
+    // `MintLimb` on both routes, `Limb` on the transform's alone. A
+    // count over the rows `offset_fit_routes` builds: it holds the
+    // roster's route split, not which arms the ops raise.
+    assert_eq!(
+        (mint_limbs, at_rest_limbs),
+        (4, 2),
+        "a limb row went missing"
+    );
     // Both routes raise `Meter`, so every pinned ending has two rows.
     assert_eq!(
         pinned,
-        2 * (routed.len() + verdicts.len()),
+        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len())
+            + wall_endings().len(),
         "a pinned meter row went missing"
     );
 }
@@ -945,7 +979,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
                 source: EvalError::UnresolvedVar {
-                    var: editor_core::VarId(tagged(7)),
+                    var: editor_core::VarId::new(0, tagged(7)),
                 },
             },
         ),
@@ -977,7 +1011,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "MissingInput",
             NodeErrorKind::MissingInput {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
             },
         ),
         row(
@@ -990,7 +1024,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "WrongOperand",
             NodeErrorKind::WrongOperand {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
                 expected: "body",
                 found: "profile",
             },
@@ -998,20 +1032,65 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "EmptyOperand",
             NodeErrorKind::EmptyOperand {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
+            },
+        ),
+        row(
+            "UnfinishedOperand/NegativeVolume",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldAtRest",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldAtRest {
+                    edge: topo::EdgeKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldingEmptyLoop",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldingEmptyLoop {
+                    loop_: topo::LoopKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldingStrutVertex",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/DescriptionNotAdjacent",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::DescriptionNotAdjacent {
+                    edge: topo::EdgeKey::default(),
+                }],
             },
         ),
         row(
             "EmptyHalf",
             NodeErrorKind::EmptyHalf {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
                 half: editor_core::SplitHalf::Above,
             },
         ),
         row(
             "InstanceOutOfRange",
             NodeErrorKind::InstanceOutOfRange {
-                input: RecipeNodeId(tagged(3)),
+                input: RecipeNodeId::new(0, tagged(3)),
                 index: 7,
                 count: 4,
             },
@@ -1058,9 +1137,9 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "AxisInDifferentPlane",
             NodeErrorKind::AxisInDifferentPlane {
-                axis: RecipeNodeId(tagged(3)),
-                axis_plane: Some(RecipeNodeId(tagged(1))),
-                profile_plane: Some(RecipeNodeId(tagged(2))),
+                axis: RecipeNodeId::new(0, tagged(3)),
+                axis_plane: Some(RecipeNodeId::new(0, tagged(1))),
+                profile_plane: Some(RecipeNodeId::new(0, tagged(2))),
             },
         ),
         row(
@@ -1079,7 +1158,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg"),
+                step: formula("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1087,7 +1166,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("720 deg * scalar(blades)"),
+                step: formula("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1095,7 +1174,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: stored("760 deg"),
+                step: formula("760 deg"),
                 evaluated: None,
                 turns: StepTurns::Within(formula("40 deg")),
             },
@@ -1103,7 +1182,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg / scalar(blades) - 400 deg"),
+                step: formula("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
                 turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
@@ -1111,7 +1190,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: stored("1e20 rad"),
+                step: formula("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -1124,14 +1203,14 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "SeedPinnedSection",
             NodeErrorKind::SeedPinnedSection {
-                section: RecipeNodeId(tagged(3)),
-                param: editor_core::VarId(tagged(7)),
+                section: RecipeNodeId::new(0, tagged(3)),
+                param: editor_core::VarId::new(0, tagged(7)),
             },
         ),
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId(tagged(3)),
+                at: RecipeNodeId::new(0, tagged(3)),
             },
         ),
         row(
@@ -1163,8 +1242,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DerivedFrameSection",
             NodeErrorKind::DerivedFrameSection {
-                profile: RecipeNodeId(tagged(3)),
-                frame: RecipeNodeId(tagged(2)),
+                profile: RecipeNodeId::new(0, tagged(3)),
+                frame: RecipeNodeId::new(0, tagged(2)),
             },
         ),
         row(
@@ -1231,7 +1310,17 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverJoin(bend)",
+            E::SliverJoin {
+                loop_index: 0,
+                vertex_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1239,7 +1328,17 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverRim(bend)",
+            E::SliverRim {
+                loop_index: 0,
+                segment_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1355,7 +1454,17 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverJoin(bend)",
+            E::SliverJoin {
+                loop_index: 0,
+                vertex_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1363,7 +1472,17 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverRim(bend)",
+            E::SliverRim {
+                loop_index: 0,
+                segment_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1604,10 +1723,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingOffCylinderChart",
-                J::RingOffCylinderChart {
+                "RingIslandUnread",
+                J::RingIslandUnread {
                     face,
-                    kind: geom::SurfaceKind::Sphere,
+                    kind: geom::SurfaceKind::Cone,
                 },
             ),
             (
@@ -1649,6 +1768,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeEscalated { edge, diag: diag() },
         ),
         (
+            "DescribeSideEscalated",
+            F::DescribeSideEscalated { edge, diag: diag() },
+        ),
+        (
             "DescribeBendEscalated",
             F::DescribeBendEscalated { edge, diag: diag() },
         ),
@@ -1670,6 +1793,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "NestingContradiction",
             F::NestingContradiction { hole: face },
+        ),
+        (
+            "EdgeJoin",
+            F::EdgeJoin {
+                side: topo::PlaneSide::Above,
+                refusal: join_refusal(),
+            },
         ),
         (
             "ResultInvalid",
@@ -1753,6 +1883,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   in-band arm, and the same lever and conditional on its definite
 ///   zero arm, which has no margin to quote;
 /// - the span's own lever;
+/// - a collapse gate's own decision (a lever arm, a spline's metered
+///   length), undecided and decided: its lever, with what a vanishing
+///   floor means on a spline meter of no length, and on a poisoned
+///   margin what that may mean;
 /// - a poisoned margin on a sized decision: the lever, and what it may
 ///   mean;
 /// - an exact residual's kernel-defect ending;
@@ -1785,6 +1919,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "not-transverse",
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 4,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
                     margin: MarginDiag::value(5.0e-10),
@@ -1797,6 +1932,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "not-transverse, tangent",
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 4,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
                     margin: MarginDiag::value(0.0),
@@ -1814,8 +1950,54 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
-            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable or \
-             collapsed margin may indicate a kernel bug worth reporting",
+            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable margin may indicate a kernel bug worth reporting",
+        ),
+        (
+            "lever arm",
+            escalated(CertCheck::TransversalityArm, in_band),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 5e-10 m",
+        ),
+        (
+            "lever arm, enclosure",
+            escalated(
+                CertCheck::TransversalityArm,
+                MarginDiag::enclosure(2.0e-9, 5.0e-9),
+            ),
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 2e-10 m",
+        ),
+        (
+            "no lever arm",
+            CertifyError::ArmCollapsed {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                }),
+            },
+            "Recourse: move the geometry so that edge is clearly longer and no face curves tightly \
+             there; an edge of no length, or a face curving to a point as a cone does, leaves no \
+             angle to measure",
+        ),
+        (
+            "spline meter turns back",
+            CertifyError::SpanMeterCollapsed {
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1.0),
+                },
+            },
+            "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
+             or turning back",
+        ),
+        (
+            "spline meter, invalid",
+            escalated(CertCheck::ParamSpanMeter, MarginDiag::INVALID),
+            "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
+             or turning back; an unreadable margin may indicate a kernel bug worth \
+             reporting",
         ),
         (
             "endpoint",
@@ -1879,6 +2061,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
 const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
 const DISTANCE: &str =
     "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+const WALL: &str = "Recourse: use a thinner wall";
 
 /// One `Meter/Escalated` sample per ending its meter's decision gives an
 /// undecided margin (D4 ¶1), with that whole ending: each meter's lever
@@ -1887,8 +2070,9 @@ const DISTANCE: &str =
 /// passes; and on a poisoned margin the lever and what it may mean.
 ///
 /// The band is fixed rather than the run's witness band, so the quoted
-/// `m/K` is the same at every eps row.
-fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
+/// `m/K` is the same at every eps row. `curvature` is the curvature
+/// meter's lever on the route read ([`DISTANCE`] or [`WALL`]).
+fn meter_escalations(curvature: &str) -> Vec<(&'static str, geom_brep::OffsetFitError, String)> {
     use geom_brep::offset_meters::{Meter, MeterError};
     use geom_core::{Band, Indeterminate, MarginDiag};
     let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
@@ -1912,12 +2096,12 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
         (
             "curvature",
             escalated(Meter::CurvatureHeadroom, in_band),
-            tighten(DISTANCE, "clearance"),
+            tighten(curvature, "clearance"),
         ),
         (
             "curvature-enclosure",
             escalated(Meter::CurvatureHeadroom, wide),
-            DISTANCE.to_owned(),
+            curvature.to_owned(),
         ),
         (
             "floor",
@@ -1933,7 +2117,7 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
-                "{DISTANCE}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                "{curvature}; an unreadable margin may indicate a kernel bug worth \
                  reporting"
             ),
         ),
@@ -1945,8 +2129,8 @@ fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, String)>
 /// band is band-decided and names the tolerance below `m/K`; a floor of
 /// exactly zero, which no tolerance resolves, names the lever and says a
 /// face with no degeneracy is worth reporting; a sign-certain fold names
-/// the lever alone.
-fn meter_verdicts() -> [(&'static str, String); 4] {
+/// the lever alone. `curvature` is as [`meter_escalations`] takes it.
+fn meter_verdicts(curvature: &str) -> [(&'static str, String); 4] {
     [
         (
             "Meter/NormalFloor",
@@ -1958,14 +2142,28 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
             "Meter/NormalFloor#2",
             format!("{SPLIT}; if it has none, this may indicate a kernel bug worth reporting"),
         ),
-        ("Meter/CurvatureHeadroom", DISTANCE.to_owned()),
+        ("Meter/CurvatureHeadroom", curvature.to_owned()),
         (
             "Meter/CurvatureHeadroom#2",
             format!(
-                "{DISTANCE}, or, if this clearance is intended, tighten the tolerance below \
+                "{curvature}, or, if this clearance is intended, tighten the tolerance below \
                  5e-11 m"
             ),
         ),
+    ]
+}
+
+/// The endings the shell route alone gives the fit's other arms about
+/// the move's length, by row: the unbounded fit's `best: None` sample
+/// names a thicker wall, and an invalid request is the op's own defect
+/// (its thickness gate and its tolerance witness never make one).
+fn wall_endings() -> [(&'static str, String); 2] {
+    [
+        (
+            "BoundNotFinite#2",
+            "Recourse: use a thicker wall".to_owned(),
+        ),
+        ("InvalidRequest", geom_core::KERNEL_DEFECT_ENDING.to_owned()),
     ]
 }
 
@@ -1978,11 +2176,13 @@ fn meter_verdicts() -> [(&'static str, String); 4] {
 /// - **The shell op's face replacement** (`Shell/Face/Fit/…`): the
 ///   fit lane's mint runs the whole fit loop and then certifies, so it
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
-///   the chart rectangle it fitted) and `Band` (below). The loop's own
+///   the chart rectangle it fitted), `Limb` (a limb refusing at the
+///   mint is `MintLimb`) and `Band` (below). The loop's own
 ///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
-///   transform's re-fit.
+///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
+///   call that refused, so it ends in the kernel-defect ending.
 /// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
 ///   certifier's arms on the image — `certify_offset_over` runs the
 ///   meters and the certificate limbs on a fit it did not make, so
@@ -2025,8 +2225,8 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
     // otherwise shrink these rows silently. `BudgetExhausted`,
-    // `BoundNotFinite` and `Limb` each carry two samples (both
-    // `LastRound` readings, both `best` cases, both limbs).
+    // `BoundNotFinite`, `Limb` and `MintLimb` each carry two samples
+    // (both `LastRound` readings, both `best` cases, both limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
@@ -2042,6 +2242,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("RefinementStalled", 1),
         ("WindowUnsupported", 1),
         ("Limb", 2),
+        ("MintLimb", 2),
         ("Elevation/", 1),
     ] {
         let have = roster.iter().filter(|(n, _)| n.starts_with(arm)).count();
@@ -2051,15 +2252,20 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         );
     }
     roster.extend(
-        meter_escalations()
+        // The sources alone: a source does not depend on the lever,
+        // which only the endings read, per route, in the test.
+        meter_escalations(DISTANCE)
             .into_iter()
-            .map(|(route, source, _)| (format!("Meter/Escalated/{route}"), source)),
+            .map(|(route, source, _ending)| (format!("Meter/Escalated/{route}"), source)),
     );
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
         let transform = !matches!(source, O::Band(_));
-        if !matches!(source, O::WindowUnsupported { .. } | O::Band(_)) {
+        if !matches!(
+            source,
+            O::WindowUnsupported { .. } | O::Limb { .. } | O::Band(_)
+        ) {
             rows.push(row(
                 &format!("Shell/Face/Fit/{arm}"),
                 NodeErrorKind::Shell(Box::new(ShellError::Face {
@@ -2366,6 +2572,22 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Escalated(contact-arm)",
+            E::Escalated {
+                site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactArm,
+                source: escalated("dihedral_arm"),
+            },
+        ),
+        (
+            "Escalated(contact-wedge)",
+            E::Escalated {
+                site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactWedge,
+                source: escalated("dihedral_wedge"),
+            },
+        ),
+        (
             "Escalated(contact)",
             E::Escalated {
                 site: BlendSite::Link { edge },
@@ -2441,6 +2663,20 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "ScaffoldingOperand",
+            E::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            E::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
+        (
             "Certify",
             E::Certify {
                 site: "blend face pcurves",
@@ -2512,15 +2748,6 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
                 loop_index: 0,
                 joint: 9,
                 count: 4,
-            },
-        ),
-        (
-            "UndeclaredTangency",
-            E::UndeclaredTangency {
-                first: a,
-                second: b,
-                joint: 2,
-                suggestion: "declare_tangent(loop=0, joint=2)".to_owned(),
             },
         ),
         (
@@ -2961,20 +3188,20 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     let name = || StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(3)),
+        node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     };
     let eval: Vec<(&str, EvalError)> = vec![
         (
             "UnresolvedVar",
             EvalError::UnresolvedVar {
-                var: editor_core::VarId(tagged(7)),
+                var: editor_core::VarId::new(0, tagged(7)),
             },
         ),
         (
             "VarKindMismatch",
             EvalError::VarKindMismatch {
-                var: editor_core::VarId(tagged(7)),
+                var: editor_core::VarId::new(0, tagged(7)),
                 bound: Dimension::Angle,
                 read: Dimension::Length,
             },
@@ -2995,13 +3222,23 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             EvalError::CountToScalarOutOfRange(1 << 60),
         ),
         ("NonFiniteResult", EvalError::NonFiniteResult),
+        // No node raises it — a lowered document holds no authored
+        // leaf, so a node's expression never reaches it — but a formula
+        // evaluated outside a document does, and it renders through the
+        // same `Display` within the same budget.
+        (
+            "Unlowered",
+            EvalError::Unlowered(editor_core::LowerFault::Quantity {
+                dim: Dimension::Length,
+            }),
+        ),
     ];
     let param_box = [
         (
             "UnknownParam",
             ParamBoxError::UnknownParam {
                 param: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
@@ -3010,7 +3247,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "AxisUnrepresentable",
             ParamBoxError::AxisUnrepresentable {
                 param: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
                 lo: 1.0,
@@ -3023,7 +3260,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "UnknownVar",
             SeedError::UnknownVar {
                 var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
@@ -3032,7 +3269,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "CountVar",
             SeedError::CountVar {
                 var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("n")),
                 ),
             },
@@ -3041,7 +3278,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
                 var: editor_core::SpokenVar::new(
-                    editor_core::VarId(tagged(7)),
+                    editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
@@ -3084,7 +3321,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "MissingUpstream",
             NamingError::MissingUpstream {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
             },
         ),
         (
@@ -3114,7 +3351,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "SharedRim",
             NamingError::SharedRim {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
                 other: topo::FaceKey::default(),
                 found: RimShare::Several,
@@ -3149,7 +3386,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     name: name(),
                     candidates: vec![name(), name()],
                     tie: TieWitness {
-                        node: RecipeNodeId(tagged(4)),
+                        node: RecipeNodeId::new(0, tagged(4)),
                         at: name(),
                         width: 2,
                     },
@@ -3160,7 +3397,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 ResolveError::NodeGone {
                     name: name(),
                     edit: RecipeEditRef::NodeDeleted {
-                        node: RecipeNodeId(tagged(3)),
+                        node: RecipeNodeId::new(0, tagged(3)),
                     },
                 },
             ),
@@ -3194,47 +3431,17 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     for (n, e) in naming {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
-    for (n, e) in [
-        ("StaleKey", topo::ParamAttachError::StaleKey),
-        (
-            "FieldNotOnKind",
-            topo::ParamAttachError::FieldNotOnKind {
-                field: topo::SurfaceField::TorusMinorRadius,
-            },
-        ),
-    ] {
-        rows.push(row(
-            &format!("ParamSourceAttach/{n}"),
-            NodeErrorKind::ParamSourceAttach(e),
-        ));
-    }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 5] = [
+    let wraps: [(&str, Wrap); 2] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
             reference: 0,
         }),
-        ("BlendSelectionResolve", |error| {
-            NodeErrorKind::BlendSelectionResolve {
-                verb: sweep::blend::BlendKind::Chamfer,
-                error,
-                reference: 0,
-            }
-        }),
-        ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve {
-                error,
-                reference: 0,
-            }
-        }),
-        ("FaceFrameResolve", |error| {
-            NodeErrorKind::FaceFrameResolve { error }
-        }),
-        ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve {
-                error,
-                reference: 0,
-            }
+        ("SelectResolve", |error| NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
+            error,
+            reference: 0,
         }),
     ];
     for (wrap, build) in wraps {
@@ -3248,7 +3455,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
 fn stable(kind: editor_core::EntityKind, node: u64) -> editor_core::StableName {
     editor_core::StableName {
         kind,
-        node: RecipeNodeId(tagged(node)),
+        node: RecipeNodeId::new(0, tagged(node)),
         path: Vec::new(),
     }
 }
@@ -3264,48 +3471,25 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
-        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
-        MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
+        InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
-    let sited = |node| SitedRef {
-        at: RecipeNodeId(tagged(node)),
-        name: stable(EntityKind::Face, node),
-    };
-    let finding = |relation| FlushFinding {
-        pair: (sited(2), sited(3)),
-        class: BooleanCoincidence::REST,
-        evidence: FlushEvidence {
-            relation,
-            rung: FlushRung::DecidedCoincident,
-        },
-    };
     let mut rows = vec![
         row(
-            "UndeclaredContact(rest)",
-            NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(finding(topo::PlaneRelation::SameOpposite)),
-                merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
-            },
-        ),
-        row(
-            "UndeclaredContact(flush, merged)",
-            NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(finding(topo::PlaneRelation::SameOriented)),
-                merged: Box::new((vec![sited(2), sited(4)], Vec::new())),
-                diag: diag(),
-            },
-        ),
-        row(
-            "UndeclarableContact",
-            NodeErrorKind::UndeclarableContact {
-                row: Box::new(face()),
-                diag: diag(),
+            "UnionFoldStep",
+            NodeErrorKind::UnionFoldStep {
+                member: RecipeNodeId::new(0, tagged(2)),
+                refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
+                    decision: topo::BooleanDecision::Coincidence(
+                        topo::Coincide::Carriers,
+                        topo::DeclarationRead::Moot,
+                    ),
+                    diag: diag(),
+                })),
             },
         ),
         row(
@@ -3327,25 +3511,25 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "Unplaced/NoOffset",
             NodeErrorKind::Unplaced {
-                group: RecipeNodeId(6),
+                group: RecipeNodeId::new(0, 6),
                 cause: editor_core::Unplaced::NoOffset,
             },
         ),
         row(
             "Unplaced/DeadGauge",
             NodeErrorKind::Unplaced {
-                group: RecipeNodeId(6),
+                group: RecipeNodeId::new(0, 6),
                 cause: editor_core::Unplaced::DeadGauge {
-                    gauge: RecipeNodeId(2),
+                    gauge: RecipeNodeId::new(0, 2),
                 },
             },
         ),
         row(
             "PlacementRefused",
             NodeErrorKind::PlacementRefused {
-                node: RecipeNodeId(2),
+                node: RecipeNodeId::new(0, 2),
                 error: NodeErrorKind::EmptyOperand {
-                    input: RecipeNodeId(1),
+                    input: RecipeNodeId::new(0, 1),
                 }
                 .into(),
             },
@@ -3353,7 +3537,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "CrossingUnverified",
             NodeErrorKind::CrossingUnverified {
-                instance: RecipeNodeId(tagged(6)),
+                instance: RecipeNodeId::new(0, tagged(6)),
                 outer: Box::new(FaceName::new(face()).unwrap()),
                 name: Box::new(stable(EntityKind::Edge, 3)),
             },
@@ -3364,14 +3548,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 verb: "distance",
                 a: "cylinder",
                 b: "torus",
-            }),
-        ),
-        row(
-            "MeasureMalformed",
-            NodeErrorKind::MeasureMalformed(MeasureNodeFault::RefIndexOutOfRange {
-                verb: "min_clearance",
-                index: 2,
-                refs: 2,
             }),
         ),
         row(
@@ -3409,8 +3585,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("FrameDirection/{n}"),
             NodeErrorKind::FrameDirection {
-                profile: RecipeNodeId(tagged(4)),
-                frame: RecipeNodeId(tagged(2)),
+                profile: RecipeNodeId::new(0, tagged(4)),
+                frame: RecipeNodeId::new(0, tagged(2)),
                 refusal: DirectionRefusal {
                     role: "frame normal",
                     error,
@@ -3422,20 +3598,20 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "NodeNotEvaluated",
             InterrogateError::Standing(NodeStanding::NotEvaluated {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
             }),
         ),
         (
             "NodeFailed",
             InterrogateError::Standing(NodeStanding::Failed {
-                node: RecipeNodeId(tagged(3)),
+                node: RecipeNodeId::new(0, tagged(3)),
             }),
         ),
         (
             "NodePoisoned",
             InterrogateError::Standing(NodeStanding::Poisoned {
-                node: RecipeNodeId(tagged(3)),
-                through: RecipeNodeId(tagged(2)),
+                node: RecipeNodeId::new(0, tagged(3)),
+                through: RecipeNodeId::new(0, tagged(2)),
             }),
         ),
         ("NoSuchName", InterrogateError::NoSuchName),
@@ -3462,7 +3638,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("MeasureRefUnreadable/{n}"),
             NodeErrorKind::MeasureRefUnreadable {
-                name: Box::new(face()),
+                slot: editor_core::OperandSlot::Measured(editor_core::MeasureVerb::Distance, 0),
+                var: editor_core::VarId::new(0, 7),
                 error,
             },
         ));
@@ -3481,7 +3658,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "PartRootFailed",
             PartFault::PartRootFailed {
                 held: Default::default(),
-                node: RecipeNodeId(tagged(7)),
+                node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
@@ -3489,7 +3666,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "PartRootFailed(part)",
             PartFault::PartRootFailed {
                 held: Default::default(),
-                node: RecipeNodeId(tagged(7)),
+                node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
                     fault: PartFault::DepthExceeded,
@@ -3501,8 +3678,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "PartRootPoisoned",
             PartFault::PartRootPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId(tagged(8)),
-                through: RecipeNodeId(tagged(7)),
+                root: RecipeNodeId::new(0, tagged(8)),
+                through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
@@ -3510,7 +3687,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             "RootFailureUnrecorded",
             PartFault::RootFailureUnrecorded {
                 held: Default::default(),
-                node: RecipeNodeId(tagged(7)),
+                node: RecipeNodeId::new(0, tagged(7)),
             },
         ),
         (
@@ -3538,14 +3715,13 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
 
 /// The instance rows of a part with no product, raised through real
 /// documents so each carries the gather's own sentence: a sketch-only
-/// part, whose roots denote no body; a part that places its body under
-/// two roots; and a part whose split and a move of the split's target
-/// are both roots, so the two alias the block's strict wall names.
+/// part, whose world is empty, and a part whose one placement's body
+/// was deleted.
 fn part_products() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::resolver::{PartStore, with_resolver};
-    use crate::fixture::{ang, insert, len, on_frame, scl, square};
+    use crate::fixture::{insert, len, on_frame, square};
     use editor_core::{
-        CancelToken, Datum, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
+        CancelToken, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
         evaluate,
     };
     use geom_core::Tol;
@@ -3559,74 +3735,30 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             vec![square(0.0, 0.0, 0.5)],
         )
     };
-    let moved = |doc, input, dx| {
-        insert(
-            doc,
-            Node::transform(
-                input,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-        .0
-    };
-    let twice = {
-        let (doc, profile) = sketch("concision-part-twice");
+    let stranded = {
+        let (doc, profile) = sketch("concision-part-stranded");
         let (doc, body) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
         );
-        moved(moved(doc, body, 2.0), body, 4.0)
-    };
-    let aliased = {
-        let (doc, profile) = sketch("concision-part-aliased");
-        let (doc, block) = insert(
-            doc,
-            Node::Extrude {
-                profile,
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            },
-        );
-        let (doc, plane) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.25), len(0.0), len(0.0)],
-                normal: [scl(1.0), scl(0.0), scl(0.0)],
-            }),
-        );
-        let (doc, _) = insert(
-            doc,
-            Node::Split {
-                target: block,
-                tool: plane,
-            },
-        );
-        moved(doc, block, 2.0)
+        let (doc, _) = crate::fixture::place(doc, body);
+        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: body }).0
     };
     let mut store = PartStore::new();
     let parts = [
         (
             "Part/PartProduct",
             store.insert(sketch("concision-part-sketch").0, tol),
-            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::EmptyProduct,
         ),
         (
-            "Part/PartProduct(PlacedUnderTwoRoots)",
-            store.insert(twice, tol),
-            ProductErrorKind::PlacedUnderTwoRoots,
-        ),
-        (
-            "Part/PartProduct(Naming)",
-            store.insert(aliased, tol),
-            ProductErrorKind::Naming,
+            "Part/PartProduct(StrandedPlacement)",
+            store.insert(stranded, tol),
+            ProductErrorKind::StrandedPlacement,
         ),
     ];
     let opts = with_resolver(store);
@@ -3658,8 +3790,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
 }
 
 /// The instance rows of the three gather classes whose sentence
-/// forwards the kernel's own refusal, which no document reaches: a root
-/// the at-rest gate refuses, an aggregate it refuses, and a graft the
+/// forwards the kernel's own refusal, which no document reaches: a
+/// placement the at-rest gate refuses, an aggregate it refuses, and a graft the
 /// kernel refuses. Each is built as the instance carries it, the
 /// gather's refusal whole.
 fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
@@ -3672,7 +3804,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             "Part/PartProduct(RootInvalid)",
             ProductError::RootInvalid {
                 findings: vec![SourceFinding {
-                    node: RecipeNodeId(tagged(3)),
+                    node: RecipeNodeId::new(0, tagged(3)),
                     output: 0,
                     errors: vec![inside_out()],
                 }],
@@ -3687,7 +3819,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
         (
             "Part/PartProduct(Graft)",
             ProductError::Graft {
-                node: RecipeNodeId(tagged(5)),
+                node: RecipeNodeId::new(0, tagged(5)),
                 source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
                     zero: 1.0,
                     escalate: 0.5,
@@ -3715,7 +3847,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{Clash, DocumentId, LeverRefusal, MateFault as M, MateSide, Subgroup};
     use geom_core::{FrameError, FrameInput};
     use payloads::*;
-    let n = |id| RecipeNodeId(tagged(id));
+    let n = |id| RecipeNodeId::new(0, tagged(id));
     [
         (
             "PosesOfAnotherDocument",
@@ -3910,7 +4042,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
 
 fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
-    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
+    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
     let mut rows: Vec<(String, S<f64>)> = replace_face()
         .into_iter()
@@ -3953,18 +4085,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "Pieces",
-                S::Pieces {
-                    error: topo::PieceSortError::Crossing { shell },
-                },
-            ),
-            (
-                "OperandOuterShells",
-                S::OperandOuterShells {
-                    solid: SolidKey::default(),
-                },
-            ),
-            (
                 "Partition",
                 S::Partition {
                     shell,
@@ -3978,6 +4098,15 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                     other,
                     gap: 0.001,
                     needed: 0.002,
+                },
+            ),
+            (
+                "OffsetsCross",
+                S::OffsetsCross {
+                    face,
+                    other,
+                    overlap: 0.001,
+                    thickness: 0.002,
                 },
             ),
             ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
@@ -4018,6 +4147,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             ("Escalated", S::Escalated { source: diag() }),
             ("Pcurve", S::Pcurve { source: pcurve() }),
             (
+                "Join",
+                S::Join {
+                    refusal: join_refusal(),
+                },
+            ),
+            (
                 "NotValid",
                 S::NotValid {
                     errors: vec![topo::ValidationError::ShellDisconnected {
@@ -4032,6 +4167,29 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
     rows.into_iter()
         .map(|(n, e)| row(&format!("Shell/{n}"), NodeErrorKind::Shell(Box::new(e))))
         .collect()
+}
+
+/// **The offset door's join refusal, typed**: the refusal a regularity
+/// reading in the band raises, carried as the door carries it
+/// ([`topo::JoinRefusal`]) and rendered through its own `Display`, so a
+/// regression in the door's words reds this row. A body whose reading
+/// lands in the band is the STEP fixture `halfcap_eps6` (its split
+/// vertex is 1e-8 m off the pole), which `step-import`'s rows feed to
+/// the door itself; this crate cannot build one at the run's one
+/// tolerance, since `split_edge` refuses inside the same band.
+fn join_refused_offset() -> topo::ReplaceFaceError<f64> {
+    topo::ReplaceFaceError::Join {
+        refusal: join_refusal(),
+    }
+}
+
+/// The in-band join reading every door that ends with the join carries
+/// typed (`topo::JoinRefusal`).
+fn join_refusal() -> topo::JoinRefusal {
+    topo::JoinRefusal::Undecided(topo::JoinUndecided {
+        vertex: topo::VertexKey::default(),
+        reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
+    })
 }
 
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
@@ -4125,7 +4283,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "FittedBoundaryUnsupported",
                 R::FittedBoundaryUnsupported {
                     edge,
-                    what: "a seam shared with another fitted face",
+                    what: "a row of this fit shared with another fitted face",
                 },
             ),
             (
@@ -4158,9 +4316,23 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 R::VertexDisagreement { vertex, gap: 0.01 },
             ),
             (
-                "ReanchorOffCarrier",
-                R::ReanchorOffCarrier { edge, gap: 0.01 },
+                "EdgeSection",
+                R::EdgeSection {
+                    edge,
+                    kind: geom::SurfaceKind::Plane,
+                    other_kind: geom::SurfaceKind::Nurbs,
+                    verdict: topo::SectionVerdict::NoBranch,
+                },
             ),
+            (
+                "CornerSection",
+                R::CornerSection {
+                    vertex,
+                    edge,
+                    verdict: topo::CornerVerdict::NoRoot,
+                },
+            ),
+            ("DeclaredEdgeTilted", R::DeclaredEdgeTilted { edge }),
             (
                 "ReanchorPastCarrierEnd",
                 R::ReanchorPastCarrierEnd { edge, gap: 0.25 },
@@ -4257,6 +4429,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 },
             ),
             ("Pcurve", R::Pcurve { source: pcurve() }),
+            ("Join", join_refused_offset()),
             (
                 "ResultNotClosed",
                 R::ResultNotClosed {
@@ -4306,7 +4479,9 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::IsoRow { .. } => "IsoRow",
         R::Structure { .. } => "Structure",
         R::VertexDisagreement { .. } => "VertexDisagreement",
-        R::ReanchorOffCarrier { .. } => "ReanchorOffCarrier",
+        R::EdgeSection { .. } => "EdgeSection",
+        R::CornerSection { .. } => "CornerSection",
+        R::DeclaredEdgeTilted { .. } => "DeclaredEdgeTilted",
         R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
         R::ReanchorCollapse { .. } => "ReanchorCollapse",
         R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
@@ -4324,13 +4499,14 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::Escalated { .. } => "Escalated",
         R::Op { .. } => "Op",
         R::Pcurve { .. } => "Pcurve",
+        R::Join { .. } => "Join",
         R::ResultNotClosed { .. } => "ResultNotClosed",
     }
 }
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 38] = [
+const REPLACE_FACE_ARMS: [&str; 41] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4350,7 +4526,9 @@ const REPLACE_FACE_ARMS: [&str; 38] = [
     "IsoRow",
     "Structure",
     "VertexDisagreement",
-    "ReanchorOffCarrier",
+    "EdgeSection",
+    "CornerSection",
+    "DeclaredEdgeTilted",
     "ReanchorPastCarrierEnd",
     "ReanchorCollapse",
     "ReanchorInconclusive",
@@ -4368,6 +4546,7 @@ const REPLACE_FACE_ARMS: [&str; 38] = [
     "Escalated",
     "Op",
     "Pcurve",
+    "Join",
     "ResultNotClosed",
 ];
 
@@ -4377,10 +4556,7 @@ const REPLACE_FACE_ARMS: [&str; 38] = [
 /// where another kind is wanted.
 fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::measure::{MeasureExpr, MeasurePrimitive};
-    use editor_core::{
-        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
-    };
+    use editor_core::{CancelToken, Datum, EvalOptions, Node, NodeResult, ProfileDoc, evaluate};
     use geom_core::Tol;
     let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
     let (doc, profile) = on_frame(
@@ -4393,31 +4569,21 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
     let face = fname(body, wall(&doc, body, 2));
     let edge = fixture::prism_edges(&doc, body, 4).remove(2);
-    let vertex = fixture::cap_vertex(body, CapEnd::End, crate::fixture::vpiece(&doc, body, 0, 0));
     let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
     let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body,
-            face: edge,
+            face: editor_core::Operand::select(body, vec![edge]),
             spin: ang(0.0),
         }),
-    );
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
-        )
-        .expect("both indices in range"),
     );
     let mut ev = evaluate::<f64>(
         &doc,
@@ -4427,10 +4593,9 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Tol::witness(),
     );
     [
-        ("ShellOpenKind", shell),
-        ("BlendSelectionKind", fillet),
-        ("FaceFrameKind", frame),
-        ("MeasureSelectionKind", measure),
+        ("SelectKind", shell),
+        ("SelectKind", fillet),
+        ("SelectKind", frame),
     ]
     .into_iter()
     .map(|(n, node)| match ev.nodes.remove(&node) {
@@ -4442,7 +4607,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
 
 /// **Every checks-window finding fits the window it is listed in.** The
 /// checks window draws each finding's `Display` verbatim beside its
-/// root's button, so each `CheckEvidence` arm is rendered as the window
+/// placement's button, so each `CheckEvidence` arm is rendered as the window
 /// draws it, on a representative payload, and held to the budget. The
 /// separation arm forwards a Boolean refusal's own sentence; it is
 /// rendered over every containment refusal the separation read can
@@ -4495,14 +4660,16 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let render = |source| {
         CheckFinding {
             check: CheckId::Connectedness,
-            root: RecipeNodeId(tagged(4)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(4)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::Escalated { source },
         }
         .to_string()
     };
     let head =
-        "check connectedness: root 000000000004 output 0: the component count is unknowable: ";
+        "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
     let sign = "the sign of a shell's volume is too close to call: ";
     let in_band =
         |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
@@ -4535,7 +4702,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             escalated(MarginDiag::INVALID),
             format!(
                 "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
-                 unreadable or collapsed margin may indicate a kernel bug worth reporting"
+                 unreadable margin may indicate a kernel or file defect worth reporting"
             ),
         ),
         (
@@ -4579,11 +4746,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     for (name, source, want) in pinned {
         let text = render(source.clone());
         assert_eq!(text, want, "{name}");
-        // The payload's own Display ends in the same one ending.
-        let ending = source.ending().expect("the shell-role decision's refusal");
+        // The finding ends in the shell-role decision's ending read at
+        // rest; the shell door's own Display reads it at a build.
+        let arm = source.arm().expect("the shell-role decision's refusal");
+        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
         assert!(text.ends_with(&ending), "{name}: {text}");
+        let built = source.ending().expect("the shell-role decision's refusal");
         let whole = source.to_string();
-        assert!(whole.ends_with(&format!(". {ending}")), "{name}: {whole}");
+        assert!(whole.ends_with(&format!(". {built}")), "{name}: {whole}");
         assert_eq!(
             test_utils::refusal::recourse_markers(&whole),
             1,
@@ -4619,8 +4789,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     let shell = ShellKey::default();
     let finding = |check, evidence| CheckFinding {
         check,
-        root: RecipeNodeId(tagged(4)),
-        output_ix: 0,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 0,
+        },
         evidence,
     };
     let coherence = |condition| CoherenceFinding {
@@ -4717,7 +4889,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Separation,
                 E::NotSeparated {
-                    other_root: RecipeNodeId(tagged(7)),
+                    other_root: RecipeNodeId::new(0, tagged(7)),
                     other_output: 0,
                 },
             ),
@@ -4798,13 +4970,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 r#loop: topo::LoopKey::default(),
             }),
         ),
-        (
-            "Loop(Escalated)",
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                diag: diag(),
-            }),
-        ),
         ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
         ("CorruptFace", PointInSolidError::CorruptFace { face }),
         (
@@ -4849,6 +5014,37 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             },
         ),
     ];
+    // The loop walk's escalation, in every form a site of it raises.
+    let with = |margin| geom_core::Indeterminate { margin, ..diag() };
+    let poisoned = with(geom_core::MarginDiag::INVALID);
+    let over_wound = with(geom_core::MarginDiag::value(-3.0e-10));
+    let (margin, straddle) = (topo::Escalation::Margin, topo::Escalation::Straddle);
+    let walk = [
+        (topo::LoopDecision::Boundary, margin, diag(), "Value"),
+        (topo::LoopDecision::Boundary, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::Boundary, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Ray, margin, diag(), "Value"),
+        (topo::LoopDecision::Ray, margin, poisoned, "Invalid"),
+        (topo::LoopDecision::ArcSpan, margin, over_wound, "OverWound"),
+        (topo::LoopDecision::ArcSpan, straddle, poisoned, "Straddle"),
+        (topo::LoopDecision::Plane, margin, diag(), "Value"),
+        (topo::LoopDecision::Plane, margin, poisoned, "Invalid"),
+    ]
+    .map(|(decision, escalation, diag, kind)| {
+        (
+            format!("Loop(Escalated/{decision:?}/{kind})"),
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                decision,
+                escalation,
+                diag,
+            }),
+        )
+    });
+    let separation_reasons = separation_reasons
+        .into_iter()
+        .map(|(n, e)| (n.to_owned(), e))
+        .chain(walk);
     for (n, e) in separation_reasons {
         let source = BooleanError::Containment(e);
         rows.push((
@@ -5090,14 +5286,4 @@ fn formula(text: &str) -> editor_core::Formula {
         editor_core::Dimension::Count,
     )]);
     editor_core::parse_formula(text, &names).expect("the formula parses")
-}
-
-/// [`formula`] as a document stores it, `blades` a count variable.
-fn stored(text: &str) -> editor_core::Expr {
-    formula(text)
-        .lower(&|name| {
-            (name.as_str() == "blades")
-                .then_some((editor_core::VarId(tagged(9)), editor_core::Dimension::Count))
-        })
-        .expect("the formula lowers")
 }

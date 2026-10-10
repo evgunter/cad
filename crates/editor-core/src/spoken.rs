@@ -33,7 +33,7 @@
 //!   at hand ([`Speaker::held`]). Inside a line that already names a
 //!   node ([`Speaker::about`]), that node reads `this <noun>`, so no
 //!   sentence names it twice.
-//! - [`FullId`] — every bit of the id, for a machine channel (a
+//! - [`FullId`] — the whole id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
 //!
@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{BooleanOp, Datum, Node, RecipeNodeId, StepId};
+use crate::node::{BooleanOp, Datum, MintId, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -59,18 +59,25 @@ use crate::program::ProfilePayload;
 /// leaked document id).
 const TAG_DIGITS: usize = 12;
 
-/// How far a tag shifts the id: it shows the HIGH [`TAG_DIGITS`] hex
-/// digits. An id is the head of a digest read big-endian
-/// (`crate::mint`), so its leading digits are the hash's own, and a
-/// tag is the id's prefix — the rule a `DocRef`'s pin prefix follows.
+/// How far a tag shifts the id's digest: it shows the HIGH
+/// [`TAG_DIGITS`] hex digits. A digest is the head of a hash read
+/// big-endian (`crate::mint`), so its leading digits are the hash's
+/// own, and a tag is the digest's prefix — the rule a `DocRef`'s pin
+/// prefix follows. The mint ordinal is not in the tag: ordinals repeat
+/// across documents and branches, where the digest tells ids apart.
 const TAG_SHIFT: u32 = 64 - 4 * TAG_DIGITS as u32;
 
-fn write_tag(f: &mut fmt::Formatter<'_>, bits: u64) -> fmt::Result {
-    write!(f, "{:0width$x}", bits >> TAG_SHIFT, width = TAG_DIGITS)
+fn write_tag(f: &mut fmt::Formatter<'_>, id: MintId) -> fmt::Result {
+    write!(
+        f,
+        "{:0width$x}",
+        id.digest() >> TAG_SHIFT,
+        width = TAG_DIGITS
+    )
 }
 
-/// The bare tag: the id's high 48 bits as 12 lowercase hex digits, the
-/// first twelve of its sixteen (`3fa9c1d2a0b1`).
+/// The bare tag: the digest's high 48 bits as 12 lowercase hex digits,
+/// the first twelve of its sixteen (`3fa9c1d2a0b1`).
 impl fmt::Display for RecipeNodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_tag(f, self.0)
@@ -84,20 +91,22 @@ impl fmt::Display for StepId {
     }
 }
 
-/// **An id with every bit shown**: 16 lowercase hex digits,
-/// zero-padded. The machine channel's spelling, where a tag's
-/// abbreviation could make two ids read alike.
+/// **An id shown whole**: its mint ordinal in decimal, a colon, and
+/// its digest as 16 lowercase hex digits, zero-padded
+/// (`3:3fa9c1d2a0b1c3d4`). The machine channel's spelling, where a
+/// tag's abbreviation could make two ids read alike, and the wire's
+/// ([`MintId`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FullId(pub u64);
+pub struct FullId(pub MintId);
 
 impl fmt::Display for FullId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:016x}", self.0)
+        write!(f, "{}", self.0)
     }
 }
 
 impl RecipeNodeId {
-    /// The id with every bit shown ([`FullId`]).
+    /// The id shown whole ([`FullId`]).
     #[must_use]
     pub fn full(self) -> FullId {
         FullId(self.0)
@@ -105,14 +114,14 @@ impl RecipeNodeId {
 }
 
 impl StepId {
-    /// The id with every bit shown ([`FullId`]).
+    /// The id shown whole ([`FullId`]).
     #[must_use]
     pub fn full(self) -> FullId {
         FullId(self.0)
     }
 }
 
-/// `#` and every bit, `#3fa9c1d2a0b1c3d4`: the one spelling of a
+/// `#` and the whole id, `#3:3fa9c1d2a0b1c3d4`: the one spelling of a
 /// variable with no name, the text [`crate::unparse`] writes for its
 /// reader.
 impl fmt::Display for crate::var::VarId {
@@ -122,7 +131,7 @@ impl fmt::Display for crate::var::VarId {
 }
 
 impl crate::var::VarId {
-    /// The id with every bit shown ([`FullId`]).
+    /// The id shown whole ([`FullId`]).
     #[must_use]
     pub fn full(self) -> FullId {
         FullId(self.0)
@@ -130,7 +139,7 @@ impl crate::var::VarId {
 }
 
 /// **A variable as a person reads it** (VARIABLES-DESIGN VR2): its
-/// name (`w`), or `#3fa9c1d2a0b1c3d4` when it has none (the
+/// name (`w`), or `#3:3fa9c1d2a0b1c3d4` when it has none (the
 /// [`crate::var::VarId`] spelling, which a formula's reader shares). Built by
 /// [`Doc::spoken_var`] from the document that holds the variable;
 /// refusals carry it the way they carry a [`SpokenNode`].
@@ -201,17 +210,18 @@ pub struct SpokenNode {
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
     /// The node's label, `None` when it has none or is not held. Boxed
-    /// so that a spoken node stays 32 bytes on a 64-bit target (the id,
-    /// the kind's two words, the box): the edit refusals hold up to
-    /// two, and every edit door returns them by value.
+    /// so that a spoken node stays 40 bytes on a 64-bit target (the
+    /// id's two words, the kind's two words, the box): the edit
+    /// refusals hold up to two, and every edit door returns them by
+    /// value.
     label: Option<Box<Label>>,
 }
 
 // The width the label's box buys, held where clippy measures it: an
-// unboxed label makes it 48 bytes, and `PersistError`, which carries an
+// unboxed label makes it 56 bytes, and `PersistError`, which carries an
 // `EditError`, crosses clippy's 128-byte large-`Err` line.
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<SpokenNode>() == 32);
+const _: () = assert!(core::mem::size_of::<SpokenNode>() == 40);
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
@@ -556,6 +566,20 @@ trait HoldsNodes {
     fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
+    /// The operation `id` is an output of, and its port's name, where
+    /// the document holds it.
+    fn output_of(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        None
+    }
+    /// A reader of `id` at `dim` as written ([`Doc::written`]), where
+    /// the document holds what `id` holds.
+    fn written(
+        &self,
+        _id: crate::var::VarId,
+        _dim: crate::expr::Dimension,
+    ) -> Option<crate::Formula> {
+        None
+    }
     /// The slot of `node`'s payload at `reference` that holds `name`
     /// ([`Node::reference_slot`]), `None` where it is not held here. A
     /// door's held nodes keep none, so a refusal they say names the
@@ -568,6 +592,25 @@ trait HoldsNodes {
     ) -> Option<(&'static str, String)> {
         None
     }
+    /// The place `name` holds in the selection `var`, where this
+    /// document holds both.
+    fn selection_position(&self, _var: crate::var::VarId, _name: &StableName) -> Option<usize> {
+        None
+    }
+    /// Where name `reference` of the selection `var`, read at `node`'s
+    /// operand `slot`, sits as a person reads it
+    /// ([`Node::selection_slot`]), `None` where the selection there does
+    /// not hold `name`.
+    fn selection_slot(
+        &self,
+        _node: RecipeNodeId,
+        _slot: crate::OperandSlot,
+        _var: crate::var::VarId,
+        _reference: usize,
+        _name: &StableName,
+    ) -> Option<(&'static str, String)> {
+        None
+    }
 }
 
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
@@ -575,12 +618,26 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
         self.spoken(id)
     }
 
+    fn written(
+        &self,
+        id: crate::var::VarId,
+        dim: crate::expr::Dimension,
+    ) -> Option<crate::Formula> {
+        Some(Doc::written(self, &crate::Expr::var(id, dim)))
+    }
+
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
         self.var_name(id).cloned()
     }
 
+    fn output_of(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        let (node, port) = self.defined_by(id)?;
+        let name = self.node(node)?.outputs().get(usize::from(port))?.name;
+        Some((node, name))
+    }
+
     fn step(&self, id: StepId) -> Option<StepAt> {
-        self.order().iter().find_map(|node| {
+        self.ids().iter().find_map(|node| {
             let Some(Node::Profile(payload)) = self.node(*node) else {
                 return None;
             };
@@ -599,7 +656,8 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     }
 
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
-        let inputs = self.node(feature)?.inputs();
+        self.node(feature)?;
+        let inputs = self.upstream(feature);
         let mut profiles = inputs
             .iter()
             .filter(|input| matches!(self.node(**input), Some(Node::Profile(_))));
@@ -623,6 +681,26 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
         name: &StableName,
     ) -> Option<(&'static str, String)> {
         self.node(node)?.reference_slot(node, reference, name)
+    }
+
+    fn selection_position(&self, var: crate::var::VarId, name: &StableName) -> Option<usize> {
+        self.selection(var)?
+            .names
+            .iter()
+            .position(|held| held == name)
+    }
+
+    fn selection_slot(
+        &self,
+        node: RecipeNodeId,
+        slot: crate::OperandSlot,
+        var: crate::var::VarId,
+        reference: usize,
+        name: &StableName,
+    ) -> Option<(&'static str, String)> {
+        (self.selection(var)?.names.get(reference)? == name)
+            .then(|| self.node(node)?.selection_slot(slot, reference))
+            .flatten()
     }
 }
 
@@ -680,7 +758,7 @@ enum NodeFact {
 
 impl NodeFact {
     /// What the fact is about: one fact is kept per key.
-    fn key(self) -> (u8, u64) {
+    fn key(self) -> (u8, MintId) {
         match self {
             Self::Step(id, _) => (0, id.0),
             Self::SoleProfile(node, _) => (1, node.0),
@@ -824,6 +902,12 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
             said.vars = said.vars.iter().cloned().chain([var.clone()]).collect();
         }
         var.name().cloned()
+    }
+
+    fn output_of(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        let (node, port) = self.doc.output_of(id)?;
+        let _ = self.speak(node);
+        Some((node, port))
     }
 
     fn step(&self, id: StepId) -> Option<StepAt> {
@@ -972,6 +1056,33 @@ impl<'a> Speaker<'a> {
         Some(format!("this {owner}'s {slot}"))
     }
 
+    /// [`Self::selection_reference`] for the place `name` holds in the
+    /// selection `var`.
+    pub(crate) fn selection_name(
+        self,
+        slot: crate::OperandSlot,
+        var: crate::var::VarId,
+        name: &StableName,
+    ) -> Option<String> {
+        let reference = self.doc?.selection_position(var, name)?;
+        self.selection_reference(slot, var, reference, name)
+    }
+
+    /// [`Self::reference`] for name `reference` of the selection `var`
+    /// the subject reads at `slot`.
+    pub(crate) fn selection_reference(
+        self,
+        slot: crate::OperandSlot,
+        var: crate::var::VarId,
+        reference: usize,
+        name: &StableName,
+    ) -> Option<String> {
+        let (owner, at) = self
+            .doc?
+            .selection_slot(self.subject?, slot, var, reference, name)?;
+        Some(format!("this {owner}'s {at}"))
+    }
+
     /// The one profile `feature` reads in this speaker's document.
     pub(crate) fn sole_profile(self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
         self.doc?.sole_profile(feature)
@@ -1032,6 +1143,35 @@ impl<'a> Speaker<'a> {
                 .find(|(held, _)| *held == id)
                 .map(|(_, name)| name)
         })
+    }
+
+    /// **An operation's output, said** (D10: an output is spoken by its
+    /// operation): its name where it has one, else `the <port> of
+    /// <node>`; by its id where the speaker's document does not hold it.
+    #[must_use]
+    pub fn output(self, var: crate::var::VarId) -> String {
+        let Some(doc) = self.doc else {
+            return var.to_string();
+        };
+        if let Some(name) = doc.speak_var(var) {
+            return format!("`{name}`");
+        }
+        match doc.output_of(var) {
+            Some((node, port)) => format!("the {port} of {}", self.node(node)),
+            None => var.to_string(),
+        }
+    }
+
+    /// **A slot's variable, said as written**: what an anonymous one
+    /// holds, its readers said ([`Self::formula`]); a named one by its
+    /// name; `#<16 hex>` where the speaker's document does not hold it.
+    #[must_use]
+    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> String {
+        let written = self
+            .doc
+            .and_then(|doc| doc.written(var, dim))
+            .unwrap_or_else(|| crate::Formula::var(var, dim));
+        self.formula(&written)
     }
 
     /// The name `name` in words ([`crate::LeafRole`]): `the end cap of
@@ -1158,6 +1298,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
+        Node::PlaceInWorld { .. } => "PlaceInWorld",
         Node::Boolean { .. } => "Boolean",
         Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",
@@ -1203,14 +1344,29 @@ mod tests {
     /// check by eye: the low four digits never reach the tag, and an id
     /// below 2^16 tags as zeros.
     #[test]
-    fn the_tag_is_the_twelve_high_hex_digits_and_the_full_id_sixteen() {
-        let wide = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
-        assert_eq!(wide.to_string(), "3fa9c1d2a0b1", "the tag is the prefix");
-        assert_eq!(wide.full().to_string(), "3fa9c1d2a0b10042");
-        assert_eq!(StepId(0x0000_0000_00ab_ffff).to_string(), "0000000000ab");
-        assert_eq!(RecipeNodeId(0xffff).to_string(), "000000000000");
-        assert_eq!(StepId(7).full(), FullId(7));
-        assert_eq!(FullId(7).to_string(), "0000000000000007");
+    fn the_tag_is_the_digests_twelve_high_hex_digits_and_the_full_id_all_of_it() {
+        let wide = RecipeNodeId::new(41, 0x3fa9_c1d2_a0b1_0042);
+        assert_eq!(
+            wide.to_string(),
+            "3fa9c1d2a0b1",
+            "the tag is the digest's prefix"
+        );
+        assert_eq!(
+            RecipeNodeId::new(42, 0x3fa9_c1d2_a0b1_0042).to_string(),
+            "3fa9c1d2a0b1",
+            "the ordinal is not in the tag"
+        );
+        assert_eq!(wide.full().to_string(), "41:3fa9c1d2a0b10042");
+        assert_eq!(
+            StepId::new(0, 0x0000_0000_00ab_ffff).to_string(),
+            "0000000000ab"
+        );
+        assert_eq!(RecipeNodeId::new(0, 0xffff).to_string(), "000000000000");
+        assert_eq!(StepId::new(3, 7).full(), FullId(crate::MintId::new(3, 7)));
+        assert_eq!(
+            FullId(crate::MintId::new(3, 7)).to_string(),
+            "3:0000000000000007"
+        );
     }
 
     /// A node the document holds is spoken by its kind noun and tag;
@@ -1225,25 +1381,26 @@ mod tests {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,
             )
             .expect("the frame inserts")
             .doc;
-        let id = *doc.order().last().expect("the inserted frame");
+        let id = *doc.ids().last().expect("the inserted frame");
         assert_eq!(kind, "Datum frame");
         let spoken = doc.spoken(id);
         assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
         assert_eq!(
             spoken.to_string(),
-            format!("Datum frame {}", test_utils::refusal::tag(id.0))
+            format!("Datum frame {}", test_utils::refusal::tag(id.0.digest()))
         );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
         assert_eq!(
             gone.to_string(),
-            format!("node {}", test_utils::refusal::tag(id.0))
+            format!("node {}", test_utils::refusal::tag(id.0.digest()))
         );
     }
 
@@ -1258,21 +1415,22 @@ mod tests {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(test_support::xy_frame()),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,
             )
             .expect("the frame inserts")
             .doc;
-        let id = *doc.order().last().expect("the inserted frame");
-        let stranger = RecipeNodeId(test_utils::refusal::tagged(7));
+        let id = *doc.ids().last().expect("the inserted frame");
+        let stranger = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let forged = SpokenNode::forged(
             id,
             Some("Datum frame"),
             Some(Label::new("floor").expect("a label")),
         );
         let kept: HeldNodes = [forged.clone()].into_iter().collect();
-        let t = test_utils::refusal::tag(id.0);
+        let t = test_utils::refusal::tag(id.0.digest());
         let said = |by: Speaker<'_>, id| by.node(id).to_string();
         assert_eq!(
             said(Speaker::of(&doc).or_held(&kept), id),
@@ -1291,7 +1449,7 @@ mod tests {
         );
         assert_eq!(
             said(Speaker::of(&empty).or_held(&kept), stranger),
-            format!("node {}", test_utils::refusal::tag(stranger.0)),
+            format!("node {}", test_utils::refusal::tag(stranger.0.digest())),
             "neither holds it: its tag"
         );
     }

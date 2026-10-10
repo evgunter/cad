@@ -61,3 +61,39 @@ descending face did the same), this row's measured orders grow:
 
 Measurement and fan-out: `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
 "Re-measured on main (2026-10-06)".
+
+## An undeclared witness: a quadrilateral void in a quadrilateral arch (TANG, 2026-10-07)
+
+PR 4256 reaches the same `Emission` ("seam vertex parentage
+underdetermined from incident edges") with no declaration. The
+quadrilateral arch is the pyramid over `bearing(40|80, 0.45|0.25, 0.5)`
+at `MEET`, and the void in it is `nest_polygon(arch, 0.7)`
+(`topo::test_support::meeting`). The probe "over" is
+`corners(50, 0.7, 0.5)` standing at `MEET`.
+
+`x ∪ y` (over first) refuses at every pose of `meeting::poses`, at
+ε = 1e-9:
+- "over a quad void in a quad arch": the plate united with the arch,
+  less the void. It builds from PR 4256 on; main refused it.
+- "over a quad void in a bare quad arch": the arch less the void, pairs
+  alone. It refuses the same way on main.
+
+`y ∪ x` (the arch first) refuses the same way in both scenes, at every
+pose, since PR 4249 (JOIN's one vertex per cone at insertion) let it
+build; before that it refused `ClassificationInvariant` in the boolean.
+
+The boolean's edge classes at the vertex hold against an analytic germ
+in `x ∪ y`, and every op in both orders builds sound in both scenes at
+every pose (`a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose`),
+so the refusal is the emitter's. `crates/editor-core/src/names/emit_topo.rs`,
+`touch_reread_rows::no_rule`, allows exactly these cells and cites this
+item.
+
+## Reached undeclared (INTENT stage 4 PR E, 2026-10-10)
+
+PR E glues `(a, h)`'s flush walls undeclared. In
+`emit_shared_rim_several::no_order_of_the_probe_corpus_refuses_several_shared_rims`
+only `(a, b)` is declared, and `row` and `rowids` now reach this
+residue in `[a, h, b, g]` and `[h, a, b, g]`. That is the same pair of
+orders the declared row measured. The test admits it by name
+(`RESIDUES`).

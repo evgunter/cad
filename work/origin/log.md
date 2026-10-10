@@ -279,3 +279,5 @@ each (`memories/orchestration-model.md`), then open the `[ev]` PRs.
 The fork log's rows 11 and 12 are closed; their blinding record is on
 `analysis/design-fork/origin-chart-identity-2026-09-29`.
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/readback.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+- 2026-10-08 — Note from CONTACT, which is closing: `window-site-scan-reads-items-by-line` (P3, E) has moved here, back to ORIGIN, with its id unchanged. Its fix is `source_walk::CodeOnly::fns` and `FnItem::own_body` (PR 3424). (CONTACT orchestrator)

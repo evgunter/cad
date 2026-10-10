@@ -128,6 +128,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
                     editor_core::Dimension::Length,
                     0.0625,
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -235,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let block = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -270,6 +271,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         DocEdit::DefineVar {
             var: h.into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            fresh: Vec::new(),
         },
         DocEdit::SetExtrudeSide {
             node: block,
@@ -304,14 +306,16 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Formula::div(
+                value: editor_core::Formula::div(
                     editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),
                     fixture::scl(0.0),
                 )
-                .unwrap(),
+                .unwrap()
+                .into(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -328,6 +332,9 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             match &e.kind {
                 editor_core::NodeErrorKind::Expr { slot, source } => {
                     assert_eq!(*slot, SlotId::Distance);
+                    // The formula written at the slot is the anonymous
+                    // definition it reads, whose refusal is the slot's
+                    // own (`VarEnv::written`).
                     assert_eq!(*source, editor_core::EvalError::NonFiniteResult);
                 }
                 other => panic!("expected Expr error, got {other:?}"),
@@ -405,7 +412,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, small) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: small_p,
+            profile: small_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -420,7 +427,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, big) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: big_p,
+            profile: big_p.into(),
             distance: len(3.0),
             side: ExtrudeSide::Along,
         },
@@ -429,8 +436,8 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: small,
-            b: big,
+            a: small.into(),
+            b: big.into(),
             declare: Vec::new(),
         },
     );
@@ -440,8 +447,8 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: sub,
-            b: big,
+            a: sub.into(),
+            b: big.into(),
             declare: Vec::new(),
         },
     );
@@ -473,7 +480,7 @@ fn split_evaluates_both_parts_role_tagged() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -489,8 +496,8 @@ fn split_evaluates_both_parts_role_tagged() {
     let (doc, split_node) = fixture::insert(
         doc,
         Node::Split {
-            target: cube,
-            tool: plane,
+            target: cube.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc, None, false);

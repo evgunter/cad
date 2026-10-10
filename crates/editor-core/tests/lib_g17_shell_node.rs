@@ -73,7 +73,7 @@ fn cup_names(doc: &ProfileDoc, blank: RecipeNodeId, shell: RecipeNodeId) -> [Sta
 
 /// The blank the cup shells (its extrude node), found by kind.
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -277,7 +277,8 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
         &DocEdit::SetParam {
             node: shell,
             slot: SlotId::ShellThickness,
-            expr: fixture::len(cup::T_BUMPED),
+            value: fixture::len(cup::T_BUMPED).into(),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -334,7 +335,7 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     assert_eq!(topo::validate_closed(body), Ok(()), "closed");
     // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
-    let pot = d.doc.node(shell).map(|n| n.inputs()[0]).expect("the pot");
+    let pot = d.doc.upstream(shell)[0];
     let table = &ev.value(shell).expect("evaluated").name_table;
     let rim = shelled(
         shell,
@@ -458,13 +459,13 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece.into()));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
-    let blank = test_utils::refusal::tag(blank_of(&doc).0);
+    let blank = test_utils::refusal::tag(blank_of(&doc).0.digest());
     let step = fixture::step_of(&piece);
-    assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
+    assert!(matches!(e, NodeErrorKind::SelectResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
         format!(
-            "a shell open-face name failed to resolve: the side wall over piece 7 of the profile \
+            "a selected name failed to resolve: the side wall over piece 7 of the profile \
              step {step} of node {blank} no longer resolves in this evaluation: the recorded \
              reference disagrees with the recipe as it stands on the derivation path (node \
              {blank}'s payload differs)"
@@ -484,13 +485,13 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert!(
         matches!(
             &e,
-            NodeErrorKind::ShellOpenKind { found, .. } if found.kind() == EntityKind::Edge
+            NodeErrorKind::SelectKind { found, .. } if found.kind() == EntityKind::Edge
         ),
         "{e:?}"
     );
     assert_eq!(
         e.to_string(),
-        format!("the shell's open face names {edge}, which is an edge, not a face")
+        format!("a selection names {edge}, which is an edge, not a face")
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its
@@ -536,10 +537,16 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 /// list the same way.
 #[test]
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
-    let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0).into()));
-    let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1).into()));
+    let a = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(0).into()),
+    );
+    let b = fixture::fname(
+        RecipeNodeId::new(0, 1),
+        RoleSeg::Lateral(fixture::leg(1).into()),
+    );
     let node: AuthoredNode = Node::shell(
-        RecipeNodeId(1),
+        RecipeNodeId::new(0, 1),
         fixture::len(0.1),
         vec![b.clone(), a.clone(), b.clone(), a.clone()],
     );
@@ -547,15 +554,15 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
         panic!("the door builds a shell");
     };
     assert_eq!(
-        open,
-        &vec![b.clone(), a.clone()],
+        fixture::authored_names(open),
+        vec![b.clone(), a.clone()],
         "order kept, first occurrence kept"
     );
-    assert_eq!(node.payload_names(), vec![&b, &a]);
+    assert_eq!(node.selected_names(), vec![&b, &a]);
     assert_eq!(node.slots(), vec![SlotId::ShellThickness]);
     assert_eq!(
         SlotId::ShellThickness.dimension(),
-        editor_core::Dimension::Length
+        Some(editor_core::Dimension::Length)
     );
     assert_eq!(SlotId::ShellThickness.label(), "shell thickness");
     assert!(!SlotId::ShellThickness.is_structural());
@@ -563,18 +570,19 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
 
 /// **The load door refuses a repeated `open` entry** as a corrupt file,
 /// never quietly deduplicating it — through the one definition the
-/// insert door asks too (`Node::input_fault`), so the two doors refuse
+/// insert door asks too (`Select::fault`), so the two doors refuse
 /// alike (`lib_g17_r2_probes::p2_*` is the insert door's half).
 #[test]
 fn a_repeated_open_entry_is_refused_at_load() {
     let d = cup::document();
     let text = save(&d.doc, &[], Tol::witness()).expect("the cup saves");
-    // The wire form of `open` is the name's own serde encoding inside
-    // an `"open"` list; the one entry names the blank's END cap, and
-    // the pin reads that spelling rather than assuming it.
+    // The wire form of the open faces is the names' own serde encoding
+    // inside the selection's `"names"` list; the one entry names the
+    // blank's END cap, and the pin reads that spelling rather than
+    // assuming it.
     let open = text
-        .find("\"open\"")
-        .expect("the open list reaches the wire");
+        .find("\"names\"")
+        .expect("the open faces reach the wire");
     let start = open + text[open..].find('[').expect("a list");
     let mut depth = 0usize;
     let mut end = start;
@@ -599,8 +607,8 @@ fn a_repeated_open_entry_is_refused_at_load() {
     // Doubling the list's one entry: `[x]` → `[x, x]`.
     let corrupt = format!("{}[{entry}, {entry}]{}", &text[..start], &text[end + 1..]);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::ListFault::RepeatedDesignation { first: 0, again: 1 },
+        Err(PersistError::Snapshot(editor_core::SnapshotError::SelectionShape {
+            fault: editor_core::SelectionFault::Repeated { first: 0, again: 1 },
             ..
         })) => {}
         other => panic!("a repeated designation must refuse typed, got {other:?}"),
@@ -636,11 +644,14 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
                 d.name
             ),
         }
-        // Everything upstream of the shell built: the refusal is the
-        // shell's alone.
+        // Everything else built or is poisoned through the shell (its
+        // world placement): the refusal is the shell's alone.
         let upstream_bad: Vec<_> = failures(&ev)
             .into_iter()
-            .filter(|s| !s.starts_with(&format!("{shell:?}")))
+            .filter(|s| {
+                !s.starts_with(&format!("{shell:?}"))
+                    && !s.ends_with(&format!("poisoned through {shell:?}"))
+            })
             .collect();
         assert!(upstream_bad.is_empty(), "{}: {upstream_bad:?}", d.name);
     }
@@ -671,7 +682,7 @@ fn both_documents_round_trip_through_persistence() {
         );
         assert!(
             back.doc
-                .order()
+                .ids()
                 .iter()
                 .any(|&id| matches!(back.doc.node(id), Some(Node::Shell { .. }))),
             "{}: the round-tripped recipe carries no shell",
@@ -690,13 +701,20 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
     let d = corpus::die_pips::document();
     let ball = d
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
         .expect("the pip ball");
     let t = 0.01;
-    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let (doc, sealed) = fixture::insert(
+        d.doc,
+        Node::shell(
+            editor_core::Operand::output(ball, 0),
+            fixture::len(t),
+            Vec::new(),
+        ),
+    );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
@@ -716,4 +734,108 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
         "volume {} vs the closed form {want}",
         m.volume
     );
+}
+
+/// **A tube's wall opens from a document into two seamed bands.** The
+/// full revolve of an annular meridian wears its outer wall on one face
+/// walking its seam between the two caps' circles; opened, the wall's rim
+/// is a band at each circle. The name table carries the first band as
+/// `Rim(wall)` and the second as the rim's hole `0`; the seam the surgery
+/// divided is named as two pieces of itself, each by its ends, so no face
+/// or edge is left unnamed. Tier 3 holds on the evaluated body.
+#[test]
+fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
+    use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget, Qualifier};
+    let mut r = corpus::Recorder::new();
+    let plane = r.insert(fixture::frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ));
+    let axis = r.insert(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let meridian = LoopProgram::Chain(vec![
+        ProgramStep::At(fixture::len2([0.25, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.5, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.5, 0.375]))),
+        ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.25, 0.375]))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        frame: plane.into(),
+        loops: vec![meridian],
+        ids: Vec::new(),
+    }));
+    let tube = r.insert(Node::Revolve {
+        profile: profile.into(),
+        axis: axis.into(),
+        angle: fixture::ang(std::f64::consts::TAU),
+    });
+    // The outer wall: the meridian's second segment, at r = 1/2.
+    let wall_piece = fixture::piece(&r.doc, tube, 0, 1);
+    let wall = editor_core::band(tube, wall_piece);
+    let shell = r.insert(Node::shell(
+        editor_core::Operand::output(tube, 0),
+        fixture::len(0.0625),
+        vec![wall.clone()],
+    ));
+    let ev = eval::<f64>(&r.doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "the opened tube:\n{}", bad.join("\n"));
+    let body = body_of(&ev, shell);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let table = &ev.value(shell).expect("evaluated").name_table;
+    for (which, seg) in [
+        ("the first band", RoleSeg::Rim(wall.clone().into())),
+        (
+            "the second band",
+            RoleSeg::HoleRim {
+                of: wall.into(),
+                hole: 0,
+            },
+        ),
+    ] {
+        assert!(
+            matches!(
+                table.lookup(&shelled(shell, EntityKind::Face, seg)),
+                Some(editor_core::Entry::Unique(_))
+            ),
+            "{which} is named"
+        );
+    }
+    let pieces: Vec<_> = table
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Edge
+                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+        })
+        .collect();
+    eprintln!("PIECES {pieces:#?}");
+    assert_eq!(pieces.len(), 2, "the divided seam's two pieces: {pieces:?}");
+    // The line both hang off is the wall's own seam: the revolve's seam
+    // edge swept from the wall's meridian piece, carried through.
+    let wall_seam = StableName {
+        kind: EntityKind::Edge,
+        node: tube,
+        path: vec![RoleSeg::Meridian(
+            editor_core::MeridianEnd::Seam,
+            wall_piece.into(),
+        )],
+    };
+    for (name, _) in &pieces {
+        assert_eq!(
+            name.path[0],
+            RoleSeg::FromTarget(wall_seam.clone().into()),
+            "each is a piece of the wall's own seam: {name:?}"
+        );
+    }
+    for (name, _) in &pieces {
+        assert!(
+            matches!(table.lookup(name), Some(editor_core::Entry::Unique(_))),
+            "each piece resolves alone: {name:?}"
+        );
+    }
 }

@@ -292,10 +292,13 @@ def die_tool_document():
     ball = doc.insert(Node.revolve(ball_p, axis, Formula.angle_in(2.0 * math.pi, rad)))
 
     # ---- the whole cutting tool, in ONE node ----
-    tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
+    tool = doc.insert(Node.placed_union_at(doc.output(ball, 0), pip_placements()))
     pipped = doc.insert(
         Node.boolean(BooleanOp.Subtract, cube, tool)
     )
+    # The pipped die is the product: placed once, last, as the corpus
+    # document places it.
+    doc.place(pipped)
     return doc, ball, tool, pipped
 
 
@@ -329,15 +332,16 @@ class TestTheDieTool(unittest.TestCase):
         doc, _ball, tool, pipped = die_tool_document()
         ev = evaluate(doc)
 
-        # NINE nodes: frame, profile, extrude, frame, profile, datum,
-        # revolve, group, subtract. Two of the nine are the sketch
-        # frames the cube and the meridian are drawn on — the cube's
-        # is the xy plane, the meridian's is the xz plane, and they
-        # are different planes, so they are different nodes. The
-        # pairwise tool this replaces spends the same seven upstream
-        # and then six transforms, five unions and the subtract, so
-        # the group's saving is the eleven it collapses into one.
-        self.assertEqual(len(doc), 9)
+        # TEN nodes: frame, profile, extrude, frame, profile, datum,
+        # revolve, group, subtract, and the subtract's world placement.
+        # Two of the ten are the sketch frames the cube and the meridian
+        # are drawn on — the cube's is the xy plane, the meridian's is
+        # the xz plane, and they are different planes, so they are
+        # different nodes. The pairwise tool this replaces spends the
+        # same seven upstream and then six transforms, five unions, the
+        # subtract and its placement, so the group's saving is the
+        # eleven it collapses into one.
+        self.assertEqual(len(doc), 10)
 
         # The claim itself, counted BY KIND — the mirror of
         # `crates/editor-core/tests/lib_placedunion.rs`'s
