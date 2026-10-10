@@ -73,3 +73,16 @@ crosses the face's edge") presumes a boolean made the ring. Once
 shell is a producer too, so the wording should not depend on which
 verb made the ring. The mesh's claim that "no construction produces
 one" has been false since pierce rings landed. (SHELL orchestrator)
+
+## Note from GERM (2026-10-10, PR 4484's fix pass)
+
+The "What" section's premise, that no construction mints a ring on a
+curved face, no longer holds, and so neither does the repair shape's
+"pick the defect reading". Booleans keep a pierced footprint as a ring
+on a cone, cylinder or sphere face, and `shell_open` keeps a window as
+one. Props reads the cone wall's ring and the rim-and-ruling cylinder
+and torus walls' (`geom_brep::props::curved_face_loops`);
+`RingOnCurvedFace` is what remains, chiefly a ring on a sphere face
+(FLUX's `sphere-face-with-a-hole-has-no-closed-form`), a lane not yet
+built and not a defect. The one reading these arms want is therefore
+the not-yet one.
