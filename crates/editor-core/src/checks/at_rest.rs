@@ -27,7 +27,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign, Tol};
-use topo::{Body, CensusContact, CrossingSideVerdict, FaceKey, SolidKey, ValidationError};
+use topo::{
+    AtRestPolicy, Body, CensusContact, CrossingSideVerdict, FaceKey, SolidKey, ValidationError,
+};
 
 use crate::VarId;
 use crate::doc::Doc;
@@ -92,6 +94,9 @@ pub enum Unlocalized {
     /// A face of the intersection descends from no named face of
     /// either copy.
     Unnamed,
+    /// The gate ran at a scalar with no localizing lane
+    /// ([`LocalizeLane`]): the overlap is decided and not bounded.
+    Lane,
     /// An assertion's faces bound the overlap, and the kernel could not
     /// say whether the overlap lies between their carriers.
     Containment {
@@ -291,11 +296,86 @@ fn interference_solids<T: Decide>(
     }
 }
 
+/// **The scalars the gate localizes an overlap at**: one seam per
+/// scalar, because localizing builds bodies (the copies' intersection
+/// and the region past each asserted carrier), which reads the
+/// bracket a scalar carries, and the gate reads no bracket anywhere
+/// else. `f64` is the one lane; the analysis scalars the gate is also
+/// run at report a decided overlap as [`Unlocalized::Lane`], loud.
+pub trait LocalizeLane: Decide + AtRestPolicy {
+    /// The findings of the copies `a` and `b` of `product`, which the
+    /// census decided interfere ([`partition`]).
+    fn localize(
+        product: &Product<Self>,
+        a: usize,
+        b: usize,
+        evidence: Vec<ValidationError>,
+        tol: Tol,
+    ) -> Vec<InterferenceFinding>;
+}
+
+/// The finding a scalar with no localizing lane reports for a pair:
+/// the overlap is decided, and its site is not bounded.
+fn unlocalized_at_lane<T: Decide>(
+    product: &Product<T>,
+    a: usize,
+    b: usize,
+    evidence: Vec<ValidationError>,
+) -> Vec<InterferenceFinding> {
+    let copy_ref = |i: usize| CopyRef {
+        var: product.copies[i].var,
+        member: product.copies[i].output,
+    };
+    vec![InterferenceFinding {
+        a: copy_ref(a),
+        b: copy_ref(b),
+        evidence,
+        overlap: Overlap::Unlocalized(Unlocalized::Lane),
+        quiet: None,
+    }]
+}
+
+impl LocalizeLane for geom_core::Interval {
+    fn localize(
+        product: &Product<Self>,
+        a: usize,
+        b: usize,
+        evidence: Vec<ValidationError>,
+        _: Tol,
+    ) -> Vec<InterferenceFinding> {
+        unlocalized_at_lane(product, a, b, evidence)
+    }
+}
+
+impl LocalizeLane for geom_core::Dual<f64> {
+    fn localize(
+        product: &Product<Self>,
+        a: usize,
+        b: usize,
+        evidence: Vec<ValidationError>,
+        _: Tol,
+    ) -> Vec<InterferenceFinding> {
+        unlocalized_at_lane(product, a, b, evidence)
+    }
+}
+
+impl LocalizeLane for f64 {
+    fn localize(
+        product: &Product<f64>,
+        a: usize,
+        b: usize,
+        evidence: Vec<ValidationError>,
+        tol: Tol,
+    ) -> Vec<InterferenceFinding> {
+        localize(product, a, b, evidence, tol)
+    }
+}
+
 /// **The at-rest census's verdicts, partitioned**: the interference
 /// findings between copies, in the census's order of first mention of
 /// each pair, and every other verdict, which the gate attributes and
 /// refuses as before.
-pub(crate) fn partition<T: crate::EvalScalar>(
+pub(crate) fn partition<T: LocalizeLane>(
     product: &Product<T>,
     errors: Vec<ValidationError>,
     tol: Tol,
@@ -345,7 +425,7 @@ pub(crate) fn partition<T: crate::EvalScalar>(
     }
     let findings = pairs
         .into_iter()
-        .flat_map(|((a, b), evidence)| localize(product, a, b, evidence, tol))
+        .flat_map(|((a, b), evidence)| T::localize(product, a, b, evidence, tol))
         .collect();
     (findings, kept)
 }
@@ -365,13 +445,13 @@ fn solid_of<T: Decide>(body: &Body<T>, entity: topo::EntityId) -> Option<SolidKe
 /// # Errors
 ///
 /// Why it could not be formed.
-fn intersection<T: crate::EvalScalar>(
-    product: &Product<T>,
+fn intersection(
+    product: &Product<f64>,
     a: usize,
     b: usize,
     tol: Tol,
-) -> Result<Option<topo::BooleanBody<T>>, Unlocalized> {
-    let operand = |i: usize| T::gate_at_rest_kept((*product.copies[i].body).clone(), tol);
+) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
+    let operand = |i: usize| f64::gate_at_rest_kept((*product.copies[i].body).clone(), tol);
     let (body_a, body_b) = match (operand(a), operand(b)) {
         (Ok(x), Ok(y)) => (x, y),
         (Err(errors), _) | (_, Err(errors)) => return Err(Unlocalized::Invalid { errors }),
@@ -396,8 +476,8 @@ struct Component {
 
 /// **The findings of one interfering pair**: one per connected solid of
 /// the two copies' intersection, each quieted by [`quiet_verdicts`].
-fn localize<T: crate::EvalScalar>(
-    product: &Product<T>,
+fn localize(
+    product: &Product<f64>,
     a: usize,
     b: usize,
     evidence: Vec<ValidationError>,
@@ -528,12 +608,12 @@ enum Quiet {
 /// component lies between when neither intersection keeps any of it.
 /// A component touching a carrier is between it; one that crosses it
 /// (a sunk flange, a pin bottoming in a blind bore) is not.
-fn quiet_verdicts<T: crate::EvalScalar>(
-    product: &Product<T>,
+fn quiet_verdicts(
+    product: &Product<f64>,
     a: usize,
     b: usize,
     components: &[Component],
-    result: &topo::BooleanBody<T>,
+    result: &topo::BooleanBody<f64>,
     tol: Tol,
 ) -> Vec<Quiet> {
     let mut verdicts: Vec<Quiet> = components.iter().map(|_| Quiet::Loud).collect();
@@ -578,11 +658,11 @@ fn quiet_verdicts<T: crate::EvalScalar>(
 ///
 /// Why the kernel could not answer: a carrier or a component face with
 /// no lane here, or the boolean's own refusal.
-fn crossing<T: crate::EvalScalar>(
-    aggregate: &Body<T>,
+fn crossing(
+    aggregate: &Body<f64>,
     face: FaceKey,
     components: &[Component],
-    result: &topo::BooleanBody<T>,
+    result: &topo::BooleanBody<f64>,
     tol: Tol,
 ) -> Result<BTreeSet<usize>, String> {
     let beyond = beyond(aggregate, face, &result.body, tol)?;
@@ -627,25 +707,21 @@ pub(crate) const AT_REST_BEYOND_FRAME: &str = "at_rest_beyond_frame";
 /// its copy's material, as a solid that holds every point of `result`
 /// in that region: a box on the far side of a plane, the solid
 /// cylinder inside a bore, the tube outside a pin. Its sizes come from
-/// the reach of `result`'s faces, so it is built in `f64` and lifted
-/// onto the scalar's frame, as the evaluator lifts a profile.
+/// the reach of `result`'s faces.
 ///
 /// # Errors
 ///
 /// A carrier with no arm here (a sphere, a cone), a face of `result`
 /// whose reach this cannot bound, or a construction refusal.
-fn beyond<T: crate::EvalScalar>(
-    aggregate: &Body<T>,
+fn beyond(
+    aggregate: &Body<f64>,
     face: FaceKey,
-    result: &Body<T>,
+    result: &Body<f64>,
     tol: Tol,
-) -> Result<topo::AtRestBody<T>, String> {
+) -> Result<topo::AtRestBody<f64>, String> {
     use crate::eval::measure::{Carrier, carrier_of, reach_of};
-    use geom_core::{OrthoFrame, Point2, Point3, Vec3};
+    use geom_core::{OrthoFrame, Point2, Vec3};
     use profile::{Step, Target};
-    let nominal = |x: T| 0.5 * (x.lo() + x.hi());
-    let point = |p: Point3<T>| Point3::new(nominal(p.x), nominal(p.y), nominal(p.z));
-    let vector = |v: Vec3<T>| Vec3::new(nominal(v.x), nominal(v.y), nominal(v.z));
     let band = Band::linear(tol).map_err(|e| e.to_string())?;
     let sense = aggregate
         .get_face(face)
@@ -671,7 +747,7 @@ fn beyond<T: crate::EvalScalar>(
             _ => return Err("a face of the overlap the containment check cannot bound".to_owned()),
         }
         let r = reach_of(result, f, origin).ok_or("a face of the overlap with no reach")?;
-        reach = reach.max(r.hi());
+        reach = reach.max(r);
     }
     let pad = reach.mul_add(0.5, 1e3 * tol.eps());
     let span = reach + pad;
@@ -695,15 +771,14 @@ fn beyond<T: crate::EvalScalar>(
     let (base, normal, loops, depth) = match carrier {
         Carrier::Plane {
             origin, outward, ..
-        } => (point(origin), vector(outward), vec![rectangle(span)], span),
+        } => (origin, outward, vec![rectangle(span)], span),
         Carrier::Cylinder {
             origin,
             axis,
             radius,
             ..
         } => {
-            let (axis, radius) = (vector(axis), nominal(radius));
-            let base = point(origin) - axis * span;
+            let base = origin - axis * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -730,16 +805,15 @@ fn beyond<T: crate::EvalScalar>(
     let plane = profile::SketchPlane::from_frame(frame);
     let validated = profile::ConstructedProfile::new(plane, loops)
         .validate(tol)
-        .map_err(|e| e.to_string())?
-        .lift_onto(plane.map(T::from_f64));
+        .map_err(|e| e.to_string())?;
     let swept = sweep::extrude(
         &validated,
         sweep::Extrusion::Distance {
-            depth: T::from_f64(depth),
+            depth,
             side: sweep::ExtrudeSide::Along,
         },
         tol,
     )
     .map_err(|e| e.to_string())?;
-    T::gate_at_rest_kept(swept.body, tol).map_err(|errors| format!("{errors:?}"))
+    f64::gate_at_rest_kept(swept.body, tol).map_err(|errors| format!("{errors:?}"))
 }

@@ -1178,7 +1178,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P: crate::ProfilePayload, T: crate::EvalScalar>(
+pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -1210,7 +1210,7 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::EvalScalar>(
 /// against nothing outside it (A11 (2)): the gate over each
 /// [`crate::OwnSpace`] in turn, a space whose roots denote no body
 /// holding nothing to check.
-fn gate_spaces<T: crate::EvalScalar>(
+fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
     spaces: Vec<crate::OwnSpace<T>>,
     tol: Tol,
     interference: &mut Vec<crate::checks::at_rest::InterferenceFinding>,
@@ -1258,7 +1258,7 @@ fn gate_spaces<T: crate::EvalScalar>(
 /// wrapper's arm: a mate reference that names no product face, a class
 /// with no at-rest record ([`crate::mate::class_admission`]), and the
 /// kernel's tier-3' findings attributed back to their mates.
-pub fn assemble_gathered<T: crate::EvalScalar>(
+pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
@@ -1286,7 +1286,7 @@ pub fn assemble_gathered<T: crate::EvalScalar>(
 /// **The gate's verdict over one gathered space** — the world, or one
 /// unplaced group's own ([`gate_spaces`]): the one copy of the gate's
 /// checks, their attributions and their refusal order.
-fn verdict<T: crate::EvalScalar>(
+fn verdict<T: crate::checks::at_rest::LocalizeLane>(
     product: &Product<T>,
     tol: Tol,
 ) -> Result<Vec<crate::checks::at_rest::InterferenceFinding>, AssemblyError> {
