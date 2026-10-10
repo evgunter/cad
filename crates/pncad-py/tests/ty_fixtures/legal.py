@@ -10,7 +10,8 @@ from pncad import (
     Var,
     MeasurePrimitive,
     Placement,
-    MeasureExpr,
+    Measured,
+    Measurement,
     AssertionDir,
     Advisory,
     AnalysisPolicy,
@@ -861,26 +862,24 @@ spun: FreeVar = FreeVar.written_angle(turned)
 symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
-# Authoring a measurement. The verb vocabulary is a value class, the
-# expression is checked as it is built, and the node takes the
-# reference list its primitives index — each entry a node and a name,
-# the pair `Node.mate` already takes each of its two sides as.
-reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
+# Authoring a measurement. The verb vocabulary is a value class over
+# its two references — each a node and a name, the pair `Node.mate`
+# already takes each of its two sides as — and its arithmetic is an
+# ordinary formula over the measures' outputs.
+reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[int, int] = reach.refs
-span: MeasureExpr = MeasureExpr.primitive(reach)
-pad: MeasureExpr = MeasureExpr.value(doc.parse_formula("bore_r"))
-web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
-measured_kind: str = web.dimension
-leaves: list[MeasurePrimitive] = web.primitives
-sink: NodeId = doc.insert(
-    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
-)
-# The bound is an EXPRESSION, because its dimension is the measure's
-# and a slot address cannot fix it.
+which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+measured_kind: str = reach.dimension
+recorded: Measured = doc.measure([reach])
+spans: list[NodeId] = recorded.measures
+spanned: list[Var] = recorded.outputs
+lone: NodeId = doc.insert(Node.measure(reach))
+# The bound is an EXPRESSION, because its dimension is the value's and
+# a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.outputs[0], AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
 )
+read_back: Measurement = evaluate(doc).reading(recorded.outputs[0])
 which_way: str = AssertionDir.AtMost.symbol
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and

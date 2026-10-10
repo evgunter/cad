@@ -2967,8 +2967,8 @@ fn sweep_conformal_patches<T: Decide>(
                     }
                     // Every other typed predicate refusal: the pair
                     // was not certified, and WHICH refusal said so is
-                    // carried rather than replaced. The twelve do not
-                    // share a cause — a stopped interior-witness
+                    // carried rather than replaced. They do not share
+                    // a cause — a stopped interior-witness
                     // search, an absent pcurve cache and a non-planar
                     // trim want three different repairs — so the one
                     // thing this arm may not do is restate them as
@@ -2993,11 +2993,12 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
-                        | ChartRegionError::WitnessBudgetExhausted { .. }
+                        | ChartRegionError::WitnessSegmentCapExceeded { .. }
+                        | ChartRegionError::WitnessCellCapExceeded { .. }
                         | ChartRegionError::Corrupt),
                     )) => {
                         // The refusal is CARRIED, not replaced. The
-                        // twelve say different things with different
+                        // refusals say different things with different
                         // recourses — a stopped witness search is not
                         // a thin overlap, and neither is an absent
                         // pcurve cache — and flattening them here made
@@ -3228,12 +3229,14 @@ fn boundary_axial<T: Decide>(
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let certified = body.edge_curve_linked(ek, e).certified();
-                let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
+                let axial = match crate::boolean::boxes::edge_box_rule(
+                    body.edge_curve_linked(ek, e).certified(),
+                ) {
                     // No axial-span closed form is written for the
                     // spiric (the boolean lane's own reading).
-                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
+                        AxialCarrier::Unclaimable
+                    }
                     EdgeBoxRule::Chord => AxialCarrier::Chord,
                     EdgeBoxRule::ConicAmplitude {
                         center,
@@ -3241,13 +3244,15 @@ fn boundary_axial<T: Decide>(
                         semi_u,
                         semi_v,
                         u_ref,
+                        params,
+                        ..
                     } => AxialCarrier::Conic {
                         center: SpanBox::point(center),
                         u_ref: SpanBox::vector(u_ref),
                         v_ref: SpanBox::vector(c_axis.cross(u_ref)),
                         semi_u,
                         semi_v,
-                        params: certified.map(geom_brep::EdgeCurve::params),
+                        params,
                     },
                 };
                 let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
@@ -3326,9 +3331,7 @@ fn edge_reach_of<T: Decide>(
         Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
         Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
     );
-    let certified = body.edge_curve_linked(ek, e).certified();
-    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-    match crate::boolean::boxes::edge_box_rule(carrier) {
+    match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
         crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
         crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
         // The spiric's whole-period amplitude box at this lane's
@@ -3343,25 +3346,22 @@ fn edge_reach_of<T: Decide>(
         // the census), so the arm is exercised by the box module's
         // hand-built sector row (`boolean/boxes.rs`,
         // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
-        crate::boolean::boxes::EdgeBoxRule::Spiric => {
-            let Some(geom::Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            }) = carrier
-            else {
-                return None;
-            };
-            let m = frame.vector(axis.cross(*u_ref));
-            let (f_min, f_max) = geom::spiric_f_range(*major_radius, *minor_radius, *offset);
-            let base = frame.point(*center + *u_ref * *offset);
-            let axis = frame.vector(*axis);
+        crate::boolean::boxes::EdgeBoxRule::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let m = frame.vector(axis.cross(u_ref));
+            let (f_min, f_max) = geom::spiric_f_range(major_radius, minor_radius, offset);
+            let base = frame.point(center + u_ref * offset);
+            let axis = frame.vector(axis);
             let per = |b: T, me: T, ae: T| {
                 let (p, q) = (me * f_min, me * f_max);
-                let amp = ae.abs() * *minor_radius;
+                let amp = ae.abs() * minor_radius;
                 (b + p.min(q) - amp, b + p.max(q) + amp)
             };
             let (xl, xh) = per(base.x, m.x, axis.x);
@@ -3378,36 +3378,31 @@ fn edge_reach_of<T: Decide>(
             semi_u,
             semi_v,
             u_ref,
+            params: (t0, t1),
+            ..
         } => {
             let (center, u_ref, v_ref) = (
                 frame.point(center),
                 frame.vector(u_ref),
                 frame.vector(axis.cross(u_ref)),
             );
-            // The ARC's own extent, not the closed conic's — the same
-            // construction the boolean lane reads, so the two cannot
-            // drift (`the_two_box_lanes_agree_face_for_face` is what
-            // says so). A carrier with no certified parameters has no
-            // arc to scope and keeps the full-turn amplitude.
-            let params = certified.map(geom_brep::EdgeCurve::params);
-            let (flo, fhi) = span_pts(match params {
-                Some((t0, t1)) => crate::boolean::boxes::arc_extent(
-                    &crate::boolean::boxes::SpanBox::point(center),
-                    &crate::boolean::boxes::SpanBox::vector(u_ref),
-                    &crate::boolean::boxes::SpanBox::vector(v_ref),
-                    crate::boolean::boxes::Span::exact(semi_u),
-                    crate::boolean::boxes::Span::exact(semi_v),
-                    t0,
-                    t1,
-                ),
-                None => crate::boolean::boxes::conic_extent(
-                    &crate::boolean::boxes::SpanBox::point(center),
-                    &crate::boolean::boxes::SpanBox::vector(u_ref),
-                    &crate::boolean::boxes::SpanBox::vector(v_ref),
-                    semi_u,
-                    semi_v,
-                ),
-            });
+            // The ARC's own extent, by `arc_extent`'s subdivision plus
+            // sagitta charge — not the exact arc box `edge_box` reads
+            // (`conic_arc_aabb`), because that one asks whether an
+            // extremal angle lies in the span and this scalar carries no
+            // ordering to answer. One rule, two arithmetics, the census
+            // box wider by at most the charge: `EdgeBoxRule`'s conic
+            // bullet states it, `the_two_box_lanes_agree_face_for_face`
+            // pins it.
+            let (flo, fhi) = span_pts(crate::boolean::boxes::arc_extent(
+                &crate::boolean::boxes::SpanBox::point(center),
+                &crate::boolean::boxes::SpanBox::vector(u_ref),
+                &crate::boolean::boxes::SpanBox::vector(v_ref),
+                crate::boolean::boxes::Span::exact(semi_u),
+                crate::boolean::boxes::Span::exact(semi_v),
+                t0,
+                t1,
+            ));
             Some((
                 Point3::new(
                     flo.x.min(chord.0.x),
@@ -6595,11 +6590,12 @@ fn confirm_curve_and_patch_records<T: Decide>(
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }
                 | ChartRegionError::RayExhausted
-                | ChartRegionError::WitnessBudgetExhausted { .. }
+                | ChartRegionError::WitnessSegmentCapExceeded { .. }
+                | ChartRegionError::WitnessCellCapExceeded { .. }
                 | ChartRegionError::Corrupt),
             )) => {
                 // Carried, as at the sweep arm and for the same
-                // reason: which of the twelve refused is the whole of
+                // reason: which refusal fired is the whole of
                 // what tells a reader which repair to make.
                 errors.push(ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),

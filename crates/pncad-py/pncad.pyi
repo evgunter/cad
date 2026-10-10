@@ -360,10 +360,9 @@ class QuantityOpMismatch(PncadError):
 
     The class is the Rust type's own name. This is the quantity
     boundary only, and not the library's only dimension check: the
-    document layer's own refusal type reaches Python at SIX doors
+    document layer's own refusal type reaches Python at FIVE doors
     under four DOOR names rather than one type name — LiteralError
-    (literal construction, the MeasureExpr arithmetic constructors,
-    and the recorded-program lift), ParseError with `variant ==
+    (literal construction and the recorded-program lift), ParseError with `variant ==
     "dimension"` (`Doc.parse_formula`), EditError (`Doc.apply`), and
     PersistError with `variant == "dimension"` (`load`). Each carries
     the failing check's own tag, so which check refused is branchable
@@ -397,22 +396,13 @@ class LiteralError(PncadError):
 
     Not QuantityOpMismatch, which is the quantity boundary's operator
     check and a different type. The expression layer's refusal type has
-    dimension-mismatch arms too, and reaches Python at six doors under
+    dimension-mismatch arms too, and reaches Python at five doors under
     four class names in all: `load` does, from a hand-edited save file,
     and they arrive as PersistError with `variant == "dimension"` and
     the check's own tag as `inner_variant`; `Doc.apply` does, as
-    EditError; `Doc.parse_formula` does, and they
-    arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
-    constructors do (`MeasureExpr.add` and its siblings), arriving on
-    THIS class with the mismatch's own tag as `kind` — the same kernel
-    type refusing at the same layer, because that language asks
-    `Formula`'s own constructors for its dimensions rather than restating
-    the table.
-
-    `value` is the offending number where the refusing door had one in
-    hand, and `None` where it did not: a measurement constructor
-    refuses over two operands' DIMENSIONS, and there is no single
-    float to name."""
+    EditError; `Doc.parse_formula` does, and they arrive as ParseError;
+    and literal construction and the recorded-program lift arrive on
+    THIS class."""
 
     kind: str
     value: Optional[float]
@@ -1145,27 +1135,6 @@ class MeasureUnavailable(PncadError):
 
     variant: str
     param: str
-
-class MeasureNodeFault(PncadError):
-    """`Node.measure` was handed an expression that reads a reference
-    the node does not carry.
-
-    `variant` is `ref_index_out_of_range`; `verb` is which primitive
-    reads it, `index` the out-of-range one, and `refs` how many the
-    node carries.
-
-    The kernel's own `Node::measure` decides this — the one
-    construction door, running the check the edit door and the load
-    door's re-check both run — so a measure these constructors accept
-    is one a document accepts. What the constructor adds is TIMING:
-    the index refuses where it is written, not at the `Doc.apply`
-    after it, where the same fault arrives as EditError
-    `measure_malformed`."""
-
-    variant: str
-    verb: str
-    index: int
-    refs: int
 
 class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
@@ -2151,33 +2120,30 @@ class PartSelect:
         clamps."""
 
 class MeasurePrimitive:
-    """Which closed-form measurement a `MeasureExpr` leaf computes, and
-    over which of the measure node's references.
+    """Which closed-form measurement a measure computes, and of which
+    two references.
 
     Four verbs and no fifth: `distance` and `angle` are the geometric
     readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
     `min_clearance` is the one an engine answers.
 
-    Every argument is a POSITION — an index into the reference list
-    `Node.measure` is given, so a plain `int`, the structural-slot
-    exception `PartSelect.instance` and `NodePick.build` already ride.
-    An index past the end of that list raises MeasureNodeFault at
-    `Node.measure`; a negative one is not representable and raises
-    OverflowError at the call.
+    Each reference is a `(node, name)` pair: the entity's stable name
+    and the node its carrier is READ AT. A text that is not a name
+    raises ValueError here.
     """
 
     @staticmethod
-    def distance(a: int, b: int) -> MeasurePrimitive:
+    def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The distance between two referenced entities — a length. A
         carrier pair the v1 closed forms have no arm for refuses at
         `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
-    def angle(a: int, b: int) -> MeasurePrimitive:
+    def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The angle between two referenced entities — an angle."""
 
     @staticmethod
-    def min_clearance(a: int, b: int) -> MeasurePrimitive:
+    def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The minimum clearance between two selections — a length, and
         the one verb whose value is an ENCLOSURE.
 
@@ -2194,7 +2160,7 @@ class MeasurePrimitive:
         failure."""
 
     @staticmethod
-    def gap(outer: int, inner: int) -> MeasurePrimitive:
+    def gap(outer: tuple[NodeId, str], inner: tuple[NodeId, str]) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
         Argument order is the mating ROLE, not a symmetry: `outer` is
@@ -2210,13 +2176,12 @@ class MeasurePrimitive:
 
     @property
     def dimension(self) -> str:
-        """`length` or `angle`. Fixed per verb: the quantity kind
-        rides the expression."""
+        """`length` or `angle`. Fixed per verb."""
 
     @property
-    def refs(self) -> tuple[int, int]:
-        """The reference indices, in ARGUMENT order — a gap's pair
-        reads `(outer, inner)` and is not re-sorted."""
+    def refs(self) -> tuple[tuple[NodeId, str], tuple[NodeId, str]]:
+        """The two references, in ARGUMENT order — a gap's pair reads
+        `(outer, inner)` and is not re-sorted."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
@@ -2233,78 +2198,6 @@ class AssertionDir:
     @property
     def symbol(self) -> str:
         """The relation as a report reads it: `">="` or `"<="`."""
-
-class MeasureExpr:
-    """A dimension-checked measurement expression: the recipe's
-    arithmetic over a closed-form measurement leaf.
-
-    The dimension checker runs at CONSTRUCTION and it is the kernel's
-    own — the measurement language builds probe expressions and asks
-    `Formula`'s smart constructors what comes out, so a mis-dimensioned
-    tree refuses in the same words a document expression would have
-    earned, and it refuses where it is written rather than at the
-    `Doc.apply` after it. The refusal is LiteralError, carrying the
-    mismatch's own tag as `kind`.
-
-    A measurement nests at most 128 levels, the bound it shares with
-    `Formula`, a value leaf counting as the expression it holds; a
-    constructor that would nest deeper refuses (`kind`
-    `"nested_too_deep"`), so a flat chain of more than 128 terms
-    refuses.
-
-    No `__hash__`, for `Formula`'s reason: equality is an IEEE comparison
-    of the literals inside, so `0.0` and `-0.0` are equal trees whose
-    bit patterns are not.
-    """
-
-    @staticmethod
-    def primitive(p: MeasurePrimitive) -> MeasureExpr:
-        """A closed-form measurement leaf. Total."""
-
-    @staticmethod
-    def value(e: Formula) -> MeasureExpr:
-        """An ordinary document expression as a leaf — a literal
-        bound, a parameter, a whole arithmetic subtree of them.
-        `Doc.parse_formula` is where one comes from, and it is the only
-        door: a second spelling of that grammar is what `py/expr.rs`
-        already rules out."""
-
-    @staticmethod
-    def add(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension. Refuses (LiteralError, `kind`
-        `"nested_too_deep"`) only a tree that would nest deeper than an
-        expression may, as every constructor here does."""
-
-    @staticmethod
-    def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
-        """Product; at least one operand dimensionless."""
-
-    @staticmethod
-    def div(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
-        """Quotient; the divisor must be dimensionless."""
-
-    @staticmethod
-    def min(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def max(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @property
-    def dimension(self) -> str:
-        """`length`, `angle`, `count` or `scalar` — correct by
-        construction, and the dimension an assertion's bound has to
-        match."""
-
-    @property
-    def primitives(self) -> list[MeasurePrimitive]:
-        """Every primitive in the tree, in PRE-ORDER: the order the
-        construction door's bounds check runs over and the order the
-        evaluation reads them back in."""
-
-    def __eq__(self, other: object) -> bool: ...
-    def __repr__(self) -> str: ...
 
 class Node:
     """A recipe node, before insertion."""
@@ -2740,13 +2633,12 @@ class Node:
         is the node-failure tag)."""
 
     @staticmethod
-    def measure(expr: MeasureExpr, refs: list[tuple[NodeId, str]]) -> Node:
-        """A measurement sink: one dimension-generic node that denotes
-        no body and evaluates to a typed quantity.
-
-        `refs` is the reference list the expression's primitives index,
-        IN ORDER, each a `(node, name)` pair — the entity's stable name
-        and the node its carrier is READ AT.
+    def measure(primitive: MeasurePrimitive) -> Node:
+        """One measurement: a `Measure` node holds one closed-form
+        primitive and defines one observed scalar, its output
+        (`Doc.output(node)`), which only an assertion reads, directly
+        or through a definition. Arithmetic over measured values is an
+        ordinary `Formula` over the outputs.
 
         The read site is what makes a measure report PLACED geometry. A
         rigid transform is identity-preserving, so the moved body keeps
@@ -2761,10 +2653,7 @@ class Node:
         names, so deleting a referenced node is accepted and reported
         as a `strand` on the measure, like any other reader's.
 
-        Every index is checked HERE, through the kernel's one
-        construction door, so a leaf pointing past the end of `refs`
-        raises MeasureNodeFault where it is written. Nothing else is
-        pre-checked: a name that no longer resolves
+        Nothing is pre-checked here: a name that no longer resolves
         (`measure_ref_resolve`), a carrier pair with no v1 closed form
         (`measure_unsupported`), a `min_clearance` handed an edge
         (`measure_selection_kind`) and a non-finite result
@@ -2772,28 +2661,27 @@ class Node:
         `evaluate`."""
 
     @staticmethod
-    def assertion(measure: _Operand, dir: AssertionDir, bound: Formula) -> Node:
+    def assertion(value: _SlotArg, dir: AssertionDir, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.
 
-        `measure` is the `Node.measure` this constrains — an ordinary
-        recipe edge, so a failed or poisoned measure poisons the
-        assertion rather than producing a verdict about nothing.
+        `value` is the scalar this bounds: a measure's output
+        (`Doc.output(measure)`, one of `Doc.measure`'s `outputs`), or
+        any formula or variable — a variable read at its own kind,
+        anything else at the bound's dimension. A failed or
+        poisoned measure under it poisons the assertion rather than
+        producing a verdict about nothing.
 
         The bound is a `Formula` and not a typed quantity, because its
-        DIMENSION is the measure's. Every other node door takes a
-        `Length` or an `Angle` because a slot's address fixes what it
-        holds; this one's is fixed by the node it points at, and may be
-        an angle, a count or a plain scalar as readily as a length.
-        `Doc.parse_formula("0.5 mm")` is the one spelling, and it reaches
-        document parameters (`"min_web"`) in the same call — which is
-        what makes an assertion re-decidable by a parameter edit.
+        DIMENSION is the value's: it may be an angle, a count or a plain
+        scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+        the one spelling, and it reaches document parameters
+        (`"min_web"`) in the same call — which is what makes an
+        assertion re-decidable by a parameter edit.
 
-        Two things are checked at `Doc.apply` and not here, because
-        both need the document: that `measure` names a measure at all
-        (EditError `assertion_target`) and that the bound's dimension
-        is the measured one (`assertion_dimension`). A document never
+        That the value's dimension is the bound's is checked at
+        `Doc.apply` (EditError `assertion_dimension`): a document never
         carries a comparison of radians with metres.
 
         REPORT-ONLY, structurally: no operation accepts a verdict as an
@@ -2962,6 +2850,15 @@ class VarName:
     def name(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+class Measured:
+    """What `Doc.measure` inserted: the measures, one per primitive in
+    order, and their outputs in the same order."""
+
+    @property
+    def measures(self) -> list[NodeId]: ...
+    @property
+    def outputs(self) -> list[Var]: ...
 
 class Var:
     """A document variable's identity: the id the document minted it,
@@ -3220,6 +3117,30 @@ class McMeasure:
     def unmeasured(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+class McValue:
+    """One asserted value's empirical summary — ADVISORY: the scalar an
+    assertion reads (a measure's output, or a formula over outputs such
+    as a web), read per sample with its measures bound. The statistics
+    are over the samples that HAD a value; `unmeasured` counts the rest
+    and is never averaged over."""
+
+    @property
+    def var(self) -> Var: ...
+    @property
+    def mean(self) -> float: ...
+    @property
+    def sigma(self) -> float:
+        """The sample standard deviation, the `N - 1` form."""
+    @property
+    def min(self) -> float: ...
+    @property
+    def max(self) -> float: ...
+    @property
+    def measured(self) -> int: ...
+    @property
+    def unmeasured(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
 class McAssertion:
     """One assertion node's empirical summary.
 
@@ -3259,6 +3180,10 @@ class McReport:
     @property
     def measures(self) -> list[McMeasure]:
         """Per measure node, in the document's own node order."""
+    @property
+    def values(self) -> list[McValue]:
+        """Per value an assertion reads, each once, in the order of the
+        first assertion reading it."""
     @property
     def assertions(self) -> list[McAssertion]:
         """Per assertion node, in the document's own node order."""
@@ -4011,6 +3936,23 @@ class Doc:
         and its clocking rider on a frame coincidence is decided there
         over the mated parts' extent, both read through `resolver` —
         see `apply` for what a mate refuses here (`mate_refused`)."""
+    def measure(
+        self,
+        primitives: list[MeasurePrimitive],
+        *,
+        resolver: Optional[Workspace] = None,
+    ) -> Measured:
+        """Insert measures: one `Measure` node per primitive, in order,
+        as one action — all land or none does. Answers a `Measured`:
+        the measures and their outputs, the observed values an assertion
+        reads. Arithmetic over them is an ordinary `Formula`: name an
+        output (`DocEdit.rename_var`) and write the arithmetic with
+        `Doc.parse_formula`; an assertion reads the formula, or
+        `DocEdit.declare_var` names it.
+
+        Exactly `insert(Node.measure(p))` per primitive, recorded as one
+        action and answered with the outputs, as `sketch_frame` is
+        `insert(Node.sketch_frame(...))`."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -5462,6 +5404,17 @@ class Evaluation:
     """
 
     def value(self, node: NodeId) -> Value: ...
+    def reading(self, value: Var | Formula) -> Measurement:
+        """A scalar's value in this evaluation, measured values bound:
+        a variable — a measure's output, or a definition over outputs —
+        or a formula over them. The one reader of
+        an observed value outside an assertion.
+
+        A measure under it that did not land raises as `value` of that
+        measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+        `min_clearance` at this point scalar); an evaluation over the
+        bound values that refuses raises `ExprError`."""
+
     def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided

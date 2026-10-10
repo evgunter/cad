@@ -30,10 +30,10 @@ use crate::wire::doctored;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
     EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, PartResolver,
-    PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef,
-    StableName, Step, Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups,
-    load, product, regauge_then_mate, root_of, save,
+    MatePrimitive, MateRole, MeasurePrimitive, Node, NodeErrorKind, PartResolver, PersistError,
+    Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef, StableName, Step,
+    Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups, load, product,
+    regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, scl, solve, step, xform};
@@ -659,15 +659,11 @@ fn an_unplaced_group_is_gathered_minted_and_measured_against_nothing_outside_it(
     let doc = set_gauge(doc, top, Some(g));
     let doc = fixture::place_all(doc, &[base, top]);
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let measure = || {
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::at_mint(p.base_cap(base)),
-                SitedRef::at_mint(p.top_cap(top)),
-            ],
-        )
-        .expect("both indices address a reference")
+    let measure = || Node::Measure {
+        primitive: MeasurePrimitive::Distance {
+            a: SitedRef::at_mint(p.base_cap(base)),
+            b: SitedRef::at_mint(p.top_cap(top)),
+        },
     };
     let o = p.opts();
     // Placed, across gauges: the measure answers, the mate declares.

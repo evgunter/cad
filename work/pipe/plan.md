@@ -44,35 +44,25 @@ the sweep, not a cross-fence patch.
 
 | item | pri | cost | state | where the work lands |
 | --- | --- | --- | --- | --- |
-| `S350` | P0 | M | dispatchable | `crates/topo/src/census.rs` (the reach box's `FaceBoxRule::ControlNet` arm), a new poisoned-net row |
-| `described-net-two-state-reads-hand-a-poisoned-net-the-described-arm` | P0 | H | dispatchable | a routing pass: each of the thirteen sites re-read against main and filed on its owner; no diff on their files |
-| `D291` | P1 | M | dispatchable | `crates/topo/src/census.rs` (the conic reach arm's comment and its `None` arm), `crates/topo/src/boolean/boxes.rs` (`edge_axial_span`'s `params: None` arm) |
-| `witness-budget-exhausted-two-caps-one-name` | P1 | E | dispatchable | `crates/topo/src/chart_region.rs` (`WitnessOutcome`, `ChartRegionError`, `WITNESS_BUDGET`), its census consumers |
 | `topo-shared-cores-hosted-in-one-half` | P1 | H, design | parked on INTENT stage 4's boolean rows | `splitting/{finish,classify}.rs` → a shared home; `SplitFinishError`/`SplitJoinError`; `docs/DESIGN.md`'s Layering `topo` row |
 | `S5` | P1 | H, design | parked behind the row above | `crates/topo/src/{splitting,boolean}/**` |
 
-Closed rows stay here until the program closes:
-- `S14` and `S70`: ruled on PR 4006 and built by PR 4022.
-- `S79`: D10 retires its last gap.
-- `lane-keeping-at-rest-doors-skip-the-m7-8-class`: LANE-1 resolved it.
+Every other row is closed and stays here until the program closes (the
+log says what each landed as).
 
 ## Order
 
-The four dispatchable rows go first, in parallel:
-- `S350`, `D291` and the witness-budget split each touch one or two
-  files. Each sharpens what the census and the refusals say before
-  anything structural moves them.
-- `described-net-…` is a routing pass: read the thirteen sites, file
-  each on its owner, and close the sweep here.
+`topo-shared-cores-hosted-in-one-half`, then `S5`. Both wait for
+INTENT's `booleans-glue-on-zero` and `declared-pairs-retire`, which
+rewrite the boolean half these rows would move (see each row's
+`## Parked` section).
 
-`topo-shared-cores-hosted-in-one-half`, then `S5`, are the program's
-real weight. They wait for INTENT's `booleans-glue-on-zero` and
-`declared-pairs-retire`, which rewrite the boolean half they would move
-(see each row's `## Parked` section). Once those land, two designers
-weigh the layering question: crate-root shared cores, two peer lanes,
-and DESIGN.md's `topo` row. If it is a fork, it opens with an `[ev]`
-PR, because a layering decision ratified after the diff is a layering
-decision the diff made.
+When those land, the next orchestrator:
+1. re-reads both rows against the tree;
+2. has two designers weigh the layering question: crate-root shared
+   cores, two peer lanes, DESIGN.md's `topo` row;
+3. opens it with an `[ev]` PR if it is a fork. A layering decision
+   ratified after the diff is a layering decision the diff made.
 
 ## The D10 hold
 
