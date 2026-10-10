@@ -94,11 +94,10 @@ fn a_pole_crossing_meridian_arc_measures_the_half_cap_exactly() {
     );
 }
 
-/// **The rimless arm: the hemisphere split at ±π/4 still measures
-/// `2πR²`.** The same set of points as the pole-split loop the arm was
-/// written for — one great circle, both halves on the SAME carrier, so
-/// `props_band_coplanar`'s margin is bitwise 0 — with the two vertices
-/// moved off the poles to latitudes ±π/4. Both poles then fall in the
+/// **The rimless hemisphere split at ±π/4 still measures `2πR²`.**
+/// The same set of points as the pole-split loop — one great circle,
+/// both halves on the SAME carrier — with the two vertices moved off
+/// the poles to latitudes ±π/4. Both poles then fall in the
 /// arcs' INTERIORS; the endpoint fold gave `(∓√2/2)` and the face
 /// measured −29.2893% (issue 723, comment 4). Pure topology must not
 /// move the answer: the area is the hemisphere's, `2πR²`.

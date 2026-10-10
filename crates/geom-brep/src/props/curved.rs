@@ -2360,11 +2360,8 @@ fn sphere_face<T: Decide>(
     for edges in loops {
         va = va + loop_vector_area(edges, center)?;
     }
-    let radial = if sense {
-        radius * area
-    } else {
-        -(radius * area)
-    };
+    let radial = radius * area;
+    let radial = if sense { radial } else { -radial };
     Ok(FaceContribution {
         flux: radial + (center - Point3::origin()).dot(va),
         area,

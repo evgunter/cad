@@ -43,9 +43,9 @@
 //!   admit two on-surface rims a band apart with their junctions in
 //!   the endpoint band, which is a rim-only cap whose two levels are
 //!   an ambiguity band apart: the shape door and the flux lane both
-//!   ESCALATE it — "which extreme is this rim at" and "do these levels
-//!   carry an extent" are one undecidable question at one lever, asked
-//!   a predicate apart (`props_rim_side`, `props_rim_only_extent`) —
+//!   ESCALATE it — "which extreme is this rim at" and "do these arcs
+//!   meet" are one undecidable gap, asked a predicate apart
+//!   (`props_rim_side`, `props_sphere_loop_closed`) —
 //!   and `mesh::tessellate` refuses it typed either way: on the shape
 //!   door's escalation while the gap is in the band, and as
 //!   `MeridianFreeCurvedFace` (the loop has no meridian) at zero gap.

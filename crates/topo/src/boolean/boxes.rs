@@ -6212,6 +6212,7 @@ mod sphere_rect_rows {
             world,
             (h0, hc),
             senses,
+            false,
             Tol::witness(),
         )
     }
@@ -6221,12 +6222,17 @@ mod sphere_rect_rows {
     /// `ẑ`, the seam `x̂`, and the heights `(h0, hc)` are latitude
     /// sines. The seed face carries the strut; which side of the rim it
     /// is, is `senses`' and the boundary's to say.
+    ///
+    /// `zone` closes the strut's tip with a second rim at `hc`: the
+    /// seed face is then the zone `[h0, hc]` on its seam, sensed as its
+    /// loop encodes, and a third face caps the tip's rim.
     fn strut_cap(
         c: Point3<f64>,
         r: f64,
         (x, y, z): (Vec3<f64>, Vec3<f64>, Vec3<f64>),
         (h0, hc): (f64, f64),
         senses: (bool, bool),
+        zone: bool,
         tol: Tol,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let at = |h: f64| c + x * (r * (1.0 - h * h).sqrt()) + z * (r * h);
@@ -6320,6 +6326,37 @@ mod sphere_rect_rows {
         let (north, south) = (seed.face, made.face);
         body.set_face_sense(north, senses.0).unwrap();
         body.set_face_sense(south, senses.1).unwrap();
+        if zone {
+            // Against the base rim's direction, so the seed's loop runs
+            // round the zone once.
+            let tip = Curve3::Circle {
+                center: c + z * (r * hc),
+                axis: -z,
+                radius: r * (1.0 - hc * hc).sqrt(),
+                u_ref: x,
+            };
+            let tip = arc(&mut body, tip, x, (0.0, core::f64::consts::TAU));
+            let cap = |sense| FaceSurface::Shared { key: sphere, sense };
+            let site = MefSite::Chords {
+                he1: e_s.he_minus,
+                he2: e_s.he_minus,
+            };
+            match body.mef(site, tip.clone(), cap(true), tol) {
+                Ok(_) => {}
+                Err(crate::EulerOpError::SenseContradictsChart { derived, .. }) => {
+                    body.mef(site, tip, cap(derived), tol).unwrap();
+                }
+                Err(e) => panic!("the tip's rim: {e:?}"),
+            }
+            let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
+            let band = Band::linear(tol).unwrap();
+            let side = geom_brep::props::boundary_material_sign(&body.surfaces[sphere], &outer, band);
+            body.set_face_sense(
+                north,
+                side == Ok(geom_brep::props::MaterialSign::Encoded(geom_core::Sign::Positive)),
+            )
+            .unwrap();
+        }
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
         (body, north, south)
     }
@@ -6330,9 +6367,9 @@ mod sphere_rect_rows {
     /// not a bound on it, and the face reaches the pole `z = 1`. Read
     /// as a level, the strut's tip would end the latitude window at
     /// `z = 0.3`. Every lane's box reaches the pole, under every sense.
-    /// The strut run on to the pole is a point of the face AT the pole,
-    /// which pins the window `[rim, pole]`: the box keeps its floor at
-    /// the rim wherever the rectangle is read, rather than the ball's.
+    /// A strut's tip is a cusp of the face's loop, which the sphere's
+    /// side reader refuses (`props_sphere_loop_cusp`), so no lane reads
+    /// a latitude window off this face at all: every box is the ball's.
     #[test]
     fn a_caps_strut_does_not_bound_its_latitude_window() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -6360,9 +6397,8 @@ mod sphere_rect_rows {
             }
         }
         assert!(
-            floors.iter().any(|&z| (z + 0.5).abs() < 1e-9),
-            "a cap whose strut reaches the pole reads its window [rim, pole] under its own \
-             sense; the floors were {floors:?}"
+            floors.iter().all(|&z| z <= -1.0),
+            "a strutted cap reads no window; the floors were {floors:?}"
         );
     }
 
@@ -6412,8 +6448,8 @@ mod sphere_rect_rows {
     }
 
     /// **A zone whose axis nears a box row keeps its radial share**
-    /// (the verifier's repro). The cap below the rim `h0 = −0.3` of a
-    /// sphere of radius `1e3`, strutted to its south pole, wraps the
+    /// (the verifier's repro). The zone below the rim `h0 = −0.3` of a
+    /// sphere of radius `1e3`, down to `−0.9` on its seam, wraps the
     /// azimuth alone, so the reach reads its latitude zone. Its axis is
     /// `t` off `ẑ`, and its top along `z` is on the rim,
     /// `c_z + r·(sin v₀·cos t + cos v₀·sin t)`. The share `√(1 − a_z²)`
@@ -6430,7 +6466,8 @@ mod sphere_rect_rows {
         let c = Point3::new(120.0, -40.0, 75.0);
         for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
             let axis = Vec3::new(t.sin(), 0.0, t.cos());
-            let (body, cap, _) = strut_cap(c, r, frame_about(axis), (h0, -1.0), (false, true), tol);
+            let (body, cap, _) =
+                strut_cap(c, r, frame_about(axis), (h0, -0.9), (false, true), true, tol);
             let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
             let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
             assert!(
@@ -6449,7 +6486,7 @@ mod sphere_rect_rows {
     }
 
     /// **The reach's outward charge covers its rounding, measured.**
-    /// Random caps strutted onto a pole (the zone arm), with axes within
+    /// Random zones on a seam (the zone arm), with axes within
     /// `10⁻¹⁰` to `10⁻¹` of a random box row, at scales `1e-3`, `1` and
     /// `1e3` (those the run's ε resolves), read at pad 0 by all three lanes along every row against
     /// the exact support ([`zone_support`]). Each lane must enclose the
@@ -6491,17 +6528,16 @@ mod sphere_rect_rows {
             let axis = row * (sign * t.cos()) + side * t.sin();
             let h0 = rng.range(-0.9, 0.9);
             let pole = if rng.below(2) == 0 { -1.0 } else { 1.0 };
-            let window = if pole < 0.0 { (-1.0, h0) } else { (h0, 1.0) };
+            let hc = h0 + (pole - h0) * rng.range(0.2, 0.9);
+            let window = if hc < h0 { (hc, h0) } else { (h0, hc) };
             let frame = frame_about(axis);
-            // The seed face is the cap the strut stands in under the
-            // sense that puts it on the strut's side of the rim.
-            let (body, cap, _) = strut_cap(c, r, frame, (h0, pole), (pole > 0.0, true), tol);
+            let (body, cap, _) = strut_cap(c, r, frame, (h0, hc), (true, true), true, tol);
             let (lo, hi) = sphere_reach(&body, cap, band, &BoxFrame::World);
             let boxed = face_box(&body, cap, 0.0, band).unwrap();
             let (clo, chi) = crate::census::face_reach(&body, cap, band).unwrap();
             assert!(
                 hi.x - lo.x < 2.0 * r || hi.y - lo.y < 2.0 * r || hi.z - lo.z < 2.0 * r,
-                "a cap strutted onto its pole reads its zone, not the ball"
+                "a zone on its seam reads its zone, not the ball"
             );
             for k in 0..3 {
                 let (slo, shi) = zone_support(c, r, frame.2, window, k);

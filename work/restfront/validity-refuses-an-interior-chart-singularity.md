@@ -139,3 +139,17 @@ refused by tier 3 today — for a reason of tier 3's own, never for this
 one". If this unit gives tier 3 the reason, that sentence is this unit's
 to correct, and `crates/mesh/tests/loops_with_no_rim.rs` carries the
 tier-3 assertions that would move.
+
+## Props' sphere half retired ahead of the import (FLUX `flux/sphere-arm`, 2026-10-10)
+
+The sphere's rim-only arm (`sphere_rim_only_pole_level`,
+`rim_interior_side`) is gone with the sphere's iso flux branch. Every
+sphere face is measured by Gauss–Bonnet, and its side is read by
+`curved::sphere_loop_side`, which reads a one-loop face as the side of
+its loop holding no chart pole. A rim-only cap has a pole on each side
+of its rim, so props refuses it `SenseContradicted` under either bit,
+and tier 3 reports it through check 7 (`VolumeUncomputable { source:
+Face { SenseContradicted } }`). So validity already refuses this face
+at the volume, by the cause rather than by the structural fact this row
+asks for. `topo/tests/props_sphere_cap_door.rs` now pins that refusal.
+The cone apex cap is unchanged.

@@ -689,3 +689,79 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         Err(PropsError::DegenerateFace)
     ));
 }
+
+/// **The cone gate's side is a face fact under a re-anchoring**
+/// (`work/flux/rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order.md`).
+/// The gate reads the sign of the face's area against the chart normal
+/// off its axial vector area (`props_cone_area_side`), the quantity the
+/// flux integrates, so no rim is read first: a frustum patch — two rims
+/// and two generators — answers one side at every rotation of its edge
+/// list, on both nappes and both traversals, and the population it
+/// records is the same at every anchor and holds no `props_rim_side`.
+#[test]
+fn the_cone_gate_reads_one_side_at_every_anchor() {
+    let verdicts = |edges: &[LoopEdge<f64>]| {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let side = boundary_material_sign(&cone(), edges, band());
+        let mut got: Vec<String> = bracket
+            .finish()
+            .verdicts
+            .iter()
+            .map(|v| format!("{} {:?}", v.predicate, v.sign))
+            .collect();
+        got.sort();
+        (side, got)
+    };
+    for nappe in [1.0, -1.0] {
+        let (lo, hi) = (nappe * SL, nappe * 2.0 * SL);
+        // Counter-clockwise in the chart `(u, v)`: along the lower rim,
+        // out along the generator at `u = 1`, back along the upper rim,
+        // in along the generator at `u = 0`. On the `v < 0` nappe a
+        // generator's points lie at azimuth `u + π`, where its rims'
+        // arcs are read from. The chart normal encodes the side on both
+        // nappes alike.
+        let du = if nappe > 0.0 { 0.0 } else { PI };
+        let patch = [
+            rim(lo, du, du + 1.0, 0, 1),
+            generator(1.0, lo, hi, 1, 2),
+            rim(hi, du + 1.0, du, 2, 3),
+            generator(0.0, hi, lo, 3, 0),
+        ];
+        let want = geom_core::Sign::Positive;
+        let rotated = |k: usize, reversed: bool| -> Vec<LoopEdge<f64>> {
+            let mut e: Vec<LoopEdge<f64>> = (0..patch.len())
+                .map(|i| patch[(i + k) % patch.len()].clone())
+                .collect();
+            if reversed {
+                e = e
+                    .into_iter()
+                    .rev()
+                    .map(|x| LoopEdge {
+                        forward: !x.forward,
+                        start: x.end,
+                        end: x.start,
+                        ..x
+                    })
+                    .collect();
+            }
+            e
+        };
+        for reversed in [false, true] {
+            let want = if reversed { want.flip() } else { want };
+            let (_, first) = verdicts(&rotated(0, reversed));
+            assert!(
+                first.iter().all(|v| !v.starts_with("props_rim_side ")),
+                "the gate reads no rim side: {first:?}"
+            );
+            for k in 0..patch.len() {
+                let (side, got) = verdicts(&rotated(k, reversed));
+                assert_eq!(
+                    side,
+                    Ok(MaterialSign::Encoded(want)),
+                    "nappe {nappe}, reversed {reversed}, k {k}"
+                );
+                assert_eq!(got, first, "nappe {nappe}, reversed {reversed}, k {k}");
+            }
+        }
+    }
+}

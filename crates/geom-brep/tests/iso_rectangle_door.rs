@@ -108,7 +108,7 @@ fn a_keyway_refuses_at_the_door_and_measures_in_the_flux_lane() {
 /// **Two homes, one lune.** A lune between two great circles a
 /// quarter turn apart is a chart rectangle in azimuth × latitude, so
 /// the door admits it; the flux lane measures it at the width the
-/// loop bounds (`props_wedge_azimuth`). The door's answer is the
+/// loop bounds, by Gauss–Bonnet. The door's answer is the
 /// shape's and does not depend on which lunes the flux lane measures.
 #[test]
 fn a_rimless_lune_passes_the_door_and_measures() {

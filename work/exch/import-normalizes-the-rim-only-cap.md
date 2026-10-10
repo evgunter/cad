@@ -63,3 +63,16 @@ meet it: the header and the edge-count assert message of
 `crates/step-import/tests/meridian_free_cap.rs`, the comment over the
 two `rim-only-cap` rows of `tier_gate.rs`'s corpus table, and the
 generator's docstring.
+
+**The un-normalised cap is refused at tier 3 now (FLUX
+`flux/sphere-arm`, 2026-10-10).** The sphere's side reader reads a
+one-loop face as the side of its loop holding no chart pole; a rim-only
+cap has one on each side, so its volume is refused `SenseContradicted`
+(check 7, `VolumeUncomputable`). `meridian_free_cap.rs` and
+`tier_gate.rs`'s two `rim-only-cap` rows move with that branch to pin
+the refusal. The order this row states — normalise before validity
+refuses — is therefore inverted for the sphere: import accepts these
+files at tier 2 and refuses them at tier 3 until this lands. Which pole
+the re-minted half-caps meet at no longer needs `rim_interior_side`:
+it is the pole on the face's side of the rim, which is the side the bit
+names.
