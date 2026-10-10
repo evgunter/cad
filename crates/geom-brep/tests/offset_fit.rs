@@ -1184,32 +1184,23 @@ fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
 /// `a_single_non_improving_round_is_the_budgets_face_not_the_stalls`
 /// is the other side: one non-improving round is the budget's.
 ///
-/// The saddle wall at a target of `1e-14`, which it cannot reach, each
+/// The saddle wall at a target of `5e-15`, which it cannot reach, each
 /// request pinned by the round it stalls on, its grid and its bound:
 ///
 /// ```text
-/// d = +5.6234132519034906e-11   round 5, (31, 23), 2.767036e-14
-/// d = −5.6234132519034906e-11   round 5, (35, 23), 2.812559e-14
-/// d =  1.333521432163324e-10    OFFSET_FIT_BUDGET's round, (41, 29), 3.191256e-14
+/// d = +5.6234132519034906e-11   round 5, (32, 25), 8.470001e-15
+/// d = −5.6234132519034906e-11   round 5, (35, 25), 9.115370e-15
+/// d =  9.999999999999999e-11    OFFSET_FIT_BUDGET's round, (48, 45), 1.059474e-14
 /// ```
 ///
 /// **The ± pair does NOT agree grid-for-grid, and nothing was lost.**
 /// `S + d·n` and `S − d·n` are different surfaces with different
-/// residual fields, so their bounds differ: measured on this request
-/// they already differ in the fourth significant digit at round 2
-/// (7.7411034e-14 against 7.7439392e-14) and at round 3
-/// (1.4319696e-14 against 1.4397345e-14), while the grids agree there
-/// — (7, 7) then (11, 7) on both signs. The refinement marks cells by
-/// model-space extent, so once the two bounds put the worst cell in
-/// different places the grids part, which here happens at the last
-/// round. The requests this row carried before (`theta = 0.3`,
-/// `d = ±5e-10`) agreed on (16, 12) because they STOPPED at round 4,
-/// before the divergence reached the marking — and even there they
-/// agreed only to the 1e-3 relative slack the bound assertion carries,
-/// never bit for bit. Sign-independence of the GRID was a property of
-/// where that fixture stopped, not of the fit.
+/// residual fields, so their bounds differ, and the refinement marks
+/// cells by model-space extent: once the two bounds put the worst cell
+/// in different places the grids part. Sign-independence of the GRID
+/// is a property of where a fixture stops, not of the fit.
 ///
-/// At `d = 1.333521432163324e-10`, a loop that tested the budget first
+/// At `d = 9.999999999999999e-11`, a loop that tested the budget first
 /// would refuse `BudgetExhausted` on the same round, so this request is
 /// the witness that the verdict comes first.
 ///
@@ -1223,21 +1214,20 @@ fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
 /// **If a request here certifies, re-find the fixture; do not delete
 /// the row.** These stalls ride on the Bézier decomposition's insertion
 /// width, which grows with the grid, so a change that narrows that
-/// width moves them — the convex insertion form did exactly that, and
-/// the requests this row carried before it (`theta = 0.3`, `d = ±5e-10`
-/// and `1e-6`) all certify now. The hunt that finds replacements sweeps
-/// `theta` over 0.05–1.2 and `d` over 1e-11–1e-2 at THIS row's target
-/// on this saddle; pin one request that stalls on `OFFSET_FIT_BUDGET`'s
+/// width moves them. The hunt that finds replacements sweeps `theta`
+/// over 0.05–1.2 and `d` over 1e-11–1e-2 on this saddle at THIS row's
+/// target, or at a lower one when nothing at it stalls before the
+/// budget's round; pin one request that stalls on `OFFSET_FIT_BUDGET`'s
 /// round and one that stalls before it.
 #[test]
 fn the_second_non_improving_round_is_the_stalls_face() {
-    let base = saddle_wall(0.6);
-    let target = 1e-14;
+    let base = saddle_wall(0.5);
+    let target = 5e-15;
     let last_round = u32::try_from(OFFSET_FIT_BUDGET).unwrap();
     for (d, want_rounds, want_grid, want_achieved) in [
-        (5.6234132519034906e-11, 5u32, (29, 21), 2.4534e-14),
-        (-5.6234132519034906e-11, 5, (33, 21), 2.7026e-14),
-        (1.333521432163324e-10, last_round, (35, 26), 2.7962e-14),
+        (5.6234132519034906e-11, 5u32, (32, 25), 8.470001e-15),
+        (-5.6234132519034906e-11, 5, (35, 25), 9.115370e-15),
+        (9.999999999999999e-11, last_round, (48, 45), 1.059474e-14),
     ] {
         let (rounds, grid, achieved, best, msg) = match fit_offset_at(&base, d, target, band()) {
             Err(
@@ -1267,7 +1257,7 @@ fn the_second_non_improving_round_is_the_stalls_face() {
         };
         assert_eq!(
             rounds, want_rounds,
-            "saddle d={d:e}: the stall moved rounds (the 1e-6 request witnesses the ordering \
+            "saddle d={d:e}: the stall moved rounds (the last request witnesses the ordering \
              only while it stalls on the budget's last round)"
         );
         assert_eq!(grid, want_grid, "saddle d={d:e}: the stall's grid moved");
