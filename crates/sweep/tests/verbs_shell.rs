@@ -18,8 +18,8 @@ use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
-    capped_vessel, hollow_box, hollow_capped_vessel, outer_and_void, roles_by_solid, tube,
-    two_void_box, vessel,
+    bowl_sector, capped_vessel, hollow_box, hollow_capped_vessel, lipped_block, outer_and_void,
+    roles_by_solid, tube, two_void_box, vessel,
 };
 use crate::common::stations::cut_stations;
 use crate::common::torus_walls::{klein_elbow, props_door};
@@ -760,6 +760,100 @@ fn a_dome_sectors_arc_bounded_end_walls_clear() {
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
+}
+
+/// **A spiric-bounded end wall is read on its arc, not its ball.**
+/// The `120°` bowl sector at `t = 0.05`: its end faces are not
+/// adjacent, and their moved planes meet on a line parallel to the
+/// axis `t/sin(60°)` from it, inside the dilated bore, so the walls
+/// clear. Each moved end face is bounded by a spiric arc of the moved
+/// bowl, whose one carrier ball (centred on the arc's midpoint, radius
+/// its speed bound times its half-width, over `2` here) reaches that
+/// line: read as that ball the pair overlapped by `1.65` and refused
+/// `OffsetsCross`. Cut on its carrier it clears, and the sector goes on
+/// to the closing validation, where a planar cap bounded by a spiric
+/// has no volume yet
+/// (`work/flux/spiric-bounded-face-area-is-unimplemented.md`): this
+/// row turns to a closed-form volume when that lands.
+#[test]
+fn a_bowl_sectors_spiric_bounded_end_walls_clear() {
+    let tol = Tol::witness();
+    let e = topo::shell(
+        &finished("the sector", bowl_sector(0.8, 120.0), tol),
+        0.05,
+        tol,
+    )
+    .expect_err("a spiric cap has no volume yet");
+    let (_, source) = props_door(&e).unwrap_or_else(|| {
+        panic!("the end walls clear, so the sector stops at the props door, got {e}")
+    });
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "the spiric cap's area lane"
+    );
+}
+
+/// The lipped block's sealed volume at `t`: the operand less a cavity
+/// that is the inset square below `z = 1 + t` and above `z = 2 − t`
+/// and the inset of the square with the lip's section between, while
+/// no inset edge inverts.
+fn lipped_volume(foot: f64, brim: f64, rise: f64, t: f64) -> f64 {
+    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    let lipped = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 2.0 + rise),
+        (2.0 - brim, 2.0 + rise),
+        (2.0 - foot, 2.0),
+        (0.0, 2.0),
+    ];
+    let operand = 12.0 + 0.5 * (foot + brim) * rise;
+    operand - 2.0 * shoelace(&inset(&square, t)) - (1.0 - 2.0 * t) * shoelace(&inset(&lipped, t))
+}
+
+/// **Two adjacent walls cannot cross away from their edge without an
+/// inverted edge first.** The lipped block's top and front share their
+/// edge either side of the lip and come within the lip's width of each
+/// other along it. For the two moved walls to meet there, the moved top
+/// has to reach past the moved front, which takes a lip narrower than
+/// about `2t`; at `t = 0.1`, a lip `0.1` wide at its foot rising to
+/// `0.3` (leaning back over the top, so the moved top reaches forward
+/// under it) is one. Its moved section inverts, and the offset door
+/// refuses the edge whose parameter then runs backwards, before the
+/// tilted read runs. A lip `0.5` wide at its foot, leaning the same way,
+/// keeps its walls apart, and the read, which now takes the adjacent
+/// top and front less their common edges, lets it build to its closed
+/// form.
+#[test]
+fn an_adjacent_pair_crossing_away_from_its_edge_refuses_at_the_offset_door() {
+    let tol = Tol::witness();
+    let t = 0.1;
+    let e = topo::shell(
+        &finished("the thin lip", lipped_block(0.1, 0.3, 0.2), tol),
+        t,
+        tol,
+    )
+    .expect_err("a lip 0.1 wide cannot hold two 0.1 walls");
+    assert!(
+        matches!(e, ShellError::Face { .. }) && e.to_string().contains("runs backwards"),
+        "the moved lip inverts an edge at the offset door, got {e}"
+    );
+    let hollow = topo::shell(
+        &finished("the thick lip", lipped_block(0.5, 0.6, 0.1), tol),
+        t,
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("a lip 0.5 wide holds two 0.1 walls, got {e}"))
+    .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    let props = topo::mass_properties(&hollow, tol).expect("props");
+    let want = lipped_volume(0.5, 0.6, 0.1, t);
+    assert!(
+        (props.volume - want).abs() <= 1e-12,
+        "the lipped block's wall is {want}, got {}",
+        props.volume
+    );
 }
 
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`
