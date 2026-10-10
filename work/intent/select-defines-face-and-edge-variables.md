@@ -2,11 +2,12 @@
 id: select-defines-face-and-edge-variables
 kind: issue
 title: D10 stage 2 PR E: Select defines Face/Edge variables and owns the N5 ladder; fillet, chamfer, shell, face-frame and measure names become reads
-status: parked
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: H
 blocked_on: [measure-is-an-operation]
+branch: intent/s2-e-select
 ---
 
 INTENT stage 2, PR E. Spec: `docs/INTENT-STAGE2-SPEC.md` §6.
