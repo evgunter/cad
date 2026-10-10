@@ -98,6 +98,15 @@ seams refuse at the iso-row guard and at `Approx × Nurbs`, behind a fit
 budget the default ε misses. It needs a designer pair before it is
 priced, after 15.
 
+The wall seam went to a designer pair (fork-log row 106). Ev ruled on PR 4515: one complete NURBS × NURBS arm, a `Section` handle with `branch_at` and `all()`. The designed final state is in the item's `## Designed` and `## Decided`. It cuts into:
+
+17. **Narrow the iso-row arm** — `the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row` (P2), plus the iso-row half of the wall-seam `## Designed`. The arm fires only for a self-shared image or a neighbour that holds the move, and reads the image's own row. M tier: rule-1 byte 37 (mod 3 = 1), sequential.
+18. **The general simultaneous door** — `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). Every chart of a solid moves at once; edges are sections of moved surfaces, and corners are their roots. Dual review. It runs beside 17 (both touch `replace_face.rs`; each merges main often).
+19. **The NURBS × NURBS arm** — `a-wall-seam-between-two-fits-has-no-section` (P2, H), as ruled. After 18.
+20. **The saddle fit's reach** — `a-saddle-walls-offset-fit-stalls-short-of-the-default-eps` (P3, measure first).
+
+Curved wall clearance (geom-brep README, Open) is the gate before a shelled loft is sound at rest. It is priced after 19.
+
 Units 8 and 10 run in parallel (different files); unit 9's measure
 runs beside them.
 
