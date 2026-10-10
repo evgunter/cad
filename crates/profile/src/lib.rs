@@ -356,21 +356,13 @@ impl<T: Real> BuiltArc<T> {
 }
 
 /// Whether a bulge is exactly zero, of either sign — the line of the
-/// bulge input form.
-///
-/// [`Real`] compares nothing, so the read is arithmetic: `b · 0` is
-/// poison exactly when `b` is not finite, and for a finite `b`,
-/// `b · (1/b)` is poison exactly when `b` is zero (0 · ∞; at `Interval`
-/// the reciprocal of `[0, 0]` is empty). A poisoned bulge is not a
-/// line; it lowers to an arc whose carrier is poison, which validation
-/// refuses typed. This is an exact read, not a tolerance decision:
-/// whether a nonzero bulge is too shallow to be an arc is validation's
-/// `segment_straightness` question, asked of the bulge itself.
-///
-/// At `f64` the read is exactly `b == 0.0`, so a lowered segment's
-/// kind is the reading every consumer of the bulge form makes.
+/// bulge input form ([`geom_core::is_exact_zero`]). A poisoned bulge is
+/// not a line; it lowers to an arc whose carrier is poison, which
+/// validation refuses typed. Whether a nonzero bulge is too shallow to
+/// be an arc is validation's `segment_straightness` question, asked of
+/// the bulge itself.
 fn is_exact_zero<T: Real>(b: T) -> bool {
-    !(b * T::zero()).is_poison() && (b * (T::one() / b)).is_poison()
+    geom_core::is_exact_zero(b)
 }
 
 /// A closed loop: a vertex chain, closed by construction (the last

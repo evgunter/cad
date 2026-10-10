@@ -37,10 +37,13 @@
 //! (the carrier lanes below) is the section only where the held surface
 //! is carried onto itself by the move — a plane cap moved along its
 //! normal beside a wall that contains it — and the door transports
-//! there and nowhere else between distinct surfaces. Two sides of one
-//! chart (a seam, a wrap, an iso image) move with the chart. An edge so
-//! derived is stated as the two surfaces' `Intersection`, its sketch
-//! record dropped: it is not a curve the sketch drew.
+//! there and nowhere else between distinct surfaces. An edge derived as
+//! a section is stated as the two surfaces' `Intersection`, its sketch
+//! record dropped: it is not a curve the sketch drew. A moved spline
+//! chart's iso image is extracted instead, as a row of its fit, where
+//! both of its sides move with the fit: a seam the chart shares with
+//! itself (a wrap among them), or a neighbour that holds the move along
+//! the row (below).
 //!
 //! **A moved corner is solved, not transported.** Where every held
 //! surface around a corner holds the move, the transports put it where
@@ -128,11 +131,15 @@
 //! on a plane, a cylinder ruling, a cone generator or a fitted chart
 //! transports with everything else.
 //!
-//! An `IsoCurve` on a NURBS chart takes a different, exact route: its
-//! carrier is the FIT's own boundary row (`geom_brep::nurbs_iso`), which
-//! lands the carrier in the fit's spline space — the degree AND the
-//! refined interior knots — by construction rather than by elevating and
-//! refining the old carrier into it.
+//! An iso image on a moved spline chart whose sides both move with the
+//! fit — a seam the chart shares with itself, or a distinct neighbour
+//! that holds the move along the row (`offset_derive::holds_the_move`)
+//! — takes a different, exact route: its carrier is the FIT's own
+//! boundary row at the image's own fixed parameter
+//! (`geom_brep::nurbs_iso`), which lands the carrier in the fit's spline
+//! space — the degree AND the refined interior knots — by construction
+//! rather than by elevating and refining the old carrier into it. Any
+//! other iso image on the fit is its section with the neighbour.
 //!
 //! # Where it refuses
 //!
@@ -150,9 +157,10 @@
 //! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and an
 //! edge still scaffolded that the move tilts against a distinct
 //! neighbour refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
-//! A fitted face routes as its fit: its edge with a held plane is
-//! derived as their section, a row of its fit beside an analytic face
-//! is extracted from the new fit, and every other edge of it refuses by
+//! A fitted face routes as its fit: a row of its fit whose sides both
+//! move with it is extracted from the new fit, its other edges with a
+//! distinct surface are their sections (a plane's derived, any other
+//! kind refusing by its pair), and every other edge of it refuses by
 //! name ([`ReplaceFaceError::FittedBoundaryUnsupported`] lists them).
 //!
 //! # The apex window
@@ -371,15 +379,15 @@ pub enum ReplaceFaceError<T: Real> {
         why: &'static str,
     },
     /// **The fitted face's boundary this door does not carry.** A moved
-    /// fitted face keeps an edge it meets a distinct held plane along
-    /// (their section, derived) and a row of its fit whose other side
-    /// is analytic. It refuses, named per edge with what the edge
-    /// presented:
-    /// - a row of its fit shared with a spline or another fitted face,
-    ///   which would have to move with it;
-    /// - a curve on its fit that does not run along its fitted rows;
+    /// fitted face keeps a row of its fit whose sides both move with it,
+    /// and an edge with a distinct surface as their section. It
+    /// refuses, named per edge with what the edge presented:
+    /// - a curve on its fit that does not run along its fitted rows:
+    ///   one that is no line of its chart, or a line along a seam the
+    ///   face shares with itself that holds neither parameter fixed;
     /// - a curve still under construction (a scaffold edge);
-    /// - a seam the face shares with itself.
+    /// - a seam the face shares with itself that is not described on
+    ///   its own chart.
     FittedBoundaryUnsupported {
         /// The edge the fitted chart cannot carry.
         edge: EdgeKey,
@@ -1374,7 +1382,7 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
 /// this hook's), a stale face, or an offset that does not mint.
 #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
 #[doc(hidden)]
-#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+#[allow(clippy::type_complexity)]
 pub fn offset_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
@@ -1384,6 +1392,43 @@ pub fn offset_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
     EdgeKey,
     Result<Option<ReplaceFaceError<T>>, ReplaceFaceError<T>>,
 )> {
+    planned_edges(body, face, d, tol)
+        .into_iter()
+        .map(|(edge, plan)| (edge, plan.map(|p| p.refused)))
+        .collect()
+}
+
+/// **Each boundary edge's planned curve** for moving one non-cone
+/// `face` by `d` — [`offset_edge_plans_for_tests`]'s plans, read for
+/// the description and carrier each edge would be stored with rather
+/// than for its verdict.
+///
+/// # Panics
+///
+/// As [`offset_edge_plans_for_tests`].
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[doc(hidden)]
+#[allow(clippy::type_complexity)]
+pub fn offset_edge_specs_for_tests<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    d: T,
+    tol: Tol,
+) -> Vec<(EdgeKey, Result<EdgeCurveSpec<T>, ReplaceFaceError<T>>)> {
+    planned_edges(body, face, d, tol)
+        .into_iter()
+        .map(|(edge, plan)| (edge, plan.map(|p| p.spec)))
+        .collect()
+}
+
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+fn planned_edges<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    d: T,
+    tol: Tol,
+) -> Vec<(EdgeKey, Result<EdgePlan<T>, ReplaceFaceError<T>>)> {
     let band = Band::linear(tol).expect("the witness band");
     let face_data = body.get_face(face).expect("a live face");
     let old_key = face_data.surface;
@@ -1417,7 +1462,7 @@ pub fn offset_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
                 band,
                 T::section_lane(),
             );
-            (edge, plan.map(|p| p.refused))
+            (edge, plan)
         })
         .collect()
 }
@@ -2052,6 +2097,33 @@ fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Ve
     out
 }
 
+/// The chart row an `IsoLine` image runs along over `(t0, t1)`: the
+/// axis it holds fixed, the parameter it holds it at, and its span
+/// along the row. `None` for a line that fixes neither parameter
+/// exactly — a slanted line is no row — or both, a point.
+fn iso_image_row<T: Decide>(
+    p0: geom_core::Point2<T>,
+    pl: geom_core::Vec2<T>,
+    (t0, t1): (T, T),
+) -> Option<(geom_brep::ChartAxis, T, (T, T))> {
+    match (
+        geom_core::is_exact_zero(pl.x),
+        geom_core::is_exact_zero(pl.y),
+    ) {
+        (true, false) => Some((
+            geom_brep::ChartAxis::U,
+            p0.x,
+            (p0.y + pl.y * t0, p0.y + pl.y * t1),
+        )),
+        (false, true) => Some((
+            geom_brep::ChartAxis::V,
+            p0.y,
+            (p0.x + pl.x * t0, p0.x + pl.x * t1),
+        )),
+        _ => None,
+    }
+}
+
 /// One boundary edge's re-derivation: the description re-stated against
 /// the moved chart, the carrier transported, the endpoints read off the
 /// transported carrier.
@@ -2093,81 +2165,102 @@ fn plan_edge<T: Decide>(
     let mid = curve.mid_point();
 
     // The one description that gets an EXACT carrier rather than a
-    // transported one: an iso-curve of a fitted chart is a row of the
-    // fit's own control net, so extracting it lands the carrier in the
-    // fit's spline space — its degree and its refined interior knots —
-    // without elevating or refining anything.
+    // transported one: a row of the fit's own control net, extracted
+    // from the new fit, which lands the carrier in the fit's spline
+    // space — its degree and its refined interior knots — without
+    // elevating or refining anything. That row is the edge only where
+    // both of its sides move with the fit: a seam the moved chart shares
+    // with itself, or a distinct neighbour that holds the move along
+    // the row. Any other iso image on the fit is the section of the fit
+    // with its neighbour, derived below.
+    let mut iso_section = false;
     if let (EdgeDescription::Chart(c), Surface::Approx(approx)) = (&description, new_surface)
         && c.surface == old_key
         && let geom_brep::Pcurve::IsoLine { p0, pl } = c.pcurve
     {
-        // An iso image on a DESCRIPTION is u-const by construction —
-        // `EdgeDescriptionSpec::iso` is the only door that mints one,
-        // and it fixes `u` and moves `v`. (The u-moving `IsoLine` the
-        // cap-rim lane mints is a stored CACHE, never a description.)
-        let (u, v0, v1) = (p0.x, p0.y + pl.y * t0, p0.y + pl.y * t1);
-        // The seam this row carries is shared with whatever face
-        // sits on the other side. If THAT face is a bounded chart
-        // too, it would have to move with this one to keep holding
-        // the edge — which is a body-wide offset, not a
-        // face-replacement, and this door says so rather than
-        // storing a row the neighbour's own lane will reject.
         let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
         let other = if group.contains(&fa) { fb } else { fa };
-        if !group.contains(&other) {
-            let what =
-                match body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face)) {
-                    Surface::Nurbs(_) => Some("a row of this fit shared with a spline face"),
-                    Surface::Approx(_) => Some("a row of this fit shared with another fitted face"),
-                    _ => None,
-                };
-            if let Some(what) = what {
-                return Err(ReplaceFaceError::FittedBoundaryUnsupported { edge, what });
+        let self_shared = group.contains(&other);
+        // The image's own line, read as a row only where it holds a
+        // parameter EXACTLY fixed: an exact test can only refuse more
+        // than a margined one, so it needs no band.
+        let row = iso_image_row(p0, pl, (t0, t1));
+        // The hold is read on the OLD chart and the row extracted from
+        // the new fit at the same `at`: the fit lives on the old
+        // chart's own parameter rectangle, ends exact
+        // (`geom_brep::offset_fit`, its knots `on_domain` the base's).
+        // Were they ever to differ, an `at` at an end of the old domain
+        // but not the fit's refuses typed at the extraction
+        // (`IsoRowError::Interior`) rather than reading another row.
+        let extract = row.filter(|&(axis, at, _)| {
+            self_shared || {
+                let held =
+                    body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face));
+                crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
             }
-        }
-        // The extraction itself lives in `geom_brep::nurbs_iso`, beside
-        // `boundary_iso_u` and its asserting rows: the door's lane is
-        // the call, not the arithmetic.
-        // **The fourth home of the same question** (PCURVE P-1b, found
-        // in review). This early return mints its own spec and never
-        // reaches `carried_declaration` below, so it too would answer
-        // `declared: None` and destroy the record. There is no `delta`
-        // here to transport with — the carrier is extracted from the
-        // NEW fit's control net rather than transported — and a fit's
-        // offset is not a rigid translation in any case, so the honest
-        // answer for a declared locus is the same refusal the other
-        // arms give rather than a silent drop.
-        //
-        // Latent today: an iso boundary of a face's own fit is minted
-        // by `nurbs_iso_derive`, which declares nothing, so no current
-        // fixture carries a declaration here. Written anyway, because
-        // "no fixture reaches it" is exactly what was true of the
-        // boundary lane's drop until a cap offset reached it.
-        if curve.authority().is_declared() {
-            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+        });
+        iso_section = extract.is_none() && !self_shared;
+        if let Some((axis, at, (s0, s1))) = extract {
+            // The carrier is extracted from the NEW fit rather than
+            // transported, and a fit's offset is no rigid shift, so a
+            // declared sketch record has nothing to travel by.
+            if curve.authority().is_declared() {
+                return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "its declared sketch record cannot follow the face, whose offset is not a \
+                           rigid shift",
+                });
+            }
+            let (row, fixed) = geom_brep::iso_boundary_row(approx.fit(), axis, at, band)
+                .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
+            // An edge laid against the row runs on the row reflected
+            // through 0 (`geom_brep::reversed_column`), `t ↦ −t`, so its
+            // span runs forward on its carrier.
+            let against = matches!(
+                decide("iso_row_runs_against", Margin::of(s1 - s0), band)
+                    .map_err(|source| ReplaceFaceError::Escalated { source })?,
+                Sign::Negative
+            );
+            let (row, (s0, s1), along) = if against {
+                (geom_brep::reversed_column(&row), (-s0, -s1), -T::one())
+            } else {
+                (row, (s0, s1), T::one())
+            };
+            let carrier = Curve3::Nurbs(Arc::new(row));
+            let ends = Some((carrier.eval(s0), carrier.eval(s1)));
+            // The image is `(fixed, along·t)` or `(along·t, fixed)`: the
+            // row's own parameter, run back on a reflected carrier.
+            let (p0, pl) = match axis {
+                geom_brep::ChartAxis::U => (
+                    geom_core::Point2::new(fixed, T::zero()),
+                    geom_core::Vec2::new(T::zero(), along),
+                ),
+                geom_brep::ChartAxis::V => (
+                    geom_core::Point2::new(T::zero(), fixed),
+                    geom_core::Vec2::new(along, T::zero()),
+                ),
+            };
+            let description = EdgeDescriptionSpec::Chart {
+                surface: old_key,
+                image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+                wrap: c.wrap,
+                declared: None,
+            };
+            return Ok(EdgePlan {
                 edge,
-                what: "its declared sketch record cannot follow the face, whose offset is not a \
-                       rigid shift",
+                spec: EdgeCurveSpec {
+                    description,
+                    carrier,
+                    param_start: s0,
+                    param_end: s1,
+                },
+                start,
+                end,
+                ends,
+                sides,
+                refused: None,
             });
         }
-        let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
-            .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
-        let carrier = Curve3::Nurbs(Arc::new(row));
-        let ends = Some((carrier.eval(v0), carrier.eval(v1)));
-        return Ok(EdgePlan {
-            edge,
-            spec: EdgeCurveSpec {
-                description: EdgeDescriptionSpec::iso(old_key, u_domain, v0, v1, v0, v1),
-                carrier,
-                param_start: v0,
-                param_end: v1,
-            },
-            start,
-            end,
-            ends,
-            sides,
-            refused: None,
-        });
     }
 
     // Past the fit's own rows, a fitted face keeps only the edges it
@@ -2177,7 +2270,7 @@ fn plan_edge<T: Decide>(
     // is supposed to hold it.
     if matches!(new_surface, Surface::Approx(_)) {
         let what = match description {
-            EdgeDescription::Chart(ref c) if c.surface == old_key => {
+            EdgeDescription::Chart(ref c) if c.surface == old_key && !iso_section => {
                 Some("a curve on this face's fit that does not run along its fitted rows")
             }
             EdgeDescription::Scaffold(_) => Some("a curve still under construction"),
@@ -2210,7 +2303,7 @@ fn plan_edge<T: Decide>(
             t1,
             old_carrier.eval(t0).distance(old_carrier.eval(t1)),
         );
-        if !crate::offset_derive::holds_the_move(old_surface, held, d, band) {
+        if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
                 (edge, start, end, sides),
                 (curve, &description, (t0, t1)),
@@ -3301,8 +3394,13 @@ fn solve_corners<T: Decide>(
             let held = match holds.iter().find(|(h, _)| *h == k) {
                 Some((_, held)) => *held,
                 None => {
-                    let held =
-                        crate::offset_derive::holds_the_move(old_surface, surface_of(k), d, band);
+                    let held = crate::offset_derive::holds_the_move(
+                        old_surface,
+                        surface_of(k),
+                        None,
+                        d,
+                        band,
+                    );
                     holds.push((k, held));
                     held
                 }

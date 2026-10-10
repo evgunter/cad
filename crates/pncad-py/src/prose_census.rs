@@ -1738,7 +1738,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     (
         "crates/geom-brep/src/nurbs_iso.rs",
         "IsoRowError",
-        "u",
+        "at",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",

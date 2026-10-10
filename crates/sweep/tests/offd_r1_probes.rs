@@ -352,8 +352,8 @@ fn every_err_path_leaves_the_body_bit_untouched() {
             "d = {d} ({e}): the body must be bit-untouched on Err"
         );
     }
-    // The fitted boundary, both signs — the refusal the PR says fires
-    // AFTER the fit door ran but BEFORE any mutation.
+    // The fitted wall's seam, both signs: it refuses AFTER the fit door
+    // ran but BEFORE any mutation.
     for d in [5e-10_f64, -5e-10] {
         let mut body = prism();
         let wall = body
@@ -370,7 +370,13 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("the fitted boundary refuses");
         assert!(
-            matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
+            matches!(
+                e,
+                ReplaceFaceError::NeighborPairUnroutable {
+                    kind: geom::SurfaceKind::Approx,
+                    ..
+                }
+            ),
             "got {e}"
         );
         assert_eq!(
@@ -427,27 +433,15 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
     }
 }
 
-/// **Which leg of the fitted obstruction fires, and on a CURVED fit
-/// too.** The spec's acceptance named "an Approx replacement on a
-/// curved fit"; the suite's prism walls are PLANAR splines. The
-/// twisted loft's saddle walls are genuinely curved, so this row runs
-/// the door there: the fit door must still run (a fit refusal would
-/// surface as `Fit`, not `FittedBoundaryUnsupported`) and the refusal
-/// must still be the structural one. Both rows also pin WHICH leg the
-/// loop walk hits, which the suite left as bookkeeping.
-///
-/// **Re-expressed at PCURVE P-1b, and the leg list retired with it.**
-/// Two of the five legs this row enumerated no longer exist: U2
-/// collapsed `IsoCurve`/`Seam`/`MappedCurve` into one conventional
-/// form, so "an iso-curve of a neighbour's chart" and "a periodic
-/// seam" merged into "a chart image of a neighbour's chart", and the
-/// "a mapped rim (a v-row is not an `IsoCurve`)" refusal was retired
-/// outright — a rim is a chart image like any other, and a u-const one
-/// takes the exact-row lane whatever minted it (P-1b item 4). Rather
-/// than swap five strings for four, the row now pins the leg EXACTLY,
-/// per fixture: membership in a list of five could never distinguish
-/// a door that fired for the wrong reason from one that fired for the
-/// right one, which is the whole thing this row exists to check.
+/// **Where the fitted obstruction fires, and on a CURVED fit too.**
+/// The prism's walls are PLANAR splines; the twisted loft's saddle
+/// walls are genuinely curved, so this row runs the door on both: the
+/// fit door must still run (a fit refusal would surface as `Fit`) and
+/// the refusal must still be the structural one, at a seam with the
+/// next, unmoved spline wall. That seam is a row of the wall's own fit,
+/// but its neighbour is a distinct spline face, which does not move
+/// with it, so the edge is their section: `Approx × Nurbs`, which has
+/// no arm (`NeighborPairUnroutable`), pinned exactly per fixture.
 ///
 /// **The curved fixture's outcome depends on ε, and on every ε row CI
 /// gates it is the structural arm.** The offset door's fit target is
@@ -476,23 +470,11 @@ const CURVED_FIT_REACH: f64 = 1e-13;
 
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
-    // Both fixtures' walls refuse first at a seam that is one of this
-    // fit's rows, shared with the next, unmoved, spline wall: both land
-    // on that leg, named rather than matched by membership. One rim is
-    // planned before that seam; what each rim does is the next row's.
-    for (name, mut body, leg, curved) in [
-        (
-            "planar prism",
-            prism(),
-            "a row of this fit shared with a spline face",
-            false,
-        ),
-        (
-            "twisted loft",
-            twisted_loft(0.3),
-            "a row of this fit shared with a spline face",
-            true,
-        ),
+    // One rim is planned before the seam; what each rim does is the
+    // next row's.
+    for (name, mut body, curved) in [
+        ("planar prism", prism(), false),
+        ("twisted loft", twisted_loft(0.3), true),
     ] {
         let wall = body
             .faces()
@@ -507,9 +489,11 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
         let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
             .expect_err("the fitted boundary refuses");
         match e {
-            ReplaceFaceError::FittedBoundaryUnsupported { what, .. } => {
-                assert_eq!(what, leg, "{name}: the wrong leg of the fitted door");
-            }
+            ReplaceFaceError::NeighborPairUnroutable {
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Nurbs,
+                ..
+            } => {}
             // The fit could not reach this run's ε, so the structural
             // door was never reached. Legitimate only where the base is
             // genuinely curved AND the run's ε is tighter than what the
@@ -530,7 +514,9 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
                     Tol::witness().eps()
                 );
             }
-            other => panic!("{name}: expected the structural refusal or the fit's, got {other}"),
+            other => panic!(
+                "{name}: expected the seam's unroutable pair or the fit's refusal, got {other}"
+            ),
         }
     }
 }
@@ -695,10 +681,10 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
 ///   base's own, stops short of the top cap plane on this twisted wall,
 ///   so the plane has no branch through it (`NoBranch`, at every ε ≥
 ///   1e-9); at 1e-12 the trace's tube refuses first, an `Ssi` verdict;
-/// - one seam is a row of this fit shared with the next spline wall
-///   (`FittedBoundaryUnsupported`); the other is not one of the fit's
-///   rows, so it routes as `Approx × Nurbs`, which has no arm
-///   (`NeighborPairUnroutable`).
+/// - both seams route as `Approx × Nurbs`, which has no arm
+///   (`NeighborPairUnroutable`): the one that is a row of this fit too,
+///   since its neighbour is a distinct spline wall that does not move
+///   with it.
 #[test]
 fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
     use topo::SectionVerdict;
@@ -775,15 +761,6 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
         let [a, b] = seams.as_slice() else {
             panic!("{name}: the wall has two seams, got {}", seams.len());
         };
-        let row = |v: &Result<_, ReplaceFaceError<f64>>| {
-            matches!(
-                v,
-                Err(ReplaceFaceError::FittedBoundaryUnsupported {
-                    what: "a row of this fit shared with a spline face",
-                    ..
-                })
-            )
-        };
         let unroutable = |v: &Result<_, ReplaceFaceError<f64>>| {
             matches!(
                 v,
@@ -795,8 +772,8 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
             )
         };
         assert!(
-            (row(a) && unroutable(b)) || (row(b) && unroutable(a)),
-            "{name}: one seam is a shared row, the other unroutable; got {a:?}, {b:?}"
+            unroutable(a) && unroutable(b),
+            "{name}: both seams answer alike, unroutable; got {a:?}, {b:?}"
         );
     }
 }

@@ -1053,6 +1053,112 @@ fn segment_curve_converts_a_closed_arc_only_as_one_full_turn() {
     }
 }
 
+/// **A moved closed spline wall plans its wrap edge as a row of its new
+/// fit.** The wrap edge is the seam the wall shares with itself, so
+/// both of its sides move with the fit, and the door extracts the new
+/// fit's boundary column rather than sectioning it with anything,
+/// re-stated as a `u` row of the wall's own chart.
+///
+/// A lofted circle's wall carries the rational circle's C⁰ knots, which
+/// the offset fit refuses as a crease, so the one-segment cylinder's
+/// wall is re-charted onto a smooth closed chart through the same wrap
+/// line `(1, 0, z)`: a flat ring in the plane `y = 0`, one cubic span
+/// closed in `u` about `(1, 0, −1)` and linear in `v` from radius 1 to
+/// 3, whose offset its fit reproduces exactly. The strut is re-described as that chart's wrap column; the
+/// rims, which the plan of the wrap edge does not read, stay as the
+/// loft left them.
+#[test]
+fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
+    use geom_core::spline::KnotVector;
+    let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
+    let section = vec![circle(0.0, 0.0, 1.0, TAU)];
+    let mut body = sweep::loft_body::<f64>(&[section.clone(), section], &places, 1, tol())
+        .expect("the cylinder lofts")
+        .body;
+    let [(wall, strut)] = wrap_edges(&body)[..] else {
+        panic!("one wrap edge");
+    };
+    // The ring's direction about the centre, in the plane's (x, z): one
+    // closed cubic span, whose offset the fit reproduces exactly.
+    let ring = [(0.0, 1.0), (4.0, -3.0), (-4.0, -3.0), (0.0, 1.0)];
+    let control = ring
+        .iter()
+        .flat_map(|&(x, z)| {
+            [1.0, 3.0].map(|r| geom_core::Point3::new(1.0 + r * x, 0.0, -1.0 + r * z))
+        })
+        .collect();
+    let tube = geom::NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![1.0; 8],
+    )
+    .expect("a closed flat ring");
+    // The wrap column run top to bottom, on `[−1, 0]`.
+    let column = geom_brep::reversed_column(&geom_brep::boundary_iso_u(&tube, false).unwrap());
+    // Lifts RechartStrandsDescriptions: the strut is re-described onto
+    // the new chart next, and only the strut is planned.
+    let wall_key = body
+        .set_face_surface_unvouched_for_tests(
+            wall,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(tube)),
+                sense: true,
+            },
+        )
+        .expect("the attach-layer door accepts a live face");
+    body.set_edge_curve(
+        strut,
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::wrap_iso(
+                wall_key, 0.0, 1.0, 0.0, -1.0, 0.0,
+            ),
+            carrier: geom::Curve3::Nurbs(std::sync::Arc::new(column)),
+            param_start: -1.0,
+            param_end: 0.0,
+        },
+        tol(),
+    )
+    .expect("the strut is the tube's wrap column");
+    let d = 0.05;
+    let spec = topo::offset_edge_specs_for_tests(&body, wall, d, tol())
+        .into_iter()
+        .find(|(edge, _)| *edge == strut)
+        .map(|(_, spec)| spec)
+        .expect("the wrap edge is on the wall's boundary")
+        .unwrap_or_else(|e| panic!("the wrap edge plans: {e}"));
+    assert!(
+        matches!(
+            spec.description,
+            geom_brep::EdgeDescriptionSpec::Chart {
+                surface,
+                image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+                wrap: true,
+                ..
+            } if surface == wall_key && p0.x == 0.0 && pl.x == 0.0 && pl.y == -1.0
+        ),
+        "the wrap edge is the u = 0 wrap row of the wall's chart, run back \
+         (`pl = (0, −1)`), got {:?}",
+        spec.description
+    );
+    // The strut runs top to bottom, as it did: its span forward on the
+    // row reflected through 0, from `z = 2` down to `z = 0`.
+    assert!(
+        spec.param_start < spec.param_end,
+        "the span runs forward on its carrier, got {}..{}",
+        spec.param_start,
+        spec.param_end
+    );
+    for (t, z) in [(spec.param_start, 2.0), (spec.param_end, 0.0)] {
+        let p = spec.carrier.eval(t);
+        assert!(
+            (p.x - 1.0).abs() < 1e-9 && (p.y.abs() - d).abs() < 1e-9 && (p.z - z).abs() < 1e-9,
+            "the column stands on the wrap line carried d off the ring's plane, at z = {z}, \
+             got {p:?}"
+        );
+    }
+}
+
 /// **A one-segment strut runs its column back without rounding a knot.**
 /// The wall's `u = 0` column carries the sections' chord-length
 /// parameters, and on many of these stacks some have no reflection

@@ -495,25 +495,14 @@ fn a_shared_surface_key_refuses_typed() {
 
 /// **The fitted lane, through the door.** A lofted prism's wall face
 /// carries a NURBS surface, so the door reaches the fit door and mints
-/// the certified `Approx` — and then refuses, by name, at the first
-/// boundary edge the fit's own rows do not carry.
-///
-/// **That refusal is the honest one, and it is structural rather than
-/// tolerance-shaped.** A fitted chart covers exactly its own parameter
-/// window. Move the face, and the seam it shares with the next wall is
-/// no longer a row of EITHER chart: the neighbour would have to extend
-/// to meet it, which a bounded chart cannot do. No `d` makes that
-/// close, so the door decides it before it mutates rather than letting
-/// the pcurve lane discover it after.
-///
-/// Every edge of the wall's boundary refuses for that one reason — the
-/// mapped rims because a `v`-row is not an `IsoCurve` (which is
-/// `u`-const by definition) and so cannot be re-described at all, the
-/// seams because the chart on the other side is bounded too. The row
-/// pins the variant rather than which edge the loop walk reaches
-/// first, which is bookkeeping.
+/// the certified `Approx`, and then refuses, by name, at a seam with
+/// the next wall. The seam is a row of the moving fit, but the wall
+/// across it is a distinct spline face that does not move with it, so
+/// the edge is the section of the two, `Approx × Nurbs`, which C5 has
+/// no arm for (`NeighborPairUnroutable`). The door decides that before
+/// it mutates.
 #[test]
-fn the_fitted_lane_refuses_at_a_shared_bounded_chart() {
+fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
     for d in [5e-10_f64, -5e-10] {
         let mut body = prism();
         let wall = *spline_walls(&body)
@@ -523,8 +512,15 @@ fn the_fitted_lane_refuses_at_a_shared_bounded_chart() {
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("a fitted face's shared seam has nowhere to go");
         assert!(
-            matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
-            "d = {d}: expected the bounded-chart refusal, got {e}"
+            matches!(
+                e,
+                ReplaceFaceError::NeighborPairUnroutable {
+                    kind: geom::SurfaceKind::Approx,
+                    other_kind: geom::SurfaceKind::Nurbs,
+                    ..
+                }
+            ),
+            "d = {d}: expected the seam's unroutable pair, got {e}"
         );
         assert_eq!(
             format!("{:?}", body.faces().collect::<Vec<_>>()),
