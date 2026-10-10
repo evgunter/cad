@@ -540,9 +540,10 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
 /// first and a spline carrier, and the body passes tier 3's structural
 /// phase, whose plane × NURBS certificate reads the cap as its fit.
 ///
-/// The fit itself does not move here: a moved fitted face's corners
-/// have no root yet
-/// (`work/shell/a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section.md`).
+/// The corner where the moved side meets the cap and the next side is
+/// that side's root at the section's end, within ε of the fit's window
+/// edge. The fit itself moves in
+/// `a_moved_fitted_cap_stands_its_corners_on_the_held_sides`.
 #[test]
 fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     use crate::common::approx::box_with_approx_cap;
@@ -695,4 +696,234 @@ fn a_moved_planes_section_with_a_held_fit_names_the_plane_first() {
         Some(edge),
         "the re-derived section names the moved plane first"
     );
+}
+
+/// **A moved fitted cap stands its corners on the held sides.** The
+/// unit box's cap is swapped for a NURBS patch over `[-1, 3]²` at
+/// `z = 1`, wider than the face, and moved by `d`: its offset is a fit,
+/// its four edges are each side plane's section with the fit, and each
+/// corner is the neighbouring side's root along each of the two
+/// sections meeting it (the fit is not rooted along the box's vertical
+/// lines). The closed form is the moved box: every corner at
+/// `(x, y, 1 + d)` with `x, y ∈ {0, 2}`.
+///
+/// Each section's corners are rooted at the lever of the section's own
+/// domain, the curve the root is isolated over — not the old edge's
+/// parameters read on it, which extrapolate past the section's ends.
+///
+/// Tier 3 passes every phase it reaches and refuses the cap's volume
+/// alone, where the edges' spans are a sub-range of their sections'
+/// domains (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`);
+/// the volume `4 (1 + d)` is not taken yet.
+#[test]
+fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
+    use crate::common::approx::{top_face, unit_box};
+    use std::sync::Arc;
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let corner = |x: f64, y: f64| geom_core::Point3::new(x, y, 1.0);
+    let patch = geom::NurbsSurface::new(
+        kv.clone(),
+        kv,
+        vec![
+            corner(-1.0, -1.0),
+            corner(-1.0, 3.0),
+            corner(3.0, -1.0),
+            corner(3.0, 3.0),
+        ],
+        vec![1.0; 4],
+    )
+    .expect("a bilinear patch");
+    let eps = Tol::witness().eps();
+    for d in [0.05, -0.05] {
+        let mut body = unit_box();
+        let cap = top_face(&body);
+        // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
+        body.set_face_surface_unvouched_for_tests(
+            cap,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Nurbs(Arc::new(patch.clone())),
+                sense: true,
+            },
+        )
+        .expect("the cap takes a NURBS surface");
+        let arms = topo::offset_corner_arms_for_tests(&body, cap, d, Tol::witness());
+        assert_eq!(arms.len(), 4, "d = {d}: the move derives each cap edge");
+        for (edge, carrier, arm) in &arms {
+            let geom::Curve3::Nurbs(section) = carrier else {
+                panic!("d = {d}: {edge:?} derives a spline section, got {carrier:?}");
+            };
+            let (lo, hi) = section.domain();
+            let own = section.eval(lo).distance(section.eval(hi));
+            assert!(
+                *arm == own,
+                "d = {d}: {edge:?}'s corners are rooted at an arm of {arm}, not its section's own \
+                 {own}"
+            );
+        }
+        topo::replace_face_offset(&mut body, cap, d, Tol::witness())
+            .unwrap_or_else(|e| panic!("d = {d}: the fitted cap moves: {e}"));
+        let cap_key = body.get_face(cap).expect("the cap survives").surface;
+        assert!(
+            matches!(body.get_surface(cap_key), Some(geom::Surface::Approx(_))),
+            "d = {d}: the moved cap wears its offset fit"
+        );
+        let sections = body
+            .edges()
+            .filter_map(|(_, e)| {
+                body.get_curve_geom(e.curve)
+                    .and_then(topo::CurveGeom::certified)
+            })
+            .filter(|c| {
+                matches!(
+                    *c.description(),
+                    geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+                        if s2 == cap_key
+                            && matches!(body.get_surface(s1), Some(geom::Surface::Plane { .. }))
+                ) && matches!(c.carrier(), geom::Curve3::Nurbs(_))
+            })
+            .count();
+        assert_eq!(
+            sections, 4,
+            "d = {d}: each cap edge is a side's section of the fit, plane first"
+        );
+        let mut corners = Vec::new();
+        for (_, v) in body.vertices() {
+            let p = *body.get_point(v.point).expect("a live vertex's point");
+            let off = |c: f64, want: &[f64]| {
+                want.iter()
+                    .map(|w| (c - w).abs())
+                    .fold(f64::INFINITY, f64::min)
+            };
+            let gap = off(p.x, &[0.0, 2.0])
+                .max(off(p.y, &[0.0, 2.0]))
+                .max(off(p.z, &[0.0, 1.0 + d]));
+            assert!(
+                gap <= eps,
+                "d = {d}: a corner at {p:?} is {gap:e} off the moved box"
+            );
+            if (p.z - (1.0 + d)).abs() <= eps {
+                corners.push(p);
+            }
+        }
+        assert_eq!(
+            corners.len(),
+            4,
+            "d = {d}: the cap's four corners moved by d"
+        );
+        for (i, a) in corners.iter().enumerate() {
+            for b in &corners[i + 1..] {
+                assert!(
+                    a.distance(*b) > 1.0,
+                    "d = {d}: two cap corners stand together, at {a:?} and {b:?}"
+                );
+            }
+        }
+        let refusals = topo::validate_geometric(&body, Tol::witness())
+            .expect_err("the fitted cap's quadrature is not built");
+        assert!(
+            matches!(
+                refusals.as_slice(),
+                [topo::ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face {
+                        face,
+                        source: geom_brep::PropsError::QuadratureUnsupported { what },
+                        ..
+                    },
+                    ..
+                }] if *face == cap
+                    && what.starts_with("a General trim image whose carrier interval is not its own knot domain")
+            ),
+            "d = {d}: expected only the fitted cap's quadrature refusal, got {refusals:?}"
+        );
+    }
+}
+
+/// **A curved fitted cap moves where its fit certifies.** The unit
+/// box's cap is swapped for a biquadratic NURBS bump over `[-1, 3]²`
+/// (its middle control point raised 0.1 above `z = 1`) and moved by
+/// `±0.05`. Where ε is looser than the offset fit reaches (about
+/// 2.4e-9 m in its round budget) the move builds: its corners are the
+/// side planes' roots along the plane × fit sections, tier 3 refuses the
+/// cap's volume alone
+/// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
+/// and the moved body maps rigidly. Tighter, the fit refuses first.
+#[test]
+fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
+    use crate::common::approx::{top_face, unit_box};
+    use std::sync::Arc;
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+        .expect("a clamped quadratic knot vector");
+    let mut control = Vec::new();
+    for x in [-1.0, 1.0, 3.0] {
+        for y in [-1.0, 1.0, 3.0] {
+            let bump = if x == 1.0 && y == 1.0 { 0.1 } else { 0.0 };
+            control.push(geom_core::Point3::new(x, y, 1.0 + bump));
+        }
+    }
+    let patch =
+        geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).expect("a biquadratic bump");
+    let eps = Tol::witness().eps();
+    for d in [0.05, -0.05] {
+        let mut body = unit_box();
+        let cap = top_face(&body);
+        // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
+        body.set_face_surface_unvouched_for_tests(
+            cap,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Nurbs(Arc::new(patch.clone())),
+                sense: true,
+            },
+        )
+        .expect("the cap takes a NURBS surface");
+        let moved = topo::replace_face_offset(&mut body, cap, d, Tol::witness());
+        if eps < 2e-9 {
+            assert!(
+                matches!(
+                    moved,
+                    Err(ReplaceFaceError::Fit {
+                        error: geom_brep::OffsetFitError::BudgetExhausted { .. },
+                        ..
+                    })
+                ),
+                "eps {eps:e}, d = {d}: expected the cap's fit to exhaust its budget, got {moved:?}"
+            );
+            continue;
+        }
+        moved.unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the curved fitted cap moves: {e}"));
+        // The side planes stand the corners at x, y ∈ {0, 2}; the bump
+        // sets their height.
+        for (_, v) in body.vertices() {
+            let p = *body.get_point(v.point).expect("a live vertex's point");
+            let off = |c: f64| c.abs().min((c - 2.0).abs());
+            let gap = off(p.x).max(off(p.y));
+            assert!(
+                gap <= eps,
+                "eps {eps:e}, d = {d}: a corner at {p:?} is {gap:e} off the box's sides"
+            );
+        }
+        let refusals = topo::validate_geometric(&body, Tol::witness())
+            .expect_err("the fitted cap's quadrature is not built");
+        assert!(
+            matches!(
+                refusals.as_slice(),
+                [topo::ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face {
+                        face,
+                        source: geom_brep::PropsError::QuadratureUnsupported { what },
+                        ..
+                    },
+                    ..
+                }] if *face == cap
+                    && what.starts_with("a General trim image whose carrier interval is not its own knot domain")
+            ),
+            "eps {eps:e}, d = {d}: expected only the fitted cap's quadrature refusal, got {refusals:?}"
+        );
+        let rigid = geom_core::Affine3::rotation_about_axis(
+            geom_core::Point3::new(0.3, -0.2, 0.1),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.7,
+        );
+        topo::transform_rigid(&body, &rigid, Tol::witness())
+            .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+    }
 }

@@ -788,8 +788,10 @@ thin solids keep their two), and the invariant is closure, not genus
 (one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
 inverted cavity walls at edge re-attachment. A fitted face's edge with a
 plane is their section over the fit (C5), and a row of its fit beside
-an analytic face is extracted from the new fit; its other boundary
-refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
+an analytic face is extracted from the new fit. Its corners are the
+held planes' roots along those edges, a section's sought from its end
+at the corner; the fit itself is not rooted along a held edge. Its
+other boundary refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
 naming `Approx`); by `FittedBoundaryUnsupported`, a row of the fit
 shared with a spline or another fitted face, a curve on the fit that
 does not run along its rows, a scaffold edge, and a seam the face shares

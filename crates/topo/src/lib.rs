@@ -919,12 +919,12 @@ pub use query::{
     SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
-#[cfg(any(feature = "test-support", feature = "sweep-testing"))]
-#[doc(hidden)]
-pub use replace_face::offset_edge_plans_for_tests;
 pub use replace_face::{
     OffsetOutcome, ReplaceFaceError, replace_face_offset, replace_faces_offset,
 };
+#[cfg(any(feature = "test-support", feature = "sweep-testing"))]
+#[doc(hidden)]
+pub use replace_face::{offset_corner_arms_for_tests, offset_edge_plans_for_tests};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
