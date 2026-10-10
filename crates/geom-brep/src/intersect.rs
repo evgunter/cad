@@ -1991,15 +1991,17 @@ pub fn cylinder_sphere_section<T: Decide>(
 /// outside the conic inventory (R1).
 #[derive(Clone, Debug)]
 pub enum PlaneConeSection<T: Real> {
-    /// Apex on the plane, plane cutting inside the cone: two generator
-    /// lines through the apex.
+    /// Apex on the plane, plane cutting inside the cone, and the real
+    /// plane's section starting within the zero band of the apex on both
+    /// nappes: two generator lines through the apex.
     ApexLinePair {
         /// The generator at azimuth `φ + δ`.
         l1: Curve3<T>,
         /// The generator at azimuth `φ − δ`.
         l2: Curve3<T>,
     },
-    /// Apex on the plane, plane tangent along one generator —
+    /// Apex on the plane, plane tangent along one generator, and the
+    /// real plane's section starting within the zero band of the apex —
     /// classification data, not a constructible edge (C7 / M5 PR 9).
     ApexTangentLine(Curve3<T>),
     /// Apex on the plane, plane through it clearing the cone, and the
@@ -2045,14 +2047,24 @@ pub enum PlaneConeSection<T: Real> {
 ///    discriminant, here at its degenerate column: positive exactly when
 ///    the plane dips inside the cone), read with step 1's apex gap
 ///    beside it ([`decide_across`]; `pn_apex_section_floor` decides the
-///    definite side): Positive ⇒
-///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
-///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒ step 2a.
+///    definite side): Positive ⇒ step 2b, Zero ⇒ step 2c, Negative ⇒
+///    step 2a.
 ///
 ///    2a. `pn_apex_point_reach` — margin `|δ|/|D|` (δ the apex gap of
 ///    step 1), the farthest the real plane's ellipse reaches from the
 ///    apex: Zero ⇒ [`PlaneConeSection::ApexPoint`]; Positive ⇒ the
 ///    ellipse is the section, steps 3–4.
+///
+///    2b. `pn_apex_pair_reach` — margin `|δ|/D`, where the real plane's
+///    section starts on the nappe farther from it (it starts `|δ|/M`
+///    away on the other, `M = sin α·‖axis×normal‖ + cos α·|axis·normal|`
+///    and `D ≤ M`): Zero ⇒ [`PlaneConeSection::ApexLinePair`]; Positive
+///    ⇒ the hyperbola is the section, steps 3–4.
+///
+///    2c. `pn_apex_tangent_reach` — margin `|δ|/M`, where the real
+///    plane's section starts nearest the apex: Zero ⇒
+///    [`PlaneConeSection::ApexTangentLine`]; Positive ⇒ the
+///    near-parabola is the section, steps 3–4.
 /// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the larger of
 ///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
 ///    from the plane, `c = axis·normal`) and `extent`, the reach over
@@ -2159,32 +2171,53 @@ pub fn plane_cone_section<T: Decide>(
         )
         .map_err(SectionError::Escalated)?;
         match verdict {
+            // The line outcomes serve generators through the apex. The
+            // real plane meets the line through a generator `g` at
+            // `−δ/(g·n)` from the apex, the sign naming the nappe, and
+            // `g·n` runs over `[−D, M]` with `M = sin α·s + cos α·|c|`
+            // (mirrored where `c < 0`): one nappe's section starts
+            // `|δ|/M` from the apex, the other's `|δ|/D` (none where
+            // `D ≤ 0`). The pair runs through the apex on both nappes,
+            // and `D ≤ M`, so its bound is `|δ|/D`; the tangent generator
+            // stands in for a touching whose clearing nappe carries no
+            // section, so its bound is `|δ|/M`. Past either, the lines
+            // are not the section, and the off-apex lane classifies it.
             Sign::Positive | Sign::Zero => {
-                let v_ref = a.cross(cone_u);
-                let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
-                let phi = nv.atan2(nu);
-                // Clamped acos argument (outward-rounding can push
-                // it a hair past ±1 at the tangency boundary —
-                // min/max are Real lattice ops, evaluation-legal).
-                let arg = ((T::zero() - cos_a * c) / (sin_a * s))
-                    .min(T::one())
-                    .max(T::zero() - T::one());
-                let delta = arg.acos();
-                let gen_at = |u: T| -> Curve3<T> {
-                    let (su, cu) = u.sin_cos();
-                    Curve3::Line {
-                        origin: apex,
-                        dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
-                    }
-                };
-                return if verdict == Sign::Zero {
-                    Ok(PlaneConeSection::ApexTangentLine(gen_at(phi + delta)))
+                let (name, slope) = if verdict == Sign::Zero {
+                    ("pn_apex_tangent_reach", sin_a * s + cos_a * c.abs())
                 } else {
-                    Ok(PlaneConeSection::ApexLinePair {
-                        l1: gen_at(phi + delta),
-                        l2: gen_at(phi - delta),
-                    })
+                    ("pn_apex_pair_reach", discr)
                 };
+                let reach = Margin::levered(T::one() / slope, apex_gap.abs());
+                if decide_magnitude(name, reach, band).map_err(SectionError::Escalated)?
+                    == Magnitude::Zero
+                {
+                    let v_ref = a.cross(cone_u);
+                    let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
+                    let phi = nv.atan2(nu);
+                    // Clamped acos argument (outward-rounding can push
+                    // it a hair past ±1 at the tangency boundary —
+                    // min/max are Real lattice ops, evaluation-legal).
+                    let arg = ((T::zero() - cos_a * c) / (sin_a * s))
+                        .min(T::one())
+                        .max(T::zero() - T::one());
+                    let delta = arg.acos();
+                    let gen_at = |u: T| -> Curve3<T> {
+                        let (su, cu) = u.sin_cos();
+                        Curve3::Line {
+                            origin: apex,
+                            dir: a * cos_a + (cone_u * cu + v_ref * su) * sin_a,
+                        }
+                    };
+                    return if verdict == Sign::Zero {
+                        Ok(PlaneConeSection::ApexTangentLine(gen_at(phi + delta)))
+                    } else {
+                        Ok(PlaneConeSection::ApexLinePair {
+                            l1: gen_at(phi + delta),
+                            l2: gen_at(phi - delta),
+                        })
+                    };
+                }
             }
             // The plane through the apex clears the cone, but the real
             // plane, `apex_gap` off it, cuts the ellipse the off-apex
@@ -2206,9 +2239,9 @@ pub fn plane_cone_section<T: Decide>(
             }
         }
     }
-    // The section of a plane off the apex, or of one whose ellipse
-    // reaches past the band from it (step 2a): axis-normal circle,
-    // else the conic the tilt makes. A Zero here stands the circle in
+    // The section of a plane off the apex, or of one whose section
+    // starts or reaches past the band from it (steps 2a–2c):
+    // axis-normal circle, else the conic the tilt makes. A Zero here stands the circle in
     // for the plane's true section, so the tilt's sine is levered
     // at the longest reach over which that stand-in is read: the
     // circle's own radius, and the extent the conic type is
