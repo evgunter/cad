@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-09
 priority: P3
 cost: M
-needs_ev: true
 ---
 
 
@@ -41,3 +40,5 @@ Two designers weighed this one, under fork-log row 103. They converged on the co
 That core touches no ratified text and is implemented as its own unit.
 
 For Ev (the `[ev]` PR): retire `ssi_foot_orthogonality` and reword C2 limb 1. Its margin `|S_u·r|/|S_u| ≤ |r|` uses the same `r` and the same point as the distance limb, so it can refuse only on interval slop. The clause traces to the CURVED-DESIGN draft and PR 7's binding spec, so it may be ratified.
+
+**Ev, 2026-10-10 (PR 4498):** retire `ssi_foot_orthogonality` and reword C2 limb 1 ("nice catch, sounds good!"). The C2 text lands with that PR. Removing the limb from code (its check, `SsiLimb::FootOrthogonality`, the `projection.rs` module doc's three-residual story and `RoundMargin::Over`'s reading of it) is the row `foot-orthogonality-limb-is-retired-in-the-code`.
