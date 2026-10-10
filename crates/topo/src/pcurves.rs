@@ -1103,19 +1103,32 @@ fn half_edge_description<T: Decide>(
     Ok(half_edge_curve(body, half_edge)?.description().clone())
 }
 
-/// Whether a carrier over `carrier` lies in the spline space of a chart
-/// row over `row`, run either way: the same knots, or an exact
-/// reflection of them ([`KnotVector::is_reflection_of`]) — the relation
-/// the seam certificate reads back, so a candidate offered here is one
-/// it can certify.
+/// Which ways a carrier over `carrier` can run a chart row over `row`
+/// in the row's own spline space — the relation the seam certificate
+/// reads, per direction: forward on the same knots, run back on an
+/// exact reflection of them ([`KnotVector::is_reflection_of`]). A row
+/// candidate is offered only in a direction this admits.
 ///
 /// [`KnotVector::is_reflection_of`]: geom_core::spline::KnotVector::is_reflection_of
-fn in_row_space(
-    carrier: &geom_core::spline::KnotVector,
-    row: &geom_core::spline::KnotVector,
-) -> bool {
-    (carrier.degree() == row.degree() && carrier.knots() == row.knots())
-        || row.is_reflection_of(carrier)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RowSpace {
+    forward: bool,
+    backward: bool,
+}
+
+impl RowSpace {
+    fn of(carrier: &geom_core::spline::KnotVector, row: &geom_core::spline::KnotVector) -> Self {
+        RowSpace {
+            forward: carrier.degree() == row.degree() && carrier.knots() == row.knots(),
+            backward: row.is_reflection_of(carrier),
+        }
+    }
+
+    /// Whether a carrier whose `u` rises (`rising`) or falls along it
+    /// is in this space.
+    fn admits(self, rising: bool) -> bool {
+        if rising { self.forward } else { self.backward }
+    }
 }
 
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
@@ -1500,13 +1513,16 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 })
             });
             // A cap–wall rim stated intrinsically traverses a boundary
-            // ROW, `u` moving — offered only to a carrier in the row's
-            // own spline space, run either way (`in_row_space`: the
-            // row class compares control nets over it).
-            let row_space = in_row_space(spline.knots(), wall.knots_u());
-            let row_ys: &[T] = if row_space { &[cv0, cv1] } else { &[] };
-            let rows = row_ys.iter().copied().flat_map(|y| {
-                [(cu0, cu1), (cu1, cu0)].map(|(u_at_t0, u_at_t1)| {
+            // ROW, `u` moving — offered only in a direction whose
+            // carrier is in the row's own spline space (`RowSpace`:
+            // the row class compares control nets over it).
+            let row_space = RowSpace::of(spline.knots(), wall.knots_u());
+            let directions: Vec<(T, T)> = [(true, (cu0, cu1)), (false, (cu1, cu0))]
+                .into_iter()
+                .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
+                .collect();
+            let rows = [cv0, cv1].into_iter().flat_map(|y| {
+                directions.iter().map(move |&(u_at_t0, u_at_t1)| {
                     let slope = (u_at_t1 - u_at_t0) / span;
                     Pcurve::IsoLine {
                         p0: Point2::new(u_at_t0 - slope * t0, y),
@@ -1555,11 +1571,12 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // carrier's two end feet measure, offered to the same
             // metre-valued probe. ----
             if deferred.is_none()
-                && row_space
+                && (row_space.forward || row_space.backward)
                 && let (Some(f0), Some(f1)) = (
                     derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
                     derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
                 )
+                && row_space.admits(f1.x > f0.x)
             {
                 let (u0, u1) = (T::from_f64(f0.x), T::from_f64(f1.x));
                 let slope = (u1 - u0) / span;
@@ -7280,36 +7297,75 @@ mod villarceau_joint_tests {
 mod row_space_tests {
     #![allow(clippy::unwrap_used)]
 
-    use super::in_row_space;
+    use super::RowSpace;
     use geom_core::spline::KnotVector;
 
     fn kv(knots: &[f64]) -> KnotVector {
         KnotVector::clamped(knots.to_vec(), 1).unwrap()
     }
 
-    /// The reversed row space is any EXACT reflection of the row: on
+    /// The row run back is any EXACT reflection of the row: on
     /// `[0.1, 0.3]` the knots `0.25` and `0.15` sum to `0.1 + 0.3` in ℝ
     /// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`; on `[0, 1]`,
-    /// `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1; and the
-    /// reflection through 0, `−k`, never rounds.
+    /// `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1; the reflection
+    /// through 0, `−k`, never rounds, while one about 0.7 rebuilt as
+    /// `fl(0.7 − k)` does. Forward is the row's own knots and nothing
+    /// else: a row symmetric only in decimal is not run back on them.
     #[test]
-    fn a_carrier_is_in_the_reversed_row_space_on_its_exact_reflection() {
+    fn each_direction_admits_its_own_relation() {
         let row = kv(&[0.1, 0.1, 0.25, 0.3, 0.3]);
-        assert!(
-            in_row_space(&kv(&[0.1, 0.1, 0.15, 0.3, 0.3]), &row),
-            "an exact mirror the rounded reflection misses is in the row space"
+        let only_back = RowSpace {
+            forward: false,
+            backward: true,
+        };
+        assert_eq!(
+            RowSpace::of(&kv(&[0.1, 0.1, 0.15, 0.3, 0.3]), &row),
+            only_back,
+            "an exact mirror the rounded reflection misses runs the row back"
         );
-        assert!(
-            in_row_space(&row.negated(), &row),
-            "the row run back through 0, which rounds nowhere, is in its space"
+        assert_eq!(
+            RowSpace::of(&row.negated(), &row),
+            only_back,
+            "the row reflected through 0, which rounds nowhere, runs it back"
         );
-        assert!(
-            !in_row_space(
+        let about_0_7: Vec<f64> = row.knots().iter().rev().map(|k| 0.7 - k).collect();
+        assert_eq!(
+            RowSpace::of(&kv(&about_0_7), &row),
+            RowSpace {
+                forward: false,
+                backward: false
+            },
+            "a reflection about 0.7 that holds only after rounding is refused"
+        );
+        assert_eq!(
+            RowSpace::of(
                 &kv(&[0.0, 0.0, 0.9, 1.0, 1.0]),
                 &kv(&[0.0, 0.0, 0.1, 1.0, 1.0])
             ),
+            RowSpace {
+                forward: false,
+                backward: false
+            },
             "a vector the rounded reflection reproduces, a 2Sum residual off the exact \
-             one, is not in the row space"
+             one, is in neither direction"
+        );
+        let decimal = kv(&[0.1, 0.1, 0.2, 0.3, 0.3]);
+        assert_eq!(
+            RowSpace::of(&decimal, &decimal),
+            RowSpace {
+                forward: true,
+                backward: false
+            },
+            "a row symmetric only in decimal runs forward on its own knots, not back"
+        );
+        let dyadic = kv(&[0.0, 0.0, 0.5, 1.0, 1.0]);
+        assert_eq!(
+            RowSpace::of(&dyadic, &dyadic),
+            RowSpace {
+                forward: true,
+                backward: true
+            },
+            "an exactly symmetric row runs either way on its own knots"
         );
     }
 }

@@ -6893,10 +6893,10 @@ fn seam_envelope<T: Decide>(
     }
     let u_start = p0.x + pl.x * t0;
     // Which way the image runs the column: a wrap edge a
-    // construction laid against the column's own direction
-    // (D1) is carried by the column run back
-    // ([`crate::nurbs_iso::reversed_column`]), and is compared
-    // against the traversed row read backwards.
+    // construction laid against the column's own direction (D1)
+    // is carried by the column run back — on any exact reflection
+    // of its knots — and is compared against the traversed row
+    // read backwards.
     let backward = match decide(
         "pcurve_iso_seam_sense",
         Margin::metered_sup(pl.y * span, stretch_v),

@@ -1131,6 +1131,32 @@ fn vertex_at(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
         .unwrap()
 }
 
+/// The top rim of `wall`'s face: its edge, the half-edge on the wall,
+/// and the cap plane across it.
+fn top_rim(
+    body: &Body<f64>,
+    wall: topo::SurfaceKey,
+) -> (topo::EdgeKey, topo::HalfEdgeKey, topo::SurfaceKey) {
+    let (wall_face, _) = body.faces().find(|(_, f)| f.surface == wall).unwrap();
+    body.edges()
+        .find_map(|(ek, e)| {
+            [(e.he_plus, e.he_minus), (e.he_minus, e.he_plus)]
+                .into_iter()
+                .find_map(|(own, other)| {
+                    let lp = body.get_half_edge(own).unwrap().parent_loop;
+                    let cap = he_surface(body, other);
+                    let on_cap = matches!(body.get_surface(cap), Some(Surface::Plane { .. }));
+                    let ends =
+                        [own, other].map(|h| vertex_at(body, body.get_half_edge(h).unwrap().start));
+                    (body.get_loop(lp).unwrap().face == wall_face
+                        && on_cap
+                        && ends.iter().all(|p| p.z == 2.0))
+                    .then_some((ek, own, cap))
+                })
+        })
+        .expect("the wall's top rim")
+}
+
 /// **A cap rim run back along its wall's row certifies as that row**:
 /// derived through `pcurve_of` and certified at
 /// `PcurveCache::certify`, the closed-form door the mint calls, on a
@@ -1153,25 +1179,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
         start.z == 2.0 && end.z == 2.0,
         "the v = 1 row is the top rim"
     );
-    let (wall_face, _) = body.faces().find(|(_, f)| f.surface == wall).unwrap();
-    let (edge, he, cap) = body
-        .edges()
-        .find_map(|(ek, e)| {
-            [(e.he_plus, e.he_minus), (e.he_minus, e.he_plus)]
-                .into_iter()
-                .find_map(|(own, other)| {
-                    let lp = body.get_half_edge(own).unwrap().parent_loop;
-                    let cap = he_surface(&body, other);
-                    let on_cap = matches!(body.get_surface(cap), Some(Surface::Plane { .. }));
-                    let ends = [own, other]
-                        .map(|h| vertex_at(&body, body.get_half_edge(h).unwrap().start));
-                    (body.get_loop(lp).unwrap().face == wall_face
-                        && on_cap
-                        && ends.iter().all(|p| p.z == 2.0))
-                    .then_some((ek, own, cap))
-                })
-        })
-        .expect("the wall's top rim");
+    let (edge, he, cap) = top_rim(&body, wall);
     let plus = body.get_edge(edge).unwrap().he_plus;
     let from = vertex_at(&body, body.get_half_edge(plus).unwrap().start);
     assert!(
@@ -1348,4 +1356,78 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
         "refining the grid from 8 to 64 spans loosens the exact image's bound from \
          {coarse:e} to {fine:e} m"
     );
+}
+
+/// **A row symmetric only in decimal is not run back on its own knots.**
+/// On `knots_u = [0.1, 0.1, 0.2, 0.3, 0.3]`, `0.2 + 0.2` is not
+/// `0.1 + 0.3` in ℝ, so a carrier on the row's own knots with its net
+/// reversed is not the row run back: no row candidate is offered for
+/// it, and the rim falls through to the `General` image the wall's
+/// foot schedule measures, which certifies against the cap plane.
+/// (The shape a STEP file writes: decimal knots, a rim oriented
+/// against the row.)
+#[test]
+fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
+    let mut body = prism(1.0);
+    let (_, _, bowed, _) = flat_bowed_seam(&body, 1.0);
+    let n = chart_of(&body, bowed);
+    let nv = n.control_counts().1;
+    let ku = KnotVector::clamped(vec![0.1, 0.1, 0.2, 0.3, 0.3], 1).unwrap();
+    assert!(
+        !ku.is_reflection_of(&ku),
+        "the row is not exactly symmetric"
+    );
+    assert!(
+        n.weights().iter().all(|w| *w == 1.0),
+        "a polynomial wall, so the new row lies on the old rows' segments"
+    );
+    let (first, last) = (&n.control()[..nv], &n.control()[nv..]);
+    let mut control = last.to_vec();
+    control.extend((0..nv).map(|j| last[j] + (first[j] - last[j]) * 0.5));
+    control.extend_from_slice(first);
+    let chart =
+        NurbsSurface::new(ku.clone(), n.knots_v().clone(), control, vec![1.0; 3 * nv]).unwrap();
+    let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
+    let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
+    let (edge, he, cap) = top_rim(&body, wall);
+    let same_knots_back = geom::NurbsCurve3::new(
+        ku,
+        row.control().iter().rev().copied().collect(),
+        row.weights().iter().rev().copied().collect(),
+    )
+    .unwrap();
+    let (t0, t1) = same_knots_back.domain();
+    let carrier = Curve3::Nurbs(Arc::new(same_knots_back));
+    body.set_edge_curve(
+        edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cap,
+                s2: wall,
+                witness: carrier.eval((t0 + t1) * 0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the rim takes the carrier: {e}"));
+    body.detach_pcurve(he);
+    let image = match topo::pcurve_of(&body, he, band()) {
+        Ok(Pcurve::General(image)) => image,
+        other => panic!("the rim falls through to the General image: {other:?}"),
+    };
+    let mate = body.get_surface(cap).cloned().unwrap();
+    geom_brep::PcurveCache::certify_general(
+        image,
+        t0,
+        t1,
+        &carrier,
+        &Surface::Nurbs(Arc::new(chart)),
+        Some(&mate),
+        band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
+    )
+    .unwrap_or_else(|e| panic!("the General image certifies against the cap plane: {e}"));
 }

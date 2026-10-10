@@ -849,6 +849,9 @@ impl KnotVector {
     /// exactly to `S`, this vector's first knot plus `other`'s last —
     /// the one reflection rule, read by [`Self::mirror_symmetric`] and
     /// [`Self::is_reflection_of`]. `other` has this vector's length.
+    /// The refusal's `lo` and `hi` are those two knots, so for
+    /// `other = self`, the only caller that surfaces it, they are the
+    /// domain's ends.
     fn first_unreflected(&self, other: &Self) -> Result<Option<usize>, KnotMirrorError> {
         // Indexing justified: a clamped vector is never empty.
         let (lo, hi) = (self.knots[0], other.knots[other.knots.len() - 1]);
