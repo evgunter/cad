@@ -132,8 +132,10 @@
 //! # The D3 segment-reconstruction rule (derived, pinned here)
 //!
 //! The records this rule reconstructs FROM are vertex–vertex and
-//! vertex–face pairs. A body's records also hold face–face pairs, and
-//! each bullet
+//! vertex–face pairs. An edge–face record of a straight edge in a
+//! plane is confirmed by this same reconstruction and backs no event of
+//! its own, so what an overlap needs is unchanged by its presence. A
+//! body's records also hold face–face pairs, and each bullet
 //! below has a corresponding face rung — `Declared::vv_face_backed` /
 //! `vf_face_backed` / `ve_face_backed`, which back a subordinate
 //! vertex event from a declared FACE pair holding the entities it
@@ -11398,6 +11400,233 @@ mod torn_reach_rows {
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| reach(b, face),
+        );
+    }
+}
+
+/// **The census reads which touch a record is from its two cells'
+/// carriers**: an edge–face record on a line and a plane is confirmed
+/// by reconstruction, one off it at a conventional vertex of its edge,
+/// and a face–face record on two carriers along their tangent line.
+mod records_by_carrier {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+    use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet, plant_disc_face};
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn one(body: &Body<f64>, x: Cell, y: Cell) -> ContactRecords {
+        [crate::Cited::new(
+            crate::Contact::new(body, x, y).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    fn census(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+        census_and_certify(body, records, band(), Tol::witness(), None)
+    }
+
+    fn stale_edge_face(errors: &[ValidationError], e: EdgeKey, f: FaceKey) -> bool {
+        errors.iter().any(|x| {
+            *x == ValidationError::StaleContactDeclaration {
+                declaration: StaleDeclaration::EdgeFace { edge: e, face: f },
+            }
+        })
+    }
+
+    fn unsupported_edge(errors: &[ValidationError], e: EdgeKey) -> bool {
+        errors.iter().any(|x| {
+            matches!(x, ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Edge(k)), ..
+            } if *k == e)
+        })
+    }
+
+    /// The edge of `body` between two points.
+    fn edge_at(body: &Body<f64>, p: [f64; 3], q: [f64; 3]) -> EdgeKey {
+        let at = |v: VertexKey| {
+            let r = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            [r.x, r.y, r.z]
+        };
+        body.edges()
+            .find(|(_, e)| {
+                let ends =
+                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                ends == [p, q] || ends == [q, p]
+            })
+            .map(|(k, _)| k)
+            .expect("the edge")
+    }
+
+    /// A face of `body` whose plane holds every boundary vertex at
+    /// `z`, and whose outward normal is `up`.
+    fn face_at_z(body: &Body<f64>, z: f64, up: bool) -> FaceKey {
+        body.faces()
+            .find(|(_, f)| match body.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.z.abs() > 0.5
+                        && (origin.z - z).abs() < 1e-12
+                        && ((normal.z > 0.0) == f.sense) == up
+                }
+                _ => false,
+            })
+            .map(|(k, _)| k)
+            .expect("the face")
+    }
+
+    /// Two bricks, the second standing on the first's top: the second's
+    /// bottom edge along y = 0.25 lies in the first's top face over
+    /// x ∈ (0.5, 1). Its record is confirmed; the first's bottom edge
+    /// against the second's top face, two metres off its plane, is
+    /// stale. Red when the line-and-plane lane reads no residual, or
+    /// reads only the residual.
+    #[test]
+    fn a_straight_edge_in_a_plane_is_confirmed_by_reconstruction() {
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let top = brick::<f64>((0.5, 1.5), (0.25, 0.75), (1.0, 2.0), tol);
+        crate::graft_disjoint_all_keyed(&mut body, &top).unwrap();
+        let on = edge_at(&body, [0.5, 0.25, 1.0], [1.5, 0.25, 1.0]);
+        let a_top = face_at_z(&body, 1.0, true);
+        let errors = census(&body, &one(&body, Cell::Edge(on), Cell::Face(a_top)));
+        assert!(
+            !stale_edge_face(&errors, on, a_top) && !unsupported_edge(&errors, on),
+            "the edge lying in the face is confirmed: {errors:?}"
+        );
+        let off = edge_at(&body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let b_top = face_at_z(&body, 2.0, true);
+        let errors = census(&body, &one(&body, Cell::Edge(off), Cell::Face(b_top)));
+        assert!(
+            stale_edge_face(&errors, off, b_top),
+            "an edge off the face's plane is stale: {errors:?}"
+        );
+        // Off the face's region, in its plane: the second brick's far
+        // bottom edge, x = 1.5, against the first's top.
+        let past = edge_at(&body, [1.5, 0.25, 1.0], [1.5, 0.75, 1.0]);
+        let errors = census(&body, &one(&body, Cell::Edge(past), Cell::Face(a_top)));
+        assert!(
+            stale_edge_face(&errors, past, a_top),
+            "an edge in the plane outside the region is stale: {errors:?}"
+        );
+    }
+
+    /// A disc's circle, closed at one conventional vertex, under a
+    /// brick standing over it: the record of the circle and the brick's
+    /// bottom face is confirmed at that vertex, and backs the vertex's
+    /// own touch there; against the brick's top face it is refused
+    /// typed, since the census builds no curve-touch lane along the
+    /// circle. Red when the conventional vertex is not read as the
+    /// edge's, or the record backs nothing.
+    #[test]
+    fn a_curved_edge_on_a_face_is_read_at_its_conventional_vertex() {
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
+        let host = face_at_z(&body, 1.0, true);
+        let at = body
+            .half_edges()
+            .find(|(_, h)| body.get_loop(h.parent_loop).unwrap().face == host)
+            .map(|(k, _)| k)
+            .unwrap();
+        let disc = plant_disc_face(&mut body, at, Point3::new(1.0, 1.0, 1.0), 0.5, tol);
+        let circle = disc.edge;
+        let lid = brick::<f64>((1.25, 2.5), (0.5, 1.5), (1.0, 2.0), tol);
+        crate::graft_disjoint_all_keyed(&mut body, &lid).unwrap();
+        let under = face_at_z(&body, 1.0, false);
+        let errors = census(&body, &one(&body, Cell::Edge(circle), Cell::Face(under)));
+        assert!(
+            !stale_edge_face(&errors, circle, under) && !unsupported_edge(&errors, circle),
+            "the circle's conventional vertex lies in the lid's underside: {errors:?}"
+        );
+        let vertex = conventional_vertices(&body, circle);
+        assert_eq!(vertex.len(), 1, "one conventional vertex");
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::UndeclaredContact {
+                contact: CensusContact::VertexOnFace { vertex: v, face }, ..
+            } if *v == vertex[0] && *face == under)),
+            "the record backs the vertex's touch: {errors:?}"
+        );
+        let lid_top = face_at_z(&body, 2.0, true);
+        let errors = census(&body, &one(&body, Cell::Edge(circle), Cell::Face(lid_top)));
+        assert!(
+            unsupported_edge(&errors, circle),
+            "away from its conventional vertex the curve touch is refused typed: {errors:?}"
+        );
+    }
+
+    /// A cylinder sheet beside a brick whose face x = `x` is tangent to
+    /// it along the ruling through (1, 0) at `x = 1`: the face–face
+    /// record is confirmed along that line, and contradicted when the
+    /// brick stands clear. Red when two carriers are read as a patch.
+    #[test]
+    fn a_face_pair_on_two_carriers_is_confirmed_along_its_tangent_line() {
+        let tol = Tol::witness();
+        let read = |x: f64| {
+            let mut body = Body::<f64>::new();
+            let wall = cyl_wall_sheet(
+                &mut body,
+                CylFrame::canonical(1.0),
+                (-0.5, 0.5),
+                (0.0, 1.0),
+                tol,
+            );
+            let block = brick::<f64>((x, x + 1.0), (-0.5, 0.5), (0.0, 1.0), tol);
+            let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
+            let side = block
+                .faces()
+                .find(|(_, f)| match block.get_surface(f.surface) {
+                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                        normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
+                    }
+                    _ => false,
+                })
+                .and_then(|(k, _)| keys.face(k))
+                .expect("the block's face x = x");
+            let errors = census(&body, &one(&body, Cell::Face(wall), Cell::Face(side)));
+            (errors, wall, side)
+        };
+        let named = |errors: &[ValidationError], a: FaceKey, b: FaceKey| {
+            errors
+                .iter()
+                .filter(|e| match e {
+                    ValidationError::ContactContradicted { declaration, .. } => {
+                        [declaration.a, declaration.b] == [a, b]
+                    }
+                    ValidationError::CensusUnsupported {
+                        subject: CensusSubject::FacePair(x, y),
+                        ..
+                    } => [*x, *y] == [a, b],
+                    ValidationError::StaleContactDeclaration {
+                        declaration: StaleDeclaration::Patch { face_a, face_b },
+                    } => [*face_a, *face_b] == [a, b],
+                    _ => false,
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        let (errors, wall, side) = read(1.0);
+        let (a, b) = (wall.min(side), wall.max(side));
+        assert_eq!(named(&errors, a, b), vec![], "tangent: {errors:?}");
+        let (errors, wall, side) = read(1.5);
+        let (a, b) = (wall.min(side), wall.max(side));
+        assert!(
+            named(&errors, a, b).iter().any(|e| matches!(
+                e,
+                ValidationError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        class: crate::contact::ContactClass::Tangent,
+                        ..
+                    },
+                    ..
+                }
+            )),
+            "clear: the curve touch is contradicted: {errors:?}"
         );
     }
 }

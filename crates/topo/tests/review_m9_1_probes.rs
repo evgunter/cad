@@ -244,8 +244,8 @@ fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
 }
 
 /// CLAIM 4 — the at-rest gate refuses a false edge–face record: a top
-/// edge of a brick recorded as touching its bottom face, a metre away,
-/// is never blessed.
+/// edge of a brick recorded as touching its bottom face, a metre off
+/// its plane, is stale.
 #[test]
 fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -278,12 +278,13 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
         .expect_err("false record must fail");
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            ValidationError::StaleContactDeclaration { .. }
-                | ValidationError::CensusUnsupported { .. }
-        )),
-        "the at-rest gate refuses the record: {errs:?}"
+        errs.contains(&ValidationError::StaleContactDeclaration {
+            declaration: topo::StaleDeclaration::EdgeFace {
+                edge: witness,
+                face: bottom,
+            },
+        }),
+        "the at-rest gate reads the record stale: {errs:?}"
     );
 }
 
