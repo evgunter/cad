@@ -1639,35 +1639,29 @@ impl PatchGrid {
                     Collapse::Over(range) => range_hull(pair, range),
                 }
             }
-            Dir::Raw { knots, degree } => {
-                let coeffs = line;
-                match op {
-                    Collapse::At(t) => raw_eval(knots, *degree, coeffs, t),
-                    Collapse::AtSpan { mid, t } => {
-                        raw_eval_in_span(knots, *degree, coeffs, mid, t)
-                    }
-                    Collapse::Over(range) => raw_range_hull(knots, *degree, coeffs, range),
-                }
-            }
+            Dir::Raw { knots, degree } => match op {
+                Collapse::At(t) => raw_eval(knots, *degree, line, t),
+                Collapse::AtSpan { mid, t } => raw_eval_in_span(knots, *degree, line, mid, t),
+                Collapse::Over(range) => raw_range_hull(knots, *degree, line, range),
+            },
             Dir::Const { knots } => {
-                let coeffs = line;
                 match op {
                     // A non-finite point refuses, as the `Kv` and `Raw`
                     // point arms beside it do.
                     Collapse::At(t) => match finite_param(t) {
-                        Some(t) => coeffs[Dir::const_index(knots, t, coeffs.len())],
+                        Some(t) => line[Dir::const_index(knots, t, line.len())],
                         None => Interval::refused(),
                     },
                     Collapse::AtSpan { mid, .. } => match Param::new(mid) {
-                        Some(mid) => coeffs[Dir::const_index(knots, mid, coeffs.len())],
+                        Some(mid) => line[Dir::const_index(knots, mid, line.len())],
                         None => Interval::refused(),
                     },
                     Collapse::Over(range) => {
                         let (start, end) = range.ends();
-                        let a = Dir::const_index(knots, start, coeffs.len());
-                        let b = Dir::const_index(knots, end, coeffs.len());
-                        let mut acc = coeffs[a];
-                        for c in &coeffs[a..=b.max(a)] {
+                        let a = Dir::const_index(knots, start, line.len());
+                        let b = Dir::const_index(knots, end, line.len());
+                        let mut acc = line[a];
+                        for c in &line[a..=b.max(a)] {
                             acc = Interval::hull(acc, *c);
                         }
                         acc
