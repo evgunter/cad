@@ -2696,9 +2696,10 @@ impl Coincidence {
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`
-    /// or `coaxial`. A `profile_junction` row is `tangent` or `cusp` between
-    /// two carriers and `same_oriented` where its pieces continue one.
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `coaxial` or `co_ruled`. A `profile_junction` row is `tangent`
+    /// or `cusp` between two carriers and `same_oriented` where its
+    /// pieces continue one.
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation

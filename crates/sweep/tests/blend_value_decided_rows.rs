@@ -8,11 +8,11 @@
 //! - `a_disc_rim_records_its_joints_and_its_supports` — a three-arc
 //!   disc's rim: each link's two supports share the wall's axis (one
 //!   `Coaxial` row per link, its two faces) and each junction is
-//!   tangent (one `Tangent { aligned: true }` row per junction, the two
-//!   links' edges). Red if either decision stops recording, or records
-//!   other cells.
+//!   tangent (one `Tangent { aligned: true }` row per junction, the
+//!   arriving link's edge then the leaving one's). Red if either
+//!   decision stops recording, or records other cells.
 //! - `a_rod_crease_records_its_ruling` — the ruled family: each of a
-//!   milled rod's two creases records one `Coaxial` row; the creases
+//!   milled rod's two creases records one `CoRuled` row; the creases
 //!   meet at no junction.
 //! - `a_box_edge_records_nothing` — a plane–plane link decides no
 //!   coaxiality, and a lone link has no junction.
@@ -23,7 +23,7 @@ use geom_core::{Band, Tol};
 use sweep::blend::battery::{BatteryVerdict, BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{circle_arcs_at_z, cube, disc_of_arcs, rod_creases, rod_with_flat};
-use topo::{Body, Cell, DecisionSite, EdgeKey, Operand, Relation, RowCell};
+use topo::{Body, DecisionSite, EdgeKey, Operand, Relation, RowCell};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -64,10 +64,7 @@ fn carried(body: &Body<f64>, edges: &[EdgeKey], v: &BatteryVerdict<f64>) {
 }
 
 fn edge(e: EdgeKey) -> RowCell {
-    RowCell::Input {
-        input: Operand::A,
-        cell: Cell::Edge(e),
-    }
+    RowCell::edge(Operand::A, e)
 }
 
 #[test]
@@ -114,6 +111,22 @@ fn a_disc_rim_records_its_joints_and_its_supports() {
         );
         assert!(reading(row).abs() < 1e-12, "decided Zero: {row:?}");
     }
+    // Each row is its junction's: the arriving link's edge, then the
+    // leaving one's.
+    let [chain] = &v.chains[..] else {
+        panic!("the rim is one closed chain: {:?}", v.chains.len())
+    };
+    let walk: Vec<_> = chain.links().collect();
+    let expected: Vec<[RowCell; 2]> = chain
+        .junctions
+        .iter()
+        .map(|j| [walk[j.arriving()].edge, walk[j.leaving()].edge].map(edge))
+        .collect();
+    assert_eq!(
+        joints.iter().map(|r| r.cells).collect::<Vec<_>>(),
+        expected,
+        "the joint rows follow the junctions, arriving then leaving"
+    );
     // Every rim edge sits at two of the closed rim's junctions.
     for &e in &rim {
         let n = joints.iter().filter(|r| r.cells.contains(&edge(e))).count();
@@ -135,7 +148,8 @@ fn a_rod_crease_records_its_ruling() {
     for (row, link) in rows.iter().zip(v.chains.iter().flat_map(|c| c.links())) {
         assert_eq!(
             (row.relation, row.site),
-            (Relation::Coaxial, DecisionSite::BatterySupportAxis)
+            (Relation::CoRuled, DecisionSite::BatterySupportAxis),
+            "a crease's supports share a ruling, not an axis"
         );
         assert_eq!(
             row.cells,

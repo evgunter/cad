@@ -3025,6 +3025,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
         R::Coaxial => "coaxial",
+        R::CoRuled => "co_ruled",
     }
 }
 

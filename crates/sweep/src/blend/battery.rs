@@ -291,10 +291,10 @@ pub struct Link<T: Real> {
     /// The folded lever arm used by this link's angular predicates.
     pub arm_len: T,
     /// A curved arm's coaxiality, decided from values: the two supports
-    /// read as sharing the axis or ruling the band is minted on
-    /// ([`topo::Relation::Coaxial`], the margin
-    /// `fillet3_support_coaxiality` decided Zero). `None` on a planar
-    /// row, which decides none.
+    /// read as sharing the axis ([`topo::Relation::Coaxial`]) or the
+    /// ruling ([`topo::Relation::CoRuled`]) the band is minted on, the
+    /// margin `fillet3_support_coaxiality` decided Zero. `None` on a
+    /// planar row, which decides none.
     pub support_axis: Option<topo::Coincidence>,
 }
 
@@ -1036,12 +1036,13 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (arm, blend, axis) = classify_arm(
         &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
     )?;
-    let support_axis = axis.map(|margin| topo::Coincidence {
-        cells: [face_a, face_b].map(|f| topo::RowCell::face(topo::Operand::A, f)),
-        relation: topo::Relation::Coaxial,
-        site: topo::DecisionSite::BatterySupportAxis,
-        margin,
-        discharge: topo::Discharge::Numeric,
+    let support_axis = axis.map(|(relation, margin)| {
+        row(
+            [face_a, face_b].map(|f| topo::RowCell::face(topo::Operand::A, f)),
+            relation,
+            topo::DecisionSite::BatterySupportAxis,
+            margin,
+        )
     });
     Ok(Link {
         edge,
@@ -1088,6 +1089,27 @@ pub fn arm_roster() -> &'static str {
 /// not share the axis (or the ruling) that arm's spine is derived from.
 pub(super) const NOT_COAXIAL: &str =
     "a curved support pair whose supports do not share one axis of revolution or one ruling";
+
+/// What a curved arm decided its two supports share, and the margin it
+/// was decided on.
+type SupportAxis = (topo::Relation, MarginDiag);
+
+/// A row the battery decided from values, its cells in the source
+/// body's keys.
+fn row(
+    cells: [topo::RowCell; 2],
+    relation: topo::Relation,
+    site: topo::DecisionSite,
+    margin: MarginDiag,
+) -> topo::Coincidence {
+    topo::Coincidence {
+        cells,
+        relation,
+        site,
+        margin,
+        discharge: topo::Discharge::Numeric,
+    }
+}
 
 /// **`fillet3_support_coaxiality`** — do a curved pair's two supports
 /// really share the axis (or the ruling) its arm's spine is derived
@@ -1168,7 +1190,7 @@ fn classify_arm<T: Decide + Bounds>(
     edge: EdgeKey,
     kind: BlendKind,
     band: Band,
-) -> Result<(BlendArm, EdgeBlend<T>, Option<MarginDiag>), BlendError> {
+) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     if matches!(kind, BlendKind::Chamfer) {
         return match (sa, sb) {
             (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
@@ -1182,17 +1204,18 @@ fn classify_arm<T: Decide + Bounds>(
             }),
         };
     }
-    let (arm, blend) = match (sa, sb) {
-        (Surface::Plane { .. }, Surface::Plane { .. }) => (
+    match (sa, sb) {
+        (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
             plane_plane_blend(p, tau.normalize(), n_a, n_b, radius, convexity),
-        ),
+            None,
+        )),
         (
             Surface::Plane { origin, .. },
             Surface::Sphere {
                 center, radius: r, ..
             },
-        ) => (
+        ) => Ok((
             BlendArm::PlaneSphereTorus,
             plane_sphere_blend(
                 *origin,
@@ -1204,7 +1227,8 @@ fn classify_arm<T: Decide + Bounds>(
                 senses.1,
                 convexity,
             ),
-        ),
+            None,
+        )),
         (
             Surface::Sphere {
                 center, radius: r, ..
@@ -1222,16 +1246,13 @@ fn classify_arm<T: Decide + Bounds>(
                 convexity,
             );
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
-            (BlendArm::PlaneSphereTorus, b)
+            Ok((BlendArm::PlaneSphereTorus, b, None))
         }
-        _ => {
-            let (arm, blend, axis) = curved_arm(
-                sa, sb, senses, convexity, carrier, p, extent, radius, edge, band,
-            )?;
-            return Ok((arm, blend, Some(axis)));
-        }
-    };
-    Ok((arm, blend, None))
+        _ => curved_arm(
+            sa, sb, senses, convexity, carrier, p, extent, radius, edge, band,
+        )
+        .map(|(arm, blend, axis)| (arm, blend, Some(axis))),
+    }
 }
 
 /// Which curved arm a support pair takes in each family, by stored
@@ -1318,7 +1339,7 @@ fn curved_arm<T: Decide + Bounds>(
     radius: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(BlendArm, EdgeBlend<T>, MarginDiag), BlendError> {
+) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
         Curve3::Circle { center, axis, .. } => {
@@ -1334,7 +1355,8 @@ fn curved_arm<T: Decide + Bounds>(
             ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
-            let axis = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            let axis = (topo::Relation::Coaxial, margin);
             Ok((arm, sheet.blend(ta, tb, radius), axis))
         }
         Curve3::Line { dir, .. } => {
@@ -1350,7 +1372,8 @@ fn curved_arm<T: Decide + Bounds>(
             ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
-            let axis = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            let axis = (topo::Relation::CoRuled, margin);
             Ok((arm, sheet.blend(ta, tb, radius), axis))
         }
         _ => Err(unsupported(ARM_ROSTER)),
@@ -1604,18 +1627,18 @@ fn chain_turns<T: Decide + Bounds>(
         // them opposed.
         let (tau_a, tau_b) = (pick(&ca, ta0, ta1), pick(&cb, tb0, tb1));
         match chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band) {
-            Ok(margin) => tangent.push(topo::Coincidence {
-                cells: [a.edge, b.edge].map(|e| topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Edge(e),
-                }),
-                relation: topo::Relation::Tangent {
+            // At a Zero `sin θ` over a definitely positive arm the two
+            // unit tangents are within the band of `±1` apart, so the
+            // dot's sign is certain on any enclosure; it is read, not
+            // metered.
+            Ok(margin) => tangent.push(row(
+                [a.edge, b.edge].map(|e| topo::RowCell::edge(topo::Operand::A, e)),
+                topo::Relation::Tangent {
                     aligned: tau_a.dot(tau_b).hi() < 0.0,
                 },
-                site: topo::DecisionSite::BatteryJoint,
+                topo::DecisionSite::BatteryJoint,
                 margin,
-                discharge: topo::Discharge::Numeric,
-            }),
+            )),
             Err(BlendError::ChainNotG1 { .. })
                 if a.arm.is_plane_plane() && b.arm.is_plane_plane() =>
             {
@@ -2190,10 +2213,6 @@ fn turn_at<T: Decide>(
         }
     }
     let requested = [l1.edge, l2.edge];
-    let edge_cell = |e| topo::RowCell::Input {
-        input: topo::Operand::A,
-        cell: topo::Cell::Edge(e),
-    };
     Ok(Turn {
         vertex,
         requested,
@@ -2203,13 +2222,12 @@ fn turn_at<T: Decide>(
         out: dirs,
         crossing,
         foot: y1 + (y2 - y1) * T::from_f64(0.5),
-        coincidence: topo::Coincidence {
-            cells: requested.map(edge_cell),
-            relation: topo::Relation::EqualAngles,
-            site: topo::DecisionSite::BatteryTurn,
-            margin: decided.margin,
-            discharge: topo::Discharge::Numeric,
-        },
+        coincidence: row(
+            requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
+            topo::Relation::EqualAngles,
+            topo::DecisionSite::BatteryTurn,
+            decided.margin,
+        ),
     })
 }
 

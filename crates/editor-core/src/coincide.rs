@@ -250,6 +250,7 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
         topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
 

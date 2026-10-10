@@ -54,8 +54,10 @@ the coaxiality rows and before the turn rows
   `aligned` reads the two tangents, both heading into the junction,
   as opposed. A self-closed link's own seam is one cell, so it
   records nothing.
-- `fillet3_support_coaxiality`: `Relation::Coaxial`, new, between the
-  link's two support faces, at `DecisionSite::BatterySupportAxis`
+- `fillet3_support_coaxiality`: `Relation::Coaxial` (a shared axis,
+  the torus rows) or `Relation::CoRuled` (a shared ruling, the cylinder
+  rows), both new, between the link's two support faces, at
+  `DecisionSite::BatterySupportAxis`
   (`resolve_link`, on `Link::support_axis`). The planar rows decide
   none.
 

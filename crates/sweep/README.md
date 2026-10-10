@@ -292,9 +292,10 @@ band, the triangle it cuts off folded into the other.
 
 The battery's other Zero verdicts are coincidences decided from values
 too, and record the same way: a junction chain G1 reads tangent is a
-`Tangent` row between its two links' edges, and a curved pair's
-`fillet3_support_coaxiality` is a `Coaxial` row between its two
-supports, the axis or ruling its band is minted on. A self-closed
+`Tangent` row between its two links' edges, arriving then leaving, and
+a curved pair's `fillet3_support_coaxiality` is a row between its two
+supports: `Coaxial` for the axis a torus band is minted on, `CoRuled`
+for the ruling a cylinder band is. A self-closed
 link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the

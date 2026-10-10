@@ -5018,6 +5018,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "co_ruled",
             "coaxial",
             "cusp",
             "equal_angles",

@@ -48,6 +48,15 @@ impl RowCell {
             cell: Cell::Face(face),
         }
     }
+
+    /// An edge of input `input`.
+    #[must_use]
+    pub const fn edge(input: Operand, edge: crate::EdgeKey) -> Self {
+        Self::Input {
+            input,
+            cell: Cell::Edge(edge),
+        }
+    }
 }
 
 /// What was decided between a row's two cells.
@@ -62,17 +71,21 @@ pub enum Relation {
     /// The two cells make equal angles with a third (an isosceles
     /// turn, whose mitre lands on that third edge).
     EqualAngles,
-    /// The two cells meet in first-order contact: they leave their
-    /// common point along one line, the same way round (`aligned`, a
-    /// smooth joint) or reversed (a cusp).
+    /// The two cells meet in first-order contact: their tangent lines
+    /// at the common point are one line, the second carrying on the
+    /// first's heading through it (`aligned`, a smooth joint) or
+    /// turning back along it (a cusp).
     Tangent {
         /// Whether the second continues the first's heading rather
         /// than reversing it.
         aligned: bool,
     },
-    /// The two cells' carriers share one axis: of revolution, or of the
-    /// translation a ruled pair is swept along.
+    /// The two cells' carriers share one axis of revolution.
     Coaxial,
+    /// The two cells' carriers are ruled along one direction, so one
+    /// cross-section plane sections both into curves that do not vary
+    /// along it (a cylinder and a plane parallel to its axis).
+    CoRuled,
 }
 
 /// The decision a row was recorded at: a closed set, one per site

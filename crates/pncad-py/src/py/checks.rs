@@ -460,9 +460,10 @@ impl CheckEvidence {
 
     /// What an unproven coincidence decided between its two cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
-    /// `on_carrier`, `equal_angles`, `tangent`, `cusp` or `coaxial`. A
-    /// `profile_junction` row is `tangent` or `cusp` between two
-    /// carriers and `same_oriented` where its pieces continue one.
+    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`, `coaxial` or
+    /// `co_ruled`. A `profile_junction` row is `tangent` or `cusp`
+    /// between two carriers and `same_oriented` where its pieces
+    /// continue one.
     #[getter]
     fn relation(&self) -> Option<&'static str> {
         self.payload().relation
