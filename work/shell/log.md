@@ -1334,3 +1334,5 @@ Ev said go.
   - the citations, and the quad item's overlap with ISO;
   - one accessor for "Approx is its fit".
 - **Next cut planned** (2026-10-09): unit 15 is the moved fit's corners (P2, H, dual), dispatched after #4404. Unit 16 is the tilted read's three P3 gaps (`shell/tilted-read-gaps`; M-tier, rule-1 byte 178, sequential). The wall seam waits for a designer pair after 15.
+- **Unit 13 merged** (PR 4404, DR-126): a fitted face's section with a plane is its fit's. C5 routes plane × `Approx` over the fit; the edge stores `Intersection { plane, approx }` with the plane always first; certify reads the fit through `spline_chart()`. Each rim's verdict is pinned behind the seams. Dual review: no MAJOR, fair pair. The row renumbered twice (DR-122, then DR-124) as other programs merged while CI ran. A curved-fit certify row is in the slow set under the ≥ 1 s rule. Filed: the corner gap (P2), QUAD's trimmed-fit volume rule (P3), HONE's stale composition citation (P4).
+- **Unit 15 dispatched** (2026-10-09): the moved fit's corners (`shell/fitted-corners`, H, dual review).
