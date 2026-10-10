@@ -571,3 +571,155 @@ fn a_fold_reaching_a_pose_family_refuses_naming_the_pair() {
         }
     }
 }
+
+/// The tool of the content-key row: the plane normal to the line where
+/// `f1`'s `x = 0` meets `f2`'s `z = 0`, through the foot of a point
+/// written in `point_frame`.
+fn meet_through_tool(f1: RecipeNodeId, f2: RecipeNodeId, point_frame: RecipeNodeId) -> Operand {
+    use editor_core::pose::PoseCoords;
+    let in_frame = |frame: RecipeNodeId, coords| {
+        pose(PoseDef::InFrame {
+            frame: Operand::output(frame, 0),
+            coords,
+        })
+    };
+    pose(PoseDef::Project {
+        of: pose(PoseDef::Through {
+            axis: pose(PoseDef::Meet {
+                a: in_frame(
+                    f1,
+                    PoseCoords::Plane {
+                        origin: [0.0; 3].map(len),
+                        normal: [1.0, 0.0, 0.0].map(scl),
+                    },
+                ),
+                b: in_frame(
+                    f2,
+                    PoseCoords::Plane {
+                        origin: [0.0; 3].map(len),
+                        normal: [0.0, 0.0, 1.0].map(scl),
+                    },
+                ),
+            }),
+            point: in_frame(
+                point_frame,
+                PoseCoords::Point {
+                    position: [0.5; 3].map(len),
+                },
+            ),
+        }),
+        to: VarKind::Plane,
+    })
+}
+
+/// **Two pose trees reaching the same operations in another
+/// arrangement key apart** (the dual review's MAJOR): a tool whose
+/// point is written in `f1` and one whose point is written in `f2`
+/// read the same two frames, so their upstream lists are equal; their
+/// content keys must still differ, or the memo serves one tool's halves
+/// for the other's.
+#[test]
+fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
+    let (doc, cube) = unit_box();
+    let (doc, f1) = fixture::insert(
+        doc,
+        fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, f2) = fixture::insert(
+        doc,
+        fixture::frame([0.3, 0.2, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (first, split) = fixture::insert(
+        doc,
+        Node::Split {
+            target: Operand::output(cube, 0),
+            tool: meet_through_tool(f1, f2, f1),
+        },
+    );
+    let ev_first = eval(&first);
+    let second = editor_core::apply(
+        &first,
+        &DocEdit::SetParam {
+            node: split,
+            slot: editor_core::SlotId::Operand(OperandSlot::Tool),
+            value: editor_core::SlotValue::Read(meet_through_tool(f1, f2, f2)),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("re-tools")
+    .doc;
+    let fresh = eval(&second);
+    let memo = evaluate::<f64>(
+        &second,
+        Some(&ev_first),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let ok = |ev: &Evaluation<f64>| match ev.nodes.get(&split) {
+        Some(NodeResult::Ok(v)) => (v.content_key, format!("{:?}", v.payload)),
+        other => panic!("the split builds: {other:?}"),
+    };
+    let ((key_first, body_first), (key_second, body_second)) = (ok(&ev_first), ok(&fresh));
+    assert_ne!(body_first, body_second, "premise: the two tools cut apart");
+    assert_ne!(key_first, key_second, "two tools, one content key");
+    assert_eq!(ok(&memo).1, body_second, "the memo served the other tool");
+}
+
+/// **Row 1 on a reversed face**: a revolved washer's two annuli are
+/// minted with opposite senses, and each still reads its outward
+/// normal — the lower one −z, the upper one +z — so a reader that took
+/// the carrier's chart axis instead would turn one of them inward.
+#[test]
+fn both_annuli_of_a_revolved_washer_read_outward() {
+    let (doc, _plane, profile) = fixture::on_frame_keeping(
+        ProfileDoc::empty_derived("s3a_annuli", Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![fixture::square(2.0, 0.0, 0.5)],
+    );
+    let (doc, washer) = fixture::insert(
+        doc,
+        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+    );
+    let ev = eval(&doc);
+    let annuli: Vec<_> = all_faces(&ev, washer)
+        .into_iter()
+        .filter(|n| face_carrier_kind(&ev, washer, n) == Ok(SurfaceKind::Plane))
+        .collect();
+    assert_eq!(annuli.len(), 2);
+    let mut doc = doc;
+    let mut planes = Vec::new();
+    for face in annuli {
+        let (next, plane) = split_by(
+            doc,
+            washer,
+            pose(PoseDef::Plane {
+                face: select(washer, face),
+            }),
+        );
+        doc = next;
+        planes.push(plane);
+    }
+    let ev = eval(&doc);
+    let mut heights = Vec::new();
+    for plane in planes {
+        let value = bound_pose(&doc, &ev, OperandSlot::Tool, plane, Tol::witness());
+        let Ok(PoseValue::Plane { origin, normal }) = value else {
+            panic!("a plane, not {value:?}");
+        };
+        let n = UnitVec3::get(normal);
+        near(n.z.abs(), 1.0, "an annulus is horizontal");
+        assert!(
+            n.z * origin.z > 0.0,
+            "inward: origin {origin:?}, normal {n:?}"
+        );
+        heights.push(origin.z);
+    }
+    heights.sort_by(f64::total_cmp);
+    near(heights[0], -0.5, "the lower annulus");
+    near(heights[1], 0.5, "the upper annulus");
+}

@@ -452,9 +452,15 @@ pub(crate) fn key_words<T: Decide>(
         if doc.var(var).and_then(|held| held.def().pose()).is_none() {
             continue;
         }
+        // The read's ports are the node's upstream for this read, each
+        // once (`Doc::read_ports`); a leaf below says which of them it
+        // is, so two trees that reach the same operations in another
+        // arrangement key apart.
+        let ports = doc.read_ports(var);
         out.push(PoseWord::Tag(w::READ));
         out.push(PoseWord::Count(place as u64));
-        walk(doc, var, env, nominal, &mut out)?;
+        out.push(PoseWord::Count(ports.len() as u64));
+        walk(doc, var, &ports, env, nominal, &mut out)?;
     }
     Ok((!out.is_empty()).then_some(out))
 }
@@ -462,15 +468,24 @@ pub(crate) fn key_words<T: Decide>(
 fn walk<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     var: VarId,
+    ports: &[(crate::RecipeNodeId, u8)],
     env: &VarEnv<T>,
     nominal: &VarEnv<f64>,
     out: &mut Vec<PoseWord<T>>,
 ) -> Result<(), NodeErrorKind> {
     use crate::eval::tag::{pose as w, pose_arm as arm};
     let def = doc.var(var).map(crate::Var::def);
+    // Which of the read's ports `at` is: its place in the upstream list.
+    let port_word = |at: Option<(crate::RecipeNodeId, u8)>| {
+        PoseWord::Count(
+            at.and_then(|at| ports.iter().position(|&p| p == at))
+                .map_or(u64::MAX, |place| place as u64),
+        )
+    };
     match def {
         Some(VarDef::Select(select)) => {
             out.push(PoseWord::Tag(w::SELECTION));
+            out.push(port_word(doc.defined_by(select.body)));
             out.push(PoseWord::Count(select.names.len() as u64));
             out.extend(select.names.iter().cloned().map(PoseWord::Name));
         }
@@ -495,7 +510,7 @@ fn walk<T: Decide>(
                 _ => {}
             }
             for (_, &read, _) in def.reads() {
-                walk(doc, read, env, nominal, out)?;
+                walk(doc, read, ports, env, nominal, out)?;
             }
             for (slot, &scalar) in def.scalars() {
                 let dim = slot.dimension();
@@ -509,10 +524,15 @@ fn walk<T: Decide>(
                 ));
             }
         }
-        // An output, whose key and port the upstream list carries, or a
-        // read the door admits at no pose seat.
-        Some(VarDef::Output { .. } | VarDef::Free(_) | VarDef::Defined(_)) | None => {
+        // An output, whose key the upstream list carries at the place
+        // this word names, or a read the door admits at no pose seat.
+        Some(VarDef::Output { node, port }) => {
             out.push(PoseWord::Tag(w::OUTPUT));
+            out.push(port_word(Some((*node, *port))));
+        }
+        Some(VarDef::Free(_) | VarDef::Defined(_)) | None => {
+            out.push(PoseWord::Tag(w::OUTPUT));
+            out.push(port_word(None));
         }
     }
     Ok(())
