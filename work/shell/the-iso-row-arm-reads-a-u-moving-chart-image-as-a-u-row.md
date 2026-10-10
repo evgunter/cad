@@ -2,8 +2,10 @@
 id: the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row
 kind: issue
 title: replace_face's iso-row arm reads any IsoLine chart image as the u-row at p0.x, but chart_image mints images that move u, so a v-row is planned as the wrong row
-status: open
+status: closed
 opened: 2026-10-09
+closed: 2026-10-10
+pr: 4525
 priority: P2
 refs: [a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section]
 ---
@@ -112,3 +114,17 @@ itself), or when the distinct neighbour holds the move.
 Out of scope: the general simultaneous door
 (`shell-moves-every-chart-of-a-solid-through-one-simultaneous-door`)
 and the NURBS × NURBS arm.
+
+## Closed
+
+PR 4525. The arm reads the image's own line (`pl.x` or `pl.y` exactly
+zero, by `geom_core::is_exact_zero`): a `u` row or a `v` row, extracted
+by `geom_brep::iso_boundary_row` along either axis, and run reversed
+where the edge is laid against the row. It extracts only for a
+self-shared seam or a neighbour that holds the move; `holds_the_move`
+decides a spline or fitted mover beside a plane from the net's first
+two rows at a boundary row, and answers false beside a spline
+neighbour. Every other iso image on the fit takes the section route.
+On this item's fixture (`box_with_spline_cap`) every edge plans its
+own row and the moved box builds
+(`a_moved_spline_caps_edges_are_each_images_own_row`).
