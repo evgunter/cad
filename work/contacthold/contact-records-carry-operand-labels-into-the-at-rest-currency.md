@@ -41,3 +41,10 @@ interiors meet is recorded (a straight edge in a plane included).
 Fork log row 108; D1 and C3 state it. What's left is the build. The
 boolean's reduction keeps its operand-tagged working set and drops the
 tags at carry. (CONTACTHOLD orchestrator)
+
+## Closes with the unit (2026-10-10)
+
+Built by `at-rest-records-are-unordered-cell-pairs` (PR 4598 and its
+stacked successor): `CurveContact` and the operand-labelled lists are
+gone from the at-rest record; the reduction's operand-tagged set is
+`ReductionContacts`. This row closes when that stack merges.
