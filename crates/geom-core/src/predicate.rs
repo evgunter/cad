@@ -1289,6 +1289,11 @@ impl FileCoincidence {
     /// the miss may be the kernel's own, so the sentence keeps the
     /// kernel-bug note.
     ///
+    /// A certified bound on the miss ([`MissReading::Bound`]) places the
+    /// miss nowhere but below it, so only a bound wholly within ε_in has
+    /// words here, naming the bound, whatever made the sides; any other
+    /// bound ends in `otherwise`.
+    ///
     /// The comparison picks the words and nothing else; only a sentence
     /// leaves, and its production callers are counted with
     /// `sized_recourse`'s by `scripts/gates/reporting-margin-door.sh`.
@@ -1300,12 +1305,26 @@ impl FileCoincidence {
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
+        let stopgap = format!(
+            "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
+             ε_in = {eps_in:e} m"
+        );
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
                 Some((near, _)) if near > band.zero => margin.within(eps_in),
                 _ => None,
             },
             MissReading::Definite(margin) => margin.within(eps_in),
+            MissReading::Bound(bound) => {
+                return match bound.within(eps_in) {
+                    Some(Within::Wholly) => format!(
+                        "The certificate's bound on this miss lies within the file's declared \
+                         coincidence distance ε_in = {eps_in:e} m, so the miss does too. \
+                         {stopgap}; this refusal may indicate a kernel bug worth reporting"
+                    ),
+                    Some(Within::Partly) | None => otherwise.to_owned(),
+                };
+            }
         };
         let Some(within) = within else {
             return otherwise.to_owned();
@@ -1317,10 +1336,6 @@ impl FileCoincidence {
         let head = format!(
             "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
              distance ε_in = {eps_in:e} m"
-        );
-        let stopgap = format!(
-            "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
-             ε_in = {eps_in:e} m"
         );
         match (source, within) {
             (MissSource::File, Within::Wholly) => {
@@ -1356,6 +1371,10 @@ pub enum MissReading {
     Banded(MarginDiag, Band),
     /// Decided past the band, so beyond ε by the verdict.
     Definite(MarginDiag),
+    /// A certified upper bound on the miss, on any arm: the miss lies
+    /// at or below its farther end, and nowhere the bound says more
+    /// precisely.
+    Bound(MarginDiag),
 }
 
 /// What made the two sides a residual compares: whether its miss is the
