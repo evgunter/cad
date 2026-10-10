@@ -91,6 +91,18 @@ impl fmt::Display for StepId {
     }
 }
 
+/// **A read's tag**: `read` and the variable's digest as a node's tag is
+/// spelled (`read 3fa9c1d2a0b1`) — how a name said by tag says the read
+/// a carry came through, where no document says what defines it.
+pub(crate) struct ReadTag(pub(crate) crate::var::VarId);
+
+impl fmt::Display for ReadTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("read ")?;
+        write_tag(f, self.0.0)
+    }
+}
+
 /// **An id shown whole**: its mint ordinal in decimal, a colon, and
 /// its digest as 16 lowercase hex digits, zero-padded
 /// (`3:3fa9c1d2a0b1c3d4`). The machine channel's spelling, where a
@@ -657,7 +669,10 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
         let (node, port) = self.var(var)?.def().output()?;
         let ports = self.node(node)?.outputs();
-        let port = (ports.len() > 1).then(|| ports.get(usize::from(port)).map(|p| p.name))?;
+        let port = match ports.len() {
+            0 | 1 => None,
+            _ => Some(ports.get(usize::from(port))?.name),
+        };
         Some(OutputOf { node, port })
     }
 

@@ -412,7 +412,18 @@ fn declare_resolution_failures_are_typed_n5_errors() {
                     diagnosis,
                     last_good,
                 } => {
-                    assert_eq!(name, &ghost);
+                    // The union reads its members through their reads,
+                    // so the refusal names the ghost as the union
+                    // reads it: carried in through `a`'s read.
+                    let read_ghost = StableName {
+                        kind: ghost.kind,
+                        node: u,
+                        path: vec![RoleSeg::From {
+                            read: ra,
+                            of: ghost.clone().into(),
+                        }],
+                    };
+                    assert_eq!(name, &read_ghost);
                     // The mid-evaluation payload, pinned: nothing is
                     // banked to compare against, so the diagnosis
                     // names the MINTING NODE as the disagreement site
@@ -423,7 +434,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
                             diagnosis,
                             editor_core::resolve::Diagnosis::RecipeEdit {
                                 edit: editor_core::resolve::RecipeEditRef::NodeChanged { node },
-                            } if *node == ghost.node
+                            } if *node == read_ghost.node
                         ),
                         "{diagnosis:?}"
                     );
@@ -666,17 +677,27 @@ fn declare_doors_node_gone_and_ambiguous() {
                     candidates,
                     tie,
                 } => {
-                    assert_eq!(name, &tied);
+                    // The tied row as the union reads it, through the
+                    // subtract's read.
+                    let read_tied = StableName {
+                        kind: tied.kind,
+                        node: u2,
+                        path: vec![RoleSeg::From {
+                            read: fixture::out(&doc, us),
+                            of: tied.clone().into(),
+                        }],
+                    };
+                    assert_eq!(name, &read_tied);
                     // One-name tie payload, stated honestly: the
                     // candidate list is the tied row itself; the
                     // WIDTH carries the recorded multiplicity.
-                    assert_eq!(candidates, &vec![tied.clone()]);
+                    assert_eq!(candidates, &vec![read_tied.clone()]);
                     assert!(tie.width >= 2, "recorded tie width, got {}", tie.width);
-                    assert_eq!(tie.at, tied);
+                    assert_eq!(tie.at, read_tied);
                     // Mid-evaluation the witness site IS the minting
                     // node: there is no evaluation-wide index to name
                     // a carrying node from.
-                    assert_eq!(tie.node, tied.node);
+                    assert_eq!(tie.node, read_tied.node);
                 }
                 other => panic!("expected Ambiguous, got {other:?}"),
             },

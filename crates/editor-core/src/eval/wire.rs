@@ -3225,7 +3225,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = views.iter().map(AsRef::as_ref).collect();
-    let judged =
+    // The judgement decides under a frame of its own. Where it refuses,
+    // or finds the intersection empty, the node's outcome rests on what
+    // it decided, so its log joins the node's. Where it admits the fold,
+    // the fold re-decides every contact the body rests on, and the
+    // judgement's log is set aside: a two-member union logs each
+    // decision once, as the pair it runs does, so the verdict diff
+    // compares like with like across a run that judged no pair.
+    let (judged, judgement) = geom_core::k_stats::detached(|| {
         judge_pairwise_contact(id, &own, &tables, &hulls, declared, doc, |p, q, decls| {
             let out = (verb.build)(op, decls)
                 .run_pair(&members[p].body, &members[q].body, boolean_sweep, tol)
@@ -3257,8 +3264,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     what: verb.foreign_record,
                 })),
             }
-        })?;
-    let Some((links, coincidences)) = judged else {
+        })
+    });
+    if !matches!(judged, Ok(Some(_))) {
+        geom_core::k_stats::splice(judgement);
+    }
+    let Some((links, coincidences)) = judged? else {
         return empty();
     };
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;

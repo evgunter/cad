@@ -442,16 +442,10 @@ fn a_join_beneath_a_wrap_reads_apart_from_one_above_it() {
             of: NameRef::new(name),
         }],
     };
-    let part = |name: StableName| StableName {
-        kind: name.kind,
-        node: OP,
-        path: vec![
-            RoleSeg::From {
-                read: READ,
-                of: NameRef::new(name),
-            },
-            RoleSeg::Fragment(Qualifier::Borders(vec![wall(3)])),
-        ],
+    let part = |name: StableName| {
+        let mut path = name.path.clone();
+        path.push(RoleSeg::Fragment(Qualifier::Borders(vec![wall(3)])));
+        StableName { path, ..name }
     };
     for (outer, inner, what) in [
         (
@@ -728,8 +722,8 @@ fn a_resolve_row_names_the_slot_that_failed() {
     });
     let said = failure_of(&r, union);
     assert!(
-        said.contains("this boolean's declared pair 0's second face "),
-        "the Boolean's row names the pair's second side, the one at the split: {said}"
+        said.contains("this union's declared pair 0's second face "),
+        "the union's row names the pair's second side, the one at the split: {said}"
     );
 }
 

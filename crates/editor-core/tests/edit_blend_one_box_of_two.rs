@@ -138,7 +138,7 @@ fn blend_one_box(
                     n.kind,
                     blended,
                     RoleSeg::From {
-                        read: editor_core::VarId::new(1, 77),
+                        read: fixture::out(&doc, union),
                         of: NameRef::new(n),
                     },
                 ),

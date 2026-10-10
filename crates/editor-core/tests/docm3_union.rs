@@ -306,15 +306,16 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
     let tol = Tol::witness();
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    // The member list is rewritten in place, whatever whitespace the
-    // writer used around it, so the fixture is about the LIST and not
-    // about the formatting.
+    // The spelled member list is rewritten in place, whatever
+    // whitespace the writer used around it, so the fixture is about the
+    // LIST and not about the formatting.
     let corrupt = |members: String| {
         let (head, rest) = text
-            .split_once("\"members\": [")
-            .expect("the union's list is on the wire");
-        let (_, tail) = rest.split_once(']').expect("the list closes");
-        let tampered = format!("{head}\"members\": [{members}]{tail}");
+            .split_once("\"Spelled\":")
+            .expect("the union's spelled list is on the wire");
+        let (gap, list) = rest.split_once('[').expect("the list opens");
+        let (_, tail) = list.split_once(']').expect("the list closes");
+        let tampered = format!("{head}\"Spelled\":{gap}[{members}]{tail}");
         editor_core::persist::load(&tampered, tol)
     };
     let read = |node| doc.output(node, 0).expect("a box defines its body").0;
@@ -331,17 +332,37 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
             })
             .collect()
     };
-    // A repeated member in the union's list.
+    // A repeated member in the union's list. Every box stays read, so
+    // the snapshot's root set still covers the document.
     let loaded = corrupt(format!(
-        "\"{}\",\"{}\",\"{}\"",
+        "\"{}\",\"{}\",\"{}\",\"{}\"",
         read(boxes[0]),
         read(boxes[1]),
+        read(boxes[2]),
         read(boxes[0])
     ))
     .expect("a repeated member loads");
-    assert_eq!(members_of(&loaded.doc), vec![boxes[0], boxes[1], boxes[0]]);
-    // And a list of one.
-    let loaded = corrupt(format!("\"{}\"", read(boxes[0]))).expect("a one-member union loads");
+    assert_eq!(
+        members_of(&loaded.doc),
+        vec![boxes[0], boxes[1], boxes[2], boxes[0]]
+    );
+    // And a list of one. Dropping two boxes from the list in the text
+    // would leave them roots the snapshot's root set does not name, so
+    // the one-member union is authored at the edit door, which keeps the
+    // root set, and the load door reads what the writer saved.
+    let one = doc
+        .apply(
+            &DocEdit::SetMembers {
+                node: u,
+                members: editor_core::Bodies::Spelled(vec![boxes[0].into()]),
+            },
+            tol,
+            &editor_core::RefusingReach,
+        )
+        .expect("a one-member union is accepted")
+        .doc;
+    let text = editor_core::persist::save(&one, &[], tol).expect("the document saves");
+    let loaded = editor_core::persist::load(&text, tol).expect("a one-member union loads");
     assert_eq!(members_of(&loaded.doc), vec![boxes[0]]);
 }
 
@@ -669,8 +690,9 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let members: Vec<RecipeNodeId> = members
-        .reads()
+    let member_reads: Vec<editor_core::VarId> = members.reads().copied().collect();
+    let members: Vec<RecipeNodeId> = member_reads
+        .iter()
         .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
         .collect();
     assert_eq!(members.len(), 21, "the die has 21 pips");
@@ -730,13 +752,13 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             tol,
         );
         // The removed pip's OWN rim arcs are gone with it, and their
-        // frozen names say so — every one of them names the dead
-        // member and nothing else does. That is the whole claim: the
+        // frozen names say so — every one of them carries the dead
+        // member's read and nothing else does. That is the whole claim: the
         // damage is exactly the removed member's, told apart by the
         // member edge in the name and by nothing positional.
         let doomed: Vec<StableName> = rims
             .iter()
-            .filter(|n| editor_core::derivation_nodes(n).contains(&members[k]))
+            .filter(|n| editor_core::derivation_reads(n).contains(&member_reads[k]))
             .cloned()
             .collect();
         assert_eq!(
@@ -1138,25 +1160,26 @@ fn a_one_section_loft_is_accepted_at_the_insert_door() {
 }
 
 /// The LOAD-door twin: the same one-section loft in a SNAPSHOT loads,
-/// since the load validator asks `input_fault`, which no longer
-/// carries a floor.
+/// since the load validator asks `input_fault`, which carries no
+/// floor. The snapshot is the saved document itself, so its root set
+/// is the one the document holds.
 #[test]
 fn a_snapshot_carrying_a_one_section_loft_loads() {
     let tol = Tol::witness();
-    let (doc, _, _) = loft_doc();
+    let (doc, _, profiles) = loft_doc();
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![profiles[0].into()],
+            v_degree: editor_core::Formula::count(1),
+        },
+    );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    let (head, rest) = text
-        .split_once("\"profiles\": [")
-        .expect("the loft's list is on the wire");
-    let (kept, tail) = rest.split_once(']').expect("the list closes");
-    let first = kept
-        .split(',')
-        .next()
-        .expect("the list has a first entry")
-        .trim()
-        .to_owned();
-    let tampered = format!("{head}\"profiles\": [{first}]{tail}");
-    editor_core::persist::load(&tampered, tol).expect("a one-section loft loads");
+    let loaded = editor_core::persist::load(&text, tol).expect("a one-section loft loads");
+    let Some(Node::Loft { profiles: read, .. }) = loaded.doc.node(loft) else {
+        panic!("the loft loaded as something else")
+    };
+    assert_eq!(read.len(), 1, "the loft keeps its one section");
 }
 
 // ---------------------------------------------------------------------

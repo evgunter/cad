@@ -339,12 +339,19 @@ impl crate::spoken::Say for SelectRefusal {
         let named =
             |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
         match self {
+            // The question closes before the name, so a name whose words
+            // run on (a join, a qualifier's list) reads as the subject in
+            // its bracket and never as more of the question.
             Self::InBand { name, source, .. } => {
-                f.write_str("select: the query cannot decide whether ")?;
+                write!(
+                    f,
+                    "select: the query cannot decide whether the {} is in or out (",
+                    name.kind.noun()
+                )?;
                 named(f, name)?;
                 write!(
                     f,
-                    " is in or out: {}",
+                    "): {}",
                     source.under(geom_core::NO_DECLARATION_RECOURSE)
                 )
             }

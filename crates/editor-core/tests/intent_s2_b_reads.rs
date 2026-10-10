@@ -487,7 +487,8 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
 /// **A read of a split's port is that half** (FORK-1, Q2 ruled): a
 /// boolean over the split's first port builds, and is the same boolean
 /// over `Part { SplitHalf::Above }` of that split, bit for bit and name
-/// for name, up to the boolean's own id.
+/// for name, up to the boolean's own id and the read each carries the
+/// half in through.
 #[test]
 fn a_split_port_read_is_its_half() {
     let (doc, _, block) = block(
@@ -508,7 +509,6 @@ fn a_split_port_read_is_its_half() {
             tool: plane.into(),
         },
     );
-    let (doc, _, other) = block_at(doc, 0.3);
     let (doc, part) = insert(
         doc,
         Node::Part {
@@ -516,6 +516,11 @@ fn a_split_port_read_is_its_half() {
             select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
         },
     );
+    // The other member is minted after both reads of the half, so its
+    // read orders after either and a pair of names one row holds (a
+    // seam's two faces) is spelled in one order under both spellings.
+    let (doc, _, other) = block_at(doc, 0.3);
+    let (port_read, part_read) = (fixture::out(&doc, split), fixture::out(&doc, part));
     let boolean = |a: Operand| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a, other.into()]),
         declare: Vec::new(),
@@ -534,23 +539,35 @@ fn a_split_port_read_is_its_half() {
             .unwrap_or_else(|| panic!("{:?}", ev.node_error(by_port))),
         ev.value(by_part).expect("the part spelling builds"),
     );
-    // Each boolean stamps its own id on what it mints; read the port
-    // spelling's as the part spelling's, and the two are one.
+    // Each boolean stamps its own id on what it mints, and keys what it
+    // carries in by the read it came through; read the port spelling's
+    // id and read as the part spelling's, and the two are one.
     let as_part = |text: String| {
         text.replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0))
             .replace(
                 &by_port.0.digest().to_string(),
                 &by_part.0.digest().to_string(),
             )
+            .replace(&format!("{:?}", port_read.0), &format!("{:?}", part_read.0))
     };
     assert_eq!(
         as_part(format!("{:?}", port.payload)),
         format!("{:?}", part.payload),
         "one body, bit for bit"
     );
+    // A table iterates in name order, and a read's id orders its names,
+    // so the rows are compared as sets.
+    let rows = |table: &editor_core::NameTable, map: &dyn Fn(String) -> String| {
+        let mut rows: Vec<String> = table
+            .iter()
+            .map(|(name, entry)| map(format!("{name:?} => {entry:?}")))
+            .collect();
+        rows.sort();
+        rows
+    };
     assert_eq!(
-        as_part(format!("{:?}", port.name_table)),
-        format!("{:?}", part.name_table),
+        rows(&port.name_table, &as_part),
+        rows(&part.name_table, &|text| text),
         "and one name table"
     );
 }
@@ -588,8 +605,8 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
         .expect("nodes")
         .values_mut()
     {
-        if let Some(members) = node.get_mut("Union").and_then(|u| u.get_mut("members")) {
-            for member in members.as_array_mut().expect("a list") {
+        if let Some(members) = spelled_members(node) {
+            for member in members {
                 if member.as_str() == Some(out_b.as_str()) {
                     *member = serde_json::json!(out_a);
                 }
@@ -627,7 +644,7 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
         .expect("nodes")
         .values_mut()
     {
-        if let Some(a) = node.get_mut("Boolean").and_then(|b| b.get_mut("a"))
+        if let Some(a) = spelled_members(node).and_then(|members| members.first_mut())
             && a.as_str() == Some(above.as_str())
         {
             *a = serde_json::json!(below);
@@ -636,10 +653,7 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
     assert_ne!(mutant, new, "the mutant re-points the read");
     let err = up_to_ids::same_up_to_ids(&as_inputs, &up_to_ids::reads_as_inputs(&mutant))
         .expect_err("a read re-pointed above to below is not the same document");
-    assert!(
-        err.contains("Boolean"),
-        "the mismatch is at the boolean: {err}"
-    );
+    assert!(err.contains("Union"), "the mismatch is at the union: {err}");
 }
 
 /// **(B, test 4, one shot) Every re-blessed document is the pre-B one
@@ -1225,6 +1239,15 @@ fn union_under_a_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeN
     (doc, b, union, moved)
 }
 
+/// The spelled member list of a saved node, when it is a union that
+/// spells one: `{"Union": {"members": {"Spelled": [..]}}}` on the wire.
+fn spelled_members(node: &mut serde_json::Value) -> Option<&mut Vec<serde_json::Value>> {
+    node.get_mut("Union")?
+        .get_mut("members")?
+        .get_mut("Spelled")?
+        .as_array_mut()
+}
+
 /// `text` with every union member reading `from` reading `to` instead.
 fn member_re_read(text: &str, from: &str, to: &str) -> String {
     crate::wire::doctored(text, |wire| {
@@ -1233,8 +1256,8 @@ fn member_re_read(text: &str, from: &str, to: &str) -> String {
             .expect("nodes")
             .values_mut()
         {
-            if let Some(members) = node.get_mut("Union").and_then(|u| u.get_mut("members")) {
-                for member in members.as_array_mut().expect("a list") {
+            if let Some(members) = spelled_members(node) {
+                for member in members {
                     if member.as_str() == Some(from) {
                         *member = serde_json::json!(to);
                     }

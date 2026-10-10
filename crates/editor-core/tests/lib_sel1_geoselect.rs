@@ -531,8 +531,13 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
         doc.operation_of(read)
             .expect("an operand read has a producer")
     };
-    let (cube, ball) = (operand(*from), operand(*tool));
-    (cube, ball, pipped)
+    // The tool is the pip, a Transform of the ball; the ball's names
+    // ride it through unchanged, so the names carry the revolve's id.
+    let ball = match doc.node(operand(*tool)) {
+        Some(Node::Transform { input, .. }) => operand(*input),
+        other => panic!("the die's tool is the placed ball, got {other:?}"),
+    };
+    (operand(*from), ball, pipped)
 }
 
 /// **THE ACCEPTANCE (LIB-SEL1 §2.4).** `die_composed`'s fourteen

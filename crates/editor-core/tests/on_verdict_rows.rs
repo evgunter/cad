@@ -185,13 +185,13 @@ fn two_parts_of_one_half_answer_under_every_op() {
     );
 }
 
-/// **The kept `On` shell is named as the boolean names A's surviving
-/// faces**: the result is A's copy (`OperandA`), so the emitter mints
-/// each of its faces as `FromA(<the A seat's name>)` under the boolean
-/// node, exactly the six faces of the half, and no `FromB` name: B's
-/// copy is dropped whole.
+/// **The kept `On` shell is named from both seats**: the two parts
+/// hold one body, so every face of the result is held by both members,
+/// and the union names each as the `Merged` of the two seats' names,
+/// each carried in through its own read — exactly the six faces of the
+/// half, and no face under one seat's name alone.
 #[test]
-fn the_kept_copy_is_named_from_the_a_seat() {
+fn the_kept_copy_is_named_from_both_seats() {
     let mut r = Recorder::new();
     let (p, q) = two_parts_of_one_half(&mut r);
     let joined = boolean(&mut r, BooleanOp::Union, p, q);
@@ -207,16 +207,29 @@ fn the_kept_copy_is_named_from_the_a_seat() {
     };
     let seat = faces(p);
     assert_eq!(seat.len(), 6, "the half has six faces: {seat:?}");
-    let p_read = crate::fixture::out(&r.doc, p);
+    assert_eq!(faces(q), seat, "the two seats name the half alike");
+    let (p_read, q_read) = (
+        crate::fixture::out(&r.doc, p),
+        crate::fixture::out(&r.doc, q),
+    );
+    let carried = |read, n: &StableName| StableName {
+        kind: EntityKind::Face,
+        node: joined,
+        path: vec![RoleSeg::From {
+            read,
+            of: n.clone().into(),
+        }],
+    };
     let mut want: Vec<StableName> = seat
-        .into_iter()
-        .map(|n| StableName {
-            kind: EntityKind::Face,
-            node: joined,
-            path: vec![RoleSeg::From {
-                read: p_read,
-                of: n.into(),
-            }],
+        .iter()
+        .map(|n| {
+            let mut both = vec![carried(p_read, n), carried(q_read, n)];
+            both.sort();
+            StableName {
+                kind: EntityKind::Face,
+                node: joined,
+                path: vec![RoleSeg::Merged(both)],
+            }
         })
         .collect();
     want.sort();
@@ -224,7 +237,7 @@ fn the_kept_copy_is_named_from_the_a_seat() {
     got.sort();
     assert_eq!(
         got, want,
-        "the union's face names are FromA of the A seat's"
+        "the union's face names are the merges of the two seats' names"
     );
 }
 

@@ -21,10 +21,11 @@
 //!   joined at Union d1aa from Transform 3218", "…, intersected at
 //!   Intersect 77c1 from Extrude e548". A carry through a subtract's
 //!   `from` or a blend's or shell's target is the body's own
-//!   continuation and is silent, and so is every carry by tag, or where
-//!   the document does not hold the node: whether it joins is the
-//!   document's to say. Two names of one table first differ at
-//!   a node where one went through a read another did not, which a join
+//!   continuation and is silent. By tag, or where the document does not
+//!   hold the node, whether it joins is the document's to say, so the
+//!   carry says only the read it came through: "…, through read
+//!   478a00dd4941 at node a02b7dac9af0". Two names of one table first differ at a
+//!   node where one went through a read another did not, which a join
 //!   says.
 //! - **Wraps and joins are said in the order the path takes them.** A
 //!   join beneath a wrap is said inside it, in brackets: "instance 1's
@@ -40,9 +41,8 @@
 //!   as more of it.
 //!
 //! **The full form says two names alike only where they differ in a
-//! node or a read it never says**: a silent carry's (above), or
-//! of a split's, a copy's, a band cut's or a part's carry, which the
-//! wrap's words leave unsaid. Every other difference between two names
+//! node it never says**: a split's, a copy's, a band cut's or a part's
+//! carry, which the wrap's words leave unsaid. Every other difference between two names
 //! is in their words.
 //!
 //! **Which node's output holds the entity is not the name's to say**:
@@ -654,9 +654,14 @@ fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> String {
             by.node_as_kind(at, "Intersect"),
             by.read(read)
         ),
-        // Whether the carry joins is the document's to say: the name
-        // holds only the read it came through.
-        None => String::new(),
+        // Whether the carry joins is the document's to say; the read it
+        // came through is the name's own, and two carries through two
+        // reads are two names.
+        None => format!(
+            ", through {} at {}",
+            crate::spoken::ReadTag(read),
+            by.node(at)
+        ),
     }
 }
 
@@ -1014,7 +1019,6 @@ mod tests {
     const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
     const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
     const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
-    const MOVED: RecipeNodeId = RecipeNodeId::new(0, 4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -1055,11 +1059,11 @@ mod tests {
         Detail::Open(at.iter().map(|pos| pos.to_vec()).collect())
     }
 
-    /// A carry through a primary operand is silent, and the sentence
-    /// says the feature that made the leaf; which node holds the name is
-    /// the enclosing sentence's to say.
+    /// By tag every carry says the read it came through, after the
+    /// feature that made the leaf; which node holds the name is the
+    /// enclosing sentence's to say.
     #[test]
-    fn a_primary_carry_is_silent_and_the_feature_is_said() {
+    fn by_tag_each_carry_says_its_read_and_the_feature_is_said() {
         let carried = name(
             EntityKind::Face,
             OP,
@@ -1075,7 +1079,11 @@ mod tests {
                 )),
             }],
         );
-        assert_eq!(said(&carried), "the end cap of node 000000000001");
+        assert_eq!(
+            said(&carried),
+            "the end cap of node 000000000001, through read 000000000000 at node \
+             000000000003, through read 000000000000 at node 000000000002"
+        );
         assert_eq!(role_leaf(&carried).node, EXTRUDE);
         assert_eq!(said(&cap(CapEnd::End)), "the end cap of node 000000000001");
         assert_eq!(
@@ -1085,11 +1093,12 @@ mod tests {
         );
     }
 
-    /// By tag a carry is silent: whether it joins, and what the read it
-    /// came through is, is the document's to say, so two copies of one
-    /// master carried in through two reads read alike.
+    /// By tag a carry says the read it came through and the node that
+    /// carried it, and not what the node made of it: that is the
+    /// document's to say. Two copies of one master carried in through
+    /// two reads read apart.
     #[test]
-    fn by_tag_a_carry_is_silent() {
+    fn by_tag_a_carry_says_its_read() {
         let through = |read| {
             name(
                 EntityKind::Face,
@@ -1101,12 +1110,14 @@ mod tests {
             )
         };
         let (one, two) = (
-            through(crate::VarId::new(1, 10)),
-            through(crate::VarId::new(1, 11)),
+            through(crate::VarId::new(1, 10 << 16)),
+            through(crate::VarId::new(1, 11 << 16)),
         );
-        assert_ne!(one, two);
-        assert_eq!(said(&one), "the end cap of node 000000000001");
-        assert_eq!(said(&one), said(&two));
+        assert_eq!(
+            said(&one),
+            format!("the end cap of node 000000000001, through read 00000000000a at node {OP}")
+        );
+        assert_ne!(said(&one), said(&two));
     }
 
     /// The parts of one cut face differ in what they border, or in
@@ -1128,12 +1139,14 @@ mod tests {
         };
         assert_eq!(
             said(&part(Qualifier::Borders(vec![wall(1)]))),
-            "the part of the end cap of node 000000000001 bordering the side wall over the \
-             profile step 000000000001 of node 000000000001"
+            "the part of (the end cap of node 000000000001, through read 000000000000 at node \
+             000000000003) bordering the side wall over the profile step 000000000001 of node \
+             000000000001"
         );
         assert_eq!(
             said(&part(Qualifier::OrderAlong { rank: 1, of: 3 })),
-            "part 1 of 3 of the end cap of node 000000000001"
+            "part 1 of 3 of (the end cap of node 000000000001, through read 000000000000 at node \
+             000000000003)"
         );
         let half = |side| {
             name(

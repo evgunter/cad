@@ -365,14 +365,14 @@ fn foot_name(f: &Ruled, end: CapEnd, crease: u32, support: u32) -> StableName {
 
 /// The carve's own survivor of the wall a `support` argument names —
 /// the face the foot has to be a vertex OF, not merely on the surface
-/// of. A shrunk support survives as [`RoleSeg::FromTarget`] of its
-/// extrude name.
+/// of. A shrunk support survives as [`RoleSeg::From`] of its
+/// extrude name, read through the blend's target, the rod.
 fn support_face(f: &Ruled, support: u32) -> StableName {
     minted(
         EntityKind::Face,
         f.fillet,
         RoleSeg::From {
-            read: editor_core::VarId::new(1, 77),
+            read: fixture::out(&f.doc, f.rod),
             of: NameRef::new(wall(&f.doc, f.rod, support)),
         },
     )
@@ -591,7 +591,7 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
                             EntityKind::Vertex,
                             f.fillet,
                             RoleSeg::From {
-                                read: editor_core::VarId::new(1, 77),
+                                read: fixture::out(&f.doc, f.rod),
                                 of: NameRef::new(cap_vertex(&f.doc, f.rod, end, v)),
                             },
                         ),

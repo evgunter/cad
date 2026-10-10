@@ -6,7 +6,9 @@
 //! `bg` ∪ `a`, `a` = x 0..1, is declared flush with `b` on all four
 //! families. `g` cuts `a`'s y = 0 wall into x 0..0.3 and x 0.4..1, and
 //! the second piece merges with `b`'s wall, so the merge lists `a`'s
-//! wall as a constituent while the first piece stays `a`'s alone.
+//! wall as a constituent. The merge is then the parent of both pieces:
+//! each is published as a `Borders` piece of it, and neither under
+//! `a`'s retired wall name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, failure, flush_pairs, run};
@@ -72,31 +74,51 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
                 Some(RoleSeg::Fragment(Qualifier::Borders(_)))
             )
     };
-    let mut cut_and_merged = 0;
-    for (merged, _) in t.iter() {
-        let [RoleSeg::Merged(set)] = merged.path.as_slice() else {
+    let mut cut_parents = std::collections::BTreeSet::new();
+    for (row, _) in t.iter() {
+        let Some(RoleSeg::Merged(set)) = row.path.first() else {
             continue;
         };
+        let merged = StableName {
+            kind: row.kind,
+            node: row.node,
+            path: vec![RoleSeg::Merged(set.clone())],
+        };
+        if is_piece_of(row, &merged) {
+            cut_parents.insert(merged.clone());
+        } else {
+            assert_eq!(row, &merged, "a merged row is whole or a Borders piece");
+        }
         for c in set {
             assert!(
                 t.lookup(c).is_none(),
-                "{c:?}, a constituent of {merged:?}, is published"
+                "{c:?}, a constituent of {row:?}, is published"
+            );
+            assert!(
+                !t.iter().any(|(n, _)| is_piece_of(n, c)),
+                "a piece of {c:?}, a constituent of {row:?}, is published"
             );
             match resolve(ctx, c) {
                 Resolution::Failed(f) => assert!(
-                    f.offers.contains(merged),
-                    "{c:?} does not offer {merged:?}: {:?}",
+                    f.offers.contains(row),
+                    "{c:?} does not offer {row:?}: {:?}",
                     f.offers
                 ),
-                other => panic!("{c:?}, a constituent of {merged:?}, resolved: {other:?}"),
-            }
-            if t.iter().any(|(n, _)| is_piece_of(n, c)) {
-                cut_and_merged += 1;
+                other => panic!("{c:?}, a constituent of {row:?}, resolved: {other:?}"),
             }
         }
     }
+    // `a`'s y = 0 wall is cut by `g` and partly merged with `b`'s: the
+    // merge is its parent, held as two faces, each a piece of it.
     assert_eq!(
-        cut_and_merged, 1,
-        "exactly `a`'s y = 0 wall is both merged and held as a piece of its own"
+        cut_parents.len(),
+        1,
+        "exactly the merge of the y = 0 walls is held as pieces: {cut_parents:?}"
+    );
+    let parent = cut_parents.first().expect("one cut parent");
+    assert_eq!(
+        t.iter().filter(|(n, _)| is_piece_of(n, parent)).count(),
+        2,
+        "the y = 0 merge is held as the piece `g` cuts off and the merged rest"
     );
 }

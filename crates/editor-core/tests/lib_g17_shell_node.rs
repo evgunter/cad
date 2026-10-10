@@ -813,7 +813,6 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
                 && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
         })
         .collect();
-    eprintln!("PIECES {pieces:#?}");
     assert_eq!(pieces.len(), 2, "the divided seam's two pieces: {pieces:?}");
     // The line both hang off is the wall's own seam: the revolve's seam
     // edge swept from the wall's meridian piece, carried through.
@@ -829,7 +828,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         assert_eq!(
             name.path[0],
             RoleSeg::From {
-                read: editor_core::VarId::new(1, 77),
+                read: fixture::out(&r.doc, tube),
                 of: wall_seam.clone().into()
             },
             "each is a piece of the wall's own seam: {name:?}"

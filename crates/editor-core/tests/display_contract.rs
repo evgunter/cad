@@ -157,8 +157,8 @@ fn stable_name_display_is_its_role_of_its_feature() {
 }
 
 /// **A flush pair one boolean carried says two different faces**, each
-/// by its role and its feature, and the one the boolean's B brought in
-/// by its join; the sentence meets the refusal standard.
+/// by its role and its feature and by the read the boolean carried it
+/// in through; the sentence meets the refusal standard.
 #[test]
 fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     use editor_core::NameRef;
@@ -190,8 +190,9 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     let shown = refusal.to_string();
     assert!(
         shown.starts_with(
-            "select: the end cap of node 000000000002 and the start cap of node \
-             000000000005, through operand B of node 000000000009 may coincide (margin "
+            "select: the end cap of node 000000000002, through read 000000000002 at node \
+             000000000009 and the start cap of node 000000000005, through read \
+             000000000005 at node 000000000009 may coincide (margin "
         ),
         "{shown}"
     );
@@ -1966,9 +1967,12 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![],
                 new: vec![member_wall],
             },
+            // By tag the carry says the read the member's wall came in
+            // through and the node that carried it; what that node made
+            // of it is the document's to say.
             "the parent has new seams with the side wall over the profile step \
-             000000000002 of node 000000000006, joined at node 000000000008 from node \
-             000000000007",
+             000000000002 of node 000000000006, through read 000000000007 at node \
+             000000000008",
         ),
         (
             GroupCutters::Read {
@@ -2941,7 +2945,8 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec![
-                "member node 000000000025",
+                // By tag a member read is said by its whole id.
+                "member #0:0000000000250000's edge",
                 "a tie stands where one edge is needed",
             ],
         ),

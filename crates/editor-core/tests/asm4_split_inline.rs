@@ -1560,16 +1560,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected InstanceBodyNameReferenced, got {other:?}"),
     }
 
-    // StrandedPartName: the referenced document carries an N5-stranded
-    // declared-pair reference (its node deleted after authoring) — there is
-    // no node to remap it onto. BOTH shapes run. The FLAT name is
-    // minted AT the deleted node, so the node the refusal carries is
-    // the name's own mint; the NESTED name is minted at the SURVIVING
-    // body and embeds the deleted node's name in a path segment, so
-    // the node that stranded is a segment DOWN from the name the
-    // refusal can report. The pair is the property: the two coincide
-    // in the flat case and come apart in the nested one, which is why
-    // the name alone does not answer "which node stranded".
+    // StrandedPartName / StrandedPartRead: the referenced document
+    // carries an N5-stranded declared-pair reference (its node deleted
+    // after authoring) — there is nothing to remap it onto. BOTH shapes
+    // run. The FLAT name is minted AT the deleted node, so the node the
+    // refusal carries is the name's own mint; the NESTED name is minted
+    // at the SURVIVING body and carries the deleted node's name in
+    // through that node's read, so what stranded is a segment DOWN from
+    // the name, and the refusal names it separately: the read, which no
+    // operation of the part defines any more.
     for nested in [false, true] {
         let mut store = PartStore::default();
         let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
@@ -1597,12 +1596,13 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             node: extra,
             path: vec![RoleSeg::OutputBody],
         };
+        let extra_read = crate::fixture::out(&part_doc, extra);
         let stranded = if nested {
             StableName {
                 kind: EntityKind::Edge,
                 node: body,
                 path: vec![RoleSeg::From {
-                    read: crate::fixture::out(&part_doc, extra),
+                    read: extra_read,
                     of: at_extra.into(),
                 }],
             }
@@ -1654,7 +1654,29 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         );
         let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
         match inline(&host, inst, &resolver, Tol::witness()) {
-            Err(InlineError::StrandedPartName { name, missing }) => {
+            // NESTED: the segment carries the name in through the deleted
+            // node's read, and the read is the first local id of the
+            // segment the walk meets; with its node gone nothing defines
+            // it, so the refusal names the read itself.
+            Err(InlineError::StrandedPartRead { name, read }) if nested => {
+                assert_eq!(name.name(), &stranded);
+                assert_eq!(
+                    read.id(),
+                    extra_read,
+                    "the refusal carries the read the deleted node defined"
+                );
+                assert_eq!(
+                    minter_label(&name),
+                    Some("part body"),
+                    "a carried name is the part's, spoken from it: {name}"
+                );
+                let msg = format!("{}", InlineError::StrandedPartRead { name, read });
+                assert!(
+                    msg.contains("no operation of the referenced document defines"),
+                    "the message states the fault: {msg}"
+                );
+            }
+            Err(InlineError::StrandedPartName { name, missing }) if !nested => {
                 assert_eq!(name.name(), &stranded);
                 assert_eq!(
                     missing,
@@ -1662,33 +1684,22 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                     "the refusal carries the deleted node, which the part no longer holds, \
                      nested={nested}"
                 );
-                if nested {
-                    assert_eq!(
-                        minter_label(&name),
-                        Some("part body"),
-                        "a carried name is the part's, spoken from it: {name}"
-                    );
-                    assert_ne!(
-                        missing.id(),
-                        name.name().node,
-                        "nested: the node that stranded is inside a path segment, so the name \
-                         alone does not name it"
-                    );
-                } else {
-                    assert_eq!(
-                        missing.id(),
-                        name.name().node,
-                        "flat: the name IS minted at the stranded node, so the two coincide — \
-                         the case that cannot tell the id from the name"
-                    );
-                }
+                assert_eq!(
+                    missing.id(),
+                    name.name().node,
+                    "flat: the name IS minted at the stranded node, so the two coincide — \
+                     the case that cannot tell the id from the name"
+                );
                 let msg = format!("{}", InlineError::StrandedPartName { name, missing });
                 assert!(
                     msg.contains("no longer has"),
                     "the message states the fault: {msg}"
                 );
             }
-            other => panic!("expected StrandedPartName, got {other:?}"),
+            other => panic!(
+                "expected StrandedPartName (flat) or StrandedPartRead (nested), \
+                 nested={nested}, got {other:?}"
+            ),
         }
     }
 }

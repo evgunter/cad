@@ -197,17 +197,24 @@ pub fn selector() -> Selector {
 /// checks the exclusion reads the same list the docs above describe.
 /// The cube's face cuts each, so the target publishes each as its one
 /// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
+/// `ball` is the revolve whose names the pip's Transform carries
+/// through unchanged; the carry is keyed by the subtract's TOOL read
+/// (the pip's output), not by the ball's own.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     ball: RecipeNodeId,
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
+    let tool = match doc.node(pipped) {
+        Some(Node::Subtract { tool, .. }) => *tool,
+        other => panic!("{pipped} is the die's subtract, got {other:?}"),
+    };
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| {
             let head = RoleSeg::From {
-                read: crate::fixture::out(doc, ball),
+                read: tool,
                 of: NameRef::new(StableName {
                     kind: EntityKind::Edge,
                     node: ball,

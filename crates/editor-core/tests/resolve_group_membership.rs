@@ -696,6 +696,20 @@ fn slid(
     (bar, u, rows)
 }
 
+/// The bar's wall `segment` as the plate-and-bar union publishes it:
+/// carried in through the bar's transform's read.
+fn bar_wall(segment: u32) -> StableName {
+    let (doc, _, bar, tr, u) = plate_and_bar();
+    StableName {
+        kind: editor_core::EntityKind::Face,
+        node: u,
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&doc, tr),
+            of: editor_core::NameRef::new(wall(&doc, bar, segment)),
+        }],
+    }
+}
+
 /// `GroupResized { was: 2, now: 1 }` at `node` with these cutters.
 fn two_to_one(node: RecipeNodeId, gone: Vec<StableName>, new: Vec<StableName>) -> Diagnosis {
     Diagnosis::GroupResized {
@@ -717,9 +731,9 @@ fn two_to_one(node: RecipeNodeId, gone: Vec<StableName>, new: Vec<StableName>) -
 fn a_cutter_that_stops_cutting_is_named_gone() {
     // `slid` builds this same recipe, so its pieces are these.
     let (doc, plate, ..) = plate_and_bar();
-    let (bar, u, rows) = slid((1.5, 0.0), &[rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    let (_, u, rows) = slid((1.5, 0.0), &[rim(&doc, plate, 0), rim(&doc, plate, 2)]);
     for (n, d) in rows {
-        assert_eq!(d, two_to_one(u, vec![wall(&doc, bar, 1)], vec![]), "{n:?}");
+        assert_eq!(d, two_to_one(u, vec![bar_wall(1)], vec![]), "{n:?}");
     }
 }
 
@@ -731,11 +745,9 @@ fn a_cutter_that_stops_cutting_is_named_gone() {
 /// gone and that wall new.
 #[test]
 fn a_cutter_that_starts_cutting_is_named_new() {
-    // `slid` builds this same recipe, so its pieces are these.
-    let (doc, ..) = plate_and_bar();
-    let (bar, u, rows) = slid((0.0, 2.5), &[TOP]);
+    let (_, u, rows) = slid((0.0, 2.5), &[TOP]);
     for (n, d) in rows {
-        assert_eq!(d, two_to_one(u, vec![], vec![wall(&doc, bar, 0)]), "{n:?}");
+        assert_eq!(d, two_to_one(u, vec![], vec![bar_wall(0)]), "{n:?}");
     }
 }
 
@@ -752,19 +764,19 @@ fn a_cutter_that_starts_cutting_is_named_new() {
 fn two_cutters_that_change_at_once_are_both_named() {
     // `slid` builds this same recipe, so its pieces are these.
     let (doc, plate, ..) = plate_and_bar();
-    let (bar, u, rows) = slid((1.5, 2.5), &[TOP]);
+    let (_, u, rows) = slid((1.5, 2.5), &[TOP]);
     let mut answered = 0;
     for (n, d) in rows {
         answered += 1;
         assert_eq!(
             d,
-            two_to_one(u, vec![wall(&doc, bar, 1)], vec![wall(&doc, bar, 0)]),
+            two_to_one(u, vec![bar_wall(1)], vec![bar_wall(0)]),
             "{n:?}"
         );
     }
     assert_eq!(answered, 2, "both vanished pieces are the rung's to answer");
-    let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
-    let mut gone = vec![wall(&doc, bar, 1), wall(&doc, bar, 3)];
+    let (_, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    let mut gone = vec![bar_wall(1), bar_wall(3)];
     gone.sort();
     for (n, d) in rows {
         assert_eq!(d, two_to_one(u, gone.clone(), vec![]), "{n:?}");

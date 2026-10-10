@@ -47,7 +47,17 @@ use topo::BooleanOp;
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
-const OVER_BUDGET: &[(&str, usize)] = &[];
+///
+/// Both rows forward two names, and the corpus's 90th-percentile name
+/// is a die pip's band face joined into the cutting tool and cut into
+/// the die: every member of a union says its join (FORK-DM4), so that
+/// name says two joins where a pair boolean's `a` operand said none.
+/// The crossing row says its claimed name by tag, which says each read
+/// a carry came through.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    ("SelectRefusal::PairInBand", 80),
+    ("NodeErrorKind::CrossingUnverified", 86),
+];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -73,9 +83,16 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// joined edge by the input cells it covers, so the longer name is the
 /// reading, not a regression; the total fell with the names the join
 /// took (a host foot and a trimline per band).
+///
+/// Every number rose with the three boolean nodes (FORK-DM4): a union's
+/// or an intersect's every member says its join and the read it came in
+/// through ("…, joined at Union d1aa from Extrude e548"), where a pair
+/// boolean's `a` operand was silent and its `b` said the join alone. A
+/// list has no primary member, so the longer names are the reading, not
+/// a regression.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 98, 181, 273_351]),
+    ("scoped faces", [16, 39, 57, 42_058]),
+    ("full", [19, 117, 196, 303_239]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -100,7 +117,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// The blend's closing join moved it: the two rim-filleting documents'
 /// joined host trimlines say the set of both trim names, and their
 /// joined-away feet and trimlines say nothing.
-const SAID_DIGEST: u64 = 0xc67dee5894fd87e5;
+///
+/// The three boolean nodes moved it with [`NAME_WORDS`]: every member
+/// says its join, and a carry said by tag says the read it came through.
+const SAID_DIGEST: u64 = 0xfa26dd1a1f6cedae;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -813,8 +833,16 @@ fn each_boolean_join_says_its_operation() {
             .name_table;
         let by = Speaker::of(&r.doc);
         let pin_read = fixture::out(&r.doc, pin);
+        // A member's join also says the read it came in through; a
+        // subtract's tool is its one cut-in read, said by the verb alone.
+        let from = match op {
+            BooleanOp::Subtract => String::new(),
+            BooleanOp::Union | BooleanOp::Intersect => {
+                format!(" from Extrude {}", test_utils::refusal::tag(pin.0.digest()))
+            }
+        };
         let join = format!(
-            ", {verb} at {noun} {}",
+            ", {verb} at {noun} {}{from}",
             test_utils::refusal::tag(at.0.digest())
         );
         let through_b: Vec<String> = table

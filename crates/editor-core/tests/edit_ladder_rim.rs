@@ -327,12 +327,13 @@ fn meridian(
 
 /// The carve's own survivor of the filleted cap — the HOST support face
 /// every foot has to be a vertex OF, not merely in the plane of.
-fn host_support(block: RecipeNodeId, fillet: RecipeNodeId) -> StableName {
+/// It is carried through the blend's target, read at the block.
+fn host_support(doc: &ProfileDoc, block: RecipeNodeId, fillet: RecipeNodeId) -> StableName {
     minted(
         EntityKind::Face,
         fillet,
         RoleSeg::From {
-            read: editor_core::VarId::new(1, 77),
+            read: fixture::out(doc, block),
             of: NameRef::new(fixture::fname(block, RoleSeg::Cap(CapEnd::End))),
         },
     )
@@ -484,7 +485,7 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
-    let cap = face_of(t, "the host support", &host_support(block, fillet));
+    let cap = face_of(t, "the host support", &host_support(&doc, block, fillet));
     let extent = face_vertices(body, cap);
     for rim in rims() {
         // The blend's closing join (`docs/DESIGN.md`, maximal edges)
