@@ -20,8 +20,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
-    Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Selector, SitedRef,
+    SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::Tol;
 
@@ -47,7 +47,7 @@ pub(crate) fn plate(
     spacing_half_width: f64,
     radius_sigma: f64,
     tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
@@ -152,18 +152,19 @@ pub(crate) fn plate(
     };
 
     // web = distance(wall_a, wall_b) - r_a - r_b.
-    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let radius_of = |n: &'static str| param(n);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
     )
     .expect("Length - Length");
 
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: web,
         bound: len(WEB - 1.0e-4),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
+    let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }

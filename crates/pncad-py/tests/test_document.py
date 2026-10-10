@@ -27,8 +27,6 @@ from pncad import (
     Frame,
     GeomPred,
     Length,
-    MeasureExpr,
-    MeasurePrimitive,
     NamePat,
     Node,
     Open,
@@ -1665,12 +1663,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # constructor, so `invalid_distribution` cannot be inserted.
         with self.assertRaises(pncad.DistributionFault):
             Distribution.normal(0 * m)
-        # A measured expression's reference indices are checked by
-        # `Node.measure`, so `measure_malformed` cannot be inserted.
-        with self.assertRaises(pncad.MeasureNodeFault):
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 5)), []
-            )
         # A profile program's geometry is checked by the PATHS chain,
         # so `profile_program_refused` cannot be inserted.
         with self.assertRaises(pncad.PathError):

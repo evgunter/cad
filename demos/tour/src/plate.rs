@@ -29,9 +29,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    AssertionRelation, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -128,8 +128,10 @@ fn declare(
 pub struct Plate {
     /// The document itself.
     pub doc: ProfileDoc,
-    /// The web `Measure` node — `distance(wall_a, wall_b) − r_a − r_b`.
-    pub measure: RecipeNodeId,
+    /// The web, `distance(wall_a, wall_b) − r_a − r_b`: the variable
+    /// the assertion reads, defined over the distance measure's output
+    /// and the two radii.
+    pub web: VarId,
     /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
     /// The two hole extrudes, in the order their centres run along
@@ -349,35 +351,38 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // two parallel cylinder faces is their AXIS distance (the closed
     // form's own contract), so the subtraction of the radii is the
     // author's arithmetic and not a hidden convention.
-    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),
-    )
-    .expect("Length − Length");
     // The two references are read BEFORE the insert borrows the
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists, which is exactly the E3 contract.
     let [site_a, site_b] = sites;
-    let refs = vec![wall(site_a), wall(site_b)];
-    let measure = insert(
-        &mut doc,
-        Node::measure(web, refs).expect("both indices in range"),
-        tol,
-    );
+    let primitive = MeasurePrimitive::Distance {
+        a: wall(site_a),
+        b: wall(site_b),
+    };
+    let measure = insert(&mut doc, Node::Measure { primitive }, tol);
+    let distance = doc.output(measure, 0).expect("a measure defines its value");
+    let web = Formula::sub(
+        Formula::var(distance, Dimension::Length),
+        Formula::add(param("hole_a_r"), param("hole_b_r")).expect("Length + Length"),
+    )
+    .expect("Length − Length");
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: web,
             bound: len(bound),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
         tol,
     );
+    let Some(Node::Assertion { value: web, .. }) = doc.node(assertion) else {
+        unreachable!("the assertion was inserted one line above")
+    };
+    let web = *web;
     Plate {
         doc,
-        measure,
+        web,
         assertion,
         holes: [hole_a, hole_b],
     }

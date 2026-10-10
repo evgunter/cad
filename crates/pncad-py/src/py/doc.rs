@@ -1466,6 +1466,44 @@ impl Doc {
             .map_err(|err| edit_err(py, &err))
     }
 
+    /// **Insert measures** (ERROR-DESIGN E3, D10): one `Measure` node
+    /// per primitive, in order, as one action — all land or none does.
+    /// Answers a `Measured`: the measures and their outputs, the
+    /// observed values an assertion reads. Arithmetic over them is an
+    /// ordinary `Formula`: name an output (`DocEdit.rename_var`) and
+    /// write the arithmetic with `Doc.parse_formula`; an assertion reads
+    /// the formula, or `DocEdit.declare_var` names it.
+    ///
+    /// Exactly `insert(Node.measure(p))` per primitive, recorded as one
+    /// action and answered with the outputs, as `sketch_frame` is
+    /// `insert(Node.sketch_frame(...))`.
+    #[pyo3(signature = (primitives, *, resolver=None))]
+    fn measure(
+        &mut self,
+        py: Python<'_>,
+        primitives: Vec<super::measure::MeasurePrimitive>,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Measured> {
+        let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let measured = action
+            .measure(&primitives)
+            .map_err(|err| edit_err(py, &err))?;
+        let done = action.finish().map_err(|err| edit_err(py, &err))?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(Measured {
+            measures: measured.measures.into_iter().map(NodeId).collect(),
+            outputs: measured
+                .outputs
+                .into_iter()
+                .map(|out| Var::of(&self.inner, out))
+                .collect(),
+        })
+    }
+
     /// **Insert a sketch frame and return its id** — the one line a
     /// profile needs before it can name a plane.
     ///
@@ -3411,14 +3449,11 @@ impl Node {
             },
         })
     }
-    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
-    /// node that denotes no body and evaluates to a typed quantity.
-    ///
-    /// `expr` is the measured expression — `MeasureExpr`, whose leaves
-    /// are closed-form primitives over `refs` and ordinary document
-    /// expressions. `refs` is the reference list those primitives
-    /// index, IN ORDER, each a `(node, name)` pair: the entity's
-    /// stable name, and the node its carrier is READ AT.
+    /// **One measurement** (ERROR-DESIGN E3): a `Measure` node holds
+    /// one closed-form primitive and defines one observed scalar, its
+    /// output (`Doc.output(node)`), which only an assertion reads,
+    /// directly or through a definition. Arithmetic over measured
+    /// values is an ordinary `Formula` over the outputs.
     ///
     /// **The read site is the half that makes a measure report placed
     /// geometry.** A rigid transform is identity-preserving — the
@@ -3434,56 +3469,43 @@ impl Node {
     /// data dependencies, and deleting one is accepted and reported as
     /// a `strand` on the measure, like any other reader's.
     ///
-    /// Every index is checked HERE, through Rust's `Node::measure` —
-    /// the one construction door — so an expression whose leaf points
-    /// past the end of `refs` raises `MeasureNodeFault` where it is
-    /// written rather than at the `Doc.apply` after it. Nothing else
-    /// is pre-checked: a name that no longer resolves
+    /// Nothing is pre-checked here: a name that no longer resolves
     /// (`measure_ref_resolve`), a carrier pair with no v1 closed form
     /// (`measure_unsupported`), a `min_clearance` handed an edge
     /// (`measure_selection_kind`) and a non-finite result
     /// (`measure_non_finite`) are all the kernel's own typed refusals
     /// at `evaluate`.
     #[staticmethod]
-    fn measure(
-        py: Python<'_>,
-        expr: &super::measure::MeasureExpr,
-        refs: Vec<(NodeId, String)>,
-    ) -> PyResult<Self> {
-        let refs = refs
-            .iter()
-            .map(|(at, name)| Ok(d::SitedRef::new(at.0, name_from_text(name)?)))
-            .collect::<PyResult<Vec<_>>>()?;
-        d::Node::measure(expr.0.clone(), refs)
-            .map(|inner| Self { inner })
-            .map_err(|fault| super::measure::measure_node_fault_err(py, &fault))
+    fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
+        Self {
+            inner: d::Node::Measure {
+                primitive: primitive.0.clone(),
+            },
+        }
     }
 
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data, in the versioned recipe rather than in
     /// a script beside it.
     ///
-    /// `measure` is the `Node.measure` this constrains — an ordinary
-    /// DAG edge, so a failed or poisoned measure poisons the assertion
-    /// rather than producing a verdict about nothing. `dir` is which
-    /// side of `bound` the measurement must fall on, and `bound` is an
-    /// `Formula` from `Doc.parse_formula`.
+    /// `value` is the scalar this bounds: a measure's output
+    /// (`Doc.output(measure)`), `Doc.measure`'s `value`, or any formula
+    /// or variable — a variable at its own kind's dimension, anything
+    /// else at the bound's. A failed or poisoned
+    /// measure under it poisons the assertion rather than producing a
+    /// verdict about nothing. `relation` is how the value must relate to
+    /// `bound` (`>=`, `<=` or `=`), and `bound` is a `Formula` from `Doc.parse_formula`.
     ///
     /// **The bound is an expression and not a quantity, because its
-    /// DIMENSION is the measure's.** Every other node door takes a
-    /// typed `Length` or `Angle` because a slot's address fixes what
-    /// it holds; this one's is fixed by the node it points at, and it
-    /// may be an angle, a count or a plain scalar as readily as a
-    /// length. `Doc.parse_formula("0.5 mm")` is the one spelling, and it
-    /// reaches document parameters (`"min_web"`) in the same call —
-    /// which is what makes an assertion re-decidable by a parameter
-    /// edit.
+    /// DIMENSION is the value's.** It may be an angle, a count or a plain
+    /// scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+    /// the one spelling, and it reaches document parameters
+    /// (`"min_web"`) in the same call — which is what makes an assertion
+    /// re-decidable by a parameter edit.
     ///
-    /// Two things are checked at `Doc.apply` rather than here,
-    /// because both need the document: that `measure` names a measure
-    /// at all (`assertion_target`) and that the bound's dimension is
-    /// the measured one (`assertion_dimension`). A document therefore
-    /// never carries a comparison of radians with metres.
+    /// That the value's dimension is the bound's is checked at
+    /// `Doc.apply` (`assertion_dimension`), so a document never carries
+    /// a comparison of radians with metres.
     ///
     /// **Report-only, structurally.** No op in the vocabulary accepts
     /// a verdict as an operand, the product gather skips an assertion
@@ -3491,17 +3513,27 @@ impl Node {
     /// because one is `Violated`. Read it with `Value.assertion`.
     #[staticmethod]
     fn assertion(
-        measure: OperandArg,
-        dir: super::measure::AssertionDir,
+        py: Python<'_>,
+        value: super::expr::SlotArg,
+        relation: super::measure::AssertionRelation,
         bound: &super::expr::Formula,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Assertion {
-                measure: measure.read(),
+                // A variable is read at its own kind's dimension, so a
+                // mismatch with the bound is the door's
+                // `assertion_dimension`; anything else at the bound's.
+                value: match &value {
+                    super::expr::SlotArg::Var(Var(id, Some(kind))) => match kind.dimension() {
+                        Some(dim) => d::Formula::var(*id, dim),
+                        None => value.formula(py, bound.0.dim())?,
+                    },
+                    _ => value.formula(py, bound.0.dim())?,
+                },
                 bound: bound.0.clone(),
-                dir: dir.to_kernel(),
+                relation: relation.to_kernel(),
             },
-        }
+        })
     }
 }
 
@@ -3598,6 +3630,34 @@ impl Var {
 
     fn __hash__(&self) -> u64 {
         self.0.0.digest()
+    }
+}
+
+/// **What `Doc.measure` inserted**: the measures, one per primitive in
+/// order, and their outputs in the same order.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Measured {
+    measures: Vec<NodeId>,
+    outputs: Vec<Var>,
+}
+
+#[pymethods]
+impl Measured {
+    /// The `Measure` nodes, one per primitive.
+    #[getter]
+    fn measures(&self) -> Vec<NodeId> {
+        self.measures.clone()
+    }
+
+    /// Each measure's output, in the same order.
+    #[getter]
+    fn outputs(&self) -> Vec<Var> {
+        self.outputs.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Measured({} measures)", self.measures.len())
     }
 }
 
@@ -4980,6 +5040,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DocEdit>()?;
     m.add_class::<VarName>()?;
     m.add_class::<Var>()?;
+    m.add_class::<Measured>()?;
     m.add_class::<FreeVar>()?;
     m.add_class::<VarDecl>()?;
     // The expansion bound `definition_too_large`'s `count` is measured

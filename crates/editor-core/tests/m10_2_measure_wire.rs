@@ -19,9 +19,9 @@ use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
-    AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, SnapshotError, StableName, VarName, apply, load, save,
+    AssertionRelation, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula,
+    FreeVar, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    StableName, VarName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -83,65 +83,60 @@ fn every_form() -> ProfileDoc {
             }),
         },
     );
-    let prim = |p: MeasurePrimitive| MeasureExpr::primitive(p);
-    let scalar = |v: f64| MeasureExpr::value(scl(v));
     // distance - gap + min_clearance, halved, floored by a parameter and
     // ceilinged by a literal: every arithmetic arm and every Length
     // primitive at once. `min_clearance` (M10-6) is here for the same
     // reason the other three are — this fixture IS the populated wire
     // golden for the primitive table, so a primitive absent from it
     // round-trips under no test at all.
-    let expr = MeasureExpr::max(
-        MeasureExpr::min(
-            MeasureExpr::div(
-                MeasureExpr::mul(
-                    MeasureExpr::add(
-                        MeasureExpr::sub(
-                            MeasureExpr::add(
-                                prim(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                                prim(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-                            )
-                            .expect("Length + Length"),
-                            prim(MeasurePrimitive::Gap { outer: 1, inner: 0 }),
+    doc = two_named_nodes(&doc);
+    let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
+    let (mut doc, measured) = crate::fixture::measure(
+        doc,
+        &[
+            MeasurePrimitive::Distance { a: 0, b: 1 },
+            MeasurePrimitive::MinClearance { a: 0, b: 1 },
+            MeasurePrimitive::Gap { outer: 1, inner: 0 },
+        ],
+        &refs,
+    );
+    let out = |i: usize| crate::fixture::read_var(&doc, measured.outputs[i]);
+    let value = Formula::max(
+        Formula::min(
+            Formula::div(
+                Formula::mul(
+                    Formula::add(
+                        Formula::sub(
+                            Formula::add(out(0), out(1)).expect("Length + Length"),
+                            out(2),
                         )
                         .expect("Length - Length"),
-                        MeasureExpr::neg(MeasureExpr::value(Formula::named(
+                        Formula::neg(Formula::named(
                             VarName::from_static("pad"),
                             Dimension::Length,
-                        )))
+                        ))
                         .expect("a shallow negation"),
                     )
                     .expect("Length + Length"),
-                    scalar(2.0),
+                    scl(2.0),
                 )
                 .expect("Length * Scalar"),
-                scalar(4.0),
+                scl(4.0),
             )
             .expect("Length / Scalar"),
-            MeasureExpr::value(len(1.0)),
+            len(1.0),
         )
         .expect("Length min Length"),
-        MeasureExpr::value(len(-0.0)),
+        len(-0.0),
     )
     .expect("Length max Length");
-    doc = two_named_nodes(&doc);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(expr, vec![name(doc.ids()[0]), name(doc.ids()[1])])
-                    .expect("indices in range"),
-            ),
-            fresh: Vec::new(),
-        },
-    );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: crate::fixture::newest(&doc).into(),
+                value,
                 bound: len(0.0005),
-                dir: AssertionDir::AtMost,
+                relation: AssertionRelation::AtMost,
             }),
             fresh: Vec::new(),
         },
@@ -149,14 +144,15 @@ fn every_form() -> ProfileDoc {
     doc
 }
 
-/// Both fixtures put their measure third and its assertion fourth:
-/// two datum points come first so the references name live nodes.
+/// Both fixtures put their first measure third and their assertion
+/// last: two datum points come first so the references name live
+/// nodes.
 fn measure(doc: &ProfileDoc) -> RecipeNodeId {
     doc.ids()[2]
 }
 
 fn assertion(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()[3]
+    *doc.ids().last().expect("an assertion")
 }
 
 /// The angular half, separately: an `angle` primitive is an `Angle`
@@ -170,26 +166,16 @@ fn angular() -> ProfileDoc {
             .doc
     };
     doc = two_named_nodes(&doc);
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-                    vec![name(doc.ids()[0]), name(doc.ids()[1])],
-                )
-                .expect("indices in range"),
-            ),
-            fresh: Vec::new(),
-        },
-    );
+    let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
+    let (mut doc, measured) =
+        crate::fixture::measure(doc, &[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: crate::fixture::newest(&doc).into(),
+                value: crate::fixture::read_var(&doc, measured.outputs[0]),
                 bound: ang(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -198,8 +184,8 @@ fn angular() -> ProfileDoc {
 }
 
 /// Every wire arm round-trips, and BIT-exactly: the `-0.0` literal in
-/// the measured expression is the point — a value-blind comparator
-/// would pass here with `0.0` on the wire.
+/// the measured value's definition is the point — a value-blind
+/// comparator would pass here with `0.0` on the wire.
 #[test]
 fn every_measure_form_round_trips() {
     for doc in [every_form(), angular()] {
@@ -220,89 +206,52 @@ fn every_measure_form_round_trips() {
     }
 }
 
-/// The measured expression's dimension is what the payload reports —
-/// the E3 claim, on the wire rather than only in memory.
+/// A measure's dimension is its primitive's, and an assertion's value
+/// is read at its variable's — the E3 claim, on the wire rather than
+/// only in memory.
 #[test]
-fn the_quantity_kind_rides_the_expression() {
+fn the_quantity_kind_rides_the_primitive() {
     let length = every_form();
     let angle = angular();
     let dim_of = |doc: &ProfileDoc| match doc.node(measure(doc)) {
-        Some(Node::Measure { expr, .. }) => expr.dim(),
+        Some(Node::Measure { primitive }) => primitive.dim(),
         other => panic!("expected a measure, got {other:?}"),
     };
     assert_eq!(dim_of(&length), Dimension::Length);
     assert_eq!(dim_of(&angle), Dimension::Angle);
+    let value_dim = |doc: &ProfileDoc| {
+        let value = crate::fixture::assertion_value(doc, assertion(doc));
+        doc.var(value).and_then(|v| v.kind().dimension())
+    };
+    assert_eq!(value_dim(&length), Some(Dimension::Length));
+    assert_eq!(value_dim(&angle), Some(Dimension::Angle));
 }
 
-/// **The load door is the construction door.** A file whose measure
-/// indexes past its reference list is CORRUPT — `Rebind` cannot repair
-/// an index — so it refuses at the snapshot check rather than reaching
-/// evaluation.
-#[test]
-fn a_measure_indexing_past_its_refs_refuses_at_the_load_door() {
-    // Corrupt the BYTES, not a value: the construction and edit doors
-    // both refuse this state, so the only way a document reaches the
-    // loader carrying it is a file nothing in this build wrote — which
-    // is exactly the input the load-door re-check exists for.
-    let doc = angular();
-    let text = save(&doc, &[], Tol::witness()).expect("the document saves");
-    let corrupt = text.replace("\"b\": 1", "\"b\": 7");
-    assert_ne!(corrupt, text, "the corruption must actually land");
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::MeasureRefs { node, fault })) => {
-            assert_eq!(node.id(), measure(&doc));
-            assert!(
-                matches!(
-                    fault,
-                    MeasureNodeFault::RefIndexOutOfRange {
-                        index: 7,
-                        refs: 2,
-                        ..
-                    }
-                ),
-                "got {fault:?}"
-            );
-        }
-        other => panic!("a past-the-end index must refuse MeasureRefs, got {other:?}"),
-    }
-}
-
-/// The MEASUREMENT sublanguage's rebuild is the expression rebuild's
-/// twin — it re-runs `MeasureExpr`'s own dimension-checking
-/// constructors — so a saved measure the checker refuses crosses the
-/// load door the same way an ordinary expression does: whole, as
-/// `PersistError::Dimension`, carrying the refusal rather than a
-/// sentence about it.
+/// **Measure arithmetic is a definition**, so a saved one the
+/// dimension checker refuses crosses the load door the way any
+/// definition does: whole, as `PersistError::Dimension`, carrying the
+/// refusal rather than a sentence about it.
 ///
-/// The tamper wraps the document's OWN measure expression rather than
-/// spelling a primitive out: what a leaf looks like on the wire is the
-/// measurement table's business, and a needle written out here would
-/// stop matching the day it grew a field.
+/// The tamper wraps the assertion's OWN value definition rather than
+/// spelling one out, so the needle follows the expression wire.
 #[test]
-fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
-    let text = save(&angular(), &[], Tol::witness()).expect("the document saves");
+fn a_dimension_refusal_in_a_measured_definition_crosses_the_load_door_whole() {
+    let doc = every_form();
+    let value = crate::fixture::assertion_value(&doc, assertion(&doc));
+    let text = save(&doc, &[], Tol::witness()).expect("the document saves");
     let (header, body_text) = text.split_once('\n').expect("a header line");
     let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
-    let nodes = body["snapshot"]["nodes"]
-        .as_object_mut()
-        .expect("a node map");
-    let mut wrapped = 0;
-    for node in nodes.values_mut() {
-        let Some(measure) = node.get_mut("Measure") else {
-            continue;
-        };
-        // An `Angle` measurement plus a `Length` one: the arithmetic
-        // constructor refuses it, exactly as it would at the edit door.
-        let inner = measure["expr"].take();
-        measure["expr"] = serde_json::json!({
-            "Add": [
-                inner,
-                { "Value": { "var": "0:0000000000000001", "dim": "Length" } },
-            ]
-        });
-        wrapped += 1;
-    }
-    assert_eq!(wrapped, 1, "the fixture has one measure to tamper");
+    let held = &mut body["snapshot"]["vars"][value.0.to_string().as_str()]["def"]["Defined"];
+    assert!(!held.is_null(), "the web is a definition");
+    // A `Length` measurement plus an `Angle` reader: the arithmetic
+    // constructor refuses it, exactly as it would at the edit door.
+    let inner = held.take();
+    *held = serde_json::json!({
+        "Add": [
+            inner,
+            { "Var": { "var": value.0.to_string(), "dim": "Angle" } },
+        ]
+    });
     let corrupt = format!(
         "{header}\n{}",
         serde_json::to_string(&body).expect("re-emit")
@@ -312,33 +261,12 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
             error,
             DimensionError::Mismatch {
                 op: "add",
-                left: Dimension::Angle,
-                right: Dimension::Length,
+                left: Dimension::Length,
+                right: Dimension::Angle,
             },
-            "the measurement language asks `Formula`'s own constructors, so \
-             the refusal is the one an ordinary expression would raise"
         ),
-        other => panic!("an ill-dimensioned measure must refuse typed, got {other:?}"),
+        other => panic!("an ill-dimensioned definition must refuse typed, got {other:?}"),
     }
-}
-
-/// The same fault at the EDIT door, which is where an author meets it.
-#[test]
-fn a_measure_indexing_past_its_refs_refuses_at_the_edit_door() {
-    let err = <editor_core::AuthoredNode>::measure(
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 3 }),
-        // No document: the node is never looked up.
-        vec![name(RecipeNodeId::new(0, 0))],
-    )
-    .expect_err("index 3 addresses nothing");
-    assert!(matches!(
-        err,
-        MeasureNodeFault::RefIndexOutOfRange {
-            index: 3,
-            refs: 1,
-            ..
-        }
-    ));
 }
 
 /// An assertion's bound must be dimensioned like its measure — refused
@@ -351,9 +279,9 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure(&doc).into(),
+                value: crate::fixture::value_of(&doc, measure(&doc)),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -374,33 +302,30 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
     );
 }
 
-/// An assertion over something that is not a measure at all.
+/// An assertion over something that is not a scalar at all: a datum
+/// point's output is a pose, read at the bound's dimension.
 #[test]
-fn an_assertion_over_a_non_measure_refuses() {
+fn an_assertion_over_a_non_scalar_refuses() {
     let doc = angular();
+    let point = doc
+        .output(doc.ids()[0], 0)
+        .expect("a point defines its pose");
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                // An assertion is not a measure.
-                measure: assertion(&doc).into(),
+                value: Formula::var(point, Dimension::Angle),
                 bound: ang(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect_err("an assertion constrains a measurement");
+    .expect_err("an assertion compares a value");
     assert!(
-        matches!(
-            err,
-            EditError::DefinesNothing {
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measure),
-                ..
-            }
-        ),
-        "an assertion defines nothing to read: {err:?}"
+        matches!(err, EditError::PayloadVarKind { .. }),
+        "a pose is no value to bound: {err:?}"
     );
 }

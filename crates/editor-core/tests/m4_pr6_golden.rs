@@ -293,46 +293,33 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         },
     );
     // v17: the measurement vocabulary on the wire (E3/E10) — a
-    // `Measure` carrying a reference list and a measured expression,
-    // and an `Assertion` bounding it. The measured expression is
-    // arithmetic over a parameter and a literal rather than a
-    // primitive: the golden must evaluate GREEN, and a primitive over
-    // this document's only well-known name (a whole BODY) has no
-    // closed form. The primitive leaves' wire forms are pinned by
-    // round-trip in `m10_2_measure_wire.rs`, where a document with real
-    // carriers can be built.
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    editor_core::MeasureExpr::sub(
-                        editor_core::MeasureExpr::value(Formula::named(
-                            VarName::from_static("depth"),
-                            Dimension::Length,
-                        )),
-                        editor_core::MeasureExpr::value(len(0.25)),
-                    )
-                    .expect("same-dimension subtraction"),
-                    // Read at the extrude that owns the body: the
-                    // reference is unindexed by this expression, so it is
-                    // carried data the measure never reads.
-                    vec![editor_core::SitedRef::new(bulged, body.clone())],
-                )
-                .expect("every index addresses a reference"),
-            ),
-            fresh: Vec::new(),
-        },
+    // `Measure` of one primitive over two sited references, and an
+    // `Assertion` bounding arithmetic over its output, which the
+    // assertion's value defines. The primitive is the distance between
+    // the bulged extrude's caps, which is its depth: the golden must
+    // evaluate GREEN. The other primitives' wire forms are pinned by
+    // round-trip in `m10_2_measure_wire.rs`.
+    let cap = |end| editor_core::SitedRef::new(bulged, fixture::fname(bulged, RoleSeg::Cap(end)));
+    let (measured_doc, measured) = fixture::measure(
+        doc,
+        &[editor_core::MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            cap(editor_core::CapEnd::Start),
+            cap(editor_core::CapEnd::End),
+        ],
     );
-    let measure = last(&doc);
+    let value = Formula::sub(
+        fixture::read_var(&measured_doc, measured.outputs[0]),
+        len(0.25),
+    )
+    .expect("same-dimension subtraction");
     doc = push(
-        &doc,
+        &measured_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                // The `Measure` pushed immediately above.
-                measure: measure.into(),
+                value,
                 bound: len(0.1),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },

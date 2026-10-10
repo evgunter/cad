@@ -46,8 +46,8 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
     NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
     UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -151,26 +151,24 @@ fn dumbbell() -> Dumbbell {
             angle: ang(0.0),
         },
     ));
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+            ),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(BOUND),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     Dumbbell {
         doc: r.doc,
@@ -518,20 +516,18 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                // A real EDGE name — the extrude's own lateral edge at
-                // profile vertex 0 — so the reference resolves and the
-                // refusal is about its KIND rather than about a name
-                // that names nothing.
-                SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            // A real EDGE name — the extrude's own lateral edge at
+            // profile vertex 0 — so the reference resolves and the
+            // refusal is about its KIND rather than about a name
+            // that names nothing.
+            SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
+            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+        ],
     );
+    let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);
     let ev = eval_over::<geom_core::Interval>(&r.doc, None);
     let Some(NodeResult::Failed(err)) = ev.result(measure) else {
         panic!("an edge is not a selection, so the measure refuses");
@@ -567,7 +563,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,
-        f.measure,
+        crate::fixture::output(&f.doc, f.measure),
         &analyzed,
         &verdict,
         None,

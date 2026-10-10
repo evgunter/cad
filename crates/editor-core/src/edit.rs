@@ -2005,35 +2005,28 @@ pub enum EditError {
         /// The reading node.
         node: SpokenNode,
     },
-    /// A [`Node::Measure`]'s expression reads a reference the node does
-    /// not carry ([`crate::MeasureNodeFault`]).
-    MeasureMalformed {
-        /// The measure node.
-        node: SpokenNode,
-        /// What is wrong with it.
-        fault: crate::node::MeasureNodeFault,
-    },
-    /// A [`Node::Assertion`] references a node that is not a measure.
-    /// An assertion constrains a measurement; there is nothing else in
-    /// the vocabulary for it to constrain.
-    AssertionTarget {
-        /// The assertion.
-        node: SpokenNode,
-        /// What it references.
-        measure: SpokenNode,
-    },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
-    /// the measure it constrains — refused at the edit door, so a
-    /// document never carries a comparison of metres with radians.
+    /// the value it bounds — refused at the edit door, so a document
+    /// never carries a comparison of metres with radians.
     AssertionDimension {
         /// The assertion.
         node: SpokenNode,
-        /// The measure it constrains.
-        measure: SpokenNode,
-        /// The measure's dimension.
+        /// The value's dimension.
         measured: Dimension,
         /// The bound's.
         bound: Dimension,
+    },
+    /// **A construction's slot reads an observed variable** (D10): a
+    /// measure's output, or a definition reading one, directly or
+    /// through another definition. Only an assertion reads one; a
+    /// construction reads what was written.
+    ConstructionReadsObserved {
+        /// The reading node.
+        node: SpokenNode,
+        /// The slot that reads it.
+        slot: SlotId,
+        /// The variable the slot reads.
+        var: Box<SpokenVar>,
     },
     /// A `Continuous` free variable defined with `Dimension::Count` —
     /// a count is [`FreeVar::Count`] (an exact integer).
@@ -2962,7 +2955,6 @@ impl EditError {
                 slot: _,
             }
             | Self::PayloadUnknownVarName { node, name: _ }
-            | Self::MeasureMalformed { node, fault: _ }
             | Self::PathOffTree {
                 node,
                 slot: _,
@@ -3105,15 +3097,16 @@ impl EditError {
             | Self::DefinesNothing { input, slot: _ } => {
                 *input = input.respoken(doc);
             }
-            Self::AssertionTarget { node, measure }
-            | Self::AssertionDimension {
+            Self::AssertionDimension {
                 node,
-                measure,
                 measured: _,
                 bound: _,
             } => {
                 *node = node.respoken(doc);
-                *measure = measure.respoken(doc);
+            }
+            Self::ConstructionReadsObserved { node, slot: _, var } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
             }
             Self::NameStepNeverMinted { name, step: _ }
             | Self::RebindUnknownName { name }
@@ -3484,43 +3477,37 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
             }
-            Self::MeasureMalformed { node, fault } => {
-                write!(f, "{node}: {fault}")?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "read only a reference the measure carries, or add the one it reads to \
-                         its reference list"
-                    ),
-                )
-            }
-            Self::AssertionTarget { node, measure } => {
-                write!(
-                    f,
-                    "{} references {}, which is not a measure — an \
-                     assertion constrains a measurement",
-                    node, measure
-                )?;
-                tail.recourse(f, format_args!("point the assertion at a measure node"))
-            }
             Self::AssertionDimension {
                 node,
-                measure,
                 measured,
                 bound,
             } => {
                 write!(
                     f,
-                    "{} bounds {}, which measures {} {measured}, with {} {bound} expression — an \
-                     assertion compares like with like or not at all",
+                    "{} bounds {} {measured} value with {} {bound} expression — an assertion \
+                     compares like with like or not at all",
                     node,
-                    measure,
                     measured.article(),
                     bound.article(),
                 )?;
                 tail.recourse(
                     f,
                     format_args!("bound it with {} {measured} expression", measured.article()),
+                )
+            }
+            Self::ConstructionReadsObserved { node, slot, var } => {
+                write!(
+                    f,
+                    "{node}'s slot {} reads {var}, a measured value — only an assertion reads a \
+                     measured value; a construction reads what was written",
+                    slot.label()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "write the value the slot reads, and check it against the measure with an \
+                         assertion"
+                    ),
                 )
             }
             Self::SlotUnknownVarName { name, node, slot } => {
@@ -5033,6 +5020,34 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         Ok(id)
     }
 
+    /// **Measures, inserted** ([`fn@measure`]): one [`Node::Measure`]
+    /// per primitive, in order; returns the measures and their outputs.
+    /// Arithmetic over the outputs is an ordinary formula over them.
+    ///
+    /// # Errors
+    ///
+    /// The insert door's refusals.
+    pub fn measure(
+        &mut self,
+        primitives: &[crate::measure::MeasurePrimitive],
+    ) -> Result<Measured, EditError> {
+        let mut measured = Measured {
+            measures: Vec::with_capacity(primitives.len()),
+            outputs: Vec::with_capacity(primitives.len()),
+        };
+        for primitive in primitives {
+            let id = self.insert(Node::Measure {
+                primitive: primitive.clone(),
+            })?;
+            let Some(output) = self.doc().output(id, 0) else {
+                unreachable!("an inserted measure defines its value")
+            };
+            measured.measures.push(id);
+            measured.outputs.push(output);
+        }
+        Ok(measured)
+    }
+
     /// Declare a variable and record the declare — [`Self::apply`] of
     /// its [`DocEdit::DeclareVar`] — answering the id it minted.
     ///
@@ -5143,6 +5158,17 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
         doc.spoken(id)
     } else {
         SpokenNode::entering(id, node)
+    }
+}
+
+/// **A node an edit's result names, as its refusal speaks it**: from
+/// `before` when it holds the node, else by its kind as `after` mints
+/// it ([`written`]), else [`SpokenNode::absent`]: a refusal speaks the
+/// node as the author handed it.
+fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
+    match after.node(id) {
+        Some(node) => written(before, id, node),
+        None => before.spoken(id),
     }
 }
 
@@ -5394,37 +5420,14 @@ fn check_node_slots<P: crate::ProfilePayload>(
         let reader = Expr::var(var, dim);
         check_reads(doc, &written(before, id, node), ExprSite::Payload, &reader)?;
     }
-    // A measured expression's reference indices, at the edit door as
-    // well as the construction and load doors: `Node::Measure` is a
-    // public variant, so a hand-built value can reach `apply` without
-    // passing `Node::measure`.
-    if let Some(fault) = node.measure_fault() {
-        return Err(EditError::MeasureMalformed {
+    // An assertion's bound against the dimension of its value (E10):
+    // `Node::assertion_bound_fault`, the one home the load door reads it
+    // from too.
+    if let Some(AssertionBoundFault { measured, bound }) = node.assertion_bound_fault(doc) {
+        return Err(EditError::AssertionDimension {
             node: written(before, id, node),
-            fault,
-        });
-    }
-    // An assertion's bound against the dimension of the measure it
-    // constrains (E10): `Node::assertion_bound_fault`, the one home the
-    // load door reads it from too. The predicate takes the document
-    // because the measured dimension is another node's property; this
-    // is the door's name for its answer.
-    if let Some(fault) = node.assertion_bound_fault(doc) {
-        return Err(match fault {
-            AssertionBoundFault::TargetNotMeasure { measure, .. } => EditError::AssertionTarget {
-                node: written(before, id, node),
-                measure: before.spoken(measure),
-            },
-            AssertionBoundFault::DimensionMismatch {
-                measure,
-                measured,
-                bound,
-            } => EditError::AssertionDimension {
-                node: written(before, id, node),
-                measure: before.spoken(measure),
-                measured,
-                bound,
-            },
+            measured,
+            bound,
         });
     }
     Ok(())
@@ -5878,6 +5881,60 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     })
 }
 
+/// **What [`Recording::measure`] inserted**: the measures, one per
+/// primitive in order, and each one's output in the same order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Measured {
+    /// The `Measure` nodes, one per primitive.
+    pub measures: Vec<RecipeNodeId>,
+    /// Each measure's output, the observed scalar it defines.
+    pub outputs: Vec<VarId>,
+}
+
+/// [`fn@measure`]'s outcome: the action applied, and what it inserted.
+#[derive(Debug)]
+pub struct MeasureOutcome<P: crate::ProfilePayload> {
+    /// The document the action produced.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the start, one insert per
+    /// measure.
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance they reported.
+    pub maintenance: Vec<Maintenance>,
+    /// The measures and their outputs.
+    pub measured: Measured,
+}
+
+/// **Measures, as one action** (E3, D10): one [`Node::Measure`] per
+/// primitive, each defining one observed scalar ([`Recording::measure`]).
+/// The edit list is the split's shape: the edits, and the document they
+/// produce.
+///
+/// # Errors
+///
+/// The insert door's refusals; the document is untouched.
+pub fn measure<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    primitives: &[crate::measure::MeasurePrimitive],
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<MeasureOutcome<P>, EditError> {
+    let mut action = Recording::start(doc, tol, reach);
+    let measured = action.measure(primitives)?;
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = action.finish()?;
+    Ok(MeasureOutcome {
+        doc,
+        edits,
+        maintenance,
+        measured,
+    })
+}
+
 /// The `SetGauge` edits [`regauge_then_mate`] applies before its
 /// insert, in order, computed against `doc`.
 fn regauges_for<P: Clone + crate::ProfilePayload>(
@@ -6066,6 +6123,17 @@ fn door<P: Clone + crate::ProfilePayload, T>(
         let held = if doc.var(var).is_some() { doc } else { &new };
         return Err(EditError::SharedVarNeedsName {
             var: held.spoken_var(var),
+        });
+    }
+    // D10, on EVERY arm: a construction reads what was written. A slot
+    // write, a read's repoint and a redefinition can each make a
+    // construction's slot read an observed variable, and this is the
+    // one place that refuses it.
+    if let Some((node, slot, var)) = new.observed_read_fault() {
+        return Err(EditError::ConstructionReadsObserved {
+            node: spoken_before_else_after(doc, &new, node),
+            slot,
+            var: Box::new(new.spoken_var(var)),
         });
     }
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):

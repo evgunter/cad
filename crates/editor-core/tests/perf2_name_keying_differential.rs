@@ -135,6 +135,12 @@ fn sans_epsilon(t: &str) -> String {
 /// tables hold each copy's names under its placement. What each
 /// document delivers did not move: `intent_s2_c_world`'s migration
 /// check holds each product to its pre-C digest.
+///
+/// **Re-pinned for INTENT stage 2 PR D** (a measure is one primitive):
+/// `measured_web` alone. Its measure holds the distance and the web is
+/// a definition the assertion reads, so the measure's mint preimage,
+/// its id and its saved text moved; every other row held its word, and
+/// the id-masked geometry fence held untouched.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x62b07c7daae52838, 0x3c90ffcf06c6a15a),
     ("corner_table", 0x78adcd98aa349293, 0xf9103519a6680b71),
@@ -154,7 +160,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
     ("kitchen_sink", 0x4d54a9f813f26bc2, 0x5afd76e9573a1531),
     ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
-    ("measured_web", 0x82246769c346d0b7, 0x668d14623a38f0f2),
+    ("measured_web", 0xa33c4004c064975d, 0x1d888af148f0f31e),
     ("boss_union", 0x563816ac9f7adc7e, 0x405ba395ed713022),
     ("die_fillet", 0x2b071b9218e6bd30, 0x15261a579edae7b5),
     ("die_chamfer", 0xacc58f812a61da8c, 0x6c4a019ce8bee6b2),

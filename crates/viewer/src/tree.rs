@@ -183,8 +183,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
-    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc,
+    Evaluation, Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
     NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
     ValuePayload, VarId, node_kind_noun,
 };
@@ -457,16 +457,18 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 /// **An assertion's verdict, as its row says it**: the kernel's
 /// verdict with both numbers carried as the measure's own value is
 /// ([`Computed`], in the measure's dimension, spelled when drawn), the
-/// side of the bound the measure must fall on, and which measure that
-/// is.
+/// relation it states to the bound, and which measure that is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
-    /// Which side of the bound the measure must fall on.
-    pub dir: AssertionDir,
-    /// The measure node the assertion constrains.
-    pub measure: SpokenNode,
+    /// How the value must relate to the bound.
+    pub relation: AssertionRelation,
+    /// The measure under the value the assertion bounds — the
+    /// `min_clearance` one when there is one, since that is the measure
+    /// a point scalar cannot answer — or `None` for a value no measure
+    /// is under.
+    pub measure: Option<SpokenNode>,
 }
 
 // `AssertionVerdict` derives `PartialEq` alone, for its scalar's sake;
@@ -496,7 +498,7 @@ impl Asserted {
             | AssertionVerdict::Violated { measured, bound } => Some(format!(
                 "{} {} {}",
                 measured.spelled(notation),
-                self.dir.symbol(),
+                self.relation.symbol(),
                 bound.spelled(notation)
             )),
             AssertionVerdict::Unevaluated { .. } => None,
@@ -868,9 +870,7 @@ fn readout_of(
             dimension: *dim,
         })),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
-        ValuePayload::Assertion(verdict) => {
-            Some(Readout::Asserted(asserted(doc, node, verdict, evaluation)))
-        }
+        ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => match (above, below) {
             (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
@@ -892,35 +892,46 @@ fn readout_of(
     }
 }
 
-/// **An assertion's verdict, its numbers carried in its measure's
-/// dimension.** A verdict carries numbers only when its measure
-/// evaluated to a value, so the dimension is that value's.
+/// **An assertion's verdict, its numbers carried in its value's
+/// dimension.** The value is a scalar variable, and its kind's
+/// dimension is the one both numbers are in.
 fn asserted(
     doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
-    evaluation: &Evaluation<f64>,
 ) -> Asserted {
-    let Node::Assertion { measure, dir, .. } = node else {
+    let Node::Assertion {
+        value, relation, ..
+    } = node
+    else {
         unreachable!("only an assertion node evaluates to a verdict")
     };
-    let Some((measure, _)) = doc.defined_by(*measure) else {
-        unreachable!("an assertion with a verdict reads a live measure")
+    let dim = || match doc.var(*value).and_then(|var| var.kind().dimension()) {
+        Some(dim) => dim,
+        None => unreachable!("an assertion's value is a scalar variable the document holds"),
     };
-    let dim = || match evaluation.usable(measure).ok().map(|value| &value.payload) {
-        Some(ValuePayload::Measure { dim, .. }) => *dim,
-        other => unreachable!(
-            "a verdict with numbers compared a measured value, yet its measure holds {:?}",
-            other.map(ValuePayload::kind_name)
-        ),
-    };
+    let measures: Vec<RecipeNodeId> = doc
+        .observed_outputs(*value)
+        .into_iter()
+        .filter_map(|output| doc.operation_of(output))
+        .collect();
+    let clearance = measures.iter().copied().find(|&measure| {
+        matches!(
+            doc.node(measure),
+            Some(Node::Measure {
+                primitive: editor_core::MeasurePrimitive::MinClearance { .. }
+            })
+        )
+    });
     Asserted {
         verdict: verdict.clone().map(|number| Computed {
             canonical: number,
             dimension: dim(),
         }),
-        dir: *dir,
-        measure: doc.spoken(measure),
+        relation: *relation,
+        measure: clearance
+            .or_else(|| measures.first().copied())
+            .map(|measure| doc.spoken(measure)),
     }
 }
 
@@ -1272,7 +1283,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureNonFinite { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
-        | NodeErrorKind::MeasureMalformed(_)
         | NodeErrorKind::PayloadExpr { .. }
         | NodeErrorKind::MeasureSelectionKind { .. }
         | NodeErrorKind::MeasureClearanceRefused(_)

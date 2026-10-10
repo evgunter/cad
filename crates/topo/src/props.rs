@@ -201,10 +201,11 @@ pub enum MassPropsError {
         /// The per-face failure.
         source: PropsError,
     },
-    /// A curved face carries interior rings and is not a cylinder wall
-    /// bounded by rims and rulings — the one ringed curved face the
-    /// closed forms measure (`geom_brep::props::curved_face_loops`). A
-    /// boolean pierce leaves a ring in the wall it pierces.
+    /// A curved face carries interior rings and is neither a cone wall
+    /// nor a cylinder or torus wall bounded by rims and rulings — the
+    /// ringed curved faces the closed forms measure
+    /// (`geom_brep::props::curved_face_loops`). A boolean pierce leaves
+    /// a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -238,9 +239,9 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cylinder wall bounded by circles about its axis and lines along \
-                 it. Recourse: move the cut so it crosses the face's edge instead of closing \
-                 inside the face"
+                 other than a cone wall, or a cylinder or torus wall bounded by circles \
+                 about its axis and its own meridians. Recourse: move the cut so it \
+                 crosses the face's edge instead of closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -266,7 +267,8 @@ impl std::error::Error for MassPropsError {}
 /// # Errors
 ///
 /// [`MassPropsError`] — a misconfigured band, an out-of-inventory
-/// face, rings on a curved face, or unresolvable structure.
+/// face, a ring on a curved face no closed form reads, or unresolvable
+/// structure.
 ///
 /// **Not every valid body computes**, and the sentence that used to
 /// stand here (*"bodies that pass the structural tiers and were built
@@ -2495,11 +2497,11 @@ fn face_loops<T: Decide>(
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane and a cylinder over every loop, any other surface over
-/// its outer loop and its sense (a ring there is refused before this is
-/// reached, `RingOnCurvedFace`). The face walk runs it at the walk's
-/// scalar, and [`QuadLane`]'s `closed_form` at the interval scalar over
-/// the same geometry lifted.
+/// at: a plane, a cylinder, a torus and a cone over every loop, a
+/// sphere over its outer loop and its sense (a ring there is refused
+/// before this is reached, `RingOnCurvedFace`). The face walk runs it
+/// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
+/// interval scalar over the same geometry lifted.
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
@@ -2544,13 +2546,15 @@ fn face_flux<T: Decide>(
             closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
-            // A cylinder or torus face's closed form reads every loop
-            // (`geom_brep::props::curved_face_loops`); no other curved
-            // kind, and no quadrature lane, reads a ring.
+            // A cone face's closed form reads every loop of lines and
+            // conics, and a cylinder or torus face's every loop of rims
+            // and rulings (`geom_brep::props::curved_face_loops`); no other
+            // curved kind, and no quadrature lane, reads a ring.
             let mut rings = Vec::with_capacity(face.rings.len());
             for &lk in &face.rings {
                 rings.push(loop_edges(body, lk)?.0);
             }
+            let (outer, hes) = loop_edges(body, face.outer)?;
             let untrimmed = |edges: &[LoopEdge<T>]| {
                 edges.iter().all(|e| {
                     matches!(
@@ -2559,14 +2563,14 @@ fn face_flux<T: Decide>(
                     )
                 })
             };
-            if !rings.is_empty()
-                && !(matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. })
-                    && rings.iter().all(|r| untrimmed(r)))
-            {
-                return Err(MassPropsError::RingOnCurvedFace { face: face_key });
-            }
-            let (outer, hes) = loop_edges(body, face.outer)?;
-            if !rings.is_empty() && !untrimmed(&outer) {
+            let reads_rings = match surface {
+                Surface::Cone { .. } => true,
+                Surface::Cylinder { .. } | Surface::Torus { .. } => {
+                    untrimmed(&outer) && rings.iter().all(|r| untrimmed(r))
+                }
+                _ => false,
+            };
+            if !rings.is_empty() && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             // Structural dispatch (C5: on the carrier KIND, never a
