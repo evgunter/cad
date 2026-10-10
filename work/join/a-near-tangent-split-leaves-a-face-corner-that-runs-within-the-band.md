@@ -9,6 +9,7 @@ cost: H
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
 closed: 2026-10-09
 branch: join/door-types-in-band-results
+pr: 4415
 ---
 
 ## What

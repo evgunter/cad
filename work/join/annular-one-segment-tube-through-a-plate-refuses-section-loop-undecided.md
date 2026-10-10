@@ -2,11 +2,13 @@
 id: annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided
 kind: issue
 title: An annular one-segment tube through a plate, its two wrap edges at different azimuths, refuses SectionLoopUndecided: both region faces of the inner loop's null face have every witness on the tube
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: H
 branch: join/annular-tube-roles
+pr: 4397
+closed: 2026-10-09
 ---
 
 Found by the PR 4345 dual review (r2 MINOR 5, the `F3 annulus` probe on
@@ -88,3 +90,8 @@ candidate, so the first exit's midpoint is still among them. The fix does not de
 ladder the shell witness, tier 3's check 10 and the pieces sort also
 read. Pinned in `crates/topo/src/stands.rs` `rung_three_rows` and
 `crates/sweep/tests/an_annular_tube_through_a_plate.rs`.
+
+## Closed
+
+Built as above by PR 4397 (merged `1a8170a5f7`, 2026-10-09): every
+azimuth pair builds in all six ops at its closed form.

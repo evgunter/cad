@@ -2,12 +2,14 @@
 id: a-tube-ending-on-a-ball-refuses-section-loop-mixed
 kind: issue
 title: A tube whose end rim lies on a ball, unioned with it, passes the crossing layer and refuses Join(SectionLoopMixed)
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall]
 branch: join/tube-ending-on-a-ball
+pr: 4399
+closed: 2026-10-10
 ---
 
 
@@ -67,3 +69,9 @@ Branch `join/tube-ending-on-a-ball`, 2026-10-09.
   (`CurvedPierceUnsupported`, `ArcNearPole`, in-band escalations); a
   tube ending on the ball from inside
   (`a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`).
+
+## Closed
+
+Built as above by PR 4399 (merged `ee2c7879b1`, 2026-10-10). The
+inside-tangent residue is its own row,
+`a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`.
