@@ -5747,7 +5747,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_node_fault_tag",
             "naming_error_tag",
             "node_error_tag",
-            "param_attach_error_tag",
             "param_box_error_tag",
             "pieces_fault_tag",
             "placement_rule_inner_tag",
@@ -5820,11 +5819,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_u_axis",
             "underflowed_v_axis",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "param_attach_error_tag",
-        values: &["field_not_on_kind", "stale_key"],
         delegates: &[],
     },
     TagEntry {
