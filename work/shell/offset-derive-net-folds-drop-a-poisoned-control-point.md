@@ -4,6 +4,8 @@ kind: issue
 title: offset_derive folds a wall's or carrier's control net with f64::max, which drops a poisoned point and answers a short finite bound
 status: open
 opened: 2026-10-10
+priority: P3
+cost: E
 ---
 
 
