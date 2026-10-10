@@ -1381,7 +1381,7 @@ area `kernel`; prefix `contacthold/`; tag `(CONTACTHOLD orchestrator)`; ab_band 
 | P2 | `a-same-operand-f7-refusal-is-rendered-as-a-declarable-undeclared-contact` | issue | E | parked | The document layer renders a same-operand F7 refusal (two coplanar faces of one operand) as an undeclared contact between two members, offering a declaration no vocabulary can express | booleans-glue-on-zero |  |
 | P3 | `boolean-conic-side-code-zero-is-first-order` | issue | M | parked | A curved edge's side code at a boolean vertex reads its departure to first order, so an arc tangent to the other face at the vertex reads On while it curves off | booleans-glue-on-zero |  |
 | P3 | `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` | issue | E | parked | contact: the Rest verify and the flush detector drop CarrierEqError::Escalated's plane rung, so an orientation refusal reads as a coincidence | declared-pairs-retire |  |
-| P3 | `census-declared-sites-read-a-torn-record-as-absent` | issue | E | parked | The census's declared-site walks (ee_cross_backed, sweep_conformal_patches, the patch arm of confirm_curve_and_patch_records) read a torn record as absent — the held half of census-arena-walks-read-a-torn-record-as-absent | booleans-glue-on-zero |  |
+| P3 | `census-declared-sites-read-a-torn-record-as-absent` | issue | E | parked | The census's declared-site walks (ee_cross_backed, sweep_conformal_patches, the patch arm of confirm_curve_and_patch_records) read a torn record as absent — the held half of census-arena-walks-read-a-torn-record-as-absent | contact-records-cite-their-decision |  |
 | P3 | `census-edge-pass-reads-no-line-conic-crossing` | issue | M | parked | The census's edge passes never read a line crossing a coplanar conic boundary arc as an event | declared-pairs-retire |  |
 | P3 | `contact-records-carry-operand-labels-into-the-at-rest-currency` | issue | M | parked | ContactRecords' operand-labelled lists (a_on_b, b_on_a; VvContact a/b as A-clone/B-clone keys) are reduction vocabulary used as the at-rest declaration type | contact-records-cite-their-decision |  |
 | P3 | `contact-tangent-relation-decides-offsets-and-tilt-per-sample` | issue | M | parked | check whether contact_verify's tangent relation decides the offsets and the tilt one at a time | booleans-glue-on-zero |  |
@@ -2710,7 +2710,7 @@ area `kernel`; prefix `zip/`; tag `(ZIP orchestrator)`; ab_band `7200-7299`.
 | `boolean-conic-side-code-zero-is-first-order` | contacthold | parked | booleans-glue-on-zero |
 | `boolean-vertex-contact-records-are-inferred-from-values` | contacthold | parked | contact-records-cite-their-decision |
 | `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` | contacthold | parked | declared-pairs-retire |
-| `census-declared-sites-read-a-torn-record-as-absent` | contacthold | parked | booleans-glue-on-zero |
+| `census-declared-sites-read-a-torn-record-as-absent` | contacthold | parked | contact-records-cite-their-decision |
 | `census-edge-pass-reads-no-line-conic-crossing` | contacthold | parked | declared-pairs-retire |
 | `contact-records-carry-operand-labels-into-the-at-rest-currency` | contacthold | parked | contact-records-cite-their-decision |
 | `contact-tangent-relation-decides-offsets-and-tilt-per-sample` | contacthold | parked | booleans-glue-on-zero |
