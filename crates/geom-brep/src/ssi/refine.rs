@@ -41,8 +41,11 @@
 //!
 //! The refusal carries the earlier rounds' refused limbs and margins
 //! ([`RefusedRound`]) beside its own, so a margin that stays flat while
-//! the samples double shows as the floor it is, and the step budget's
-//! ending reads the last two ([`stopped_falling`]). Each round's time is
+//! the samples double shows as the floor it is. What refinement routes
+//! on is not that report but the refused residual each limb leaves it
+//! ([`RefusedResidual`]): whether it stopped falling over the last two
+//! rounds ([`stopped_falling`]) asks limb 3, and names the wall the step
+//! budget met ([`ResidualTrend`]). Each round's time is
 //! linear in the samples, and only the wall bounds the rounds
 //! (`work/ssimarch/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
 
@@ -80,7 +83,23 @@ pub enum RefineStop {
     StepBudget {
         /// The budget.
         budget: usize,
+        /// What the refused residual did over the last two rounds, which
+        /// names the wall the budget met.
+        trend: ResidualTrend,
     },
+}
+
+/// What the refused residual did over refinement's last two rounds
+/// ([`RefineStop::StepBudget`]), as the driver decided it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResidualTrend {
+    /// It stopped falling: both rounds undecided in the band, or both
+    /// definite with the later bound no smaller. No between-sample error
+    /// stays flat while the samples double, so the wall met is the
+    /// arithmetic's floor.
+    Stalled,
+    /// It fell, or no earlier round shows it did not: the branch's size.
+    Falling,
 }
 
 /// One refinement round's refusal, as the certificate reported it. The
@@ -96,22 +115,23 @@ pub struct RefusedRound {
     pub margin: RoundMargin,
 }
 
-/// What a refusing limb read in one round.
+/// What the classifier saw of a refusing limb in one round, for the
+/// refusal's report only ([`MarginDiag`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RoundMargin {
-    /// A definite refusal, in metres: limb 2's bound over the whole
-    /// carrier, or limb 1's residual at the first sample that refused.
-    Over(f64),
-    /// Undecided: the margin the classifier saw, inside the band, for
-    /// the refusal's report only.
+    /// A definite refusal: limb 2's bound over the whole carrier, or
+    /// limb 1's residual at the first sample that refused.
+    Over(MarginDiag),
+    /// Undecided: inside the band.
     InBand(MarginDiag),
 }
 
-/// The limb that refused and what it read, for a refusal of limb 1 or 2:
-/// the refusals the certificate locates. `None` for every other.
+/// The limb that refused and what the classifier saw of it, for a
+/// refusal of limb 1 or 2: the refusals the certificate locates. `None`
+/// for every other.
 pub(crate) fn limb_reading(error: &SsiError) -> Option<(SsiLimb, RoundMargin)> {
     match error {
-        SsiError::CertificateLimb { limb, value, .. } => Some((*limb, RoundMargin::Over(*value))),
+        SsiError::CertificateLimb { limb, margin } => Some((*limb, RoundMargin::Over(*margin))),
         SsiError::CertificateEscalated { limb, cause } => {
             Some((*limb, RoundMargin::InBand(cause.margin)))
         }
@@ -119,15 +139,31 @@ pub(crate) fn limb_reading(error: &SsiError) -> Option<(SsiLimb, RoundMargin)> {
     }
 }
 
-/// Whether the refused margin stopped falling over two consecutive
-/// rounds: both in the band, whatever their values, or both definite
-/// with the later no smaller. It decides two things: when refinement
-/// asks limb 3 of the carrier ([`refine_by_certificate`]), and how the
-/// step budget's refusal ends, the arithmetic's floor or the curvature.
-pub(crate) fn stopped_falling(before: Option<RoundMargin>, last: Option<RoundMargin>) -> bool {
+/// **The refused residual**: what a refusing limb leaves refinement to
+/// drive down, read off the limb's own enclosure where it refused. It
+/// drives refinement ([`stopped_falling`]) and is reported nowhere; a
+/// round's report is its [`RoundMargin`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum RefusedResidual {
+    /// A definite refusal: the upper end of the limb's residual
+    /// enclosure, in metres — limb 2's bound over the whole carrier, or
+    /// limb 1's residual at the first sample that refused.
+    Over(f64),
+    /// Undecided: the residual lies in the band.
+    InBand,
+}
+
+/// Whether the refused residual stopped falling over two consecutive
+/// rounds: both in the band, or both definite with the later bound no
+/// smaller. It decides when refinement asks limb 3 of the carrier, and
+/// the step budget's [`ResidualTrend`].
+pub(crate) fn stopped_falling(
+    before: Option<RefusedResidual>,
+    last: Option<RefusedResidual>,
+) -> bool {
     match (before, last) {
-        (Some(RoundMargin::InBand(_)), Some(RoundMargin::InBand(_))) => true,
-        (Some(RoundMargin::Over(a)), Some(RoundMargin::Over(b))) => b >= a,
+        (Some(RefusedResidual::InBand), Some(RefusedResidual::InBand)) => true,
+        (Some(RefusedResidual::Over(a)), Some(RefusedResidual::Over(b))) => b >= a,
         _ => false,
     }
 }
@@ -156,6 +192,7 @@ where
 {
     let mut states = fit_minimum(sys, states, ctx, band)?;
     let mut earlier: Vec<RefusedRound> = Vec::new();
+    let mut before: Option<RefusedResidual> = None;
     let mut tube_asked = false;
     loop {
         let (error, at) = match certify(&states, Limbs::All) {
@@ -166,9 +203,10 @@ where
             }) => (error, at),
             Err(Located { error, at: None }) => return Err(error),
         };
-        // A refused margin that stopped falling may be a carrier across
+        let stalled = stopped_falling(before, Some(at.residual));
+        // A refused residual that stopped falling may be a carrier across
         // two arcs, which no halving answers: limb 3 is asked once.
-        if !tube_asked && stopped_falling(earlier.last().map(|r| r.margin), Some(at.margin)) {
+        if !tube_asked && stalled {
             tube_asked = true;
             if let Err(Located { error, .. }) = certify(&states, Limbs::Tube) {
                 return Err(error);
@@ -210,6 +248,11 @@ where
         } else if finer.len() - 1 > ctx.max_steps {
             Some(RefineStop::StepBudget {
                 budget: ctx.max_steps,
+                trend: if stalled {
+                    ResidualTrend::Stalled
+                } else {
+                    ResidualTrend::Falling
+                },
             })
         } else {
             None
@@ -227,6 +270,7 @@ where
             limb: at.limb,
             margin: at.margin,
         });
+        before = Some(at.residual);
         states = finer;
     }
 }
@@ -380,8 +424,8 @@ mod tests {
     use geom_core::{Band, MarginDiag};
 
     use super::{
-        BranchBound, Limbs, Located, RefineStop, RefusedRound, RoundMargin, SsiError, SsiLimb,
-        refine_by_certificate,
+        BranchBound, Limbs, Located, RefineStop, RefusedResidual, RefusedRound, ResidualTrend,
+        RoundMargin, SsiError, SsiLimb, refine_by_certificate, stopped_falling,
     };
     use crate::ssi::SSI_MAX_STEPS;
     use crate::ssi::certify::RefusedSpan;
@@ -408,12 +452,12 @@ mod tests {
         Located {
             error: SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
-                value,
                 margin: MarginDiag::value(value),
             },
             at: Some(Box::new(Spans {
                 limb: SsiLimb::HullSup,
-                margin: RoundMargin::Over(value),
+                margin: RoundMargin::Over(MarginDiag::value(value)),
+                residual: RefusedResidual::Over(value),
                 spans: vec![RefusedSpan {
                     lo: t(lo),
                     hi: t(hi),
@@ -512,11 +556,11 @@ mod tests {
             }
             let verdict = certify(s);
             if let Err(Located {
-                error: SsiError::CertificateLimb { value, .. },
+                error: SsiError::CertificateLimb { margin, .. },
                 ..
             }) = &verdict
             {
-                seen.push((s.len(), *value));
+                seen.push((s.len(), *margin));
             }
             verdict
         });
@@ -551,13 +595,13 @@ mod tests {
                     seen.len(),
                     "a round per refused carrier, the last as the refusal"
                 );
-                for (round, (n, value)) in earlier.iter().zip(&seen) {
+                for (round, (n, margin)) in earlier.iter().zip(&seen) {
                     assert_eq!(
                         *round,
                         RefusedRound {
                             samples: *n,
                             limb: SsiLimb::HullSup,
-                            margin: RoundMargin::Over(*value),
+                            margin: RoundMargin::Over(*margin),
                         },
                         "each round as it was refused"
                     );
@@ -594,21 +638,47 @@ mod tests {
         });
         match r {
             Err(SsiError::RefinementExhausted {
-                stop: RefineStop::StepBudget { budget },
+                stop: RefineStop::StepBudget { budget, trend },
                 samples,
                 earlier,
                 ..
             }) => {
                 assert_eq!(budget, ctx.max_steps);
+                assert_eq!(trend, ResidualTrend::Stalled, "the flat residual stalled");
                 assert_eq!(samples, 65, "the doubling the wall stopped: 128 steps next");
                 let counts: Vec<usize> = earlier.iter().map(|r| r.samples).collect();
                 assert_eq!(counts, [5, 9, 17, 33], "the samples doubled each round");
                 assert!(
-                    earlier.iter().all(|r| r.margin == RoundMargin::Over(floor)),
+                    earlier
+                        .iter()
+                        .all(|r| r.margin == RoundMargin::Over(MarginDiag::value(floor))),
                     "the flat margin, round by round: {earlier:?}"
                 );
             }
             other => panic!("expected refinement exhausted at the step budget, got {other:?}"),
+        }
+    }
+
+    /// **The refused residual stops falling only where two rounds show
+    /// it**: both in the band, or both definite with the later bound no
+    /// smaller. A fall, a single round, or a change of arm does not.
+    #[test]
+    fn the_residual_stops_falling_only_over_two_rounds_that_show_it() {
+        use RefusedResidual::{InBand, Over};
+        for (before, last, stalled) in [
+            (Some(Over(1.0e-14)), Some(Over(1.17e-14)), true),
+            (Some(Over(3.0e-9)), Some(Over(3.0e-9)), true),
+            (Some(InBand), Some(InBand), true),
+            (Some(Over(1.30e-10)), Some(Over(2.15e-11)), false),
+            (None, Some(Over(1.0e-14)), false),
+            (Some(InBand), Some(Over(1.0e-14)), false),
+            (Some(Over(1.0e-14)), Some(InBand), false),
+        ] {
+            assert_eq!(
+                stopped_falling(before, last),
+                stalled,
+                "{before:?} then {last:?}"
+            );
         }
     }
 

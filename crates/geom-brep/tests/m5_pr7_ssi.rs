@@ -83,6 +83,7 @@
     clippy::unreachable
 )]
 
+use crate::shared::margin::upper;
 use crate::shared::surf;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
@@ -91,9 +92,9 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, RefineStop, RefusedRound,
-    RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR, SSI_SETTLE_MAX,
-    SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand,
-    SsiTube,
+    ResidualTrend, RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR,
+    SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Margin, Point3, Vec3};
@@ -422,8 +423,8 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let n = carrier.control().len() / 2;
     let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value, .. }) => {
-            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
+        Err(SsiError::CertificateLimb { limb, margin }) => {
+            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: margin = {margin}");
         }
         other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
     }
@@ -447,10 +448,9 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         match certify_against(&bad) {
             Err(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
-                value,
-                ..
+                margin,
             }) => {
-                found = Some((d, value));
+                found = Some((d, upper(margin)));
                 break;
             }
             // A hull bound that lands just ABOVE ε is inside the
@@ -1130,9 +1130,8 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     match err {
         SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
-            value,
-            ..
-        } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
+            margin,
+        } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
         other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
     }
 }
@@ -4807,10 +4806,10 @@ fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
 fn rounds_at_the_wall(
     at: &str,
     r: &Result<geom_brep::SsiOutcome, SsiError>,
-) -> (usize, Vec<RefusedRound>, String) {
+) -> (usize, Vec<RefusedRound>, String, ResidualTrend) {
     let Err(
         e @ SsiError::RefinementExhausted {
-            stop: RefineStop::StepBudget { budget },
+            stop: RefineStop::StepBudget { budget, trend },
             samples,
             refusal,
             earlier,
@@ -4827,7 +4826,7 @@ fn rounds_at_the_wall(
         "{at}: refused at the round that would overrun it: {samples} samples"
     );
     let last = match **refusal {
-        SsiError::CertificateLimb { limb, value, .. } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateLimb { limb, margin } => (limb, RoundMargin::Over(margin)),
         SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
         ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
     };
@@ -4841,6 +4840,7 @@ fn rounds_at_the_wall(
         *samples,
         rounds,
         e.render(geom_brep::recourse::Reading::Build),
+        *trend,
     )
 }
 
@@ -4865,7 +4865,8 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds, shown) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
     assert!(
         (18_000..18_600).contains(&samples),
         "the march's samples: {samples}"
@@ -4906,7 +4907,12 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         return;
     }
     let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds, shown) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    assert_eq!(
+        trend,
+        ResidualTrend::Stalled,
+        "the floor stalled the residual"
+    );
     assert!(
         shown.contains(
             "the margin stopped falling, so at this ε and scale it is the arithmetic's floor"

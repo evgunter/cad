@@ -1326,19 +1326,17 @@ const _: () = {
 /// The SSI door's definite refusals each measured something different,
 /// so each rides its own named arm: flattening them onto one anonymous
 /// number loses the only thing a reader needs, what the number means.
-/// The limb residual and the foot distances are quantities the lane
-/// projected out of an enclosure when it refused. The tube's clearance
-/// is the reporting margin its zero verdict was decided on
+/// The foot distances are quantities the lane projected out of an
+/// enclosure when it refused. The limb residual and the tube's
+/// clearance are the reporting margins their verdicts were decided on
 /// ([`geom_core::MarginDiag`], for the message only), as `edge_nurbs`'
-/// `TubeStraddles` carries it on its verdict (`recourse::Refused`): a
-/// point at `f64`, and at `Interval` the enclosure, rendered
-/// `[lo, hi] m`.
+/// `Limb` and `TubeStraddles` carry them: a point at `f64`, and at
+/// `Interval` the enclosure, rendered `[lo, hi] m`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
-    /// A certificate limb exceeded ε: the limb's own residual bound in
-    /// metres, as projected from its enclosure when the limb refused.
-    /// A definite refusal's quantity — not a classified margin.
-    LimbResidual(f64),
+    /// A certificate limb exceeded ε: what the classifier saw of the
+    /// limb's residual, in metres, for the message only.
+    LimbResidual(geom_core::MarginDiag),
     /// Limb 3's uniqueness tube did not classify clear of the zero band.
     /// The number is a **certified clearance**, not a measured extent:
     /// it is exactly zero whenever the enclosure contains zero, so `0`
@@ -2770,10 +2768,10 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // Only a marching door refines; the refusal it could not answer
         // is the certificate's, and reads as it.
         E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
-        E::CertificateLimb { limb, value, .. } => (
+        E::CertificateLimb { limb, margin } => (
             Some(limb),
             "a certificate limb exceeded ε",
-            Some(FittedMagnitude::LimbResidual(value)),
+            Some(FittedMagnitude::LimbResidual(margin)),
         ),
         E::TubeStraddles { verdict, boxes } => (
             Some(SsiLimb::Tube),

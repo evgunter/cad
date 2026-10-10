@@ -25,6 +25,7 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::margin::upper;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -87,7 +88,8 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
     let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
-        Err(PlaneNurbsRefusal::Limb { limb, value, .. }) => {
+        Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
+            let value = upper(margin);
             println!(
                 "M7-8 displaced carrier: {} measured {value:e} m",
                 limb.name()
@@ -130,7 +132,8 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
         assert_eq!(p.y, 0.0, "the carrier stays exactly on the y = 0 plane");
     }
     match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
-        Err(PlaneNurbsRefusal::Limb { limb, value, .. }) => {
+        Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
+            let value = upper(margin);
             println!(
                 "M7-8 wall-side falsifier: {} measured {value:e} m (planted {off:e} m)",
                 limb.name()
@@ -342,7 +345,8 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
         band(),
         Some(geom_brep::NurbsLane::certified()),
     ) {
-        Err(e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, value, .. })) => {
+        Err(e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) => {
+            let value = upper(margin);
             println!("M7-8 door falsifier: {} measured {value:e} m", limb.name());
             assert_eq!(limb, SsiLimb::OnLocus, "limb 1 measures the miss: {e:?}");
             assert!(value >= off * 0.5, "the measured bound: {value:e}");

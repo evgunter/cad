@@ -129,6 +129,7 @@ use super::enclose::{
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
+use super::refine::RefusedResidual;
 use super::section::{BandVerdict, band_verdict};
 use super::{SsiError, SsiOperand};
 
@@ -414,7 +415,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     surface: &Surface<T>,
     band: Band,
-    at: &mut Vec<RefusedSpan>,
+    at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: the implicit form composed with the refined
     // carrier, in metres.
@@ -454,31 +455,12 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         worst = worst.max(r);
         let decided = decide_reported("ssi_on_locus", Margin::of(r), band);
         if locatable(&decided) {
-            at.push(RefusedSpan { lo: t, hi: t });
+            at.spans.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
-                hull.uncleared(band, at);
+                hull.uncleared(band, &mut at.spans);
             }
         }
-        match decided {
-            // Zero is the affirmative: the residual is zero to
-            // tolerance (the `dihedral_wedge` convention).
-            Ok(Decided {
-                sign: Sign::Zero, ..
-            }) => {}
-            Ok(Decided { margin, .. }) => {
-                return Err(SsiError::CertificateLimb {
-                    limb: SsiLimb::OnLocus,
-                    value: r.hi(),
-                    margin,
-                });
-            }
-            Err(cause) => {
-                return Err(SsiError::CertificateEscalated {
-                    limb: SsiLimb::OnLocus,
-                    cause,
-                });
-            }
-        }
+        limb_verdict(SsiLimb::OnLocus, decided, || r.hi(), at)?;
     }
 
     // ---- limb 2: the certified hull bound ----
@@ -489,22 +471,10 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let sup = T::from_f64(hull.sup);
     let decided = decide_reported("ssi_hull_sup", Margin::of(sup), band);
     if locatable(&decided) {
-        hull.uncleared(band, at);
+        hull.uncleared(band, &mut at.spans);
     }
-    match decided {
-        Ok(Decided {
-            sign: Sign::Zero, ..
-        }) => Ok((worst, sup)),
-        Ok(Decided { margin, .. }) => Err(SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value: sup.hi(),
-            margin,
-        }),
-        Err(cause) => Err(SsiError::CertificateEscalated {
-            limb: SsiLimb::HullSup,
-            cause,
-        }),
-    }
+    limb_verdict(SsiLimb::HullSup, decided, || sup.hi(), at)?;
+    Ok((worst, sup))
 }
 
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
@@ -514,7 +484,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     band: Band,
-    at: &mut Vec<RefusedSpan>,
+    at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, in
     // metres.
@@ -594,29 +564,12 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         worst = worst.max(proj.distance);
         let decided = decide_reported("ssi_on_locus_foot", Margin::of(proj.distance), band);
         if locatable(&decided) {
-            at.push(RefusedSpan { lo: t, hi: t });
+            at.spans.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
-                hull.uncleared(band, at);
+                hull.uncleared(band, &mut at.spans);
             }
         }
-        match decided {
-            Ok(Decided {
-                sign: Sign::Zero, ..
-            }) => {}
-            Ok(Decided { margin, .. }) => {
-                return Err(SsiError::CertificateLimb {
-                    limb: SsiLimb::OnLocus,
-                    value: proj.distance.hi(),
-                    margin,
-                });
-            }
-            Err(cause) => {
-                return Err(SsiError::CertificateEscalated {
-                    limb: SsiLimb::OnLocus,
-                    cause,
-                });
-            }
-        }
+        limb_verdict(SsiLimb::OnLocus, decided, || proj.distance.hi(), at)?;
     }
 
     // ---- limb 2: |S(P(t)) − C(t)| as ONE composite (M5 PR 7b) ----
@@ -629,21 +582,34 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let sup = T::from_f64(sup);
     let decided = decide_reported("ssi_hull_sup_chart", Margin::of(sup), band);
     if locatable(&decided) {
-        hull.uncleared(band, at);
+        hull.uncleared(band, &mut at.spans);
     }
+    limb_verdict(SsiLimb::HullSup, decided, || sup.hi(), at)?;
+    Ok((worst, sup))
+}
+
+/// A limb's verdict on its residual: `Ok` where it is zero to tolerance
+/// (the `dihedral_wedge` convention), and otherwise the limb's refusal,
+/// leaving `at` the refused residual — `sup`, the upper end of the
+/// residual's enclosure, on a definite refusal.
+fn limb_verdict(
+    limb: SsiLimb,
+    decided: Result<Decided, Indeterminate>,
+    sup: impl FnOnce() -> f64,
+    at: &mut Refused,
+) -> Result<(), SsiError> {
     match decided {
         Ok(Decided {
             sign: Sign::Zero, ..
-        }) => Ok((worst, sup)),
-        Ok(Decided { margin, .. }) => Err(SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value: sup.hi(),
-            margin,
-        }),
-        Err(cause) => Err(SsiError::CertificateEscalated {
-            limb: SsiLimb::HullSup,
-            cause,
-        }),
+        }) => Ok(()),
+        Ok(Decided { margin, .. }) => {
+            at.residual = Some(RefusedResidual::Over(sup()));
+            Err(SsiError::CertificateLimb { limb, margin })
+        }
+        Err(cause) => {
+            at.residual = Some(RefusedResidual::InBand);
+            Err(SsiError::CertificateEscalated { limb, cause })
+        }
     }
 }
 
@@ -1237,6 +1203,15 @@ pub(crate) struct RefusedSpan {
     pub(crate) hi: f64,
 }
 
+/// What limbs 1 and 2 leave refinement where they refuse a carrier.
+#[derive(Debug, Default)]
+pub(crate) struct Refused {
+    /// The parameter intervals the refusal lies in.
+    pub(crate) spans: Vec<RefusedSpan>,
+    /// The refused residual, once a limb refused.
+    pub(crate) residual: Option<RefusedResidual>,
+}
+
 /// A certificate's refusal, with where on the carrier limbs 1 and 2
 /// refused it.
 #[derive(Debug)]
@@ -1249,15 +1224,17 @@ pub(crate) struct Located {
     pub(crate) at: Option<Box<Spans>>,
 }
 
-/// A located refusal: its limb, what the limb read, and the parameter
-/// intervals whose residual did not clear the band's zero, a limb-1
-/// sample as a point interval.
+/// A located refusal: its limb, what the classifier saw of it, the
+/// refused residual, and the parameter intervals whose residual did not
+/// clear the band's zero, a limb-1 sample as a point interval.
 #[derive(Debug)]
 pub(crate) struct Spans {
     /// The limb that refused.
     pub(crate) limb: SsiLimb,
-    /// What it read.
+    /// What the classifier saw, for the round's report.
     pub(crate) margin: super::RoundMargin,
+    /// What refinement drives down.
+    pub(crate) residual: RefusedResidual,
     /// The carrier's parameter intervals the refusal lies in.
     pub(crate) spans: Vec<RefusedSpan>,
 }
@@ -1283,14 +1260,17 @@ pub(crate) fn certify_located(
     band: Band,
     limbs: Limbs,
 ) -> Result<SsiCertificate<f64>, Located> {
-    let mut spans = Vec::new();
-    certify_branch(carrier, lane, extent, band, limbs, &mut spans).map_err(|error| {
-        let at = match super::refine::limb_reading(&error) {
-            Some((limb, margin)) if !spans.is_empty() => Some(Box::new(Spans {
-                limb,
-                margin,
-                spans,
-            })),
+    let mut refused = Refused::default();
+    certify_branch(carrier, lane, extent, band, limbs, &mut refused).map_err(|error| {
+        let at = match (super::refine::limb_reading(&error), refused.residual) {
+            (Some((limb, margin)), Some(residual)) if !refused.spans.is_empty() => {
+                Some(Box::new(Spans {
+                    limb,
+                    margin,
+                    residual,
+                    spans: refused.spans,
+                }))
+            }
             _ => None,
         };
         Located { error, at }
@@ -1321,14 +1301,15 @@ pub(crate) fn certify_located(
 /// certify at.
 ///
 /// A limb-1 or limb-2 refusal is located on the carrier in `at`
-/// ([`RefusedSpan`]), for [`super::refine::refine_by_certificate`].
+/// ([`Refused`]), with its refused residual, for
+/// [`super::refine::refine_by_certificate`].
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     lane: Lane<'_, T>,
     extent: T,
     band: Band,
     limbs: Limbs,
-    at: &mut Vec<RefusedSpan>,
+    at: &mut Refused,
 ) -> Result<SsiCertificate<T>, SsiError> {
     // The pair the first two limbs read, the pcurve beside the second.
     let (first, second);

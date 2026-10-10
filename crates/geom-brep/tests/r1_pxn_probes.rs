@@ -24,6 +24,7 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::margin::upper;
 use crate::shared::tol::band;
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
@@ -100,7 +101,8 @@ fn a_wiggle_vanishing_at_the_whole_schedule_must_refuse() {
         ),
         Err(e) => {
             println!("R1 wiggle a={a:e}: true sup {truth:e} -> refused: {e:?}");
-            if let PlaneNurbsRefusal::Limb { value, .. } = e {
+            if let PlaneNurbsRefusal::Limb { margin, .. } = e {
+                let value = upper(margin);
                 assert!(
                     value >= truth * 0.5,
                     "the certified bound must dominate the true displacement: \
@@ -390,7 +392,8 @@ fn displacement_scan_finds_the_refusal_boundary_typed() {
                         "a displacement past ε certified: d={d:e} eps={eps:e}"
                     );
                 }
-                Err(PlaneNurbsRefusal::Limb { limb, value, .. }) => {
+                Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
+                    let value = upper(margin);
                     smallest_refused = smallest_refused.min(d);
                     seen.note(&format!("{dir} limb refusal"));
                     println!("R1 scan {dir} d={d:e}: Limb {} = {value:e}", limb.name());
