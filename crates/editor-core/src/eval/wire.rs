@@ -2798,7 +2798,12 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             records_of(value_of(results_a, a)?),
             records_of(value_of(results_b, b)?),
         );
-        resolve_declarations(&sided, doc, (&a_table, &a_records), (&b_table, &b_records))?
+        resolve_declarations(
+            &sided,
+            doc,
+            (&a_table, Some(&a_records)),
+            (&b_table, Some(&b_records)),
+        )?
     };
     let body_a = finished_operand(results_a, a, tol)?;
     let body_b = finished_operand(results_b, b, tol)?;
@@ -3017,17 +3022,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
             let resolved = drop_consumed(look_through_fold(&buckets[step], &acc_view)?, &acc_view);
-            let acc_records = match &last {
-                Some((_, contacts)) => Arc::clone(contacts),
-                None => records_of(value_of(results[0], members[0])?),
-            };
-            let member_records = records_of(value_of(results[step + 1], rest[step])?);
-            resolve_declarations(
-                &resolved,
-                doc,
-                (&acc_view, &acc_records),
-                (&member_table, &member_records),
-            )?
+            // A step's records are not cited from the union, so a
+            // same-operand pair has nothing to cite here.
+            resolve_declarations(&resolved, doc, (&acc_view, None), (&member_table, None))?
         };
         given_verdicts(&mut decls, &verdicts, step + 1, members, &fold, &acc_body)?;
         let step_refusal = |refusal| NodeErrorKind::UnionFoldStep {
@@ -3251,8 +3248,7 @@ fn judge_pairwise_contact(
             let decls = if pairs.is_empty() {
                 BooleanDeclarations::none()
             } else {
-                let none = topo::ContactRecords::default();
-                resolve_declarations(&pairs, doc, (tables[p], &none), (tables[q], &none))?
+                resolve_declarations(&pairs, doc, (tables[p], None), (tables[q], None))?
             };
             let (naming, judged, glued) = judge(p, q, decls)?;
             links
@@ -3817,8 +3813,8 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 fn resolve_declarations<'n>(
     pairs: &'n [SidedPair<'n>],
     doc: &crate::doc::Doc<ProfileProgram>,
-    (a_table, a_records): (&NameTable, &topo::ContactRecords),
-    (b_table, b_records): (&NameTable, &topo::ContactRecords),
+    (a_table, a_records): (&NameTable, Option<&topo::ContactRecords>),
+    (b_table, b_records): (&NameTable, Option<&topo::ContactRecords>),
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
     let mut out = BooleanDeclarations::none();
     for ((o1, n1, r1), (o2, n2, r2), class) in pairs {
@@ -3863,28 +3859,16 @@ fn resolve_declarations<'n>(
         // declared as one is an unsupported pair (the one check, read by
         // both vertex arms).
         let vertex_class = class.contact();
-        let backing_record = |op: topo::Operand, pair, kind: &str| {
-            let records = match op {
+        // A same-operand pair is a contact its operand carries in: it
+        // cites the operand's record of the pair, and a pair the operand
+        // records no contact for, or one at a union step, backs nothing.
+        let backing_record = |op: topo::Operand, pair| {
+            match op {
                 topo::Operand::A => a_records,
                 topo::Operand::B => b_records,
-            };
-            let found = records.position(pair);
-            {
-                use std::io::Write as _;
-                if let Ok(mut f) = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open("/tmp/claude-0/-home-user-cad/b1661c5f-8e9c-5737-8717-d5e1a33dd9b2/scratchpad/b2/measure.log")
-                {
-                    let _ = writeln!(
-                        f,
-                        "carried-{kind} {} {:?}",
-                        if found.is_some() { "backed" } else { "unbacked" },
-                        std::thread::current().name()
-                    );
-                }
             }
-            found.unwrap_or(u32::MAX)
+            .and_then(|records| records.position(pair))
+            .ok_or(NodeErrorKind::DeclaredContactUnbacked { reference: *r1 })
         };
         match step {
             DeclaredStep::CrossFaces(sides) => {
@@ -3905,8 +3889,7 @@ fn resolve_declarations<'n>(
                 let record = backing_record(
                     side.operand(),
                     (topo::Cell::Vertex(va), topo::Cell::Vertex(vb)),
-                    "vv",
-                );
+                )?;
                 // The AUTHORED class, carried, not re-defaulted.
                 carried(&mut out, side.operand()).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
@@ -3925,8 +3908,7 @@ fn resolve_declarations<'n>(
                 let record = backing_record(
                     side.operand(),
                     (topo::Cell::Vertex(vertex), topo::Cell::Face(face)),
-                    "vf",
-                );
+                )?;
                 carried(&mut out, side.operand()).vf.push(CarriedVf {
                     rest: VfContact { vertex, face },
                     class,
@@ -5321,12 +5303,11 @@ mod route_tests {
             (Operand::B, f(ms[1], CapEnd::Start)),
             (Operand::B, f(ms[1], CapEnd::End)),
         );
-        let none = topo::ContactRecords::default();
         let refused = resolve_declarations(
             std::slice::from_ref(&p),
             &doc,
-            (&acc, &none),
-            (&member, &none),
+            (&acc, None),
+            (&member, None),
         );
         assert!(
             matches!(

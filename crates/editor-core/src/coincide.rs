@@ -51,9 +51,6 @@ pub enum CitedInput {
         /// Its output body.
         output: u32,
     },
-    /// An n-ary union's accumulation, carried into its fold's last step:
-    /// the step before's records.
-    FoldAccumulation,
 }
 
 /// **One coincidence an operation decided from values**, its cells

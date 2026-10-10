@@ -1822,6 +1822,17 @@ pub enum NodeErrorKind {
         /// side here without having a single entity.
         cross_operand: bool,
     },
+    /// A declared pair of two entities of ONE operand is a contact that
+    /// operand carries in, and it names no contact record of that
+    /// operand's: nothing decided the touch it states (D1 (ii), D10), so
+    /// it backs no record of this node. At a union's fold step the
+    /// operand is the step's accumulation or member, whose records are
+    /// not cited from the union, so every such pair refuses there.
+    DeclaredContactUnbacked {
+        /// Which of the node's references is the pair's first side: its
+        /// place among [`crate::Node::payload_names`].
+        reference: usize,
+    },
     /// A blend node's selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
     /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
@@ -2573,6 +2584,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 "declare pair ({}, {}) is outside the v1 threading vocabulary",
                 kinds.0.noun(),
                 kinds.1.noun()
+            ),
+            Self::DeclaredContactUnbacked { reference } => write!(
+                f,
+                "the pair declared at reference {reference} names two entities of one operand \
+                 that the operand records no contact between, so nothing decided the touch it \
+                 states — remove the declaration, or build the operand so its own operation \
+                 records the contact"
             ),
             // The menu is what this arm owns and the payload cannot
             // spell — stated through the finding sink as the arm's

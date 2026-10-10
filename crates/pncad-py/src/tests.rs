@@ -2460,6 +2460,7 @@ fn node_error_tags_are_the_published_words() {
         DeclareResolve => "declare_resolve",
         DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         DeclareUnsupportedPair => "declare_unsupported_pair",
+        DeclaredContactUnbacked => "declared_contact_unbacked",
         UnionFoldStep => "union_fold_step",
         FilletSelectionResolve => "fillet_selection_resolve",
         ChamferSelectionResolve => "chamfer_selection_resolve",

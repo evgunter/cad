@@ -1043,6 +1043,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Naming => "naming",
         C::DeclareResolve => "declare_resolve",
         C::DeclareUnsupportedPair => "declare_unsupported_pair",
+        C::DeclaredContactUnbacked => "declared_contact_unbacked",
         C::DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         C::UnionFoldStep => "union_fold_step",
         C::FilletSelectionResolve => "fillet_selection_resolve",
@@ -1231,6 +1232,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::DeclareResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
+        NodeErrorKind::DeclaredContactUnbacked { .. } => None,
         // The step's own refusal crosses in the message.
         NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::BlendSelectionResolve { error, .. } => Some(resolve_error_tag(error)),

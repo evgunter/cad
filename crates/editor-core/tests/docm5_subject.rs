@@ -174,16 +174,16 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
 /// rather than a stopwatch, which is the same claim without a clock in
 /// it.)
 ///
-/// With the one subject-reading resident `Off`, the base never gathered
-/// (the gather lived inside that resident), so a document whose gather
-/// refuses reported cleanly and a document whose gather succeeds paid
-/// nothing. Both hold again: the counter reads 0 across the call, and
-/// the crossed pair below — which the gather refuses — reports.
+/// With the subject-reading residents `Off`, a document whose gather
+/// refuses reports cleanly and a document whose gather succeeds pays
+/// nothing: the counter reads 0 across the call, and the crossed pair
+/// below — which the gather refuses — reports.
 #[test]
 fn a_run_that_needs_no_subject_does_not_gather() {
     let tol = Tol::witness();
     let off = ChecksConfig {
         separation: Advisory::Off,
+        unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
     assert!(
@@ -209,7 +209,11 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     assert_eq!(
         report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::Separation],
+        vec![
+            CheckId::ChartCoherence,
+            CheckId::UnprovenCoincidence,
+            CheckId::Separation
+        ],
         "and the skip is visible"
     );
 
@@ -224,12 +228,16 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     let report = run_checks(&collide, &ev, &off, tol)
-        .expect("with the subject-reading resident off there is nothing to gather for");
+        .expect("with the subject-reading residents off there is nothing to gather for");
     #[cfg(debug_assertions)]
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
     assert_eq!(
         report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::Separation]
+        vec![
+            CheckId::ChartCoherence,
+            CheckId::UnprovenCoincidence,
+            CheckId::Separation
+        ]
     );
 }
 
