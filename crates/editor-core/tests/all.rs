@@ -218,6 +218,8 @@ mod resolve_group_membership;
 mod resolve_piece_ladder;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
+#[path = "revalue_corpus.rs"]
+mod revalue_corpus;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
@@ -765,6 +767,8 @@ mod intent_s2_b_reads;
 mod intent_s2_c_world;
 #[path = "intent_s2_d_measure.rs"]
 mod intent_s2_d_measure;
+#[path = "intent_s2_e_select.rs"]
+mod intent_s2_e_select;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_vars_2_table.rs"]

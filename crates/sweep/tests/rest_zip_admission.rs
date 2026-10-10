@@ -417,6 +417,25 @@ fn the_tangent_site_keeps_building_pure_contacts() {
     );
 }
 
+/// Each record's cells, with the rows it cites, read through its op's
+/// list: a declaration's own rows come first in a declared op's list,
+/// so two ops recording one decision cite it at different positions.
+fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
+    r.contacts
+        .rows()
+        .map(|(cells, cites)| {
+            let rows: Vec<String> = cites
+                .iter()
+                .map(|b| match b {
+                    topo::Backing::Decided(k) => format!("{:?}", r.coincidences[k as usize]),
+                    carried @ topo::Backing::Carried { .. } => format!("{carried:?}"),
+                })
+                .collect();
+            format!("{cells:?} {rows:?}")
+        })
+        .collect()
+}
+
 /// **A line kiss beside the tangent site builds at its closed form and
 /// ships its contact undeclared** (shape 2 of
 /// `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
@@ -463,8 +482,8 @@ fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
                 panic!("{what}: the undeclared union builds");
             };
             assert_eq!(
-                (format!("{:?}", bare.body), format!("{:?}", bare.contacts)),
-                (format!("{:?}", bb.body), format!("{:?}", bb.contacts)),
+                (format!("{:?}", bare.body), cited_rows(&bare)),
+                (format!("{:?}", bb.body), cited_rows(&bb)),
                 "{what}: undeclared, the declared body and records"
             );
             let findings = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())

@@ -34,6 +34,9 @@ const FILES: [&str; 5] = [
 /// with stage 2 unit B merged (`0811289515`), by [`print_product_rows`]'s
 /// gather over the root list there. The composed die's two rows moved
 /// from B's branch record with main's blend change (`d5a518b1b2`).
+/// `kitchen_sink`'s row moved when a revolve's turned vertex came to
+/// turn its offset from the axis: 8 of its points, by at most 2 ulps
+/// (`m10_p_fence`'s header has the dump).
 const PRE_C: [(&str, &str); 34] = [
     ("die", "fa9ad86b30e8d844/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -43,7 +46,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "ea1ce7f968a62d47/88"),
-    ("kitchen_sink", "a4152d07cf293bb9/196"),
+    ("kitchen_sink", "e6fec2fe2d687b79/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
@@ -627,7 +630,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [kiss] = gathered.contacts.vv[..] else {
+    let [ref kiss] = gathered.contacts.vv[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts
@@ -910,7 +913,7 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
     let (doc, p) = place(doc, a);
     let (doc, q) = place(doc, b);
     let measure = |sites: [(RecipeNodeId, StableName); 2]| {
-        let [a, b] = sites.map(|(at, name)| SitedRef::new(at, name));
+        let [a, b] = sites.map(|(at, name)| SitedRef::new(at, name).into());
         Node::Measure {
             primitive: MeasurePrimitive::Distance { a, b },
         }
@@ -927,7 +930,7 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(editor_core::EditError::MeasuresWorldCopy { placement }) => {
+        Err(editor_core::EditError::ReadsWorldCopy { placement, .. }) => {
             assert_eq!(placement.id(), p, "the refusal names the first placement");
         }
         Err(other) => panic!("refused otherwise: {other}"),
@@ -942,22 +945,23 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
     );
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let wire = |id| serde_json::to_string(&id).expect("an id serializes");
-    let measure_at = text
-        .find("\"Measure\"")
-        .expect("the measure is on the wire");
-    let site = format!("\"at\": {}", wire(a));
-    let offset = measure_at + text[measure_at..].find(&site).expect("its first site");
+    let body_of = |node| doc.output(node, 0).expect("a body");
+    let select_at = text
+        .find("\"Select\"")
+        .expect("the measure's selection is on the wire");
+    let site = format!("\"body\": {}", wire(body_of(a)));
+    let offset = select_at + text[select_at..].find(&site).expect("its body read");
     let forged = format!(
-        "{}\"at\": {}{}",
+        "{}\"body\": {}{}",
         &text[..offset],
-        wire(p),
+        wire(body_of(p)),
         &text[offset + site.len()..]
     );
     match editor_core::persist::load(&forged, Tol::witness()) {
         Err(error) => {
             let said = error.to_string();
             assert!(
-                said.contains("whose copy only the product and export read"),
+                said.contains("which only the product and export read"),
                 "the load names the site: {said}"
             );
         }

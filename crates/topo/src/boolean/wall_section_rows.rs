@@ -459,6 +459,6 @@ fn the_window_construction_sites_are_the_ones_listed() {
     );
     assert_eq!(
         sites(include_str!("contain.rs")),
-        named(&["curved_face_placement"])
+        named(&["curved_interior_placement"])
     );
 }

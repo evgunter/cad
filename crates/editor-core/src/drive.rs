@@ -648,9 +648,6 @@ pub enum RefusalReason {
 /// receipt reads only the name.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeasureRefusalClass {
-    /// The selection resolved to the wrong KIND of entity
-    /// ([`NodeErrorKind::MeasureSelectionKind`]).
-    SelectionKind,
     /// The clearance engine refused, with its own refusal
     /// ([`NodeErrorKind::MeasureClearanceRefused`]).
     Clearance(crate::clearance::ClearanceRefusal),
@@ -662,7 +659,6 @@ impl MeasureRefusalClass {
     #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
-            Self::SelectionKind => "selection_kind",
             Self::Clearance(r) => r.name(),
         }
     }
@@ -2245,9 +2241,6 @@ pub fn assertion_at(
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
-        // The selection resolved to the wrong KIND of entity. Document
-        // structure; no parameter value moves it.
-        NodeErrorKind::MeasureSelectionKind { .. } => Some(MeasureRefusalClass::SelectionKind),
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
             let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));

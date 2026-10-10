@@ -341,7 +341,10 @@ fn a_measure_key_reads_its_sites_by_content_not_by_id() {
     let (doc, second) = insert(doc, xform(a, [0.0; 3], [0.0, 0.0, 1.0], 0.0));
     let at = |site| caps(a).map(|r| editor_core::SitedRef::new(site, r.name));
     let distance = |[a, b]: [editor_core::SitedRef; 2]| Node::Measure {
-        primitive: MeasurePrimitive::Distance { a, b },
+        primitive: MeasurePrimitive::Distance {
+            a: a.into(),
+            b: b.into(),
+        },
     };
     let (doc, on_first) = insert(doc, distance(at(first)));
     let (doc, on_second) = insert(doc, distance(at(second)));

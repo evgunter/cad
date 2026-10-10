@@ -1,6 +1,6 @@
-//! The tier-3′ **global coincidence census** + declared-contact
-//! certification (M3 PR 6a; F1/F2) — the injectivity pass tier 3
-//! defers, run at rest against a body's declared-contact records.
+//! The tier-3′ **global coincidence census** + contact-record
+//! certification (F1/F2) — the injectivity pass tier 3 defers, run
+//! at rest against a body's contact records.
 //!
 //! **Sweep shape**: five vertex-granular sweeps in arena order
 //! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge),
@@ -2346,7 +2346,7 @@ fn conic_crossings<T: Decide>(
     for t in roots.into_iter().flatten() {
         let q = curve.carrier().eval(t);
         match edge.contact(side.ends, q, EF_CROSS_ROWS, band) {
-            Ok(EdgeContact::On) => out.push((q, CutAt::ConicCrossing)),
+            Ok(EdgeContact::On(_)) => out.push((q, CutAt::ConicCrossing)),
             Ok(EdgeContact::End | EdgeContact::Carrier) => {}
             // A root of the carrier read off it, or an arc read as no
             // conic: the arc is not what its loop says it is.
@@ -5161,6 +5161,43 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
         .map(|(role, _)| role)
 }
 
+/// A face's world reach ([`face_reach`]): its low and high corners.
+type WorldReach<T> = (Point3<T>, Point3<T>);
+
+/// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
+/// pair `a`, `b` along a direction that turns with the pair: the axis
+/// between the two faces' anchors, or either face's own normal where it
+/// is planar. Each face comes with its world reach, the lever its
+/// normal is read over.
+///
+/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`]):
+/// both reaches are read in the frame the direction aims
+/// ([`face_reach_in`]), and the pair clears only on a gap, less both
+/// reaches' [`sweep_pad`], decided definitely positive at this lane's
+/// scalar. Each reach encloses its face's locus along that direction,
+/// so the gap proves the loci disjoint, as a world-axis gap does. The
+/// pad covers the aimed frame's rounding ([`crate::boolean::boxes::BoxFrame`]),
+/// so the clear does not rest on the user-set escalate threshold.
+fn backstop_apart<T: Decide>(
+    body: &Body<T>,
+    (fa, ra): (FaceKey, WorldReach<T>),
+    (fb, rb): (FaceKey, WorldReach<T>),
+    band: Band,
+) -> bool {
+    use crate::boolean::separating::{Item, apart, planar_axis};
+    let axes: Vec<_> = [(fa, ra), (fb, rb)]
+        .into_iter()
+        .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
+        .collect();
+    apart(
+        (body, Item::Face(fa)),
+        (body, Item::Face(fb)),
+        &axes,
+        sweep_pad(band),
+        band,
+    )
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -5596,9 +5633,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // unboxable curve.
             let before = errors.len();
             if let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) {
-                // Definite separation on ANY axis clears the pair: the
-                // margin is the gap between the sound reach boxes — a
-                // metre coordinate difference (audit row).
+                // Definite separation along ANY direction clears the
+                // pair: the margin is the gap between the sound reaches
+                // along it — a metre coordinate difference (audit row).
+                // The world axes are read first; then the directions
+                // that turn with the pair ([`backstop_apart`]).
                 let mut cleared = false;
                 for (alo, ahi, blo, bhi) in [
                     (alo.x, ahi.x, blo.x, bhi.x),
@@ -5614,7 +5653,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         break;
                     }
                 }
-                if !cleared {
+                if !cleared
+                    && !backstop_apart(body, (a.face, (alo, ahi)), (b.face, (blo, bhi)), band)
+                {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),
@@ -6148,13 +6189,13 @@ fn confirm_declarations<T: Decide>(
     }
     confirm_curve_and_patch_records(body, contacts, band, region, errors);
     for c in &contacts.ve {
-        confirm_vertex_on_edge(body, geo, *c, band, errors);
+        confirm_vertex_on_edge(body, geo, **c, band, errors);
     }
     for c in &contacts.ee {
-        confirm_edge_edge(body, geo, *c, band, errors);
+        confirm_edge_edge(body, geo, **c, band, errors);
     }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        confirm_vertex_on_face(body, geo, *c, band, errors);
+        confirm_vertex_on_face(body, geo, **c, band, errors);
     }
 }
 
@@ -6395,6 +6436,77 @@ fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool
     }
 }
 
+/// **Door 1 of a face pair at rest**: carrier identity and opposed
+/// senses through the `Rest` door, the pair standing as its own
+/// declaration (C3: rung 2/3, never value-equal; aligned coincidence
+/// contradicts), with the margin that decided the one carrier. A
+/// refusal is the census finding it raises: the declaration is carried
+/// in the pair's own order, and the witness names the LOCUS, not the
+/// pair (`declaration` carries that) — Door 1 compares the two faces'
+/// carriers whole and hands back no point, so the locus is the
+/// surfaces.
+fn rest_door_one<T: Decide>(
+    body: &Body<T>,
+    face_a: FaceKey,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<(crate::contact::ContactVerdict, geom_core::MarginDiag), ValidationError> {
+    crate::boolean::rest_pair_reading(body, face_a, body, face_b, band).map_err(|refusal| {
+        match refusal {
+            crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+                ValidationError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: face_a,
+                        b: face_b,
+                        class: crate::contact::ContactClass::Rest,
+                    },
+                    witness: CARRIER_COMPARISON_WITNESS.to_owned(),
+                    margin: diag,
+                    steer,
+                }
+            }
+            crate::contact::ContactRefusal::Escalated { diag }
+            | crate::contact::ContactRefusal::Undeclared { diag } => {
+                ValidationError::CensusEscalated { cause: diag }
+            }
+            refusal @ crate::contact::ContactRefusal::NotCertifiable { .. } => {
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(face_a, face_b),
+                    cause: CensusUnsupportedCause::ContactLane(refusal),
+                }
+            }
+        }
+    })
+}
+
+/// **The at-rest census's decision that two faces of a body rest on one
+/// carrier, opposed**: the row a contact record between them cites
+/// ([`crate::DecisionSite::CensusAtRest`]), decided by the same Door 1
+/// the census confirms a patch record through, so the row and the
+/// census read one door.
+///
+/// # Errors
+///
+/// The finding the census raises for the pair where Door 1 refuses it.
+pub fn census_rest_decision<T: Decide>(
+    body: &Body<T>,
+    face_a: FaceKey,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<crate::Coincidence, ValidationError> {
+    let (_, margin) = rest_door_one(body, face_a, face_b, band)?;
+    let cell = |face| crate::RowCell::Result {
+        cell: crate::Cell::Face(face),
+    };
+    Ok(crate::Coincidence {
+        cells: [cell(face_a), cell(face_b)],
+        relation: crate::Relation::SameOpposite,
+        site: crate::DecisionSite::CensusAtRest,
+        margin,
+        discharge: crate::Discharge::Numeric,
+    })
+}
+
 /// The at-rest confirmation of the two CURVED granularities (C3), the
 /// other half of `confirm_declarations`.
 ///
@@ -6508,45 +6620,10 @@ fn confirm_curve_and_patch_records<T: Decide>(
         // own evidence) or `Bridged` (an in-band residue the
         // declaration covered) — rather than re-deriving or assuming
         // it.
-        let door_one = match crate::boolean::contact_pair_verdict(
-            body,
-            c.face_a,
-            body,
-            c.face_b,
-            crate::contact::ContactClass::Rest,
-            None,
-            band,
-        ) {
-            Ok(verdict) => verdict,
-            Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
-                // The declaration is carried in the record's own
-                // order, the reader's index back into the records they
-                // supplied. The witness names the LOCUS, not the pair
-                // (`declaration` carries that): Door 1 compares the two
-                // faces' carriers whole — identity and senses — and
-                // hands back no point, so the locus is the surfaces.
-                errors.push(ValidationError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: c.face_a,
-                        b: c.face_b,
-                        class: crate::contact::ContactClass::Rest,
-                    },
-                    witness: CARRIER_COMPARISON_WITNESS.to_owned(),
-                    margin: diag,
-                    steer,
-                });
-                continue;
-            }
-            Err(crate::contact::ContactRefusal::Escalated { diag })
-            | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-                errors.push(ValidationError::CensusEscalated { cause: diag });
-                continue;
-            }
-            Err(refusal @ crate::contact::ContactRefusal::NotCertifiable { .. }) => {
-                errors.push(ValidationError::CensusUnsupported {
-                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
-                    cause: CensusUnsupportedCause::ContactLane(refusal),
-                });
+        let door_one = match rest_door_one(body, c.face_a, c.face_b, band) {
+            Ok((verdict, _)) => verdict,
+            Err(error) => {
+                errors.push(error);
                 continue;
             }
         };
@@ -6925,10 +7002,13 @@ mod tests {
             })
             .expect("a vertex off the rim");
         let records = ContactRecords {
-            ve: vec![crate::boolean::VeContact {
-                vertex: far,
-                edge: rim,
-            }],
+            ve: vec![crate::Cited::new(
+                crate::boolean::VeContact {
+                    vertex: far,
+                    edge: rim,
+                },
+                crate::Cites::decided(0),
+            )],
             ..ContactRecords::default()
         };
         let errors = census_and_certify(&body, &records, band(), Tol::witness(), None);
@@ -7191,10 +7271,13 @@ mod tests {
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7230,10 +7313,13 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w3,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w3,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7326,10 +7412,13 @@ mod tests {
         let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
         let pair = (seat.post_top, seat.shelf_bottom);
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: pair.0,
-            face_b: pair.1,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: pair.0,
+                face_b: pair.1,
+            },
+            crate::Cites::decided(0),
+        ));
         let crossings = |errors: &[ValidationError]| -> Vec<String> {
             errors
                 .iter()
@@ -7495,10 +7584,13 @@ mod tests {
             "an in-band sliver must never DECIDE undeclared: {arm:?}"
         );
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let cert = census_and_certify(
             &body,
             &records,
@@ -7568,10 +7660,13 @@ mod tests {
             "the next-branch authoring must not evade the arm: {arm:?}"
         );
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let cert = census_and_certify(
             &body,
             &records,
@@ -7609,10 +7704,13 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7719,10 +7817,13 @@ mod tests {
     fn a_cross_description_cylinder_patch_record_certifies() {
         let (body, w1, w2) = cross_description_pair(0.5, 1.3, 0.3, 0.7);
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7748,10 +7849,13 @@ mod tests {
     fn a_refuted_cross_description_cylinder_record_is_stale_typed() {
         let (body, w1, w2) = cross_description_pair(0.5, 1.3, 2.0, 2.5);
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,

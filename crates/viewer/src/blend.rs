@@ -17,9 +17,8 @@
 //! # One target, and why the rule is structural
 //!
 //! [`crate::session::SessionOp::AddFillet`] and its chamfer twin carry
-//! ONE target — `Node::Fillet { target, .. }` blends edges of one
-//! body, and a selection resolves through that body's name table and
-//! no other. So the accumulator holds one [`BlendTarget`] and a set of
+//! ONE target — a fillet reads one `Edges` selection, which states its
+//! body once and resolves through that body's name table and no other. So the accumulator holds one [`BlendTarget`] and a set of
 //! names under it: the first pick fixes the target, and a pick on
 //! another drawn body has nowhere to land. It is refused as a typed
 //! event ([`BlendEvent::OtherTarget`]) rather than silently ignored,
@@ -85,8 +84,8 @@ pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: an upstream ed
 /// The drawn body a blend's edges belong to: the node whose value it
 /// is, and which of that node's output bodies.
 ///
-/// The NODE is what `Node::Fillet` stores as its target and what the
-/// selection's names resolve through. The BODY index rides along
+/// The NODE is the one whose output the fillet's selection reads, and
+/// what the selection's names resolve through. The BODY index rides along
 /// because an edge pick carries one and a set drawn from two bodies of
 /// one node would be as wrong as a set drawn from two nodes — the
 /// accumulator scopes to the pair it was opened on, and the refusal

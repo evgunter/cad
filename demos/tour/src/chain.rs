@@ -537,13 +537,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         a: wall(*pins.last().expect("a chain has a tip pin")),
         b: wall(target),
     };
-    let measure = insert(
-        &mut doc,
-        Node::Measure {
-            primitive: position,
-        },
-        tol,
-    );
+    let measure = insert(&mut doc, Node::measure(&position), tol);
     let position = doc.output(measure, 0).expect("a measure defines its value");
     let assertion = insert(
         &mut doc,

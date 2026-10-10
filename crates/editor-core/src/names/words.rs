@@ -22,8 +22,8 @@
 //!   member: "…, joined at Union d1aa from Transform 3218". By tag, or
 //!   where the document does not hold the Boolean, a B join says what
 //!   the name holds: "…, through operand B of node 1669". A carry
-//!   through a primary operand (a Boolean's A, a fillet's target) is the
-//!   body's own continuation and is silent. Two names of one table first
+//!   through a primary operand (a Boolean's A, the body a fillet's
+//!   selection reads) is the body's own continuation and is silent. Two names of one table first
 //!   differ at a node where one went through a secondary operand, which
 //!   a join says.
 //! - **Wraps and joins are said in the order the path takes them.** A

@@ -2,13 +2,12 @@
 id: curve-contact-names-one-face-where-its-witness-edge-lies-in-two
 kind: issue
 title: CurveContact { face_a, face_b, witness } names one face of a solid whose witness is an operand edge lying in two, the face-pair ambiguity JOIN-1 retires from the join's germs
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-design: true
 refs: [3790]
-blocked_on: [contact-records-cite-their-decision]
+rides_with: at-rest-records-are-unordered-cell-pairs
 ---
 
 
@@ -48,3 +47,13 @@ option (b)); the record this row is about is rewritten by B2
 `Coincidence` across ~99 files. Building on the record's shape while
 B2 rewrites it would collide and be built twice. Re-read it against
 B2's merged record. (CONTACTHOLD orchestrator)
+
+## Ruled (Ev, PR 4547, 2026-10-10)
+
+The at-rest record is an unordered pair of the body's own cells plus
+its citations, in one list a citation addresses by position. It stores
+no operand label, no granularity and no witness, and every pair whose
+interiors meet is recorded (a straight edge in a plane included).
+Fork log row 108; D1 and C3 state it. What's left is the build. The
+boolean's reduction keeps its operand-tagged working set and drops the
+tags at carry. (CONTACTHOLD orchestrator)

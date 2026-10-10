@@ -1690,20 +1690,28 @@ fn wrap_band<T: Decide + Bounds>(
             return Ok(None);
         }
     }
-    let (mut ul, mut uh, mut vl, mut vh) = (pts[0].0, pts[0].0, pts[0].1, pts[0].1);
-    for p in &pts {
-        ul = ul.min(p.0);
-        uh = uh.max(p.0);
-        vl = vl.min(p.1);
-        vh = vh.max(p.1);
-    }
-    let span = T::from_f64(uh) - T::from_f64(ul);
+    // The extremes are chosen by the exact reads and then read from
+    // `outer` itself, so the span and the band are the corners' own
+    // values (their expressions at `Sym`), never their bits re-entered.
+    let extreme = |key: fn(&(f64, f64)) -> f64, pick_hi: bool| -> usize {
+        (1..4).fold(0, |best, i| {
+            let (k, b) = (key(&pts[i]), key(&pts[best]));
+            if (pick_hi && k > b) || (!pick_hi && k < b) {
+                i
+            } else {
+                best
+            }
+        })
+    };
+    let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
+    let (vl, vh) = (extreme(|p| p.1, false), extreme(|p| p.1, true));
+    let span = outer[uh].x - outer[ul].x;
     match decide(
         "chart_region_cyl_wrap",
         Margin::levered(span - T::tau(), radius),
         band,
     ) {
-        Ok(Sign::Zero) => Ok(Some((T::from_f64(vl), T::from_f64(vh)))),
+        Ok(Sign::Zero) => Ok(Some((outer[vl].y, outer[vh].y))),
         Ok(_) => Ok(None),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
@@ -3736,6 +3744,48 @@ mod tests {
     /// A full-period chart rectangle: seam at `u0`, span exactly τ.
     fn wrap_rect(u0: f64, v0: f64, v1: f64) -> Vec<Point2<f64>> {
         rect(u0, v0, u0 + core::f64::consts::TAU, v1)
+    }
+
+    /// The band is the corners' own values, never their bits re-entered
+    /// as constants: built at `Sym<f64>` with the seam and the band's
+    /// ends as parameters, the returned `v` ends re-value with the
+    /// parameters, and the full-period span discharges as a theorem.
+    #[test]
+    fn the_wrap_band_keeps_its_corners_in_t() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let (seam, lo, hi) = (
+            ParamSymbol::new(1),
+            ParamSymbol::new(2),
+            ParamSymbol::new(3),
+        );
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (revalued, counts) = with_session(budget, || {
+            let u0 = S::from_f64(0.3) + S::param(seam, 0.0);
+            let u1 = u0 + S::tau();
+            let v0 = S::param(lo, 0.0);
+            let v1 = S::from_f64(1.0) + S::param(hi, 0.0);
+            let corners = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)].map(|(u, v)| Point2::new(u, v));
+            let (b0, b1) = wrap_band(&corners, S::from_f64(2.0), band())
+                .unwrap()
+                .expect("a full-period rectangle is a band");
+            let at = |s: ParamSymbol| Some(if s == hi { 0.125 } else { 0.0625 });
+            (revalue(b0.node(), &at), revalue(b1.node(), &at))
+        });
+        assert_eq!(
+            revalued,
+            (Some(0.0625), Some(1.125)),
+            "the band's ends are the corners' expressions, re-valued at the moved parameters"
+        );
+        assert_eq!(
+            counts.symbolic_zero, 1,
+            "the span (u0 + τ) − u0 − τ is the zero polynomial in the seam parameter"
+        );
     }
 
     #[test]

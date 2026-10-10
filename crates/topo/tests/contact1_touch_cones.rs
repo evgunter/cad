@@ -266,7 +266,10 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
         })
         .unwrap();
     let records = ContactRecords {
-        vv: vec![VvContact { a, b }],
+        vv: vec![topo::Cited::new(
+            VvContact { a, b },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     assert_eq!(

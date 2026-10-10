@@ -1863,7 +1863,7 @@ pub(crate) enum Lift {
 
 /// **How `node` (the consumer, minted as `consumer`) carries `name`, an
 /// entity of its input `input`**: one [`Lift`] per seat whose read
-/// `defined_by` resolves to `input`, empty when `node` reads none of
+/// `defined_by` resolves to `input` (a selection's, through its body), empty when `node` reads none of
 /// `input`'s outputs.
 ///
 /// The match is exhaustive with no wildcard, and every arm names its
@@ -1941,22 +1941,17 @@ pub(crate) fn lift<P>(
         .flatten()
         .collect(),
         Node::Fillet {
-            target,
             radius: _,
-            selection: _,
+            selection: body,
         }
         | Node::Chamfer {
-            target,
             distance: _,
-            selection: _,
+            selection: body,
         }
         | Node::Shell {
-            target,
             thickness: _,
-            open: _,
-        } => seat(*target, under(RoleSeg::FromTarget))
-            .into_iter()
-            .collect(),
+            open: body,
+        } => seat(*body, under(RoleSeg::FromTarget)).into_iter().collect(),
         Node::Transform {
             input: placed,
             placement: _,
@@ -1980,8 +1975,8 @@ pub(crate) fn lift<P>(
             .into_iter()
             .flatten()
             .collect(),
-        Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
-            seat(*at, Lift::Dropped).into_iter().collect()
+        Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
+            seat(*face, Lift::Dropped).into_iter().collect()
         }
         Node::Datum(Datum::AxisInPlane {
             frame: plane,
@@ -1991,7 +1986,7 @@ pub(crate) fn lift<P>(
         Node::Measure { primitive } => primitive
             .refs()
             .iter()
-            .any(|r| r.at == input)
+            .any(|&&r| reads(r))
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),

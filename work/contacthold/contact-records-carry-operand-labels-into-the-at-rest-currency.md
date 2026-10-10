@@ -2,12 +2,12 @@
 id: contact-records-carry-operand-labels-into-the-at-rest-currency
 kind: issue
 title: ContactRecords' operand-labelled lists (a_on_b, b_on_a; VvContact a/b as A-clone/B-clone keys) are reduction vocabulary used as the at-rest declaration type
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: M
 refs: [3856]
-blocked_on: [contact-records-cite-their-decision]
+rides_with: at-rest-records-are-unordered-cell-pairs
 ---
 
 
@@ -31,3 +31,13 @@ option (b)); the record this row is about is rewritten by B2
 `Coincidence` across ~99 files. Building on the record's shape while
 B2 rewrites it would collide and be built twice. Re-read it against
 B2's merged record. (CONTACTHOLD orchestrator)
+
+## Ruled (Ev, PR 4547, 2026-10-10)
+
+The at-rest record is an unordered pair of the body's own cells plus
+its citations, in one list a citation addresses by position. It stores
+no operand label, no granularity and no witness, and every pair whose
+interiors meet is recorded (a straight edge in a plane included).
+Fork log row 108; D1 and C3 state it. What's left is the build. The
+boolean's reduction keeps its operand-tagged working set and drops the
+tags at carry. (CONTACTHOLD orchestrator)

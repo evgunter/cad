@@ -117,6 +117,17 @@
 //! and the assertion's verdict, dumped at `f64` and at `Interval` on main
 //! and on the branch, was the same text.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN A SELECTION BECAME A VARIABLE**
+//! (INTENT stage 2 PR E), through the seven documents that blend,
+//! shell, frame on a face or measure. Each such node now reads a
+//! selection variable its insert mints, so its id moved, and every id
+//! minted after it in the document. `lib_g16_corpus_name_digests`
+//! moved those seven rows and no other, and the id-masked geometry
+//! fence below did not move: no outcome flipped and no body's point
+//! moved anywhere. Merged with stage 5 A's `relation`, the numbers were
+//! re-taken once more; only `measured_web`'s rows moved, where both
+//! changes meet.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -526,6 +537,18 @@
 //! asserted rather than argued: `intent_s2_c_world`'s migration check
 //! holds each document's product to the digest recorded on the tree
 //! before the change, body for body and in order.
+//!
+//! RE-BLESSED, ALL FOUR ROWS, WHEN A REVOLVE'S TURNED VERTEX CAME TO
+//! TURN ITS OFFSET FROM THE AXIS (`q + R·(p − q)`, W1 in
+//! `crates/geom-core/README.md`) rather than go through the composite
+//! map `R·p + (I − R)·q`. Measured by a scratch dump of every node's
+//! outcome and every point's bits, the tree with and without the
+//! change: every node outcome identical; 8 points moved, all in
+//! `kitchen_sink`, at most 2 ulps at `f64`; at `Interval` the same 8
+//! points, every one NARROWER, to 0.10–0.15× of its old width (6.4e-15
+//! at worst before, 8.9e-16 after). Turning a revolved description by
+//! the same spelling at evaluation moved no corpus point at either
+//! scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -821,7 +844,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x7c7a_412f_84d4_ddd1, 0x1e6c_f6dd_d0a1_b42d),
+        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -847,7 +870,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xf550_577b_5a80_4f25, 0x0a71_f86f_379b_cc09),
+        (0x2ddc_3dcf_bc77_f4ec, 0x7a07_f29a_0243_60f8),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -871,7 +894,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x7c7a_412f_84d4_ddd1, 0x1e6c_f6dd_d0a1_b42d),
+        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -949,7 +972,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x2b03_cbac_a56c_3ad0, 0x6637_f0f0_be0b_f72c),
+        (0x4e83_a4d8_b6bd_ee50, 0x37d4_cb01_e189_8fac),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

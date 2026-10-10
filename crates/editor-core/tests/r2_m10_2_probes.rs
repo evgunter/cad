@@ -115,7 +115,14 @@ fn with_measure(
     expr: MeasurePrimitive<u32>,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
+    // Read at the minting node's body port: a revolve also defines its
+    // axis.
+    let refs: Vec<editor_core::Operand> = refs
+        .into_iter()
+        .map(|name| {
+            editor_core::Operand::select(editor_core::Operand::output(name.node, 0), vec![name])
+        })
+        .collect();
     crate::fixture::measure_node(doc, expr, refs)
 }
 

@@ -929,13 +929,13 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
-    /// The value's OWN declared-contact channel (ASM-R2b D-1): what
+    /// The value's OWN contact-record channel (ASM-R2b D-1): what
     /// `instantiate` carried in from a part. A boolean's records ride
     /// its payload instead, and the two homes reconcile at
     /// [`Value::declared_body`] — deliberately the same reconciliation
     /// `editor_core::product::sources_of` makes, because a Python
     /// caller reading a body off a value and the gather reading the
-    /// same body must not disagree about what was declared over it.
+    /// same body must not disagree about the contacts it carries.
     contacts: Arc<topo::ContactRecords>,
     node: NodeId,
 }
@@ -2350,6 +2350,8 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
+            // Empty by construction: the options declare no anchor.
+            coincidences: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: enclosure.map(MassProperties::from),
@@ -2691,7 +2693,8 @@ impl Coincidence {
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    /// `battery_joint`, `battery_support_axis` or `profile_junction`.
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

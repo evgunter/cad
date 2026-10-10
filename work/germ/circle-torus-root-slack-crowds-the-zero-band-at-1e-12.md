@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: M
+branch: germ/ev-klint-bound-door
+refs: [sphere-region-root-slack-crowds-the-zero-band-at-1e-12]
 ---
 
 ## What
@@ -104,3 +106,125 @@ not transfer as is to this lane, whose residual is a quartic with no
 closed-form extremes, but the running bound can shadow `contour`,
 `offset` and the radius combination this meter charges with
 `NOISE_ULPS` half-ulps today.
+
+## Measured on main (2026-10-10, `af7a95b09`)
+
+**The flags are still there, bit for bit.** PR 4357's `RootSlack`
+meter (`bool_circle_torus_sub_root_slack`) is on the certified
+subdivision only; `parallel_axes_roots` (`circle_torus.rs`), the lily's
+pose, still decides `bool_circle_torus_root_slack` as written above.
+The nightly cannot say so: last night's `k-lint (dev-probe)` (run
+38027799934, head `b9bbd645`) died in the sweep's plain pre-pass
+(`editor-core::assemble_one_local_battery`, `EmptyProduct`) before any
+dump, so the lint step did not run. Measured locally instead: the
+dumps `scripts/k_probe_sweep.sh` merges (editor-core `m4_pr8_k_probe`
++ the tour's `k-probe`) at ε 1e-6, 1e-9 and 1e-12, linted by
+`tools/k-lint` exactly as the nightly step does.
+
+Rule 2's zero arm, every flag, all programs (it is silent at 1e-6 and 1e-9):
+
+| ε | predicate | shape | \|m\| | count | owner |
+| --- | --- | --- | --- | --: | --- |
+| 1e-12 | `bool_circle_torus_root_slack` | `demo/lily_walls` | 3.149e-13, 8.273e-14, 6.681e-14, 1.929e-14 | 2 each | GERM |
+| 1e-12 | `bool_circle_torus_meridian` | `demo/lily_walls` | 1.0416e-14 | 1 | GERM |
+| 1e-12 | `bool_sphere_region_roots_slack` | `demo/lily_walls` | 1.5093e-14 | 1 | HONE (`refs`) |
+
+Every GERM row the sweep records is the same at all three ε: the
+circle × torus parallel-axes rows, the meridian row, and
+`bool_conic_quadric_first_*`. The nearest unflagged zero tail is
+`bool_conic_quadric_first_root_slack` at 6.51e-15, 0.65 of the 1e-14
+threshold. **The subdivision meters record no samples at all**:
+`bool_circle_torus_sub_root_slack`, the ellipse × torus rows and the
+section-certificate cone and torus rows. The corpus and the tour never
+reach them, so k-lint says nothing about PR 4357's or PR 4522's meters
+either way.
+
+**Each of the eight is pure rounding.** I instrumented the slack line
+in a scratch build (not committed). On every sample `tilt = 0`, so
+`charge = 0` and `radius·charge/slope = 0`. The whole margin is
+`radius·rounding/sin_spread`, where `rounding` is
+`HARMONIC_NOISE_ULPS` (16) half-ulps of the `acos` argument's terms:
+
+| slack | radius | contour | `sin_spread` |
+| --- | --- | --- | --- |
+| 3.149e-13 | 4.94 | 1.048 | 0.0294 |
+| 8.273e-14 | 4.94 | 1.152 | 0.1127 |
+| 6.681e-14 | 1.048 | 4.94 | 0.1388 |
+| 1.929e-14 | 1.152 | 4.94 | 0.4833 |
+
+(offset 3.9 on all.) So the statistic is a machine-ε rounding bound,
+amplified by `1/sin spread` at a near-tangent crossing. Its operating
+point is ~1e-14 to 1e-13 on a scene of this size. Rule 2's window at
+1e-12 is `[1e-14, 1e-12]`.
+
+## Not (a): no metering fix clears it
+
+The sphere sibling's fix shadows the inputs with a first-order running
+bound (`Rounded`). Here that would replace 16 half-ulps with the
+expression's actual few, a ~4-5x cut. That clears the two 1.93e-14
+samples. The 3.15e-13 pair is 31x over and stays flagged: its
+`1/sin_spread` is a real conditioning cost of placing a root by
+`acos` near ±1, not looseness. Refusing past `band/10²` instead would
+turn the lily's walls `Uncertain` at 1e-12, which is geometry chasing
+the lint. Tightening the bound is still worth doing on its own merits,
+but it is not the answer to this row.
+
+## So (b): the question for the ruling
+
+Rule 2's zero arm assumes a zero-classified margin is a geometric
+coincidence, so that one near `band_zero` is a feature the band nearly
+resolves. A rounding meter (a root slack, a noise meter) is zero by
+construction, and its value is the arithmetic's error at that point.
+At ε = 1e-12 every such meter on a metre-scale scene sits in the
+window, so rule 2 is reporting machine ε, not ε.
+`PROXIMITY_FACTOR`'s own docs already name "a fixed rounding-scale
+coincidence" at 1e-12 as its binding ceiling. Options:
+
+1. **A rounding-meter roster** beside `EPS_COUPLED_PREDICATES`
+   (explicit membership, matching that list's policy). Its rows skip
+   rule 2's zero arm, or are judged against a comparand of their own,
+   e.g. the band itself, where a slack past `band_zero` already
+   refuses in the kernel. Members today: `bool_circle_torus_root_slack`,
+   `bool_sphere_region_roots_slack`, the `*_root_slack` and `*_noise`
+   rows. Cost: a list to maintain, and the policy that a row's
+   membership is argued from its source, as this item does.
+2. **A cross-row rule instead of a roster**: k-lint reads all three ε
+   files at once, so it can see that a zero-classified margin has the
+   same value at every row and is therefore not ε-coupled. Such a
+   margin is judged on an absolute scale, not `band_zero/10²`. No list,
+   but it infers membership, which the current lint deliberately never
+   does. It also drops `bool_circle_torus_meridian` (1.04e-14, the same
+   at every ε: a rounding-scale coincidence on a true meridian), which
+   a roster of slack meters would not.
+3. **Status quo**: rule 2 is right, and a root placed within a third
+   of the band at 1e-12 is a fragility to fix in the kernel. Per the
+   section above, the only kernel fixes are a tighter bound (2 of 8)
+   or refusal (geometry chasing the lint). So this keeps the dev-probe
+   row red on the lily at 1e-12 for as long as the lily is in the
+   sweep.
+
+Lane recommendation: (1). It keeps the lint's "membership is explicit"
+rule and covers the HONE sibling with the same entry. (2) is the
+general answer if a third family turns up.
+
+Until it is ruled, `k-lint (dev-probe)` stays red on these 10 (8 GERM
++ 1 GERM meridian + 1 HONE) once its sweep pre-pass is green again.
+
+## The question for Ev (designers weighed it, 2026-10-10)
+
+Two designers, from one problem statement, agree on the diagnosis and on its home:
+- **The root-slack rows are bounds, not coincidences.** `slack` is a non-negative upper bound on the kernel's own placement error, and the lane accepts the root iff the bound is at most ε. A three-way sign decision (Zero, in-band, Positive) answers a two-way question, so rule 2's zero arm, rule 1 (an in-band slack is logged as an escalation) and rule 3 (a Positive slack read as a feature) all misread these samples.
+- **Recommended:** a kernel-side bound or certification door in `geom_core::k_stats` that records `within` or `exceeded` with the sample's kind. k-lint derives the kind from the record, keeps these rows out of rules 1–4, and reports usage, meaning the closest approach to ε per file, as a fact about the scene and ε. There is no hand-kept roster. The five root-slack sites migrate, HONE's sphere-region slack among them.
+- **Separately:** the one remaining flag, `bool_circle_torus_meridian` at 1.04e-14, is a genuine coincidence whose honest rounding at a 5 m scene crosses ε/10² at 1e-12. Both designers recommend a zero-side ceiling on rule 2, cut from the coincidence zeros, the twin of M7-F1's definite-side cap, rather than re-cutting `PROXIMITY_FACTOR`.
+
+Their full texts, A and B, are on the `[ev]` PR.
+
+## Ev's ruling (PR 4567, 2026-10-10)
+
+> "ah, didn't realize it failed--yeah just tallying it is fine"
+>
+> "i don't think i see the benefit to this / i'm not sure why it's semantically correct" (on the kernel bound door)
+
+- k-lint's rule 2 zero-arm flags are **tallied and printed** (e.g. "rounding uses 31% of ε here (lily, 1e-12)"); they do not fail the `k-lint (dev-probe)` gate.
+- No kernel bound or certification door. The root-slack decisions keep going through `decide`.
+- The unit that builds this is the item's next step.

@@ -49,13 +49,20 @@ operands. Three objects carry the design:
   cross-entity coincidence;
 - a **declaration** is recipe data asserting a contact class on a named
   face pair;
-- a **record** (`ContactRecords`: `VvContact`, `VeContact`,
-  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is the
-  verified form a result body carries.
+- a **decision** (`Coincidence`, `crate::coincidence`) is a
+  coincidence an operation decided from values: which two of its
+  inputs' cells, what relation, where, and the margin read;
+- a **record** (`ContactRecords`, one list of unordered pairs of the
+  body's cells) is a touch a result body carries, citing the decisions that back it (`Cites`):
+  rows of the producing operation's own coincidences
+  (`Backing::Decided`), or a record of an input it carries in
+  (`Backing::Carried`, which cites its own). A record cannot be built
+  without one (D1 (ii)).
 
 The coincidence ladder (D10): at the Boolean, a margin decided Zero
-glues, declared or not, and the decision is recorded
-(`crate::coincidence`) for the document's `unproven-coincidence` lint;
+glues, declared or not, and the decision is recorded where the two
+faces meet, at a point, an edge or an area (`crate::coincidence`), for
+the document's `unproven-coincidence` lint;
 a declaration is verified, never trusted, and bridges a margin in band;
 structure is decided at the document's door, not here. At rest,
 certification runs both ways — a finding with no backing declaration is
@@ -103,8 +110,11 @@ separation/crossing by geometry, in-band ⇒ escalate. The exclusion step
 is `census::sweep_cross_solid_backstop`. A cross-solid pair with a curved
 side clears only
 
-- on a definitely-positive separation margin from certified reach boxes
-  (`face_reach`), or
+- on a definitely-positive separation margin between certified reach boxes
+  (`face_reach_in`), read along each world axis and then along the
+  directions that turn with the pair: the axis between the two faces'
+  anchors, and either face's normal where it is planar
+  (`boolean::separating::apart`), or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and
@@ -127,16 +137,29 @@ Invariant: no flag, mode or setting moves a glue — the Boolean glues
 what its margin decides Zero under every setting, and the lint reads
 what it glued.
 
-**C3 — Record granularities.**
+**C3 — Record granularities.** Every granularity cites its backing
+(the preamble's decision); a vertex record cites the vertex identity
+the reduction decided (`DecisionSite::VertexFusion`), and a pair a
+chain of such identities implies cites every one on each shortest
+chain.
 
-- `CurveContact { face_a, face_b, witness }` is a certified curve touch:
-  the jet schedule along the witness edge's carrier (coincidence within
-  ε, normal opposition within ε·κ_rel, κ_rel definitely positive, hull
-  bounds between samples). Its endpoints are bounded by vertex records or
-  the locus's closure; an unbacked bound is `UndeclaredContact`.
-- `PatchContact { face_a, face_b }` is a certified conformal patch:
-  carrier identity by the carrier ladder (a margin decided Zero, or a
-  declaration bridging one in band), senses opposed
+A record's kind is its two cells' dimensions; the face-level kinds
+are edge–face and face–face pairs, and the census reads which touch a
+pair is from the two cells' carriers:
+
+- A **curve touch** is certified by the jet schedule along its locus
+  (coincidence within ε, normal opposition within ε·κ_rel, κ_rel
+  definitely positive, hull bounds between samples). For an edge–face
+  pair the locus is the edge's carrier; for a face–face pair on two
+  carriers the census derives it from the carriers, on the closed-form
+  lane the deciding operation used, and refuses typed where no such lane
+  exists. Its endpoints are bounded by vertex records or the locus's
+  closure; an unbacked bound is `UndeclaredContact`.
+- A **patch** is a face–face pair on one carrier, backed by a
+  `SameOpposite` decision (for a mate's patch, the at-rest
+  census's `CensusAtRest` row; the mate places and never checks):
+  carrier identity by the carrier ladder (a margin
+  decided Zero, or a declaration bridging one in band), senses opposed
   (aligned coincidence is contradicted), and definitely-positive trim
   overlap in a shared chart — exact on the planar trim inventory
   (`chart_region.rs`), typed elsewhere (`NonPlanarTrim`, `ArmUnbounded`,
@@ -393,7 +416,7 @@ cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
 **Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a `PatchContact`. Findings attribute to mates as Declined, Unattributed
+a face–face record (a patch). Findings attribute to mates as Declined, Unattributed
 or Refuted (`StaleContactDeclaration`); all-Declined is the `Uncertified`
 frontier, and any Unattributed is a hard `AtRest` error
 (`crates/editor-core/ASSEMBLY.md`).
