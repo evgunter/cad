@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{ContactAcc, SweepKnobs, SweepStrategy, sweep_and_settle};
-use crate::boolean::{BooleanError, ReductionContacts, DeclaredPairs, VfContact};
+use crate::boolean::{BooleanError, DeclaredPairs, ReductionContacts, VfContact};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
 use crate::{Body, FaceKey, VertexKey};
 use geom::Curve3;

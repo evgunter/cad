@@ -6397,13 +6397,12 @@ mod contact_acc_rows {
             "one record of each kind"
         );
         assert_eq!(pending.len(), 3, "a question asked twice is one decision");
-        let cited: Vec<Vec<crate::Backing>> = r
-            .vv
-            .iter()
-            .map(|c| &c.cites)
-            .chain(r.a_on_b.iter().chain(&r.b_on_a).map(|c| &c.cites))
-            .map(|c| c.iter().collect())
-            .collect();
+        let cited: Vec<Vec<crate::Backing>> =
+            r.vv.iter()
+                .map(|c| &c.cites)
+                .chain(r.a_on_b.iter().chain(&r.b_on_a).map(|c| &c.cites))
+                .map(|c| c.iter().collect())
+                .collect();
         assert_eq!(
             cited,
             [0, 1, 2].map(|k| vec![crate::Backing::Decided(k)]).to_vec(),

@@ -6602,9 +6602,7 @@ fn confirm_patch<T: Decide>(
     // positive (the PR-1 predicate through the region door the
     // pass holds), the chart being either the structural one or
     // the declared pair's shared world carrier.
-    match region
-        .map(|lane| lane.declared_overlap(body, face_a, body, face_b, door_one, band))
-    {
+    match region.map(|lane| lane.declared_overlap(body, face_a, body, face_b, door_one, band)) {
         // The pass holds no certified region door, exactly as at
         // the sweep arm and split from the geometry refusals below
         // for the same reason: this absence is a fact about the
@@ -7236,7 +7234,10 @@ mod tests {
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7272,7 +7273,10 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w3)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w3)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7365,7 +7369,10 @@ mod tests {
         let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
         let pair = (seat.post_top, seat.shelf_bottom);
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(pair.0), crate::Cell::Face(pair.1)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(pair.0), crate::Cell::Face(pair.1)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let crossings = |errors: &[ValidationError]| -> Vec<String> {
             errors
                 .iter()
@@ -7452,7 +7459,14 @@ mod tests {
     fn the_crossing_rung_panics_on_a_torn_declared_surface() {
         let mut seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(seat.post_top), crate::Cell::Face(seat.shelf_bottom)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(
+                crate::Cell::Face(seat.post_top),
+                crate::Cell::Face(seat.shelf_bottom),
+            )
+            .unwrap(),
+            crate::Cites::decided(0),
+        ));
         let declared = Declared::index(&records);
         let geo = snapshot(&seat.body);
         let on = |e: &&EdgeGeo<f64>, pick: fn(Point3<f64>) -> bool| {
@@ -7592,7 +7606,10 @@ mod tests {
             "an in-band sliver must never DECIDE undeclared: {arm:?}"
         );
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let cert = census_and_certify(
             &body,
             &records,
@@ -7662,7 +7679,10 @@ mod tests {
             "the next-branch authoring must not evade the arm: {arm:?}"
         );
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let cert = census_and_certify(
             &body,
             &records,
@@ -7700,7 +7720,10 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7807,7 +7830,10 @@ mod tests {
     fn a_cross_description_cylinder_patch_record_certifies() {
         let (body, w1, w2) = cross_description_pair(0.5, 1.3, 0.3, 0.7);
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7833,7 +7859,10 @@ mod tests {
     fn a_refuted_cross_description_cylinder_record_is_stale_typed() {
         let (body, w1, w2) = cross_description_pair(0.5, 1.3, 2.0, 2.5);
         let mut records = ContactRecords::default();
-        records.push(crate::Cited::new(crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(), crate::Cites::decided(0)));
+        records.push(crate::Cited::new(
+            crate::Contact::of(crate::Cell::Face(w1), crate::Cell::Face(w2)).unwrap(),
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,

@@ -77,8 +77,8 @@ use std::collections::BTreeMap;
 use super::sectors::{BoolSector, PierceLever, build_sectors, side_code};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, ReductionContacts, NullEdgePairRecord, Operand,
-    PairSite, PierceRingRecord, SectorRead, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};

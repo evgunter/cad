@@ -78,7 +78,7 @@ use std::collections::BTreeSet;
 
 use super::solid_contain::{SolidContainment, point_in_solid};
 use super::{
-    BooleanError, BooleanOp, CarrierRelation, ReductionContacts, Operand, SettledPair, SideCode,
+    BooleanError, BooleanOp, CarrierRelation, Operand, ReductionContacts, SettledPair, SideCode,
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};

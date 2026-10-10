@@ -431,10 +431,7 @@ mod tests {
         let one = Contact::new(&p.body, v, f).unwrap();
         assert_eq!(one, Contact::new(&p.body, f, v).unwrap());
         assert_eq!(one.cells(), [v, f]);
-        assert_eq!(
-            one.kind(),
-            ContactKind::VertexFace(p.top[0], p.bottom_face)
-        );
+        assert_eq!(one.kind(), ContactKind::VertexFace(p.top[0], p.bottom_face));
     }
 
     /// A cell with itself, or a vertex of the face it is paired with,
@@ -463,9 +460,18 @@ mod tests {
         let (a, b) = (Cell::Vertex(p.top[0]), Cell::Face(p.bottom_face));
         let (c, d) = (Cell::Vertex(p.top[1]), Cell::Face(p.bottom_face));
         let mut records = ContactRecords::default();
-        records.push(Cited::new(Contact::new(&p.body, a, b).unwrap(), Cites::decided(0)));
-        records.push(Cited::new(Contact::new(&p.body, c, d).unwrap(), Cites::decided(1)));
-        records.push(Cited::new(Contact::new(&p.body, b, a).unwrap(), Cites::decided(2)));
+        records.push(Cited::new(
+            Contact::new(&p.body, a, b).unwrap(),
+            Cites::decided(0),
+        ));
+        records.push(Cited::new(
+            Contact::new(&p.body, c, d).unwrap(),
+            Cites::decided(1),
+        ));
+        records.push(Cited::new(
+            Contact::new(&p.body, b, a).unwrap(),
+            Cites::decided(2),
+        ));
         assert_eq!(records.len(), 2);
         assert_eq!(records.position((d, c)), Some(1));
         let cited: Vec<Vec<Backing>> = records

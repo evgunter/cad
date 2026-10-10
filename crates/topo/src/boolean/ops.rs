@@ -131,9 +131,9 @@ use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::{Fusions, SeamCorrespondence, zip_seam};
 use super::{
-    BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell,
-    Contact, ContactKind, ContactRecords, EeContact, FacePairDeclaration, Operand,
-    ReductionContacts, SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell, Contact,
+    ContactKind, ContactRecords, EeContact, FacePairDeclaration, Operand, ReductionContacts,
+    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -6857,7 +6857,9 @@ mod tests {
             .kinds()
             .collect::<Vec<_>>()
         };
-        let vv = |a: crate::VertexKey, b: crate::VertexKey| ContactKind::VertexVertex(a.min(b), a.max(b));
+        let vv = |a: crate::VertexKey, b: crate::VertexKey| {
+            ContactKind::VertexVertex(a.min(b), a.max(b))
+        };
         assert!(
             remap(&Descendants::default()).is_empty(),
             "without the weld rows neither record resolves"
@@ -6942,7 +6944,9 @@ mod tests {
     #[test]
     fn a_record_citing_a_pruned_free_end_lands_on_the_face_that_swallowed_it() {
         use super::{Cell, Descendants, KeyView, Operand};
-        use crate::boolean::{Contact, ContactKind, ContactRecords, ReductionContacts, VfContact, VvContact};
+        use crate::boolean::{
+            Contact, ContactKind, ContactRecords, ReductionContacts, VfContact, VvContact,
+        };
         use crate::entity::VertexKey;
         use crate::{MefSite, MevSite};
         use geom_core::Point3;
@@ -7083,7 +7087,9 @@ mod tests {
         let other = body
             .vertices()
             .map(|(k, _)| k)
-            .find(|&k| k != survivor && Contact::new(&body, Cell::Vertex(k), Cell::Face(face)).is_ok())
+            .find(|&k| {
+                k != survivor && Contact::new(&body, Cell::Vertex(k), Cell::Face(face)).is_ok()
+            })
             .unwrap();
         assert_eq!(
             remap(&records(other)),

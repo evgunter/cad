@@ -36,20 +36,15 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
-fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
-    ContactRecords {
-        patches: pairs
+fn declared(body: &Body<f64>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+    topo::test_support::records(
+        body,
+        pairs
             .iter()
-            .map(|&(a, b)| PatchContact {
-                face_a: a,
-                face_b: b,
-            })
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..ContactRecords::default()
-    }
+            .map(|&(a, b)| (topo::Cell::Face(a), topo::Cell::Face(b))),
+    )
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -146,7 +141,7 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     // edges' far endpoints are definitely off the seat carrier), so
     // no side question is posed and nothing is backed. Inverted from
     // the frozen-head measurement, where both vanished.
-    let found = crossing_witnesses(&errors(&body, &declared(&[(post_top, shelf_bottom)])));
+    let found = crossing_witnesses(&errors(&body, &declared(&body, &[(post_top, shelf_bottom)])));
     let surviving_dives: Vec<_> = found
         .iter()
         .filter(|w| dive_witness(w) && at_seat_level(w))
@@ -213,7 +208,7 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
     let wkeys = topo::graft_disjoint_all_keyed(&mut body, &wedge.body).unwrap();
     let wedge_45 = wkeys.face(wedge_45).unwrap();
 
-    let found = errors(&body, &declared(&[(post_side_x030, wedge_45)]));
+    let found = errors(&body, &declared(&body, &[(post_side_x030, wedge_45)]));
     let witnesses = crossing_witnesses(&found);
     assert_eq!(
         witnesses.len(),
