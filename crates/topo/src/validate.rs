@@ -2477,33 +2477,31 @@ const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 /// spline face cannot be expressed on — the lane's own.
 const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 
-/// The recourse for a margin the band could not decide, where a
-/// coincidence between two things has an object to declare: the
-/// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
-/// `too_close_spells_the_shared_menu` holds these two spellings to),
-/// prefixed by the input check a poisoned margin wants first.
-fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
-    match margin {
-        Some(margin) if margin.is_invalid() => concat!(
-            "Recourse: check the inputs that built this body, then ",
-            geom_core::coincidence_declare_arm!(),
-            ", or ",
-            geom_core::coincidence_move_arm!()
-        ),
-        _ => concat!(
+/// The ending of a margin the band could not decide, where a coincidence
+/// between two things has an object to declare: the shared menu
+/// ([`geom_core::COINCIDENCE_RECOURSE`], which
+/// `too_close_spells_the_shared_menu` holds this spelling to), or, for a
+/// poisoned margin, the defect ending, as [`own_close`] gives it: no
+/// declaration or move makes the margin readable.
+fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
+    own_close(
+        margin,
+        concat!(
             "Recourse: ",
             geom_core::coincidence_declare_arm!(),
             ", or ",
             geom_core::coincidence_move_arm!()
         ),
-    }
+    )
 }
 
-/// The ending of an undecided margin about ONE thing, where "declare the
-/// coincidence" has no object and the refusal does not carry which of
-/// its site's decisions it is: the site's lever alone, since no one
-/// decision's margin gives a tolerance to tighten below (D4 ¶1 (i)), or,
-/// for a poisoned margin (not a number at all), the kernel defect it is.
+/// The ending of an undecided margin whose refusal does not carry which
+/// of its site's decisions it is: `lever` alone, since no one decision's
+/// margin gives a tolerance to tighten below (D4 ¶1 (i)), or, on a
+/// poisoned margin ([`geom_core::MarginDiag::is_invalid`]: a NaN, or the
+/// invalid margin a site mints where it has none to report), the defect
+/// ending, since no lever makes the margin readable. `lever` is a site's
+/// own, or [`too_close`]'s coincidence menu.
 fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static str {
     if margin.is_invalid() { DEFECT } else { lever }
 }
@@ -3322,7 +3320,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ),
         ChartRegionError::Escalated(diag) => (
             geom_core::undecided!("their overlap"),
-            too_close(Some(&diag.margin)),
+            too_close(&diag.margin),
         ),
         // The rays are the check's own: no coincidence to declare, and no
         // margin to size a tolerance by (`ray_walk::NoRaySettled`).
@@ -3776,7 +3774,7 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!("whether two parts of the body touch"),
                     ". {}"
                 ),
-                too_close(Some(&cause.margin))
+                too_close(&cause.margin)
             ),
             Self::CensusUnsupported { subject, cause } => {
                 let (why, recourse) = classify_census_cause(cause);
@@ -11101,17 +11099,49 @@ mod tests {
         }
     }
 
-    /// `too_close`'s two sentences are the shared coincidence menu,
-    /// spelled once in `geom_core` — the plain one, and the poisoned
-    /// margin's with its input check first.
+    /// `too_close` spells the shared coincidence menu, once in
+    /// `geom_core`, on a margin that was read.
     #[test]
     fn too_close_spells_the_shared_menu() {
         let menu = geom_core::COINCIDENCE_RECOURSE;
-        assert_eq!(super::too_close(None), format!("Recourse: {menu}"));
         assert_eq!(
-            super::too_close(Some(&geom_core::MarginDiag::INVALID)),
-            format!("Recourse: check the inputs that built this body, then {menu}")
+            super::too_close(&geom_core::MarginDiag::value(5e-9)),
+            format!("Recourse: {menu}")
         );
+    }
+
+    /// **A poisoned margin at a coincidence-menu ending ends in the
+    /// defect ending at rest** (D4 ¶1 (i)): no declaration and no move
+    /// makes an unreadable margin readable, so neither arm of the menu is
+    /// offered. Both of `too_close`'s readers: the census's own escalation,
+    /// and the chart-region overlap it carries.
+    #[test]
+    fn a_poisoned_coincidence_menu_ends_in_the_defect_ending() {
+        use crate::chart_region::ChartRegionError as R;
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::INVALID,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("material_wedge_side"),
+            terminal_sliver: false,
+        };
+        let rows = [
+            ("census", ValidationError::CensusEscalated { cause }),
+            (
+                "chart region",
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
+                    cause: CensusUnsupportedCause::ChartRegion(R::Escalated(cause)),
+                },
+            ),
+        ];
+        for (label, e) in rows {
+            let text = e.to_string();
+            assert!(
+                text.ends_with(&format!(". {DEFECT}")),
+                "{label}: the defect ending, alone: {text}"
+            );
+            assert!(!text.contains("declare"), "{label}: {text}");
+        }
     }
 
     /// No ending this module renders tells the user to lower the
@@ -11119,21 +11149,19 @@ mod tests {
     /// band-decided arm of a sized decision, conditionally and with its
     /// value. The coincidence menu `too_close` spells is
     /// `geom_core::COINCIDENCE_RECOURSE`'s wording, the constant's own to
-    /// change, so it is taken out of exactly the arms that compose it, and
-    /// those arms are held to composing it.
+    /// change, so it is taken out of exactly the arms that compose it (on
+    /// a margin that was read), and those arms are held to composing it.
     #[test]
     fn no_validate_ending_says_lower_the_tolerance() {
         use crate::chart_region::ChartRegionError as R;
         let menu = geom_core::COINCIDENCE_RECOURSE;
-        let composes = |e: &ValidationError| {
-            matches!(
-                e,
-                ValidationError::CensusEscalated { .. }
-                    | ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::ChartRegion(R::Escalated(_)),
-                        ..
-                    }
-            )
+        let composes = |e: &ValidationError| match e {
+            ValidationError::CensusEscalated { cause: diag }
+            | ValidationError::CensusUnsupported {
+                cause: CensusUnsupportedCause::ChartRegion(R::Escalated(diag)),
+                ..
+            } => !diag.margin.is_invalid(),
+            _ => false,
         };
         let samples = crate::test_support_samples::validation_error_samples();
         let mut problems = Vec::new();

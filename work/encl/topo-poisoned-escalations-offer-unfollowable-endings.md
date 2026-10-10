@@ -2,8 +2,9 @@
 id: topo-poisoned-escalations-offer-unfollowable-endings
 kind: issue
 title: topo: PointInSolid, SplitReduce and census escalations offer declare/move recourses on poisoned or contradicted margins
-status: dispatched
+status: review
 branch: encl/topo-poisoned-endings
+pr: 4497
 opened: 2026-10-09
 priority: P3
 cost: M
