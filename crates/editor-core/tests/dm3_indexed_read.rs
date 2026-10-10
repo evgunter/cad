@@ -253,7 +253,25 @@ fn the_index_variable_is_an_input_of_its_reader() {
 fn a_document_of_plain_reads_saves_to_its_own_bytes() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/die_tool.pncad");
     let text = std::fs::read_to_string(path).expect("the fixture reads");
-    let loaded = editor_core::persist::load(&text, Tol::witness()).expect("the fixture loads");
+    // The file records the ε it was blessed at; the swept rows load it
+    // at their own, so its one ε line is re-stamped to the process's.
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let probe = editor_core::persist::save(
+        &editor_core::ProfileDoc::empty_derived("dm3-epsilon-probe", Tol::witness()),
+        &[],
+        Tol::witness(),
+    )
+    .expect("an empty document saves");
+    let wanted = probe
+        .lines()
+        .find(|l| is_epsilon(l))
+        .expect("a save records its ε");
+    let restamped: String = text
+        .lines()
+        .map(|l| if is_epsilon(l) { wanted } else { l })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    let loaded = editor_core::persist::load(&restamped, Tol::witness()).expect("the fixture loads");
     let saved = editor_core::persist::save(&loaded.snapshot, &loaded.edits, Tol::witness())
         .expect("the document saves");
     let sans_epsilon = |t: &str| -> Vec<String> {
