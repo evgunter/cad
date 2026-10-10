@@ -467,7 +467,10 @@ fn plane_torus_axis_in_plane_reads_each_row_as_it_moves() {
 /// `lean` over a unit extent: at `0.9 + 0.9` the tangent generator
 /// stands `1.8` bands off the plane at the extent, where main minted it.
 /// `K + 0.3` either side beside a `0.6` gap escalates on the floor (main
-/// served the line pair or the apex point), and `K + 0.9` serves them.
+/// served the line pair or the apex point), and `K + 0.9` serves the line
+/// pair on the dipping side. On the clearing side the `0.6` gap cuts an
+/// ellipse reaching `0.6/(K + 0.9)` of the extent from the apex, far
+/// past the band, so the ellipse is served there and not the apex point.
 #[test]
 fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
     let z = zero();
@@ -511,7 +514,7 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
         let served = if side > 0.0 {
             matches!(got, Ok(PlaneConeSection::ApexLinePair { .. }))
         } else {
-            matches!(got, Ok(PlaneConeSection::ApexPoint(_)))
+            matches!(got, Ok(PlaneConeSection::TiltedEllipse(_)))
         };
         assert!(served, "{side}: K + 0.9 beside 0.6 is served, got {got:?}");
     }

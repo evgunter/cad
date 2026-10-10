@@ -2110,8 +2110,12 @@ pub enum PlaneConeSection<T: Real> {
 ///    beside it ([`decide_across`]; `pn_apex_section_floor` decides the
 ///    definite side): Positive ⇒
 ///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
-///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒
-///    [`PlaneConeSection::ApexPoint`].
+///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒ step 2a.
+///
+///    2a. `pn_apex_point_reach` — margin `|δ|/|D|` (δ the apex gap of
+///    step 1), the farthest the real plane's ellipse reaches from the
+///    apex: Zero ⇒ [`PlaneConeSection::ApexPoint`]; Positive ⇒ the
+///    ellipse is the section, steps 3–4.
 /// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the larger of
 ///    the would-be circle's radius `|δ/c|·tan α` (δ the apex's distance
 ///    from the plane, `c = axis·normal`) and `extent`, the reach over
@@ -2196,6 +2200,63 @@ pub fn plane_cone_section<T: Decide>(
     let discr = sin_a * s - cos_a * c.abs();
 
     let apex_gap = (apex - q).dot(n);
+    let off_apex = || -> Result<PlaneConeSection<T>, SectionError> {
+        // The section of a plane off the apex: axis-normal circle, else
+        // the conic the tilt makes. A Zero here stands the circle in
+        // for the plane's true section, so the tilt's sine is levered
+        // at the longest reach over which that stand-in is read: the
+        // circle's own radius, and the extent the conic type is
+        // metered at. Tilting the plane by `s` about the circle's
+        // centre moves it by at most `s` times the reach, so a Zero
+        // at the larger of the two keeps every point the section is
+        // read at within the zero band. Both are read off the plane's
+        // NORMAL, never its stored origin: a plane along the axis
+        // (`s = 1`) reads definite at the extent wherever its origin
+        // sits, however close it passes the apex.
+        //
+        // The circle is built where the axis meets the plane, at
+        // `t = −δ/c` from the apex (`c` is ±1 within the band here).
+        let t = (T::zero() - apex_gap) / c;
+        let rim_r = t.abs() * (sin_a / cos_a);
+        let arm = rim_r.max(extent);
+        match decide("pn_axis_normal", Margin::levered(s, arm), band)
+            .map_err(SectionError::Escalated)?
+        {
+            Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
+                center: apex + a * t,
+                axis: a,
+                radius: rim_r,
+                u_ref: cone_u,
+            })),
+            Sign::Positive | Sign::Negative => {
+                match decide("pn_conic_type", Margin::levered(discr, extent), band)
+                    .map_err(SectionError::Escalated)?
+                {
+                    Sign::Negative => {
+                        // K = −D·(cos α·|c| + sin α·s) > 0 here.
+                        let k = c.powi(2) - sin_a.powi(2);
+                        let major = apex_gap.abs() * sin_a * cos_a / k;
+                        let minor = apex_gap.abs() * sin_a / k.sqrt();
+                        let center = apex - (a * c - n * sin_a.powi(2)) * (apex_gap / k);
+                        // The axis-normal trilean above made `s`
+                        // definite, so the minor direction is.
+                        let v_minor = s_vec / s;
+                        let u_major = v_minor.cross(n);
+                        let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                        Ok(PlaneConeSection::TiltedEllipse(e))
+                    }
+                    Sign::Zero => Err(SectionError::RoutesToGeneralRung {
+                        pair: PLANE_CONE,
+                        why: PARABOLA_WHY,
+                    }),
+                    Sign::Positive => Err(SectionError::RoutesToGeneralRung {
+                        pair: PLANE_CONE,
+                        why: HYPERBOLA_WHY,
+                    }),
+                }
+            }
+        }
+    };
     match decide("pn_apex_on_plane", Margin::of(apex_gap), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Apex lane: generators g(u) = a·cosα + radial(u)·sinα with
@@ -2244,66 +2305,27 @@ pub fn plane_cone_section<T: Decide>(
                         })
                     }
                 }
-                Sign::Negative => Ok(PlaneConeSection::ApexPoint(apex)),
-            }
-        }
-        Sign::Positive | Sign::Negative => {
-            // Apex definitely off the plane: axis-normal circle, else
-            // the conic the tilt makes. A Zero here stands the circle in
-            // for the plane's true section, so the tilt's sine is levered
-            // at the longest reach over which that stand-in is read: the
-            // circle's own radius, and the extent the conic type is
-            // metered at. Tilting the plane by `s` about the circle's
-            // centre moves it by at most `s` times the reach, so a Zero
-            // at the larger of the two keeps every point the section is
-            // read at within the zero band. Both are read off the plane's
-            // NORMAL, never its stored origin: a plane along the axis
-            // (`s = 1`) reads definite at the extent wherever its origin
-            // sits, however close it passes the apex.
-            //
-            // The circle is built where the axis meets the plane, at
-            // `t = −δ/c` from the apex (`c` is ±1 within the band here).
-            let t = (T::zero() - apex_gap) / c;
-            let rim_r = t.abs() * (sin_a / cos_a);
-            let arm = rim_r.max(extent);
-            match decide("pn_axis_normal", Margin::levered(s, arm), band)
-                .map_err(SectionError::Escalated)?
-            {
-                Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
-                    center: apex + a * t,
-                    axis: a,
-                    radius: rim_r,
-                    u_ref: cone_u,
-                })),
-                Sign::Positive | Sign::Negative => {
-                    match decide("pn_conic_type", Margin::levered(discr, extent), band)
+                // The plane through the apex clears the cone, but the real
+                // plane, `apex_gap` off it, cuts the ellipse the off-apex
+                // lane builds: on a generator `g` it lies `|δ|/|g·n|` from
+                // the apex, and `min |g·n| = cos α·|c| − sin α·s = −D`
+                // (`D` definitely negative here), so the section's farthest
+                // point stands `|δ|/|D|` from the apex and every other is
+                // nearer. The apex point stands in for that ellipse only
+                // where this reach is inside the zero band; past it, the
+                // ellipse is the section.
+                Sign::Negative => {
+                    let reach = Margin::levered(T::one() / discr.abs(), apex_gap.abs());
+                    match decide_magnitude("pn_apex_point_reach", reach, band)
                         .map_err(SectionError::Escalated)?
                     {
-                        Sign::Negative => {
-                            // K = −D·(cos α·|c| + sin α·s) > 0 here.
-                            let k = c.powi(2) - sin_a.powi(2);
-                            let major = apex_gap.abs() * sin_a * cos_a / k;
-                            let minor = apex_gap.abs() * sin_a / k.sqrt();
-                            let center = apex - (a * c - n * sin_a.powi(2)) * (apex_gap / k);
-                            // The axis-normal trilean above made `s`
-                            // definite, so the minor direction is.
-                            let v_minor = s_vec / s;
-                            let u_major = v_minor.cross(n);
-                            let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
-                            Ok(PlaneConeSection::TiltedEllipse(e))
-                        }
-                        Sign::Zero => Err(SectionError::RoutesToGeneralRung {
-                            pair: PLANE_CONE,
-                            why: PARABOLA_WHY,
-                        }),
-                        Sign::Positive => Err(SectionError::RoutesToGeneralRung {
-                            pair: PLANE_CONE,
-                            why: HYPERBOLA_WHY,
-                        }),
+                        Magnitude::Zero => Ok(PlaneConeSection::ApexPoint(apex)),
+                        Magnitude::Positive => off_apex(),
                     }
                 }
             }
         }
+        Sign::Positive | Sign::Negative => off_apex(),
     }
 }
 

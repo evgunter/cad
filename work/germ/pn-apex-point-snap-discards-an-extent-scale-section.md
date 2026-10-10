@@ -2,10 +2,11 @@
 id: pn-apex-point-snap-discards-an-extent-scale-section
 kind: issue
 title: plane×cone serves the apex point for a plane whose real section reaches the extent
-status: open
+status: review
 opened: 2026-10-07
 priority: P2
 cost: M
+branch: germ/pn-apex-point-snap
 ---
 
 ## What
