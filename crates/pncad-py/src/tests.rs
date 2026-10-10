@@ -6081,6 +6081,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "not_a_selection",
             "not_canonical",
+            "other_body",
             "repeated",
             "seat",
             "singleton",

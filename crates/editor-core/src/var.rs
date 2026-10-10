@@ -322,6 +322,10 @@ pub enum SelectionFault {
     },
     /// The seat reads no selection of this entity kind (a blend reads
     /// edges, a shell faces; a whole body is read as the body).
+    ///
+    /// This arm and [`Self::OtherBody`] are the edit door's, which
+    /// knows the seat and the read; [`Select::fault`] answers the
+    /// rest, of a stored selection's form.
     Seat {
         /// The entity kind the names name.
         entity: crate::names::EntityKind,
@@ -344,6 +348,10 @@ pub enum SelectionFault {
         /// The repeat.
         again: usize,
     },
+    /// A whole body named at a measure seat whose read is not that
+    /// body: the name's node is neither the read's operation nor
+    /// upstream of it.
+    OtherBody,
 }
 
 impl core::fmt::Display for SelectionFault {
@@ -361,6 +369,7 @@ impl core::fmt::Display for SelectionFault {
             Self::Singleton { count } => {
                 write!(f, "a selection of one entity holds {count} names")
             }
+            Self::OtherBody => f.write_str("the body named is not the body read"),
             Self::NotCanonical { at } => write!(
                 f,
                 "the edges are not sorted and deduplicated (names {at} and {} are out of order)",

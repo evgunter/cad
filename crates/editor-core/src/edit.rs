@@ -1293,6 +1293,24 @@ fn mint_selection<P: crate::ProfilePayload>(
         slot,
         fault,
     };
+    // A whole body named at a measure seat is a read of that body: the
+    // name must be the body read's, its operation's or upstream of it.
+    if let ([name], crate::SlotKind::Measured(_)) = (names, expected)
+        && name.kind == EntityKind::Body
+    {
+        if !doc.nodes.contains_key(&name.node) {
+            return Err(EditError::DeclareNamesMissingNode {
+                name: doc.spoken_name(name),
+            });
+        }
+        let on_body = doc.read_operation(body).is_some_and(|at| {
+            at == name.node || crate::doc::strict_ancestors(doc, at).contains(&name.node)
+        });
+        if !on_body {
+            return Err(shape(crate::var::SelectionFault::OtherBody));
+        }
+        return Ok(body);
+    }
     let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
     let kind = expected
         .selection_kind(entity)

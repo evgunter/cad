@@ -671,3 +671,51 @@ fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
         );
     }
 }
+
+/// **A whole body named at a measure seat must be the body read.** The
+/// body's own name is read as the body; another body's name at it
+/// refuses `OtherBody`, rather than measuring the body read under a
+/// name that says otherwise.
+#[test]
+fn a_measure_reads_a_whole_body_only_under_its_own_name() {
+    let (doc, p) = prism(blank("s2e-other-body"), 0.0);
+    let (doc, q) = prism(doc, 4.0);
+    let body = |node| StableName {
+        kind: EntityKind::Body,
+        node,
+        path: Vec::new(),
+    };
+    let clearance = |a: SitedRef| {
+        editor_core::measure(
+            &doc,
+            &[MeasurePrimitive::MinClearance {
+                a,
+                b: SitedRef::at_mint(q.faces[0].clone()),
+            }],
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+    };
+    let own = clearance(SitedRef::new(p.node, body(p.node))).expect("its own body");
+    let read = own
+        .doc
+        .node(own.measured.measures[0])
+        .expect("a measure")
+        .operand_rows()[0]
+        .1;
+    assert_eq!(
+        Some(read),
+        own.doc.output(p.node, 0),
+        "read as the body itself"
+    );
+    assert!(
+        matches!(
+            clearance(SitedRef::new(p.node, body(q.node))),
+            Err(EditError::SelectionShape {
+                fault: editor_core::SelectionFault::OtherBody,
+                ..
+            })
+        ),
+        "another body's name refuses"
+    );
+}

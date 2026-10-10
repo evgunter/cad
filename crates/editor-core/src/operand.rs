@@ -277,15 +277,12 @@ impl core::fmt::Display for SlotKind {
     }
 }
 
-/// A sited reference as a measure seat reads it: a body name read at
-/// `at` is that node's body, any other name the selection of it in
-/// `at`'s body.
+/// A sited reference as a measure seat reads it: the selection of its
+/// name in `at`'s body. The door reads a whole body's name as that body
+/// itself, once it has checked the name is the body's
+/// ([`crate::var::SelectionFault::OtherBody`]).
 impl From<crate::SitedRef> for Operand {
     fn from(r: crate::SitedRef) -> Self {
-        if r.name.kind == crate::names::EntityKind::Body {
-            Self::Node(r.at)
-        } else {
-            Self::select(r.at, vec![r.name])
-        }
+        Self::select(r.at, vec![r.name])
     }
 }

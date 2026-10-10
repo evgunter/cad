@@ -358,7 +358,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 F::Repeated { first, again } => (Some(*first), Some(*again), None),
                 F::NotCanonical { at } => (Some(*at), None, None),
                 F::Singleton { count } => (None, None, Some(*count)),
-                F::NotASelection { .. } | F::Seat { .. } => (None, None, None),
+                F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
             };
             EditPayload {
                 node: Some(node.id()),
