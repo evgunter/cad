@@ -538,8 +538,7 @@ mod tests {
         );
         assert!(
             tail.ends_with(
-                "). Recourse: thicken or remove the degenerate geometry; an unreadable or \
-                 collapsed margin may indicate a kernel bug worth reporting"
+                "). Recourse: thicken or remove the degenerate geometry; an unreadable margin may indicate a kernel bug worth reporting"
             ),
             "{text}"
         );

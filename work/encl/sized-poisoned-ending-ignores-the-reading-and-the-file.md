@@ -2,11 +2,12 @@
 id: sized-poisoned-ending-ignores-the-reading-and-the-file
 kind: issue
 title: geom-core: a sized decision's poisoned-margin ending says 'kernel bug' at every door and keeps a lever a NaN cannot follow
-status: dispatched
+status: review
 branch: encl/poisoned-sized-ending
 opened: 2026-10-09
 priority: P3
 cost: M
+pr: 4475
 ---
 
 
