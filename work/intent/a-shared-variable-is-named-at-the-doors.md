@@ -2,12 +2,13 @@
 id: a-shared-variable-is-named-at-the-doors
 kind: issue
 title: Build FORK-7: an unnamed variable has one reader; sharing refuses until it is named (slot doors, formula door, façade, load walk, GUI accept-offer)
-status: review
+status: closed
 priority: P1
 cost: M
 blocked_on: [operations-define-output-variables]
 refs: [a-shared-variable-has-a-name]
 opened: 2026-10-08
+closed: 2026-10-10
 branch: intent/fork7-shared-is-named
 pr: 4463
 ---
