@@ -139,6 +139,8 @@ mod curves_span_window_pairing;
 mod curves_split_at;
 #[path = "curves/swaying_corner_meter.rs"]
 mod curves_swaying_corner_meter;
+#[path = "curves/review_4540_probes.rs"]
+mod curves_review_4540_probes;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
 #[path = "n2r1_probes.rs"]
