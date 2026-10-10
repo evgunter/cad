@@ -2,11 +2,12 @@
 id: contact-verify-on-surface-residual-subtracts-its-sag
 kind: issue
 title: contact_verify's on-surface residual decides |r| − residual_sag where the edge certifier decides r + residual_sag, so the verify direction is padded the wrong way
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: E
 pr: 4558
+closed: 2026-10-10
 ---
 
 Found by CLEAVE's `cleave/steep-tube-eps` lane, in its sweep for one-sided
@@ -60,3 +61,7 @@ sample's own `r` (sound without the sag, and stronger than `|r| − sag`),
 escalate between. One test moved (the chain's declared seam now
 escalates at the witness lane). The meridian bound is filed on tang
 (`a-torus-meridian-rims-span-bound-is-wider-than-the-band`).
+
+## Closed (2026-10-10, PR 4558)
+
+Merged after a full single review and a verified fix pass.

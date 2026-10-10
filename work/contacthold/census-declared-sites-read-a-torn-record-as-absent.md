@@ -2,12 +2,12 @@
 id: census-declared-sites-read-a-torn-record-as-absent
 kind: issue
 title: The census's declared-site walks (ee_cross_backed, sweep_conformal_patches, the patch arm of confirm_curve_and_patch_records) read a torn record as absent — the held half of census-arena-walks-read-a-torn-record-as-absent
-status: review
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: E
-
 pr: 4559
+closed: 2026-10-10
 ---
 
 
@@ -38,3 +38,7 @@ sites, so the fix waits for B2's merge rather than colliding with it.
   op's keys, and a miss there is the typed `StaleContactDeclaration`,
   which stays. The curve arm's `body.curves.get(e.curve)` hop is the
   parent row's (`census-arena-walks-read-a-torn-record-as-absent`).
+
+## Closed (2026-10-10, PR 4559)
+
+Merged after a full single review and a verified fix pass.
