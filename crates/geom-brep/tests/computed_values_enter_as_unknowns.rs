@@ -65,8 +65,9 @@ fn the_plane_nurbs_lanes_computed_values_are_unknowns() {
         ];
         (by_predicate, fields)
     });
-    // Each predicate's margin reads one site: the wall's jet at the
-    // measured foot (`edge_nurbs`'s `foot.x`/`foot.y`), the analytic
+    // Each predicate's margin reads a site: the wall's jet at the
+    // measured foot (`edge_nurbs`'s `foot.x` and `foot.y` together; the
+    // jet reads both, so `measured_foot`'s own row tells them apart), the analytic
     // operand's hull bound (`hull.sup`), the NURBS operand's composite
     // bound (`sup`) and the tube's clearance (`clearance`).
     for (predicate, values) in by_predicate {

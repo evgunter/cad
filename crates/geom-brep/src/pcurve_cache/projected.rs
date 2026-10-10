@@ -1311,19 +1311,11 @@ pub(super) fn hull_sector<T: Decide>(
     chart: &ProjectedChart<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    holds(
-        T::from_computed(piece.x_lo),
-        band,
-        k,
-        SectorChannel::Azimuth,
-    )?;
+    let x_lo = T::from_computed(piece.x_lo);
+    holds(x_lo, band, k, SectorChannel::Azimuth)?;
     if matches!(chart, ProjectedChart::Torus { .. }) {
-        holds(
-            T::from_computed(piece.tube_lo),
-            band,
-            k,
-            SectorChannel::Tube,
-        )?;
+        let tube_lo = T::from_computed(piece.tube_lo);
+        holds(tube_lo, band, k, SectorChannel::Tube)?;
     }
     Ok(())
 }
@@ -1981,7 +1973,7 @@ mod tests {
         let hull = ProjectedHull {
             pieces: vec![PieceHull {
                 x_lo: 1.0,
-                tube_lo: 1.0,
+                tube_lo: 2.0,
             }],
             spans: vec![SpanHull {
                 range: (0.0, 1.0),
@@ -2027,7 +2019,11 @@ mod tests {
                 z,
             )
         });
-        assert_eq!(sector, [None, None], "x_lo, tube_lo: the sector's channels");
+        assert_eq!(
+            sector,
+            [None, None],
+            "x_lo (1.0), tube_lo (2.0): the sector's channels"
+        );
         assert_eq!(incidence, None, "f_sup: the plane's incidence");
         assert_eq!(floor, None, "rho_lo: the Lipschitz floor");
         assert_eq!(z, [None, None], "z.0, z.1: the axial floor on each nappe");

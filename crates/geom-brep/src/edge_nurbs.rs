@@ -1372,13 +1372,6 @@ mod tests {
     /// ulp above `0.9`, so a computed end would miss it.
     const CARRIER: (f64, f64) = (0.3, 0.9);
 
-    /// The rescale is the rescale and the lift is the lift, at `f64`:
-    /// the carrier-domain image's domain is `(t0, t1)` bit for bit,
-    /// its knots are the domain door's and its net and weights the
-    /// source's verbatim, it is the SOURCE reparametrized — equal to
-    /// the source at the pulled-back parameter, bit for bit at the
-    /// ends and to the evaluator's rounding between them — and the
-    /// only refusal is the knot door's, named as the domain's.
     /// The fit's computed values enter as unknowns at `Sym`: a measured
     /// foot's two coordinates, and every coordinate of the fitted
     /// image's control net. A constant would re-value to its own bits.
@@ -1411,6 +1404,13 @@ mod tests {
         );
     }
 
+    /// The rescale is the rescale and the lift is the lift, at `f64`:
+    /// the carrier-domain image's domain is `(t0, t1)` bit for bit,
+    /// its knots are the domain door's and its net and weights the
+    /// source's verbatim, it is the SOURCE reparametrized — equal to
+    /// the source at the pulled-back parameter, bit for bit at the
+    /// ends and to the evaluator's rounding between them — and the
+    /// only refusal is the knot door's, named as the domain's.
     #[test]
     fn on_carrier_domain_at_f64_pins_the_domain_carries_the_structure_and_reparametrizes() {
         let image = image();
