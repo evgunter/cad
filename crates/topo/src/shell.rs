@@ -4001,9 +4001,10 @@ fn footprints_may_overlap<T: Decide>(
 /// when those sets meet only where the two faces are joined: along a
 /// moved common edge, which lies on `L` and which both faces hold, or
 /// at a shared vertex. So the overlap of the two sets, less every
-/// moved common edge, is the margin: Positive refuses
-/// [`ShellError::OffsetsCross`], and so does Zero, a touch, unless it
-/// is at a vertex the two faces share. A pair parallel to the band is
+/// moved common edge and every shared vertex (widened to twice the
+/// escalation width), is the margin: Positive refuses
+/// [`ShellError::OffsetsCross`], and so does Zero, a touch away from
+/// where the faces are joined. A pair parallel to the band is
 /// not read: facing, it is [`wall_clearance`]'s; facing the same way,
 /// its moved planes stay parallel and cannot cross.
 ///
@@ -4063,7 +4064,7 @@ fn moved_walls_cross<T: Decide + geom_core::Bounds>(
 /// **One pair of [`moved_walls_cross`]**: how far the two moved walls
 /// overlap along the line their planes share, away from every moved
 /// edge they share, or `None` when they clear, are parallel to the
-/// band, or touch only at a shared vertex.
+/// band, or meet only where they are joined.
 fn walls_cross<T: Decide>(
     a: &MovedWall<T>,
     b: &MovedWall<T>,
@@ -4095,7 +4096,14 @@ fn walls_cross<T: Decide>(
     let on_a = a.cut(p0, d, band)?;
     let on_b = b.cut(p0, d, band)?;
     let along = |p: geom_core::Point3<T>| (p - p0).dot(d);
-    let common: Vec<(T, T)> = a
+    // Where the two faces are joined: every moved common edge, which
+    // lies on `L`, and every shared vertex, widened to twice the
+    // escalation width either side. Two joined faces come arbitrarily
+    // close at the vertex they share, so a margin inside the band there
+    // is the joint, not a sliver; at twice the width, a piece left
+    // beside it is decided rather than borderline.
+    let w = T::from_f64(2.0 * band.escalate());
+    let joined: Vec<(T, T)> = a
         .edges
         .iter()
         .filter(|e| b.edges.iter().any(|f| f.edge == e.edge))
@@ -4103,19 +4111,22 @@ fn walls_cross<T: Decide>(
             let (s, t) = (along(e.start.1), along(e.end.1));
             (s.min(t), s.max(t))
         })
-        .collect();
-    let shared: Vec<geom_core::Point3<T>> = a
-        .edges
-        .iter()
-        .filter(|e| b.vertices.contains(&e.start.0))
-        .map(|e| e.start.1)
+        .chain(
+            a.edges
+                .iter()
+                .filter(|e| b.vertices.contains(&e.start.0))
+                .map(|e| {
+                    let s = along(e.start.1);
+                    (s - w, s + w)
+                }),
+        )
         .collect();
     for &(a_lo, a_hi) in &on_a {
         for &(b_lo, b_hi) in &on_b {
-            // The overlap less every moved common edge: what is
-            // left is where the two walls meet away from it.
+            // The overlap less every joint: what is left is where the
+            // two walls meet away from where they are joined.
             let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
-            for &(e_lo, e_hi) in &common {
+            for &(e_lo, e_hi) in &joined {
                 let mut kept = Vec::new();
                 for (lo, hi) in rest {
                     for piece in [(lo, hi.min(e_lo)), (lo.max(e_hi), hi)] {
@@ -4133,36 +4144,14 @@ fn walls_cross<T: Decide>(
                 }
                 rest = kept;
             }
+            // Positive is a crossing; Zero, a touch away from every
+            // joint, is a contact and refuses too.
             for (lo, hi) in rest {
                 let overlap = hi - lo;
-                let crosses = match decide("shell_moved_walls_overlap", Margin::of(overlap), band)?
-                {
-                    Sign::Positive => true,
-                    // A touch is the shared vertex both
-                    // faces hold, or it is a contact.
-                    Sign::Zero => {
-                        let touch = p0 + d * lo;
-                        let reads: Vec<_> = shared
-                            .iter()
-                            .map(|&v| {
-                                decide(
-                                    "shell_moved_walls_touch_vertex",
-                                    Margin::of((v - touch).norm()),
-                                    band,
-                                )
-                            })
-                            .collect();
-                        if reads.iter().any(|r| matches!(r, Ok(Sign::Zero))) {
-                            false
-                        } else if let Some(Err(e)) = reads.into_iter().find(Result::is_err) {
-                            return Err(e);
-                        } else {
-                            true
-                        }
-                    }
-                    Sign::Negative => false,
-                };
-                if crosses {
+                if !matches!(
+                    decide("shell_moved_walls_overlap", Margin::of(overlap), band)?,
+                    Sign::Negative
+                ) {
                     return Ok(Some(overlap.max(T::zero())));
                 }
             }
