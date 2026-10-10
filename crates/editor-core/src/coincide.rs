@@ -492,15 +492,15 @@ pub(crate) fn publish_cited(
         .collect::<Result<_, _>>()?;
     let base = published.len();
     published.extend(name_rows(&cited, inputs)?);
-    let mut out = records.clone();
-    out.renumber_decided(|k| {
-        let rank = used
-            .binary_search(&k)
-            .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
-        Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
-    })
-    .unwrap_or_else(|_| unreachable!("every decided citation renumbers"));
-    Ok(out)
+    Ok(records
+        .clone()
+        .renumbered(|k| {
+            let rank = used
+                .binary_search(&k)
+                .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
+            Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
+        })
+        .unwrap_or_else(|_| unreachable!("every decided citation renumbers")))
 }
 
 /// **The kernel's rows, named**: each cell by its name in the input

@@ -3338,7 +3338,7 @@ pub(super) fn carry<T: Real>(
 /// op's own coincidences and their citations renumbered onto them
 /// ([`carry`]).
 fn cite_rows(
-    mut records: ContactRecords,
+    records: ContactRecords,
     ledger: &Ledger,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let decided = records.decided();
@@ -3371,8 +3371,8 @@ fn cite_rows(
             discharge: crate::Discharge::Numeric,
         });
     }
-    records
-        .renumber_decided(|k| {
+    let records = records
+        .renumbered(|k| {
             used.binary_search(&k)
                 .ok()
                 .map(|rank| super::reduce::index(base + rank))

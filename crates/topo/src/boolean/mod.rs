@@ -705,7 +705,7 @@ impl ContactRecords {
     }
 
     /// Every record's citations, mutably, in [`Self::cites`] order.
-    pub fn cites_mut(&mut self) -> impl Iterator<Item = &mut Cites> + '_ {
+    fn cites_mut(&mut self) -> impl Iterator<Item = &mut Cites> + '_ {
         let Self {
             vv,
             a_on_b,
@@ -741,15 +741,15 @@ impl ContactRecords {
         used
     }
 
-    /// Every record's [`Backing::Decided`] citations renumbered through
-    /// `row`, the citation dropped where `row` answers `None`; carried
-    /// citations stay. A record left citing nothing refuses with its
-    /// index in [`Self::rows`], and the records are left as they were.
+    /// These records with every [`Backing::Decided`] citation renumbered
+    /// through `row`, the citation dropped where `row` answers `None`;
+    /// carried citations stay.
     ///
     /// # Errors
     ///
-    /// The index of the first record whose citations all dropped.
-    pub fn renumber_decided(&mut self, row: impl Fn(u32) -> Option<u32>) -> Result<(), usize> {
+    /// The index in [`Self::rows`] of the first record whose citations
+    /// all dropped.
+    pub fn renumbered(mut self, row: impl Fn(u32) -> Option<u32>) -> Result<Self, usize> {
         let mapped = self
             .cites()
             .enumerate()
@@ -768,7 +768,7 @@ impl ContactRecords {
         for (cites, new) in self.cites_mut().zip(mapped) {
             *cites = new;
         }
-        Ok(())
+        Ok(self)
     }
 
     /// Every record as its cell pair and its citations, in list order
