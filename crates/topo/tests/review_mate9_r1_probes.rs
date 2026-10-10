@@ -141,7 +141,10 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     // edges' far endpoints are definitely off the seat carrier), so
     // no side question is posed and nothing is backed. Inverted from
     // the frozen-head measurement, where both vanished.
-    let found = crossing_witnesses(&errors(&body, &declared(&body, &[(post_top, shelf_bottom)])));
+    let found = crossing_witnesses(&errors(
+        &body,
+        &declared(&body, &[(post_top, shelf_bottom)]),
+    ));
     let surviving_dives: Vec<_> = found
         .iter()
         .filter(|w| dive_witness(w) && at_seat_level(w))

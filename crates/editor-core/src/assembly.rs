@@ -1513,7 +1513,9 @@ impl AtRestRows {
                     },
                 });
                 let Ok(contact) = Contact::new(body, Cell::Face(face_a), Cell::Face(face_b)) else {
-                    unreachable!("a mate the census decided names two faces, which no incidence joins")
+                    unreachable!(
+                        "a mate the census decided names two faces, which no incidence joins"
+                    )
                 };
                 self.contacts
                     .push(topo::Cited::new(contact, topo::Cites::decided(k)));

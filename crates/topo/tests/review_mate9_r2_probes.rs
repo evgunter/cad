@@ -208,7 +208,10 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
 fn r2_the_side_question_is_order_free_and_never_duplicated() {
     let (body, post_top, post_side_x030, shelf_bottom, shelf_side_y030) = straddle_parts();
 
-    let perp_only = errors(&body, &declared(&body, &[(post_side_x030, shelf_side_y030)]));
+    let perp_only = errors(
+        &body,
+        &declared(&body, &[(post_side_x030, shelf_side_y030)]),
+    );
     let escalations = perp_only
         .iter()
         .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
@@ -234,11 +237,17 @@ fn r2_the_side_question_is_order_free_and_never_duplicated() {
     // refusal, and nothing depends on which pair sorts first.
     let ab = errors(
         &body,
-        &declared(&body, &[(post_top, shelf_bottom), (post_side_x030, shelf_side_y030)]),
+        &declared(
+            &body,
+            &[(post_top, shelf_bottom), (post_side_x030, shelf_side_y030)],
+        ),
     );
     let ba = errors(
         &body,
-        &declared(&body, &[(post_side_x030, shelf_side_y030), (post_top, shelf_bottom)]),
+        &declared(
+            &body,
+            &[(post_side_x030, shelf_side_y030), (post_top, shelf_bottom)],
+        ),
     );
     assert_eq!(
         format!("{ab:?}"),

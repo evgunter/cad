@@ -993,7 +993,8 @@ fn resolve_declarations(
             ImportContact::VertexRest { at } => {
                 let candidates = body.vertex_points();
                 let ([a, b], row) = vertex_rest_contact(candidates, at, eps_in)?;
-                let Ok(pair) = topo::Contact::new(body, topo::Cell::Vertex(a), topo::Cell::Vertex(b))
+                let Ok(pair) =
+                    topo::Contact::new(body, topo::Cell::Vertex(a), topo::Cell::Vertex(b))
                 else {
                     unreachable!("two hits of one walk over the vertices are two vertices")
                 };

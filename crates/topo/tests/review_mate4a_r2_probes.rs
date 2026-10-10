@@ -247,7 +247,11 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
 #[test]
 fn r2_the_new_rows_hold_at_the_default_band() {
     let (body, post_top, shelf_bottom, _, _, _) = overhang_seat_full();
-    let declared_seat = errors(&body, &records(&body, &[(post_top, shelf_bottom)]), Tol::witness());
+    let declared_seat = errors(
+        &body,
+        &records(&body, &[(post_top, shelf_bottom)]),
+        Tol::witness(),
+    );
     assert!(
         undeclared(&declared_seat).is_empty(),
         "declared seat at the default band: {declared_seat:?}"
