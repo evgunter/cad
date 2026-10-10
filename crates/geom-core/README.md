@@ -150,9 +150,10 @@ description's parameter):
 
 - **Scale.** Width or error proportional to the geometry's own scale (a
   radius, a chord, the split parameter's own rounding) is the floor.
-  Width proportional to the distance from the world origin, or to the
-  number of restrictions a value has been through, is a defect: it
-  rejects the spelling at every scalar.
+  Width proportional to the distance from the world origin, or
+  inherited width multiplied at each restriction, insertion or cut a
+  value goes through, is a defect: it rejects the spelling at every
+  scalar. Rounding added once per step is the floor.
 - **Among spellings that pass:**
   - a difference of a few ulps of the coordinates at f64 decides
     nothing;
