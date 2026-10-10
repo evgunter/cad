@@ -1236,14 +1236,15 @@ fn a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval() {
 /// **A plane normal with one component the interval lane cannot call
 /// zero still cuts, where the other two settle the frame.** The unit
 /// cylinder cut through its axis's midpoint with normal
-/// `([−1e−12, 1e−12], 0.3, 1)`: two components are definitely nonzero,
+/// `([−1e−18, 1e−18], 0.3, 1)`: two components are definitely nonzero,
 /// so the plane is not an axis plane whatever the first reads, and the
-/// section is the ellipse of area `π·√1.09`.
+/// section is the ellipse of area `π·√1.09`. The straddle is far inside
+/// every ε row, so the rest of the cut reads the plane as definite.
 #[test]
 fn a_normal_straddling_zero_in_one_component_still_cuts_at_interval() {
     use geom_core::{Bounds, Interval, Real};
     let n = Vec3::new(
-        Interval::from_bounds(-1e-12, 1e-12),
+        Interval::from_bounds(-1e-18, 1e-18),
         Interval::from_f64(0.3),
         Interval::from_f64(1.0),
     );
