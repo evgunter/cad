@@ -1,36 +1,21 @@
-//! **The at-rest gate refuses a mate read below a placer in the
-//! operand's voice.**
+//! **The at-rest gate on a mate read below a placer.**
 //!
-//! `P(T(top))` with the mate read AT `T`: the solve places it, the
-//! product gathers, and the gate reads the name in the OPERAND's own
-//! table and carries it up. The pattern above `T` places it again
-//! before the product holds it, so the reference refuses
-//! `RefusedRef::MovedAbove { at: T, by: P }`, naming both, rather than
-//! calling the name vanished. `Vanished` is a name that names nothing
-//! where the mate reads it, or one a consumer merged, cut or dropped
-//! on its way up — naming that consumer.
+//! `P(T(top))` with the mate read AT `T`: the solve places it and the
+//! product gathers. A mate side is a selection of the body it is read
+//! in, and the gate mints on the world copy of that body; no placement
+//! reads `T` — the pattern's copies are the world — so the mate is no
+//! statement about the product, and the seat it would have declared is
+//! an unattributed contact. A side whose selection resolves nothing, or
+//! a tie, is the selection's own refusal at evaluation.
 //!
-//! Nothing is admitted here that was refused: every row that refused
-//! before refuses still, and the control (the same document read AT
-//! the pattern, with the instance spelling) holds as it did.
+//! The control (the same document read AT the pattern, with the
+//! instance spelling) mints as it did.
 //!
-//! **The kind question is not asked here any more, and no row for it
-//! belongs here.** A mate head is a `SitedFace` over a `FaceName`, so
-//! "what does this name denote" is decided by the head's TYPE: the
-//! three rows this file used to carry — a root's body, the same body
-//! read below a root, a tied edge at the pattern and below it — each
-//! built a document that cannot be written now, and a row measuring a
-//! state nothing can reach measures nothing. What replaced them is
-//! `SitedFace`'s own `compile_fail` row (a `Node::Mate` will not take
-//! a bare `StableName`), `edit_one_predicate`'s load-door row (a file
-//! whose head is retyped on the wire refuses at the constructor the
-//! wire calls), and `test_assembly_author.py`'s (the binding calls the
-//! same constructor where a Python caller builds the mate).
-//!
-//! The ladder's remaining rungs are the ones that need a PRODUCT, and
-//! they are what this file measures: which entity a head resolves to
-//! (`Vanished`), how many (`Ambiguous`), and whether a placer moves it
-//! before the product holds it (`MovedAbove`).
+//! **The kind question is not asked here, and no row for it belongs
+//! here.** A mate side is authored as a `SitedFace` over a `FaceName`,
+//! so "what does this name denote" is decided by the type: `SitedFace`'s
+//! own `compile_fail` row, `edit_one_predicate`'s load-door row and
+//! `test_assembly_author.py`'s measure it.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -361,12 +346,9 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
 
 // ---- A2: the order of the two questions ----
 
-/// A mate read at `T` naming a face `top` does not have refuses
-/// `Vanished`: the operand's own table is silent on the name, so the
-/// first question answers and the second is never reached. This is
-/// what keeps a vanished name honest — the name names nothing where
-/// the mate reads it, so the side's selection refuses and the mate with
-/// it.
+/// A mate read at `T` naming a face `top` does not have refuses: the
+/// side's selection resolves nothing in the body it reads, so the mate
+/// refuses with it.
 #[test]
 fn a_name_the_operand_does_not_spell_stays_vanished() {
     let s = scene("msolve5-vanished");
@@ -400,21 +382,35 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
         "the side's selection refuses: {:?}",
         ev.node_error(mate)
     );
-    let err = gate(&doc, &ev).expect_err("a name nothing answers to refuses");
-    let AssemblyError::Mint { refusals } = &err else {
-        panic!("expected the mate's refusal, got {err:?}");
-    };
-    assert!(
-        matches!(refusals.as_slice(), [MintRefusal::Unevaluated { mate: m, .. }] if *m == mate),
-        "the gate names the mate with no value: {refusals:?}"
-    );
+    // `T` is read by no placement — the pattern's copies are the world —
+    // so the mate is no statement about the product, live or not: the
+    // gate asks it nothing, and the seat it would have declared is an
+    // unattributed contact.
+    assert_unattributed(&doc, &ev);
+}
+
+/// The gate refuses at rest, every finding unattributed: no mate speaks
+/// for the product.
+fn assert_unattributed(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    match gate(doc, ev) {
+        Err(AssemblyError::AtRest { findings }) => assert!(
+            !findings.is_empty()
+                && findings
+                    .iter()
+                    .all(|f| matches!(f.attribution, editor_core::Attribution::Unattributed)),
+            "{findings:?}"
+        ),
+        other => panic!("expected unattributed contacts at rest, got {other:?}"),
+    }
 }
 
 // ---- ties: the product decides its own ----
 
 /// A TIED face is the side's selection's to refuse, wherever it is
 /// read: at `T` below the pattern, and AT the pattern with the instance
-/// spelling. The mate refuses with it, and the gate names the mate.
+/// spelling. The mate refuses with it. Read at the pattern, whose
+/// copies are placed, the gate names the mate; read at `T`, which
+/// nothing places, the mate is no statement about the product.
 #[test]
 fn a_tied_face_refuses_at_the_side_wherever_it_is_read() {
     let s = scene_with("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
@@ -448,7 +444,17 @@ fn a_tied_face_refuses_at_the_side_wherever_it_is_read() {
             "{err:?}"
         );
     };
-    tied_refusal(&doc, &ev, mate);
+    // Read at `T`, which nothing places: the side's own refusal is the
+    // evaluation's, and the gate asks the mate nothing.
+    assert!(
+        matches!(
+            ev.node_error(mate).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::SelectResolve { .. })
+        ),
+        "a tie is never broken by picking: {:?}",
+        ev.node_error(mate)
+    );
+    assert_unattributed(&doc, &ev);
     let _ = width;
 
     let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));

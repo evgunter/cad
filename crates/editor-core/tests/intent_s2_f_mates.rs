@@ -182,8 +182,12 @@ fn a_cut_severing_a_mates_read_refuses_as_a_severed_read() {
     assert!(
         matches!(
             &err,
-            SplitError::SeveredEdge { consumer, input, consumer_is_cut: false }
-                if *consumer == doc.spoken(mate) && *input == doc.spoken(b)
+            SplitError::SeveredEdge {
+                consumer,
+                slot: Some(OperandSlot::Side(editor_core::MateSide::B)),
+                input,
+                consumer_is_cut: false,
+            } if *consumer == doc.spoken(mate) && *input == doc.spoken(b)
         ),
         "{err:?}"
     );
@@ -229,7 +233,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
         },
     );
     let doc = fixture::place_all(doc, &[fused]);
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &with_resolver(store.clone()));
     fixture::assert_mints_nothing(&doc, &ev, mate);
     assert_eq!(
         product_recorded(&doc, &ev, Tol::witness())
@@ -242,6 +246,17 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
         1,
         "the product is the union's one copy"
     );
+    // Its side stopping resolving is the evaluation's refusal, not the
+    // gate's (review R1, MINOR-1): the mate is still no statement about
+    // the product.
+    let doc = ghost_side(doc, mate, b);
+    let ev = run(&doc, &with_resolver(store));
+    assert!(
+        ev.node_error(mate).is_some(),
+        "the evaluation refuses the side"
+    );
+    let gated = assemble(&doc, &ev, Tol::witness()).map(|_| ());
+    assert!(gated.is_ok(), "the gate asks nothing of it: {gated:?}");
 }
 
 /// **A body placed twice has two world copies**, so a side read in it
@@ -265,19 +280,12 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     );
 }
 
-/// **A side whose name stops resolving refuses the mate in the
-/// selection's words, and the gate names the mate** rather than pass a
-/// mate that speaks for nothing.
-#[test]
-fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
-    let (doc, [a, b], store, body) = pair("f-vanish");
-    let doc = fixture::place_all(doc, &[a, b]);
-    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
-    // The side re-pointed at a face name the instance's table does not
-    // carry: the selection's ladder refuses it.
+/// `mate`'s side `b` re-pointed at a face name `instance`'s table does
+/// not carry: the selection's ladder refuses it.
+fn ghost_side(doc: ProfileDoc, mate: RecipeNodeId, instance: RecipeNodeId) -> ProfileDoc {
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
-        node: b,
+        node: instance,
         path: vec![editor_core::RoleSeg::InPart {
             of: editor_core::StableName {
                 kind: editor_core::EntityKind::Face,
@@ -287,15 +295,27 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
             .into(),
         }],
     };
-    let (doc, _) = step(
+    step(
         doc,
         DocEdit::SetParam {
             node: mate,
             slot: editor_core::SlotId::Operand(OperandSlot::Side(editor_core::MateSide::B)),
-            value: editor_core::SlotValue::Read(fixture::head_at(b, ghost).into()),
+            value: editor_core::SlotValue::Read(fixture::head_at(instance, ghost).into()),
             fresh: Vec::new(),
         },
-    );
+    )
+    .0
+}
+
+/// **A side whose name stops resolving refuses the mate in the
+/// selection's words, and the gate names the mate** rather than pass a
+/// mate that speaks for nothing.
+#[test]
+fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
+    let (doc, [a, b], store, body) = pair("f-vanish");
+    let doc = fixture::place_all(doc, &[a, b]);
+    let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
+    let doc = ghost_side(doc, mate, b);
     let ev = run(&doc, &with_resolver(store));
     assert!(
         matches!(
@@ -315,4 +335,187 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
         ),
         other => panic!("a mate with no value refuses at the gate: {other:?}"),
     }
+}
+
+/// Two local cubes, `x` and `y`, a transform `t` lifting `x` by 5, and
+/// `x` and `y` placed; a distance measure reads a face of `x` in
+/// `body_of_x(x, t)` and a face of `y`. Answers the document and
+/// `(x, t, the placement of x)`.
+fn lifted_cube_measured(
+    label: &str,
+    body_of_x: impl Fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
+    placed: impl Fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
+) -> (ProfileDoc, [RecipeNodeId; 3]) {
+    let cube = |doc: ProfileDoc, x: f64| {
+        let (doc, p) = on_frame(
+            doc,
+            [x, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
+        )
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, x) = cube(doc, 0.0);
+    let (doc, y) = cube(doc, 3.0);
+    let (doc, t) = insert(
+        doc,
+        fixture::xform(x, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let (doc, px) = fixture::place(doc, placed(x, t));
+    let (doc, _) = fixture::place(doc, y);
+    let (doc, _) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::new(
+                body_of_x(x, t),
+                fixture::fname(x, editor_core::RoleSeg::Cap(CapEnd::End)),
+            ),
+            editor_core::SitedRef::new(
+                y,
+                fixture::fname(y, editor_core::RoleSeg::Cap(CapEnd::End)),
+            ),
+        ],
+    );
+    (doc, [x, t, px])
+}
+
+/// **A selection crosses a cut only through a placement of its own
+/// body** (review R1, MAJOR-1). A measure reads `x`'s face in the
+/// transform `t` over it, and only `x` is placed: the cut placement's
+/// copy holds the name, but not where the measure reads it, so the
+/// read is severed rather than re-anchored five units away. The
+/// reverse — the face read in `x`, only `t` placed — likewise.
+#[test]
+fn a_selection_crosses_only_through_a_placement_of_its_own_body() {
+    for (label, body_of_x, placed, severed) in [
+        (
+            "f-cross-through-t",
+            (|_x, t| t) as fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
+            (|x, _t| x) as fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
+            (|_x, t| t) as fn(RecipeNodeId, RecipeNodeId) -> RecipeNodeId,
+        ),
+        ("f-cross-through-x", |x, _t| x, |_x, t| t, |x, _t| x),
+    ] {
+        let (doc, [x, t, px]) = lifted_cube_measured(label, body_of_x, placed);
+        // `t` and everything it reads, and the placement.
+        let mut cut = std::collections::BTreeSet::from([px]);
+        let mut stack = vec![t];
+        while let Some(n) = stack.pop() {
+            if cut.insert(n) {
+                stack.extend(doc.upstream(n));
+            }
+        }
+        let err = editor_core::split(
+            &doc,
+            &cut,
+            DocumentId::derive(&format!("{label}-part")),
+            Tol::witness(),
+            None,
+        )
+        .expect_err("the measure reads a body no cut placement places");
+        let input = severed(x, t);
+        assert!(
+            matches!(
+                &err,
+                SplitError::SeveredEdge { input: i, consumer_is_cut: false, .. }
+                    if *i == doc.spoken(input)
+            ),
+            "{label}: {err:?}"
+        );
+    }
+}
+
+/// **A selection of a pattern's copies is a mate side's alone** (review
+/// R1, MAJOR-2). A side reads a face of copy 2 in the pattern's
+/// `Bodies`, which a side admits; the document saves. A measure
+/// reading that same selection by its variable is refused at the door,
+/// so the editor never holds a document `persist::save` refuses.
+#[test]
+fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
+    let mut store = PartStore::default();
+    let (leg_ref, leg) = store.insert_part(cube_part("f-shared-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(cube_part("f-shared-top"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("f-shared"), Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: instance.into(),
+            count: Formula::count(4),
+            kind: editor_core::PatternKind::Linear {
+                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let (doc, mate) = insert(
+        doc,
+        Node::Mate {
+            a: fixture::head(fixture::in_copy(
+                pattern,
+                2,
+                in_part(instance, leg, CapEnd::End),
+            ))
+            .into(),
+            b: fixture::head(in_part(top, top_body, CapEnd::Start)).into(),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame([0.0, 0.0, 1.0]),
+                b: frame([0.0, 0.0, 0.0]),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        },
+    );
+    let Some(Node::Mate { a: side, .. }) = doc.node(mate) else {
+        panic!("the mate is there")
+    };
+    let side = *side;
+    // Named, so another reader may read it by its variable.
+    let (doc, _) = step(
+        doc,
+        DocEdit::RenameVar {
+            var: side.into(),
+            name: Some(editor_core::VarName::from_static("leg_top")),
+        },
+    );
+    assert!(
+        editor_core::persist::save(&doc, &[], Tol::witness()).is_ok(),
+        "a side reading a pattern's copy saves"
+    );
+    let measured = editor_core::measure(
+        &doc,
+        &[editor_core::MeasurePrimitive::Distance {
+            a: editor_core::Operand::Var(side),
+            b: editor_core::Operand::from(editor_core::SitedRef::new(
+                top,
+                in_part(top, top_body, CapEnd::Start),
+            )),
+        }],
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(
+        matches!(
+            &measured,
+            Err(editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
+            })
+        ),
+        "a measure reads no selection of a pattern's copies: {:?}",
+        measured.map(|out| editor_core::persist::save(&out.doc, &[], Tol::witness()).map(|_| ()))
+    );
 }

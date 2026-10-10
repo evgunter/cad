@@ -1264,6 +1264,22 @@ fn lower_operand<P: crate::ProfilePayload>(
             mint_selection(doc, spoken, slot, body, names, expected)?
         }
     };
+    // A selection read here is read in a body this seat admits, whoever
+    // authored it: a selection of a pattern's copies, authored at a mate
+    // side, is no reader's but a side's (`persist::check` holds the
+    // stored document to the same rule).
+    if let Some(select) = doc.selection(var) {
+        let body = select.body;
+        check_read(
+            doc,
+            spoken,
+            slot,
+            body,
+            None,
+            selection_body_kind(slot),
+            unresolved,
+        )?;
+    }
     check_read(doc, spoken, slot, var, half, expected, unresolved)
 }
 

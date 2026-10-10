@@ -85,6 +85,7 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::SeveredEdge {
             consumer: s(5, "Extrude"),
+            slot: Some(editor_core::OperandSlot::Profile),
             input: s(3, "Profile"),
             consumer_is_cut: true,
         },

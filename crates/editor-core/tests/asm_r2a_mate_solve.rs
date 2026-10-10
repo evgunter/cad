@@ -1132,9 +1132,9 @@ fn row6a_mated_instances_share_an_a9_component() {
     assert_eq!(together.len(), 1, "the mate COUPLES the components");
     assert!(together[0].contains(&mate_id));
     assert_eq!(
-        crate::fixture::mate_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate_id, ids[0]), (mate_id, ids[1])],
-        "the reading edges are recomputed from the name heads"
+        "each side lands on its instance"
     );
 }
 
@@ -1225,7 +1225,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     assert_eq!(
-        crate::fixture::mate_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
@@ -1339,7 +1339,7 @@ fn row6f_the_slot_door_repairs_a_stranded_side() {
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
     assert_eq!(
-        crate::fixture::mate_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
@@ -1360,7 +1360,7 @@ fn row6f_the_slot_door_repairs_a_stranded_side() {
         )
         .expect("a side is re-pointed by its slot door");
     assert_eq!(
-        crate::fixture::mate_edges(&applied.doc),
+        crate::fixture::mate_members(&applied.doc),
         vec![(mate_id, ids[0]), (mate_id, ids[2])],
         "the repaired side reads through the instance it now names"
     );
@@ -1454,7 +1454,7 @@ fn row6g_a_bodiless_rebind_repairs_a_declared_pair_and_not_a_mate_side() {
         "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(
-        crate::fixture::mate_edges(&applied.doc),
+        crate::fixture::mate_members(&applied.doc),
         vec![(mate_id, ids[0])],
         "the mate's stranded side is a read, which no rebind re-points"
     );

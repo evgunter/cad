@@ -575,6 +575,10 @@ pub enum SplitError {
     SeveredEdge {
         /// The consuming node.
         consumer: SpokenNode,
+        /// The consumer's seat whose read reaches the input, a
+        /// selection's through its body; `None` where no one seat's
+        /// read is the input's.
+        slot: Option<crate::OperandSlot>,
         /// The input it consumes.
         input: SpokenNode,
         /// Whether the CONSUMER is the cut-side endpoint.
@@ -964,6 +968,7 @@ impl core::fmt::Display for SplitError {
             ),
             Self::SeveredEdge {
                 consumer,
+                slot,
                 input,
                 consumer_is_cut,
             } => {
@@ -973,9 +978,10 @@ impl core::fmt::Display for SplitError {
                 } else {
                     (input, consumer)
                 };
+                let reads = slot.map_or_else(String::new, |slot| format!("'s {}", slot.label()));
                 write!(
                     f,
-                    "split: the cut severs the edge from {consumer} to its input {input}. The \
+                    "split: the cut severs the edge from {consumer}{reads} to its input {input}. The \
                      consumer is {consumer_side} and the input is {input_side}, but a cut must be \
                      closed under inputs and consumers. {}",
                     Recourse(&format!("add {kept} to the cut, or leave {cut} out of it"))
@@ -2866,14 +2872,34 @@ pub fn split(
     // name is the geometry's answer. A name of material no cut
     // placement places, or two do, names nothing the instance carries.
     let env = doc.var_env::<f64>();
-    let placing_of = |name: &StableName| -> Option<RecipeNodeId> {
+    // With `body`, the copy is the one a cut placement makes of that body
+    // (a selection's): the placement reads it, or a `Part` that picks a
+    // copy out of it (the gate's copy rule, `assembly::copy_face`), and
+    // the walk follows the name from there to its minting node.
+    let placing_of = |name: &StableName, body: Option<RecipeNodeId>| -> Option<RecipeNodeId> {
         let copy_of_name = match name.path.first() {
             Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
             _ => None,
         };
         let holds = |placed: Option<RecipeNodeId>| -> bool {
-            let mut at = placed;
             let mut picked: Option<i64> = None;
+            let mut at = match (placed, body) {
+                (placed, None) => placed,
+                (Some(node), Some(body)) if node == body => Some(node),
+                (Some(node), Some(body)) => {
+                    match doc.node(node).and_then(crate::names::verbatim_edge) {
+                        Some(crate::names::VerbatimEdge::Selected {
+                            of,
+                            select: crate::node::PartSelect::Instance(index),
+                        }) if doc.operation_of(of) == Some(body) => {
+                            picked = crate::expr::eval_var_count(*index, &env).ok();
+                            picked.map(|_| body)
+                        }
+                        _ => None,
+                    }
+                }
+                (None, Some(_)) => None,
+            };
             while let Some(node) = at {
                 if node == name.node {
                     return picked.is_none_or(|k| copy_of_name == Some(k));
@@ -2927,9 +2953,13 @@ pub fn split(
                 let (body, crosses) = match doc.selection(var) {
                     Some(select) => (
                         select.body,
-                        doc.operation_of(select.body)
-                            .is_some_and(|at| cut.contains(&at))
-                            && select.names.iter().all(|name| placing_of(name).is_some()),
+                        doc.operation_of(select.body).is_some_and(|at| {
+                            cut.contains(&at)
+                                && select
+                                    .names
+                                    .iter()
+                                    .all(|name| placing_of(name, Some(at)).is_some())
+                        }),
                     ),
                     None => (var, cut_placed.contains(&var)),
                 };
@@ -2941,8 +2971,13 @@ pub fn split(
         }
         for input in doc.upstream_of(node) {
             if consumer_is_cut != cut.contains(&input) && !carried.contains(&input) {
+                let slot = node.operand_rows().into_iter().find_map(|(slot, var)| {
+                    let read = doc.selection(var).map_or(var, |select| select.body);
+                    (doc.operation_of(read) == Some(input)).then_some(slot)
+                });
                 return Err(SplitError::SeveredEdge {
                     consumer: doc.spoken(consumer),
+                    slot,
                     input: doc.spoken(input),
                     consumer_is_cut,
                 });
@@ -3457,10 +3492,12 @@ pub fn split(
     // half's pick is not followed, since which half holds a split's
     // name is the geometry's answer. A name of material no cut
     // placement places, or two do, names nothing the instance carries.
-    let in_world = |name: &StableName| -> Result<StableName, SplitError> {
+    let in_world = |name: &StableName,
+                    body: Option<RecipeNodeId>|
+     -> Result<StableName, SplitError> {
         let of = remap_name(name, &node_map, &step_map)
             .map_err(|missing| SplitError::straddles(doc, name, missing))?;
-        let placement = placing_of(name).ok_or_else(|| SplitError::NameOutsidePartWorld {
+        let placement = placing_of(name, body).ok_or_else(|| SplitError::NameOutsidePartWorld {
             name: doc.spoken_name(name),
         })?;
         let Some(&placement) = node_map.get(&placement) else {
@@ -3558,7 +3595,7 @@ pub fn split(
         // re-verification resolves against. `classify` above already
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
-        let Ok(inner) = FaceName::new(in_world(inner)?) else {
+        let Ok(inner) = FaceName::new(in_world(inner, None)?) else {
             unreachable!("a remap keeps a face a face")
         };
         // The heads' own face names go through: the record carries
@@ -3605,15 +3642,16 @@ pub fn split(
             crate::placement::Placement::IDENTITY,
         ))
         .map_err(rem_refused)?;
-    let in_part = |from: &StableName| -> Result<StableName, SplitError> {
-        Ok(StableName {
-            kind: from.kind,
-            node: instance,
-            path: vec![RoleSeg::InPart {
-                of: NameRef::new(in_world(from)?),
-            }],
-        })
-    };
+    let in_part =
+        |from: &StableName, body: Option<RecipeNodeId>| -> Result<StableName, SplitError> {
+            Ok(StableName {
+                kind: from.kind,
+                node: instance,
+                path: vec![RoleSeg::InPart {
+                    of: NameRef::new(in_world(from, body)?),
+                }],
+            })
+        };
     // A selection of the cut body is authored afresh in the instance's
     // body, each name the cut minted read through it, once per
     // selection: its first reader authors it, and a named one keeps its
@@ -3629,7 +3667,7 @@ pub fn split(
                     select
                         .names
                         .iter()
-                        .map(&in_part)
+                        .map(|name| in_part(name, doc.operation_of(select.body)))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             ),
@@ -3660,7 +3698,7 @@ pub fn split(
         }
     }
     for from in &rebinds {
-        let to = in_part(from)?;
+        let to = in_part(from, None)?;
         // A repair is addressed by body: one per remainder selection
         // body naming `from`, and one for the carriers no body holds.
         let mut bodies: BTreeSet<VarId> = BTreeSet::new();

@@ -615,17 +615,20 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             None if snapshot.mint.has_var(select.body) => return None,
             None => SelectionBodyFault::Unminted { body: select.body },
             Some(held) => {
-                // A mate side reads a face of a pattern's copy in the
-                // pattern's `Bodies`; every other reader reads a `Body`.
-                let only_mate_sides = snapshot.nodes.values().all(|node| {
-                    node.operand_rows().into_iter().all(|(slot, read)| {
-                        read != id || matches!(slot, crate::OperandSlot::Side(_))
+                // Every seat reading the selection admits its body
+                // (the edit door's rule, `edit::selection_body_kind`):
+                // a `Bodies` only where mate sides alone read it.
+                let narrow = crate::SlotKind::Is(crate::VarKind::Body);
+                let expected = if snapshot.nodes.values().any(|node| {
+                    node.operand_rows().into_iter().any(|(slot, read)| {
+                        read == id
+                            && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
+                                == narrow
                     })
-                });
-                let expected = if only_mate_sides {
-                    crate::SlotKind::Placeable
+                }) {
+                    narrow
                 } else {
-                    crate::SlotKind::Is(crate::VarKind::Body)
+                    crate::SlotKind::Placeable
                 };
                 match snapshot.read_fault(held, expected, None)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {

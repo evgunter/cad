@@ -1307,7 +1307,9 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 /// A mate that is not a live value of this evaluation mints nothing and
 /// yields a [`MintRefusal::Unevaluated`] row: a side whose selection
 /// does not resolve, or a solve that faulted it, is the mate's own
-/// refusal, and a mate that speaks for nothing is not let pass.
+/// refusal, and a mate that speaks for nothing is not let pass. A mate
+/// one of whose sides reads a body nothing places is asked nothing
+/// here, live or not: it is no statement about the product.
 ///
 /// **A mate mints on the copies of what it reads** (#4220): each side's
 /// face is the selection's entity, and the copy is the world placement
@@ -1359,6 +1361,13 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
             _ => space == crate::mate::Space::World,
         };
         if !in_space {
+            continue;
+        }
+        // A side whose body nothing places is no member of the product,
+        // and the mate states nothing there, live or not (spec §7): its
+        // business is the workbench's, and its own refusal is the
+        // evaluation's.
+        if !side_placed(doc, *a) || !side_placed(doc, *b) {
             continue;
         }
         // A mate with no value declares nothing, and says so (see the
@@ -1586,8 +1595,32 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
         }
     };
     // A placement whose copy is empty grafted nothing, and one in another
-    // space is not in this gather: either way no product face is its.
-    Ok(copies(placement).and_then(|keys| keys.face(key)))
+    // space is not in this gather: either way no product face is its. A
+    // copy that grafted carries every face of its body across the bridge.
+    Ok(copies(placement).map(|keys| {
+        keys.face(key).unwrap_or_else(|| {
+            unreachable!("a grafted copy's bridge carries every face of the body it copies")
+        })
+    }))
+}
+
+/// **Whether anything places the body a mate side reads**: a placement
+/// of the body, or of a `Part` picking one of its copies. Which copy is
+/// [`copy_face`]'s question, asked only of a live mate. A side that is
+/// no selection at all is not answered here: the mate is refused as the
+/// evaluation refused it.
+fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bool {
+    let Some(select) = doc.selection(read) else {
+        return true;
+    };
+    doc.placements().into_iter().any(|p| {
+        matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
+        if *body == select.body
+            || matches!(
+                doc.operation_of(*body).and_then(|at| doc.node(at)),
+                Some(Node::Part { of, .. }) if *of == select.body
+            ))
+    })
 }
 
 /// **What a kernel finding says about what was minted** — which

@@ -7,10 +7,9 @@
 //! [`split`] over EVERY subset of the recipe and assert that no
 //! accepted cut ever mints an interface crossing.
 //!
-//! The edge notion is re-derived here from the public
-//! [`editor_core::reading_edges`] rather than from the collector's own
-//! gate, so the row goes red if the two ever disagree — which is the
-//! whole content of the change under review.
+//! Whether a mate welds its two members is re-derived here from the
+//! member walk (`fixture::mate_members`) rather than from the
+//! collector's own gate, so the row goes red if the two ever disagree.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -144,7 +143,7 @@ struct Sweep {
 /// [`with_world`]) and
 /// asserts the AQ8 invariant on each accepted one: an interface record
 /// is always empty, and any remainder mate whose ends straddle the cut
-/// is NOT an A12 edge.
+/// welds no two members.
 fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
     let ids: Vec<RecipeNodeId> = doc
         .ids()
@@ -152,10 +151,9 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
         .filter(|&id| !of_the_world(doc, id))
         .collect();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
-    // A mate is an EDGE iff BOTH its heads resolve to members — which
-    // the public A12 walk reports as two edges out of the mate.
+    // A mate welds two members iff BOTH its sides resolve to members.
     let edge_count = |m: RecipeNodeId| {
-        crate::fixture::mate_edges(doc)
+        crate::fixture::mate_members(doc)
             .into_iter()
             .filter(|&(mate, _)| mate == m)
             .count()
@@ -210,7 +208,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
                 assert_ne!(
                     edge_count(id),
                     2,
-                    "{label}: cut {cut:?} was ACCEPTED with mate {id:?} — an A12 EDGE — \
+                    "{label}: cut {cut:?} was ACCEPTED with mate {id:?} — welding two members — \
                      straddling it. The group precondition should have refused."
                 );
             }
@@ -325,7 +323,7 @@ fn foreign_master() -> ProfileDoc {
 
 /// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, no
 /// cut `split` accepts ever mints an interface crossing, and no
-/// accepted cut leaves an A12 EDGE straddling it.
+/// accepted cut leaves a mate welding two members straddling it.
 #[test]
 fn no_cut_whatsoever_severs_a_mate_edge_or_mints_a_crossing() {
     let seen = sweep_every_cut(&three_shapes(), "shapes");

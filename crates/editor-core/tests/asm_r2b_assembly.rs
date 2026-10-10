@@ -685,9 +685,9 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // **A finding, pinned rather than papered over — SCOPED to mate
 // EDGES** (review MAJOR-2 corrected an earlier over-claim here).
 //
-// A4 speaks of "every mate EDGE crossing the cut", and an edge exists
-// only when BOTH of a mate's heads are live instances (A12: `head_of`
-// requires `Node::InstantiatePart`). For such a PROPER mate edge the
+// A4 speaks of "every mate EDGE crossing the cut": a mate that welds
+// two members, which it does only when BOTH of its sides land on live
+// instances. For such a PROPER mate edge the
 // crossing is unreachable, and that is verified in both directions
 // below: the mate joins its two instances into ONE placement group
 // (A11 rule 2, role-blind), and ASM-R2a's ratified precondition
@@ -971,9 +971,9 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// cross a cut, so a mate with a DANGLING head contributes NO crossing
 /// record however its names fall across the cut.
 ///
-/// A12's reading edge exists only when BOTH heads are live instances
-/// (`head_of` requires an instantiate node). A mate naming
-/// non-instance geometry is therefore not an edge: it joins no
+/// A mate welds members only when BOTH its sides land on live
+/// instances. A mate naming non-instance geometry therefore welds
+/// nothing: it joins no
 /// placement group, its instance stays a singleton, and a cut of
 /// that instance alone IS a whole-group cut the precondition
 /// accepts — but the record it produces is empty. The ruling's reason
@@ -1016,7 +1016,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         body,
     );
 
-    // The instance is a singleton group (no reading edge), so a cut
+    // The instance is a singleton group (the mate welds nothing), so a cut
     // of it alone is whole-group and the precondition accepts.
     let out = split(
         &doc,

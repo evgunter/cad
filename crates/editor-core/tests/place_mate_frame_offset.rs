@@ -188,8 +188,8 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
 /// base cap's offset reads the document's `slide`: at 0.5 the top
 /// sits at x = 1.5, and one value edit to 1.0 moves it to 2.0 — the
 /// evaluation fed the first as its memo re-keys the mate and the top
-/// and serves neither from the memo. The parameter is a reading edge
-/// for both doors that check one: a mate naming an undeclared
+/// and serves neither from the memo. The parameter is read by the mate
+/// at both doors that check one: a mate naming an undeclared
 /// parameter refuses at insert, and one reading an angle parameter
 /// as a length refuses, each naming the offset's own slot.
 #[test]

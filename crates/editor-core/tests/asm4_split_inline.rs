@@ -540,6 +540,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             consumer,
             input,
             consumer_is_cut,
+            ..
         }) => {
             assert_eq!(
                 (consumer, input),
@@ -561,6 +562,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             consumer,
             input,
             consumer_is_cut,
+            ..
         }) => {
             assert_eq!(
                 (consumer, input),

@@ -2040,9 +2040,16 @@ fn assert_interval_structure(
     // through it (D10: reading is the dependency), and its log goes
     // with it; the escalation is then the member's own fault, checked
     // above.
-    let mate_poisoned_through_moved = doc.ids().iter().any(|&id| {
-        matches!(doc.node(id), Some(Node::Mate { .. }))
-            && matches!(i.result(id), Some(NodeResult::Poisoned { through }) if moved.contains(through))
+    // Member by member: each escalated member that is no mate has a mate
+    // poisoned through it.
+    let poisoned_through = |member: RecipeNodeId| {
+        doc.ids().iter().any(|&id| {
+            matches!(doc.node(id), Some(Node::Mate { .. }))
+                && matches!(i.result(id), Some(NodeResult::Poisoned { through }) if *through == member)
+        })
+    };
+    let mate_poisoned_through_moved = moved.iter().all(|&member| {
+        matches!(doc.node(member), Some(Node::Mate { .. })) || poisoned_through(member)
     });
     if !moved.is_empty() {
         assert!(

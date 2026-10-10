@@ -181,9 +181,9 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     // the pattern's INPUT instance — the vertex that joins the top into
     // the pattern's group.
     assert_eq!(
-        crate::fixture::mate_edges(&doc),
+        crate::fixture::mate_members(&doc),
         vec![(mate, leg), (mate, top)],
-        "a pattern-placed head contributes the reading edge at the pattern's input instance"
+        "a pattern-placed side lands on the pattern's input instance"
     );
     assert_eq!(
         groups(&doc),

@@ -363,9 +363,10 @@ pub fn side_head(doc: &ProfileDoc, side: editor_core::VarId) -> editor_core::Sit
 
 /// **Every mate side that resolves to a member, as `(mate, instance)`**:
 /// each mate in document order, `a` before `b`, landing on the member's
-/// instance. What a test asks of which instance each side reads now
-/// that a mate's sides are reads.
-pub fn mate_edges(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+/// instance. Which instance each side's member walk lands on — the
+/// solve's question, not a dependency: a mate depends on what its sides
+/// read, as every reader does.
+pub fn mate_members(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut out = Vec::new();
     for id in doc.ids() {
         if let Some(Node::Mate { a, b, .. }) = doc.node(id) {

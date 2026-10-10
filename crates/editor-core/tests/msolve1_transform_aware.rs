@@ -1057,7 +1057,7 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     );
     // The stranded SIDE contributes no edge; the live side still
     // does, which is what makes the refusal a per-side one.
-    let edges: Vec<RecipeNodeId> = crate::fixture::mate_edges(&doc)
+    let edges: Vec<RecipeNodeId> = crate::fixture::mate_members(&doc)
         .into_iter()
         .filter(|&(m, _)| m == s.mate)
         .map(|(_, to)| to)
@@ -1065,7 +1065,7 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     assert_eq!(
         edges,
         vec![s.base],
-        "only the resolving side contributes a reading edge"
+        "only the resolving side lands on a member"
     );
 }
 
@@ -1451,6 +1451,7 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
             &err,
             editor_core::SplitError::SeveredEdge {
                 consumer,
+                slot: Some(editor_core::OperandSlot::Side(MateSide::A)),
                 input,
                 consumer_is_cut: false,
             } if *consumer == doc.spoken(mate) && *input == doc.spoken(xf)
@@ -1461,8 +1462,8 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     let text = err.to_string();
     assert!(
         text.contains(&format!(
-            "severs the edge from {} to its input {}. The consumer is kept and the input is \
-             cut",
+            "severs the edge from {}'s side a to its input {}. The consumer is kept and the \
+             input is cut",
             doc.spoken(mate),
             doc.spoken(xf)
         )),
@@ -1494,6 +1495,7 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
             &err,
             editor_core::SplitError::SeveredEdge {
                 consumer,
+                slot: Some(editor_core::OperandSlot::Side(MateSide::A)),
                 input,
                 consumer_is_cut: true,
             } if *consumer == doc.spoken(mate) && *input == doc.spoken(xf)

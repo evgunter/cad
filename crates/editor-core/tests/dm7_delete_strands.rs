@@ -173,8 +173,7 @@ fn union_released_from_a_declared_member(
 /// NAME is not a read: once `SetMembers` has dropped the member, the
 /// delete strands the names minted there, one row per name, on the
 /// union that still carries them. The SITE is reported by no delete: a
-/// site is a reading edge, and a deleted one is N5's dangling case
-/// refused at the next evaluation (`Node::payload_read_sites`, DM7's
+/// deleted site is N5's dangling case refused at the next evaluation (`Node::payload_read_sites`, DM7's
 /// sentence).
 #[test]
 fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
