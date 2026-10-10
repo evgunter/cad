@@ -4905,6 +4905,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     a.sweep_and_close();
     b.sweep_and_close();
     let edge_classes = with_copies(edge_classes, &null_edges);
+    let coincidences = glue::touched(
+        &declared.verified.coincidences,
+        &pending,
+        &edge_splits,
+        [a_operand, b_operand],
+    );
     Ok(BooleanReduction {
         op,
         a: carved_a,
@@ -4924,7 +4930,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         edge_splits,
         edge_classes,
         hung,
-        coincidences: declared.verified.coincidences.clone(),
+        coincidences,
         pending,
     })
 }

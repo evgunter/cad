@@ -160,3 +160,104 @@ fn a_carried_record_cites_its_operands_record() {
         r.coincidences
     );
 }
+
+/// A unit-square prism over z ∈ [0, 1], its square turned `turn`
+/// radians about the z axis through the origin and its centre at
+/// `centre` before the turn.
+fn turned_square(centre: (f64, f64), turn: f64, what: &str) -> AtRestBody<f64> {
+    let (c, s) = (turn.cos(), turn.sin());
+    let corners = [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
+        .map(|(x, y)| (centre.0 + x, centre.1 + y))
+        .map(|(x, y)| (c * x - s * y, s * x + c * y));
+    finished(what, common::prism_z(&corners, 0.0, 1.0, tol()).body, tol())
+}
+
+/// The face-pair rows of `r`: the rows naming a face of each operand.
+fn face_pair_rows(r: &BooleanResult<f64>) -> usize {
+    let BooleanResult::Body(r) = r else {
+        panic!("the op builds a body: {r:?}");
+    };
+    r.coincidences
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.cells,
+                [
+                    RowCell::Input {
+                        cell: Cell::Face(_),
+                        ..
+                    },
+                    RowCell::Input {
+                        cell: Cell::Face(_),
+                        ..
+                    }
+                ]
+            )
+        })
+        .count()
+}
+
+/// **A face pair whose faces never meet records no row, in any frame**:
+/// two unit blocks 0.2 apart with coplanar tops and bottoms. Turned 45°
+/// about z, their faces' boxes overlap and the glue door decides the
+/// tops one carrier and the bottoms one carrier; the faces never meet,
+/// so the glue takes no effect and no row is kept. Red if the rows
+/// follow the boxes (0 axis-aligned, 2 turned).
+#[test]
+fn blocks_apart_record_no_row_axis_aligned_or_turned() {
+    for turn in [0.0, core::f64::consts::FRAC_PI_4] {
+        let a = turned_square((0.0, 0.0), turn, "a");
+        let b = turned_square((1.2, 0.0), turn, "b");
+        let r = union_with(&a, &b, &BooleanDeclarations::none(), tol())
+            .unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
+        assert_eq!(face_pair_rows(&r), 0, "turn {turn}: {r:?}");
+    }
+}
+
+/// **Blocks side by side record the same rows in any frame**: two unit
+/// blocks sharing a side face, their tops and bottoms continuing across
+/// it. Every face pair that meets is recorded, and the same number of
+/// them axis-aligned and turned 45°, though the turned faces' boxes
+/// offer more pairs.
+#[test]
+fn blocks_side_by_side_record_equal_rows_axis_aligned_and_turned() {
+    let rows = [0.0, core::f64::consts::FRAC_PI_4].map(|turn| {
+        let a = turned_square((0.0, 0.0), turn, "a");
+        let b = turned_square((1.0, 0.0), turn, "b");
+        let r = union_with(&a, &b, &BooleanDeclarations::none(), tol())
+            .unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
+        face_pair_rows(&r)
+    });
+    assert_eq!(rows[0], rows[1], "axis-aligned vs turned: {rows:?}");
+    assert_eq!(rows[0], 3, "the side rest, the tops and the bottoms");
+}
+
+/// **A block standing apart in an L prism's notch records no row**: the
+/// L's top and bottom faces' boxes cover the notch, so the glue door
+/// decides the block's top and bottom one carrier with the L's; neither
+/// pair meets.
+#[test]
+fn a_block_apart_in_an_l_notch_records_no_row() {
+    let l = finished(
+        "the L-prism",
+        common::prism_z(
+            &[
+                (0.0, 0.0),
+                (4.0, 0.0),
+                (4.0, 2.0),
+                (2.0, 2.0),
+                (2.0, 4.0),
+                (0.0, 4.0),
+            ],
+            0.0,
+            1.0,
+            tol(),
+        )
+        .body,
+        tol(),
+    );
+    let block = box_of((2.5, 3.5), (2.5, 3.5), (0.0, 1.0), "the block");
+    let r = union_with(&l, &block, &BooleanDeclarations::none(), tol())
+        .unwrap_or_else(|e| panic!("the union: {e:?}"));
+    assert_eq!(face_pair_rows(&r), 0, "{r:?}");
+}

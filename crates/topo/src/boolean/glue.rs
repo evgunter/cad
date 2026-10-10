@@ -217,3 +217,63 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
     }
     Ok(rows)
 }
+
+/// **The face-pair rows whose glue took effect**: each row deciding
+/// faces `fa` of A and `fb` of B one carrier, tangent or coaxial is
+/// kept only where the reduction placed a cell of `fa`'s closure on a
+/// cell of `fb`'s ([`super::reduce::PendingRow`], read back to the
+/// input's keys), so the two faces meet. A pair the boxes offered whose
+/// faces never meet decided nothing the result holds, and is not a
+/// coincidence (D1): which such pairs a box sweep offers depends on
+/// the frame, and whether two faces meet does not. Rows of any other
+/// shape are kept as they are.
+pub(crate) fn touched<T: geom_core::Real>(
+    rows: &[crate::Coincidence],
+    pending: &[super::reduce::PendingRow],
+    splits: &[super::EdgeSplit],
+    [a, b]: [&Body<T>; 2],
+) -> Vec<crate::Coincidence> {
+    use crate::{Cell, RowCell};
+    let body = |input| if input == Operand::A { a } else { b };
+    // `face`'s closure in its input: the face, its edges and their ends.
+    let closure = |input: Operand, face: FaceKey| {
+        let body = body(input);
+        let mut cells = vec![Cell::Face(face)];
+        for (he, h) in body.half_edges() {
+            if body.face_of_half_edge(he) == Some(face) {
+                cells.extend([Cell::Edge(h.edge), Cell::Vertex(h.start)]);
+            }
+        }
+        cells
+    };
+    let landed: Vec<[RowCell; 2]> = pending
+        .iter()
+        .map(|row| row.cells.map(|end| super::ops::input_cell(end, splits)))
+        .collect();
+    rows.iter()
+        .filter(|row| {
+            let [
+                RowCell::Input {
+                    input: Operand::A,
+                    cell: Cell::Face(fa),
+                },
+                RowCell::Input {
+                    input: Operand::B,
+                    cell: Cell::Face(fb),
+                },
+            ] = row.cells
+            else {
+                return true;
+            };
+            let (on_a, on_b) = (closure(Operand::A, fa), closure(Operand::B, fb));
+            let on = |cell: &RowCell, input: Operand, set: &[Cell]| {
+                matches!(cell, RowCell::Input { input: i, cell } if *i == input && set.contains(cell))
+            };
+            landed.iter().any(|[x, y]| {
+                (on(x, Operand::A, &on_a) && on(y, Operand::B, &on_b))
+                    || (on(y, Operand::A, &on_a) && on(x, Operand::B, &on_b))
+            })
+        })
+        .cloned()
+        .collect()
+}

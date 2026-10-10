@@ -3405,7 +3405,7 @@ fn cite_rows(
 /// A pending row's cell as the deciding op's input holds it: a vertex
 /// the reduction minted by splitting an edge is read as the input edge
 /// it was minted on, through every split of that edge's pieces.
-fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> crate::RowCell {
+pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> crate::RowCell {
     let root = |mut edge: EdgeKey| {
         while let Some(s) = splits
             .iter()
