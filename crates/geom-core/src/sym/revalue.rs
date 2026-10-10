@@ -36,7 +36,9 @@ pub struct Decision {
     pub predicate: &'static str,
     /// The margin's DAG node.
     pub node: SymId,
-    /// The value channel, where it is an `f64` (`Sym<f64>`).
+    /// The value channel, where it is an `f64` (`Sym<f64>`): read back
+    /// from its `Debug` rendering, which at `f64` is round-trip exact
+    /// (the scalar's bits are reached through no other door here).
     pub value: Option<f64>,
 }
 
@@ -63,13 +65,13 @@ pub fn record<R>(f: impl FnOnce() -> R) -> (R, Vec<Decision>) {
 
 /// The hook `Sym::sign_within` calls: one thread-local read when no
 /// recorder is installed.
-pub(super) fn note<T: 'static>(node: SymId, value: &T) {
+pub(super) fn note<T: Real>(node: SymId, value: T) {
     RECORDER.with(|r| {
         if let Some(v) = r.borrow_mut().as_mut() {
             v.push(Decision {
                 predicate: crate::k_stats::current_predicate(),
                 node,
-                value: (value as &dyn std::any::Any).downcast_ref::<f64>().copied(),
+                value: format!("{value:?}").parse::<f64>().ok(),
             });
         }
     });

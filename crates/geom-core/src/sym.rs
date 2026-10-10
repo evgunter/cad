@@ -5271,7 +5271,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         #[cfg(feature = "sym-revalue-testing")]
-        revalue::note(self.node, &self.value);
+        revalue::note(self.node, self.value);
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
