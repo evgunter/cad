@@ -1772,3 +1772,27 @@ mod tests {
         }
     }
 }
+
+/// A described NURBS surface carrying poison: the placeholder's
+/// bilinear structure, control point `i` at `(i, i, 2)` with its `x`
+/// NaN wherever `poisoned(i)`. Never the placeholder, since `y` and
+/// `z` stay finite.
+pub(crate) fn poisoned_net(poisoned: impl Fn(usize) -> bool) -> geom::Surface<f64> {
+    let ph = geom::NurbsSurface::<f64>::placeholder();
+    let control = (0..ph.control().len())
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let at = i as f64;
+            Point3::new(if poisoned(i) { f64::NAN } else { at }, at, 2.0)
+        })
+        .collect();
+    geom::Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(
+            ph.knots_u().clone(),
+            ph.knots_v().clone(),
+            control,
+            ph.weights().to_vec(),
+        )
+        .unwrap(),
+    ))
+}

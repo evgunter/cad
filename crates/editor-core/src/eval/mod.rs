@@ -1040,8 +1040,8 @@ pub enum BooleanValue<T: Decide> {
         body: Arc<Body<T>>,
         /// How the kernel produced it.
         kind: BooleanResultKind,
-        /// Declared contacts surviving into the result (the
-        /// `BooleanBody` contract, spec D2).
+        /// Contacts, declared or glued on a decided Zero, surviving into
+        /// the result (the `BooleanBody` contract, spec D2).
         contacts: Arc<ContactRecords>,
     },
 }

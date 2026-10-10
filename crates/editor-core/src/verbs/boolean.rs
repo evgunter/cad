@@ -81,7 +81,8 @@ pub(crate) struct PairVerb<T: Decide> {
 pub(crate) struct BooleanRecord {
     /// How the result body came to be.
     pub(crate) kind: BooleanResultKind,
-    /// Declared contacts surviving into the result, result keys.
+    /// Contacts, declared or glued on a decided Zero, surviving into the
+    /// result, result keys.
     pub(crate) contacts: ContactRecords,
     /// Mint-time naming facts the naming layer consumes.
     pub(crate) naming: BooleanNaming,

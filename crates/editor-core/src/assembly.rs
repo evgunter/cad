@@ -2110,7 +2110,7 @@ mod attribution {
     /// [`super::attribute`] discriminates.
     ///
     /// The row exists because the causes are not alike: a
-    /// `WitnessBudgetExhausted` decline is the search giving up on a
+    /// witness-cap decline (either cap) is the search giving up on a
     /// pair that may be fat and perfectly decidable, and it is
     /// tempting to read that as weaker evidence than a
     /// `TouchingBoundary` decline. It is not weaker about the
@@ -2131,13 +2131,17 @@ mod attribution {
         let causes = || {
             [
                 topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+                // Each cap's state as its guard answers it, derived
+                // so it moves when the cap does.
                 topo::CensusUnsupportedCause::ChartRegion(
-                    topo::ChartRegionError::WitnessBudgetExhausted {
-                        // One past the cap, derived: the state the
-                        // guard answers, and it moves when the cap
-                        // does.
-                        segments: topo::WITNESS_BUDGET.segments + 1,
-                        cells: 0,
+                    topo::ChartRegionError::WitnessSegmentCapExceeded {
+                        segments: topo::WITNESS_SEGMENT_CAP + 1,
+                    },
+                ),
+                topo::CensusUnsupportedCause::ChartRegion(
+                    topo::ChartRegionError::WitnessCellCapExceeded {
+                        segments: topo::WITNESS_SEGMENT_CAP,
+                        cells: topo::WITNESS_CELL_CAP,
                     },
                 ),
                 topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {

@@ -68,15 +68,20 @@ pub enum Relation {
     /// The two cells make equal angles with a third (an isosceles
     /// turn, whose mitre lands on that third edge).
     EqualAngles,
-    /// The two cells meet in first-order contact: tangent at their
-    /// common locus, the second carrying on the first's heading
-    /// (`aligned`: a smooth joint between curves, a seam between
-    /// surfaces) or reversed (a cusp between curves, a tangent contact
-    /// between surfaces, their outward sides opposed).
+    /// Two curves meet in first-order contact at a junction: the second
+    /// carrying on the first's heading (`aligned`, a smooth joint) or
+    /// reversing it (a cusp).
     Tangent {
         /// Whether the second carries on the first rather than
         /// reversing it.
         aligned: bool,
+    },
+    /// Two surfaces touch tangentially along a locus: their outward
+    /// sides opposed (a tangent contact) or, `seam`, one surface carried
+    /// on into the other.
+    TangentContact {
+        /// The outward sides agree: a seam.
+        seam: bool,
     },
 }
 
@@ -91,9 +96,9 @@ impl Relation {
         match self {
             Self::SameOpposite => Some(C::REST),
             Self::SameOriented => Some(C::Continuation),
-            Self::Tangent { aligned: false } => Some(C::TANGENT),
-            Self::Tangent { aligned: true } => Some(C::Seam),
-            Self::OnCarrier | Self::EqualAngles => None,
+            Self::TangentContact { seam: false } => Some(C::TANGENT),
+            Self::TangentContact { seam: true } => Some(C::Seam),
+            Self::Tangent { .. } | Self::OnCarrier | Self::EqualAngles => None,
         }
     }
 }

@@ -3372,10 +3372,15 @@ fn given_verdicts<T: Decide>(
     Ok(())
 }
 
-/// **Every row a fold step recorded is a pair it was given** (DM4, the
-/// fold decides no carrier pair): the verdict reuse, asserted where the
-/// step's rows come back. A step's rows are its declaration door's, so
-/// one naming a pair outside `decls` is a fresh decision on a piece.
+/// **Every face-pair row a fold step recorded is a pair it was given**
+/// (DM4, the fold re-glues no carrier pair): the verdict reuse, asserted
+/// where the step's rows come back. A step's face-pair rows are its
+/// declaration door's, so one naming a pair outside `decls` is a fresh
+/// glue on a piece — what a glue door or recording site that ignored
+/// `Verdicts::Given` would add. Readings that record no row are outside
+/// it: the merge's continuation reading, the maximal-faces gate and the
+/// join's coaxial frame read a step's carriers by their margins, as the
+/// pairwise pass read the members'.
 fn debug_assert_given(rows: &[topo::Coincidence], decls: &BooleanDeclarations) {
     if cfg!(debug_assertions) {
         for row in rows {

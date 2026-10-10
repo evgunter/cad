@@ -5,8 +5,8 @@
 //!   with no declaration, are one solid of the summed volume carrying
 //!   one `SameOpposite` row the coincidence door leaves unproven.
 //! - **Row 16**: the same blocks a sliver apart refuse in band.
-//! - **Row 17**: every declared corpus scene builds the same body with
-//!   its declarations removed.
+//! - **Row 17**: every declared corpus scene builds the same body, and
+//!   ships the same contact records, with its declarations removed.
 //! - **Row 19**: row 15's result passes tier 3′ with its contacts as
 //!   the census reads them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -143,6 +143,16 @@ fn every_declared_corpus_scene_builds_the_same_body_undeclared() {
             corpus_doc.name,
             failures(&undeclared)
         );
+        let contacts = |ev: &editor_core::Evaluation<f64>, node| match &ev
+            .value(node)
+            .expect("the node evaluated")
+            .payload
+        {
+            ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => {
+                format!("{contacts:?}")
+            }
+            other => panic!("{}: node {node:?} is no body: {other:?}", corpus_doc.name),
+        };
         for &node in &declaring {
             scenes += 1;
             assert_eq!(
@@ -151,7 +161,20 @@ fn every_declared_corpus_scene_builds_the_same_body_undeclared() {
                 "{}: node {node:?}",
                 corpus_doc.name
             );
+            // `kiss_carry` declares a carried contact, a record no
+            // value decides: clearing the declaration drops it.
+            if corpus_doc.name != "kiss_carry" {
+                assert_eq!(
+                    contacts(&declared, node),
+                    contacts(&undeclared, node),
+                    "{}: node {node:?}, the contact records",
+                    corpus_doc.name
+                );
+            }
         }
     }
-    assert!(scenes > 0, "the corpus declares a contact somewhere");
+    assert_eq!(
+        scenes, 29,
+        "the corpus's declaring scenes, every one compared"
+    );
 }

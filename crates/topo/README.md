@@ -244,7 +244,9 @@ carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation, declared or decided
 by its margin: the merge stage reads the same ladder (D10), keeping the
-arena-first face's description, which is operand A's.
+description of the group's arena-first face that lies in no other
+member's hole. That is ordinarily operand A's, and B's where A's face
+plugs a hole of B's.
 
 **Seam.** Two faces, one from each operand, on DISTINCT carriers tangent
 along a curve with their senses ALIGNED are a *seam*: the two surfaces
@@ -468,7 +470,11 @@ interior to both trims (`contfp`, both faces' rings). Candidates are
 uncertified hints in two stages — the trims' own landmarks, then the cell
 centres of the vertical decomposition of both boundaries
 (`decomposition_witness`) — each certified at use, so the schedule
-affects only what declines, never what certifies.
+affects only what declines, never what certifies. A schedule stopped by
+one of its two caps refuses typed, one face per cap:
+`WitnessSegmentCapExceeded` (over `WITNESS_SEGMENT_CAP`, nothing probed)
+and `WitnessCellCapExceeded` (`WITNESS_CELL_CAP` probes made, cells
+left).
 
 ## Related pages
 
@@ -484,7 +490,6 @@ affects only what declines, never what certifies.
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
 - `ef_bound_backed`'s migration is parked
   (`ef-bound-backed-migrates-to-region-confinement`, D10).
-- `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key

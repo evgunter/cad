@@ -14,7 +14,7 @@ use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
@@ -22,14 +22,13 @@ use crate::forms::{
     split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::generation::Generation;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seats, seat_line};
 use crate::session::{
-    Creation, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp, Standing,
+    Creation, FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
     face_frame_seat_drawn,
 };
 use crate::sketch;

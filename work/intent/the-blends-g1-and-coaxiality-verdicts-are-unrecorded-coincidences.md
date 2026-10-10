@@ -2,10 +2,11 @@
 id: the-blends-g1-and-coaxiality-verdicts-are-unrecorded-coincidences
 kind: issue
 title: The blend battery's chain-G1 and support-coaxiality Zero verdicts are coincidences decided from values that no stage-4 unit records
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P2
 cost: M
+branch: intent/blend-g1-coaxiality-recorded
 ---
 
 
@@ -33,7 +34,7 @@ band end, not a coincidence of two cells, and is not listed.
 
 ## What closing it takes
 
-Each Zero arm records a row (`Relation::Tangent { aligned }` and a
+Each Zero arm records a row (`Relation::TangentContact { seam: true }` for a G1 seam and a
 coaxiality relation the record does not have yet; `DecisionSite`
 arms of their own), carried on `Blended::coincidences` beside the turn
 rows. The cells are the two links' edges, or the two supports. No unit

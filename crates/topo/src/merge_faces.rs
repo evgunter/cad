@@ -1,7 +1,7 @@
 //! `merge_coplanar_faces` — explicit opt-in maximal-faces normalization
-//! (M3 PR 1, fork F7): merge maximal runs of adjacent faces whose
-//! planes are **structurally or declaredly** the same, killing the
-//! shared edges and re-homing rings.
+//! (M3 PR 1, fork F7): merge maximal runs of adjacent faces that are
+//! one carrier — by one key, or by the margins the ladder reads —
+//! killing the shared edges and re-homing rings.
 //!
 //! Ch. 15's booleans require maximal-faced operands (no two adjacent
 //! coplanar faces), and the seam zip *manufactures* coplanar pairs by
@@ -24,8 +24,9 @@
 //! boolean's maximal-faces gate reads an operand the same way, so the
 //! ladder is consistent end to end). Where two faces on distinct keys
 //! glue, the survivor keeps its own description
-//! ([`MergedGroup::kept`]): the arena-first face, which in a Boolean's
-//! result is operand A's. A face on the `mvfs` seed's placeholder
+//! ([`MergedGroup::kept`]): the group's arena-first face that lies in no
+//! other member's hole — in a Boolean's result ordinarily operand A's,
+//! and B's where A's face plugs a hole of B's. A face on the `mvfs` seed's placeholder
 //! surface is a THIRD kind ([`MergeKind::Placeholder`]): the door
 //! takes a census of them ([`MergeCoplanarOutcome::placeholders`]) and
 //! glues none.
@@ -785,6 +786,10 @@ pub enum MergeDecision {
     /// bound stands past the band and its lower bound does not
     /// (`carrier_eq::CarrierEqError::Unsettled`).
     DeclaredReach,
+    /// Whether a pair's extent reads, the reach its rung reads the two
+    /// carriers over, declared or not: a face whose extent does not
+    /// read has no reach to settle.
+    PairReach,
     /// A rung of the plane identity reading two undeclared planar
     /// faces either side of an edge, as the Boolean's maximal-faces
     /// gate reads an operand's
@@ -814,6 +819,7 @@ impl MergeDecision {
                 "whether the two declared planes stay within the tolerance of \
                                     one another across the faces"
             }
+            Self::PairReach => "whether the two faces' extent reads, to compare them across it",
             Self::Neighbours(_) => "whether the two faces either side of an edge lie on one plane",
             Self::NeighbourCoincidence => {
                 "whether the two faces either side of an edge lie on one surface"
@@ -838,7 +844,9 @@ impl MergeDecision {
             }
             // The displacement is a bound over a ball enclosing the
             // faces, not a reading of them.
-            Self::DeclaredReach => Unsized::LastResort.recourse(arm, Reading::Build),
+            Self::DeclaredReach | Self::PairReach => {
+                Unsized::LastResort.recourse(arm, Reading::Build)
+            }
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
@@ -2334,11 +2342,11 @@ impl<T: Decide> Body<T> {
         let reach =
             crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band).map_err(|_| {
                 MergeCoplanarError::Escalated {
-                    decision: MergeDecision::DeclaredReach,
+                    decision: MergeDecision::PairReach,
                     diag: Indeterminate {
                         margin: geom_core::MarginDiag::INVALID,
                         band,
-                        predicate: Some("merge_declared_extent"),
+                        predicate: Some("merge_pair_extent"),
                         terminal_sliver: false,
                     },
                 }
@@ -2371,11 +2379,11 @@ impl<T: Decide> Body<T> {
                 Err(crate::boolean::PairUnread::OutsideInventory) => return Ok(false),
                 Err(crate::boolean::PairUnread::Extent(_)) => {
                     return Err(MergeCoplanarError::Escalated {
-                        decision: MergeDecision::DeclaredReach,
+                        decision: MergeDecision::PairReach,
                         diag: Indeterminate {
                             margin: geom_core::MarginDiag::INVALID,
                             band,
-                            predicate: Some("merge_declared_extent"),
+                            predicate: Some("merge_pair_extent"),
                             terminal_sliver: false,
                         },
                     });

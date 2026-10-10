@@ -5489,7 +5489,7 @@ mod lying_on_rows {
     /// a definite ladder `Distinct`. The sheet's bottom arc lies on a
     /// second unit sheet's cylinder, its own parent's carrier: undeclared,
     /// that is no decision. Against a radius-2 sheet it is `Distinct`.
-    /// (Through the boolean, an undeclared same-carrier pair refuses as a
+    /// (Through the boolean, the glue door glues a same-carrier pair as a
     /// continuation before the crossing layer, so only this row holds the
     /// guard.)
     #[test]

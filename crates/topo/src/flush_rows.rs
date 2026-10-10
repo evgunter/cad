@@ -135,8 +135,9 @@ fn a_poisoned_offset_is_no_finding() {
 }
 
 /// **The Boolean glues the stack on its decided zero.** The undeclared
-/// union of the stack reads its caps and side walls one plane each, by
-/// their margins, and reduces.
+/// union of the stack reads its caps one plane by their offset's margin,
+/// records that rest at the plane ladder on the margin that decided it,
+/// and builds the two bricks' summed volume.
 #[test]
 fn the_boolean_glues_a_decided_zero() {
     let (a, b) = stacked();
@@ -144,9 +145,29 @@ fn the_boolean_glues_a_decided_zero() {
         crate::test_support::finished("the lower brick", a, Tol::witness()),
         crate::test_support::finished("the upper brick", b, Tol::witness()),
     );
-    if let Err(err) = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
-        panic!("an undeclared flush stack glues on its decided zero: {err}");
-    }
+    let red = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
+        Ok(red) => red,
+        Err(err) => panic!("an undeclared flush stack glues on its decided zero: {err}"),
+    };
+    let rest = red
+        .coincidences
+        .iter()
+        .find(|c| c.relation == crate::Relation::SameOpposite)
+        .unwrap_or_else(|| panic!("the caps' rest is recorded: {:?}", red.coincidences));
+    assert_eq!(rest.site, crate::DecisionSite::PlaneLadder, "{rest:?}");
+    let geom_core::ErrorTextReading::Value(m) = rest.margin.diagnostic_f64_for_error_text() else {
+        panic!("the rest carries the margin that decided it: {rest:?}");
+    };
+    assert!(m.abs() <= band().zero(), "a decided zero: {m}");
+    let built = crate::boolean::union(&a, &b, Tol::witness()).expect("the stack unions");
+    let body = built.body().expect("the union is a body");
+    let volume = crate::mass_properties(&body.body, Tol::witness())
+        .expect("the union measures")
+        .volume;
+    assert!(
+        (volume - 2.0).abs() < 1e-12,
+        "the two bricks' volume: {volume}"
+    );
 }
 
 /// **An infinite offset is poison too.** The lower cap re-charted to

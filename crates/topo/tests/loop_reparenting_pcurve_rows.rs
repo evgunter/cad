@@ -990,31 +990,29 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
 /// destination's chart: what that costs is a walk, never a wrong row.
 #[test]
 fn two_keys_holding_one_surface_read_as_two_charts() {
-    {
-        let mut s = sheet();
-        let cyl = s.body.get_face(s.low).unwrap().surface;
-        let second = on_a_key_of_its_own(&mut s.body, s.up, cylinder(), true).unwrap();
-        assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
-        // The setter reads the same two keys the same way and drops
-        // `up`'s rows; re-minting builds the body this row is about —
-        // one carrying rows on two keys that hold one surface.
-        topo::mint_pcurves(&mut s.body, tol()).unwrap();
-        assert_eq!(rows_of(&s.body, s.up), (4, 0));
-        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = on_a_key_of_its_own(&mut s.body, s.up, cylinder(), true).unwrap();
+    assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
+    // The setter reads the same two keys the same way and drops
+    // `up`'s rows; re-minting builds the body this row is about —
+    // one carrying rows on two keys that hold one surface.
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
-        let up_rows = rows_deep(&s.body, s.up);
-        s.body.kfmrh_minting(s.low, s.up, tol()).unwrap();
-        assert_eq!(rows_of(&s.body, s.low), (8, 0));
-        assert_rows_are_the_pass(&s.body, s.low);
-        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
-        // Re-walked, not carried: the moved rows are the pass's on
-        // `low`'s key, and the keys were read as two charts.
-        let low_rows = rows_deep(&s.body, s.low);
-        assert!(
-            up_rows.iter().all(|row| low_rows.contains(row)),
-            "one surface on two keys derives the same rows"
-        );
-    }
+    let up_rows = rows_deep(&s.body, s.up);
+    s.body.kfmrh_minting(s.low, s.up, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    assert_rows_are_the_pass(&s.body, s.low);
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    // Re-walked, not carried: the moved rows are the pass's on
+    // `low`'s key, and the keys were read as two charts.
+    let low_rows = rows_deep(&s.body, s.low);
+    assert!(
+        up_rows.iter().all(|row| low_rows.contains(row)),
+        "one surface on two keys derives the same rows"
+    );
 }
 
 /// **`mfkrh`'s promoted face is minted in its own chart.** A ring
@@ -1359,40 +1357,38 @@ fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
 /// hold. Both pieces are complete, with the rows the pass derives.
 #[test]
 fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
-    {
-        let mut s = sheet();
-        let cyl = s.body.get_face(s.low).unwrap().surface;
-        // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
-        let second = s
-            .body
-            .set_face_surface_unvouched_for_tests(
-                s.plane,
-                FaceSurface::New {
-                    surface: cylinder(),
-                    sense: true,
-                },
-            )
-            .unwrap();
-        assert_ne!(second, cyl);
-
-        let made = split_low(
-            &mut s,
-            FaceSurface::Shared {
-                key: second,
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
+    let second = s
+        .body
+        .set_face_surface_unvouched_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: cylinder(),
                 sense: true,
             },
-        );
-        assert_eq!(rows_of(&s.body, made.face), (4, 0));
-        assert_eq!(rows_of(&s.body, s.low), (4, 0));
-        assert_rows_are_the_pass(&s.body, made.face);
-        // The back wears the second key only to hold it, and is left
-        // rowless: tier 3 names it, and nothing else.
-        assert_eq!(
-            validate_pcurves(&s.body, band()),
-            vec![PcurveMintError::Unminted { face: s.plane }],
-            "the second key"
-        );
-    }
+        )
+        .unwrap();
+    assert_ne!(second, cyl);
+
+    let made = split_low(
+        &mut s,
+        FaceSurface::Shared {
+            key: second,
+            sense: true,
+        },
+    );
+    assert_eq!(rows_of(&s.body, made.face), (4, 0));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_rows_are_the_pass(&s.body, made.face);
+    // The back wears the second key only to hold it, and is left
+    // rowless: tier 3 names it, and nothing else.
+    assert_eq!(
+        validate_pcurves(&s.body, band()),
+        vec![PcurveMintError::Unminted { face: s.plane }],
+        "the second key"
+    );
 }
 
 /// **A chord off the chart leaves both pieces unminted, and the pass
@@ -1759,38 +1755,36 @@ fn a_swap_onto_the_faces_own_key_keeps_every_row_byte_for_byte() {
 /// (`work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
 #[test]
 fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
-    {
-        let mut s = sheet();
-        let cyl = s.body.get_face(s.low).unwrap().surface;
-        // A second key for the same cylinder, minted on the rowless
-        // planar face so that nothing is dropped establishing it.
-        // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
-        let second = s
-            .body
-            .set_face_surface_unvouched_for_tests(
-                s.plane,
-                FaceSurface::New {
-                    surface: cylinder(),
-                    sense: true,
-                },
-            )
-            .unwrap();
-        assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    // A second key for the same cylinder, minted on the rowless
+    // planar face so that nothing is dropped establishing it.
+    // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
+    let second = s
+        .body
+        .set_face_surface_unvouched_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
+        .unwrap();
+    assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
 
-        let charts = vec![topo::Rechart::shared(second, s.low, true)];
-        let specs = s.body.carried_redescriptions(&charts).unwrap();
-        // Lifts RechartUnvouched: the edge between the panels names the upper panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
-        s.body
-            .lifting_rechart_refusals_for_tests(|b| {
-                b.set_face_surfaces_describing(charts, &specs, tol())
-            })
-            .unwrap();
-        assert_eq!(rows_of(&s.body, s.low), (0, 4));
+    let charts = vec![topo::Rechart::shared(second, s.low, true)];
+    let specs = s.body.carried_redescriptions(&charts).unwrap();
+    // Lifts RechartUnvouched: the edge between the panels names the upper panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| {
+            b.set_face_surfaces_describing(charts, &specs, tol())
+        })
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
 
-        topo::mint_pcurves(&mut s.body, tol()).unwrap();
-        assert_eq!(rows_of(&s.body, s.low), (4, 0));
-        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
-    }
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// **The sibling setter is not the same case.** `set_edge_curve` moves

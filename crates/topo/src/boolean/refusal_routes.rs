@@ -331,7 +331,7 @@ pub enum BooleanDecision {
         /// The binding shell's solid, in the refused result. The result is
         /// never returned, so this and `shell` are diagnostic only: they
         /// tell refusals apart, and locate nothing a caller holds
-        /// (`work/join/the-shell-role-refusal-locates-no-piece.md`).
+        /// (`work/tally/the-shell-role-refusal-locates-no-piece.md`).
         solid: crate::entity::SolidKey,
         /// The binding shell, diagnostic only as `solid` is.
         shell: crate::entity::ShellKey,
@@ -1452,8 +1452,8 @@ impl BooleanDecision {
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
             // and the offset rung asks next: a declared `Rest` pair's
-            // bridges, an undeclared pair's refuses as an undeclared
-            // coincidence or a carrier contradiction at every tolerance.
+            // bridges, an undeclared pair's glues on a decided Zero or
+            // refuses in band, at every tolerance.
             Self::PlaneOrientation => Ending::Lever(CORNER_EDGES),
             // The margin is the normals' sine over the shared edge's
             // extent, and a definitely positive one (a clear angle)
@@ -3237,9 +3237,10 @@ pub(in crate::boolean) mod tests {
     /// in the zero band and in the ambiguity band, by the declared rung
     /// and by the undeclared ladder. The zero verdict carries the margin
     /// the rung decided. Both definite signs pass the rung, but the
-    /// offset rung asks next, where an undeclared coincident pair refuses
-    /// at every tolerance (executed: `offer_rows`'
-    /// `planes_facing_at_a_short_arm`), so no tolerance is offered; the
+    /// offset rung asks next, where a coincident pair's offset decides
+    /// alone, glued on Zero or refused in band at every tolerance
+    /// (executed: `offer_rows`' `planes_facing_at_a_short_arm`), so no
+    /// tolerance is offered; the
     /// lever lengthens the arm, the one thing an undecided margin
     /// measures.
     #[test]
