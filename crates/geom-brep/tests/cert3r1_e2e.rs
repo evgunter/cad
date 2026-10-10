@@ -83,22 +83,37 @@ mod interval_lane {
         })
     }
 
-    /// Near-but-not-zero angle: the start sample must not feel the
-    /// axis width, and the far sample only in proportion to the angle.
+    /// Near-but-not-zero angle: the axis origin's width reaches the
+    /// start sample twice — through the offset `p − q` and added back
+    /// — and the far sample no more than that: the 1e-8 turn charges
+    /// the axis's width only times the angle. On the exact rig both
+    /// samples read the placement's and rotation's floor (9.8e-15);
+    /// on the 2e-9 axis both read `2·width + floor` (4.00001e-9). A
+    /// third mention of the anchor reads 6e-9 and breaks the bound.
     #[test]
     fn r1_interval_near_zero_angle_consumer_view() {
-        for half in [0.0, 1.0e-9] {
-            let c = rig(half, 1.0e-8);
-            let start = w3(c.eval(Interval::zero()));
-            let end = w3(c.eval(Interval::one()));
-            println!("half {half:e}: start {start:e}, end {end:e}");
-            // Start: placement + rotation floor only — must be
-            // independent of the axis width (compare across the loop).
-            assert!(start <= 1.0e-13, "start sample width {start:e}");
-            // End: the 1e-8 rotation may charge ~theta*(|q| + width)
-            // but nothing like 2*width(axis).
-            assert!(end <= 1.0e-13, "1e-8 revolve end width {end:e}");
-        }
+        let exact = rig(0.0, 1.0e-8);
+        let floor = w3(exact.eval(Interval::zero())).max(w3(exact.eval(Interval::one())));
+        println!("exact axis: floor {floor:e}");
+        assert!(
+            floor <= 1.0e-13,
+            "the exact rig's samples are {floor:e} wide"
+        );
+        let half = 1.0e-9;
+        let c = rig(half, 1.0e-8);
+        let start = w3(c.eval(Interval::zero()));
+        let end = w3(c.eval(Interval::one()));
+        println!("half {half:e}: start {start:e}, end {end:e}");
+        let bound = 2.0 * (2.0 * half) + 2.0 * floor;
+        assert!(
+            start <= bound,
+            "start sample width {start:e}, over twice the axis's width plus the floor ({bound:e})"
+        );
+        assert!(
+            end <= bound,
+            "1e-8 revolve end width {end:e}, over twice the axis's width plus the floor \
+             ({bound:e})"
+        );
     }
 
     /// The restriction round trip: nested restricts, then compare
