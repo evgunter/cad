@@ -3704,11 +3704,11 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         }),
         // Undecided, and not certified in band: a role read whose
         // enclosure the arithmetic left wider than the band or straddling
-        // its edge (`work/join/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
+        // its edge (`work/tally/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
         // or poisoned; or a band that does not form.
         V::ShellRoleUndecided { .. } => None,
         // Undecided at a point margin the gate has not shown conditioned
-        // (`work/join/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
+        // (`work/tally/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
         V::DegenerateTorusEscalated { .. }
         | V::PlanarFaceEscalated { .. }
         | V::PlanarBoundaryEscalated { .. }

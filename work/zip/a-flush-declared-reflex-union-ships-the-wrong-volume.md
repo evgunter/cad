@@ -58,7 +58,7 @@ The REST zip builds it. `ops::through_the_join`: the join refuses
 reduction. The first step that goes wrong is upstream of both: the
 corner's vertex pair keeps four germs and `insert` runs one of B's null
 edges the long way round
-(`work/join/four-germ-vertex-pairs-run-b-in-a-order`). The second is
+(`four-germ-vertex-pairs-run-b-in-a-order`, JOIN, closed by PR 4036). The second is
 the zip admitting a union that is not a pure REST contact: the 45° wall
 crosses `b`'s cap transversally at the same corner.
 
@@ -100,7 +100,7 @@ entry and exits (a probe commit on `zip/rest-admission`, reverted there).
 
 - **The row's own bar is met.** `join1_r1_reflex_battery`: every ∪, ∩
   and `a ∖ b` is `SOUND` or `EMPTY ok` (`b ∖ a` is a harness gap,
-  `work/join/the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b`).
+  `work/flush/the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b`).
   `rc_wide_battery`: 10 080 unions, 9 911 `SOUND`, 169 `Escalated` (all at
   the 0.003° turn), no `BAD`. `flush_declared_reflex_unions_never_ship_the_overlap_twice`
   passes, its four poses `SOUND` at the closed form. No union of either
