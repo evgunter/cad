@@ -234,8 +234,8 @@ fn blocks_side_by_side_record_equal_rows_axis_aligned_and_turned() {
 
 /// **A block standing apart in an L prism's notch records no row**: the
 /// L's top and bottom faces' boxes cover the notch, so the glue door
-/// decides the block's top and bottom one carrier with the L's; neither
-/// pair meets.
+/// decides the block's faces one carrier with the L's; no such pair
+/// meets.
 #[test]
 fn a_block_apart_in_an_l_notch_records_no_row() {
     let l = finished(
@@ -256,8 +256,13 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
         .body,
         tol(),
     );
-    let block = box_of((2.5, 3.5), (2.5, 3.5), (0.0, 1.0), "the block");
-    let r = union_with(&l, &block, &BooleanDeclarations::none(), tol())
-        .unwrap_or_else(|e| panic!("the union: {e:?}"));
-    assert_eq!(face_pair_rows(&r), 0, "{r:?}");
+    // Level with the L (tops and bottoms one carrier, aligned), and
+    // raised onto the plane of the L's top (the block's bottom on it,
+    // opposed).
+    for z in [(0.0, 1.0), (1.0, 2.0)] {
+        let block = box_of((2.5, 3.5), (2.5, 3.5), z, "the block");
+        let r = union_with(&l, &block, &BooleanDeclarations::none(), tol())
+            .unwrap_or_else(|e| panic!("the union at {z:?}: {e:?}"));
+        assert_eq!(face_pair_rows(&r), 0, "{z:?}: {r:?}");
+    }
 }
