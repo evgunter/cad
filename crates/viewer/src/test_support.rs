@@ -294,12 +294,14 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, frame) = inserted(
         &doc,
         Node::Datum(Datum::FaceFrame {
-            at: block.into(),
-            face: StableName {
-                kind: EntityKind::Face,
-                node: block,
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
+            face: pncad::document::Operand::select(
+                block,
+                vec![StableName {
+                    kind: EntityKind::Face,
+                    node: block,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }],
+            ),
             spin: ang(0.0),
         }),
         tol,

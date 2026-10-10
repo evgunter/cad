@@ -164,8 +164,9 @@
 //! Depth is the number of BRANCHES a node sits under, not the length
 //! of its input chain. A node continues the line of its PRIMARY input
 //! — the first entry of `Doc::upstream`, which is the operand the
-//! kernel accumulates into: a boolean's `a`, a fillet's `target`, a
-//! transform's `input`. Every other input is a branch that indents:
+//! kernel accumulates into: a boolean's `a`, the body a fillet's
+//! selection reads, a transform's `input`. Every other input is a
+//! branch that indents:
 //!
 //! ```text
 //! depth(n) = 0                                     if n has no inputs
@@ -621,10 +622,15 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(match doc.defined_by(*at) {
-            Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
-            None => "on a face of a deleted body".to_owned(),
-        }),
+        Node::Datum(Datum::FaceFrame { face, .. }) => Some(
+            match doc
+                .selection(*face)
+                .and_then(|selection| doc.defined_by(selection.body))
+            {
+                Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
+                None => "on a face of a deleted body".to_owned(),
+            },
+        ),
         Node::Datum(
             Datum::Plane { .. }
             | Datum::Axis { .. }
@@ -1188,8 +1194,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
-        // A measure's deleted site: the repair is at the measure.
-        | NodeErrorKind::UnresolvedSite { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
@@ -1228,11 +1232,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::UndeclarableContact { .. }
         | NodeErrorKind::SelectResolve { .. }
         | NodeErrorKind::SelectKind { .. }
-        | NodeErrorKind::SelectResolve { .. }
-        | NodeErrorKind::SelectKind { .. }
-        | NodeErrorKind::SelectResolve { .. }
-        | NodeErrorKind::SelectKind { .. }
-        | NodeErrorKind::SelectResolve { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
         // Name no node beside the failing one.
