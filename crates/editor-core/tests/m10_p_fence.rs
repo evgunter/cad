@@ -117,6 +117,17 @@
 //! and the assertion's verdict, dumped at `f64` and at `Interval` on main
 //! and on the branch, was the same text.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN A SELECTION BECAME A VARIABLE**
+//! (INTENT stage 2 PR E), through the seven documents that blend,
+//! shell, frame on a face or measure. Each such node now reads a
+//! selection variable its insert mints, so its id moved, and every id
+//! minted after it in the document. `lib_g16_corpus_name_digests`
+//! moved those seven rows and no other, and the id-masked geometry
+//! fence below did not move: no outcome flipped and no body's point
+//! moved anywhere. Merged with stage 5 A's `relation`, the numbers were
+//! re-taken once more; only `measured_web`'s rows moved, where both
+//! changes meet.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -833,7 +844,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x0eca_236d_0914_4171, 0xcf68_1492_db69_f5cd),
+        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -859,7 +870,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x74c1_0986_0adf_0595, 0x8152_426c_5888_afe9),
+        (0x2ddc_3dcf_bc77_f4ec, 0x7a07_f29a_0243_60f8),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -883,7 +894,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x0eca_236d_0914_4171, 0xcf68_1492_db69_f5cd),
+        (0x62bd_b0ba_9320_ac64, 0x53f1_0a2c_6d2e_b258),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -232,12 +232,19 @@ fn both_blends_evaluate_in_one_document() {
 /// each body's `Debug`. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED for INTENT stage 2 PR E (a selection is a variable): each
+/// blend reads a selection variable its insert mints, so the blend's id
+/// moved and every name it mints with it. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched. Merged over stage 4 E, the two numbers were re-taken
+/// once more, where both changes meet.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x1030_7726_e783_da9au64),
-        ("die_chamfer", 0x854d_40cb_a3df_004a),
+        ("die_fillet", 0xf0b2_cbd3_0d01_cb92u64),
+        ("die_chamfer", 0x1ab2_dc1c_301a_5a30),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -371,7 +378,7 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
         ("crossing_slots", 0x8c4a_a1e9_6791_d8b3u64),
         ("heat_sink", 0x8dae_ba61_42a1_9b5a),
-        ("kiss_carry", 0x5c44_b19c_489f_37ad),
+        ("kiss_carry", 0x6855_2051_fce2_82cc),
     ] {
         let doc = corpus::documents()
             .into_iter()

@@ -755,7 +755,7 @@ pub enum SessionOp {
     /// that is the freeze rule rather than an omission. Whether a name
     /// still resolves through the target's table is evaluation's
     /// question, answered typed on the node's own badge
-    /// (`NodeErrorKind::BlendSelectionResolve`, and
+    /// (`NodeErrorKind::SelectResolve`, and
     /// `BlendSelectionEmpty` for an empty set) — a door that
     /// pre-screened it would be a second authority on the same fact,
     /// and would refuse to author the node whose refusal is the honest

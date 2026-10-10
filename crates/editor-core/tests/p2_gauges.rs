@@ -661,8 +661,8 @@ fn an_unplaced_group_is_gathered_minted_and_measured_against_nothing_outside_it(
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let measure = || Node::Measure {
         primitive: MeasurePrimitive::Distance {
-            a: SitedRef::at_mint(p.base_cap(base)),
-            b: SitedRef::at_mint(p.top_cap(top)),
+            a: SitedRef::at_mint(p.base_cap(base)).into(),
+            b: SitedRef::at_mint(p.top_cap(top)).into(),
         },
     };
     let o = p.opts();

@@ -1376,6 +1376,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         curve_promotions,
         instances,
         coherence,
+        coincidences,
     } = imported
     else {
         panic!("the box re-imports as a solid, not a wireframe");
@@ -1395,6 +1396,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // empty report; `topo`'s own door draws the same line about the
     // two lists inside a report it did produce.
     named::<Option<CoherenceReport>>(coherence.clone());
+    // The anchors' decisions: none, since the default import declares
+    // no anchor.
+    named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
+    assert!(
+        coincidences.is_empty(),
+        "the default import declares no anchor"
+    );
     assert!(
         coherence.is_none(),
         "the default import asked for no chart-coherence examination"
@@ -2812,9 +2820,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         .expect("two walls");
     let (doc, measure) = insert(
         doc,
-        Node::Measure {
-            primitive: pncad::document::MeasurePrimitive::Distance { a, b },
-        },
+        Node::measure(&pncad::document::MeasurePrimitive::Distance { a, b }),
     );
     let value = doc.output(measure, 0).expect("a measure defines its value");
     // A distance is a magnitude, so `>= 0` holds for any selection —
