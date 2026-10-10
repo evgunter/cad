@@ -2,7 +2,7 @@
 id: an-instance-carries-its-parts-coincidences
 kind: issue
 title: An instance carries its part's coincidence rows, so the lint on a product document reports its parts' unproven glue
-status: parked
+status: open
 opened: 2026-10-08
 priority: P1
 cost: M

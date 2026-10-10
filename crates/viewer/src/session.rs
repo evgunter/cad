@@ -57,11 +57,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
-    HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
-    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
+    Assembly, AssemblyError, AuthoredNode, BooleanOp, ChecksConfig, ChecksReport, Dimension,
+    DimensionError, Doc, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula,
+    FreeValue, FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot,
+    PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording,
+    SlotId, StepId, Subject, VarId, VarName, apply, assemble_gathered, cascade_delete_order,
+    parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1103,7 +1104,7 @@ impl DocSession {
     ///
     /// **Handed over rather than re-derived**, and **free to ask**:
     /// this is a borrow of what the landing already gathered, never a
-    /// gather of its own. On this lane's 165-root, 990-face
+    /// gather of its own. On this lane's 165-body, 990-face
     /// measurement a gather is 87 ms; handing this body on is an
     /// `Arc` clone.
     ///
@@ -1389,7 +1390,7 @@ impl DocSession {
             Ok(product) => {
                 // The advisory registry. It REPORTS — a document with
                 // findings still draws, which is the whole point of
-                // running it on the draw path: a product whose roots
+                // running it on the draw path: a product whose copies
                 // interpenetrate renders a picture that looks almost
                 // right, and the finding is the only thing that says
                 // otherwise. A refusal of the registry itself leaves
@@ -1433,7 +1434,7 @@ impl DocSession {
                     .kind()
                     .means_no_body()
                     .then(|| {
-                        run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
+                        run_checks_on(doc, &done.evaluation, Subject::EmptyProduct, &cfg, self.tol)
                             .ok()
                     })
                     .flatten();
@@ -1531,9 +1532,12 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
-            SessionOp::SetSlotVariable { node, slot, var } => {
-                self.set_slot_variable(node, slot, var)
-            }
+            SessionOp::SetSlotVariable {
+                node,
+                slot,
+                var,
+                name,
+            } => self.set_slot_variable(node, slot, var, name),
             SessionOp::DeclineOffer { node, slot } => {
                 self.close_offer(node, slot);
                 OpOutcome::default()
@@ -1693,7 +1697,8 @@ impl DocSession {
     ///
     /// The creation is performed as it would be alone, through
     /// whichever commit door it takes. Once it has recorded its state,
-    /// a `SetLabel` on the last node it minted is applied to that
+    /// a `SetLabel` on the last node it minted that is not a world
+    /// placement is applied to that
     /// state's document and joins that state's group
     /// ([`History::extend_current`]), so the insert and the label are
     /// one undo whatever door recorded the insert. A creation that
@@ -1703,7 +1708,7 @@ impl DocSession {
         let before = self.history.current();
         let mut outcome = self.perform(creation.into_op());
         let recorded = self.history.current();
-        let Some(&node) = outcome.minted.last() else {
+        let Some(node) = crate::world::made(self.history.doc(), &outcome.minted) else {
             return outcome;
         };
         if recorded == before || outcome.refusal.is_some() {
@@ -1861,9 +1866,14 @@ impl DocSession {
             Ok(pin) => pin,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::instantiate_part(DocRef { id, pin })),
-            fresh: Vec::new(),
+        // A creation: the instance, and an identity world placement of
+        // each body it defines — one per world placement of its part.
+        self.commit_run(|run| {
+            let instance = run.insert(Node::instantiate_part(DocRef { id, pin }))?;
+            for body in run.doc().outputs(instance) {
+                run.apply(DocEdit::place(body, None))?;
+            }
+            Ok(())
         })
     }
 
@@ -1938,11 +1948,20 @@ impl DocSession {
     }
 
     /// **Accept an offer**: the slot reads `var` — the slot-write
-    /// gesture, one edit and one undo step. Only a variable on offer
+    /// gesture, one undo step. An unnamed `var` is named `name` in the
+    /// same step, since a variable two slots share has a name (VR2);
+    /// accepted without one, the door refuses it
+    /// (`EditError::SharedVarNeedsName`). Only a variable on offer
     /// there ([`Self::offered`]) is accepted, so a stale button can
     /// never join a slot to a variable chosen against a value it no
     /// longer holds; the door checks the kind.
-    fn set_slot_variable(&mut self, node: RecipeNodeId, slot: SlotId, var: VarId) -> OpOutcome {
+    fn set_slot_variable(
+        &mut self,
+        node: RecipeNodeId,
+        slot: SlotId,
+        var: VarId,
+        name: Option<VarName>,
+    ) -> OpOutcome {
         if !self
             .offered(node, slot)
             .iter()
@@ -1951,7 +1970,21 @@ impl DocSession {
             let spoken = self.committed_doc().spoken_var(var);
             return OpOutcome::refused(Refusal::NotOffered(spoken));
         }
-        let outcome = self.commit_written(props::slot_read_edit(node, slot, var));
+        if name.is_some() && self.committed_doc().var_name(var).is_some() {
+            let spoken = self.committed_doc().spoken_var(var);
+            return OpOutcome::refused(Refusal::OfferIsNamed(spoken));
+        }
+        let read = props::slot_read_edit(node, slot, var);
+        let outcome = match name {
+            None => self.commit_written(read),
+            Some(name) => self.commit_action(vec![
+                DocEdit::RenameVar {
+                    var: var.into(),
+                    name: Some(name),
+                },
+                read,
+            ]),
+        };
         if outcome.refusal.is_none() {
             self.close_offer(node, slot);
         }
@@ -2332,10 +2365,10 @@ impl DocSession {
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
                 // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a root would mint a
+                // own seam: a gesture that moved a group would mint a
                 // frame from the parts' extent, and with no directory
                 // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no root, so what a
+                // and lazy — a slot gesture moves no group, so what a
                 // tick pays for it is the construction and nothing
                 // more.
                 let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
@@ -2758,13 +2791,10 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Extrude {
-                profile: profile.into(),
-                distance,
-                side: ExtrudeSide::Along,
-            }),
-            fresh: Vec::new(),
+        self.create_placed(Node::Extrude {
+            profile: profile.into(),
+            distance,
+            side: ExtrudeSide::Along,
         })
     }
 
@@ -2782,13 +2812,10 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
             return OpOutcome::refused(refusal);
         }
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Revolve {
-                profile: profile.into(),
-                axis: axis.into(),
-                angle,
-            }),
-            fresh: Vec::new(),
+        self.create_placed(Node::Revolve {
+            profile: profile.into(),
+            axis: axis.into(),
+            angle,
         })
     }
 
@@ -2818,12 +2845,14 @@ impl DocSession {
         // An empty list is the undeclared boolean.
         let pairs = declared_pairs(&declare);
         let staged = self.stage_run(|run| {
-            run.insert(Node::Boolean {
+            let node = run.insert(Node::Boolean {
                 op,
                 a: a.into(),
                 b: b.into(),
                 declare: pairs,
-            })
+            })?;
+            combine_in_world(run, [a, b], node)?;
+            Ok(node)
         });
         let (staged, node) = match staged {
             Ok(staged) => staged,
@@ -2880,17 +2909,17 @@ impl DocSession {
         }
         // Total, as the other lowerings are: slot dimensions are the
         // edit door's question.
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::transform(
+        self.feature_over(
+            self.placements_of(input),
+            Node::transform(
                 input,
                 pncad::document::Step::Rigid {
                     translation,
                     axis: rotation_axis,
                     angle: rotation_angle,
                 },
-            )),
-            fresh: Vec::new(),
-        })
+            ),
+        )
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -2916,14 +2945,19 @@ impl DocSession {
         {
             return OpOutcome::refused(refusal);
         }
-        let node = match output {
-            PatternOutputChoice::Instances => combine::pattern_node(input, count, rule),
-            PatternOutputChoice::Fused => combine::placed_union_node(input, count, rule),
-        };
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        })
+        match output {
+            // Several bodies, which no placement reads: the pattern
+            // places nothing, and its copies reach the world through a
+            // projection each (`SessionOp::AddPart`).
+            PatternOutputChoice::Instances => self.commit(DocEdit::InsertNode {
+                node: Box::new(combine::pattern_node(input, count, rule)),
+                fresh: Vec::new(),
+            }),
+            PatternOutputChoice::Fused => self.feature_over(
+                self.placements_of(input),
+                combine::placed_union_node(input, count, rule),
+            ),
+        }
     }
 
     /// Insert one projection of a multi-body value
@@ -2943,30 +2977,18 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(of, wanted) {
             return OpOutcome::refused(refusal);
         }
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(combine::part_node(of, select)),
-            fresh: Vec::new(),
-        })
+        self.create_placed(combine::part_node(of, select))
     }
 
     /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
-    /// over it, and one projection per instance.
+    /// stepped clear, and its second copy's projection placed in the
+    /// world.
     ///
-    /// **Three inserts as ONE action and therefore one undo**, the
-    /// shape [`Self::add_profile_on_new_xy`] takes and for its reason:
-    /// the projections name the id the pattern insert MINTED, so each
-    /// edit is built from what its predecessor produced rather than
-    /// from a predicted id, and all-or-nothing comes free — a refusal
-    /// anywhere leaves no half-built duplicate behind.
-    ///
-    /// **Why the projections are part of the gesture and not a
-    /// follow-up.** The viewport draws `Doc::roots`, and `roots`
-    /// maintenance drops a new node's inputs: the pattern alone is one
-    /// root holding two bodies, which cannot be hidden, placed or
-    /// blended one copy at a time, and the first `Part` authored
-    /// afterwards would consume the pattern and leave the other copy
-    /// undrawn. Committing both projections is what leaves two roots,
-    /// so the copy is movable and the original stays on screen.
+    /// **Three inserts as ONE action and therefore one undo.** The
+    /// original stays placed where it was; the copy is a creation, so
+    /// it is placed where the person can see it, and it is a body of
+    /// its own — a feature authored on it re-points the copy's
+    /// placement alone.
     fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -2991,17 +3013,13 @@ impl DocSession {
             Ok(rule) => combine::pattern_node(input, combine::DUPLICATE_COUNT, rule),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        // Position 0 is the pattern; position `1 + i` projects instance
-        // `i`, for every `i` below the pattern's own count. Instance 0
-        // — the original, where it already stood — goes first, so it
-        // takes the root slot the pattern took from the body it
-        // replicates; each later projection's input has stopped being a
-        // root by then, so it is APPENDED to the root list.
         self.commit_run(|run| {
             let pattern = run.insert(pattern)?;
-            for index in 0..combine::DUPLICATE_COUNT {
-                run.insert(combine::part_node(pattern, PartSelectSpec::Instance(index)))?;
-            }
+            let copy = run.insert(combine::part_node(
+                pattern,
+                PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
+            ))?;
+            run.apply(DocEdit::place(copy, None))?;
             Ok(())
         })
     }
@@ -3032,14 +3050,73 @@ impl DocSession {
         // canonical form is what makes two recipes over the same edges
         // bit-identical, and `persist`'s strict door treats a
         // non-canonical set on the wire as a corrupt file.
-        let node = match kind {
-            BlendKindChoice::Fillet => Node::fillet(target, size, selection),
-            BlendKindChoice::Chamfer => Node::chamfer(target, size, selection),
+        // A pick on a copy is read on its body (A10): the body the
+        // placement places, and the body's own name for each edge.
+        let doc = self.committed_doc();
+        let (read, over, selection): (Operand, _, _) = match crate::world::placed_var(doc, target) {
+            Some(body) => (
+                body.into(),
+                crate::world::placements_of_var(doc, body),
+                selection
+                    .into_iter()
+                    .map(|name| match name.copy_of() {
+                        Some((placement, own)) if placement == target => own.clone(),
+                        _ => name,
+                    })
+                    .collect(),
+            ),
+            None => (
+                target.into(),
+                crate::world::placements_of_target(doc, target),
+                selection,
+            ),
         };
-        self.commit(DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
+        let node = match kind {
+            BlendKindChoice::Fillet => Node::fillet(read, size, selection),
+            BlendKindChoice::Chamfer => Node::chamfer(read, size, selection),
+        };
+        self.feature_over(over, node)
+    }
+
+    /// **A creation gesture's one action** (A10): the new body, and its
+    /// identity world placement, so what the person made is drawn. One
+    /// action, so one undo takes both.
+    ///
+    /// What is placed is the made node's first `Body` output: a revolve
+    /// defines its body and its axis, and naming it alone reads neither.
+    fn create_placed(&mut self, node: AuthoredNode) -> OpOutcome {
+        self.commit_run(|run| {
+            let made = run.insert(node)?;
+            let doc = run.doc();
+            let body = doc
+                .outputs(made)
+                .into_iter()
+                .find(|&var| {
+                    doc.var(var)
+                        .is_some_and(|v| v.kind() == pncad::document::VarKind::Body)
+                })
+                .map_or_else(|| made.into(), Operand::from);
+            run.apply(DocEdit::place(body, None))?;
+            Ok(())
         })
+    }
+
+    /// **A feature gesture's one action** (A10, Ev's residue 1): the
+    /// result, and each of the target's world placements `over`
+    /// re-pointed to it through the slot door — so the world shows the
+    /// result where it showed the target, and one undo restores both.
+    /// A target nothing places places nothing.
+    fn feature_over(&mut self, over: Vec<RecipeNodeId>, node: AuthoredNode) -> OpOutcome {
+        self.commit_run(|run| {
+            let result = run.insert(node)?;
+            repoint(run, over, result)
+        })
+    }
+
+    /// The world placements of `target` ([`crate::world::placements_of_target`]),
+    /// in the committed document.
+    fn placements_of(&self, target: RecipeNodeId) -> Vec<RecipeNodeId> {
+        crate::world::placements_of_target(self.committed_doc(), target)
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -3144,7 +3221,6 @@ impl DocSession {
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
             | DocEdit::SetProgram { .. }
-            | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
             // An instance's offset, and the gauge an instance or a
@@ -3217,9 +3293,10 @@ impl DocSession {
     /// door accepts.
     ///
     /// **The cone, not the chain's remainder**: nodes whose only tie
-    /// to the target is that they fed it survive as roots of their own,
-    /// so deleting one pip's boolean out of a die leaves that pip's
-    /// body in the document, unconsumed. Reconnecting a deleted node's
+    /// to the target is that they fed it survive, so deleting one pip's
+    /// boolean out of a die leaves that pip's body in the document,
+    /// unconsumed and unplaced — the cone takes the boolean's world
+    /// placements with it, since they read it. Reconnecting a deleted node's
     /// consumers to its input instead — splice, the CAD-conventional
     /// delete — needs an edit that rewires a live node's inputs. The
     /// vocabulary has ONE such edit now, `DocEdit::SetMembers`, and it
@@ -3360,6 +3437,49 @@ impl DocSession {
     }
 }
 
+/// **Re-point each of `placements` to `result`** (A10, Ev's residue
+/// 1): the slot door on each placement's body slot, in the action that
+/// authored `result`.
+fn repoint(
+    run: &mut Recording<'_, ProfileProgram>,
+    placements: Vec<RecipeNodeId>,
+    result: RecipeNodeId,
+) -> Result<(), EditError> {
+    for placement in placements {
+        run.apply(DocEdit::SetParam {
+            node: placement,
+            slot: SlotId::Operand(OperandSlot::Body),
+            value: pncad::document::SlotValue::Read(result.into()),
+            fresh: Vec::new(),
+        })?;
+    }
+    Ok(())
+}
+
+/// **A combine's world**: the first operand, in seat order, that the
+/// world places has its placements re-pointed to `result`, and every
+/// other operand's placements are deleted — its material is in the
+/// result — so `a ∘ b` with both placed leaves `[result]`. Operands
+/// nothing places place nothing.
+fn combine_in_world(
+    run: &mut Recording<'_, ProfileProgram>,
+    operands: [RecipeNodeId; 2],
+    result: RecipeNodeId,
+) -> Result<(), EditError> {
+    let mut placed = operands
+        .map(|operand| crate::world::placements_of_target(run.doc(), operand))
+        .into_iter()
+        .filter(|placements| !placements.is_empty());
+    let Some(first) = placed.next() else {
+        return Ok(());
+    };
+    repoint(run, first, result)?;
+    for placement in placed.flatten() {
+        run.apply(DocEdit::DeleteNode { id: placement })?;
+    }
+    Ok(())
+}
+
 /// Whether a document is assembly-shaped — one of the two conditions
 /// [`AtRestBadge`] names for taking an A5 badge: a document that
 /// instantiates no part declares no cross-instance rest and has
@@ -3383,6 +3503,9 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         Node::Mate { .. } => false,
         // A frame instances stand on; it puts nothing in.
         Node::Gauge { .. } => false,
+        // Puts a copy of a body this document already holds in the
+        // world.
+        Node::PlaceInWorld { .. } => false,
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }

@@ -92,11 +92,11 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MaterialPairing, MaterialWedge,
-    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder,
-    SecondOrderWalk, Station, StationHook, classify_dihedral, classify_material_pairing,
-    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
-    must_carry_over_edge, second_order_walk, tangent_second_order,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
+    MaterialPairing, MaterialWedge, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
+    MustCarryVerdict, SecondOrder, SecondOrderWalk, Station, StationHook, classify_dihedral,
+    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
+    material_kappa_rel, must_carry_over_edge, second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -133,7 +133,7 @@ pub use intersect::{
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
-pub use mapped::{MappedCurve, SketchSegment};
+pub use mapped::{MappedCurve, SketchSegment, SweepRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,

@@ -52,27 +52,20 @@ use crate::widgets::{
 pub(crate) const MIN_PART_INSTANCE: i64 = 0;
 
 /// **What a projection does to the picture**, said on the panel
-/// before the click: the split or pattern it reads stops being a root,
-/// so every body it does NOT select stops being drawn.
+/// before the click: the projected body is placed in the world, so it
+/// is drawn beside whatever is drawn already (A10).
 ///
-/// Not a refusal and not a surprise to hide — it is the document's
-/// roots rule (a new node takes its inputs' place), and a person who
-/// wants the other bodies kept projects each one, which is what the
-/// duplicate tool does for a pattern of two.
-///
-/// **It names the feature tree, because that is the only place left.**
-/// Once the split or pattern has left the picture, a viewport click
-/// meets the PROJECTION's body, and the projection tool seats the drawn
-/// body ([`crate::session::Selection::seat_node`]) — which is not a
-/// split or a pattern. Re-reaching the source from the viewport is
-/// `work/forms/a-projected-split-is-unreachable-from-the-viewport`.
-pub(crate) const PROJECTION_HIDES_THE_REST: &str = "only the selected body stays drawn: the split or pattern it is read out of leaves the \
-     picture — to project another of its bodies, pick it again in the feature tree";
+/// The split or pattern it reads is never drawn itself — it defines
+/// several bodies, which no world placement reads — so it is reached
+/// from the feature tree, and a person who wants another of its bodies
+/// projects that one too.
+pub(crate) const PROJECTION_IS_PLACED: &str = "the selected body is placed in the world and drawn: the split or pattern it is read out of \
+     is not drawn itself — to project another of its bodies, pick it again in the feature tree";
 
 /// **The part form's selector rows**: which of the two selections is
 /// being authored, the one field or radio row that selection needs,
 /// and what committing it does to the picture
-/// ([`PROJECTION_HIDES_THE_REST`]).
+/// ([`PROJECTION_IS_PLACED`]).
 ///
 /// A free function over the `Ui` for [`profile_plane_row`]'s reason —
 /// `ViewerBehavior` borrows the whole application, so this is the only
@@ -122,7 +115,7 @@ pub(crate) fn part_selector_rows(
             );
         }
     }
-    crate::widgets::message_toned(ui, PROJECTION_HIDES_THE_REST, theme, Tone::Advisory);
+    crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
 /// **What the duplicate tool tells a user before they click it** —
@@ -619,8 +612,7 @@ impl ViewerBehavior<'_> {
             ui.separator();
             // Beside the pattern they read and author: a projection
             // takes ONE body out of a split's or a pattern's several,
-            // and a duplicate authors a pattern of two with both
-            // projections already made.
+            // and a duplicate authors one stepped copy of a body.
             self.projection_tool_ui(ui);
             ui.separator();
             self.duplicate_tool_ui(ui);
@@ -2137,18 +2129,18 @@ mod tests {
     }
 
     /// **The projection panel says what a projection does to the
-    /// picture**, under either selector — the bodies it does not select
-    /// stop being drawn, and a person should hear that before the
-    /// click, not discover it after.
+    /// picture**, under either selector — the body it selects is placed
+    /// and drawn, and a person should hear that before the click, not
+    /// discover it after.
     #[test]
-    fn the_part_form_says_the_other_bodies_leave_the_picture() {
+    fn the_part_form_says_the_projection_is_placed() {
         for choice in [PartSelectChoice::Half, PartSelectChoice::Instance] {
             let (mut select, mut half, mut instance) = (choice, SplitHalf::Above, 1_i64);
             let drawn = painted_text(|ui| {
                 part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance);
             });
             assert!(
-                drawn.contains("only the selected body stays drawn"),
+                drawn.contains("the selected body is placed in the world and drawn"),
                 "{choice:?}: {drawn}"
             );
             assert!(
@@ -2993,11 +2985,12 @@ mod creation_nouns {
     use crate::session::{DocSession, ProfilePlane, SessionOp};
     use crate::test_support::{framed_square, len};
 
-    /// The single node `op` minted on `session`, by its kind noun.
+    /// The node `op` made on `session` ([`crate::world::made`]), by its
+    /// kind noun.
     fn minted_noun(session: &mut DocSession, op: SessionOp) -> &'static str {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let node = *outcome.minted.last().expect("the op minted a node");
+        let node = crate::world::made(session.doc(), &outcome.minted).expect("the op made a node");
         node_kind_noun(session.doc().node(node).expect("the minted node is live"))
     }
 

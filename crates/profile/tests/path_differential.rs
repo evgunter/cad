@@ -22,11 +22,13 @@
 
 use crate::common;
 
-use common::pinned;
+use common::{pinned, pinned_constructed};
 use geom_core::Tol;
 use geom_core::{Arc2, Point2, Vec2};
 use profile::RawLoop;
-use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
+use profile::{
+    ArcSweep, Bulge, Center, ConstructedLoop, Open, Profile, ProfileLoop, SketchPlane, Start, Via,
+};
 
 // ---------------------------------------------------------------
 // The recorded fixtures (LIB-RETTAIL): what this suite compares against
@@ -35,7 +37,7 @@ use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, 
 /// A BLESSED lowering: the canonical table — each vertex with the
 /// segment leaving it, `[x, y, centre.x, centre.y, radius, sweep]`, a
 /// line spelled with all four segment fields zero — and the
-/// declared-joint set that the algebra produced when the fixture was
+/// constructed-joint set that the algebra produced when the fixture was
 /// recorded, spelled as `f64` literals — Rust's shortest round-tripping
 /// form, so the literals ARE the bits.
 ///
@@ -61,7 +63,7 @@ use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, 
 /// path_differential -- --nocapture` (this file rides the
 /// aggregated `all` target) and paste what it prints. Blessing is a decision:
 /// the printed numbers are the new contract.
-fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
+fn recorded(name: &str, algebra: &ConstructedLoop<f64>) -> ConstructedLoop<f64> {
     if std::env::var_os("CAD_BLESS_TWINS").is_some() {
         println!("    (");
         println!("        {name:?},");
@@ -77,7 +79,7 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
             );
         }
         println!("        ],");
-        println!("        &{:?},", algebra.tangent_joints());
+        println!("        &{:?},", algebra.constructed_joints());
         println!("    ),");
         // Blessing mode compares the lowering against itself so the rest
         // of the row still runs; the printed table is the new contract.
@@ -88,19 +90,21 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         .find(|(n, _, _)| *n == name)
         .map(|(_, t, j)| (*t, *j))
         .unwrap_or_else(|| panic!("no recorded fixture named {name:?}"));
-    <ProfileLoop<f64> as RawLoop<f64>>::new(table.iter().map(|&[x, y, cx, cy, radius, sweep]| {
-        let segment = if radius == 0.0 {
-            profile::Segment::Line
-        } else {
-            profile::Segment::Arc(Arc2 {
-                centre: Point2::new(cx, cy),
-                radius,
-                sweep,
-            })
-        };
-        (Point2::new(x, y), segment)
-    }))
-    .with_tangent_joints(joints.to_vec())
+    let table = <ProfileLoop<f64> as RawLoop<f64>>::new(table.iter().map(
+        |&[x, y, cx, cy, radius, sweep]| {
+            let segment = if radius == 0.0 {
+                profile::Segment::Line
+            } else {
+                profile::Segment::Arc(Arc2 {
+                    centre: Point2::new(cx, cy),
+                    radius,
+                    sweep,
+                })
+            };
+            (Point2::new(x, y), segment)
+        },
+    ));
+    ConstructedLoop::fixture(table, joints.to_vec())
 }
 
 /// The blessed tables. One row per fixture name; see [`recorded`]. The
@@ -350,9 +354,8 @@ fn segment_bits(s: profile::Segment<f64>) -> Option<[u64; 4]> {
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and stored
-/// segment field by `to_bits`, and the declared-joint SET (declaration order is not
-/// semantic — `tangent_joints` documents set semantics).
-fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
+/// segment field by `to_bits`, and the constructed-joint SET.
+fn assert_loops_identical(algebra: &ConstructedLoop<f64>, hand: &ConstructedLoop<f64>) {
     assert_eq!(
         algebra.vertices().len(),
         hand.vertices().len(),
@@ -379,13 +382,13 @@ fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
             "segment {i}"
         );
     }
-    let mut ta = algebra.tangent_joints().to_vec();
-    let mut th = hand.tangent_joints().to_vec();
+    let mut ta = algebra.constructed_joints().to_vec();
+    let mut th = hand.constructed_joints().to_vec();
     ta.sort_unstable();
     ta.dedup();
     th.sort_unstable();
     th.dedup();
-    assert_eq!(ta, th, "declared-joint sets");
+    assert_eq!(ta, th, "constructed-joint sets");
 }
 
 /// Both loops validate Ok, and their canonical forms are identical
@@ -422,7 +425,7 @@ fn sharp_triangle_matches_loopbuilder() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded("sharp_triangle_matches_loopbuilder", &algebra);
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
@@ -446,14 +449,14 @@ fn sharp_arc_chain_matches_loopbuilder() {
         .unwrap()
         .arc_to(Bulge { p: Start, b: b2 }, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded("sharp_arc_chain_matches_loopbuilder", &algebra);
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
 }
 
-/// D3 — declared tangent leg: `.tangent().tangent_arc_to(p)` lowers to
-/// a joint declared tangent plus the arc whose sweep is 4·atan(X), X =
+/// D3 — constructed tangent leg: `.tangent().tangent_arc_to(p)` lowers to
+/// a joint constructed tangent plus the arc whose sweep is 4·atan(X), X =
 /// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
 /// `across / (|d| + along)` — bit-identical to that closed form
 /// evaluated directly on the same inputs (the oracle below).
@@ -476,7 +479,7 @@ fn tangent_arc_leg_matches_loopbuilder() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     // The INDEPENDENT oracle (it used to be the hand chain's argument;
     // now it is asserted directly): vertex 1's arc is lowered from the
     // X of the documented closed form, bit for bit, so its sweep is
@@ -569,7 +572,7 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded(
         "single_fillet_after_leg_matches_loopbuilder_fillet",
         &algebra,
@@ -627,7 +630,7 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
         .to(Start, Tol::witness())
         .unwrap();
 
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
 
     // Hand: corner k sits between side k (anchor m[k], direction
     // th[k]) and side k+1; the algebra's canonical trim inputs are
@@ -674,7 +677,7 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
     assert_eq!(algebra.vertices().len(), 8);
-    assert_eq!(algebra.tangent_joints().len(), 8);
+    assert_eq!(algebra.constructed_joints().len(), 8);
 }
 
 /// D6 — a fillet arrival bound by `line_to` ("also from arrivals"):
@@ -703,7 +706,7 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded("arrival_bound_by_line_to_matches_loopbuilder", &algebra);
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
@@ -717,22 +720,25 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
 /// G1-1 — the circle primitive lowers to the corpus's existing
 /// convention bit-for-bit: two semicircles at the ±x poles, east first,
 /// each on the authored carrier (the centre and radius as written, the
-/// sweep 4·atan(1)), counterclockwise, nothing declared (the two joints
-/// are same-carrier identities, not tangencies).
+/// sweep 4·atan(1)), counterclockwise, both joints constructed (one
+/// carrier continuing through each).
 #[test]
 fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
         let algebra = profile::circle(Point2::new(cx, cy), r, Tol::witness()).unwrap();
-        let algebra = pinned(algebra);
+        let algebra = pinned_constructed(algebra);
         let half = profile::Segment::Arc(Arc2 {
             centre: Point2::new(cx, cy),
             radius: r,
             sweep: 4.0 * 1.0_f64.atan(),
         });
-        let hand = <ProfileLoop<f64> as RawLoop<f64>>::new([
-            (Point2::new(cx + r, cy), half),
-            (Point2::new(cx - r, cy), half),
-        ]);
+        let hand = ConstructedLoop::fixture(
+            <ProfileLoop<f64> as RawLoop<f64>>::new([
+                (Point2::new(cx + r, cy), half),
+                (Point2::new(cx - r, cy), half),
+            ]),
+            vec![0, 1],
+        );
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);
     }
@@ -754,7 +760,7 @@ fn arc_via_matches_loopbuilder_arc_to_via() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded("arc_via_matches_loopbuilder_arc_to_via", &algebra);
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
@@ -773,7 +779,7 @@ fn arc_via_closing_matches_loopbuilder_close_arc_via() {
         .unwrap()
         .arc_to(Via { q: back, p: Start }, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded(
         "arc_via_closing_matches_loopbuilder_close_arc_via",
         &algebra,
@@ -801,7 +807,7 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
             .unwrap()
             .line_to(Start, Tol::witness())
             .unwrap();
-        let algebra = pinned(algebra);
+        let algebra = pinned_constructed(algebra);
         let hand = recorded(
             match winding {
                 profile::ArcSweep::Ccw => "arc_center_ccw",
@@ -829,7 +835,7 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded("arc_center_ccw", &algebra);
     assert_validate_identically(&algebra, &hand);
 }
@@ -869,7 +875,7 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     // The INDEPENDENT oracle for the two DERIVED vertices: both legs are
     // axis-aligned, so the setback is exactly r along each leg from the
     // virtual corner — trim 1 at (corner.x + r, corner.y), trim 2 at
@@ -1020,7 +1026,7 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
             Tol::witness(),
         )
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded(
         "eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner",
         &algebra,
@@ -1114,7 +1120,7 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
             Tol::witness(),
         )
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded(
         "line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner",
         &algebra,
@@ -1195,7 +1201,7 @@ fn straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner() {
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
-    let algebra = pinned(algebra);
+    let algebra = pinned_constructed(algebra);
     let hand = recorded(
         "straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner",
         &algebra,

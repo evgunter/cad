@@ -57,9 +57,9 @@ pub enum ExportError {
     },
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
-    /// The whole-document door's gather refused: no
-    /// body-denoting root, a failed root, or a kernel refusal while
-    /// gathering.
+    /// The whole-document door's gather refused: an empty world
+    /// (naming the unplaced bodies), a stranded placement, a failed
+    /// placement, or a kernel refusal while gathering.
     Product(ProductError),
     /// **Unplaced parts** (A11 (2)): STEP writes one world, and these
     /// live in an unplaced group's own space — each with its group,
@@ -215,9 +215,9 @@ pub fn step_for_node(
     step_string(body, options, tol).map_err(ExportError::Step)
 }
 
-/// Serializes the WHOLE DOCUMENT's product — the gather of every
-/// body-denoting product root, in root-list order — as a STEP (AP214
-/// Part 21) exchange file.
+/// Serializes the WHOLE DOCUMENT's product — the world: every copy a
+/// placement defines, in the placements' document order — as a STEP
+/// (AP214 Part 21) exchange file.
 ///
 /// This is the door that accepts what [`step_for_node`] refuses: a
 /// pattern's instances, a split's two halves, several disjoint tips.
@@ -234,8 +234,9 @@ pub fn step_for_node(
 /// [`ExportError::UnplacedBelow`] naming every unplaced group a part
 /// below holds, with its route;
 /// [`ExportError::Product`] carrying the gather's own typed refusal
-/// (no body-denoting root, a failed root, a kernel graft or validity
-/// refusal), or [`ExportError::Step`] carrying the writer's.
+/// (an empty world naming the unplaced bodies, a placement whose body
+/// is gone, a failed placement, a kernel graft or validity refusal), or
+/// [`ExportError::Step`] carrying the writer's.
 pub fn export_document_step(
     evaluation: &Evaluation<f64>,
     doc: &ProfileDoc,

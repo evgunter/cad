@@ -2,11 +2,12 @@
 id: booleans-glue-on-zero
 kind: issue
 title: D10 stage 4 PR E: every undeclared-refusal site glues on Zero and records; the merge glues value-decided continuations; GeomSource, AxisSource and ParamSource (with RadiusEvidence and CoaxialEvidence) retire
-status: parked
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
 blocked_on: [the-join-builds-what-the-rest-zip-builds, coincidences-are-recorded-at-one-door]
+branch: intent/s4-e-glue-on-zero
 ---
 
 INTENT stage 4, PR E. Spec: `docs/INTENT-STAGE4-SPEC.md` §6. Ev decided

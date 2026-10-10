@@ -34,7 +34,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
     FaceName, InterfaceCrossing, InterfaceRecord, Maintenance, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin, inline, split,
+    ProfileDoc, RecipeNodeId, RoleSeg, SplitError, StableName, apply, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step, step_with};
@@ -67,19 +67,29 @@ fn part_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// that DO run a refactoring take their reference from a
 /// [`PartStore`] instead, which is the same reference plus the
 /// resolver the refactoring reads the part through.
+///
+/// The body is placed in the part's world through a throwaway store
+/// ([`PartStore::insert_part`]), which is what lets [`in_part`] spell
+/// the part's caps through that placement.
 fn part_ref(label: &str) -> (DocRef, RecipeNodeId) {
-    let (doc, body) = part_doc(label);
-    let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
-    (DocRef { id: doc.id(), pin }, body)
+    PartStore::new().insert_part(part_doc(label), Tol::witness())
 }
 
-/// The part-local face an `inner` names — a cap of the part's `body`,
-/// spelled in the PART's id space, which is the whole reason it is not
-/// a payload name here.
+/// The part-local face an `inner` names — a cap of the part's `body`
+/// as the part's product names it (its placement's copy), spelled in
+/// the PART's id space, which is the whole reason it is not a payload
+/// name here.
 fn part_side(body: RecipeNodeId, cap: CapEnd) -> FaceName {
+    FaceName::new(fixture::resolver::in_world(body, cap))
+        .expect("a crossing's references are face names")
+}
+
+/// A face name spelled on `node` directly, as a cap of it: an `inner`
+/// whose id is a live node of the document at hand.
+fn spelled_on(node: RecipeNodeId, cap: CapEnd) -> FaceName {
     FaceName::new(StableName {
         kind: EntityKind::Face,
-        node: body,
+        node,
         path: vec![RoleSeg::Cap(cap)],
     })
     .expect("a crossing's references are face names")
@@ -435,7 +445,7 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
     // source at all.
     let (doc, collide) = insert(doc, Node::instantiate_part(doc_ref));
 
-    let inner = part_side(collide, CapEnd::Start);
+    let inner = spelled_on(collide, CapEnd::Start);
     let (doc, _) = insert(doc, mate((*inner).clone(), in_part(one, body, CapEnd::End)));
     let record = InterfaceRecord {
         crossings: vec![crossing(in_part(zero, body, CapEnd::End), inner.clone())],
@@ -617,9 +627,9 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
 #[test]
 fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     let mut store = PartStore::default();
-    let (part, body) = part_doc("crossnames-inline-part");
-    let part_nodes = part.ids().len();
-    let doc_ref = store.insert(part, Tol::witness());
+    let (doc_ref, body) = store.insert_part(part_doc("crossnames-inline-part"), Tol::witness());
+    // The part as stored: its recipe and the placement of its body.
+    let part_nodes = store.doc(doc_ref.id).ids().len();
     let (doc, neighbour) = insert(
         ProfileDoc::empty(DocumentId::derive("crossnames-inline"), Tol::witness()),
         Node::instantiate_part(doc_ref),

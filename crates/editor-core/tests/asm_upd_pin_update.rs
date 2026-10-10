@@ -93,7 +93,8 @@ fn run_warm(
 
 // ---- Fixtures ----
 
-/// A one-solid part under `id`: a `side`-wide square extruded 1 tall.
+/// A one-solid part under `id`: a `side`-wide square extruded 1 tall,
+/// placed in its world.
 /// The id is a parameter, so two DIFFERENT contents can share one
 /// identity — which is exactly what "two versions of a part" means.
 fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
@@ -105,7 +106,7 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -113,10 +114,11 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
-/// An assembly instantiating `refs` in order, each a root, the i-th
+/// An assembly instantiating `refs` in order, each placed in the world
+/// at the identity, the i-th
 /// displaced 10·i along +x so the solids stay disjoint.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -141,7 +143,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         }
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::place_all(doc, &ids), ids)
 }
 
 /// The reference a node carries — the value every row reads back.
@@ -617,7 +619,8 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
 }
 
 /// An assembly under an EXPLICIT id (the nested row needs two contents
-/// sharing one identity, which the label-derived helper cannot give).
+/// sharing one identity, which the label-derived helper cannot give),
+/// each instance placed in the world.
 fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(id, Tol::witness());
     let mut ids = Vec::new();
@@ -626,7 +629,7 @@ fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNod
         doc = next;
         ids.push(node);
     }
-    (doc, ids)
+    (fixture::place_all(doc, &ids), ids)
 }
 
 /// Row 5c — the WARM channel, which is where "the old content is not

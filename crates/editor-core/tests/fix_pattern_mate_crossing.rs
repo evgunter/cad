@@ -40,7 +40,6 @@ use std::collections::BTreeSet;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EvalOptions, Formula,
     MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, split,
 };
 use fixture::resolver::in_part;
 use fixture::{in_copy, insert, len, on_frame, scl, step};
@@ -66,11 +65,11 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// [`block`] as a reference, and its body.
+/// [`block`] as a reference, and its body, placed in the part's world
+/// ([`fixture::resolver::PartStore::insert_part`], which is what lets
+/// [`in_part`] spell its caps through the placement).
 fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
-    let (doc, body) = block(label);
-    let pin = content_pin(&doc, Tol::witness()).unwrap();
-    (DocRef { id: doc.id(), pin }, body)
+    fixture::resolver::PartStore::new().insert_part(block(label), Tol::witness())
 }
 
 /// The reach a cut of the four-legs document levers through: a store
@@ -78,8 +77,8 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
 /// remainder's root and mints its frame from the solved pose.
 fn legs_reach() -> EvalOptions {
     let mut store = fixture::resolver::PartStore::new();
-    store.insert(block("fix-xs-leg").0, Tol::witness());
-    store.insert(block("fix-xs-top").0, Tol::witness());
+    store.insert_part(block("fix-xs-leg"), Tol::witness());
+    store.insert_part(block("fix-xs-top"), Tol::witness());
     fixture::resolver::with_resolver(store)
 }
 
@@ -151,6 +150,8 @@ fn four_legs(
     );
     let (top_ref, top_body) = block_ref("fix-xs-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 4);
+    let doc = fixture::place(doc, top).0;
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -164,8 +165,36 @@ fn four_legs(
     (doc, leg, pattern, top, mate.unwrap(), leg_body)
 }
 
-fn cut(ids: impl IntoIterator<Item = RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
-    ids.into_iter().collect()
+/// **`ids` and the world copies of what it moves**: each `Part` that
+/// selects a copy of a cut pattern ([`place_copies`]), then every
+/// world placement of a cut body ([`fixture::with_placements`]) — what
+/// a split moves with a body, since a part delivers only its world.
+fn cut(doc: &ProfileDoc, ids: impl IntoIterator<Item = RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
+    let mut out: BTreeSet<RecipeNodeId> = ids.into_iter().collect();
+    for id in doc.ids() {
+        if let Some(Node::Part { of, .. }) = doc.node(id)
+            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
+        {
+            out.insert(id);
+        }
+    }
+    fixture::with_placements(doc, &out)
+}
+
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity —
+/// the world a pattern's copies are in the product by.
+fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
 }
 
 fn crossings(
@@ -214,16 +243,20 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     // tells the caller to make ("widen the cut to the whole group")
     // is only actionable if the pair is right.
     for (what, ids, root_is_cut) in [
-        ("the pattern side", cut([leg, pattern]), true),
+        ("the pattern side", cut(&doc, [leg, pattern]), true),
         (
             "the pattern side with its mate",
-            cut([leg, pattern, mate]),
+            cut(&doc, [leg, pattern, mate]),
             true,
         ),
-        ("the other member", cut([top]), false),
-        ("the other member with the mate", cut([top, mate]), false),
+        ("the other member", cut(&doc, [top]), false),
+        (
+            "the other member with the mate",
+            cut(&doc, [top, mate]),
+            false,
+        ),
     ] {
-        let refused = split(
+        let refused = editor_core::split(
             &doc,
             &ids,
             DocumentId::derive("fix-xs-torn-part"),
@@ -251,9 +284,9 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     // before the group rule is ever reached — D-2 closure, and the
     // premise that keeps a pattern head's derivation nodes on the same
     // side as the member it resolves to.
-    let severed = split(
+    let severed = editor_core::split(
         &doc,
-        &cut([pattern]),
+        &cut(&doc, [pattern]),
         DocumentId::derive("fix-xs-severed-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -274,9 +307,9 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     );
 
     // The whole group: accepted, and nothing crosses.
-    let out = split(
+    let out = editor_core::split(
         &doc,
-        &cut([leg, pattern, top, mate]),
+        &cut(&doc, [leg, pattern, top, mate]),
         DocumentId::derive("fix-xs-whole-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -298,9 +331,9 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-remap");
     let o = legs_reach();
-    let out = split(
+    let out = editor_core::split(
         &doc,
-        &cut([leg, pattern, top, mate]),
+        &cut(&doc, [leg, pattern, top, mate]),
         DocumentId::derive("fix-xs-remap-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -375,6 +408,8 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
     );
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, outer, 2);
+    let doc = fixture::place(doc, top).0;
     // The top sits on a gauge of its own, so once the cut side is read
     // at the instance left behind — on the world — the mate still
     // declares rather than starting to place (A4's refusal for that is
@@ -411,9 +446,9 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 
     // And so the cut IS accepted, with the mate's ends on opposite
     // sides — the reachable seam a spelling-matched gate would mint on.
-    let out = split(
+    let out = editor_core::split(
         &doc,
-        &cut([leg, inner, outer]),
+        &cut(&doc, [leg, inner, outer]),
         DocumentId::derive("fix-xs-nested-part"),
         Tol::witness(),
         None,
