@@ -712,7 +712,7 @@ the section is empty when the two counts above meet at 248.
 | `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` |
 | `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
 | `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
-| `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
+| `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_off_1`, `contact_tangent_off_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
 
 ## Findings (dispositions)
 

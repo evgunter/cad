@@ -949,44 +949,32 @@ fn junction_discs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
     out
 }
 
-/// **The G1 chain declared a `Seam` verifies, and stops at the
-/// crossing layer, on the graze.** The torus × torus seam passes the
-/// witness lane along the shared meridian circle and the wedge routing,
-/// so no declaration refuses. The rim semicircles lying on the partner
-/// torus are meridians, which the circle × torus door's meridian rung
-/// places on the carrier, so they record. What stops the union, in both
-/// orders, is the first operand's outer equator, an edge leaving the
-/// rim that touches the partner's carrier there with a double root: a
-/// torus × torus seam certifies no global side (the two tubes diverge
-/// past the rim, so each carrier crosses the other's continuation), so
-/// it keeps its graze door
-/// (`a-torus-seam-graze-needs-the-rim-root-deflated`).
+/// **The G1 chain declared a `Seam` escalates at the witness lane.** The
+/// shared rim is a MERIDIAN circle of both tori, and the jet schedule's
+/// span bound for a circle off a torus's axis is far wider than the
+/// band (`geom_brep::tangent_certificate_lane`'s docs, the meridian
+/// class): every sample sits on both walls, but nothing bounds the
+/// spans between, so the witness can neither verify nor contradict the
+/// locus and the declaration door escalates on the first wall's sample
+/// (`contact_tangent_off_1`, the sample decided on the surface beside
+/// a span that is not). Both orders.
 #[test]
-fn the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer() {
+fn the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane() {
     let (a, b) = (segment_a(), segment_b());
-    for (x, y, ring) in [(&a, &b, RING), (&b, &a, 1.1)] {
+    for (x, y) in [(&a, &b), (&b, &a)] {
         let mut decls = wall_declarations(x, y, TUBE, topo::BooleanCoincidence::Seam);
         let discs = junction_discs(x, y);
         assert_eq!(discs.len(), 1, "one junction disc pair");
         decls.coincident_faces.extend(discs);
         let err = topo::union_with(x, y, &decls, Tol::witness())
-            .expect_err("the crossing layer stops the chain");
-        let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
-            panic!("the crossing layer's refusal: {err:?}");
+            .expect_err("the witness lane cannot bound the meridian's spans");
+        let BooleanError::Escalated { diag, .. } = &err else {
+            panic!("the declaration door escalates: {err:?}");
         };
-        assert_eq!(operand, topo::Operand::A, "the first operand's edge");
-        let carrier = x
-            .get_curve_geom(x.get_edge(edge).expect("a live edge").curve)
-            .and_then(|g| g.certified())
-            .expect("a certified edge")
-            .carrier()
-            .clone();
-        let geom::Curve3::Circle { radius, .. } = carrier else {
-            panic!("a circle at the rim: {carrier:?}");
-        };
-        assert!(
-            (radius - (ring + TUBE)).abs() < 1e-12,
-            "the outer equator of the ring-{ring} tube, not a meridian: radius {radius}"
+        assert_eq!(
+            diag.predicate,
+            Some("contact_tangent_off_1"),
+            "on a sample decided on the wall beside an unbounded span: {err}"
         );
     }
 }
