@@ -204,6 +204,18 @@ pub trait Certification: sealed::Sealed + Copy {
     ///
     /// Refused for a refused argument, and for a source with an infinite
     /// end: its corner is not a real number.
+    ///
+    /// **The rows that guard the form**, found by mutation (the convex
+    /// step `x·(1 − Λ) + y·Λ` met with the hull, the lerp `x + (y − x)·Λ`,
+    /// and this door with its meet deleted): `geom-core`'s
+    /// `a_segment_cut_many_times_keeps_its_rows_ulp_wide` and
+    /// `the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row`
+    /// (convex, lerp), `a_refined_weight_stays_between_its_sources`
+    /// (lerp, unmet), `step-export`'s `kernel_sidecar_fields_match_live_kernel`
+    /// (all three), `geom-brep`'s `m5_pr7_ssi::refinement_past_the_arithmetics_floor_meets_the_wall_typed`
+    /// and `topo`'s `review_ssiflat_r1_probes` interval escalation at
+    /// ε 1e-12 (convex, lerp). The containment rows are soundness rows
+    /// and stay green under all three: each mutant is sound.
     #[must_use]
     fn between(x: Self, y: Self, lambda: Self) -> Self;
 

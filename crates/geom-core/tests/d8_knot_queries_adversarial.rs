@@ -45,6 +45,7 @@
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
     "crates/geom-core/src/interval.rs",
+    "crates/geom-core/tests/exact_q/",
 ];
 
 use crate::exact_q::Q;

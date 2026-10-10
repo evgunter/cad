@@ -59,6 +59,8 @@ mod span_fixtures;
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "between_exact_fuzz.rs"]
+mod between_exact_fuzz;
 #[path = "bounds_census.rs"]
 mod bounds_census;
 #[path = "cert3r1_poison_detail.rs"]

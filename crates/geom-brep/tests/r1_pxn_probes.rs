@@ -195,19 +195,20 @@ const AMPLITUDES: [f64; 5] = [0.0, 1e-13, 1e-12, 1e-11, 1e-10];
 /// within 2e-16 at a = 1e-11 and 1e-10 — and the ratio ceiling admits
 /// 0.01% over the truth.
 ///
-/// **What makes both ceilings guards.** The envelope's arithmetic: the
-/// tree before the extra-break insertion was removed read 1.0017511e-12
-/// at a = 1e-12, and the step forms the certified Boehm step has had
-/// read 1.00058 to 1.00676 there; the ratio arm reds on every one. The
-/// convex step met with its sources' hull read 1.1621e-13 at a = 1e-13,
-/// which the additive arm reds. The between-samples schedule this row
-/// was written to attack no longer moves the rungs above the floor:
-/// coarsening `PXN_FIT_SAMPLES` 33 → 25 and 17 leaves a = 1e-12 at
-/// 1.0000704e-12 and a = 1e-13 at 5.4e-16 and 2.5e-16 over its truth,
-/// so their teeth are the arithmetic's. The floor's are partly the
-/// schedule's: at 25 samples a = 0 reads 6.88e-15 and reds, at 17 it
-/// reads its 33-sample 1.443e-15 again, so a coarser schedule does not
-/// move it monotonically.
+/// **What the ceilings guard, measured by mutation at this tree.** This
+/// is an ACCEPT row, and it does not guard the certified step's form:
+/// the plane × NURBS envelope reads every Bézier row from its own span
+/// window, so the convex step, the lerp step and the step with its hull
+/// meet deleted each leave every rung green. The step's guards are
+/// named at `Certification::between`. What does move the rows is the
+/// between-samples schedule at the floor: coarsening `PXN_FIT_SAMPLES`
+/// 33 → 25 reads 6.88e-15 at a = 0 and reds the additive arm, though 17
+/// samples read the 33-sample 1.443e-15 again, so the floor's teeth are
+/// not monotone in the schedule. The upper rungs do not move with it
+/// (a = 1e-12 stays at 1.0000704e-12, a = 1e-13 at 2.5e-16–5.4e-16 over
+/// its truth): there the row states the accept side's domination and a
+/// residual-scaled envelope, and reds only on an envelope that leaves
+/// the sampling's rounding of the truth.
 ///
 /// **ε moves which rungs certify, and nothing else.** `hull_sup` is
 /// bit-identical at every battery ε; what varies is the lane's
@@ -292,8 +293,7 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
                         0.0,
                         anchor,
                         "the envelope is no longer within the sampling's rounding of \
-                         the truth — the pre-#4489 tree read 1.00175 at a = 1e-12, \
-                         which this ceiling catches",
+                         the truth at the ratio arm's amplitudes",
                     );
                 } else {
                     seen.note("additive arm");
