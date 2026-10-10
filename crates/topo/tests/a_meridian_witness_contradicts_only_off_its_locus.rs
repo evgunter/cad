@@ -73,7 +73,11 @@ fn the_exact_meridian_escalates_on_its_sample() {
     let Err(ContactRefusal::Escalated { diag }) = out else {
         panic!("on the locus, an unbounded span neither verifies nor contradicts: {out:?}");
     };
-    assert_eq!(diag.predicate, Some("contact_tangent_off_1"));
+    assert_eq!(
+        diag.predicate,
+        Some("contact_tangent_on_1"),
+        "the span bound is the cause"
+    );
 }
 
 #[test]
@@ -91,5 +95,9 @@ fn a_meridian_lifted_beyond_the_band_contradicts_under_the_sag() {
     let Err(ContactRefusal::Contradicted { diag, .. }) = out else {
         panic!("a sample definitely off the surface is a miss whatever the sag: {out:?}");
     };
-    assert_eq!(diag.predicate, Some("contact_tangent_on_1"));
+    assert_eq!(
+        diag.predicate,
+        Some("contact_tangent_off_1"),
+        "the sample is the miss"
+    );
 }

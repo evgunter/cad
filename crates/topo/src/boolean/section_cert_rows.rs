@@ -14,6 +14,7 @@
     clippy::float_cmp
 )]
 
+use super::search_kit::band;
 use super::*;
 use crate::boolean::ops;
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
@@ -23,11 +24,7 @@ use crate::{
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_core::{Band, Point3, Tol, Vec3};
-
-pub(super) fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Tol, Vec3};
 
 pub(super) const LEVER: f64 = 5.0;
 
@@ -340,10 +337,12 @@ fn a_parallel_axis_cylinder_every_class() {
     assert_eq!(shape(&s).2, vec![true, true]);
 }
 
-/// **R-reach**: an oblique cylinder (the backstop's tilted rod,
-/// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`),
-/// a non-coaxial torus; a cone against an oblique cylinder, a tilted
-/// cone, a parallel-axis cone, a non-coaxial torus and a spline.
+/// **R-reach**: a torus against an oblique cylinder (the backstop's
+/// tilted rod,
+/// `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`)
+/// and a non-coaxial torus; a cone against a non-coaxial torus and a
+/// spline. (A cone against an oblique cylinder or a tilted or
+/// parallel-axis cone is the ruling charts', `section_cert_cone_pair_rows`.)
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let rod = cylinder(
@@ -362,22 +361,7 @@ fn intractable_poses_refuse_on_reach() {
         half_angle: 0.4,
         u_ref: Vec3::unit_x(),
     };
-    let tilted = Surface::Cone {
-        apex: p(0.5, 0.0, -1.0),
-        axis: v(0.3, 0.0, 1.0).normalize(),
-        half_angle: 0.3,
-        u_ref: Vec3::unit_y(),
-    };
-    let beside = Surface::Cone {
-        apex: p(0.5, 0.0, -1.0),
-        axis: Vec3::unit_z(),
-        half_angle: 0.4,
-        u_ref: Vec3::unit_x(),
-    };
     for (what, partner) in [
-        ("an oblique cylinder", rod),
-        ("a tilted cone", tilted),
-        ("a parallel-axis cone", beside),
         ("a non-coaxial torus", torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
         ("a spline", bump()),
     ] {
@@ -1428,7 +1412,7 @@ fn a_far_origin_does_not_move_a_pins_offset() {
         Section::Components { parts, .. } => {
             assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
         }
-        Section::Tangent(_) | Section::Intractable => {}
+        Section::Tangent(_) | Section::Unordered(_) | Section::Intractable => {}
         Section::Touch(t) => assert!(
             (t.at - p(2.5 - 8e-8, 0.0, 0.0)).norm() < 1e-9,
             "the touch is read off the pivot: {t:?}"
@@ -2913,7 +2897,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
 /// either operand order answers passes [`touch_holds`]. Mutants, each
 /// red here: the plane's or the sphere's elliptic margin taken as `abs`
 /// (a touch on the hyperbolic half), the sphere's extreme margin
-/// dropped, and [`super::square_to`] as `v − a·(a·v)`.
+/// dropped, and [`super::perp_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
     use super::super::conic_oracle::unit;

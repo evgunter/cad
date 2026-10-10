@@ -215,11 +215,9 @@ pub enum StepImportError {
         residual: f64,
     },
     /// A described NURBS wall's own boundary column would not re-wrap
-    /// as a curve while an edge was being adopted against it: the
-    /// stored surface's control net disagrees with the knot vector it
-    /// is indexed by, or a weight on the extracted column is not a
-    /// positive finite number — neither of which a surface that passed
-    /// `geom::NurbsSurface::new` can do. Unreachable from any body
+    /// as a curve while an edge was being adopted against it: a weight
+    /// on the extracted column is not a positive finite number, which
+    /// a surface that passed `geom::NurbsSurface::new` cannot hold. Unreachable from any body
     /// this reader assembles, and surfaced rather than swallowed (D4
     /// ¶2, and [`geom_brep::boundary_iso_u`]'s own `# Errors`
     /// contract): the payload says WHICH structural invariant the wall
@@ -332,7 +330,7 @@ pub enum StepImportError {
         /// `None`.
         solid: Option<u64>,
         /// The verdicts, verbatim: tiers 1–3 for a solid asked on its
-        /// own, tiers 1–3′ (the declared-contact census) for the
+        /// own, tiers 1–3′ (the contact-record census) for the
         /// assembled body.
         errors: Vec<topo::ValidationError>,
     },

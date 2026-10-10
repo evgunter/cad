@@ -67,7 +67,7 @@ E makes the seam a verdict. The glue door declares a pair the witness lane verif
 The seam "verified" only because `contact_verify` subtracted the
 jet schedule's span bound (1.21 m on this meridian rim) from each
 sample's residual. With the verify side carrying it, the declared
-seam escalates at the witness lane (`contact_tangent_off_1`), before
+seam escalates at the witness lane (`contact_tangent_on_1`), before
 the graze, in both orders. The test is re-pinned as
 `the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane`.
 Reaching the graze again waits on

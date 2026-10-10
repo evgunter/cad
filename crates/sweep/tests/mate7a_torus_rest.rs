@@ -955,9 +955,9 @@ fn junction_discs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
 /// band (`geom_brep::tangent_certificate_lane`'s docs, the meridian
 /// class): every sample sits on both walls, but nothing bounds the
 /// spans between, so the witness can neither verify nor contradict the
-/// locus and the declaration door escalates on the first wall's sample
-/// (`contact_tangent_off_1`, the sample decided on the surface beside
-/// a span that is not). Both orders.
+/// locus, and the declaration door escalates on the first wall's span
+/// bound (`contact_tangent_on_1`: the sample decided on the surface,
+/// the span bound decided past the band). Both orders.
 #[test]
 fn the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane() {
     let (a, b) = (segment_a(), segment_b());
@@ -973,8 +973,8 @@ fn the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane() {
         };
         assert_eq!(
             diag.predicate,
-            Some("contact_tangent_off_1"),
-            "on a sample decided on the wall beside an unbounded span: {err}"
+            Some("contact_tangent_on_1"),
+            "on the span bound, the sample decided on the wall: {err}"
         );
     }
 }

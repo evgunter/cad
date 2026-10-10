@@ -31,7 +31,7 @@ witness lane reads it.
 1.2 m pad read definitely negative and "verified" the seam. Once the
 verify side carries the sag (as the edge certifier's
 `tangent_hull_sup` does), the declared seam escalates at
-`contact_tangent_off_1`: the sample is decided on the wall, the span is
+`contact_tangent_on_1`: the sample is decided on the wall, the span is
 not. The test is re-pinned as
 `mate7a_torus_rest::the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane`,
 and `a-torus-seam-graze-needs-the-rim-root-deflated`'s fixture now stops
