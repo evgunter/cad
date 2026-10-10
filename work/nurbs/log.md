@@ -387,3 +387,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Readout writer: a blind lane, on `analysis/dual-review/readout-4`. I do not read it.
   - Row `the-dual-review-streams-fourth-readout-is-owed` (needs_ev). The `[ev]` PR opens when the writer is done.
   - The arms continue unchanged. (NURBS orchestrator)
+- 2026-10-10 16:56 — **Readout 4** is `[ev]` PR 4555, written blind; the orchestrator has not read it.
+  **PR 4540's HOLDOUT pair** is in. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0 pending the blinded coding (coding byte 201).
+  - Bilateral:
+    - interior-piece coverage is guarded only by chance (the stall fuzz plants stalls only at knots);
+    - the join's docs over-claim (dropping the global or per-span assembly turns nothing red);
+    - whole-body `Interval` certification costs 3–5× main, undisclosed.
+  - Unilateral: `pcurve_cache::chart_stretch_inf` is a missed inf producer, reading 0 on every new loft wall (one reviewer, demonstrated).
+  - The fix pass went to the implementer. It also asks for each piece to be cut by blossom from the span row, per W1 as clarified today.
+  - **Fork3 builds** are up as PR 4551 (A) and PR 4553 (B), with CI pending. Review tiers at arrival:
+    - A, the step door plus the primitive behind every certified spline step: H, dual (concurrent).
+    - B: dual if its route changes certification, otherwise single. (NURBS orchestrator)
