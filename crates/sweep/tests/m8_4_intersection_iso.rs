@@ -871,9 +871,10 @@ fn degree_two_body() -> (Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey) {
 ///
 /// **E3 rides along, recorded and not flipped**: `replace_face_offset`
 /// on the bowed face is not this unit's frontier. It refuses at the
-/// FITTED offset's own boundary rule — `FittedBoundaryUnsupported`,
-/// which the oracle prism's own bowed wall earns identically with no
-/// `General` in the body at all — or, where the fit cannot reach the
+/// fitted wall's seam with the next spline wall — `NeighborPairUnroutable`
+/// for `Approx × Nurbs`, which the oracle prism's own bowed wall earns
+/// identically with no `General` in the body at all — or, where the fit
+/// cannot reach the
 /// run's ε, at `Fit { BudgetExhausted }`. Both are SHELL's
 /// `no-approx-faced-body-is-both-movable-and-valid` class. The row
 /// prints them; asserting a variant here would pin another program's

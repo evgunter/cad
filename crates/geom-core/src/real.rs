@@ -953,6 +953,29 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }
 
+/// Whether `x` is EXACTLY zero, of either sign: at the point scalars
+/// `x == 0.0` on the value, at the interval scalar only the degenerate
+/// hull `[−0, 0]`. An enclosure that merely contains zero, and poison,
+/// are not zero.
+///
+/// [`Real`] compares nothing, so the read is arithmetic: `x · 0` is
+/// poison exactly when `x` is not finite, and for a finite `x`,
+/// `x · (1/x)` is poison exactly when `x` is zero (0 · ∞; at `Interval`
+/// the reciprocal of `[0, 0]` is empty). It is structure read as
+/// structure, not a tolerance decision, so a caller that takes the
+/// `false` branch for a nearly-zero value must be the one that refuses
+/// or routes more.
+///
+/// **Which doors ask it** — hand-kept, like its siblings' rosters:
+///
+/// - `profile`'s bulge lowering, where a bulge of exactly zero is a
+///   line and anything else an arc;
+/// - `topo`'s offset door, reading an `IsoLine` chart image as a row of
+///   its chart only where one parameter is held exactly fixed.
+pub fn is_exact_zero<T: Real>(x: T) -> bool {
+    !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
+}
+
 /// Bracket extraction off a scalar — deliberately a separate trait, never
 /// folded into [`Real`], and **not** the certification door.
 ///

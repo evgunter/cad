@@ -787,17 +787,22 @@ designated shell's thin solid is single-shell (a hollow operand's other
 thin solids keep their two), and the invariant is closure, not genus
 (one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
 inverted cavity walls at edge re-attachment. A fitted face's edge with a
-plane is their section over the fit (C5), and a row of its fit beside
-an analytic face is extracted from the new fit. Its corners are the
-held planes' roots along those edges, a section's sought from its end
-at the corner; the fit itself is not rooted along a held edge. Its
-other boundary refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
-naming `Approx`); by `FittedBoundaryUnsupported`, a row of the fit
-shared with a spline or another fitted face, a curve on the fit that
-does not run along its rows, a scaffold edge, and a seam the face shares
-with itself; a section outside the fit's window (the section's own
-verdict); and a scalar with no fit or section lane
-(`ApproxLaneUnsupported`, `NurbsLaneUnsupported`).
+plane is their section over the fit (C5), and a row of its fit whose
+sides both move with it — a seam the face shares with itself, or a
+plane that contains the fit's normal along the row — is extracted from
+the new fit, at the row its iso image names. Its corners are the held
+planes' roots along those edges, a section's sought from its end at
+the corner; the fit itself is not rooted along a held edge. Its other
+boundary refuses: `Approx` against anything but a plane, a row of the
+fit beside a spline or another fitted face included
+(`NeighborPairUnroutable`, naming `Approx`); by
+`FittedBoundaryUnsupported`, a curve on the fit that is no line of its
+chart, or a line along a seam the face shares with itself that holds
+neither parameter fixed, a scaffold edge, and a seam the face shares
+with itself not described as an image on its own chart; a
+section outside the fit's window (the section's own verdict); and a
+scalar with no fit or section lane (`ApproxLaneUnsupported`,
+`NurbsLaneUnsupported`).
 
 **O5 — The validator re-derives per face, as it does per edge.** Tier 3
 never trusts a stored certificate: `validate.rs` re-runs the O3

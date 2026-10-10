@@ -17,7 +17,7 @@
 //! door transports, at every scalar; everywhere else it derives.
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ssi::{BoundarySection, SsiDomain, SsiError};
+use geom_brep::ssi::{BoundarySection, ChartAxis, SsiDomain, SsiError};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
@@ -202,10 +202,16 @@ fn zero<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Ind
 /// containing it; a sphere's is a homothety about its centre, held by a
 /// plane through the centre; a cone's and a torus's move each point in
 /// its meridian plane, held by a plane containing the axis, and the
-/// torus's also by its equatorial plane. Nothing else holds.
+/// torus's also by its equatorial plane. A spline or fitted chart
+/// moves each point along its own normal, so it is held along a
+/// boundary `row` of its net by a plane containing that normal at
+/// every point of the row ([`normal_in_plane_along`]); with no row
+/// named (a corner), or beside anything but a plane, it does not hold.
+/// Nothing else holds.
 pub(crate) fn holds_the_move<T: Decide>(
     moved: &Surface<T>,
     held: &Surface<T>,
+    row: Option<(ChartAxis, T)>,
     d: T,
     band: Band,
 ) -> bool {
@@ -266,8 +272,77 @@ pub(crate) fn holds_the_move<T: Decide>(
                 && (zero("offset_holds_torus_along", m.dot(*axis) * reach)
                     || zero("offset_holds_torus_across", across(*m, *axis)))
         }
+        (Surface::Nurbs(_) | Surface::Approx(_), Surface::Plane { normal: m, .. }) => {
+            match (moved.spline_chart(), row) {
+                (Some(net), Some((axis, at))) => {
+                    normal_in_plane_along(net, axis, at, *m, reach, band)
+                }
+                _ => false,
+            }
+        }
         _ => false,
     }
+}
+
+/// Whether the plane of normal `m` contains `net`'s normal at every
+/// point of its boundary row `axis = at`.
+///
+/// At a clamped end the cross-row derivative is
+/// `S_a = k·Σⱼ Nⱼ·wⱼ·(P₁ⱼ − P₀ⱼ) / W` when the first two rows' weights
+/// agree pointwise, so where every step `P₁ⱼ − P₀ⱼ` is along `m` the
+/// derivative is too, and the normal `S_u × S_v`, across it, lies in
+/// the plane. Sufficient, not necessary: a cross-row derivative leaning
+/// along the row also leaves the normal in the plane, and answers
+/// false here, which routes the edge to its section. Each step's
+/// direction off `m` is levered by the move, as every hold is.
+fn normal_in_plane_along<T: Decide>(
+    net: &NurbsSurface<T>,
+    axis: ChartAxis,
+    at: T,
+    m: Vec3<T>,
+    reach: T,
+    band: Band,
+) -> bool {
+    let zero = |name, value| held_zero(name, value, band);
+    let (nu, nv) = net.control_counts();
+    let (a0, a1) = match axis {
+        ChartAxis::U => net.knots_u().domain(),
+        ChartAxis::V => net.knots_v().domain(),
+    };
+    let end = if zero("offset_holds_row_at_start", at - T::from_f64(a0)) {
+        false
+    } else if zero("offset_holds_row_at_end", at - T::from_f64(a1)) {
+        true
+    } else {
+        return false;
+    };
+    // `at(k, r)`: the `k`-th point along the row, `r` rows in from it.
+    let (along, across) = match axis {
+        ChartAxis::U => (nv, nu),
+        ChartAxis::V => (nu, nv),
+    };
+    if across < 2 {
+        return false;
+    }
+    let index = |k: usize, r: usize| {
+        let r = if end { across - 1 - r } else { r };
+        match axis {
+            ChartAxis::U => r * nv + k,
+            ChartAxis::V => k * nv + r,
+        }
+    };
+    let (ctl, w) = (net.control(), net.weights());
+    (0..along).all(|k| {
+        let (first, second) = (index(k, 0), index(k, 1));
+        let step = ctl[second] - ctl[first];
+        let length = step.norm();
+        w[first] == w[second]
+            && !zero("offset_holds_row_step", length)
+            && zero(
+                "offset_holds_row_direction",
+                step.cross(m).norm() * reach / length,
+            )
+    })
 }
 
 /// Whether `wall` is a translation surface along `n`:
