@@ -2,11 +2,14 @@
 id: a-wall-seam-between-two-fits-has-no-section
 kind: issue
 title: C5 implements no NURBS x NURBS section, so a shelled loft's wall-wall seams (two moved fits meeting at a crease) refuse; the next gate for every lofted shell
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: H
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap]
+closed: 2026-10-10
+pr: 4597
+branch: shell/nurbs-nurbs-section
 ---
 
 Filed from the designer pair on `a-fitted-wall-has-no-section-with-a-moved-cap`
@@ -101,3 +104,26 @@ Ev, PR 4515, 2026-10-10 ("ok sweet, B then!"): the NURBS × NURBS arm is one **c
 - **The plane × NURBS door.** `offset_derive::plane_wall_section` moves from nearest-sample selection to `branch_at` on the plane × NURBS door. That door gets the same handle, in the arm's unit or the next.
 - **One unproven step.** Newton's convergence from the seed to the near component is not proven. The old seam's `d·cot(φ/2)` proximity makes it benign, and the tube check and `VertexDisagreement` catch it if not.
 - **Before the unit:** grep `intersect::route`'s callers for any that read `implemented`.
+
+## Closed
+
+PR 4597 built the arm as `## Decided` rules it: `geom_brep::ssi::Section`
+(`ssi/pair.rs`, the ℝ⁴ walks and the two-chart tube in `ssi/four.rs`),
+`branch_at` and `all` under one contract, C5's `(Nurbs, Nurbs)` row
+`implemented`, and the offset door's spline lane sectioning two charts
+through `branch_at` at the old edge's middle. Its boundary pass runs once
+per handle, at the first reading that needs crossings. The at-rest edge
+and pcurve certificates gained the NURBS × NURBS lane
+(`edge_nurbs::nurbs_pair_limbs`).
+
+Measured after it: at ε = 1e-6 every wall–wall seam of the shelled
+twisted loft derives, and the shell stops at a top rim's at-rest plane ×
+fit certificate (`work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`);
+past that, tier 3's volume refuses
+(`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`).
+Left for later units: the plane × NURBS door's handle
+(`work/shell/the-plane-nurbs-door-selects-its-branch-by-nearest-sample.md`),
+side and corner regions on this lane
+(`work/ssiedge/the-nurbs-pair-boundary-pass-reports-no-side-or-corner-region.md`),
+and the pass's cost beside a near-coincident side row
+(`work/ssiedge/the-nurbs-pair-boundary-pass-is-slow-beside-a-near-coincident-side-row.md`).
