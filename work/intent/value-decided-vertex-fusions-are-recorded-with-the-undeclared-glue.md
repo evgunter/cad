@@ -2,10 +2,11 @@
 id: value-decided-vertex-fusions-are-recorded-with-the-undeclared-glue
 kind: issue
 title: A boolean's vertex fusions decided by a margin are coincidences D10 records; E records them when undeclared touch glues
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
+branch: intent/s4-b2-records-cite
 ---
 
 
