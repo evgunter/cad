@@ -25,7 +25,6 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
-use crate::shared::margin::upper;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -35,6 +34,7 @@ use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal, SsiLimb,
     plane_nurbs_limbs,
 };
+use geom_core::test_support::upper;
 use geom_core::{FileCoincidence, Tol};
 use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;

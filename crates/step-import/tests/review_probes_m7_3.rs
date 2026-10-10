@@ -12,6 +12,7 @@ use crate::common;
 
 use common::{arena_census, fixture};
 use geom_core::Tol;
+use geom_core::test_support::upper;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use step_import::{ImportOptions, StepImport, import_step};
@@ -631,14 +632,4 @@ fn probe_iso_adoption_deterministic() {
     let b = solid(&orig, "second");
     assert_eq!(dump(&a), dump(&b), "adoption deterministic");
     eprintln!("PROBE iso payloads: {:?}", dump(&a));
-}
-
-/// The refusal's bound as the classifier saw it: the point margin, or
-/// the enclosure's upper end.
-fn upper(margin: geom_core::MarginDiag) -> f64 {
-    match margin.diagnostic_f64_for_error_text() {
-        geom_core::ErrorTextReading::Value(m)
-        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
-        geom_core::ErrorTextReading::Invalid => f64::NAN,
-    }
 }

@@ -27,6 +27,7 @@ use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
 use geom_core::Tol;
+use geom_core::test_support::upper;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{
@@ -619,13 +620,3 @@ fn plane_nurbs_seams(
 // quarter-cylinder-meets-plane geometry at the lane and at the door.
 // What the rows above add is the CONSEQUENCE — the certified seam
 // charts on both of its faces and the body is first-class.
-
-/// The refusal's bound as the classifier saw it: the point margin, or
-/// the enclosure's upper end.
-fn upper(margin: geom_core::MarginDiag) -> f64 {
-    match margin.diagnostic_f64_for_error_text() {
-        geom_core::ErrorTextReading::Value(m)
-        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
-        geom_core::ErrorTextReading::Invalid => f64::NAN,
-    }
-}

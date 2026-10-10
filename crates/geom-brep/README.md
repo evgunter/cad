@@ -189,11 +189,9 @@ midpoint, the state Newton started from: in the band the surfaces are
 near tangent there (`SsiError::TransversalityBand`), undecided the
 decision escalates (`SsiError::Escalated` on `ssi_transversality`), and
 either is the refusal, with the clearer angle's lever; clear of it, the
-gap is one refinement cannot halve. Where the refused residual (the
-upper end of the refusing limb's residual enclosure, which the limb
-leaves refinement beside its refusal) stops falling over two
-consecutive rounds (two definite refusals, the later bound no smaller,
-or two in the band), limb 3 is asked
+gap is one refinement cannot halve. Where the refused residual stops
+falling over two consecutive rounds (two definite margins, the later no
+smaller, or two in the band, whatever their values), limb 3 is asked
 once of the carrier, and its refusal stands: a carrier across two
 branches is one no halving answers. The door that returns an
 uncertified triple does not ask it, and refines as long as limbs 1 and
@@ -207,10 +205,9 @@ further, the certificate's refusal stands, naming where refinement
 stopped (gaps whose half falls in the band, midpoints that did not
 settle, midpoints that settled outside the domain) and the limb and
 margin each earlier round refused (`SsiError::RefinementExhausted`). At
-the wall, a residual that stopped falling over the last two rounds ends
-in the tolerance as the arithmetic's floor; one still falling ends as
-the curvature-held march's does (`ResidualTrend`, decided by the driver
-and carried on the wall's stop).
+the wall, a refused residual that stopped falling over the last two
+rounds ends in the tolerance as the arithmetic's floor; one still
+falling ends as the curvature-held march's does.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time

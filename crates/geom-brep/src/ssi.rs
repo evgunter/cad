@@ -1869,7 +1869,7 @@ fn step_cap_words(cap: StepCap) -> &'static str {
 
 /// The step budget's ending, by the rungs that held the branch's steps:
 /// [`SsiError::StepBudget`]'s, and a refinement's that met the budget
-/// while its margin was still falling, which the curvature held.
+/// while its refused residual was still falling, which the curvature held.
 fn step_budget_recourse(bound: StepBound, reading: Reading) -> &'static str {
     match bound {
         StepBound::Cap(StepCap::Idealized) | StepBound::Both(StepCap::Idealized) => {
@@ -1884,7 +1884,7 @@ fn step_budget_recourse(bound: StepBound, reading: Reading) -> &'static str {
 /// stopped a refinement whose refused residual had stopped falling: the
 /// arithmetic's floor at this ε and scale, so the tolerance alone.
 const STEP_BUDGET_FLOOR_RECOURSE: &str = concat!(
-    "Recourse: loosen the tolerance; the margin stopped falling, so at this ε and scale ",
+    "Recourse: loosen the tolerance; the refused residual stopped falling, so at this ε and scale ",
     "it is the arithmetic's floor, not the geometry's size, ",
     geom_core::kernel_limit_last_resort!()
 );
@@ -3428,8 +3428,8 @@ mod ending_tests {
             (
                 &budget,
                 format!(
-                    "Recourse: loosen the tolerance; the margin stopped falling, so at this ε \
-                     and scale it is the arithmetic's floor, not the geometry's size, \
+                    "Recourse: loosen the tolerance; the refused residual stopped falling, so at \
+                     this ε and scale it is the arithmetic's floor, not the geometry's size, \
                      {KERNEL_LIMIT_LAST_RESORT}"
                 ),
             ),
@@ -3469,7 +3469,7 @@ mod ending_tests {
         assert_eq!(
             unrefined.ending(Reading::Build),
             super::STEP_BUDGET_CURVATURE_RECOURSE,
-            "one round shows no margin stopping"
+            "one round shows no refused residual stopping"
         );
         let SsiError::RefinementExhausted { stop, refusal, .. } = unrefined else {
             unreachable!()

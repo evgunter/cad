@@ -24,12 +24,12 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
-use crate::shared::margin::upper;
 use crate::shared::tol::band;
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{PlaneNurbsRefusal, plane_nurbs_limbs};
 use geom_core::Tol;
+use geom_core::test_support::upper;
 use geom_core::{Point3, Vec3};
 use test_utils::tightness::{Anchor, Sup};
 use test_utils::vacuity::{self, Exposure};

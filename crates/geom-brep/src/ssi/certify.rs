@@ -129,7 +129,7 @@ use super::enclose::{
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
-use super::refine::RefusedResidual;
+use super::refine::{RefusedResidual, RoundMargin};
 use super::section::{BandVerdict, band_verdict};
 use super::{SsiError, SsiOperand};
 
@@ -590,8 +590,10 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 
 /// A limb's verdict on its residual: `Ok` where it is zero to tolerance
 /// (the `dihedral_wedge` convention), and otherwise the limb's refusal,
-/// leaving `at` the refused residual — `sup`, the upper end of the
-/// residual's enclosure, on a definite refusal.
+/// recorded in `at` as one [`LimbRefusal`] — `sup`, the upper end of the
+/// residual's enclosure, as its residual on a definite refusal. A
+/// margin that is no number records nothing: no density of samples
+/// answers it.
 fn limb_verdict(
     limb: SsiLimb,
     decided: Result<Decided, Indeterminate>,
@@ -603,11 +605,21 @@ fn limb_verdict(
             sign: Sign::Zero, ..
         }) => Ok(()),
         Ok(Decided { margin, .. }) => {
-            at.residual = Some(RefusedResidual::Over(sup()));
+            at.refusal = Some(LimbRefusal {
+                limb,
+                margin,
+                residual: RefusedResidual::Over(sup()),
+            });
             Err(SsiError::CertificateLimb { limb, margin })
         }
         Err(cause) => {
-            at.residual = Some(RefusedResidual::InBand);
+            if !cause.margin.is_invalid() {
+                at.refusal = Some(LimbRefusal {
+                    limb,
+                    margin: cause.margin,
+                    residual: RefusedResidual::InBand,
+                });
+            }
             Err(SsiError::CertificateEscalated { limb, cause })
         }
     }
@@ -1149,8 +1161,8 @@ fn certificate<T: Real>(
 }
 
 /// Which limbs a certificate asks: all three in order, or limb 3 alone,
-/// which refinement asks once of a carrier whose refused margin stopped
-/// falling ([`super::refine::refine_by_certificate`]).
+/// which refinement asks once of a carrier whose refused residual
+/// stopped falling ([`super::refine::refine_by_certificate`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Limbs {
     /// Limbs 1, 2 and 3, refusing at the first that refuses.
@@ -1208,8 +1220,29 @@ pub(crate) struct RefusedSpan {
 pub(crate) struct Refused {
     /// The parameter intervals the refusal lies in.
     pub(crate) spans: Vec<RefusedSpan>,
-    /// The refused residual, once a limb refused.
-    pub(crate) residual: Option<RefusedResidual>,
+    /// The refusal, once a limb refused on a margin that is a number.
+    pub(crate) refusal: Option<LimbRefusal>,
+}
+
+/// A limb-1 or limb-2 refusal, as the refusing limb recorded it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LimbRefusal {
+    /// The limb that refused.
+    pub(crate) limb: SsiLimb,
+    /// What the classifier saw, for the round's report.
+    pub(crate) margin: geom_core::MarginDiag,
+    /// What refinement drives down.
+    pub(crate) residual: RefusedResidual,
+}
+
+impl LimbRefusal {
+    /// The round's report: definite or in the band, as the residual is.
+    pub(crate) fn round(self) -> RoundMargin {
+        match self.residual {
+            RefusedResidual::Over(_) => RoundMargin::Over(self.margin),
+            RefusedResidual::InBand => RoundMargin::InBand(self.margin),
+        }
+    }
 }
 
 /// A certificate's refusal, with where on the carrier limbs 1 and 2
@@ -1224,17 +1257,13 @@ pub(crate) struct Located {
     pub(crate) at: Option<Box<Spans>>,
 }
 
-/// A located refusal: its limb, what the classifier saw of it, the
-/// refused residual, and the parameter intervals whose residual did not
-/// clear the band's zero, a limb-1 sample as a point interval.
+/// A located refusal: the limb's refusal, and the parameter intervals
+/// whose residual did not clear the band's zero, a limb-1 sample as a
+/// point interval.
 #[derive(Debug)]
 pub(crate) struct Spans {
-    /// The limb that refused.
-    pub(crate) limb: SsiLimb,
-    /// What the classifier saw, for the round's report.
-    pub(crate) margin: super::RoundMargin,
-    /// What refinement drives down.
-    pub(crate) residual: RefusedResidual,
+    /// The refusal.
+    pub(crate) refusal: LimbRefusal,
     /// The carrier's parameter intervals the refusal lies in.
     pub(crate) spans: Vec<RefusedSpan>,
 }
@@ -1262,15 +1291,11 @@ pub(crate) fn certify_located(
 ) -> Result<SsiCertificate<f64>, Located> {
     let mut refused = Refused::default();
     certify_branch(carrier, lane, extent, band, limbs, &mut refused).map_err(|error| {
-        let at = match (super::refine::limb_reading(&error), refused.residual) {
-            (Some((limb, margin)), Some(residual)) if !refused.spans.is_empty() => {
-                Some(Box::new(Spans {
-                    limb,
-                    margin,
-                    residual,
-                    spans: refused.spans,
-                }))
-            }
+        let at = match refused.refusal {
+            Some(refusal) if !refused.spans.is_empty() => Some(Box::new(Spans {
+                refusal,
+                spans: refused.spans,
+            })),
             _ => None,
         };
         Located { error, at }

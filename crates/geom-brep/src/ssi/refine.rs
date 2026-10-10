@@ -126,23 +126,10 @@ pub enum RoundMargin {
     InBand(MarginDiag),
 }
 
-/// The limb that refused and what the classifier saw of it, for a
-/// refusal of limb 1 or 2: the refusals the certificate locates. `None`
-/// for every other.
-pub(crate) fn limb_reading(error: &SsiError) -> Option<(SsiLimb, RoundMargin)> {
-    match error {
-        SsiError::CertificateLimb { limb, margin } => Some((*limb, RoundMargin::Over(*margin))),
-        SsiError::CertificateEscalated { limb, cause } => {
-            Some((*limb, RoundMargin::InBand(cause.margin)))
-        }
-        _ => None,
-    }
-}
-
 /// **The refused residual**: what a refusing limb leaves refinement to
 /// drive down, read off the limb's own enclosure where it refused. It
 /// drives refinement ([`stopped_falling`]) and is reported nowhere; a
-/// round's report is its [`RoundMargin`].
+/// round's report is its [`RoundMargin`], which takes its arm from here.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum RefusedResidual {
     /// A definite refusal: the upper end of the limb's residual
@@ -203,7 +190,7 @@ where
             }) => (error, at),
             Err(Located { error, at: None }) => return Err(error),
         };
-        let stalled = stopped_falling(before, Some(at.residual));
+        let stalled = stopped_falling(before, Some(at.refusal.residual));
         // A refused residual that stopped falling may be a carrier across
         // two arcs, which no halving answers: limb 3 is asked once.
         if !tube_asked && stalled {
@@ -267,10 +254,10 @@ where
         }
         earlier.push(RefusedRound {
             samples: states.len(),
-            limb: at.limb,
-            margin: at.margin,
+            limb: at.refusal.limb,
+            margin: at.refusal.round(),
         });
-        before = Some(at.residual);
+        before = Some(at.refusal.residual);
         states = finer;
     }
 }
@@ -428,8 +415,7 @@ mod tests {
         RoundMargin, SsiError, SsiLimb, refine_by_certificate, stopped_falling,
     };
     use crate::ssi::SSI_MAX_STEPS;
-    use crate::ssi::certify::RefusedSpan;
-    use crate::ssi::certify::Spans;
+    use crate::ssi::certify::{LimbRefusal, RefusedSpan, Spans};
     use crate::ssi::march::MarchContext;
     use crate::ssi::march::tests::{FixedSpeedR3, unit_ctx};
     use crate::ssi::march::{NormalPair, TransversalityData};
@@ -455,9 +441,11 @@ mod tests {
                 margin: MarginDiag::value(value),
             },
             at: Some(Box::new(Spans {
-                limb: SsiLimb::HullSup,
-                margin: RoundMargin::Over(MarginDiag::value(value)),
-                residual: RefusedResidual::Over(value),
+                refusal: LimbRefusal {
+                    limb: SsiLimb::HullSup,
+                    margin: MarginDiag::value(value),
+                    residual: RefusedResidual::Over(value),
+                },
                 spans: vec![RefusedSpan {
                     lo: t(lo),
                     hi: t(hi),

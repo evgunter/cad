@@ -20,8 +20,8 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, FileCoincidence, Interval, KERNEL_LIMIT_RECOURSE, Point3, Real, Vec3};
 use slotmap::SlotMap;
 
-use crate::shared::margin::upper;
 use crate::shared::tol::band;
+use geom_core::test_support::upper;
 
 /// The unit quarter circle in `z = 0`, as `n` rational quadratic
 /// sub-arcs joined at double knots `j/n`, each sub-arc's middle control

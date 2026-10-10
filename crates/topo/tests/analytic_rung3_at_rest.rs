@@ -14,6 +14,7 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::{AnalyticRung3Refusal, CertifyError, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::KnotVector;
+use geom_core::test_support::upper;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{Body, EulerOpError};
 
@@ -131,14 +132,4 @@ fn a_carrier_bumped_off_the_plane_between_samples_refuses_at_mev() {
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the mint");
     let findings = topo::pcurves::validate_pcurves(&body, band);
     assert!(findings.is_empty(), "{findings:?}");
-}
-
-/// The refusal's bound as the classifier saw it: the point margin, or
-/// the enclosure's upper end.
-fn upper(margin: geom_core::MarginDiag) -> f64 {
-    match margin.diagnostic_f64_for_error_text() {
-        geom_core::ErrorTextReading::Value(m)
-        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
-        geom_core::ErrorTextReading::Invalid => f64::NAN,
-    }
 }

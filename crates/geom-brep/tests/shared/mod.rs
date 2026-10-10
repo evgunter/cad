@@ -68,7 +68,6 @@
 pub(crate) mod arc;
 pub(crate) mod fixture;
 pub(crate) mod interval;
-pub(crate) mod margin;
 pub(crate) mod patch;
 pub(crate) mod point;
 pub(crate) mod ring;

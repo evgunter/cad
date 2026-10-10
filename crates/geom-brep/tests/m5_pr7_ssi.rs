@@ -83,7 +83,6 @@
     clippy::unreachable
 )]
 
-use crate::shared::margin::upper;
 use crate::shared::surf;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
@@ -97,6 +96,7 @@ use geom_brep::ssi::{
     SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::upper;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
@@ -4850,8 +4850,9 @@ fn rounds_at_the_wall(
 /// refinement's first round asks about 23 400 steps, so the wall refuses
 /// before it, naming the one refused round. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
-/// carrier. One round shows no margin falling or stopping, so the ending
-/// is the curvature-held march's: the domain, then the tolerance.
+/// carrier. One round shows no refused residual falling or stopping, so
+/// the ending is the curvature-held march's: the domain, then the
+/// tolerance.
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -4915,7 +4916,8 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     );
     assert!(
         shown.contains(
-            "the margin stopped falling, so at this ε and scale it is the arithmetic's floor"
+            "the refused residual stopped falling, so at this ε and scale it is the \
+             arithmetic's floor"
         ),
         "the ending names the floor: {shown}"
     );
@@ -6088,7 +6090,7 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
 /// after, `β = −3, 1`, at ε 1e-6: the march on the straight part can keep
 /// a step landing on the other branch, and its carrier, across the two,
 /// fails limbs 1 and 2 at a margin halving does not lower. Refinement
-/// asks limb 3 once where the refused margin stops falling, and the tube
+/// asks limb 3 once where the refused residual stops falling, and the tube
 /// refuses with the clearer angle's lever, as main refused both pairs,
 /// where refining on would add three samples a round to the step wall.
 /// Run at its own band.

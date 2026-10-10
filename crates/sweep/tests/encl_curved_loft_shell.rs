@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::test_support::upper;
 use geom_core::{Dual64, Tol, Vec3};
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
 
@@ -924,15 +925,5 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         );
         topo::transform_rigid(&body, &rigid, Tol::witness())
             .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
-    }
-}
-
-/// The refusal's bound as the classifier saw it: the point margin, or
-/// the enclosure's upper end.
-fn upper(margin: geom_core::MarginDiag) -> f64 {
-    match margin.diagnostic_f64_for_error_text() {
-        geom_core::ErrorTextReading::Value(m)
-        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
-        geom_core::ErrorTextReading::Invalid => f64::NAN,
     }
 }

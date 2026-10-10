@@ -4,6 +4,7 @@
 //! re-mints through the plain edge doors and the cap offset after it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::test_support::upper;
 use geom_core::{Point3, Tol};
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::test_support as tc;
@@ -265,14 +266,4 @@ fn place(text: &str) -> String {
     );
     let at = text.rfind("ENDSEC;").unwrap();
     format!("{}{block}{}", &text[..at], &text[at..])
-}
-
-/// The refusal's bound as the classifier saw it: the point margin, or
-/// the enclosure's upper end.
-fn upper(margin: geom_core::MarginDiag) -> f64 {
-    match margin.diagnostic_f64_for_error_text() {
-        geom_core::ErrorTextReading::Value(m)
-        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
-        geom_core::ErrorTextReading::Invalid => f64::NAN,
-    }
 }
