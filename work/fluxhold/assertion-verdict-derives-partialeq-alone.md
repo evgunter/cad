@@ -2,11 +2,10 @@
 id: assertion-verdict-derives-partialeq-alone
 kind: issue
 title: AssertionVerdict derives PartialEq alone, so a reader holding one over an Eq scalar hand-writes Eq
-status: parked
+status: open
 priority: P4
 cost: E
 opened: 2026-09-30
-blocked_on: [an-assertion-relates-by-equality]
 ---
 
 
