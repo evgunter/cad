@@ -1373,3 +1373,30 @@ Ev said go.
   - One `gap_within_eps` helper holds the single ε read.
   - The orchestrator merged main twice before merging; the second merge kept both test modules in `replace_face.rs`.
   - Filed from the unit: SSIEDGE one-arc on a window edge, QUAD sub-range trim image, SHELL iso-row u-moving image.
+- **Units 17 and 18 dispatched** (2026-10-10 09:37–09:41Z).
+  - Unit 17: narrow the iso-row arm. Session `session_01RZJC9khmQTn8f8veyfg6rH`, branch `shell/iso-row-narrow`, M tier; rule-1 byte 37 (mod 3 = 1) puts it in the sequential arm.
+  - Unit 18: the general simultaneous door. Session `session_01De5VWXHkEBqhmCXCzNUivh`, branch `shell/general-door`, H tier, dual review.
+  - Both specs are in the dispatch prompts, as `## Decided` sections the lanes copy into their items.
+- **Filed** `intent/the-plate-verdict-pin-holds-only-at-the-default-eps` (P4, E), found by unit 17's differential: the tour's plate pin is ε-dependent.
+- **Unit 17 review 1** (PR 4525, sequential arm, head 533bfea562): APPROVE-WITH-FIXES, no MAJOR, so there is no review 2.
+  - F1, MINOR, executed: `normal_in_plane_along` accepts steps that point opposite ways along m, so `holds_the_move` can answer true for a nearly singular net whose moved row lies 0.1 off the plane. It is made must-fix.
+  - Docs, the wrap row's reflection guard, and the domain assumption go into the same pass.
+- **Unit 17's DR row became DR-145.** NURBS's PR 4518 took DR-144 first, and that row was the 20th M-tier unit, so the full readout under rule 9 is the NURBS orchestrator's to raise. Unit 17 is the 21st.
+  - Main also carried a stale duplicate tally line, left by DR-143's commit; the DR-145 commit removes it.
+- **Unit 18 dual review** (PR 4524, head 610099b473; byte 0, so A = R1 and B = R2). Both reviewers said APPROVE-WITH-FIXES, and both raised the same MAJOR, each executed.
+  - The MAJOR: a G1 (plane × cylinder) corner refuses `Escalated{MarginDiag(Invalid)}` from a NaN. Newton runs with g·d = 0 before the graze check, where base refused honestly `EdgeSection Tangent`. Repros: a stadium prism, a filleted box, and a box with every edge rounded.
+  - Bilateral MINORs: the collapse payload reads the first mover's d, and the curved-cap row has no z check.
+  - R1's unilateral MINOR: G1 transport is unused at a whole-solid corner, and a tangent candidate is fatal even when a transversal one exists.
+  - Tally: 0, since the MAJOR is bilateral. The pair counts as fair: no glimpse was disclosed, and the brief forbade system-wide process listings.
+  - Ruling: fix both MAJORs' root and the MINORs, plus the docs and style items, in one pass. The pre-existing unnamed collapse refusal is filed rather than fixed.
+- **Unit 17 merged** (PR 4525, DR-145, M tier, sequential arm).
+  - `plan_edge`'s iso-row arm extracts a moved fit's row only for a self-shared image, or beside a neighbour that `holds_the_move`. The new Nurbs/Approx × Plane arm requires steps along the normal, one-way, with equal weights.
+  - Every other iso image takes the section route, so both seams of a lofted wall now refuse alike.
+  - The arm reads the image's own row, reflected through 0 when the edge runs against it, and the wrap flag travels.
+  - The orchestrator merged main twice; the row was renumbered DR-144 → DR-145, and a stale duplicate tally line was removed.
+- **Unit 18 merged** (PR 4524, DR-148, H tier, concurrent pair). `topo::offset_surfaces_together` is the general simultaneous door: every non-planar, non-axial solid moves all its charts at once. Edges are transported where both offset actions agree, and are otherwise sections of the two moved surfaces; corners are rooted with every surface moved. `shell`'s PerChart arm is retired.
+  - The review's bilateral MAJOR is fixed: a G1 corner escalated a NaN. The graze is now decided before every Newton step, grazing candidates root nothing, and fully transported corners take their transports. The stadium prism and the one- and twelve-fillet boxes now build at their closed forms.
+  - Filed `a-move-past-a-fitted-solids-reach-refuses-op-not-the-collapse` (P3).
+  - The orchestrator merged main once, a union of the slow-set line.
+  - Next per the plan: unit 19, the NURBS × NURBS arm (`Section` handle, `branch_at`/`all()`), as ruled in PR 4515.
+- **Unit 19 dispatched** (2026-10-10 20:28Z): the NURBS × NURBS section arm, as ruled in PR 4515 (a `Section` handle with `branch_at` and `all()`). Session `session_01CdW9zFCmnxvk8MaZHdoV5w`, branch `shell/nurbs-nurbs-section`, H tier, dual review.
