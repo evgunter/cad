@@ -244,7 +244,7 @@ fn a_whole_range_evaluates_as_the_unrestricted_source_bit_for_bit() {
     };
     let (at_sym, _) = geom_core::sym::with_session(budget, || {
         whole_range_mismatches(
-            |x| Sym::<Interval>::from_f64(x),
+            Sym::<Interval>::from_f64,
             |a: Sym<Interval>, b: Sym<Interval>| bits(a.value, b.value) && a.node() == b.node(),
         )
     });

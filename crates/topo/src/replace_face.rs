@@ -4089,7 +4089,7 @@ mod read_ends_rows {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod move_mapped_endpoint_rows {
     use geom_core::{Affine3, Point2, Point3, Vec3};
 
