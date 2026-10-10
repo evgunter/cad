@@ -96,3 +96,51 @@ That leaves 14.5 points dispatchable, against a budget of 30.
   split with ordering rule 5 as the claim to falsify.
 - `described-net-…` routing pass: orchestrator's read. It files rows
   and changes no code.
+
+## 2026-10-10 — S350 lands (PR 4482); review adjudicated
+
+**The review.** FULL, single reviewer. It found no MAJOR, and it executed
+every claim rather than arguing them. Executed results:
+- `None` is sound at all three caller groups. Arm 2 now refuses
+  `Unclaimable` in both orderings, which is conservative.
+- The row is red on main.
+- `Described` excludes a NaN value channel at every census scalar.
+
+Two MINORs, both fixed in the fix pass:
+- The fixture poisoned every point, so a mutant that answers `None`
+  only when every point is poisoned stayed green. A point-0-only net
+  now catches it.
+- No row asserted arm 2. The `Unclaimable` findings in both orderings
+  are now asserted.
+
+The style findings are fixed: the stale banner and headers, the two
+in-crate poisoned-net mints folded into `fixtures::poisoned_net`, and
+the boxes.rs pin prose.
+
+**Class findings, given homes:**
+- `bvh::Aabb` promises that a NaN bound poisons the whole box, but it
+  folds and compares per lane, so a one-lane NaN box prunes. This is
+  the root of S350's class, executed in a scratch test. Filed as
+  `work/issues/aabb-poison-is-per-lane-and-a-one-lane-nan-box-prunes`.
+  `crates/bvh` is on no program's paths.
+- `offset_derive`'s net folds drop a poisoned point. Filed on SHELL.
+- The `±∞` net consumers are folded into FLUX's
+  `net-state-reads-an-infinite-net-as-described`; S350's duplicate row
+  is deleted.
+
+**Not taken:**
+- The frame-overflow NOTE: a `frame.point` near `f64::MAX` could put a
+  NaN end on a `Described` arm. Pathological; recorded here.
+- The three in-file per-axis hull folds in `census.rs`. Pre-existing,
+  P4.
+- The reviewer's unsure class: `fold(0.0, f64::max)` over possibly
+  poisoned data (`ellipse_torus`, the `shallow_sweep`s,
+  `conic_oracle/exact`, `join`). It is unchecked; noted here so the
+  next sweep of the poison class has it.
+
+**Friction.** PR 4483's gate took about 24 minutes, 16 of them the
+`test` job's build, for a diff whose only code change was a one-line
+comment in `crates/topo`. That is past the 15-minute bar
+(`memories/orchestration-model.md`). The cause is likely that a
+`topo` comment edit seeds the full topo build and its dependants.
+Reported here; no lane is dispatched on it yet.
