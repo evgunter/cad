@@ -237,6 +237,8 @@ fn clone_product(
         names: product.names.clone(),
         contacts: product.contacts.clone(),
         solid_copies: product.solid_copies.clone(),
+        copies: product.copies.clone(),
+        gap_assertions: product.gap_assertions.clone(),
         minted: product.minted.clone(),
         unminted: product.unminted.clone(),
         carried: product.carried.clone(),

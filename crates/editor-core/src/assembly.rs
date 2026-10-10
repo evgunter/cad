@@ -70,7 +70,7 @@
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, ValuePayload};
@@ -473,6 +473,11 @@ pub struct Assembly<T: Decide> {
     /// declarations too, and without these rows a certified assembly
     /// could not say which inner mates its verdict answered for.
     pub carried: Vec<CarriedDeclaration>,
+    /// Every overlap between two copies' material, in the world and in
+    /// each unplaced group's own space, in the census's order (D10):
+    /// reported, quiet or loud, and never a refusal
+    /// ([`crate::checks::at_rest`]).
+    pub interference: Vec<crate::checks::at_rest::InterferenceFinding>,
 }
 
 /// Why a mate reference did not resolve to a product face.
@@ -1168,7 +1173,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+pub fn assemble<P: crate::ProfilePayload, T: crate::EvalScalar>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -1185,7 +1190,11 @@ pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 refusal.kind(),
                 crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::EmptyProduct
             ) {
-                gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
+                gate_spaces(
+                    crate::product::own_spaces(doc, evaluation, tol),
+                    tol,
+                    &mut Vec::new(),
+                )?;
             }
             Err(AssemblyError::Product(Box::new(refusal)))
         }
@@ -1196,13 +1205,14 @@ pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// against nothing outside it (A11 (2)): the gate over each
 /// [`crate::OwnSpace`] in turn, a space whose roots denote no body
 /// holding nothing to check.
-fn gate_spaces<T: Decide + AtRestPolicy>(
+fn gate_spaces<T: crate::EvalScalar>(
     spaces: Vec<crate::OwnSpace<T>>,
     tol: Tol,
+    interference: &mut Vec<crate::checks::at_rest::InterferenceFinding>,
 ) -> Result<(), AssemblyError> {
     for space in spaces {
         match space.gather {
-            Ok(product) => verdict(&product, tol)?,
+            Ok(product) => interference.extend(verdict(&product, tol)?),
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
                 return Err(AssemblyError::Space {
@@ -1243,11 +1253,11 @@ fn gate_spaces<T: Decide + AtRestPolicy>(
 /// wrapper's arm: a mate reference that names no product face, a class
 /// with no at-rest record ([`crate::mate::class_admission`]), and the
 /// kernel's tier-3' findings attributed back to their mates.
-pub fn assemble_gathered<T: Decide + AtRestPolicy>(
+pub fn assemble_gathered<T: crate::EvalScalar>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
-    verdict(&product, tol)?;
+    let mut interference = verdict(&product, tol)?;
     let Product {
         body,
         names,
@@ -1257,20 +1267,24 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
         spaces,
         ..
     } = product;
-    gate_spaces(spaces, tol)?;
+    gate_spaces(spaces, tol, &mut interference)?;
     Ok(Assembly {
         body: body.into_body(),
         names,
         contacts,
         minted,
         carried,
+        interference,
     })
 }
 
 /// **The gate's verdict over one gathered space** — the world, or one
 /// unplaced group's own ([`gate_spaces`]): the one copy of the gate's
 /// checks, their attributions and their refusal order.
-fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(), AssemblyError> {
+fn verdict<T: crate::EvalScalar>(
+    product: &Product<T>,
+    tol: Tol,
+) -> Result<Vec<crate::checks::at_rest::InterferenceFinding>, AssemblyError> {
     // Inner mint health, before this document's own: an outer assembly
     // is unusable while an inner part is broken, and the file the
     // author must open is the inner one. Verification still runs once
@@ -1295,8 +1309,14 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
         });
     }
     let Err(errors) = T::gate_at_rest_declared(&product.body, &product.contacts, tol) else {
-        return Ok(());
+        return Ok(Vec::new());
     };
+    // An overlap between two copies is a finding, never a refusal
+    // (D10); what is left is refused as it always was.
+    let (interference, errors) = crate::checks::at_rest::partition(product, errors, tol);
+    if errors.is_empty() {
+        return Ok(interference);
+    }
     let findings: Vec<AtRestFinding> = errors
         .into_iter()
         .map(|error| AtRestFinding {

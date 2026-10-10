@@ -57,6 +57,8 @@ use crate::eval::{Evaluation, NodeStanding};
 use crate::node::RecipeNodeId;
 use crate::product;
 
+pub mod at_rest;
+
 /// The closed set of checks. A new check = a new variant; every match
 /// over this enum is a site the compiler then walks you to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
