@@ -3,7 +3,7 @@ id: census-backstop-separates-curved-pairs-only-along-world-axes
 kind: issue
 title: The census backstop clears a curved cross-solid pair only by a gap along a world axis, so a pair's verdict depends on how the body is turned
 status: review
-pr: TBD
+pr: 4550
 opened: 2026-10-03
 priority: P1
 cost: M
