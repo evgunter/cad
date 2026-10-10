@@ -22,3 +22,8 @@ The other `PcurveMintError` arms are worded in the kernel's voice too ("re-mint 
 ## Repair shape
 
 Per the fork-log row 9 ruling, the at-rest text stays with its reader. Give the import door its own reading of a pcurve re-mint refusal, as `classify_pcurve` is validate's. Do not add `ending(Reading)` to `PcurveMintError`. Texts move only on the import door's `Pcurves` arm.
+
+## Also (ENCL, from the delta review of PR 4475)
+
+The import door's new at-rest undecided-join text (`crates/step-import/src/error.rs` ~490–514) has no pin. `halfcap_pole.rs` tests only the readable tolerance offer. Add a step-import unit row that builds `StepImportError::Join` with a poisoned `JoinUndecided` and asserts the literal "kernel or file defect" ending, alongside this row's pcurve fix.
+
