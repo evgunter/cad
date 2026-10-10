@@ -4390,13 +4390,13 @@ where
     // order, as the operation it reads and the port (D10; DR-59's
     // class: two outputs of one operation are two inputs, and a key
     // that saw only the operation would serve one half's body for the
-    // other), then the sites a measure reads at. Every operation here
+    // other); a selection's read is its body's. Every operation here
     // has its result (above).
-    let reads: Vec<(RecipeNodeId, Option<u8>)> = node
+    let reads: Vec<(RecipeNodeId, u8)> = node
         .operand_rows()
         .into_iter()
         .map(|(_, var)| doc.selection(var).map_or(var, |select| select.body))
-        .filter_map(|var| doc.defined_by(var).map(|(at, port)| (at, Some(port))))
+        .filter_map(|var| doc.defined_by(var))
         .collect();
     let key_of = |at: &RecipeNodeId| {
         *keys
@@ -6049,24 +6049,20 @@ where
 }
 
 /// **One read a node's keys feed** (D10): the operation `at` defining
-/// the variable read, the port read (`None` for a measure's site, which
-/// is a node read at rather than an output), and that operation's key.
+/// the variable read, the port read, and that operation's key.
 #[derive(Clone, Copy)]
 struct UpstreamRead<K> {
     at: RecipeNodeId,
-    port: Option<u8>,
+    port: u8,
     key: K,
 }
 
-/// A read's port, as the keys feed it: its presence, then the port.
-fn feed_port(h: &mut KeyHasher, port: Option<u8>) {
-    match port {
-        None => h.write_tag(tag::presence::ABSENT),
-        Some(port) => {
-            h.write_tag(tag::presence::PRESENT);
-            h.write_u64(u64::from(port));
-        }
-    }
+/// A read's port, as the keys feed it: a presence tag, then the port.
+/// The tag stays in the byte stream so the keys of every stored
+/// document stay what they are.
+fn feed_port(h: &mut KeyHasher, port: u8) {
+    h.write_tag(tag::presence::PRESENT);
+    h.write_u64(u64::from(port));
 }
 
 /// The recursive naming key (issue #95 disposition 2; see
@@ -6539,13 +6535,12 @@ fn feed_scalar_join(
 
 /// A Boolean's or Union's declared pairs, into its content key.
 ///
-/// BOTH halves of each side, as a measure's reference feeds both: the
-/// name says which entity and the SITE says which operand's table it is
-/// read in, so two declarations differing only in a site declare
-/// contacts between different members. The site is a node id, which
-/// content keys otherwise exclude (D8); it is fed for the measure's
-/// reason — it is RECIPE PAYLOAD selecting a reading, not a Merkle link
-/// to an input.
+/// BOTH halves of each side: the name says which entity and the SITE
+/// says which operand's table it is read in, so two declarations
+/// differing only in a site declare contacts between different members.
+/// The site is a node id, which content keys otherwise exclude (D8); it
+/// is fed because it is RECIPE PAYLOAD selecting a reading, not a
+/// Merkle link to an input.
 ///
 /// The CLASS is part of the node's identity: two declarations of the
 /// same pair under different classes are different nodes, and a memo

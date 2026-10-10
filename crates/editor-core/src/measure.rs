@@ -21,7 +21,8 @@ use crate::node::SitedRef;
 /// Which closed-form measurement a measure computes, over which two
 /// references `R`.
 ///
-/// A [`crate::Node::Measure`] holds one over [`SitedRef`]s; another
+/// A [`crate::Node::Measure`] holds one over its reads (a stored
+/// node's [`crate::VarId`]s, authored as [`SitedRef`]s); another
 /// reference type is the same primitive read elsewhere, through
 /// [`Self::try_map`].
 ///
@@ -216,15 +217,23 @@ impl MeasureVerb {
         }
     }
 
-    /// The admitted kinds as a reader says them: "a face, an edge or a
-    /// vertex".
+    /// The admitted kinds as a reader says them, read off
+    /// [`Self::admits`]: "a face, an edge or a vertex".
     #[must_use]
-    pub const fn admitted(self) -> &'static str {
-        match self {
-            Self::Distance => "a face, an edge or a vertex",
-            Self::Angle => "a face or an edge",
-            Self::MinClearance => "a body or a face",
-            Self::Gap => "a face",
+    pub fn admitted(self) -> String {
+        use crate::VarKind as K;
+        let said: Vec<String> = [K::Body, K::Face, K::Edge, K::Vertex]
+            .into_iter()
+            .filter(|&kind| self.admits(kind))
+            .map(|kind| {
+                let word = kind.to_string();
+                format!("{} {word}", crate::sentence::article(&word))
+            })
+            .collect();
+        match said.as_slice() {
+            [] => String::new(),
+            [one] => one.clone(),
+            [init @ .., last] => format!("{} or {last}", init.join(", ")),
         }
     }
 }

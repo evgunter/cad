@@ -3420,9 +3420,9 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!(
-                        "build it through `Node::fillet`, `Node::chamfer` or `Node::shell`, \
-                         which write the stored order, or name entities of the kind the seat \
-                         reads"
+                        "author the names in the stored order (an edge set sorted, a face set \
+                         naming each face once), as the fillet, chamfer and shell builders do, \
+                         or name entities of the kind the seat reads"
                     ),
                 )
             }
@@ -4524,8 +4524,7 @@ impl Took {
                     }
                     Took::Reach => write!(
                         f,
-                        "re-pointed a read, so {}, which minted the name, is no longer upstream \
-                         of it",
+                        "re-pointed a read past {}, which minted the name",
                         self.1.minter()
                     ),
                 }
@@ -7056,11 +7055,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(from),
                 });
             }
-            // A body's selections, or else every payload site and the
-            // appearance store: `Node::payload_names` is the list of the
-            // first and `Node::rebind_payload_names` its rewriting twin,
-            // so no carrier can be repaired here and missed there. Zero
-            // sites = nothing to repair, refused.
+            // A body's selections (`Doc::rewrite_selection_names`), or
+            // else every payload site and the appearance store
+            // (`Node::payload_names` lists the payload sites and
+            // `Node::rebind_payload_names` is its rewriting twin, so no
+            // payload carrier can be repaired here and missed there).
+            // Zero sites = nothing to repair, refused.
             let mut declare_sites = 0usize;
             let mut appearance_sites = 0usize;
             if let Some(body) = body {

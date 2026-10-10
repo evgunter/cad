@@ -272,7 +272,7 @@ impl core::fmt::Display for SlotKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
-            Self::Measured(verb) => f.write_str(verb.admitted()),
+            Self::Measured(verb) => f.write_str(&verb.admitted()),
         }
     }
 }

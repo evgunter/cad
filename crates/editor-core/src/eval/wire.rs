@@ -2468,8 +2468,9 @@ impl<'v, T: Decide> Measured<'v, T> {
 ///
 /// # What a reference reads
 ///
-/// A `Body` read is that whole body; a `Face` or `Edge` read is a
-/// selection, evaluated by [`select`] in the body it states. The body
+/// A `Body` read is that whole body; a `Face`, `Edge` or `Vertex` read
+/// is a one-name selection, evaluated by [`select`] in the body it
+/// states. The body
 /// read is what makes the answer the placed carrier: a selection of a
 /// transform's output names the moved geometry.
 fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
@@ -2488,7 +2489,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
         let (at, ent) = if doc.selection(var).is_some() {
             let selected = select(doc, results, slot, var)?;
             let [ent] = selected.ents.as_slice() else {
-                unreachable!("a face or edge selection holds one entity")
+                unreachable!("a measure's selection is a singleton (its seat's kind)")
             };
             (selected.at, *ent)
         } else {
