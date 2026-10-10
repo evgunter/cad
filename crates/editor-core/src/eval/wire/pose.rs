@@ -114,11 +114,19 @@ fn output<T: Decide>(
                 .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
             let origin = super::need_point2(&vals, SlotId::Origin)?;
             let dir = super::need_vec2(&vals, SlotId::Direction)?;
-            let plane = drawn.validated.plane();
-            let (u, v) = (plane.u(), plane.v());
+            // The sweep's own arithmetic (`sweep::revolve`'s axis frame):
+            // the origin placed as a point, the direction decided, then
+            // normalized in the sketch and placed, so the line this port
+            // answers is the one the body turns about.
+            let place = drawn.validated.plane().placement;
+            let lift = |x: T, y: T| place.linear * Vec3::new(x, y, T::zero());
+            let b = band(tol)?;
+            datum_unit(lift(dir.x, dir.y), DATUM_AXIS_ROLE, b)
+                .map_err(DirectionRefusal::node_error)?;
+            let sketch = dir.normalize();
             Ok(PoseValue::Axis {
-                origin: plane.origin() + u * origin.x + v * origin.y,
-                dir: datum_unit(u * dir.x + v * dir.y, DATUM_AXIS_ROLE, band(tol)?)
+                origin: place.transform_point(Point3::new(origin.x, origin.y, T::zero())),
+                dir: datum_unit(lift(sketch.x, sketch.y), DATUM_AXIS_ROLE, b)
                     .map_err(DirectionRefusal::node_error)?,
             })
         }

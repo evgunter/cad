@@ -5,7 +5,7 @@
 //! Every pose a reader reads reaches it here: an operation's pose
 //! output ([`crate::VarDef::Output`]: a datum's, a revolve's axis) or a
 //! pose definition ([`crate::VarDef::Pose`]) bound at its reader by
-//! `eval_pose` (`eval/pose.rs`). Its normals and axis directions are
+//! `eval_pose` (`eval/wire/pose.rs`). Its normals and axis directions are
 //! [`UnitVec3`], unit by construction, so an unnormalized pose has no
 //! spelling.
 //!
@@ -150,7 +150,7 @@ pub fn datum_distance_sign<T: Decide>(
 ///
 /// Generic over its read form `R` and its scalar form `S`: the stored
 /// definition reads variables by id (`PoseDef<VarId, VarId>`); the
-/// authored one ([`crate::VarDecl::Pose`], [`crate::Operand::Pose`])
+/// authored one ([`crate::Operand::Pose`], defined at a seat)
 /// reads operands and writes formulas, which the edit door lowers.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

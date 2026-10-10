@@ -603,11 +603,6 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     None
 }
 
-/// The first fault of the variable table itself, in the order the
-/// variable is built: its kind against its definition, its id against
-/// the mint log, then the names — each on a live variable, none held
-/// twice. The names are walked by id, so the pair a twice-held name
-/// reports is the two lowest ids holding it.
 /// The first pose definition, in id order, no door could have written
 /// ([`Walk::Pose`]). A read or a scalar the mint holds and the table no
 /// longer does is legal: its reader is unresolved, refused at
@@ -697,7 +692,6 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         })
     })
 }
-
 /// The first selection, in id order, no door could have written
 /// ([`Walk::Selection`]).
 fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
@@ -737,6 +731,11 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     })
 }
 
+/// The first fault of the variable table itself, in the order the
+/// variable is built: its kind against its definition, its id against
+/// the mint log, then the names — each on a live variable, none held
+/// twice. The names are walked by id, so the pair a twice-held name
+/// reports is the two lowest ids holding it.
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     // The mint log first, since `has_var` below asks it: its ordinals
     // count up from one, the only log a mint writes. The structural walk asks

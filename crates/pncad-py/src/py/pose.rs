@@ -7,8 +7,8 @@
 //! or constructs from other poses. A `PoseDef` is passed where an
 //! operand is read; the edit door mints the pose variable there, as it
 //! mints a selection authored at a seat. To share one between two
-//! readers, read it back with `Doc.output`'s sibling, name it, and read
-//! it by name.
+//! readers, read it back with `Doc.slot(node, "tool")`, name it with
+//! `DocEdit.rename_var`, and read it by name.
 
 use pyo3::prelude::*;
 

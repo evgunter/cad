@@ -77,8 +77,9 @@ by `spin`.
 A reader that reads the face as a plane reads the pose definition
 `Plane { face }` (`pose.rs`), not a frame: the same `Face` selection, the
 plane through the face with its outward normal (DM1a), and no `spin` and no
-u-reference, because a plane has no in-plane direction (D10: no reader takes
-a carrier's reference direction). A split's tool is such a reader. A frame
+u-reference, because a plane has no in-plane direction (D10: no pose
+definition takes a carrier's reference direction; the `FaceFrame` above still
+does, for its `spin`). A split's tool is such a reader. A frame
 on a face, which a sketch on the face reads, is the `FaceFrame` above.
 
 - **Why derived, not frozen.** A sketch carries no twelve-float plane snapshot

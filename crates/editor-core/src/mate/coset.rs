@@ -12,8 +12,12 @@
 //! [`Subgroup::Spherical`], [`Subgroup::Parallel`],
 //! [`Subgroup::Translation`], [`Subgroup::PlaneTranslation`],
 //! [`Subgroup::Trivial`], [`Subgroup::Empty`] — and its closedness is
-//! a PROOF OBLIGATION, executed as the enumeration test rather than
-//! asserted in prose. No screw subgroup arises: the primitives'
+//! a PROOF OBLIGATION, executed rather than asserted in prose: the
+//! mate families' rows by the enumeration test
+//! (`asm_r2a_mate_solve::row5_the_closure_set_is_closed_under_intersection`),
+//! and every pair of all eleven against the intersection of the two
+//! Lie algebras, computed independently
+//! (`intent_s3_a_poses::the_subgroup_table_spans_the_intersection_of_every_pair`). No screw subgroup arises: the primitives'
 //! parallel-cylinder intersection is pure translation.
 //!
 //! The representative stage covers the pairs today's mates fold. A

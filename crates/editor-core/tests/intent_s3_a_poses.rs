@@ -931,3 +931,217 @@ fn the_load_door_refuses_a_malformed_pose_definition() {
         );
     }
 }
+
+/// **A revolve's axis output is the line its body turns about**
+/// (claim 6's second half): on a frame tilted out of the world planes,
+/// about an axis line off the frame's origin and off its axes, the
+/// port-1 axis and the axis read off the body's conical wall are
+/// one line — parallel, and each origin on the other — to the last
+/// few ulps. Swapping the axis line's coordinates moves port 1 off the
+/// body's axis.
+#[test]
+fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
+    let (doc, _plane, profile) = fixture::on_frame_keeping(
+        ProfileDoc::empty_derived("s3a_port1", Tol::witness()),
+        [0.25, -0.5, 0.75],
+        [0.6, 0.0, 0.8],
+        [-0.64, 0.6, 0.48],
+        vec![fixture::square(2.0, 0.0, 0.5)],
+    );
+    let (doc, revolve) = fixture::insert(
+        doc,
+        fixture::revolve_about(profile, (0.25, 0.5), (0.3, 1.0), ang(std::f64::consts::TAU)),
+    );
+    let ev = eval(&doc);
+    // The square's sides are oblique to the axis, so its walls are
+    // cones; each carries the body's axis.
+    let wall = all_faces(&ev, revolve)
+        .into_iter()
+        .find(|n| face_carrier_kind(&ev, revolve, n) == Ok(SurfaceKind::Cone))
+        .expect("a conical wall");
+    let (doc, ring) = fixture::insert(
+        doc,
+        Node::Pattern {
+            input: Operand::output(revolve, 0),
+            count: Formula::count(2),
+            kind: editor_core::PatternKind::Circular {
+                axis: pose(PoseDef::Axis {
+                    of: select(revolve, wall),
+                }),
+                step: ang(std::f64::consts::FRAC_PI_2),
+            },
+        },
+    );
+    let ev = eval(&doc);
+    let axis_of = |var| match bound_pose(&doc, &ev, OperandSlot::Axis, var, Tol::witness()) {
+        Ok(PoseValue::Axis { origin, dir }) => (origin, UnitVec3::get(dir)),
+        other => panic!("an axis, not {other:?}"),
+    };
+    let port = doc.output(revolve, 1).expect("a revolve defines its axis");
+    let Some(Node::Pattern {
+        kind: editor_core::PatternKind::Circular { axis: read, .. },
+        ..
+    }) = doc.node(ring)
+    else {
+        panic!("the ring");
+    };
+    let ((o1, d1), (o2, d2)) = (axis_of(port), axis_of(*read));
+    let slack = 8.0 * f64::EPSILON * 4.0;
+    assert!(d1.cross(d2).norm() <= slack, "{d1:?} against {d2:?}");
+    let off = |o: geom_core::Point3<f64>, at: geom_core::Point3<f64>, d: geom_core::Vec3<f64>| {
+        (o - at).cross(d).norm()
+    };
+    assert!(
+        off(o1, o2, d2) <= slack,
+        "port 1's origin off the wall's axis: {o1:?}"
+    );
+    assert!(
+        off(o2, o1, d1) <= slack,
+        "the wall's origin off port 1: {o2:?}"
+    );
+}
+
+/// A subgroup's Lie algebra as twists `(ω, v)` (`v` the velocity of the
+/// point at the origin), as a spanning list.
+fn algebra(g: &editor_core::Subgroup<f64>) -> Vec<[f64; 6]> {
+    use editor_core::Subgroup as S;
+    use geom_core::Vec3;
+    let twist = |w: Vec3<f64>, v: Vec3<f64>| [w.x, w.y, w.z, v.x, v.y, v.z];
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let axes = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    // A rotation about the line through `p` along `d`.
+    let turn = |p: geom_core::Point3<f64>, d: Vec3<f64>| {
+        let p = p - geom_core::Point3::origin();
+        twist(d, p.cross(d))
+    };
+    let across = |n: Vec3<f64>| axes.iter().map(move |&a| twist(zero, a - n * a.dot(n)));
+    match *g {
+        S::Se3 => axes
+            .iter()
+            .flat_map(|&a| [twist(a, zero), twist(zero, a)])
+            .collect(),
+        S::Planar { normal } => {
+            let n = UnitVec3::get(normal);
+            std::iter::once(twist(n, zero)).chain(across(n)).collect()
+        }
+        S::Cylindrical { point, direction } => {
+            let d = UnitVec3::get(direction);
+            vec![turn(point, d), twist(zero, d)]
+        }
+        S::Prismatic { direction } => vec![twist(zero, UnitVec3::get(direction))],
+        S::Revolute { point, direction } => vec![turn(point, UnitVec3::get(direction))],
+        S::Spherical { point } => axes.iter().map(|&a| turn(point, a)).collect(),
+        S::Parallel { direction } => std::iter::once(twist(UnitVec3::get(direction), zero))
+            .chain(axes.iter().map(|&a| twist(zero, a)))
+            .collect(),
+        S::Translation => axes.iter().map(|&a| twist(zero, a)).collect(),
+        S::PlaneTranslation { normal } => across(UnitVec3::get(normal)).collect(),
+        S::Trivial | S::Empty => Vec::new(),
+    }
+}
+
+/// The rank of a list of six-vectors, by elimination at `1e-9`.
+fn rank(rows: &[[f64; 6]]) -> usize {
+    let mut m: Vec<[f64; 6]> = rows.to_vec();
+    let mut r = 0;
+    for col in 0..6 {
+        let Some(pivot) = (r..m.len()).max_by(|&a, &b| m[a][col].abs().total_cmp(&m[b][col].abs()))
+        else {
+            break;
+        };
+        if m[pivot][col].abs() < 1e-9 {
+            continue;
+        }
+        m.swap(r, pivot);
+        for i in 0..m.len() {
+            if i != r {
+                let f = m[i][col] / m[r][col];
+                let pivot_row = m[r];
+                for (x, p) in m[i].iter_mut().zip(pivot_row) {
+                    *x -= f * p;
+                }
+            }
+        }
+        r += 1;
+    }
+    r
+}
+
+/// **The one `Subgroup` table is closed and right over all eleven
+/// families** (the coset module's proof obligation, executed): for
+/// every pair drawn from a sample of each family in general and in
+/// special position, the table's answer is a member of the lattice and
+/// spans exactly the intersection of the two Lie algebras — computed
+/// here independently, as subspaces of the twists — and the answer is
+/// the same in both orders.
+#[test]
+fn the_subgroup_table_spans_the_intersection_of_every_pair() {
+    use editor_core::Subgroup as S;
+    use editor_core::mate::coset::{Arm, intersect_subgroups};
+    use geom_core::{Point3, Vec3};
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    let unit = |x: f64, y: f64, z: f64| {
+        UnitVec3::new(Vec3::new(x, y, z), topo::query::DATUM_UNIT_NORM, band).unwrap()
+    };
+    let dirs = [
+        unit(0.0, 0.0, 1.0),
+        unit(1.0, 0.0, 0.0),
+        unit(1.0, 0.0, 1.0),
+    ];
+    let points = [
+        Point3::origin(),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 2.0, -0.5),
+    ];
+    let mut sample = vec![S::Se3, S::Translation, S::Trivial];
+    for &d in &dirs {
+        sample.push(S::Planar { normal: d });
+        sample.push(S::Prismatic { direction: d });
+        sample.push(S::Parallel { direction: d });
+        sample.push(S::PlaneTranslation { normal: d });
+        for &p in &points {
+            sample.push(S::Cylindrical {
+                point: p,
+                direction: d,
+            });
+            sample.push(S::Revolute {
+                point: p,
+                direction: d,
+            });
+        }
+    }
+    for &p in &points {
+        sample.push(S::Spherical { point: p });
+    }
+    let arm = Arm::of(0.0, 1.0).expect("a metre is in range");
+    let mut pairs = 0;
+    for a in &sample {
+        for b in &sample {
+            let met = intersect_subgroups(*a, *b, band, arm).expect("decided");
+            let back = intersect_subgroups(*b, *a, band, arm).expect("decided");
+            assert_eq!(met.family(), back.family(), "{a:?} ∩ {b:?} is unordered");
+            let (ga, gb, gm) = (algebra(a), algebra(b), algebra(&met));
+            // dim(A ∩ B) = dim A + dim B − dim(A + B).
+            let both = [ga.clone(), gb.clone()].concat();
+            let wanted = rank(&ga) + rank(&gb) - rank(&both);
+            assert_eq!(rank(&gm), wanted, "{a:?} ∩ {b:?} = {met:?}: the dimension");
+            for side in [&ga, &gb] {
+                let joined = [side.clone(), gm.clone()].concat();
+                assert_eq!(
+                    rank(&joined),
+                    rank(side),
+                    "{a:?} ∩ {b:?} = {met:?} leaves {side:?}"
+                );
+            }
+            pairs += 1;
+        }
+    }
+    assert!(
+        pairs > 900,
+        "the sample is the whole lattice: {pairs} pairs"
+    );
+}
