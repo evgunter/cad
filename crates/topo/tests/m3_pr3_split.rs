@@ -543,18 +543,14 @@ fn one_sided_tangency_classifies_with_its_material() {
     }
 }
 
-/// The BOB mirror (PR 2 carry-forward 1b), CLOSED by M3 PR 6a's D7:
-/// full split of the touching-wedge fixture now SUCCEEDS in BOTH
-/// orientations — the below-side pinch (whose below fans share the
-/// one original vertex under ch. 14's above-only copy minting) gets
-/// its below-vertex copies through the pinch lane (`split`'s mirror
-/// identity; see the splitting module docs), and the former
-/// orientation-dependent `DegenerateSection` refusal is gone for the
-/// pinch class. This test pins the two presentations that used to
-/// refuse — (MIRRORED, +n) and (NOTCHED, −n) — with the equal-volume
-/// oracle and the piece-assignment check (pinched pieces land on the
-/// correct SIDE for this call's normal, wherever the copies were
-/// minted).
+/// The BOB mirror (PR 2 carry-forward 1b): full split of the
+/// touching-wedge fixture succeeds in both orientations — the pinch
+/// below the normal gets its below-vertex copies from the reduction's
+/// tree of corners (`splitting::insert`). This test pins the two
+/// presentations whose pinch lies below the normal — (MIRRORED, +n) and
+/// (NOTCHED, −n) — with the equal-volume oracle and the piece-assignment
+/// check (pinched pieces land on the correct SIDE for this call's
+/// normal).
 #[test]
 fn bob_mirror_pinch_refuses_typed() {
     // MIRRORED under +n: pinched floor pieces are BELOW.

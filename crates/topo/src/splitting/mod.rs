@@ -54,12 +54,12 @@
 //!    (`neighborhood` — the convex-subdivision derivation), rule (a)
 //!    via the F3 primitive [`geom_brep::enters_material`] and rule (b)
 //!    per the F4 adjudication ([`rules`] — the derivation lives there).
-//! 5. **Null-edge insertion** (`insert`): an explicit transition-pair
-//!    run scan in worklist form (sidesteps the Program 14.7
-//!    head-rebinding erratum structurally), one
-//!    [`crate::Body::mev_null`] per ABOVE-run, orientation recorded as
-//!    F9 **data** (`NullEdge { below_end, above_end }`), ≥2 disjoint
-//!    ABOVE-runs handled and tested.
+//! 5. **Null-edge insertion** (`insert`): one
+//!    [`crate::Body::mev_null`] per corner of the section at the
+//!    vertex, hung as the tree the corners make (a star of one per
+//!    ABOVE-run where the runs lie apart; deeper where runs nest),
+//!    orientation recorded as F9 **data**
+//!    (`NullEdge { below_end, above_end }`).
 //!
 //! The result ([`SplitReduction`]) is the annotated body the joining
 //! step consumes: cached per-vertex sides, the ON set, and the minted
@@ -193,14 +193,14 @@ pub struct SectorEntry {
 /// site — the record PR 3's joining consumes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NullEdgeRecord {
-    /// The ON vertex whose neighborhood classification minted this
-    /// null edge: the end of `attr` that is not the minted copy.
+    /// The vertex this null edge was minted at: the ON vertex whose
+    /// neighborhood classification minted it, or a copy minted there
+    /// before it; the end of `attr` that is not the minted copy.
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
-    /// The F9 side attribute (`above_end` = the end holding the ABOVE
-    /// run: the minted copy, save for a whole-orbit run, where the old
-    /// vertex keeps it) — orientation as data.
+    /// The F9 side attribute (`above_end` = the end standing for the
+    /// piece above the plane) — orientation as data.
     pub attr: NullEdge,
     /// True for a dangling null edge (a wide same-side sector whose
     /// bisector crossed — the strut case, either way round).
@@ -371,6 +371,26 @@ pub enum SplitReduceError {
         face: FaceKey,
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
+    },
+    /// The directions in which the plane leaves the faces round an ON
+    /// vertex could not be ordered about its normal: a reading landed in
+    /// the band, so which germs bound each corner of the section there
+    /// is undecided.
+    SectionGermsEscalated {
+        /// The ON vertex.
+        vertex: VertexKey,
+        /// The escalation diagnostics (named predicate inside).
+        diag: Indeterminate,
+    },
+    /// The directions in which the plane leaves the faces round an ON
+    /// vertex fix no corners of the section there: a germ has no
+    /// direction, more than two share one, every germ shares one with
+    /// another, the material's starts and ends do not alternate round
+    /// the vertex, or the corners they make cross as chords of its
+    /// orbit.
+    SectionGermsUnordered {
+        /// The ON vertex.
+        vertex: VertexKey,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -559,6 +579,17 @@ impl core::fmt::Display for SplitReduceError {
                  call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
+            Self::SectionGermsEscalated { diag, .. } => write!(
+                f,
+                "the directions in which the split plane leaves the faces round a vertex \
+                 are too close to order ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
+            Self::SectionGermsUnordered { .. } => write!(
+                f,
+                "the directions in which the split plane leaves the faces round a vertex \
+                 fix no corners of the section there. Recourse: {SPLIT_COINCIDENCE_RECOURSE}"
+            ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
@@ -701,10 +732,11 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut null_edges = Vec::new();
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
-        let entries = neighborhood::classify_neighborhood(&body, plane, &sides, v, band)?;
+        let (entries, dirs) =
+            neighborhood::classify_neighborhood_dirs(&body, plane, &sides, v, band)?;
         let runs = insert::above_runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
-        // more runs on a side: pieces of that side touch there. A
+        // more runs on a side: pieces of the solid touch there. A
         // crossing's vertex was minted on the plane, so no margin
         // decided it, and one run is a cut, not a touch.
         if let (true, Some(&margin)) = (runs.len() >= 2, on_margins.get(v)) {
@@ -722,7 +754,16 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 discharge: crate::Discharge::Numeric,
             });
         }
-        insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;
+        insert::insert_null_edges(
+            &mut body,
+            plane.normal.get(),
+            v,
+            &entries,
+            &dirs,
+            &mut sides,
+            &mut null_edges,
+            band,
+        )?;
     }
 
     body.sweep_and_close();
@@ -885,47 +926,21 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// joining order is the total lexicographic sort (`order` module) —
 /// byte-identical replay is pinned by test.
 ///
-/// # Below-side pinches (M3 PR 6a, D7)
+/// # Pinches
 ///
-/// At a **BOB pinch** vertex (pieces meeting at a tip line, pinched
-/// pieces on the plane normal's NEGATIVE side) the ch. 14 insertion —
-/// which mints vertex copies for ABOVE runs only — leaves every below
-/// fan sharing the one original vertex, and the join is forced into a
-/// zero-area 2-gon in each tip-adjacent face
-/// ([`SplitJoinError::DegenerateSection`], the PR 3 posture). The
-/// below fans need their own copies. This op realizes that
-/// below-copy minting through the **mirror identity**
-/// `split(S, n) ≡ swap(split(S, −n))` (exact: piece assignment is
-/// plane-orientation-equivariant — PR 2's principle, executed by the
-/// PR 3 review's orientation table, tol): on a `DegenerateSection` refusal
-/// the pipeline reruns under the flipped plane — where the pinched
-/// fans ARE the above runs and receive their distinct copies — and
-/// swaps the sides back. Success is therefore
-/// orientation-INDEPENDENT for the single-sided pinch class. A run
-/// whose mirror also refuses surfaces the direct run's typed refusal
-/// (one exception, below) —
-/// and this is a KNOWN COMPLETENESS FRONTIER, not a proof of
-/// impossibility: a body pinched on BOTH sides of the plane
-/// (`review_m3_pr6::r1_both_sided_pinch` is the pinned witness) has
-/// a valid decomposition, but each run direction refuses at its own
-/// below-side pinch — the mirror lane only relocates which side
-/// lacks copies. Resolving the both-sided class needs the native
-/// below-copy insertion lane (mixed copy loops in join
-/// role-resolution); until then it refuses typed, never emits a
-/// degenerate body. Note the error plumbing on asymmetric failures:
-/// if the mirror run fails DIFFERENTLY (e.g. `JoinDesync`), the
-/// pipeline reruns the direct orientation and surfaces the direct
-/// refusal — loud and typed, but attributed to the direct run (the
-/// mirror's distinct failure is not reported), at the cost of up to
-/// three pipeline runs.
+/// At a vertex where pieces of one side meet (a **pinch**: pieces
+/// meeting at a tip line, on either side of the plane or both), the
+/// reduction keeps one vertex per piece round it on each side, the
+/// tree of the section's corners there (`insert`), so each side's
+/// pieces get their own copies and no section closes across another's
+/// corner. Piece assignment does not depend on the plane's orientation:
+/// `split(S, n)` is `split(S, −n)` with its sides swapped.
 ///
-/// A plane grazing a curved wall never reaches the rerun: rule (b)
-/// lands a convex graze with its material, and rule (a) refuses a
-/// concave one in the reduction ([`SplitReduceError::KnifeEdge`]), which
-/// the mirrored run shares.
-/// The result's section-face normals still follow THIS
-/// call's plane convention (above face m = −n, below face m = +n)
-/// because the mirrored run's roles are the swap of ours.
+/// A plane grazing a curved wall makes no pinch: rule (b) lands a
+/// convex graze with its material, and rule (a) refuses a concave one
+/// in the reduction ([`SplitReduceError::KnifeEdge`]). The result's
+/// section-face normals follow this call's plane (above face m = −n,
+/// below face m = +n).
 ///
 /// **The operand is a finished body** ([`AtRestBody`]); one that carries
 /// no verdict (a dual's) is read for what the type promises, per solid,
@@ -936,12 +951,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
-/// degenerate body is ever emitted). Each run gates
-/// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
-/// mirrored run whose side is not a closed solid surfaces the direct
-/// run's refusal, as any other mirror failure does. Tier 3 is
-/// deliberately not run on the sides: a pinch side's touching pieces
-/// carry contacts split declares nowhere.
+/// degenerate body is ever emitted). The sides are gated at tier 2
+/// ([`SplitFinishError::ResultInvalid`]). Tier 3 is deliberately not run
+/// on the sides: a pinch side's touching pieces carry contacts split
+/// declares nowhere.
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
@@ -959,7 +972,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     } else {
         operand
     };
-    let mut result = split_one_solid(operand, plane, tol)?;
+    let mut result = split_direct(operand, plane, tol)?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
@@ -969,44 +982,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     Ok(result)
 }
 
-/// [`split`] over an operand read as one solid: the direct run, and the
-/// mirrored rerun for the pinch lane.
-fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
-    plane: &SplitPlane<T>,
-    tol: Tol,
-) -> Result<SplitResult<T>, SplitError> {
-    match split_direct(operand, plane, tol) {
-        Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {}
-        other => return other,
-    }
-    // D7: the pinch lane — rerun mirrored (the below fans become
-    // above runs and mint their copies), swap the sides back. A
-    // mirror that also refuses surfaces the DIRECT run's error.
-    let mirrored = SplitPlane {
-        origin: plane.origin,
-        normal: -plane.normal,
-    };
-    match split_direct(operand, &mirrored, tol) {
-        Ok(SplitResult {
-            above,
-            below,
-            naming,
-            coincidences,
-        }) => Ok(SplitResult {
-            above: below,
-            below: above,
-            coincidences,
-            // The naming sides were recorded against the MIRRORED
-            // plane; swap them back with the bodies so `sections`
-            // states sides in the caller's orientation.
-            naming: naming.mirrored(),
-        }),
-        Err(_) => split_direct(operand, plane, tol),
-    }
-}
-
-/// One direct (non-mirrored) run of the split pipeline.
+/// One run of the split pipeline over an operand read as one solid.
 ///
 /// The pcurve minting pass (M5 PR 6, C4) runs last, on each side that
 /// carries material: this lane is where curved faces are minted, so it

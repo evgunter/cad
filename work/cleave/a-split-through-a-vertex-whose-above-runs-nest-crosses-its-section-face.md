@@ -62,3 +62,52 @@ root)` (germs in clockwise order to the tree of struts, star or not),
 which the split lane can call. Both designers who weighed the pierce
 ring judged this split half the more urgent: it ships an unsound body
 where the boolean refused.
+
+## Built (branch cleave/apex-section-corners)
+
+**Measured first** (origin/main 98a3817a1d, ε = 1e-9, 1e-6, 1e-12, every
+pose): the comb and the arch cone split at their closed-form volumes with
+both sides' section faces crossed (`corners_disjoint` fails; tier 3 reads
+`PinchCornerCrossed`); the single arch, zigzag and crown build sound.
+
+**Cause.** `insert_null_edges` minted one null edge per Above run at the
+ON vertex, every one hung at the vertex: a star whose edges pair each
+run's two germs. A null edge carries a section loop across the vertex
+from the face at one of its germs to the face at the other, so the loops
+close through the runs' germ pairs. The section's corners pair germs as
+the material lies between them round the plane's normal; the two agree
+only where the runs lie apart. Nested runs (and nested Below runs, the
+D7 pinches) close each loop across other corners.
+
+**Fix** (`splitting/insert.rs`): one null edge per corner of the section.
+The germs are ordered about the normal (`section_chords`, four new named
+readings, two germs along one direction placed by the alternation of
+the material's starts and ends), each start paired with the next germ,
+and the corners hung as the tree they make
+(`crate::null::ring_tree`, the pierce ring's reading, rooted at the
+piece holding the first Below entry). Each copy takes its corner's arc
+of the orbit and stands for that piece. Apart runs give the star as
+before. Two refusals: `SectionGermsEscalated` (a reading in band) and
+`SectionGermsUnordered`.
+
+**Rows.** `split_through_an_apex`: six bases (single arch, zigzag,
+crown, comb, arch cone, branching cone) × five poses × both normals,
+closed-form volumes, tier 3, `corners_disjoint`, and the vertices each
+side keeps at the apex; and a W whose valley germs lie ~3ε apart
+refusing `SectionGermsEscalated` at every pose. Run at ε = 1e-9, 1e-6,
+1e-12.
+
+**Moved.** The Λ-tip reduction rows (`m3_pr2_reduce`, `review_m3_pr2`)
+re-baseline: one null edge at the tip and one hung at its Above copy,
+no dangling strut, where the star minted two at the tip (one dangling)
+and the join then refused `DegenerateSection`. The L-prism reflex-corner
+unit row now pins the path its corners make. `review_m3_pr6`'s
+both-sided pinch, pinned as refusing, now splits with tier 3 on both
+sides; the D7 mirrored rerun is never entered over topo, sweep, stl,
+verbs and editor-core (8,315 tests) and is retired, with
+`SplitNaming::mirrored` and DESIGN.md's both-sided frontier entry.
+
+**Validator.** Tier 3 catches the crossed loop (check 9,
+`PinchCornerCrossed`); tier 2 cannot, a corner's order being an angle.
+`split` does not run tier 3 on its sides by design (its pinch pieces
+carry contacts it declares nowhere). No validator gap.

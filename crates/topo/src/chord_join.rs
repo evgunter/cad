@@ -48,7 +48,7 @@
 //!
 //! **Role resolution and side-specific certification are the callers'**
 //! — that is what makes this core side-agnostic. The split lane
-//! resolves roles by membership of its minted above-copy vertex set and
+//! resolves roles by membership of its null edges' above-end set and
 //! certifies the section area (`split_section_area`, refusing a
 //! zero-area polygon as [`SplitJoinError::DegenerateSection`]); the
 //! boolean lane resolves them from its own germ records. Neither
@@ -183,23 +183,15 @@ pub enum SplitJoinError {
     /// A completed section polygon bounds zero area: no degenerate body
     /// is ever emitted.
     ///
-    /// A run reaches it at a below-side PINCH (pieces meeting at a tip
-    /// line on the NEGATIVE side of the run's plane normal, where the
-    /// ch. 14 insertion mints no vertex copies), and at a section loop
-    /// that closes on one vertex, which bounds nothing however large
-    /// the section it should be
+    /// A section loop that closes on one vertex bounds nothing however
+    /// large the section it should be
     /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
-    /// A plane tangent to a curved wall does not reach it: rule (b)
-    /// classifies a convex graze with its material, and rule (a)
-    /// refuses a concave one ([`crate::SplitReduceError::KnifeEdge`]). Since M3
-    /// PR 6a (D7) the public [`crate::splitting::split`] consumes this
-    /// refusal as the pinch trigger and reruns under the mirrored plane
-    /// — where pinched fans are ABOVE runs and mint their copies — so a
-    /// pinch's success is orientation-independent. The error surfaces from
-    /// [`crate::splitting::split`] when the mirror run also refuses,
-    /// and from the join lane directly (e.g.
-    /// [`crate::splitting::plane_section`], which has no sides to
-    /// swap).
+    /// A pinch does not reach it: the split's reduction keeps one vertex
+    /// per piece round a vertex on each side, so pieces meeting there do
+    /// not share one. A plane tangent to a curved wall does not reach it
+    /// either: rule (b) classifies a convex graze with its material,
+    /// and rule (a) refuses a concave one
+    /// ([`crate::SplitReduceError::KnifeEdge`]).
     DegenerateSection {
         /// The completed null face.
         face: FaceKey,
@@ -242,7 +234,7 @@ pub enum SplitJoinError {
         /// How many such loops.
         count: usize,
     },
-    /// A section loop mixed above copies with below-side vertices —
+    /// A section loop mixed above ends with below ends —
     /// the joining invariant (heads join heads, tails join tails)
     /// failed, loudly.
     ///

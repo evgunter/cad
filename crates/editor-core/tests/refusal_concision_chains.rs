@@ -1620,6 +1620,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "UnderflowedSectorChord",
             R::UnderflowedSectorChord { vertex, face },
         ),
+        (
+            "SectionGermsEscalated",
+            R::SectionGermsEscalated {
+                vertex,
+                diag: diag(),
+            },
+        ),
+        ("SectionGermsUnordered", R::SectionGermsUnordered { vertex }),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),

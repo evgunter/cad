@@ -207,6 +207,19 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
+    classify_neighborhood_dirs(body, plane, sides, vertex, band).map(|(entries, _)| entries)
+}
+
+/// [`classify_neighborhood`], with each entry's direction out of the
+/// vertex beside it, scaled to its reach: an edge entry's [`chord`], a
+/// duplicate's bisector at its sector's arm.
+pub(super) fn classify_neighborhood_dirs<T: Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+    sides: &SecondaryMap<VertexKey, PlaneSide>,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<(Vec<SectorEntry>, Vec<Vec3<T>>), SplitReduceError> {
     if body.get_vertex(vertex).is_none() {
         return Err(SplitReduceError::StaleVertex { vertex });
     }
@@ -216,6 +229,7 @@ pub fn classify_neighborhood<T: Decide>(
     }
 
     let mut entries = Vec::with_capacity(orbit.len());
+    let mut dirs = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
         let (final_vertex, dir_a, conic_jet) = chord(body, vertex, he)?;
         // Entry class — "which side does this edge lead to":
@@ -288,6 +302,7 @@ pub fn classify_neighborhood<T: Decide>(
             kind: SectorEntryKind::Edge,
             class,
         });
+        dirs.push(dir_a);
 
         // Wideness of the sector CW-after `he` (bounded by `he` and the
         // next orbit edge), and the subdivision direction it implies:
@@ -330,12 +345,13 @@ pub fn classify_neighborhood<T: Decide>(
                 kind: SectorEntryKind::WideBisector,
                 class,
             });
+            dirs.push(bisector * arm);
         }
     }
 
     let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
     rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
-    Ok(entries)
+    Ok((entries, dirs))
 }
 
 #[cfg(test)]
