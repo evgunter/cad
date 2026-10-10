@@ -886,3 +886,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Not yet scoped:
     - the P1 c5 (Plane×Torus germ frame);
     - the P2 conic-past-band, which waits on pn-apex-line because it is in the same file.
+- 2026-10-10 21:58 — PR 4592 (pn-apex-line outcomes) is up and CI is green. Frozen head `c801c98a4`. A HOLDOUT concurrent pair, r4592a and r4592b, runs from one brief (sha256 `fe29a63e2929`) as local background subagents dispatched together. Coding byte 29, odd: A = R2.
+  - The lane departed from the item, with a measurement: the pair is bounded by the far nappe's start `|δ|/D`, not `|δ|/M`, because the item's π/6 pose was 0.04 m off, not "about ε". The √ε asymptote offset is derived to be inside the band whenever the pair is served.
+  - The half-angle measure-first lane has no PR yet.
