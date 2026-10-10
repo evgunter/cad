@@ -265,7 +265,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
   - `NoBodyRoots` becomes `EmptyProduct { unplaced: Vec<VarId> }` at `product.rs:200`, `checks.rs:983`, `eval/parts.rs:483` and `assembly.rs:1186`. Its recourse is "place a body in the world".
   - The unplaced bodies are the live `Body` outputs no placement reads, listed in document order.
 - **Retired with the gather** (audit H9): `placed_under_two_roots` (`product.rs:1246–1257`), `ProductError::Naming`'s once-per-product refusal in `carry_names` (`:1487`), and N4's gather sentence in `names/README.md`. Each copy is its own output, so its names are qualified by the copy as a pattern copy's are.
-- **Instances** (A2 as rewritten by #4220; FORK-1 for the signature, recorded on the node when the part is pinned). `eval/parts.rs:719` takes the part's world: one `Body` output per world placement of the part, each at its world coordinates.
+- **Instances** (A2 as rewritten by #4220). An instance defines one `body` output: the part's product, as one body (`eval/parts.rs:719`), all its copies in one multi-solid value. The placement semantics are stage 3's: FORK-1's per-placement signature, and how an instance enters a document, are decided there (`work/intent/an-instance-defines-one-body-per-part-placement.md`).
 - **Export** (`pncad` `export.rs:63`, `:261`) writes the world. It refuses an empty world, naming the unplaced bodies, and a stranded placement (A11 (2), #3441 narrowed by #4220).
 - **Refactor** (`refactor.rs`; audit H3, H7, H8):
   - Split's anchor vote (`:2546`), `UnplaceableRoot` (`:2568`) and `NoMaterial` (`:2865`) read "the cut's world placements". "A cut of unplaced material alone refuses" (A4) stays, and is now the whole rule for a cut with no placement.
@@ -278,7 +278,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
 
 **Migration** (a one-time check, not a rule). Regenerating a pre-C corpus file writes one `PlaceInWorld` per body-denoting root of its A10 root list, in root order, with the identity pose.
 
-- There is one exception: a root `InstantiatePart` on the world gauge with no placing mate. Its offset moves into the placement's pose and the instance sits at the empty offset. The pose lives in the placement in stage 2, by Ev's residue 3; see Q9.
+- Every migrated placement is at the identity. A root `InstantiatePart` keeps its offset on the instance, so no pose is written for it; the pose has no reader but the gather and export, and stage 3 replaces it.
 - The check is test 6: the regenerated file's product equals the pre-C product, body for body and in order.
 - After that nothing preserves membership. A later edit's product is what its placements say.
 
@@ -401,7 +401,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
    - Deleting the extrude under a fillet is accepted, with one `Maintenance::Strand` naming the fillet's `target` slot.
    - Evaluation refuses the fillet `UnresolvedRead { slot: Target }`, and undo restores it bit-equal.
    - *Breaks if* `DeleteWouldDangle` survives (the delete refuses) or the reader is re-pointed (the fillet evaluates).
-6. **(C) The one-time migration.** For every corpus `.pncad` and `golden.cad` regenerated at C, the file holds one `PlaceInWorld` per body-denoting pre-C root, in root order, and `product_recorded`'s body digests and order equal pre-C's. *Breaks if* the migration orders by document order instead of root order, places a non-body root, or drops a world-gauge instance's offset instead of moving it into the pose (that digest moves).
+6. **(C) The one-time migration.** For every corpus `.pncad` and `golden.cad` regenerated at C, the file holds one `PlaceInWorld` per body-denoting pre-C root, in root order, and `product_recorded`'s body digests and order equal pre-C's. *Breaks if* the migration orders by document order instead of root order, places a non-body root, or drops a root instance's offset (that digest moves).
 7. **(C) The measured part stays.**
    - `cut_plate` (tour) with its web `Measure` and `Assertion`, its cut part placed: `product()` holds one body whose digest equals the cut part's, where pre-C refused `NoBodyRoots`.
    - *Breaks if* any code still derives membership from sinks.
@@ -459,7 +459,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 - **B's size.** It is about 2,500 match and construction sites. Compile-driven, it is H on volume, and the `From<RecipeNodeId>` sugar is what keeps it mechanical. The real hand edits are the 37 `inputs()` callers.
 - **The schedule** (narrowed by FORK-5). In D, an observed definition is the first variable whose value exists only mid-evaluation. Only assertions read it, so `Doc::var_env` (`doc.rs:1651`) and the construction lanes are untouched. The new machinery is binding observed definitions at the assertion, per lane (Interval, Dual, Sym).
 - **Scripts and fixtures that relied on an implicit product.** After C nothing appears unless placed. Every test, demo and guide example that reads `product()` without placing must call `doc.place` (Python, Rust façade) or author a `PlaceInWorld`. The viewer's 73 `combine_ops` and 38 `creation_ops` rows are restated to read the placements their gestures author. This is the largest mechanical part of C, and the migration check (test 6) only covers regenerated files.
-- **The pose moving into the placement** (Q9). An instance on the world gauge has its offset moved into its placement's pose. One posed by mates or by a non-world gauge keeps its pose until stage 3. That is two homes for a world pose in the interim, which Ev accepted as transient (#4220, residue 3).
+- **Where a world pose lives** (Q9). C moves no offset: every instance keeps its offset, gauge or mates, and is placed at the identity (§4's migration note). The world pose of an instance therefore lives on the instance, and the `PlaceInWorld` pose holds only what a script authors, a transient home Ev accepted (#4220, residue 3) that stage 3 replaces (`a-world-gauge-instance-offset-did-not-move-into-its-placement`).
 - **E's diagnosis parity.** The four error families folding into one select error must not lose the `Diagnosis` the viewer shows. Test 16 pins it, and `refusal_concision_chains` (12 sites) will move.
 - **F and the at-rest gate.** Today the gate resolves a mate's face against the *gathered product's* name table (instance-qualified), not against the member's body. The two tables agree only when the qualifier is carried faithfully through the read. Q8 states how, and tests 19 and 22 check it.
 - **Re-blessing four times** (B, D, E, F). Each PR states which pins moved and why, and f64 digests are the guard.
@@ -531,8 +531,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
    - So there is one resolution, at the selection, and none against the product table.
    - A member no placement reads has no world copy, and the mate mints nothing.
 9. **Where a stage-2 world pose lives** (Ev's residue 3: in the placement).
-   - **Recommendation:** C's migration moves a world-gauge instance's offset into its `PlaceInWorld` pose, and the instance sits at the empty offset.
-   - An instance posed by placing mates, or by a non-world gauge, keeps that pose until stage 3, which retires gauges and makes placement the bundle of mates, and gets an identity world placement.
+   - **As built:** C moves no offset. Every instance keeps its pose (its offset, gauge or placing mates) until stage 3, which retires gauges and makes placement the bundle of mates, and gets an identity world placement (§4's migration note). Moving a world-gauge instance's offset into the `PlaceInWorld` pose would grow the home stage 3 replaces; it is filed as `a-world-gauge-instance-offset-did-not-move-into-its-placement`.
    - Moving every gauge chain now would rebuild A11 (2) one stage before it is deleted.
 
 **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`), mapped to this spec:

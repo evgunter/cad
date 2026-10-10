@@ -160,7 +160,7 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.625)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    r.insert(Node::Split {
+    let split = r.insert(Node::Split {
         target: union.into(),
         tool: tool.into(),
     });
@@ -188,7 +188,7 @@ pub fn document() -> CorpusDoc {
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    r.insert(Node::Pattern {
+    let circular = r.insert(Node::Pattern {
         input: lone.into(),
         count: Formula::count(2),
         kind: PatternKind::Circular {
@@ -208,7 +208,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
     let rev_axis = r.insert(axis_in_plane(rev_plane, (0.0, 0.0), (0.0, 1.0)));
-    r.insert(Node::Revolve {
+    let revolve = r.insert(Node::Revolve {
         profile: rev_profile.into(),
         axis: rev_axis.into(),
         angle: ang(std::f64::consts::FRAC_PI_2),
@@ -334,6 +334,12 @@ pub fn document() -> CorpusDoc {
         from: a_body,
         to: b_body,
     });
+
+    // The world, in the order the document's product held it.
+    super::place_instances(&mut r, circular, 2);
+    super::place_halves(&mut r, split);
+    super::place_instances(&mut r, linear, 3);
+    r.place(revolve);
 
     CorpusDoc {
         name: "kitchen_sink",

@@ -10,7 +10,8 @@
 use crate::common;
 use editor_core::ExtrudeSide;
 use pncad::document::{
-    Dimension, Doc, DocEdit, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
+    Dimension, Doc, DocEdit, EditError, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId, VarId,
+    VarName,
 };
 use pncad::geom_core::Tol;
 use viewer::props::{self, SlotValue};
@@ -118,6 +119,7 @@ fn accepting_an_offer_makes_the_slot_read_the_variable() {
         node: a,
         slot: SlotId::Distance,
         var: w,
+        name: None,
     });
     assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
     assert!(
@@ -314,6 +316,7 @@ fn accepting_what_is_not_offered_is_refused() {
         node: a,
         slot: SlotId::Distance,
         var: w,
+        name: None,
     });
     assert!(
         matches!(&accepted.refusal, Some(Refusal::NotOffered(var)) if var.id() == w),
@@ -352,23 +355,117 @@ fn typed_text_is_offered_and_a_formula_is_not() {
     );
 }
 
-/// **Two slots that share a variable are made two by a value typed at
-/// either** (D10: declining is what makes two distinct, and typing is
-/// a new variable whatever the slot read).
+/// **Accepting an unnamed offer names it, in the same step** (VR2: a
+/// variable two slots share has a name): accepted with no name the door
+/// refuses `SharedVarNeedsName` and nothing moves; accepted with one, the
+/// name and the share land as one history step.
 #[test]
-fn a_value_typed_at_a_shared_slot_makes_it_its_own() {
+fn an_unnamed_offer_is_accepted_under_a_name_in_one_step() {
     let (mut session, a, b, _w, _k) = two_extrudes();
     typed(&mut session, a, 0.010);
     let shared = reads(&session, b);
+    assert!(session.committed_doc().var_name(shared).is_none());
+    let before = session.history().len();
+    let accept = |name| SessionOp::SetSlotVariable {
+        node: a,
+        slot: SlotId::Distance,
+        var: shared,
+        name,
+    };
+    let refused = session.perform(accept(None));
+    assert!(
+        matches!(
+            &refused.refusal,
+            Some(Refusal::Edit(edit))
+                if matches!(**edit, EditError::SharedVarNeedsName { ref var } if var.id() == shared)
+        ),
+        "an unnamed offer accepted with no name refuses, naming it: {:?}",
+        refused.refusal
+    );
+    assert_ne!(reads(&session, a), shared, "nothing moved");
+    assert_eq!(session.history().len(), before);
+
+    let name = VarName::from_static("depth");
+    let accepted = session.perform(accept(Some(name.clone())));
+    assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+    assert_eq!(reads(&session, a), shared, "a and b read one variable");
+    assert_eq!(session.committed_doc().var_name(shared), Some(&name));
+    assert_eq!(session.history().len(), before + 1, "one step");
+}
+
+/// **Accepting a named offer renames nothing** (VR2: a name is given to
+/// share an unnamed variable): a name carried for `w`, which has one,
+/// refuses `OfferIsNamed`, and `w` keeps its name and the slot its read.
+#[test]
+fn a_named_offer_takes_no_second_name() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    let minted = reads(&session, a);
+    let refused = session.perform(SessionOp::SetSlotVariable {
+        node: a,
+        slot: SlotId::Distance,
+        var: w,
+        name: Some(VarName::from_static("width")),
+    });
+    assert!(
+        matches!(&refused.refusal, Some(Refusal::OfferIsNamed(var)) if var.id() == w),
+        "{:?}",
+        refused.refusal
+    );
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.var_name(w).map(VarName::as_str),
+        Some("w"),
+        "w keeps its name"
+    );
+    assert_eq!(reads(&session, a), minted, "and the slot its read");
+}
+
+/// **Two slots that share a variable are made two by the text door,
+/// not by a typed value** (VR2: a shared variable is named, and a slot
+/// reading a named variable is driven by it): a value typed at either
+/// is refused, naming the variable, and moves nothing; a written
+/// quantity set as its text makes it its own.
+#[test]
+fn a_shared_slot_is_made_its_own_by_its_text() {
+    let (mut session, a, b, _w, _k) = two_extrudes();
+    typed(&mut session, a, 0.010);
+    let shared = reads(&session, b);
+    let name = VarName::from_static("depth");
     let accepted = session.perform(SessionOp::SetSlotVariable {
         node: a,
         slot: SlotId::Distance,
         var: shared,
+        name: Some(name.clone()),
     });
     assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
     assert_eq!(reads(&session, a), shared, "a and b read one variable");
 
-    typed(&mut session, a, 0.020);
+    let refused = session.perform(SessionOp::SetSlot {
+        node: a,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(0.020),
+    });
+    let named: Option<Vec<_>> = match &refused.refusal {
+        Some(Refusal::DrivenByExpression { variables, .. }) => {
+            Some(variables.iter().map(|var| var.name().cloned()).collect())
+        }
+        _ => None,
+    };
+    assert_eq!(
+        named,
+        Some(vec![Some(name.clone())]),
+        "a typed value at a shared slot is refused, naming depth: {:?}",
+        refused.refusal
+    );
+    assert_eq!(reads(&session, a), shared, "nothing moved");
+
+    let own = session.perform(SessionOp::SetSlotExpression {
+        node: a,
+        slot: SlotId::Distance,
+        text: "20 mm".to_owned(),
+    });
+    assert!(own.refusal.is_none(), "{:?}", own.refusal);
     assert_ne!(reads(&session, a), shared, "a reads a new variable");
     assert_eq!(reads(&session, b), shared, "b keeps the one it read");
     assert_eq!(

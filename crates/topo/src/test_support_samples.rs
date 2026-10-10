@@ -1414,6 +1414,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             error: crate::ShellClassifyError::Straddles {
                 shell: ShellKey::default(),
             },
+            sliver: None,
         },
     ));
 

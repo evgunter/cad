@@ -15,7 +15,7 @@ priority: P4
 
 **Housekeeping REACH's lanes left behind.** `contain.rs` links a
 `wrap_rims` that moved, so the nightly private rustdoc row fails;
-`sweep_split_admitting_cones` is a third copy of the sweep preamble and
+`sweep_split` is a third copy of the sweep preamble and
 `conic_clearance` re-spells the first-harmonic extreme read; line ×
 quadric root code has two homes and the cone form three spellings;
 `apply_cut_ins` walks its loops twice and names different questions

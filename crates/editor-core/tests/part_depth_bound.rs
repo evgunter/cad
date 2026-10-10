@@ -34,7 +34,7 @@ use editor_core::{
     PartResolver, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, mate_reach,
     product,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, run, square};
 use geom_core::Tol;
 use std::sync::Arc;
@@ -51,7 +51,8 @@ fn leaf() -> ProfileDoc {
 }
 
 /// [`leaf`] under its own identity, so a store holds it as a distinct
-/// part; and the block extrude whose caps the leaf's product names.
+/// part, its union placed in its world; and the block extrude whose
+/// caps the leaf's product names, as that placement's copy.
 fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -84,7 +85,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = insert(
+    let (doc, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
@@ -93,13 +94,28 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
             declare: Vec::new(),
         },
     );
-    (doc, block)
+    (fixture::place(doc, union).0, block)
 }
 
-/// A document whose one node instantiates `below`.
+/// The cap `end` of a [`leaf_labelled`] part's `block`, as the part's
+/// product names it: under its one placement's copy (A10).
+fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core::FaceName {
+    let [copy] = leaf.placements()[..] else {
+        panic!("a leaf places its union once");
+    };
+    let cap = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: block,
+        path: vec![editor_core::RoleSeg::Cap(end)],
+    };
+    editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
+}
+
+/// A document whose one instance, of `below`, it places in its world.
 fn instantiating(label: &str, below: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    insert(doc, Node::instantiate_part(below))
+    let (doc, instance) = insert(doc, Node::instantiate_part(below));
+    (fixture::place(doc, instance).0, instance)
 }
 
 /// A store holding the leaf and `levels` documents above it, each
@@ -274,7 +290,8 @@ fn unpinned_ref(label: &str) -> DocRef {
     }
 }
 
-/// A document whose nodes instantiate `below`, in order.
+/// A document whose nodes instantiate `below`, in order, each placed
+/// in its world.
 fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -283,7 +300,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
         doc = d;
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::place_all(doc, &ids), ids)
 }
 
 /// A refusal as a surface draws it: its own sentence, then each
@@ -398,6 +415,11 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     );
 }
 
+/// `leaf` stored, with its reference.
+fn stored(store: &mut PartStore, leaf: (ProfileDoc, RecipeNodeId)) -> Stored {
+    (store.insert(leaf.0.clone(), Tol::witness()), leaf)
+}
+
 fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(
         origin,
@@ -411,16 +433,27 @@ fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
 /// A document instantiating `first` and `second` — each a reference
 /// with the block its caps are named on — with a mate between them,
 /// admitted at the insert door over `authoring`'s reach.
+/// A stored leaf: its reference, and its document with its block.
+type Stored = (DocRef, (ProfileDoc, RecipeNodeId));
+
 fn mated(
     label: &str,
-    (first, first_block): (DocRef, RecipeNodeId),
-    (second, second_block): (DocRef, RecipeNodeId),
+    (first, (first_doc, first_block)): Stored,
+    (second, (second_doc, second_block)): Stored,
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = instantiating_all(label, &[first, second]);
     let mate = Node::Mate {
-        a: fixture::head(in_part(ids[0], first_block, CapEnd::End)),
-        b: fixture::head(in_part(ids[1], second_block, CapEnd::Start)),
+        a: fixture::head(
+            leaf_cap(&first_doc, first_block, CapEnd::End)
+                .in_part(ids[0])
+                .into_name(),
+        ),
+        b: fixture::head(
+            leaf_cap(&second_doc, second_block, CapEnd::Start)
+                .in_part(ids[1])
+                .into_name(),
+        ),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0]),
@@ -444,8 +477,8 @@ fn mated(
 #[test]
 fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_entered() {
     let mut store = PartStore::new();
-    let first = store.insert_part(leaf_labelled("part-descent-first"), Tol::witness());
-    let second = store.insert_part(leaf_labelled("part-descent-second"), Tol::witness());
+    let first = stored(&mut store, leaf_labelled("part-descent-first"));
+    let second = stored(&mut store, leaf_labelled("part-descent-second"));
     let (assembly, ids) = mated(
         "part-descent-mated",
         first,
@@ -494,8 +527,8 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 #[test]
 fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let mut authoring = PartStore::new();
-    let asked = authoring.insert_part(leaf_labelled("part-descent-asked"), Tol::witness());
-    let lost = authoring.insert_part(leaf_labelled("part-descent-lost"), Tol::witness());
+    let asked = stored(&mut authoring, leaf_labelled("part-descent-asked"));
+    let lost = stored(&mut authoring, leaf_labelled("part-descent-lost"));
     let asked_ref = asked.0;
     // `lost` is the mate's second operand, so its group roots the pair
     // and the solve asks for its part first.

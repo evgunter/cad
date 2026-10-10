@@ -33,13 +33,11 @@
 //! `MeasureMalformed`, `Dimension`, `InvalidDistribution`,
 //! `PlacementAxis` and `MetaUnversioned` each hold another error type,
 //! `inner_variant` names its arm, and the fields inside it belong to
-//! that type's own door. `Roots` is the exception and it is not a
-//! counter-example: its payload is recipe node ids, which are leaf
-//! values, so they cross under the node roles every other arm uses.
+//! that type's own door.
 
 use pncad::document::{
-    ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, RootFault,
-    VarName, VarRef,
+    ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, VarName,
+    VarRef,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
@@ -70,9 +68,6 @@ pub struct EditPayload<'a> {
     /// A node the subject NAMES: an operand that does not resolve, an
     /// input reached twice, the measure an assertion constrains.
     pub input: Option<RecipeNodeId>,
-    /// A node DOWNSTREAM of [`Self::node`] that references it — the
-    /// descendant root that makes an ancestor root redundant.
-    pub referenced_by: Option<RecipeNodeId>,
     /// The named expression slot the refusal is about
     /// ([`crate::tags::slot_id_tag`]).
     pub slot: Option<&'static str>,
@@ -144,11 +139,10 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 24] {
+    pub fn presence(&self) -> [(&'static str, bool); 23] {
         let Self {
             node,
             input,
-            referenced_by,
             slot,
             param,
             name,
@@ -174,7 +168,6 @@ impl EditPayload<'_> {
         [
             ("node", node.is_some()),
             ("input", input.is_some()),
-            ("referenced_by", referenced_by.is_some()),
             ("slot", slot.is_some()),
             ("param", param.is_some()),
             ("name", name.is_some()),
@@ -212,7 +205,6 @@ impl EditPayload<'_> {
     pub const NONE: Self = Self {
         node: None,
         input: None,
-        referenced_by: None,
         slot: None,
         param: None,
         name: None,
@@ -417,6 +409,16 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             ..none
         },
+        EditError::MeasuresWorldCopy { placement } => EditPayload {
+            node: Some(placement.id()),
+            ..none
+        },
+        EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
+            ..none
+        },
         EditError::UnknownSlot { id, slot } => EditPayload {
             node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),
@@ -551,6 +553,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::VarNameUnchanged { var }
         | EditError::AnonymousVarUnread { var }
+        | EditError::SharedVarNeedsName { var }
         | EditError::DeleteAnonymousVar { var } => EditPayload {
             param: var.name(),
             ..none
@@ -696,28 +699,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             pin: Some(*pin),
             ..none
-        },
-        // The product-root invariants read their WORD off the fault
-        // (`variant` is `root_duplicate`, not `roots`), and their
-        // payload is recipe node ids — leaf values, so they cross
-        // under the same node roles every other arm uses.
-        EditError::Roots(fault) => match fault {
-            RootFault::NotLive { root } | RootFault::Duplicate { root } => EditPayload {
-                node: Some(root.id()),
-                ..none
-            },
-            RootFault::Uncovered { node } => EditPayload {
-                node: Some(node.id()),
-                ..none
-            },
-            RootFault::Ancestor {
-                ancestor,
-                descendant,
-            } => EditPayload {
-                node: Some(ancestor.id()),
-                referenced_by: Some(descendant.id()),
-                ..none
-            },
         },
     }
 }

@@ -60,6 +60,8 @@ pub mod edge_nurbs;
 pub mod enters;
 pub mod extent;
 pub mod fitted_lane;
+#[cfg(test)]
+mod grid_offsets;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -131,7 +133,7 @@ pub use intersect::{
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
-pub use mapped::{MappedCurve, SketchSegment};
+pub use mapped::{MappedCurve, SketchSegment, SweepRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,

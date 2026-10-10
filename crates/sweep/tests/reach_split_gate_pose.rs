@@ -15,7 +15,7 @@ use core::f64::consts::PI;
 use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
-use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
@@ -27,7 +27,6 @@ use topo::{AtRestBody, Body, DATUM_UNIT_NORM, transform_rigid};
 struct Fixture {
     name: &'static str,
     chain: Vec<(Point2<f64>, f64)>,
-    tangent_joints: Vec<usize>,
     /// The profile's height window and its smooth pieces' breakpoints.
     breaks: Vec<f64>,
     radius_at: fn(f64, f64) -> f64,
@@ -51,7 +50,6 @@ fn capped(s: f64) -> Fixture {
             (a, bulge),
             (b, 0.0),
         ],
-        tangent_joints: Vec::new(),
         breaks: vec![0.0, s, 1.5 * s],
         radius_at: |s, y| {
             if y <= s {
@@ -75,7 +73,6 @@ fn truncated(s: f64) -> Fixture {
     Fixture {
         name: "truncated ball",
         chain: vec![(a, bulge), (b, 0.0), (Point2::new(0.0, s), 0.0)],
-        tangent_joints: Vec::new(),
         breaks: vec![-s, s],
         radius_at: |s, y| (sq(1.25 * s) - sq(y - 0.25 * s)).max(0.0).sqrt(),
         meridian: |s, t| {
@@ -100,7 +97,6 @@ fn rounded(s: f64) -> Fixture {
             (b, 0.0),
             (Point2::new(0.0, 1.25 * s), 0.0),
         ],
-        tangent_joints: vec![2, 3],
         breaks: vec![0.0, s, 1.25 * s],
         radius_at: |s, y| {
             if y <= s {
@@ -118,9 +114,7 @@ fn rounded(s: f64) -> Fixture {
 
 fn build(f: &Fixture) -> Body<f64> {
     revolve(
-        &validated(vec![
-            bulge_loop(f.chain.clone()).with_tangent_joints(f.tangent_joints.clone()),
-        ]),
+        &validated(vec![bulge_loop(f.chain.clone())]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),

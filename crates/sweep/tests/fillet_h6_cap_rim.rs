@@ -165,7 +165,6 @@ fn obround_loop() -> ProfileLoop<f64> {
         (Point2::new(1.0, 0.5), 0.0),
         (Point2::new(-1.0, 0.5), 1.0),
     ])
-    .with_tangent_joints(vec![0, 1, 2, 3])
 }
 
 /// A rounded-corner square: line legs joined by quarter-arc fillets,
@@ -182,7 +181,6 @@ fn stadium_corners_loop() -> ProfileLoop<f64> {
         (Point2::new(-2.0, 1.0), 0.0),
         (Point2::new(-2.0, -1.0), q),
     ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7])
 }
 
 /// A concave arc leg (negative bulge): the wall cylinder's material is

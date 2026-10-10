@@ -304,10 +304,10 @@ fn a_ledge_s_two_bands_meter_each_other_until_their_trimlines_meet() {
 
 /// A prism over a bulge loop, `z ∈ [z0, z1]`.
 fn bulged(pts: Vec<(Point2<f64>, f64)>, z0: f64, z1: f64) -> Body<f64> {
-    use profile::{Profile, RawLoop, test_support::bulge_loop};
+    use profile::{Profile, test_support::bulge_loop};
     use sweep::{ExtrudeSide, Extrusion, extrude};
-    let n = pts.len();
-    let lp = bulge_loop(pts).with_tangent_joints((0..n).collect());
+    let _n = pts.len();
+    let lp = bulge_loop(pts);
     let profile = Profile::new(crate::common::cavity::sketch_at(z0), vec![lp])
         .validate(tol())
         .expect("the profile");

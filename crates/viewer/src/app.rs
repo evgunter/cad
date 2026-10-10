@@ -301,7 +301,7 @@ pub(crate) fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
 /// and `▸` are all absent from that stack (`▲`/`▼` exist only in
 /// `Hack-Regular`, which is the MONOSPACE family and never reached by
 /// a button label), so every row of the path form carried three empty
-/// boxes and every product root in the feature tree carried a fourth.
+/// boxes and every placed body in the feature tree carried a fourth.
 ///
 /// They are named here rather than spelled at each use so the rule has
 /// somewhere to be written down: **a glyph added to this list must
@@ -313,8 +313,9 @@ pub(crate) const GLYPH_REMOVE: &str = "×";
 pub(crate) const GLYPH_UP: &str = "⬆";
 /// Move a list row later — see [`GLYPH_REMOVE`] for the font rule.
 pub(crate) const GLYPH_DOWN: &str = "⬇";
-/// Marks a product root in the feature tree — see [`GLYPH_REMOVE`].
-pub(crate) const GLYPH_ROOT: &str = "»";
+/// The world badge: marks a body the world places, in the feature tree
+/// — see [`GLYPH_REMOVE`].
+pub(crate) const GLYPH_WORLD: &str = "»";
 
 /// One docked pane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -336,8 +337,8 @@ pub struct ViewerApp {
     scene: Arc<SceneMesh>,
     /// What the cursor picks against, and the rebuild-on-stale loop
     /// that keeps it current — one attempt per (generation, δ), so a
-    /// document with a failed root does not re-tessellate every
-    /// healthy root on every repainted frame.
+    /// document with a failed placement does not re-tessellate every
+    /// healthy copy on every repainted frame.
     picks: PickCache,
     /// Where the id pass leaves its answer: `serial << 32 | id`.
     id_answer: Arc<AtomicU64>,
@@ -897,7 +898,7 @@ impl ViewerApp {
     /// silently, because nothing was taken away from anyone.
     ///
     /// A fit that REFUSED leaves δ alone: the document is one whose
-    /// roots do not gather, or one that tessellates at NEITHER of the
+    /// placements do not gather, or one that tessellates at NEITHER of the
     /// two δ the fit can fall back between (`scene::fit_delta`'s scale
     /// probe and the rung that prices the request — a refusal at one of
     /// them is answered by the other, so only a body that refuses at
@@ -1432,7 +1433,7 @@ impl ViewerApp {
     /// — one composed sentence carrying its subject, its story and
     /// its recourse (`editor_core::finding`) — so the window states
     /// no vocabulary of its own, and beside it sits the one thing
-    /// chrome can add: a jump to the root the finding is about, which
+    /// chrome can add: a jump to the body the finding is about, which
     /// is the feature a reader would otherwise have to find by
     /// counting rows.
     ///
@@ -1747,7 +1748,7 @@ impl ViewerApp {
                 draw_badge(ui, &self.theme, &badge);
             }
             // The advisory checks. It REPORTS: the scene below is
-            // drawn either way, because a product whose roots
+            // drawn either way, because a product whose copies
             // interpenetrate renders a picture that looks almost
             // right and the finding is the only thing that says
             // otherwise. The badge OPENS the window the findings'
@@ -3539,7 +3540,7 @@ mod properties_pane_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::{Axis3, RecipeNodeId, SlotId};
+    use pncad::document::{Axis3, Node, RecipeNodeId, SlotId};
 
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
@@ -3622,8 +3623,8 @@ mod properties_pane_tests {
         let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
             app_frame(&ctx, app, &mut frame, None, events)
         };
-        // The startup document's last node is its body (`plate_with_hole`).
-        let body = *app.session.doc().ids().last().expect("a startup body");
+        // The startup document's body is its extrude (`plate_with_hole`).
+        let body = extrude();
         app.tools.open(tool);
         clicked(&mut app, picks(body));
         let mut landed = Vec::new();
@@ -3686,12 +3687,13 @@ mod properties_pane_tests {
     /// way the seated panels say a pick.
     #[test]
     fn the_mate_panel_shows_its_held_picks() {
-        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |body| {
-            vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
+        let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
+            vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
+        // A pick is on the drawn copy, and says so.
         let line = format!(
-            "pick a: face of Extrude {}; pick b: —",
-            test_utils::refusal::tag(body.0.digest())
+            "pick a: face of PlaceInWorld {}; pick b: —",
+            test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3929,6 +3931,12 @@ mod properties_pane_tests {
         startup_node(2)
     }
 
+    /// The startup plate's world placement: the node its drawn copy is
+    /// picked on.
+    fn placement() -> RecipeNodeId {
+        startup_node(3)
+    }
+
     /// The startup plate's frame datum, whose origin is a vector.
     fn frame_datum() -> RecipeNodeId {
         startup_node(0)
@@ -4062,6 +4070,7 @@ mod properties_pane_tests {
                 node: extrude(),
                 slot: SlotId::Distance,
                 var,
+                share: false,
                 text: String::new(),
             }),
             "the field opens empty, for the variable the slot reads"
@@ -4113,6 +4122,7 @@ mod properties_pane_tests {
             node: extrude(),
             slot: SlotId::Distance,
             var: beam,
+            name: None,
         });
         assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
         let painted = pane.quiet();
@@ -4126,6 +4136,81 @@ mod properties_pane_tests {
                 .map(|name| name.as_str()),
             Some("beam"),
             "beam keeps its name"
+        );
+    }
+
+    /// **Accepting an unnamed offer names it and shares it as one
+    /// step** (VR2: a variable two slots share has a name): the frame's
+    /// origin x and the extrude's depth are typed alike, so the depth is
+    /// offered the origin's unnamed variable; its button opens the empty
+    /// naming field rather than sharing it, the document moving not at
+    /// all, and the commit names it and makes the depth read it in one
+    /// undo step, which undo takes back whole.
+    #[test]
+    fn accepting_an_unnamed_offer_opens_the_name_field_and_shares_as_one_step() {
+        let value = 0.004;
+        let mut pane = Driven::with(vec![
+            SessionOp::SetSlot {
+                node: frame_datum(),
+                slot: SlotId::Origin(pncad::document::Axis3::X),
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::Select(Selection::Node(extrude())),
+        ]);
+        pane.quiet();
+        let doc = pane.app.session.committed_doc();
+        let origin = doc
+            .slot(frame_datum(), SlotId::Origin(pncad::document::Axis3::X))
+            .expect("the frame reads its origin x");
+        assert!(doc.var_name(origin).is_none(), "the premise: it is unnamed");
+        let offered = pane.app.session.offered(extrude(), SlotId::Distance);
+        let offer = offered
+            .iter()
+            .find(|offer| offer.var == origin)
+            .expect("the origin's variable is offered")
+            .label
+            .clone();
+        let steps = pane.app.session.history().len();
+        pane.click(&offer);
+        assert_eq!(
+            pane.app.drafts.name_draft,
+            Some(crate::drafts::NameDraft {
+                node: extrude(),
+                slot: SlotId::Distance,
+                var: origin,
+                share: true,
+                text: String::new(),
+            }),
+            "the field opens empty, for the variable offered"
+        );
+        assert_eq!(pane.app.session.history().len(), steps, "nothing moved yet");
+        pane.app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is open")
+            .text = "gap".to_owned();
+        pane.quiet();
+        let prior = pane.app.session.committed_doc().clone();
+        pane.click("Name");
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(doc.var_name(origin).map(|name| name.as_str()), Some("gap"));
+        assert_eq!(
+            doc.slot(extrude(), SlotId::Distance),
+            Some(origin),
+            "the depth reads the named variable"
+        );
+        assert_eq!(pane.app.session.history().len(), steps + 1, "one step");
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+        assert!(pane.app.session.perform(SessionOp::Undo).refusal.is_none());
+        assert!(
+            pane.app.session.committed_doc().bit_eq(&prior),
+            "undo takes the name and the share back whole"
         );
     }
 
@@ -4844,15 +4929,17 @@ mod properties_pane_tests {
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 
-    /// A cap of `node`'s one body, as a face pick on it.
-    fn cap_of(node: RecipeNodeId, end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
+    /// A cap of the startup extrude, as a face pick on its drawn copy:
+    /// the extrude's cap in the placement's wrap, on the placement.
+    fn cap_of(end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
         crate::session::FaceSelection {
             name: pncad::prelude::StableName {
                 kind: pncad::prelude::EntityKind::Face,
-                node,
+                node: extrude(),
                 path: vec![pncad::prelude::RoleSeg::Cap(end)],
-            },
-            node,
+            }
+            .in_copy(placement()),
+            node: placement(),
             body: 0,
         }
     }
@@ -4926,7 +5013,7 @@ mod properties_pane_tests {
             });
             driven.settle();
             driven.click(crate::pane::create::ADD_FEATURE);
-            let top = cap_of(extrude(), pncad::prelude::CapEnd::End);
+            let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
                 driven.app.drafts.datum_face.as_ref(),
@@ -4950,7 +5037,7 @@ mod properties_pane_tests {
         use pncad::prelude::CapEnd;
         const NONE: u32 = IdMap::NOTHING;
         let (mut driven, top) = Driven::holding_the_top_cap();
-        let bottom = cap_of(extrude(), CapEnd::Start);
+        let bottom = cap_of(CapEnd::Start);
         let (top_id, bottom_id) = (driven.patch_of(&top), driven.patch_of(&bottom));
         let marked = driven.marks();
         assert_eq!(
@@ -4989,14 +5076,15 @@ mod properties_pane_tests {
         assert_eq!(driven.held(), [bottom_id, NONE, NONE], "held again");
     }
 
-    /// **A held face a later feature consumed is neither marked nor
-    /// committed against.** The pick still RESOLVES in the landed
-    /// evaluation — the extrude is still evaluated, under the
-    /// transform — but the picture draws the transform's copy, so the
-    /// mark goes and the form refuses with the fault that says why,
-    /// and a click on the withheld button adds nothing.
+    /// **A held face on a copy a feature re-points stays held, drawn
+    /// and committable.** The pick is on the placement's copy; the
+    /// transform re-points that placement (A10), and a transform carries
+    /// the extrude's names unchanged, so the copy still draws the face —
+    /// moved — and the form commits a frame on the transform's body.
+    /// (A held face the picture does not draw — a hidden instance's —
+    /// is `tests/assembly_display.rs`'s row.)
     #[test]
-    fn the_add_datum_button_refuses_a_held_face_the_picture_does_not_draw() {
+    fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
         use crate::session::FaceFrameFault;
         use crate::test_support::{ang, len, scl};
         let not_drawn = FaceFrameFault::NotDrawn.to_string();
@@ -5014,18 +5102,39 @@ mod properties_pane_tests {
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),
         });
-        assert_eq!(driven.held(), [crate::pickindex::IdMap::NOTHING; 3]);
-        assert!(
-            said(&mut driven),
-            "the form says why it withholds the button"
+        let [held, ..] = driven.held();
+        assert_ne!(
+            held,
+            crate::pickindex::IdMap::NOTHING,
+            "the moved copy still draws the held face"
         );
-        let nodes = driven.app.session.doc().ids().len();
+        assert!(!said(&mut driven), "and the form does not withhold it");
+        let transform = *driven
+            .app
+            .session
+            .doc()
+            .ids()
+            .iter()
+            .find(|&&id| {
+                matches!(
+                    driven.app.session.doc().node(id),
+                    Some(Node::Transform { .. })
+                )
+            })
+            .expect("the transform landed");
         driven.click(crate::pane::create::ADD_DATUM);
         driven.quiet();
-        assert_eq!(
-            driven.app.session.doc().ids().len(),
-            nodes,
-            "the withheld button committed a datum"
+        let doc = driven.app.session.doc();
+        let datum = doc.ids().into_iter().find(|&id| {
+            matches!(
+                doc.node(id),
+                Some(Node::Datum(pncad::document::Datum::FaceFrame { .. }))
+            )
+        });
+        let datum = datum.expect("the button committed a frame on the face");
+        assert!(
+            doc.upstream(datum).contains(&transform),
+            "on the transform's body, which the copy places"
         );
     }
 
@@ -5169,8 +5278,8 @@ mod properties_pane_tests {
         const NONE: u32 = IdMap::NOTHING;
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        let a = cap_of(extrude(), CapEnd::End);
-        let b = cap_of(extrude(), CapEnd::Start);
+        let a = cap_of(CapEnd::End);
+        let b = cap_of(CapEnd::Start);
         let (a_id, b_id) = (driven.patch_of(&a), driven.patch_of(&b));
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![
@@ -5198,7 +5307,7 @@ mod properties_pane_tests {
         let edge = {
             let index = driven.on_screen();
             let id = *index
-                .edges_in(extrude(), 0)
+                .edges_in(placement(), 0)
                 .first()
                 .expect("the extrude draws edges");
             crate::session::EdgeSelection {
@@ -5206,7 +5315,7 @@ mod properties_pane_tests {
                     .edge_name_of(id)
                     .expect("a drawn edge is named")
                     .clone(),
-                node: extrude(),
+                node: placement(),
                 body: 0,
             }
         };
@@ -5234,13 +5343,13 @@ mod properties_pane_tests {
         driven.settle();
         let (edge, drawn) = {
             let index = driven.on_screen();
-            let drawn = index.edges_in(extrude(), 0).to_vec();
+            let drawn = index.edges_in(placement(), 0).to_vec();
             let edge = crate::session::EdgeSelection {
                 name: index
                     .edge_name_of(drawn[0])
                     .expect("a drawn edge is named")
                     .clone(),
-                node: extrude(),
+                node: placement(),
                 body: 0,
             };
             (edge, drawn)
@@ -5260,7 +5369,7 @@ mod properties_pane_tests {
             .expect("the settled app holds an index")
             .unname_edge(drawn[1]);
         let refused = crate::pickindex::EdgeNamesRefused {
-            node: extrude(),
+            node: placement(),
             body: 0,
             first,
             named: drawn.len() - 1,
@@ -5270,7 +5379,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of Extrude"),
+            refused_said.contains("of PlaceInWorld"),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -5388,16 +5497,17 @@ mod properties_pane_tests {
         Some(pncad::document::Label::new(text).expect("a label"))
     }
 
-    /// **The rename `shown plate` committed and held behind `gate`**,
-    /// two frames drawn after it: what they painted, and the extrude
-    /// as the landed document still says it.
+    /// **The rename `shown plate` of `node` committed and held behind
+    /// `gate`**, two frames drawn after it: what they painted, and
+    /// `node` as the landed document still says it.
     fn renamed_behind(
         driven: &mut Driven,
         gate: &std::sync::atomic::AtomicBool,
+        node: RecipeNodeId,
     ) -> (Vec<(String, egui::Rect)>, String) {
         gate.store(false, std::sync::atomic::Ordering::SeqCst);
         driven.app.perform_batch(vec![SessionOp::SetLabel {
-            node: extrude(),
+            node,
             label: label("shown plate"),
         }]);
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
@@ -5407,7 +5517,7 @@ mod properties_pane_tests {
                 .app
                 .session
                 .doc()
-                .spoken(extrude())
+                .spoken(node)
                 .to_string()
                 .contains("shown plate"),
             "the shown document is ahead of the landed one"
@@ -5418,7 +5528,7 @@ mod properties_pane_tests {
             .landed_pair()
             .expect("the earlier run stays landed")
             .0
-            .spoken(extrude())
+            .spoken(node)
             .to_string();
         assert!(landed.contains("landed plate"), "{landed}");
         (drawn, landed)
@@ -5433,20 +5543,21 @@ mod properties_pane_tests {
     #[test]
     fn the_pick_path_says_the_landed_label_while_a_rename_has_not_landed() {
         let (mut driven, open) = gated();
+        // The pick path speaks the drawn copy: its placement.
         driven.app.perform_batch(vec![SessionOp::SetLabel {
-            node: extrude(),
+            node: placement(),
             label: label("landed plate"),
         }]);
         driven.settle();
         let (edge, unnamed) = {
             let index = driven.on_screen();
-            let drawn = index.edges_in(extrude(), 0).to_vec();
+            let drawn = index.edges_in(placement(), 0).to_vec();
             let edge = crate::session::EdgeSelection {
                 name: index
                     .edge_name_of(drawn[0])
                     .expect("a drawn edge is named")
                     .clone(),
-                node: extrude(),
+                node: placement(),
                 body: 0,
             };
             (edge, drawn[1])
@@ -5463,7 +5574,7 @@ mod properties_pane_tests {
         driven.click(crate::pane::create::BLEND_EDGES);
         driven.quiet();
 
-        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        let (drawn, landed) = renamed_behind(&mut driven, &open, placement());
         for prefix in ["1 edges picked on ", "held edges:"] {
             let line = drawn
                 .iter()
@@ -5480,31 +5591,31 @@ mod properties_pane_tests {
     /// **The mate tool's instance-pick refusal says the kept label
     /// while the landed document is behind**: the run that would land
     /// the rename and the delete is held, so the landed document still
-    /// says the extrude by its old label and the survival step keeps the
+    /// says the picked copy's placement by its old label and the survival step keeps the
     /// picks; the commit's refusal says the last label the shown
     /// document gave it.
     #[test]
     fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
-            node: extrude(),
+            node: placement(),
             label: label("base"),
         }]);
         driven.settle();
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![
-            Selection::Face(cap_of(extrude(), pncad::prelude::CapEnd::End)),
-            Selection::Face(cap_of(extrude(), pncad::prelude::CapEnd::Start)),
+            Selection::Face(cap_of(pncad::prelude::CapEnd::End)),
+            Selection::Face(cap_of(pncad::prelude::CapEnd::Start)),
             Selection::None,
         ]);
         open.store(false, std::sync::atomic::Ordering::SeqCst);
         driven.app.perform_batch(vec![SessionOp::SetLabel {
-            node: extrude(),
+            node: placement(),
             label: label("plinth"),
         }]);
         driven
             .app
-            .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
+            .perform_batch(vec![SessionOp::DeleteNode { node: placement() }]);
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let landed = driven
             .app
@@ -5512,7 +5623,7 @@ mod properties_pane_tests {
             .landed_pair()
             .expect("the earlier run stays landed")
             .0
-            .spoken(extrude())
+            .spoken(placement())
             .to_string();
         assert!(
             landed.contains("base"),
@@ -5530,8 +5641,8 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
         let plinth = format!(
-            "Extrude \"plinth\" ({})",
-            test_utils::refusal::tag(extrude().0.digest())
+            "PlaceInWorld \"plinth\" ({})",
+            test_utils::refusal::tag(placement().0.digest())
         );
         assert!(
             said.contains(&format!("pick a is on {plinth}")),
@@ -5551,16 +5662,23 @@ mod properties_pane_tests {
             label: label("landed plate"),
         }]);
         driven.settle();
-        let mut gone = cap_of(extrude(), pncad::prelude::CapEnd::End);
-        gone.name
-            .path
-            .push(pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End));
+        // A cap of a cap: a name the extrude never minted, held on the
+        // extrude itself, whose verdict names the extrude.
+        let gone = crate::session::FaceSelection {
+            name: pncad::prelude::StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: extrude(),
+                path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End); 2],
+            },
+            node: extrude(),
+            body: 0,
+        };
         driven
             .app
             .perform_batch(vec![SessionOp::Select(Selection::Face(gone))]);
         driven.quiet();
 
-        let (drawn, landed) = renamed_behind(&mut driven, &open);
+        let (drawn, landed) = renamed_behind(&mut driven, &open, extrude());
         let line = drawn
             .iter()
             .map(|(run, _)| run)

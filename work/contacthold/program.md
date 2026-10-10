@@ -2,7 +2,7 @@
 id: contacthold
 kind: program
 title: CONTACTHOLD — CONTACT's parked rows: the D10 hold on declared contacts, the coincidence door and the declared-pair retirement
-status: blocked
+status: ready
 opened: 2026-10-09
 area: kernel
 prefix: contacthold/

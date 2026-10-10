@@ -342,26 +342,26 @@ impl NodeStanding {
     /// The standing of a document ROOT, as a door whose subject is the
     /// document's roots states it under its own stage word: `root`,
     /// then the standing.
-    pub(crate) fn of_root(self) -> RootStanding {
-        RootStanding(self)
+    pub(crate) fn of_placement(self) -> PlacementStanding {
+        PlacementStanding(self)
     }
 }
 
-/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
-/// with no value.
-pub(crate) struct RootStanding(NodeStanding);
+/// [`NodeStanding::of_placement`]'s rendering: the one sentence for a
+/// placement with no value.
+pub(crate) struct PlacementStanding(NodeStanding);
 
-impl crate::spoken::Say for RootStanding {
+impl crate::spoken::Say for PlacementStanding {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(f, "root {}", crate::spoken::Said(&self.0, by))
+        write!(f, "placement {}", crate::spoken::Said(&self.0, by))
     }
 }
 
-impl core::fmt::Display for RootStanding {
+impl core::fmt::Display for PlacementStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
@@ -1007,6 +1007,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
+        | Node::PlaceInWorld { .. }
         | Node::InstantiatePart { .. } => (family::BODY, true),
     };
     match placer {
@@ -5511,6 +5512,9 @@ where
         // A fresh word: a gauge denotes no body, and its key is its
         // slots and its chain's shape.
         Node::Gauge { .. } => 36,
+        // A fresh word: a world placement's key is its body's upstream
+        // key, its pose's slots and its chain's shape.
+        Node::PlaceInWorld { .. } => 37,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -6000,6 +6004,10 @@ where
         Node::Transform {
             input: _,
             placement,
+        }
+        | Node::PlaceInWorld {
+            body: _,
+            pose: placement,
         }
         | Node::Gauge {
             parent: _,
@@ -6796,6 +6804,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::HoleRim => 44,
         S::Instance => 26,
         S::InPart => 40,
+        S::Placed => 51,
     }
 }
 
@@ -7018,7 +7027,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_tag(half(*side));
             h.name(of);
         }
-        RoleSeg::InPart { of } => {
+        RoleSeg::InPart { of } | RoleSeg::Placed { of } => {
             h.name(of);
         }
         RoleSeg::Instance { i, of } => {

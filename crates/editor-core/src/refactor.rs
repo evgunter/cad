@@ -18,11 +18,13 @@
 //!
 //! # The cut rule (D-2)
 //!
-//! The cut set must be closed under the recipe DAG in BOTH directions:
-//! an edge with exactly one endpoint in the cut is a severed consuming
-//! edge, refused typed naming the edge. (Closure under inputs is A4's
-//! "ancestor-closed"; closure under consumers is what makes every cut
-//! sink a document sink, i.e. an A10 root.)
+//! The cut set must be closed under what its nodes read: a cut node
+//! reading the remainder is a severed edge, refused typed naming it
+//! (A4's "ancestor-closed"). A part delivers only its world (A10), so a
+//! remainder read of the cut crosses only where it reads a body a cut
+//! placement places, and it is re-pointed to the instance's body; any
+//! other remainder read of the cut is severed too. No read names a
+//! placement's copy (`EditError::ReadsWorldCopy`).
 //!
 //! # Gauges and offsets cross the seam (A4)
 //!
@@ -33,13 +35,15 @@
 //! instance left behind names it. A cut instance votes its gauge and a
 //! cut gauge its parent, unless that reference stays inside the cut;
 //! a kept instance or gauge hanging from a cut gauge refuses
-//! ([`SplitError::SeveredGauge`]), and so does a cut root that sits on
-//! no gauge — no instance, mate or gauge — while the anchor is one,
-//! since inline could not put it back ([`SplitError::UnplaceableRoot`]).
-//! The cut moves as selected: every
+//! ([`SplitError::SeveredGauge`]), and so does a cut copy that sits on
+//! no gauge — a cut placement of anything but an instance at the
+//! identity — while the anchor is one, since inline could not put it
+//! back ([`SplitError::UnplaceableRoot`]). A cut placement of recipe
+//! content votes for the world. The cut moves as selected: every
 //! cut node, gauges included, is carried as it is, a cut gauge whose
-//! parent leaves the cut hangs from the part's world, every root keeps
-//! its offset, and the instance sits at the empty chain on the anchor.
+//! parent leaves the cut hangs from the part's world, every group root
+//! keeps its offset, and the instance sits at the empty chain on the
+//! anchor.
 //! Neither computes a frame: an offset is moved as the chain it is. A
 //! part at a frame of its own is [`DocEdit::Promote`] before the split
 //! and the cut leaving the promoted gauge behind.
@@ -60,11 +64,14 @@
 //! each remainder instance materializes the ENTIRE new document's
 //! product, so per-group instances of one pinned document would
 //! duplicate every other group's material N times. The single instance
-//! carries every cut group where it sat. It replaces the cut's roots,
-//! so by A10's replacement rule it goes where the first of them was:
-//! split brings the cut's roots together there, and keeps the root
-//! order exactly when they are adjacent in it. Inline splices the
-//! part's roots, in the part's root order, at the instance's position.
+//! carries every cut group where it sat. The cut's placements are the
+//! part's world, and the remainder places one copy of the instance;
+//! order is the placements' document order, so the product's copies
+//! are the unsplit ones up to their order. Inline splices the part's
+//! placements: a host placement of the instance at the identity goes,
+//! one at a pose of its own reads through the part's one placement at
+//! the identity, and any other reader of the instance is re-pointed to
+//! the inlined body.
 //!
 //! # Variables go where their readers go
 //!
@@ -98,18 +105,22 @@
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
 //! declared pairs, fillet selections, appearance keys — from its local
-//! name to the `InPart`-wrapped name at the new instance (a recorded
+//! name to the `InPart`-wrapped name at the new instance, around the
+//! name the part's product spells it by, its cut placement's copy's
+//! (`Placed`; a recorded
 //! [`DocEdit::Rebind`] per name), which is exactly how "every stable
 //! name that resolved before resolves after, through the instance
 //! qualifier" (D-4) is kept. Inline applies the inverse rewrite:
 //! `InPart`-wrapped names at the inlined instance re-anchor to the
-//! spliced local names. Appearance records ride these rewrites — they
+//! spliced local names — the body's own where its readers read the
+//! body, the carried copy's where the placement holds a pose. Appearance records ride these rewrites — they
 //! stay with the document that referenced the entity, so the split
 //! remainder keeps its presentation and the round trip restores it.
 //! A reference that DERIVES from both sides of the cut can re-anchor
 //! to neither and refuses typed, as does a top-level BODY name
 //! crossing the cut (a product's name table deliberately carries no
-//! root body rows, so the wrapped body name could never resolve).
+//! body rows, so the wrapped body name could never resolve), and a name
+//! of material the part's world does not hold once.
 //!
 //! # Interface records
 //!
@@ -484,6 +495,16 @@ pub enum SplitError {
         /// The colliding identity.
         id: DocumentId,
     },
+    /// A remainder node reads a body the cut places, and no one body of
+    /// the part stands where it did: the instance's body it would be
+    /// re-pointed to is the part's whole world, and that world is not
+    /// one placement at the identity ([`Uncarried`]; inline's rule).
+    RemainderReadUncarried {
+        /// The remainder reader.
+        reader: SpokenNode,
+        /// Why no one body carries the read.
+        why: Uncarried,
+    },
     /// A recipe edge crosses the cut: its consumer is on one side and
     /// its input on the other, so the cut would sever it (D-2 — the
     /// cut must be ancestor- and consumer-closed).
@@ -560,12 +581,12 @@ pub enum SplitError {
     /// gauge reference leaving the cut must name that one — a kept
     /// gauge, or the world. A cut instance votes its gauge and a cut
     /// gauge its parent, unless that reference stays inside the cut; a
-    /// cut root that is not an instance, whose geometry is in the
-    /// world's coordinates, votes for the world.
+    /// cut placement of anything but an instance at the identity, whose
+    /// copy follows no gauge, votes for the world.
     TwoAnchors {
         /// The cut node whose anchor disagrees with the first: an
-        /// instance or gauge by its gauge reference, or a cut root that
-        /// is no instance.
+        /// instance or gauge by its gauge reference, or a cut placement
+        /// of recipe content.
         node: SpokenNode,
         /// The anchor the earlier votes name, `None` the world; boxed
         /// so the refusal stays a small `Err`.
@@ -591,24 +612,22 @@ pub enum SplitError {
         /// The deleted gauge it names.
         gauge: SpokenNode,
     },
-    /// **The cut holds no material**: no cut node that is a root of the
-    /// document denotes a body — the cut is gauges, datums, profiles,
-    /// mates, declarations or measures alone — so the part would have
-    /// no body and the instance the split leaves behind would evaluate
-    /// to nothing (A4: split-then-evaluate equals the unsplit
-    /// evaluation).
+    /// **The cut places nothing** (A4, A10): it holds no world
+    /// placement, and a part delivers only its world, so the instance
+    /// the split leaves behind would evaluate to nothing. A cut of
+    /// unplaced material alone refuses here.
     NoMaterial {
         /// The cut's first node, in document order.
         node: SpokenNode,
     },
-    /// **A cut root inline could not put back** (A4's round trip): the
-    /// cut anchors on a gauge, where the instance left behind sits, and
-    /// a root of the cut is neither an instance, a mate nor a gauge — a
-    /// measure, an assertion, a datum or other recipe content, which
-    /// sits on no gauge — so inline of the split would refuse
+    /// **A cut placement inline could not put back** (A4's round trip):
+    /// the cut anchors on a gauge, where the instance left behind sits,
+    /// and a placement of the cut places recipe content in the world's
+    /// coordinates rather than an instance at the identity, and recipe
+    /// content sits on no gauge, so inline of the split would refuse
     /// ([`InlineError::UnplaceableFrame`]).
     UnplaceableRoot {
-        /// The root.
+        /// The placement.
         root: SpokenNode,
         /// The gauge the cut anchors on.
         anchor: SpokenNode,
@@ -737,12 +756,20 @@ pub enum SplitError {
         step: StepId,
     },
     /// A remainder-side BODY name crosses the cut. A document's
-    /// product name table deliberately carries no root body rows (the
-    /// product is the document's own body, not any root's), so the
+    /// product name table deliberately carries no body rows (the
+    /// product is the document's own body, not any copy's), so the
     /// `InPart`-wrapped rewrite of a body name could never resolve —
     /// refused rather than silently breaking a resolving name.
     BodyNameCrossesCut {
         /// The crossing body name.
+        name: SpokenName,
+    },
+    /// **A remainder-side name of cut material the part does not
+    /// deliver** (A4, A10): a part delivers only its world, and no cut
+    /// placement's copy holds the name's entity, or two do, so the
+    /// instance carries it nowhere or twice.
+    NameOutsidePartWorld {
+        /// The name.
         name: SpokenName,
     },
     /// The new part document's content pin would not compute (the
@@ -841,15 +868,16 @@ impl core::fmt::Display for SplitError {
             ),
             Self::NoMaterial { node } => write!(
                 f,
-                "split: nothing the cut holds denotes a body (it begins at {node}), so the \
-                 instance the split leaves behind would evaluate to nothing. {}",
-                Recourse("add to the cut the instances or geometry that make its material")
+                "split: the cut places nothing in the world (it begins at {node}), and a part \
+                 delivers only its world, so the instance the split leaves behind would \
+                 evaluate to nothing. {}",
+                Recourse("add to the cut the placements of the bodies it moves")
             ),
             Self::UnplaceableRoot { root, anchor } => write!(
                 f,
                 "split: the cut anchors on {g}, where the instance left behind sits, but cut \
-                 root {r} is not an instance, a mate or a gauge, and recipe content sits on no \
-                 gauge, so inline could not put {r} back. {}",
+                 placement {r} places recipe content rather than an instance, and recipe \
+                 content sits on no gauge, so inline could not put {r} back. {}",
                 Recourse(&format!(
                     "add {g} and what sits on it to the cut, or fold {g} (Fold), then split",
                     g = anchor
@@ -935,6 +963,34 @@ impl core::fmt::Display for SplitError {
                      consumer is {consumer_side} and the input is {input_side}, but a cut must be \
                      closed under inputs and consumers. {}",
                     Recourse(&format!("add {kept} to the cut, or leave {cut} out of it"))
+                )
+            }
+            Self::RemainderReadUncarried { reader, why } => {
+                write!(
+                    f,
+                    "split: {reader} stays and reads a body the cut places, and "
+                )?;
+                match why {
+                    Uncarried::Bodies { count } => write!(
+                        f,
+                        "the cut places {count} bodies, so the instance's body would be all of \
+                         them"
+                    )?,
+                    Uncarried::Posed { placement } => write!(
+                        f,
+                        "{placement} places it at a pose of its own, so the instance's body would \
+                         be that world copy, which construction never reads"
+                    )?,
+                    Uncarried::HeirNamed { held } => {
+                        write!(f, "the body standing where it did is named {held} already")?
+                    }
+                }
+                write!(
+                    f,
+                    ". {}",
+                    Recourse(&format!(
+                        "cut {reader} too, or cut one placement of that body at the identity"
+                    ))
                 )
             }
             Self::UncutVarReference {
@@ -1037,10 +1093,19 @@ impl core::fmt::Display for SplitError {
                  of this document draws any more. {}",
                 Recourse("rebind that name to a live entity (Rebind), then split")
             ),
+            Self::NameOutsidePartWorld { name } => write!(
+                f,
+                "split: {name} crosses the cut, but the part delivers only its world, and no \
+                 one placement in the cut places the body it is an entity of. {}",
+                Recourse(
+                    "add to the cut the one placement of that body, or rebind the name to a \
+                     kept node's entity (Rebind), then split"
+                )
+            ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
                 "split: {name} crosses the cut, and a product's name table carries no \
-                 root body rows, so the instance-qualified rewrite could never resolve. {}",
+                 body rows, so the instance-qualified rewrite could never resolve. {}",
                 Recourse(
                     "clear what this document sets on that name (ClearAppearance), or rebind it \
                      to a kept node's body (Rebind), then split"
@@ -1127,19 +1192,29 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
     }
 }
 
-/// **Why the referenced document has no one output to carry the
-/// instance's named body onto** ([`InlineError::InstanceOutputUncarried`]).
+/// **Why no one body stands where an instance's body does**: the
+/// instance's body is its part's whole world, so a read carried across
+/// the seam — inline's reader of the instance, split's remainder reader
+/// of a cut body — keeps its value only when that world is one
+/// placement at the identity ([`world_heir`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Uncarried {
-    /// It has this many body roots, not one.
+    /// It places this many bodies, not one.
     Bodies {
         /// How many.
         count: usize,
     },
-    /// Its one body root's output is named already.
+    /// The one body standing where it did is named already.
     HeirNamed {
         /// That name.
         held: crate::doc::VarName,
+    },
+    /// Its one placement holds a pose of its own, so what stood where
+    /// the instance's body did is that placement's world copy, which no
+    /// construction reads.
+    Posed {
+        /// The placement, spoken from the document that holds it.
+        placement: SpokenNode,
     },
 }
 
@@ -1171,15 +1246,22 @@ pub enum InlineError {
         /// The non-instance target.
         node: SpokenNode,
     },
-    /// The instance is consumed by another node. Splicing would have
-    /// to rewire that consumer onto the part's product, which the
-    /// recipe cannot express for a placed or multi-root product —
-    /// refused typed in v1, naming the consumer.
-    InstanceConsumed {
-        /// The instance.
-        node: SpokenNode,
-        /// A node consuming it.
-        by: SpokenNode,
+    /// **A host placement of the instance holds a pose of its own,
+    /// and the part's world is not one placement at the identity it
+    /// could read through** (A4, A10): splicing would compose the two
+    /// poses, and split and inline compute no frame.
+    PlacementPoseCrosses {
+        /// The host placement.
+        placement: SpokenNode,
+    },
+    /// **A host node reads the instance, and the part's world is not
+    /// one body for it to read** (A4): the inlined body is the body the
+    /// part's one placement places, and the part has none or several.
+    InstanceReadUncarried {
+        /// The reader.
+        reader: SpokenNode,
+        /// Why no one body takes its read.
+        why: Uncarried,
     },
     /// The reference did not resolve — the resolver's own classified
     /// refusal (A4's pin gate arrives here as
@@ -1232,13 +1314,14 @@ pub enum InlineError {
         node: SpokenNode,
     },
     /// The instance sits off the world's origin — on a gauge, or at
-    /// an offset — and the referenced document has a root that is not
-    /// itself an instance: plain recipe geometry sits on no gauge, so
+    /// an offset — and the referenced document has a placement that is
+    /// not of an instance at the identity: plain recipe geometry sits
+    /// on no gauge, so
     /// the instance's frame is not something the spliced recipe can
     /// express locally (D-3's "refuses typed when the referenced
     /// product is not what the recipe can express").
     UnplaceableFrame {
-        /// The plain-geometry root.
+        /// The placement of plain geometry.
         root: SpokenNode,
     },
     /// **The instance is not its group's root, and its part is not one
@@ -1365,14 +1448,42 @@ impl core::fmt::Display for InlineError {
                 "inline: {node} does not instantiate a part. {}",
                 Recourse("name an instance of a part")
             ),
-            Self::InstanceConsumed { node, by } => write!(
+            Self::PlacementPoseCrosses { placement } => write!(
                 f,
-                "inline: {node} is consumed by {by}, and the recipe cannot rewire a consumer onto \
-                 a spliced product. {}",
+                "inline: {placement} places the instance at a pose of its own, and the \
+                 referenced document's world is not one placement at the identity, so \
+                 splicing would compose two poses, which inline does not compute. {}",
                 Recourse(&format!(
-                    "delete {by}, or re-author it without {node}, then inline"
+                    "clear {placement}'s pose, or give the referenced document one placement \
+                     at the identity, then inline"
                 ))
             ),
+            Self::InstanceReadUncarried { reader, why } => {
+                write!(f, "inline: {reader} reads the instance, and ")?;
+                match why {
+                    Uncarried::Bodies { count } => write!(
+                        f,
+                        "the referenced document places {count} bodies, so no one body of it \
+                         stands where the instance's did"
+                    )?,
+                    Uncarried::HeirNamed { held } => {
+                        write!(f, "the body standing where it did is named {held} already")?
+                    }
+                    Uncarried::Posed { placement } => write!(
+                        f,
+                        "the referenced document's {placement} places its one body at a pose \
+                         of its own, so what stood where the instance's body did is a world \
+                         copy, which construction never reads"
+                    )?,
+                }
+                write!(
+                    f,
+                    ". {}",
+                    Recourse(&format!(
+                        "re-point {reader} at one body (SetParam), then inline"
+                    ))
+                )
+            }
             // The store's sentence states the recourse of a pin or a
             // lookup; the ε seam's is the same whatever the store.
             Self::Unresolved { failure } => match failure.fault {
@@ -1409,13 +1520,18 @@ impl core::fmt::Display for InlineError {
                 match why {
                     Uncarried::Bodies { count } => write!(
                         f,
-                        "the referenced document has {count} body roots, so no one body of it \
+                        "the referenced document places {count} bodies, so no one body of it \
                          stands where the instance's did"
                     )?,
                     Uncarried::HeirNamed { held } => write!(
                         f,
                         "the body standing where it did is already named {held}, and a \
                          variable holds one name"
+                    )?,
+                    Uncarried::Posed { placement } => write!(
+                        f,
+                        "the referenced document's {placement} places its one body at a pose \
+                         of its own, so no body stands where the instance's did"
                     )?,
                 }
                 write!(
@@ -1444,9 +1560,9 @@ impl core::fmt::Display for InlineError {
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
-                "inline: the instance sits off the world's origin, but part root {r} is plain \
-                 recipe geometry, which sits on no gauge — the frame is not expressible \
-                 locally. {}",
+                "inline: the instance sits off the world's origin, but part placement {r} \
+                 places plain recipe geometry, which sits on no gauge — the frame is not \
+                 expressible locally. {}",
                 Recourse(&format!(
                     "split {r} out of the referenced document, so it becomes an instance \
                      there, point this instance at that version (UpdateReference), then inline",
@@ -1708,6 +1824,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::AmbiguousOutput { .. }
             | EditError::DefinesNothing { .. }
             | EditError::PartHalfPort { .. }
+            | EditError::ReadsWorldCopy { .. }
+            | EditError::MeasuresWorldCopy { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }
@@ -1720,6 +1838,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PayloadUnresolvedVar { .. }
             | EditError::VarNameUnchanged { .. }
             | EditError::AnonymousVarUnread { .. }
+            | EditError::SharedVarNeedsName { .. }
             | EditError::DeleteAnonymousVar { .. }
             | EditError::MeasureMalformed { .. }
             | EditError::AssertionTarget { .. }
@@ -1765,7 +1884,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::MetaUnversioned { .. }
             | EditError::MetaNonFinite { .. }
             | EditError::MetaNotSet { .. }
-            | EditError::Roots(_)
             | EditError::OffsetOnNonInstance { .. }
             | EditError::GaugeOnNonPlaced { .. }
             | EditError::GaugeNotLive { .. }
@@ -2289,6 +2407,10 @@ fn remap_node(
             input: rd(crate::OperandSlot::Input, *input)?,
             placement: placement.clone(),
         },
+        Node::PlaceInWorld { body, pose } => Node::PlaceInWorld {
+            body: rd(crate::OperandSlot::Body, *body)?,
+            pose: pose.clone(),
+        },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: rd(crate::OperandSlot::Input, *input)?,
             count: *count,
@@ -2402,10 +2524,9 @@ fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<Var
 ///
 /// A named variable is declared in the target before any node reads
 /// it. An anonymous one crosses as an entry of the fresh table of the
-/// first carried edit that reads it, directly or through the
-/// definitions of other anonymous variables, with its definition bit
-/// for bit, distribution included; a later carried reader reads the
-/// id that edit minted.
+/// carried edit that reads it, directly or through the definitions of
+/// other anonymous variables, with its definition bit for bit,
+/// distribution included: it has one reader (VR2).
 struct VarCarry<'s> {
     source: &'s ProfileDoc,
     map: BTreeMap<VarId, VarId>,
@@ -2414,7 +2535,7 @@ struct VarCarry<'s> {
 /// One carried edit's variables: the fresh table it carries and the
 /// source variable each entry stands for.
 struct Carried {
-    fresh: Vec<VarDecl>,
+    fresh: Vec<crate::FreshEntry>,
     anonymous: Vec<VarId>,
 }
 
@@ -2497,7 +2618,7 @@ impl<'s> VarCarry<'s> {
         let anonymous = self.unheld(reads);
         let fresh = anonymous
             .iter()
-            .map(|&var| self.decl(&anonymous, var))
+            .map(|&var| self.decl(&anonymous, var).into())
             .collect();
         Carried { fresh, anonymous }
     }
@@ -2664,38 +2785,6 @@ fn moving_vars(
 
 // ---- Split ----
 
-/// **Whether a node, as a root, denotes a body** — what a product
-/// gathers. A datum, a profile, a gauge, a mate, a measure and an
-/// assertion denote none. Exhaustive, so a new node
-/// kind is classified here.
-fn denotes_a_body(node: &Node<ProfileProgram>) -> bool {
-    match node {
-        Node::Datum(_)
-        | Node::Profile(_)
-        | Node::Gauge { .. }
-        | Node::Mate { .. }
-        | Node::Measure { .. }
-        | Node::Assertion { .. } => false,
-        Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Split { .. }
-        | Node::Boolean { .. }
-        | Node::Union { .. }
-        | Node::Transform { .. }
-        | Node::Pattern { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. } => true,
-    }
-}
-
 /// Cuts `cut` out of `doc` into a new document under `part_id` (the
 /// caller's identity — [`DocumentId::derive`] for deterministic
 /// callers, the document layer's `random_document_id` for interactive
@@ -2742,20 +2831,59 @@ pub fn split(
             return Err(SplitError::PartIdCollides { id: part_id });
         }
     }
-    // D-2's closure rule: no recipe edge crosses the cut, in either
-    // direction (module docs).
+    // D-2's closure rule, narrowed by the world (module docs): no cut
+    // node reads the remainder, and a remainder read of the cut crosses
+    // only where it reads a body a cut placement places, which the part
+    // delivers; it is re-pointed to the instance's body below. Any other
+    // dependency refuses.
+    let cut_placed: BTreeSet<VarId> = cut
+        .iter()
+        .filter_map(|&id| match doc.node(id) {
+            Some(Node::PlaceInWorld { body, .. }) => Some(*body),
+            _ => None,
+        })
+        .collect();
+    let mut crossing_reads: Vec<(RecipeNodeId, crate::OperandSlot)> = Vec::new();
     for consumer in doc.ids() {
         let Some(node) = doc.node(consumer) else {
             continue;
         };
+        let consumer_is_cut = cut.contains(&consumer);
+        let mut carried: BTreeSet<RecipeNodeId> = BTreeSet::new();
+        if !consumer_is_cut {
+            for (slot, var) in node.operand_rows() {
+                if cut_placed.contains(&var)
+                    && let Some(input) = doc.operation_of(var)
+                {
+                    crossing_reads.push((consumer, slot));
+                    carried.insert(input);
+                }
+            }
+        }
         for input in doc.upstream_of(node) {
-            if cut.contains(&consumer) != cut.contains(&input) {
+            if consumer_is_cut != cut.contains(&input) && !carried.contains(&input) {
                 return Err(SplitError::SeveredEdge {
                     consumer: doc.spoken(consumer),
                     input: doc.spoken(input),
-                    consumer_is_cut: cut.contains(&consumer),
+                    consumer_is_cut,
                 });
             }
+        }
+    }
+    // A remainder reader re-pointed to the instance's body reads the
+    // part's whole world: by inline's rule ([`world_heir`]), the cut's
+    // placements must be one at the identity, or it refuses.
+    if let Some(&(reader, _)) = crossing_reads.first() {
+        let world: Vec<RecipeNodeId> = doc
+            .placements()
+            .into_iter()
+            .filter(|p| cut.contains(p))
+            .collect();
+        if let Err(why) = world_heir(&world, |p| places_at_identity(doc, p), |p| doc.spoken(p)) {
+            return Err(SplitError::RemainderReadUncarried {
+                reader: doc.spoken(reader),
+                why,
+            });
         }
     }
     // A11's group precondition, checked FOR REAL now that mates can
@@ -2911,9 +3039,9 @@ pub fn split(
     // votes. A cut instance votes its gauge and a cut gauge its parent,
     // unless that reference stays inside the cut; a group unplaced for
     // lack of an offset votes like any other, and only places nothing.
-    // A cut root that is no instance and lives in the world holds
-    // geometry in the world's coordinates, and votes for the world.
-    // They must agree.
+    // A cut placement of anything but an instance's body at the
+    // identity follows no gauge, and votes for the world. They must
+    // agree.
     let mut anchor: Option<Option<RecipeNodeId>> = None;
     for &node in &in_order {
         let vote = match doc.node(node) {
@@ -2923,8 +3051,8 @@ pub fn split(
                 }
                 *gauge
             }
-            Some(_)
-                if doc.roots().contains(&node)
+            Some(Node::PlaceInWorld { .. })
+                if !places_an_instance(doc, node)
                     && spaces.space.get(&node) == Some(&crate::mate::Space::World) =>
             {
                 None
@@ -2945,10 +3073,10 @@ pub fn split(
     }
     let anchor = anchor.flatten();
     if let Some(gauge) = anchor
-        && let Some(&root) = doc
-            .roots()
-            .iter()
-            .find(|&&r| cut.contains(&r) && !splices_onto_a_gauge(doc.node(r)))
+        && let Some(root) = doc
+            .placements()
+            .into_iter()
+            .find(|&p| cut.contains(&p) && !places_an_instance(doc, p))
     {
         return Err(SplitError::UnplaceableRoot {
             root: doc.spoken(root),
@@ -3236,12 +3364,12 @@ pub fn split(
             RemapMiss::Name { name, missing } => SplitError::reaches(doc, old, &name, missing),
         },
     )?;
-    // A cut whose roots denote no body leaves an instance of nothing:
-    // asked once the cut has carried, so a cut whose names cannot cross
-    // is told that first.
+    // A cut that places nothing leaves an instance of nothing, since a
+    // part delivers only its world: asked once the cut has carried, so
+    // a cut whose names cannot cross is told that first.
     if !in_order
         .iter()
-        .any(|&id| doc.roots().contains(&id) && doc.node(id).is_some_and(denotes_a_body))
+        .any(|&id| matches!(doc.node(id), Some(Node::PlaceInWorld { .. })))
         && let Some(&first) = in_order.first()
     {
         return Err(SplitError::NoMaterial {
@@ -3265,19 +3393,74 @@ pub fn split(
             )?;
         }
     }
-    // A10: the cut roots keep their ROOT-LIST order (which insertion
-    // order need not reproduce — the list may have been reordered).
-    let part_roots: Vec<RecipeNodeId> = doc
-        .roots()
-        .iter()
-        .filter_map(|r| node_map.get(r).copied())
-        .collect();
-    if part.doc().roots() != part_roots {
-        part_apply(&mut part, DocEdit::SetRoots { roots: part_roots })?;
-    }
     let pin = content_pin(part.doc(), tol).map_err(|error| SplitError::Pin {
         error: Box::new(error),
     })?;
+    // A cut name re-anchors as the part's product spells it: under the
+    // one cut placement whose copy holds its entity
+    // ([`RoleSeg::Placed`]), since a part delivers only its world. The
+    // copy holds the names its body minted, those a transform below it
+    // carried whole (N1's `Whole` edge), and a pattern copy's names
+    // where a part picks that copy: the name's own `Instance` index
+    // against the pick's, at the document's values, as the member walk
+    // judges a pick (`mate::member`). That match is positional and
+    // interim: it retires with `[ev]` #4341's `Member` keys. A split
+    // half's pick is not followed, since which half holds a split's
+    // name is the geometry's answer. A name of material no cut
+    // placement places, or two do, names nothing the instance carries.
+    let env = doc.var_env::<f64>();
+    let in_world = |name: &StableName| -> Result<StableName, SplitError> {
+        let of = remap_name(name, &node_map, &step_map)
+            .map_err(|missing| SplitError::straddles(doc, name, missing))?;
+        let copy_of_name = match name.path.first() {
+            Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
+            _ => None,
+        };
+        let holds = |placed: Option<RecipeNodeId>| -> bool {
+            let mut at = placed;
+            let mut picked: Option<i64> = None;
+            while let Some(node) = at {
+                if node == name.node {
+                    return picked.is_none_or(|k| copy_of_name == Some(k));
+                }
+                at = match doc.node(node).and_then(crate::names::verbatim_edge) {
+                    Some(crate::names::VerbatimEdge::Whole { input }) => doc.operation_of(input),
+                    Some(crate::names::VerbatimEdge::Selected {
+                        of,
+                        select: crate::node::PartSelect::Instance(index),
+                    }) if picked.is_none() => {
+                        picked = crate::expr::eval_var_count(*index, &env).ok();
+                        picked.and_then(|_| doc.operation_of(of))
+                    }
+                    Some(
+                        crate::names::VerbatimEdge::Selected { .. }
+                        | crate::names::VerbatimEdge::Intact,
+                    )
+                    | None => None,
+                };
+            }
+            false
+        };
+        let mut placing = in_order.iter().copied().filter(|&p| {
+            matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
+                if holds(doc.operation_of(*body)))
+        });
+        let (Some(placement), None) = (placing.next(), placing.next()) else {
+            return Err(SplitError::NameOutsidePartWorld {
+                name: doc.spoken_name(name),
+            });
+        };
+        let Some(&placement) = node_map.get(&placement) else {
+            unreachable!("a cut placement is carried")
+        };
+        Ok(StableName {
+            kind: name.kind,
+            node: placement,
+            path: vec![RoleSeg::Placed {
+                of: NameRef::new(of),
+            }],
+        })
+    };
 
     // ---- The interface record (ASM-R2b D-4; A4's seam) ----
     //
@@ -3358,8 +3541,9 @@ pub fn split(
         // re-verification resolves against. `classify` above already
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
-        let inner = remap_face(inner, &node_map, &step_map)
-            .map_err(|missing| SplitError::straddles(doc, inner, missing))?;
+        let Ok(inner) = FaceName::new(in_world(inner)?) else {
+            unreachable!("a remap keeps a face a face")
+        };
         // The heads' own face names go through: the record carries
         // what the mate carries, so the split neither unwraps a head
         // nor re-asks the question its type already answered.
@@ -3392,9 +3576,31 @@ pub fn split(
             Some(crate::placement::Placement::IDENTITY),
         ))
         .map_err(rem_refused)?;
+    // The instance is the remainder's one copy of the part's world, and
+    // a remainder read of a cut body the cut places now reads it.
+    let instance_body = remainder
+        .doc()
+        .output(instance, 0)
+        .unwrap_or_else(|| unreachable!("an instance defines its body"));
+    remainder
+        .insert(Node::place_in_world(
+            instance_body,
+            crate::placement::Placement::IDENTITY,
+        ))
+        .map_err(rem_refused)?;
+    for &(node, slot) in &crossing_reads {
+        rem_apply(
+            &mut remainder,
+            DocEdit::SetParam {
+                node,
+                slot: crate::SlotId::Operand(slot),
+                value: crate::SlotValue::Read(crate::Operand::Var(instance_body)),
+                fresh: Vec::new(),
+            },
+        )?;
+    }
     for from in &rebinds {
-        let of = remap_name(from, &node_map, &step_map)
-            .map_err(|missing| SplitError::straddles(doc, from, missing))?;
+        let of = in_world(from)?;
         let to = StableName {
             kind: from.kind,
             node: instance,
@@ -3427,26 +3633,6 @@ pub fn split(
             rem_apply(&mut remainder, DocEdit::DeleteVar { var: var.into() })?;
         }
     }
-    // A10 on the remainder: the instance takes the FIRST cut root's
-    // list position (the cut material's product order collapses onto
-    // the instance); A10's automatic root-list bookkeeping appended it
-    // instead — the list's own move, which the outcome's `maintenance`
-    // fields do not report.
-    let mut desired: Vec<RecipeNodeId> = Vec::new();
-    let mut placed = false;
-    for &r in doc.roots() {
-        if cut.contains(&r) {
-            if !placed {
-                desired.push(instance);
-                placed = true;
-            }
-        } else {
-            desired.push(r);
-        }
-    }
-    if remainder.doc().roots() != desired {
-        rem_apply(&mut remainder, DocEdit::SetRoots { roots: desired })?;
-    }
     let Recorded {
         doc: remainder,
         edits: remainder_edits,
@@ -3474,17 +3660,51 @@ pub fn split(
 
 // ---- Inline ----
 
-/// **Whether a part root splices onto a gauge** (A4): an instance, a
-/// mate or a gauge sits wherever its gauge reference puts it, so it
-/// lands on any gauge; every other root is recipe content, which sits
-/// on no gauge. The one reading split and inline share, so split
-/// admits no cut whose part inline would refuse to put back
+/// **Whether `placement` is a world placement at the identity**: its
+/// pose is the empty chain, so its copy is its body unmoved.
+fn places_at_identity(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
+    matches!(doc.node(placement), Some(Node::PlaceInWorld { pose, .. }) if pose.steps.is_empty())
+}
+
+/// **The one placement whose body stands where an instance's body does**
+/// (A4, A10), split's and inline's one re-point rule. An instance's body
+/// is its part's whole `world`: a reader re-pointed between the instance
+/// and the part's content reads the same value only when that world is
+/// ONE placement at the identity (`at_identity`), its body then the
+/// instance's body. Several placements, or none, refuse
+/// [`Uncarried::Bodies`]; one at a pose of its own refuses
+/// [`Uncarried::Posed`], its world copy being all that stands there.
+fn world_heir(
+    world: &[RecipeNodeId],
+    at_identity: impl Fn(RecipeNodeId) -> bool,
+    speak: impl Fn(RecipeNodeId) -> SpokenNode,
+) -> Result<RecipeNodeId, Uncarried> {
+    match world {
+        [one] if at_identity(*one) => Ok(*one),
+        [one] => Err(Uncarried::Posed {
+            placement: speak(*one),
+        }),
+        _ => Err(Uncarried::Bodies { count: world.len() }),
+    }
+}
+
+/// **Whether a world placement's copy stands where a gauge puts it**
+/// (A4): one placing an instance's body at the identity, whose copy is
+/// wherever the instance sits, so it lands on any gauge; any other copy
+/// is recipe content, which follows no gauge. The one reading split and inline share, so split admits no
+/// cut whose part inline would refuse to put back
 /// ([`SplitError::UnplaceableRoot`], [`InlineError::UnplaceableFrame`]).
-fn splices_onto_a_gauge(node: Option<&Node<ProfileProgram>>) -> bool {
-    matches!(
-        node,
-        Some(Node::InstantiatePart { .. } | Node::Mate { .. } | Node::Gauge { .. })
-    )
+fn places_an_instance(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
+    match doc.node(placement) {
+        Some(Node::PlaceInWorld { body, .. }) => {
+            places_at_identity(doc, placement)
+                && matches!(
+                    doc.operation_of(*body).and_then(|at| doc.node(at)),
+                    Some(Node::InstantiatePart { .. })
+                )
+        }
+        _ => false,
+    }
 }
 
 /// **How an inlined part's content lands in the host** (A4).
@@ -3553,14 +3773,6 @@ pub fn inline(
             node: doc.spoken(instance),
         });
     };
-    // Who reads this node is `roots`' question, asked here for the
-    // witness the refusal names.
-    if let Some(by) = crate::roots::consumer(doc, instance) {
-        return Err(InlineError::InstanceConsumed {
-            node: doc.spoken(instance),
-            by: doc.spoken(by),
-        });
-    }
     let part = resolver
         .as_ref()
         .resolve(doc_ref, tol)
@@ -3716,16 +3928,79 @@ pub fn inline(
                 .unwrap_or_default(),
         });
     };
-    // Recipe content sits on no gauge, so it splices in place only
-    // where the instance sits at the world's origin.
+    // Recipe content sits on no gauge, so a part placement of it
+    // splices in place only where the instance sits at the world's
+    // origin.
     if !(host_gauge.is_none() && matches!(landing, Landing::Verbatim)) {
-        for &root in part.roots() {
-            if !splices_onto_a_gauge(part.node(root)) {
+        for placement in part.placements() {
+            if !places_an_instance(&part, placement) {
                 return Err(InlineError::UnplaceableFrame {
-                    root: part.spoken(root),
+                    root: part.spoken(placement),
                 });
             }
         }
+    }
+    // The instance's readers (A4, A10). The host's first placement of it
+    // at the identity goes: the part's world is spliced as the part's
+    // own placements. One at a pose of its own keeps it, read through
+    // the part's one placement at the identity, which then is not
+    // carried. Every other reader — a later identity placement among
+    // them, a second copy — is re-pointed to the inlined body by the
+    // one rule split shares ([`world_heir`]), or refuses.
+    let part_placements = part.placements();
+    let identity = |p: RecipeNodeId| places_at_identity(&part, p);
+    let mut host_placements: Vec<RecipeNodeId> = Vec::new();
+    let mut posed: Vec<RecipeNodeId> = Vec::new();
+    let mut readers: Vec<(RecipeNodeId, crate::OperandSlot)> = Vec::new();
+    for id in doc.ids() {
+        let Some(reader) = doc.node(id) else { continue };
+        for (slot, var) in reader.operand_rows() {
+            if doc.operation_of(var) != Some(instance) {
+                continue;
+            }
+            match reader {
+                Node::PlaceInWorld { .. } if places_at_identity(doc, id) => {
+                    if host_placements.is_empty() {
+                        host_placements.push(id);
+                    } else {
+                        readers.push((id, slot));
+                    }
+                }
+                Node::PlaceInWorld { .. } => posed.push(id),
+                _ => readers.push((id, slot)),
+            }
+        }
+    }
+    let one = match part_placements.as_slice() {
+        [one] => Some(*one),
+        _ => None,
+    };
+    let part_heir = |placement: RecipeNodeId| match part.node(placement) {
+        Some(Node::PlaceInWorld { body, .. }) => Some(*body),
+        _ => None,
+    };
+    if let Some(&placement) = posed.first() {
+        let dropped =
+            one.filter(|&p| identity(p) && posed.len() == 1 && host_placements.is_empty());
+        if dropped.is_none() {
+            return Err(InlineError::PlacementPoseCrosses {
+                placement: doc.spoken(placement),
+            });
+        }
+    }
+    let dropped = if posed.is_empty() { None } else { one };
+    // The part's one placement a posed host placement reads through
+    // counts as at the identity: its pose is the host placement's.
+    let heir_placement = world_heir(
+        &part_placements,
+        |p| identity(p) || dropped == Some(p),
+        |p| part.spoken(p),
+    );
+    if let (Some(&(reader, _)), Err(why)) = (readers.first(), &heir_placement) {
+        return Err(InlineError::InstanceReadUncarried {
+            reader: doc.spoken(reader),
+            why: why.clone(),
+        });
     }
     // At an offset the instance's frame becomes a gauge by a promote of
     // the instance, which moves the members it placed through mates
@@ -3769,9 +4044,12 @@ pub fn inline(
             if here.name.node != instance {
                 continue;
             }
-            let inner = FaceName::new((**of).clone()).ok().and_then(|face| {
-                crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
-            });
+            let inner = of
+                .copy_of()
+                .and_then(|(_, of)| FaceName::new(of.clone()).ok())
+                .and_then(|face| {
+                    crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
+                });
             let Some(inner) =
                 inner.filter(|m| frame_survives(frame, m, &part_groups, part_root_at_empty))
             else {
@@ -3876,27 +4154,21 @@ pub fn inline(
     let instance_name = match doc.output(instance, 0).and_then(|body| doc.var_name(body)) {
         None => None,
         Some(name) => {
-            let bodies: Vec<RecipeNodeId> = part
-                .roots()
-                .iter()
-                .copied()
-                .filter(|&root| part.node(root).is_some_and(denotes_a_body))
-                .collect();
-            let [root] = bodies[..] else {
-                return Err(InlineError::InstanceOutputUncarried {
-                    name: name.clone(),
-                    why: Uncarried::Bodies {
-                        count: bodies.len(),
-                    },
-                });
-            };
-            if let Some(held) = part.output(root, 0).and_then(|body| part.var_name(body)) {
+            let placement =
+                heir_placement
+                    .clone()
+                    .map_err(|why| InlineError::InstanceOutputUncarried {
+                        name: name.clone(),
+                        why,
+                    })?;
+            let held = part_heir(placement).and_then(|body| part.var_name(body));
+            if let Some(held) = held {
                 return Err(InlineError::InstanceOutputUncarried {
                     name: name.clone(),
                     why: Uncarried::HeirNamed { held: held.clone() },
                 });
             }
-            Some((name.clone(), root))
+            Some(name.clone())
         }
     };
     // The promoted gauge, under the instance's gauge holding its
@@ -3923,9 +4195,14 @@ pub fn inline(
     };
     // The part's nodes in its document order, each under the id the
     // host's insert door mints for it.
+    let carried: Vec<RecipeNodeId> = part
+        .ids()
+        .into_iter()
+        .filter(|&id| Some(id) != dropped)
+        .collect();
     let (node_map, step_map) = carry(
         &part,
-        &part.ids(),
+        &carried,
         &mut current,
         &mut vars,
         (
@@ -3960,6 +4237,34 @@ pub fn inline(
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),
         },
     )?;
+    // What the inlined body is in the host: the body [`world_heir`]'s
+    // placement places, read as the host now holds it.
+    let heir = |host: &ProfileDoc| -> Option<VarId> {
+        let placement = heir_placement.clone().ok()?;
+        let (at, port) = part_heir(placement).and_then(|body| part.defined_by(body))?;
+        host.output(*node_map.get(&at)?, port)
+    };
+    // A part name in its copy (`Placed` under a part placement), as the
+    // host spells it once the instance is gone: the body's own name
+    // where the readers read that body, else the carried copy's.
+    let to_host = |of: &StableName| -> Option<Result<StableName, InlineError>> {
+        let (placement, inner) = of.copy_of()?;
+        let local = remap_name(inner, &node_map, &step_map)
+            .map_err(|missing| InlineError::stranded(&part, inner, missing));
+        Some(local.map(|local| {
+            if identity(placement) || dropped == Some(placement) {
+                local
+            } else {
+                StableName {
+                    kind: local.kind,
+                    node: node_map.get(&placement).copied().unwrap_or(placement),
+                    path: vec![RoleSeg::Placed {
+                        of: NameRef::new(local),
+                    }],
+                }
+            }
+        }))
+    };
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's
@@ -4011,8 +4316,9 @@ pub fn inline(
                 name: doc.spoken_name(from),
             });
         };
-        let to = remap_name(of, &node_map, &step_map)
-            .map_err(|missing| InlineError::stranded(&part, of, missing))?;
+        let to = to_host(of).ok_or_else(|| InlineError::ForeignInstanceName {
+            name: doc.spoken_name(from),
+        })??;
         step(
             &mut current,
             DocEdit::Rebind {
@@ -4028,16 +4334,44 @@ pub fn inline(
     // re-anchored — so the record's job ends here, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_face(inner, &node_map, &step_map)
-            .map_err(|missing| InlineError::stranded(&part, inner, missing))?;
+        to_host(inner).ok_or_else(|| InlineError::StrandedPartName {
+            name: part.spoken_name(inner),
+            missing: part.spoken(inner.node),
+        })??;
+    }
+    // The readers of the instance read the inlined body, and its host
+    // placements at the identity go with it.
+    if let Some(heir) = heir(current.doc()) {
+        for &(node, slot) in &readers {
+            step(
+                &mut current,
+                DocEdit::SetParam {
+                    node,
+                    slot: crate::SlotId::Operand(slot),
+                    value: crate::SlotValue::Read(crate::Operand::Var(heir)),
+                    fresh: Vec::new(),
+                },
+            )?;
+        }
+        for &placement in &posed {
+            step(
+                &mut current,
+                DocEdit::SetParam {
+                    node: placement,
+                    slot: crate::SlotId::Operand(crate::OperandSlot::Body),
+                    value: crate::SlotValue::Read(crate::Operand::Var(heir)),
+                    fresh: Vec::new(),
+                },
+            )?;
+        }
+    }
+    for &placement in &host_placements {
+        step(&mut current, DocEdit::DeleteNode { id: placement })?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
-    if let Some((name, root)) = instance_name {
-        let Some(body) = node_map
-            .get(&root)
-            .and_then(|&heir| current.doc().output(heir, 0))
-        else {
-            unreachable!("the part's body root is carried, and defines its body")
+    if let Some(name) = instance_name {
+        let Some(body) = heir(current.doc()) else {
+            unreachable!("the part's one placement's body is carried, and is defined")
         };
         step(
             &mut current,
@@ -4046,23 +4380,6 @@ pub fn inline(
                 name: Some(name),
             },
         )?;
-    }
-    // A10: the spliced roots take the instance's list position, in the
-    // part's own root order, after the minted gauge, which no node
-    // consumes and so is a root of its own.
-    let mut desired: Vec<RecipeNodeId> = Vec::new();
-    for &r in doc.roots() {
-        if r == instance {
-            if let Landing::Gauge = landing {
-                desired.extend(world);
-            }
-            desired.extend(part.roots().iter().filter_map(|p| node_map.get(p).copied()));
-        } else {
-            desired.push(r);
-        }
-    }
-    if current.doc().roots() != desired {
-        step(&mut current, DocEdit::SetRoots { roots: desired })?;
     }
     let Recorded {
         doc,

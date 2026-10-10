@@ -21,6 +21,8 @@ Union 1:ccd1186c5d3ffc93
 Transform 8:d6db91cbf9fbbd1d
 Transform 15:290e34a337ad0034
 Transform 1:ec3e03a281b7e37b
+PlaceInWorld 1:fe65246af0e1e957
+PlaceInWorld 8:6d284faddcbfa980
 Pattern 6:d5158f2607a02303
 PlacedUnion 6:049d615c1d87fe03
 PlacedUnion 5:17006bb3fe738f40

@@ -1,8 +1,8 @@
 //! **A ring on a cone face winds its island and re-homes its rings
 //! without a chart** ([`super::path_island_winding`],
-//! [`super::path_ring_side`]). No public door reaches a cone face's ring
-//! lane yet. The boolean's operand gate refuses a cone operand
-//! (`work/germ/boolean-sector-algebra-has-no-cone-arm.md`). The plane
+//! [`super::path_ring_side`]). The boolean reaches the island winding on
+//! whole poses (`sweep/tests/cone_join_lane.rs`, T1's lune); these rows
+//! read the lane on its own, over every frame. The plane
 //! split admits a cone face and re-homes through the same
 //! [`super::ChordJoiner`], but nothing it is handed carries a ring on one:
 //! a body at rest cannot (its volume refuses
