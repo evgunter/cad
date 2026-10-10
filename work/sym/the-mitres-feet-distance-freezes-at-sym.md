@@ -37,3 +37,13 @@ as theorems at the door, or when the reason they cannot is a measured
 limit recorded here. The probe is `probe_mitre_at_sym` in
 `crates/editor-core/tests/coincidence_door.rs` (ignored; run with
 `--ignored --nocapture`, release).
+
+**A sibling, by cost rather than identity.** A filleted disc (r = 1,
+h = 1, rim fillet 0.1) has two `BatteryJoint` rows
+(`fillet3_chain_g1`, DAG 1325 nodes, 13 symbols). Both prove as
+`SymbolicZero` from 1024 terms with the `kept_atom` ladder (1.6 s for
+the disc's four rows), and neither proves at the door's 256 terms
+(`editor_core::coincide`'s `DOOR_BUDGET`). The door's budget is set by
+the mitre: at 1024 terms it costs 172 s on the box. A tier that fails
+fast on a form that will not close would let the door raise its
+budget.
