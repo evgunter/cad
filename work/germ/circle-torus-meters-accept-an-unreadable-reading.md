@@ -9,6 +9,7 @@ priority: P2
 cost: M
 closed: 2026-10-10
 branch: germ/half-angle-meters
+pr: 4600
 ---
 
 Found by the PR 3659 review (`reach-snowman` fix pass) while sweeping
