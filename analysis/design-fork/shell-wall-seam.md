@@ -34,3 +34,16 @@ protocol: 26db1af89e
   1. whether the NURBS × NURBS arm owes exhaustiveness (A: a seeded service, no; B: yes, product-domain);
   2. whether D2's exemption text changes (B yes, A no).
 - Arithmetic slip: B's together-offset is d·tan(φ/2); A's is d·cot(φ/2). cot is right (→0 as φ→π). Not decision-bearing.
+
+## Reconciliation
+
+- **Round 1.** Each designer was shown the other's first For Ev section and asked about exhaustiveness and D2.
+  - A moved to complete with no split, plus a D2 carve-out.
+  - B moved to seeded with the split, and called D2 optional.
+  - B corrected tan to cot.
+  - That is a CROSSOVER on both points.
+- **Round 2.** Each designer was shown the other's round-1 revision and asked what moved it, whether its own first argument was answered, and what the question underneath is.
+  - Both returned to their first positions, each naming the question underneath.
+  - A: completeness is evidence for the body's claims (boolean, clearance), not the edge's. So the arm is seeded and C5 rows state seeded or complete. No D2 change now.
+  - B: C5 is one total table whose answer is the section, whoever asks. Completeness is the arm's definition and selection is the consumer's. A per-consumer service axis is the contract-per-consumer shape that "no runtime fallback" forbids. D2 gets the shared-row carve-out.
+  - Each read the other's crossed round-1 report and wrongly believed the two now agree.
