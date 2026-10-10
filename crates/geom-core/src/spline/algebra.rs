@@ -406,6 +406,7 @@ pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) ->
     let span = hi - lo;
     let alpha = (u - lo) / span;
     let beta = (hi - u) / span;
+    let (lo, hi) = (lo, hi);
     // PROBE (nurbs/fork3): the combine's form, chosen by CAD_COMBINE.
     match probe_form() {
         1 => x + (y - x) * alpha,
@@ -415,6 +416,10 @@ pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) ->
         3 => midrad(x, y, alpha, beta).meet(Interval::hull(x, y)),
         4 => midrad(x, y, alpha, beta),
         5 => x * beta + y * alpha,
+        6 => monotone(x, y, alpha, beta, u, lo, hi).meet(Interval::hull(x, y)),
+        7 => monotone(x, y, alpha, beta, u, lo, hi),
+        8 => midrad_near(x, y, alpha, beta, u, lo, hi).meet(Interval::hull(x, y)),
+        9 => midrad_near(x, y, alpha, beta, u, lo, hi),
         _ => (x * beta + y * alpha).meet(Interval::hull(x, y)),
     }
 }
@@ -428,8 +433,34 @@ fn probe_form() -> u8 {
         Ok("midrad") => 3,
         Ok("midrad_nohull") => 4,
         Ok("convex_nohull") => 5,
+        Ok("monotone") => 6,
+        Ok("monotone_nohull") => 7,
+        Ok("midnear") => 8,
+        Ok("midnear_nohull") => 9,
         _ => 0,
     })
+}
+
+fn near_x(u: Interval, lo: Interval, hi: Interval) -> bool {
+    use crate::real::Bounds;
+    // structure decision: lambda <= 1/2 iff 2(u-lo) <= hi-lo; either side is sound
+    ((u - lo) * Interval::point(2.0) - (hi - lo)).lo() <= 0.0
+}
+
+/// B's monotone form: lerp at the two corners, from the nearer source.
+fn monotone(x: Interval, y: Interval, alpha: Interval, beta: Interval, u: Interval, lo: Interval, hi: Interval) -> Interval {
+    use crate::real::Bounds;
+    if !x.is_certified() || !y.is_certified() {
+        return Interval::refused();
+    }
+    let (from, to, t) = if near_x(u, lo, hi) { (x, y, alpha) } else { (y, x, beta) };
+    let pl = |a: f64, b: f64| Interval::point(a) + (Interval::point(b) - Interval::point(a)) * t;
+    Interval::hull(pl(from.lo(), to.lo()), pl(from.hi(), to.hi()))
+}
+
+/// Midpoint-radius, centre from the nearer source.
+fn midrad_near(x: Interval, y: Interval, alpha: Interval, beta: Interval, u: Interval, lo: Interval, hi: Interval) -> Interval {
+    if near_x(u, lo, hi) { midrad(x, y, alpha, beta) } else { midrad(y, x, beta, alpha) }
 }
 
 /// Midpoint-radius combine: the centre in the lerp form on POINT

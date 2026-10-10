@@ -1582,6 +1582,42 @@ mod tests {
         out
     }
 
+    /// PROBE (nurbs/fork3): one step, point inputs, mean/max excess over exact,
+    /// in ulps of max(|x|,|y|); plus hull and positivity probes.
+    #[test]
+    fn probe_fork3_one_step() {
+        let form = std::env::var("CAD_COMBINE").unwrap_or_else(|_| "convex".into());
+        let mut seed = 0x9E3779B97F4A7C15u64;
+        let mut rnd = || { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; (seed >> 11) as f64 / (1u64 << 53) as f64 };
+        let (mut sum, mut max, mut n) = (0.0f64, 0.0f64, 0usize);
+        for _ in 0..20000 {
+            let lo = rnd(); let hi = lo + 0.01 + rnd(); let u = lo + (hi - lo) * rnd();
+            let x = 2.0 * rnd() - 1.0; let y = x + (2.0 * rnd() - 1.0) * 10f64.powf(-6.0 * rnd());
+            let r = convex_step(Interval::point(x), Interval::point(y), lo, hi, u);
+            let (ql, qh, qu) = (Q::from_f64(lo), Q::from_f64(hi), Q::from_f64(u));
+            let lam = qu.sub(&ql).div(&qh.sub(&ql));
+            let one = Q::new(BigInt::from(1), BigInt::from(1));
+            let t = one.sub(&lam).mul(&Q::from_f64(x)).add(&lam.mul(&Q::from_f64(y)));
+            let up = Q::from_f64(r.hi()).sub(&t).to_f64_report();
+            let dn = t.sub(&Q::from_f64(r.lo())).to_f64_report();
+            assert!(up >= 0.0 && dn >= 0.0, "{form}: escape");
+            let e = (up + dn) / (x.abs().max(y.abs()) * f64::EPSILON);
+            sum += e; max = max.max(e); n += 1;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let mean = sum / n as f64;
+        println!("FORK3STEP {form}: mean {mean:.2} max {max:.2} ulps of max(|x|,|y|)");
+        // hull: wide equal sources
+        let w = Interval::from_bounds(0.0, 2.0);
+        let h = convex_step(w, w, 0.0, 3.0, 1.0);
+        println!("FORK3HULL {form}: [0,2],[0,2] at 1/3 -> [{:e}, {:e}]", h.lo(), h.hi());
+        let a = Interval::from_bounds(f64::from_bits(1), 1e2);
+        let h2 = convex_step(a, Interval::point(f64::from_bits(1)), 0.0, 3.0, 1.0);
+        println!("FORK3POS {form}: [tiny,1e2],[tiny] -> lo {:e}", h2.lo());
+        let h3 = convex_step(Interval::point(f64::from_bits(1)), Interval::point(1e2), 0.0, 3.0, 1e-300);
+        println!("FORK3POS2 {form}: tiny,1e2 at 1e-300/3 -> lo {:e}", h3.lo());
+    }
+
     /// PROBE (nurbs/fork3): excess width over the EXACT true set, per
     /// input family, for the form CAD_COMBINE selects.
     #[test]
@@ -2646,6 +2682,7 @@ mod tests {
                 .flatten()
                 .map(|c| c.hi() - c.lo())
                 .fold(0.0f64, f64::max);
+            println!("FORK3CUT p={p}: widest {:.2} ulps of 1", widest / f64::EPSILON);
             #[allow(clippy::cast_precision_loss)]
             let ceiling = (2.0 * p as f64 + 1.0) * f64::EPSILON;
             assert!(
