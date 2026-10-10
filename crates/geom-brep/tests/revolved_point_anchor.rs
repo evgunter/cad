@@ -749,3 +749,35 @@ fn the_full_period_sample_returns_to_the_start_enclosure() {
         2.0 * half
     );
 }
+
+/// Review probe (PR 4518): widths at N = 1 / 8 / 64 at 1e3 and 1e5,
+/// plus a wide-axis rim at 1e3.
+#[test]
+fn review_4518_width_rows() {
+    let names = [
+        "(0, 1/2)", "(1/2, 1)", "(0, a)", "(a, 1)", "(1/4, 3/4)", "(0.3, 0.7)",
+        "(0.3, 0.7) as quotients", "alternate (a, 1) / (0, a)", "alternate, a = t/span",
+        "alternate, a ± 1e-13", "(a ± 1e-13, 1)", "(0, a ± 1e-13)",
+    ];
+    for at in [FAR, [1.0e5, 3.0e4, -2.0e4], [1.0e7, 0.0, 0.0]] {
+        for name in names {
+            let w = widths_along(rim_at(at), |k| chain(name, k));
+            println!("REVIEW {at:?} {name}: {:.2e} / {:.2e} / {:.2e}", w[1], w[8], w[64]);
+        }
+    }
+    for (at, half) in [([0.0, 0.0, 3.0], 1e-9), (FAR, 1e-9), (FAR, 1e-12), ([1.0e5, 3.0e4, -2.0e4], 1e-9)] {
+        let [x, y, z] = at;
+        let w = |c: f64| Interval::from_bounds(c - half, c + half);
+        let c = MappedCurve::whole(MappedSource::RevolvedPoint {
+            point: Point2::new(iv(2.0), iv(2.0)),
+            place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
+            axis_origin: Point3::new(w(1.0 + x), w(2.0 + y), w(z)),
+            axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            angle: iv(TAU),
+        });
+        for name in ["(0.3, 0.7)", "(a, 1)", "(1/2, 1)"] {
+            let ws = widths_along(c.clone(), |k| chain(name, k));
+            println!("REVIEW wide axis 2*{half:e} at {at:?} {name}: {:.3e} / {:.3e} / {:.3e}", ws[1], ws[8], ws[64]);
+        }
+    }
+}
