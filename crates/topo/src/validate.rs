@@ -2460,26 +2460,22 @@ const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 /// spline face cannot be expressed on — the lane's own.
 const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 
-/// The recourse for a margin the band could not decide, where a
-/// coincidence between two things has an object to declare: the
-/// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
-/// `too_close_spells_the_shared_menu` holds these two spellings to),
-/// prefixed by the input check a poisoned margin wants first.
-fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
-    match margin {
-        Some(margin) if margin.is_invalid() => concat!(
-            "Recourse: check the inputs that built this body, then ",
-            geom_core::coincidence_declare_arm!(),
-            ", or ",
-            geom_core::coincidence_move_arm!()
-        ),
-        _ => concat!(
+/// The ending of a margin the band could not decide, where a coincidence
+/// between two things has an object to declare: the shared menu
+/// ([`geom_core::COINCIDENCE_RECOURSE`], which
+/// `too_close_spells_the_shared_menu` holds this spelling to), or, for a
+/// poisoned margin, the defect ending, as [`own_close`] gives it: no
+/// declaration or move makes the margin readable.
+fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
+    own_close(
+        margin,
+        concat!(
             "Recourse: ",
             geom_core::coincidence_declare_arm!(),
             ", or ",
             geom_core::coincidence_move_arm!()
         ),
-    }
+    )
 }
 
 /// The ending of an undecided margin about ONE thing, where "declare the
@@ -3305,7 +3301,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ),
         ChartRegionError::Escalated(diag) => (
             geom_core::undecided!("their overlap"),
-            too_close(Some(&diag.margin)),
+            too_close(&diag.margin),
         ),
         // The rays are the check's own: no coincidence to declare, and no
         // margin to size a tolerance by (`ray_walk::NoRaySettled`).
@@ -3758,7 +3754,7 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!("whether two parts of the body touch"),
                     ". {}"
                 ),
-                too_close(Some(&cause.margin))
+                too_close(&cause.margin)
             ),
             Self::CensusUnsupported { subject, cause } => {
                 let (why, recourse) = classify_census_cause(cause);
@@ -11079,7 +11075,7 @@ mod tests {
     fn too_close_spells_the_shared_menu() {
         let menu = geom_core::COINCIDENCE_RECOURSE;
         assert_eq!(
-            super::too_close(Some(&geom_core::MarginDiag::value(5e-9))),
+            super::too_close(&geom_core::MarginDiag::value(5e-9)),
             format!("Recourse: {menu}")
         );
     }
@@ -11123,21 +11119,19 @@ mod tests {
     /// band-decided arm of a sized decision, conditionally and with its
     /// value. The coincidence menu `too_close` spells is
     /// `geom_core::COINCIDENCE_RECOURSE`'s wording, the constant's own to
-    /// change, so it is taken out of exactly the arms that compose it, and
-    /// those arms are held to composing it.
+    /// change, so it is taken out of exactly the arms that compose it (on
+    /// a margin that was read), and those arms are held to composing it.
     #[test]
     fn no_validate_ending_says_lower_the_tolerance() {
         use crate::chart_region::ChartRegionError as R;
         let menu = geom_core::COINCIDENCE_RECOURSE;
-        let composes = |e: &ValidationError| {
-            matches!(
-                e,
-                ValidationError::CensusEscalated { .. }
-                    | ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::ChartRegion(R::Escalated(_)),
-                        ..
-                    }
-            )
+        let composes = |e: &ValidationError| match e {
+            ValidationError::CensusEscalated { cause: diag }
+            | ValidationError::CensusUnsupported {
+                cause: CensusUnsupportedCause::ChartRegion(R::Escalated(diag)),
+                ..
+            } => !diag.margin.is_invalid(),
+            _ => false,
         };
         let samples = crate::test_support_samples::validation_error_samples();
         let mut problems = Vec::new();

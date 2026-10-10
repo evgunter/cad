@@ -183,9 +183,7 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{
-    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3,
-};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
@@ -195,10 +193,11 @@ use crate::live::linked;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::containment::{
-    LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
+    Escalation, LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
     point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::recourse::Reading;
 
 use super::rim_wedge::Rim;
 use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
@@ -520,11 +519,16 @@ impl From<PointInLoopError> for PointInSolidError {
 impl core::fmt::Display for PointInSolidError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The escalation names no decision, so it ends as the
+            // containment door ends the same escalation
+            // (`ContainError::Escalated` with no decision).
             Self::Escalated { diag, .. } => write!(
                 f,
-                "cannot tell what is inside the solid: one of its faces is too close \
-                 to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
-                diag.payload()
+                "cannot tell what is inside the solid: {}",
+                diag.undecided(
+                    super::placement_subject(None),
+                    super::placement_ending(None, Escalation::Margin, diag, Reading::Build),
+                )
             ),
             Self::RayExhausted => write!(
                 f,
@@ -5957,7 +5961,6 @@ mod escalated_ending_rows {
 
     use super::*;
     use crate::boolean::ContainError;
-    use crate::splitting::Escalation;
 
     /// **A solid door's escalation ends as the unnamed placement does**
     /// (D4 ¶1 (i): one recourse per decision): the containment door
@@ -5989,7 +5992,10 @@ mod escalated_ending_rows {
             let placement = contfp.strip_prefix("contfp: ").unwrap();
             for (label, e) in [
                 ("solid door", PointInSolidError::Escalated { face, diag }),
-                ("sphere region", RegionRefusal::Escalated(diag).of_face(face)),
+                (
+                    "sphere region",
+                    RegionRefusal::Escalated(diag).of_face(face),
+                ),
             ] {
                 let text = e.to_string();
                 assert_eq!(

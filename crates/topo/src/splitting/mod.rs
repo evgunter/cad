@@ -553,6 +553,17 @@ impl core::fmt::Display for SplitReduceError {
                  {SPLIT_COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
+            // The operand passed the finished-body gate, the normal is a
+            // unit vector and a NaN origin refuses at the vertex sweep
+            // first, so a poisoned sector margin — a NaN, or the invalid
+            // margin the rules mint where two decided readings contradict
+            // each other — is the kernel's.
+            Self::SliverSector { diag, .. } if diag.margin.is_invalid() => diag
+                .undecided(
+                    "which side of the split plane a face leaves a vertex on",
+                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                )
+                .fmt(f),
             Self::SliverSector { diag, .. } => write!(
                 f,
                 "which side of the split plane a face leaves a vertex on is too close to \
