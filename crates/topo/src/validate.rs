@@ -2121,6 +2121,37 @@ pub enum ValidationError {
     },
 }
 
+/// The crossing rung's SIDE VERDICT for an
+/// [`CensusContact::EdgeEdgeCross`] — deliberately three-valued, so no
+/// bool may stand where this enum does. Exactly one variant backs; the
+/// other two refuse, each its own way (`census.rs`'s `ee_cross_backed`
+/// contract). [`SameSide`](Self::SameSide) is interpenetration
+/// evidence: between two copies at rest the assembly layer reads it as
+/// an interference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CrossingSideVerdict {
+    /// The two faces' material lies on opposite sides of the shared
+    /// carrier at the crossing — the legal in-contact-plane crossing
+    /// (an overhanging seat), the backing verdict.
+    OppositeSides,
+    /// The material lies on ONE side: the crossing is transverse —
+    /// interpenetration evidence. Refuses, naming this verdict.
+    SameSide,
+    /// The side question did not reach a verdict at a candidate that
+    /// held the crossing: the site's margins escalated in band, or —
+    /// contradicting the carrier screens that just passed — the
+    /// dihedral gate could not establish the Smooth precondition the
+    /// sense algebra requires (`geom_brep::classify_material_pairing`'s
+    /// contract). Escalated typed either way
+    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
+    /// fake side verdict. A pair whose carriers are DEFINITELY
+    /// transverse at the crossing never reaches this arm at all: the
+    /// edge screen refuses it silently first, because a question about
+    /// "the shared carrier" has no subject there.
+    Undecided,
+}
+
+
 /// A census-discovered coincidence between **distinct** entities (the
 /// tier-3′ injectivity pass's finding kinds, M3 PR 6a). Interior means
 /// strictly interior (endpoint/boundary coincidences surface through
@@ -2185,6 +2216,10 @@ pub enum CensusContact {
         a: EdgeKey,
         /// The other edge.
         b: EdgeKey,
+        /// The crossing rung's side verdict, where a declared,
+        /// region-holding pair answered one; `None` where no pair
+        /// answered for the crossing point.
+        side: Option<CrossingSideVerdict>,
     },
     /// Two collinear edges overlapping on a positive-length segment
     /// (certifiable via the D3 bounding-record reconstruction).

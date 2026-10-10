@@ -856,7 +856,11 @@ fn census_contacts() -> Vec<CensusContact> {
         CensusContact::VertexOnFace { vertex, face },
         CensusContact::VertexOnEdge { vertex, edge },
         CensusContact::EdgeFacePierce { edge, face },
-        CensusContact::EdgeEdgeCross { a: edge, b: edge },
+        CensusContact::EdgeEdgeCross {
+            a: edge,
+            b: edge,
+            side: None,
+        },
         CensusContact::EdgeEdgeOverlap { a: edge, b: edge },
         CensusContact::EdgeFaceOverlap { edge, face },
         CensusContact::ConformalPatch {
@@ -1423,11 +1427,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         let witness = match contact {
             CensusContact::ConformalPatch { .. } => {
                 crate::census::CONFORMAL_REGION_WITNESS.to_owned()
-            }
-            // The crossing arm's real shape: the position, then the side
-            // verdict after " — ", which the message does not render.
-            CensusContact::EdgeEdgeCross { .. } => {
-                "(0.4375, 0.5, 0.25) — side verdict: same-side".to_owned()
             }
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };

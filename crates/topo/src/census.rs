@@ -280,7 +280,8 @@ use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
 use crate::validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
+    CensusContact, CensusSubject, CensusUnsupportedCause, CrossingSideVerdict, StaleDeclaration,
+    ValidationError, decide,
 };
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
@@ -2418,44 +2419,6 @@ fn pair_edge_edge<T: Decide>(
     }
 }
 
-/// The crossing rung's SIDE VERDICT — deliberately three-valued, and
-/// the declared-interpenetration hook: a future C6 class (recorded
-/// interference gate-skips, A5's interference-fit representation)
-/// consumes [`SameSide`](Self::SameSide) as its ADMISSION evidence,
-/// so no bool may stand where this enum does. Today exactly one
-/// variant backs; the other two refuse, each its own way (the
-/// [`ee_cross_backed`] contract). The hook's PAYLOAD PATH today is a
-/// string: the verdict is rendered into the refusal's witness text
-/// (display data by that field's contract) — no error variant carries
-/// the enum itself, so C6's consumption needs a typed field on the
-/// refusal in its era, not just visibility. Stated here so the hook
-/// is not over-claimed: what exists is the vocabulary and the named
-/// refusal, not a machine-readable channel.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CrossingSideVerdict {
-    /// The two faces' material lies on opposite sides of the shared
-    /// carrier at the crossing — the legal in-contact-plane crossing
-    /// (an overhanging seat), the backing verdict.
-    OppositeSides,
-    /// The material lies on ONE side: the crossing is transverse —
-    /// interpenetration evidence. Refuses, NAMING this verdict
-    /// (C6's future admission evidence, never silently a plain
-    /// undeclared finding).
-    SameSide,
-    /// The side question did not reach a verdict at a candidate that
-    /// held the crossing: the site's margins escalated in band, or —
-    /// contradicting the carrier screens that just passed — the
-    /// dihedral gate could not establish the Smooth precondition the
-    /// sense algebra requires ([`geom_brep::classify_material_pairing`]'s
-    /// contract). Escalated typed either way
-    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
-    /// fake side verdict. A pair whose carriers are DEFINITELY
-    /// transverse at the crossing never reaches this arm at all: the
-    /// edge screen refuses it silently first, because a question about
-    /// "the shared carrier" has no subject there.
-    Undecided,
-}
-
 /// What the crossing rung answered for one `EdgeEdgeCross`.
 enum CrossingBacking {
     /// A declared pair answers for the crossing: point in its
@@ -2721,28 +2684,23 @@ fn ee_crossing_lane<T: Decide>(
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
+                    side: None,
                 },
                 witness: witness(q),
             });
         }
         CrossingBacking::Refused(verdict) => {
-            // The witness is the POSITION; the side verdict rides after
-            // it, behind " — ", for `Debug` and the caller, and the
-            // message renders the position alone (the field's
-            // contract). Same-side is interpenetration evidence (the
-            // C6 hook); undecided is already escalated typed alongside
-            // this finding.
-            let verdict = match verdict {
-                CrossingSideVerdict::OppositeSides => unreachable!("Backed above"),
-                CrossingSideVerdict::SameSide => "side verdict: same-side",
-                CrossingSideVerdict::Undecided => "side verdict: undecided",
-            };
+            // Same-side is interpenetration evidence, which the at-rest
+            // door between two copies reads off this field; undecided
+            // is already escalated typed alongside this finding.
+            debug_assert!(verdict != CrossingSideVerdict::OppositeSides, "Backed above");
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
+                    side: Some(verdict),
                 },
-                witness: format!("{} — {verdict}", witness(q)),
+                witness: witness(q),
             });
         }
     }
@@ -3966,7 +3924,7 @@ impl TouchSite {
             CensusContact::EdgeEdgeOverlap { a, b } => Self::EdgeEdge(a, b),
             CensusContact::VertexOnFace { vertex, face } => Self::VertexOnFace(vertex, face),
             CensusContact::EdgeFaceOverlap { edge, face } => Self::EdgeInFace(edge, face),
-            CensusContact::EdgeEdgeCross { a, b } => Self::EdgeCross(a, b),
+            CensusContact::EdgeEdgeCross { a, b, .. } => Self::EdgeCross(a, b),
             CensusContact::EdgeFacePierce { .. } | CensusContact::ConformalPatch { .. } => {
                 return None;
             }

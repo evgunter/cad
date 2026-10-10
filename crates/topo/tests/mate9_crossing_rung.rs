@@ -61,7 +61,9 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{
+    Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact, ValidationError,
+};
 
 /// [`common::straddle_seat`] as this file's tuple:
 /// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.
@@ -97,6 +99,14 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
 }
 
 /// The `EdgeEdgeCross` refusals of a list, as `(finding, witness)`.
+/// A crossing's side verdict.
+fn side(contact: &CensusContact) -> Option<CrossingSideVerdict> {
+    match contact {
+        CensusContact::EdgeEdgeCross { side, .. } => *side,
+        _ => None,
+    }
+}
+
 fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
     errors
         .iter()
@@ -167,7 +177,7 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
     let bare = crossings(&errors(&body, &ContactRecords::default()));
     assert_eq!(bare.len(), 2, "{bare:?}");
     assert!(
-        bare.iter().all(|(_, w)| !w.contains("side verdict")),
+        bare.iter().all(|(c, _)| side(c).is_none()),
         "an unanswered crossing names no verdict: {bare:?}"
     );
 
@@ -181,7 +191,7 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
         assert!(
             crossed
                 .iter()
-                .all(|(_, w)| w.contains("side verdict: same-side")),
+                .all(|(c, _)| side(c) == Some(CrossingSideVerdict::SameSide)),
             "a transverse crossing refuses with the verdict NAMED \
              (declared {pair:?}): {crossed:?}"
         );
@@ -275,7 +285,7 @@ fn a_perpendicular_pair_holding_the_point_names_nothing() {
     let crossed = crossings(&found);
     assert_eq!(crossed.len(), 2, "{found:?}");
     assert!(
-        crossed.iter().all(|(_, w)| !w.contains("side verdict")),
+        crossed.iter().all(|(c, _)| side(c).is_none()),
         "no side question is posed for a pair whose carrier does not \
          hold the crossing edges: {crossed:?}"
     );
@@ -354,7 +364,7 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
     );
     assert_eq!(with.len(), 2, "{found:?}");
     assert!(
-        with.iter().all(|(_, w)| !w.contains("side verdict")),
+        with.iter().all(|(c, _)| side(c).is_none()),
         "and no verdict is named — the pair never verified, so it \
          never spoke: {with:?}"
     );

@@ -424,10 +424,10 @@ Confinement is by carrier, not incidence: nothing requires the crossing
 edges to bound the declared faces.
 
 **Three-valued side verdict** (`CrossingSideVerdict`). `OppositeSides`
-backs. `SameSide` refuses, naming the verdict; it is the hook for
-declared interpenetration, which C6 will consume as admission evidence,
-so no bool may stand there (the verdict reaches the refusal only as
-rendered witness text, not a typed field). `Undecided` escalates
+backs. `SameSide` refuses, naming the verdict in the refusal's typed
+`side` field; it is interpenetration evidence, which the assembly layer
+reads as an interference between two copies at rest, so no bool may
+stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise

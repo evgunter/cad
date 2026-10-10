@@ -36,7 +36,9 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{
+    Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact, ValidationError,
+};
 
 fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
     ContactRecords {
@@ -58,15 +60,16 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
-/// The `EdgeEdgeCross` refusals of a list, as their witness strings.
-fn crossing_witnesses(errors: &[ValidationError]) -> Vec<String> {
+/// The `EdgeEdgeCross` refusals of a list, as their witness strings
+/// and side verdicts.
+fn crossing_witnesses(errors: &[ValidationError]) -> Vec<(String, Option<CrossingSideVerdict>)> {
     errors
         .iter()
         .filter_map(|e| match e {
             ValidationError::UndeclaredContact {
-                contact: CensusContact::EdgeEdgeCross { .. },
+                contact: CensusContact::EdgeEdgeCross { side, .. },
                 witness,
-            } => Some(witness.clone()),
+            } => Some((witness.clone(), *side)),
             _ => None,
         })
         .collect()
@@ -132,7 +135,7 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     let bare = crossing_witnesses(&errors(&body, &ContactRecords::default()));
     let bare_dives: Vec<_> = bare
         .iter()
-        .filter(|w| dive_witness(w) && at_seat_level(w))
+        .filter(|(w, _)| dive_witness(w) && at_seat_level(w))
         .collect();
     assert_eq!(
         bare_dives.len(),
@@ -148,7 +151,7 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     let found = crossing_witnesses(&errors(&body, &declared(&[(post_top, shelf_bottom)])));
     let surviving_dives: Vec<_> = found
         .iter()
-        .filter(|w| dive_witness(w) && at_seat_level(w))
+        .filter(|(w, _)| dive_witness(w) && at_seat_level(w))
         .collect();
     assert_eq!(
         surviving_dives.len(),
@@ -157,7 +160,7 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
          transverse diving crossings: {found:?}"
     );
     assert!(
-        surviving_dives.iter().all(|w| !w.contains("side verdict")),
+        surviving_dives.iter().all(|(_, side)| side.is_none()),
         "and names no verdict for them — the pair never spoke: \
          {surviving_dives:?}"
     );
@@ -220,7 +223,7 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
         "the straddle crossings stay hard findings: {found:?}"
     );
     assert!(
-        witnesses.iter().all(|w| !w.contains("side verdict")),
+        witnesses.iter().all(|(_, side)| side.is_none()),
         "and the skew (45-degree) declared pair names NOTHING for \
          them — the edge screen refuses a pair whose carrier does not \
          hold the crossing edges, so the side question is never posed \

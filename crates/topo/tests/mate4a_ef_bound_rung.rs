@@ -263,9 +263,9 @@ fn the_bare_straddle_seat_is_untouched() {
          UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
          face: FaceKey(1v1) }, witness: \"(0.44999999999999996, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
-         b: EdgeKey(15v1) }, witness: \"(0.6, 0.3, 0.5)\" }, \
+         b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
-         b: EdgeKey(15v1) }, witness: \"(0.3, 0.3, 0.5)\" }]",
+         b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\" }]",
         "the bare straddle seat's whole census"
     );
 }
