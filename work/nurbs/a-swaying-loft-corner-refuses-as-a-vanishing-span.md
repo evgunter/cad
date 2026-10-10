@@ -8,6 +8,7 @@ priority: P3
 cost: M
 branch: nurbs/swaying-loft-span-meter
 closed: 2026-10-10
+pr: 4540
 refs: [nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one]
 ---
 
@@ -49,7 +50,7 @@ Found building the stand-in body for
 `work/emit/a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter.md`
 (`emit_topo`'s `nurbs_crossings_rank_by_parameter` rows use `a = 0.25`).
 
-## Closed
+## Closed (2026-10-10, PR 4540)
 
 `NurbsCurve3::speed_lower_bound`'s integral arm gained a third
 assembly, `piece_assembly`: every nonempty span cut into
