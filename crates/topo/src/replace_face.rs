@@ -143,8 +143,10 @@
 //! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and an
 //! edge still scaffolded that the move tilts against a distinct
 //! neighbour refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
-//! `Approx × anything` has no arm, so a fitted face's
-//! intrinsically-described boundary is exactly where this door stops.
+//! A fitted face routes as its fit: its edge with a held plane is
+//! derived as their section, a row of its fit beside an analytic face
+//! is extracted from the new fit, and every other edge of it refuses by
+//! name ([`ReplaceFaceError::FittedBoundaryUnsupported`] lists them).
 //!
 //! # The apex window
 //!
@@ -333,9 +335,11 @@ pub enum ReplaceFaceError<T: Real> {
     NeighborPairUnroutable {
         /// The edge that cannot be re-described.
         edge: EdgeKey,
-        /// The replaced face's new surface kind.
+        /// The replaced face's new surface kind. A fitted face names
+        /// [`SurfaceKind::Approx`] here and routed as its fit's kind,
+        /// [`SurfaceKind::Nurbs`], which the message says.
         kind: SurfaceKind,
-        /// The untouched neighbour's kind.
+        /// The untouched neighbour's kind, read as `kind` is.
         other_kind: SurfaceKind,
     },
     /// **The C5 boundary, asked about the POSE.** The pair has a route
@@ -359,12 +363,16 @@ pub enum ReplaceFaceError<T: Real> {
         /// convention).
         why: &'static str,
     },
-    /// **The bounded-chart boundary.** A fitted chart covers exactly
-    /// its own parameter window, so a boundary edge it does not carry
-    /// as one of its own rows cannot follow the moved face: the
-    /// neighbour that holds the edge would have to EXTEND to meet it,
-    /// and a bounded chart does not extend. Named per edge, with what
-    /// the edge presented.
+    /// **The fitted face's boundary this door does not carry.** A moved
+    /// fitted face keeps an edge it meets a distinct held plane along
+    /// (their section, derived) and a row of its fit whose other side
+    /// is analytic. It refuses, named per edge with what the edge
+    /// presented:
+    /// - a row of its fit shared with a spline or another fitted face,
+    ///   which would have to move with it;
+    /// - a curve on its fit that does not run along its fitted rows;
+    /// - a curve still under construction (a scaffold edge);
+    /// - a seam the face shares with itself.
     FittedBoundaryUnsupported {
         /// The edge the fitted chart cannot carry.
         edge: EdgeKey,
@@ -736,13 +744,24 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::NeighborPairUnroutable {
                 kind, other_kind, ..
-            } => write!(
-                f,
-                "the offset {} face would meet a {} neighbour along a curve the kernel cannot \
-                 describe yet, so the edge between them cannot follow. {NOT_YET_ENDING}",
-                kind.adjective(),
-                other_kind.adjective()
-            ),
+            } => {
+                // A fitted surface routes as its fit, a spline: say so,
+                // since the arm that refused is the spline one.
+                let as_fit = |k: SurfaceKind| match k {
+                    SurfaceKind::Approx => " (met as its spline fit)",
+                    _ => "",
+                };
+                write!(
+                    f,
+                    "the offset {} face{} would meet a {} neighbour{} along a curve the kernel \
+                     cannot describe yet, so the edge between them cannot follow. \
+                     {NOT_YET_ENDING}",
+                    kind.adjective(),
+                    as_fit(*kind),
+                    other_kind.adjective(),
+                    as_fit(*other_kind),
+                )
+            }
             Self::NeighborPoseUnroutable {
                 kind, other_kind, ..
             } => write!(
@@ -755,9 +774,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::FittedBoundaryUnsupported { what, .. } => write!(
                 f,
-                "an edge of the fitted face is {what}, and the neighbour holding it would have \
-                 to extend to meet the moved face, which a fitted surface cannot. \
-                 {NOT_YET_ENDING}"
+                "an edge of the fitted face is {what}, which the face cannot carry through the \
+                 move. {NOT_YET_ENDING}"
             ),
             Self::CarrierLaneUnsupported { what, .. } => write!(
                 f,
@@ -1328,6 +1346,69 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
     replace_faces_offset_staged(body, faces, d, tol, true).map(|joins| OffsetOutcome { joins })
+}
+
+/// **Each boundary edge's planned verdict** for moving one non-cone
+/// `face` by `d`: the door's own mint and `plan_edge`, one entry per
+/// edge in the door's order, each `Ok(None)` where the edge plans,
+/// `Ok(Some(refusal))` where its section refusal is deferred to the
+/// corners, and `Err` where planning it refuses outright. The door
+/// stops at the first `Err` and raises a deferred refusal only once the
+/// corners are solved, so a row about one edge's own verdict reads it
+/// here rather than behind whichever edge answers first.
+///
+/// # Panics
+///
+/// On a cone face (its nappe and apex window are the door's, not
+/// this hook's), a stale face, or an offset that does not mint.
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+#[doc(hidden)]
+#[allow(clippy::panic, clippy::expect_used, clippy::type_complexity)]
+pub fn offset_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    d: T,
+    tol: Tol,
+) -> Vec<(
+    EdgeKey,
+    Result<Option<ReplaceFaceError<T>>, ReplaceFaceError<T>>,
+)> {
+    let band = Band::linear(tol).expect("the witness band");
+    let face_data = body.get_face(face).expect("a live face");
+    let old_key = face_data.surface;
+    let old_surface = body.face_surface_linked(face, face_data).clone();
+    assert!(
+        !matches!(old_surface, Surface::Cone { .. }),
+        "a cone's nappe and apex window are the door's"
+    );
+    let new_surface = mint_offset(
+        face,
+        &old_surface,
+        d,
+        band,
+        tol,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+    )
+    .unwrap_or_else(|e| panic!("the offset mints: {e}"));
+    group_boundary(body, &[face])
+        .into_iter()
+        .map(|edge| {
+            let plan = plan_edge(
+                body,
+                edge,
+                &[face],
+                &old_surface,
+                old_key,
+                &new_surface,
+                Nappe::Opening,
+                d,
+                apex_shift(&old_surface, d),
+                band,
+                T::section_lane(),
+            );
+            (edge, plan.map(|p| p.refused))
+        })
+        .collect()
 }
 
 /// What a public offset door did to the body's topology: the joins it
@@ -1948,23 +2029,20 @@ fn plan_edge<T: Decide>(
         // storing a row the neighbour's own lane will reject.
         let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
         let other = if group.contains(&fa) { fb } else { fa };
-        if !group.contains(&other)
-            && matches!(
-                body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face)),
-                Surface::Nurbs(_) | Surface::Approx(_)
-            )
-        {
-            return Err(ReplaceFaceError::FittedBoundaryUnsupported {
-                edge,
-                what: "a seam shared with another fitted face",
-            });
+        if !group.contains(&other) {
+            let what =
+                match body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face)) {
+                    Surface::Nurbs(_) => Some("a row of this fit shared with a spline face"),
+                    Surface::Approx(_) => Some("a row of this fit shared with another fitted face"),
+                    _ => None,
+                };
+            if let Some(what) = what {
+                return Err(ReplaceFaceError::FittedBoundaryUnsupported { edge, what });
+            }
         }
         // The extraction itself lives in `geom_brep::nurbs_iso`, beside
         // `boundary_iso_u` and its asserting rows: the door's lane is
-        // the call, not the arithmetic. PR-2's schedule for this lane
-        // is the fitted-boundary note below — until every chart
-        // bounding an edge moves together, the only reachable exit
-        // past this call is a refusal.
+        // the call, not the arithmetic.
         // **The fourth home of the same question** (PCURVE P-1b, found
         // in review). This early return mints its own spec and never
         // reaches `carried_declaration` below, so it too would answer
@@ -2007,30 +2085,26 @@ fn plan_edge<T: Decide>(
         });
     }
 
-    // Past the fit's own rows, a fitted face's boundary has nowhere to
-    // go: every remaining lane transports a carrier off the chart that
+    // Past the fit's own rows, a fitted face keeps only the edges it
+    // meets a DISTINCT held surface along, each derived below as the
+    // section of the fit with that surface where the pair routes (a
+    // plane); every other lane transports a carrier off the chart that
     // is supposed to hold it.
     if matches!(new_surface, Surface::Approx(_)) {
-        return Err(ReplaceFaceError::FittedBoundaryUnsupported {
-            edge,
-            // The pre-collapse refusal "a mapped rim (a v-row is not
-            // an `IsoCurve`)" is GONE with the taxonomy that made it:
-            // a rim is a chart image like any other, and a u-const one
-            // takes the exact-row lane above whatever minted it. What
-            // is left refuses on GEOMETRY — the fit's rows run u-const
-            // — rather than on which variant the description was.
-            what: match description {
-                EdgeDescription::Chart(ref c) if c.surface == old_key => {
-                    "a curve on this face's fit that does not run along its fitted rows"
-                }
-                EdgeDescription::Chart(_) => "a curve drawn on a neighbour's surface",
-                EdgeDescription::Intersection { .. }
-                | EdgeDescription::TangentIntersection { .. } => {
-                    "the meeting curve with an untouched neighbour"
-                }
-                EdgeDescription::Scaffold(_) => "a curve still under construction",
-            },
-        });
+        let what = match description {
+            EdgeDescription::Chart(ref c) if c.surface == old_key => {
+                Some("a curve on this face's fit that does not run along its fitted rows")
+            }
+            EdgeDescription::Scaffold(_) => Some("a curve still under construction"),
+            EdgeDescription::Chart(_)
+            | EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. } => {
+                (sides[0] == sides[1]).then_some("a seam the fitted face shares with itself")
+            }
+        };
+        if let Some(what) = what {
+            return Err(ReplaceFaceError::FittedBoundaryUnsupported { edge, what });
+        }
     }
 
     // **Between the moved surface and a distinct held one, the edge is
@@ -2395,26 +2469,41 @@ fn derive_edge<T: Decide>(
         });
     }
     let esc = |source| ReplaceFaceError::Escalated { source };
-    let section = match (new_surface, held) {
-        (Surface::Plane { .. }, Surface::Nurbs(wall)) => {
+    // A fitted surface is its fit as a section operand: its spline
+    // chart, as for evaluation and pcurves.
+    let plane_wall = match (new_surface, held) {
+        (plane @ Surface::Plane { .. }, wall) | (wall, plane @ Surface::Plane { .. }) => {
+            wall.spline_chart().map(|wall| (plane, wall))
+        }
+        _ => None,
+    };
+    let section = match plane_wall {
+        Some((plane, wall)) => {
             let lane = section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
                 edge,
                 scalar: T::NAME,
             })?;
-            lane.section(new_surface, wall, old, (t0, t1), extent, band)
+            lane.section(plane, wall, old, (t0, t1), extent, band)
                 .map_err(esc)?
                 .map(|c| Curve3::Nurbs(Arc::new(c)))
         }
-        _ => crate::offset_derive::section_closed(new_surface, held, old, (t0, t1), extent, band)
-            .map_err(esc)?,
+        None => {
+            crate::offset_derive::section_closed(new_surface, held, old, (t0, t1), extent, band)
+                .map_err(esc)?
+        }
     };
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
     };
-    let (s1, s2) = match *description {
-        EdgeDescription::Intersection { s2, .. } if s2 == old_key => (other_key, old_key),
-        _ => (old_key, other_key),
+    // A section with a plane names the plane first, whichever seat
+    // either surface held before; any other pair keeps the held
+    // surface's seat.
+    let (s1, s2) = match (plane_wall, description) {
+        (Some(_), _) if matches!(held, Surface::Plane { .. }) => (other_key, old_key),
+        (Some(_), _) => (old_key, other_key),
+        (None, EdgeDescription::Intersection { s2, .. }) if *s2 == old_key => (other_key, old_key),
+        (None, _) => (old_key, other_key),
     };
     let witness = carrier.mid_point(t0, t1);
     Ok(EdgePlan {

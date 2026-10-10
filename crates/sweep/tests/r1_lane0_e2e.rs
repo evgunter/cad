@@ -105,9 +105,22 @@ fn the_f64_seam_answers_every_public_door() {
     }
 
     // The offset door over the whole body: the mint that produces an
-    // `Approx` for a kind not closed under offset. The fixture's cap
-    // boundary refuses first, and that refusal is named so a change to
-    // the LANE absence cannot hide behind it.
+    // `Approx` for a kind not closed under offset. The fitted cap's
+    // edges with the box's side planes derive as their sections, and
+    // its corners then refuse: none of them meets one of the fit's own
+    // rows, and a derived spline section seeks no corner
+    // (`work/shell/a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section.md`).
+    // That refusal is named so a change to the LANE absence cannot hide
+    // behind it.
+    let corner_refusal = |e: Option<&topo::ReplaceFaceError<f64>>| {
+        matches!(
+            e,
+            Some(topo::ReplaceFaceError::CornerSection {
+                verdict: topo::CornerVerdict::Unsupported { .. },
+                ..
+            })
+        )
+    };
     let (mut fresh, cap) = box_with_approx_cap(d, 1e-9);
     // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
     fresh
@@ -119,11 +132,11 @@ fn the_f64_seam_answers_every_public_door() {
             },
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness()) {
-        Ok(_) => {}
-        Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
-        other => panic!("the `f64` mint must not report the lane's absence: {other:?}"),
-    }
+    let fresh_moved = topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness());
+    assert!(
+        corner_refusal(fresh_moved.as_ref().err()),
+        "the `f64` mint must not report the lane's absence: {fresh_moved:?}"
+    );
     let (mut single, scap) = box_with_approx_cap(d, 1e-9);
     // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
     single
@@ -135,11 +148,11 @@ fn the_f64_seam_answers_every_public_door() {
             },
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness()) {
-        Ok(_) => {}
-        Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
-        other => panic!("the single-face `f64` mint must not report the lane's absence: {other:?}"),
-    }
+    let single_moved = topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness());
+    assert!(
+        corner_refusal(single_moved.as_ref().err()),
+        "the single-face `f64` mint must not report the lane's absence: {single_moved:?}"
+    );
 }
 
 /// The certifying interval scalar: every door refuses by its own typed

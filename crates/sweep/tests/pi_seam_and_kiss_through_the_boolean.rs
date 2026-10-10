@@ -57,7 +57,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 
 use crate::common::seam_pairs::meeting;
@@ -222,32 +221,6 @@ fn unions_with_discs_rest(
         topo::union_with(tube, cap, &declared(&dt, &dc, ContactClass::Rest), tol),
         topo::union_with(cap, tube, &declared(&dc, &dt, ContactClass::Rest), tol),
     ]
-}
-
-/// The tube and a cap whose walls meet the tube's along the rim in a
-/// seam, unioned both ways round undeclared and with only the discs at
-/// `z = H` declared `Rest`: each is the union with the walls declared a
-/// `Seam` and the discs `Rest`, bit for bit (D10).
-fn seam_undeclared(label: &str, tube: &AtRestBody<f64>, cap: &AtRestBody<f64>) {
-    let tol = Tol::witness();
-    let rest = unions_with_discs_rest(tube, cap);
-    for ((order, x, y), rest) in [(0, tube, cap), (1, cap, tube)].into_iter().zip(rest) {
-        let want = topo::union_with(x, y, &walls_and_discs(x, y, BooleanCoincidence::Seam), tol);
-        assert!(
-            matches!(want, Ok(BooleanResult::Body(_))),
-            "{label}, order {order}: the declared seam builds: {want:?}"
-        );
-        assert_eq!(
-            outcome(&topo::union(x, y, tol)),
-            outcome(&want),
-            "{label}, order {order}, undeclared: the declared seam"
-        );
-        assert_eq!(
-            outcome(&rest),
-            outcome(&want),
-            "{label}, order {order}, the discs declared Rest: the declared seam"
-        );
-    }
 }
 
 /// The certified carrier of `edge` in `body`.
@@ -568,18 +541,16 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     }
 }
 
-/// **Undeclared, the rim is the seam the boolean verifies, and every
-/// other way of stating it refuses, each by its own name**, in both
-/// member orders. Undeclared, or with only the discs declared, the
-/// boolean verifies the walls' seam by its witness and declares it
-/// itself, so the union is the declared seam's
-/// ([`the_sphere_capped_tube_builds_with_its_walls_declared_a_seam`])
-/// bit for bit (D10). A `Tangent` claim on the walls is contradicted by their aligned
+/// **Every other way of stating the rim refuses, each by its own
+/// name**, in both member orders. Undeclared, an edge leaving the rim
+/// grazes the partner's wall and the crossing layer refuses, naming the
+/// declaration as the recourse; so it does with only the discs declared.
+/// A `Tangent` claim on the walls is contradicted by their aligned
 /// senses (`contact_tangent_rim_seam`) and steered to the seam; `Rest`
 /// and a continuation are contradicted on carrier kind, each under its
 /// own type.
 #[test]
-fn the_sphere_capped_tube_is_its_seam_undeclared_and_refuses_under_every_other_class() {
+fn the_sphere_capped_tube_refuses_undeclared_and_under_every_other_class() {
     let tube = rod_z(R, 0.0, H);
     let hemi = hemisphere_on_the_cap();
     let v = topo::mass_properties(&hemi, Tol::witness()).unwrap().volume;
@@ -601,8 +572,18 @@ fn the_sphere_capped_tube_is_its_seam_undeclared_and_refuses_under_every_other_c
     let (cap_t, cap_h) = (planes_at_z(&tube, H), planes_at_z(&hemi, H));
     assert_eq!((cap_t.len(), cap_h.len()), (1, 1), "one cap disc each");
 
-    assert_eq!((cyl.len(), sph.len()), (2, 2), "two wall faces each");
-    seam_undeclared("hemisphere", &tube, &hemi);
+    for e in union_both_orders(&tube, &hemi, &cyl, &sph, None) {
+        assert!(
+            is_pierce(&e) && e.to_string().contains("declare the coincidence"),
+            "undeclared: the crossing layer's refusal, naming the recourse: {e:?}"
+        );
+    }
+    for e in union_both_orders(&tube, &hemi, &cap_t, &cap_h, Some(BooleanCoincidence::REST)) {
+        assert!(
+            is_pierce(&e),
+            "the cap discs declared Rest: still the crossing layer: {e:?}"
+        );
+    }
     for (x, y) in [(&tube, &hemi), (&hemi, &tube)] {
         let run = |class| topo::union_with(x, y, &walls_and_discs(x, y, class), Tol::witness());
         let e = run(BooleanCoincidence::TANGENT).expect_err("Tangent refuses");
@@ -821,24 +802,14 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
 }
 
 /// **A rim lying inside the partner's face** passes the crossing layer:
-/// a tube ending on a ball of radius `√2` (its rim on the sphere, 45° to
-/// the wall), and a tube standing on a torus's 45° latitude. Each union
-/// stops in the join, on a frontier that is not the crossing layer's:
-/// the tube on the ball at the join's missing arm for the coaxial
-/// cylinder × sphere germ pair, `CurvedBooleanUnsupported` naming
-/// operand A's face, which the frame decides coaxial by margin; the tube on the
-/// torus at the section role read or the torus × plane germ frame
-/// (`work/join/a-tube-ending-on-a-ball-refuses-section-loop-mixed.md`;
-/// `work/germ/c5-plane-torus-cone-cylinder-arms.md`).
+/// a tube standing on a torus's 45° latitude stops in the join, on the
+/// torus × plane germ frame (`work/germ/c5-plane-torus-cone-cylinder-arms.md`),
+/// a frontier that is not the crossing layer's. A tube ending on a ball
+/// builds (`a_tube_ending_on_a_ball.rs`).
 #[test]
 fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
-    let ball = finished(
-        "the ball",
-        ball_poled_z(2.0_f64.sqrt(), Vec3::new(0.0, 0.0, 0.0), tol),
-        tol,
-    );
     let at0 = revolved_about_y(
         vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(3.0, 0.0), 1.0)],
         Revolution::Full,
@@ -849,67 +820,38 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     torus.merge_coplanar_faces(tol).unwrap();
     let torus = finished("the torus", torus, tol);
     let s = core::f64::consts::FRAC_1_SQRT_2;
-    for (label, tube, partner) in [
-        ("tube on a ball", rod_z(R, 1.0, 2.0), &ball),
-        ("tube on a torus", rod_z(2.0 + s, s, 2.0), &torus),
-    ] {
-        for (order, r) in [
-            topo::union_with(&tube, partner, &none, tol),
-            topo::union_with(partner, &tube, &none, tol),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let joins = if label == "tube on a ball" {
-                // The missing arm is named on operand A's face: the
-                // tube's wall, or the ball's sphere.
-                let first = [SurfaceKind::Cylinder, SurfaceKind::Sphere][order];
-                matches!(
-                    r,
-                    Err(BooleanError::CurvedBooleanUnsupported {
-                        operand: topo::Operand::A,
-                        kind,
-                        ..
-                    }) if kind == first
-                )
-            } else {
-                matches!(
-                    r,
-                    Err(
-                        BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                            | BooleanError::GermFrameUnsupported { .. }
-                    )
-                )
-            };
-            assert!(
-                joins,
-                "{label}, order {order}: past the crossing layer, the join's refusal: {:?}",
-                r.err()
-            );
-        }
+    let tube = rod_z(2.0 + s, s, 2.0);
+    for (order, r) in [
+        topo::union_with(&tube, &torus, &none, tol),
+        topo::union_with(&torus, &tube, &none, tol),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(
+            matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
+            "order {order}: past the crossing layer, the join's refusal: {:?}",
+            r.err()
+        );
     }
 }
 
-/// Undeclared, the dome's disc and the tube's are one plane by margin,
-/// so the union glues them as the `Rest` they are: the union with the
-/// discs declared `Rest`, bit for bit, in both member orders (D10).
+/// Undeclared, the dome's disc and the tube's are one plane by value
+/// only, which never glues: the coincidence refuses on that pair.
 #[test]
-fn a_dome_abutting_on_the_rim_undeclared_is_the_declared_union() {
+fn a_dome_abutting_on_the_rim_undeclared_refuses_on_its_discs() {
     let tube = rod_z(R, 0.0, H);
     let dome = dome_on_the_cap();
-    let [ab, ba] = unions_with_discs_rest(&tube, &dome);
-    for (order, r, (x, y)) in [(0, ab, (&tube, &dome)), (1, ba, (&dome, &tube))] {
-        let Ok(BooleanResult::Body(want)) = r else {
-            panic!("order {order}: the declared union builds: {r:?}");
-        };
-        let got = topo::union(x, y, Tol::witness());
-        let Ok(BooleanResult::Body(got)) = got else {
-            panic!("order {order}: the undeclared union builds: {got:?}");
+    let (dt, dd) = (planes_at_z(&tube, H), planes_at_z(&dome, H));
+    let [ab, ba] = union_both_orders(&tube, &dome, &dt, &dd, None);
+    for (order, e, discs) in [(0, ab, (dt[0], dd[0])), (1, ba, (dd[0], dt[0]))] {
+        let BooleanError::UndeclaredCoincidence { pair, .. } = e else {
+            panic!("order {order}: the discs' undeclared coincidence: {e:?}");
         };
         assert_eq!(
-            format!("{:?}", got.body),
-            format!("{:?}", want.body),
-            "order {order}: undeclared is the declared union"
+            (pair[0].1, pair[1].1),
+            discs,
+            "order {order}: the pair is the two discs"
         );
     }
 }
@@ -1024,33 +966,66 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     }
 }
 
-/// **A cap abutting the tube on its rim, undeclared, is the union its
-/// declarations would state** (D10): the hemisphere's wall meets the
-/// tube's in a seam, the stacked tube's continues its carrier, and the
-/// boolean verifies each and declares it itself. The frustum's cone is
-/// outside the carrier ladder, so the operand gate refuses it, declared
-/// or not.
 #[test]
-fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
+fn a_cap_abutting_on_the_rim_refuses_at_a_graze_or_as_an_undeclared_continuation() {
     let tube = rod_z(R, 0.0, H);
     let cap_t = planes_at_z(&tube, H);
     let hemi = hemisphere_on_the_cap();
-    // The hemisphere is G1 at the rim (wedge π): its wall meets the
-    // tube's in a seam, which the boolean verifies by its witness and
-    // declares itself, undeclared or with only the discs declared.
-    seam_undeclared("hemisphere", &tube, &hemi);
+    let cap_h = planes_at_z(&hemi, H);
+    // The hemisphere is G1 at the rim (wedge π): the edges LEAVING the
+    // rim — the tube's rulings, the hemisphere's meridians — graze the
+    // other operand's wall there, and a graze needs a declaration or
+    // structure. The refused edge is never the rim circle itself.
+    for class in [None, Some(BooleanCoincidence::REST)] {
+        let [ab, ba] = union_both_orders(&tube, &hemi, &cap_t, &cap_h, class);
+        for (order, e, x) in [(0, ab, &tube), (1, ba, &hemi)] {
+            let BooleanError::CurvedPierceUnsupported { edge, .. } = e else {
+                panic!("hemisphere, discs {class:?}, order {order}: the crossing layer: {e:?}");
+            };
+            let leaves_the_rim = match carrier_of(x, edge) {
+                geom::Curve3::Line { .. } => true,
+                geom::Curve3::Circle { axis, .. } => axis.z.abs() < 0.5,
+                _ => false,
+            };
+            assert!(
+                leaves_the_rim,
+                "hemisphere, discs {class:?}, order {order}: a ruling or a meridian grazes: {:?}",
+                carrier_of(x, edge)
+            );
+        }
+    }
     // The stacked cylinder continues the tube's carrier: its own rim
     // lies on the tube's wall, but its parent wall is that carrier, so
-    // the ladder decides it no distinct parent and the door stands. Its
-    // walls are one carrier by margin: undeclared, or with only its
-    // discs declared, the union glues them as the continuation they are
-    // and is the declared body (D10).
+    // the ladder decides it no distinct parent and the door stands.
+    // The stacked cylinder continues the tube's carrier: undeclared, or
+    // with only its discs declared, its walls are an undeclared
+    // continuation, refused at the reduction before the crossing layer.
     let stacked = rod_z(R, H, 1.0);
     let cap_s = planes_at_z(&stacked, H);
     let (wt, ws) = (
         faces_of(&tube, SurfaceKind::Cylinder),
         faces_of(&stacked, SurfaceKind::Cylinder),
     );
+    for class in [None, Some(BooleanCoincidence::REST)] {
+        for (order, e) in union_both_orders(&tube, &stacked, &cap_t, &cap_s, class)
+            .into_iter()
+            .enumerate()
+        {
+            let BooleanError::UndeclaredCoincidence {
+                pair: [(_, fa), (_, fb)],
+                relation: topo::PlaneRelation::SameOriented,
+                ..
+            } = e
+            else {
+                panic!("stacked, discs {class:?}, order {order}: the walls' continuation: {e:?}");
+            };
+            let walls = if order == 0 { (&wt, &ws) } else { (&ws, &wt) };
+            assert!(
+                walls.0.contains(&fa) && walls.1.contains(&fb),
+                "stacked, discs {class:?}, order {order}: a wall pair"
+            );
+        }
+    }
     for (order, x, y, dx, dy, fx, fy) in [
         (0, &tube, &stacked, &cap_t, &cap_s, &wt, &ws),
         (1, &stacked, &tube, &cap_s, &cap_t, &ws, &wt),
@@ -1061,25 +1036,6 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
                 d.coincident_faces
                     .push(FacePairDeclaration::continuation(fa, fb));
             }
-        }
-        let want = outcome(&topo::union_with(x, y, &d, Tol::witness()));
-        for (posture, r) in [
-            ("undeclared", topo::union(x, y, Tol::witness())),
-            (
-                "discs Rest",
-                topo::union_with(
-                    x,
-                    y,
-                    &meeting(x, y, declared(dx, dy, ContactClass::Rest)),
-                    Tol::witness(),
-                ),
-            ),
-        ] {
-            assert_eq!(
-                outcome(&r),
-                want,
-                "stacked, {posture}, order {order}: the declared union"
-            );
         }
         // Declared, the union builds: the join matches the rim's two
         // semicircles as arcs, and the four wall faces stay unmerged
@@ -1554,8 +1510,7 @@ fn a_rod_in_a_bore_declared_tangent_refuses_at_the_crossing_layer() {
 /// **The seam's own refusals.** Two stacked rods of one radius share
 /// one carrier: a seam declared on their walls is contradicted as
 /// conformal. The fact names the finding (`OneCarrier`), and the margin
-/// is the conformal screen's display label (`seam_conformal`), which
-/// names the finding rather than a margin. A rod hovering a clear gap above a slab
+/// keeps the predicate the carrier ladder measured it with. A rod hovering a clear gap above a slab
 /// has no tangency: the closed-form locus finds the gap
 /// (`pc_parallel_gap`).
 #[test]
@@ -1571,7 +1526,7 @@ fn a_seam_on_one_carrier_or_across_a_gap_is_contradicted() {
             panic!("stacked rods: contradicted: {r:?}");
         };
         assert_eq!(*fact, Some(topo::Contradiction::OneCarrier), "{r:?}");
-        assert_eq!(margin.predicate, Some("seam_conformal"), "{r:?}");
+        assert_eq!(margin.predicate, Some("carrier_cyl_axis_parallel"), "{r:?}");
         assert!(
             r.as_ref()
                 .unwrap_err()

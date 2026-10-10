@@ -488,14 +488,20 @@ the closed form, in-band to `SectionError::Escalated`. Equal cylinder
 radii, and a sphere's centre on a cylinder's axis, are decided by their
 margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
-own kind, not `Nurbs`: a locus claim against an approximating surface is
-a claim about the fit, and `Approx × anything` refuses because composing
-the fit's precision claim with the SSI limbs is not a ratified rule.
+own kind, and as an intersection operand it is its fit: `(Plane,
+Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
+`approx.fit()`, and every other `Approx` pair routes as the fit's kind
+does. Nothing is composed into the edge's bound: the fit's distance from
+its description is the face's claim (O3, re-derived at rest by O5). Such
+an edge's carrier lies within `2ε / sin θ` of the described section
+along the wall, `θ` the angle between the plane and the wall, the same
+conditioning every certified `Intersection` edge already has; that is
+stated here and not enforced.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
-axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere and
-plane×NURBS (rung 3). Every other pair refuses, most blocked on the cone
+axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
+plane×NURBS and plane×`Approx` (rung 3). Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
 ### Fitted-cache structure
@@ -705,8 +711,12 @@ owned `Arc`, not an arena key (layering, and `Surface` values travel
 without an arena), and it is NURBS by type: analytic bases mint exactly
 under O1 and never reach this door. Storage is the seventh variant
 `Surface::Approx(Arc<ApproxSurface>)`, so every dispatch site must say
-what it does with one (most delegate to the fit; kind-indexed tables
-treat it as its own kind, C5).
+what it does with one: geometry questions (evaluation, boxes,
+tessellation, pcurves, sections, C5) read the fit, O5's re-derivation
+at rest reads the description, and the other kind-indexed questions
+treat it as its own kind (dihedral classification answers `InBand` for
+it as for `Nurbs`, the tangent span bounds decline it, the census keys
+on the kind).
 
 **O3 — The certificate is C2 lifted, on two meters the fit needs.** The
 claim is `sup_(u,v) ‖S_fit − (S + d·n)‖ ≤ ε_precision`, pointwise in the
@@ -775,10 +785,16 @@ one annular rim face. Nothing opens; the result is closed, the
 designated shell's thin solid is single-shell (a hollow operand's other
 thin solids keep their two), and the invariant is closure, not genus
 (one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
-inverted cavity walls at edge re-attachment. A NURBS-walled body still
-cannot be shelled: `Approx × anything` has no C5 arm, so the
-face-replacement door refuses on a fitted face's intrinsically described
-boundary.
+inverted cavity walls at edge re-attachment. A fitted face's edge with a
+plane is their section over the fit (C5), and a row of its fit beside
+an analytic face is extracted from the new fit; its other boundary
+refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
+naming `Approx`); by `FittedBoundaryUnsupported`, a row of the fit
+shared with a spline or another fitted face, a curve on the fit that
+does not run along its rows, a scaffold edge, and a seam the face shares
+with itself; a section outside the fit's window (the section's own
+verdict); and a scalar with no fit or section lane
+(`ApproxLaneUnsupported`, `NurbsLaneUnsupported`).
 
 **O5 — The validator re-derives per face, as it does per edge.** Tier 3
 never trusts a stored certificate: `validate.rs` re-runs the O3

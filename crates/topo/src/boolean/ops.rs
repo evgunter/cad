@@ -2551,7 +2551,7 @@ fn seam_reading<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, (DihedralReading, Indeterminate)> {
     geom_brep::classify_dihedral(surf1, surf2, witness, extent, band)
-        .map_err(|escalation| (DihedralReading::Lever(escalation.rung()), escalation.diag()))
+        .map_err(DihedralReading::of_lever)
 }
 
 /// The boolean's refusal for an undecided seam reading: the seam's
@@ -2617,16 +2617,11 @@ fn must_carry_reading<T: Decide>(
     extent: T,
     band: Band,
 ) -> Result<bool, (DihedralReading, Indeterminate)> {
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict};
+    use geom_brep::MustCarryVerdict;
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
         MustCarryVerdict::JetDeterminate => Ok(true),
         MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
-        MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-            Err((DihedralReading::Lever(escalation.rung()), escalation.diag()))
-        }
-        MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag)) => {
-            Err((DihedralReading::Bend, diag))
-        }
+        MustCarryVerdict::InBand(escalation) => Err(DihedralReading::of_must_carry(escalation)),
     }
 }
 

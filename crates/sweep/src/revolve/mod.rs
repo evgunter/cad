@@ -135,7 +135,7 @@ use crate::swept::CapPlaneError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
+use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
 use crate::swept::decide;
 
@@ -571,23 +571,30 @@ pub enum RevolveError {
     },
     /// The dihedral classification at a latitude (wall–wall) join
     /// escalated: a sliver dihedral, certifiable as neither a corner
-    /// nor a smooth join (D2's ratified text).
+    /// nor a smooth join (D2's ratified text); or, on a join whose
+    /// witness read smooth, a must-carry station's first-order arm or
+    /// wedge, or its second-order bend, did.
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall meridian rim (or a
     /// partial revolve's cap–cap axis edge) escalated during the
-    /// upgrade pass.
+    /// upgrade pass, or, on one whose witness read smooth, a must-carry
+    /// station's first-order arm or wedge, or its second-order bend, did.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -764,21 +771,21 @@ impl fmt::Display for RevolveError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the join at loop {loop_index} vertex {vertex_index} is neither a definite \
-                 corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let join = format!("the join at loop {loop_index} vertex {vertex_index}");
+                crate::swept::sliver_text(f, &join, *reading, source)
+            }
             Self::SliverRim {
                 loop_index,
                 segment_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the cap rim at loop {loop_index} segment {segment_index} is neither a \
-                 definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let rim = format!("the cap rim at loop {loop_index} segment {segment_index}");
+                crate::swept::sliver_text(f, &rim, *reading, source)
+            }
             Self::SmoothJoinRefuted { edge } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
@@ -905,6 +912,47 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A smooth latitude join or cap rim's must-carry escalation says which question
+    /// escalated**: a first-order station is the sliver, neither corner
+    /// nor smooth; a second-order one is a smooth join whose faces'
+    /// bend is too close to call. No fixture reaches a first-order
+    /// station past a witness that read smooth, so the escalations are
+    /// built directly.
+    #[test]
+    fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
+        use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
+            let (reading, source) = DihedralReading::of_must_carry(escalation);
+            for text in [
+                RevolveError::SliverJoin {
+                    loop_index: 0,
+                    vertex_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+                RevolveError::SliverRim {
+                    loop_index: 0,
+                    segment_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+            ] {
+                assert_eq!(
+                    text.contains("curve apart there or share their curvature is undecided: "),
+                    bend,
+                    "{escalation:?}: {text}"
+                );
+                assert_eq!(
+                    text.contains("is neither a definite corner nor definitely smooth"),
+                    !bend,
+                    "{escalation:?}: {text}"
+                );
+            }
+        }
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the three revolve pairs —
     /// axis length, angle, and vertex radius — each describe one user

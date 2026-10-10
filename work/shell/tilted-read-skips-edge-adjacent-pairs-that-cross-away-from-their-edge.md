@@ -2,11 +2,12 @@
 id: tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge
 kind: issue
 title: The tilted read skips edge-adjacent pairs, which could cross away from their common edge
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P3
 cost: M
 refs: [shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel]
+branch: shell/tilted-read-gaps
 ---
 
 Raised in the review of PR 4311, which added the tilted read

@@ -4881,12 +4881,18 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
 /// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
-/// 0.2` arc in band at 1.6–1.8e-14 m whatever its samples: the enclosure's
+/// 0.2` arc in band at 1.3–1.6e-14 m whatever its samples: the enclosure's
 /// width, not a between-sample error, so halving every refused gap
 /// doubles the samples and leaves the margin where it was. The rounds
 /// run from about 4 250 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
 /// and the refusal is the wall's, its ending naming the floor.
+///
+/// "The same width" is read against what the alternative would show: a
+/// between-sample error falls at least as fast as the gaps, so over a
+/// sample growth `G ≥ 3` its spread `hi/lo` is at least `G`. The row
+/// puts the line at `√G`, the geometric midpoint between flat (`1`) and
+/// that (`G`); measured `hi/lo` is about 1.18 against `√G ≥ 1.73`.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4924,11 +4930,13 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
             _ => panic!("limb 2 in band every round: {rounds:?}"),
         })
         .collect();
+    #[allow(clippy::cast_precision_loss)]
+    let growth = last as f64 / first as f64;
     let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {
         (lo.min(*m), hi.max(*m))
     });
     assert!(
-        (1.4e-14..2.0e-14).contains(&lo) && hi < 1.2 * lo,
+        (1.2e-14..1.5e-14).contains(&lo) && hi / lo < growth.sqrt(),
         "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
     );
 }
