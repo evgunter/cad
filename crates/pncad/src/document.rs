@@ -501,10 +501,15 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
 // is: a caller asserting that a refusal reaches its recourse must not
 // do it by re-typing the sentence.
+// An overlap between two copies' material is not a refusal but an
+// `InterferenceFinding` on `Assembly::interference` (D10): its copies
+// (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
+// `Unlocalized` with why), and the assertion that quiets it, if any.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
-    RefusedRef, Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, CopyRef, FaceSite, InterferenceFinding, MintRefusal,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route,
+    Unlocalized, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

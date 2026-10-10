@@ -137,7 +137,8 @@ use pncad::document::{
     NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
     RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced, UpdateError,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, Unplaced,
+    UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -2543,6 +2544,16 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
             ..
         } => "carried_declined",
         Attribution::Unattributed => "unattributed",
+    }
+}
+
+/// The stable tag for why an interference has no site.
+pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
+    match why {
+        Unlocalized::Refused { .. } => "refused",
+        Unlocalized::Invalid { .. } => "invalid",
+        Unlocalized::Empty => "empty",
+        Unlocalized::Unnamed => "unnamed",
     }
 }
 

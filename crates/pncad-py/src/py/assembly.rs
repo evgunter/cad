@@ -40,6 +40,7 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     assembly_error_tag, attribution_tag, mint_refusal_tag, product_error_tag, refused_ref_tag,
+    unlocalized_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -628,6 +629,150 @@ pub(crate) struct Assembly {
     names: Vec<String>,
     minted: Vec<MintedDeclaration>,
     carried: Vec<CarriedDeclaration>,
+    interference: Vec<InterferenceFinding>,
+}
+
+/// A face of a copy, as the copy's own name table spells it: the name
+/// a selection of the copy reads.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct FaceSite {
+    copy: Var,
+    member: u32,
+    face: String,
+}
+
+#[pymethods]
+impl FaceSite {
+    /// The copy: its placement's output variable.
+    #[getter]
+    fn copy(&self) -> Var {
+        self.copy
+    }
+
+    /// Which member of the placement's value the copy is (0 for a
+    /// placement of one body).
+    #[getter]
+    fn member(&self) -> u32 {
+        self.member
+    }
+
+    /// The face's name, as opaque text.
+    #[getter]
+    fn face(&self) -> String {
+        self.face.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("FaceSite(member={}, face={})", self.member, self.face)
+    }
+}
+
+/// An overlap of two copies' material at rest: reported on
+/// `Assembly.interference`, never raised, and quiet only under a
+/// holding one-sided `gap` assertion at its site (`quiet_by`).
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct InterferenceFinding {
+    a: (Var, u32),
+    b: (Var, u32),
+    faces: Option<Vec<FaceSite>>,
+    unlocalized: Option<&'static str>,
+    quiet_by: Option<NodeId>,
+}
+
+impl InterferenceFinding {
+    fn of(py: Python<'_>, doc: &d::ProfileDoc, finding: &d::InterferenceFinding) -> PyResult<Self> {
+        let copy = |c: &d::CopyRef| (Var::of(doc, c.var), c.member);
+        let (faces, unlocalized) = match &finding.overlap {
+            d::Overlap::Bounded { faces } => (
+                Some(
+                    faces
+                        .iter()
+                        .map(|site| {
+                            Ok(FaceSite {
+                                copy: Var::of(doc, site.copy.var),
+                                member: site.copy.member,
+                                face: name_text(py, &site.face)?,
+                            })
+                        })
+                        .collect::<PyResult<Vec<_>>>()?,
+                ),
+                None,
+            ),
+            d::Overlap::Unlocalized(why) => (None, Some(unlocalized_tag(why))),
+        };
+        Ok(Self {
+            a: copy(&finding.a),
+            b: copy(&finding.b),
+            faces,
+            unlocalized,
+            quiet_by: finding.quiet.map(NodeId),
+        })
+    }
+}
+
+#[pymethods]
+impl InterferenceFinding {
+    /// The copy earlier in gather order: its placement's output
+    /// variable.
+    #[getter]
+    fn a(&self) -> Var {
+        self.a.0
+    }
+
+    /// Which member of `a`'s placement value it is.
+    #[getter]
+    fn a_member(&self) -> u32 {
+        self.a.1
+    }
+
+    /// The other copy.
+    #[getter]
+    fn b(&self) -> Var {
+        self.b.0
+    }
+
+    /// Which member of `b`'s placement value it is.
+    #[getter]
+    fn b_member(&self) -> u32 {
+        self.b.1
+    }
+
+    /// The faces of both copies bounding the overlap, or `None` when
+    /// the kernel could not bound it (`unlocalized` says why).
+    #[getter]
+    fn faces(&self) -> Option<Vec<FaceSite>> {
+        self.faces.clone()
+    }
+
+    /// Why the overlap has no site — `refused`, `invalid`, `empty` or
+    /// `unnamed` — or `None` when `faces` names it. An unlocalized
+    /// overlap is loud and nothing quiets it.
+    #[getter]
+    fn unlocalized(&self) -> Option<&'static str> {
+        self.unlocalized
+    }
+
+    /// The assertion that quiets it, or `None` when it is loud.
+    #[getter]
+    fn quiet_by(&self) -> Option<NodeId> {
+        self.quiet_by
+    }
+
+    /// Whether no assertion quiets it.
+    #[getter]
+    fn loud(&self) -> bool {
+        self.quiet_by.is_none()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "InterferenceFinding({}, {} face(s))",
+            if self.loud() { "loud" } else { "quiet" },
+            self.faces.as_ref().map_or(0, Vec::len)
+        )
+    }
 }
 
 /// One declaration a document BELOW this one authored, certified here
@@ -697,12 +842,21 @@ impl Assembly {
         self.carried.clone()
     }
 
+    /// Every overlap between two copies' material, quiet or loud, in
+    /// the census's order. An overlap is reported here and never
+    /// raised.
+    #[getter]
+    fn interference(&self) -> Vec<InterferenceFinding> {
+        self.interference.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Assembly({} names, {} minted declaration(s), {} carried)",
+            "Assembly({} names, {} minted declaration(s), {} carried, {} interference)",
             self.names.len(),
             self.minted.len(),
-            self.carried.len()
+            self.carried.len(),
+            self.interference.len()
         )
     }
 }
@@ -873,6 +1027,12 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .iter()
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
+    let read = evaluation.doc_shared();
+    let interference = assembly
+        .interference
+        .iter()
+        .map(|finding| InterferenceFinding::of(py, &read, finding))
+        .collect::<PyResult<Vec<_>>>()?;
     Ok(Assembly {
         // The at-rest body keeps the record set the gate certified it
         // against — the parts' own carried declarations (D-1) plus
@@ -888,12 +1048,15 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
             .into_iter()
             .map(CarriedDeclaration)
             .collect(),
+        interference,
     })
 }
 
 /// Register the gather and gate surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Assembly>()?;
+    m.add_class::<InterferenceFinding>()?;
+    m.add_class::<FaceSite>()?;
     m.add_class::<MintedDeclaration>()?;
     m.add_class::<CarriedDeclaration>()?;
     m.add_class::<Attribution>()?;

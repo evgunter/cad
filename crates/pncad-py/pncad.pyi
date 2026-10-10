@@ -6526,6 +6526,70 @@ class Assembly:
         """Which inner mates this verdict answered for. Empty for a
         document that instantiates nothing with mates."""
 
+    @property
+    def interference(self) -> list[InterferenceFinding]:
+        """Every overlap between two copies' material, quiet or loud,
+        in the census's order. An overlap is reported here, never
+        raised."""
+
+class FaceSite:
+    """A face of a copy, as the copy's own name table spells it: the
+    name a selection of the copy reads."""
+
+    @property
+    def copy(self) -> Var:
+        """The copy: its placement's output variable."""
+
+    @property
+    def member(self) -> int:
+        """Which member of the placement's value the copy is (0 for a
+        placement of one body)."""
+
+    @property
+    def face(self) -> str:
+        """The face's name, as opaque text."""
+
+class InterferenceFinding:
+    """An overlap of two copies' material at rest.
+
+    One finding per connected overlap, named by the faces of both
+    copies that bound it. It is quiet only under a holding assertion
+    that reads a `gap` directly over an opposed pair of the two copies'
+    faces, admits only negative values (`<= b` or `= b`, `b`
+    negative), whose two faces bound the overlap, and between whose
+    carriers every bounding face lies. Every other overlap is loud."""
+
+    @property
+    def a(self) -> Var:
+        """The copy earlier in gather order: its placement's output
+        variable."""
+
+    @property
+    def a_member(self) -> int: ...
+    @property
+    def b(self) -> Var:
+        """The other copy."""
+
+    @property
+    def b_member(self) -> int: ...
+    @property
+    def faces(self) -> Optional[list[FaceSite]]:
+        """The bounding faces, or `None` when the kernel could not
+        bound the overlap."""
+
+    @property
+    def unlocalized(self) -> Optional[str]:
+        """Why the overlap has no site — `refused`, `invalid`,
+        `empty` or `unnamed` — or `None`. An unlocalized overlap is
+        loud and nothing quiets it."""
+
+    @property
+    def quiet_by(self) -> Optional[NodeId]:
+        """The assertion that quiets it, or `None` when it is loud."""
+
+    @property
+    def loud(self) -> bool: ...
+
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     """The AT-REST ASSEMBLY GATE: gather the product, mint every
     solved mate's declaration into its contact records, and run the
@@ -6535,6 +6599,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     never make. `evaluation` must be an evaluation of `doc` that
     RESOLVED — an instantiate node with no resolver produced no body,
     so the gather refuses `root_failed` before the gate runs.
+
+    An overlap between two copies' material is not raised: it is an
+    `InterferenceFinding` on `Assembly.interference`.
 
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
