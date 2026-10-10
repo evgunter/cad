@@ -160,7 +160,6 @@ macro_rules! nurbs_project {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let t = u0 + (u1 - u0) * frac;
-                        // Read only through `mid()`: nothing escapes at `Sym`, so no pin can observe this lift.
                         let d = span.eval_in_span(T::from_computed(t)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.

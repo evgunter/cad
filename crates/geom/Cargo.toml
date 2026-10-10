@@ -35,10 +35,12 @@ bvh = { path = "../bvh" }
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
-# The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
-# test-only), for the projection rows that pin a selected parameter
-# entering `T` as an unknown.
-geom-core = { path = "../geom-core", features = ["sym-revalue-testing"] }
+# The symbolic tier's test instruments, for the projection rows that pin
+# a selected parameter entering `T` as an unknown: re-valuation
+# (`geom_core::sym::revalue`) for the payload, the session profile's
+# minted-atom count (`geom_core::sym::profile`) for the sweeps and steps
+# no payload carries.
+geom-core = { path = "../geom-core", features = ["sym-revalue-testing", "sym-profile-testing"] }
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the
 # per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
 # named by [dev-dependencies] only, here and everywhere else — which is
