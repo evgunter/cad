@@ -1389,8 +1389,8 @@ pub enum ValidationError {
     ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
     ///   the certified-quadrature lane consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a rim-and-ruling cylinder wall, which a boolean
-    ///   pierce leaves in the face it pierces.
+    ///   other than a cone wall or a rim-and-ruling cylinder or torus
+    ///   wall, which a boolean pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.

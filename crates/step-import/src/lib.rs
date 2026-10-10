@@ -195,8 +195,9 @@
 //!
 //! What the wild states that this reader still refuses is named at
 //! the point of refusal: a curved face carrying a genuine interior
-//! ring — `topo` has no volume construction for one, so the body
-//! would not be tier-3 valid — and edges the D7 ladder cannot
+//! ring, which this reader adopts on no curved chart yet — `topo`
+//! measures one on a cone wall and on a cylinder or torus wall bounded
+//! by rims and rulings, and no other — and edges the D7 ladder cannot
 //! certify, the same refusal it has always been. Open CASCADE's
 //! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
@@ -339,9 +340,10 @@ pub enum NormalizationKind {
     /// lateral face stated as its two full-period rim bounds with NO
     /// seam generator between them (Open CASCADE never splits a
     /// periodic face on export). The kernel's face model has one outer
-    /// loop plus rings, and a curved face with a ring has no volume
-    /// construction (`RingOnCurvedFace`), so the band cannot adopt as
-    /// stated. Re-minted as the kernel's own shape for the same locus:
+    /// loop plus rings, and a ring that winds the chart's period is a
+    /// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`),
+    /// so the band cannot adopt as stated. Re-minted as the kernel's
+    /// own shape for the same locus:
     /// ONE single-loop face whose loop walks one rim, the minted seam
     /// generator (the surface's u_ref ruling for a cylinder, its u_ref
     /// meridian arc for a torus), the other rim, and the generator

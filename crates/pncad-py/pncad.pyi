@@ -6946,14 +6946,14 @@ class Coincidence:
     answer with); the plane a split cuts with is `(node, None)`, and a
     profile's own piece is `(profile, piece)`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
-    `tangent`, `cusp`, `tangent_contact` or `seam`; `site` is
-    `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn` or
-    `profile_junction`. A `profile_junction` row is `tangent` or `cusp`
-    between two carriers and `same_oriented` where its two pieces
-    continue one carrier; a `tangent_witness` row is `tangent_contact`
-    (the outward sides opposed) or `seam` (one face carried on into the
-    other). `rung` is the door's rung that proved
+    `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
+    `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
+    `battery_joint`, `battery_support_axis` or `profile_junction`. A
+    `profile_junction` row is `tangent` or `cusp` between two carriers
+    and `same_oriented` where its two pieces continue one carrier; a
+    `tangent_witness` row is `tangent_contact` (the outward sides
+    opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 
