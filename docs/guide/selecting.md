@@ -483,7 +483,7 @@ assert!(matches!(ev.nodes.get(&uni), Some(NodeResult::Ok(_))));
 // The declare arm: detect, INSPECT, declare on the live union.
 // The declared union is the same body: the declaration names what
 // the margins decided, and is verified at use.
-let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
+let findings = find_flush_candidates(&ev, &doc, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);
 let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");
