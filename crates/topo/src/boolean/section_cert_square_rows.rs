@@ -14,6 +14,7 @@
     clippy::float_cmp
 )]
 
+use super::search_kit::band;
 use super::section_cert_rows::{p, v};
 use super::square_search::{Class, Ring, Wall, class_of, mismatches, resolution, trace, window};
 use super::*;
@@ -56,7 +57,21 @@ fn classified(ring: &Ring, wall: &Wall) -> Section<f64> {
 /// swapped order against the same with the flags exchanged, and the
 /// traced section against all of it.
 fn answers(what: &str, ring: &Ring, wall: &Wall, want: &[Class]) {
-    let sec = classified(ring, wall);
+    answers_within(
+        what,
+        ring,
+        wall,
+        want,
+        Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: super::section_cert_rows::LEVER / 2.0,
+        },
+    );
+}
+
+/// [`answers`], the pair classified within `reach`.
+fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: Reach<f64>) {
+    let sec = classify(&ring.surface(), &wall.surface(), reach, band());
     let Section::Components { parts, single } = &sec else {
         panic!("{what}: not classified: {sec:?}");
     };
@@ -66,7 +81,7 @@ fn answers(what: &str, ring: &Ring, wall: &Wall, want: &[Class]) {
     want.sort_unstable();
     assert_eq!(got, want, "{what}: the classes");
     assert_eq!(*single, want.len() == 1, "{what}: single");
-    let back = super::section_cert_rows::classify(&wall.surface(), &ring.surface());
+    let back = classify(&wall.surface(), &ring.surface(), reach, band());
     assert!(
         super::square_search::swapped_agrees(&sec, &back),
         "{what}: the swapped order: {back:?}"
@@ -255,10 +270,9 @@ fn dump_the_rows_for_the_mpmath_oracle() {
 }
 
 /// **Tangencies refuse R-tan, naming the margin.** `K` tangent to the
-/// strip's top or bottom edge, tangent to a tube circle from outside or
-/// from inside, and through a tube circle's top point (where the fold
-/// stands on neither half). Mutant: answer a decided-`Zero` margin as
-/// either side, and the row goes red.
+/// strip's top or bottom edge over the parallel, and tangent to a tube
+/// circle from outside or from inside. Mutant: answer a decided-`Zero`
+/// margin as either side, and the row goes red.
 #[test]
 fn square_wall_tangencies_refuse() {
     let donut = ring(2.0, 0.5);
@@ -282,11 +296,6 @@ fn square_wall_tangencies_refuse() {
             "touching T₊ from inside",
             (2.3, 0.0, 0.2),
             "section_torus_square_wall_tube",
-        ),
-        (
-            "through T₊'s top point",
-            (2.3, 0.5, 0.3),
-            "section_torus_square_wall_fold_half",
         ),
     ] {
         let w = wall(k);
@@ -323,4 +332,182 @@ fn a_square_wall_is_read_within_the_band_only() {
         super::section_cert_rows::classify(&tilted.surface(), &donut.surface()),
         Section::Intractable
     ));
+}
+
+/// **A crossing at a tube circle's top refuses R-order, not R-tan.** `K`
+/// through `T₊`'s top point `(R, r)`, square to it there: the carriers
+/// cross, but the fold stands on neither half of the circle and the strip
+/// crossing beside it neither over the parallel nor beyond it, so how the
+/// folds pair is not read. Mutant: refuse the fold's half R-tan, and the
+/// row goes red.
+#[test]
+fn a_crossing_at_a_tubes_top_refuses_r_order() {
+    let donut = ring(2.0, 0.5);
+    let w = wall((2.3, 0.5, 0.3));
+    for sec in [
+        classified(&donut, &w),
+        super::section_cert_rows::classify(&w.surface(), &donut.surface()),
+    ] {
+        assert!(
+            matches!(
+                sec,
+                Section::Unordered("section_torus_square_wall_fold_half")
+            ),
+            "{sec:?}"
+        );
+    }
+}
+
+/// **`K` tangent to a strip edge beyond the parallel answers.** `K` about
+/// `(2.6, 0.2)`, radius `0.3`, touches `z = r` at `y = 2.6 > R`, where no
+/// line of the wall meets the torus: the section is the one of `K` held
+/// just under the line, the one null loop where `K` bites the tube's
+/// outer side. Mutant: refuse every strip-edge pinch R-tan, and the row
+/// goes red.
+#[test]
+fn a_wall_touching_a_strip_edge_beyond_the_parallel_answers() {
+    answers(
+        "touching z = r beyond the parallel",
+        &ring(2.0, 0.5),
+        &wall((2.6, 0.2, 0.3)),
+        &[NULL],
+    );
+}
+
+/// **The square reading's lever is the reach's: a tilt just inside the
+/// band at a long reach answers, one just outside refuses on reach.** A
+/// reach of radius `50` about the origin puts the lever at
+/// `2·(|pivot| + 50)`, the pivot the wall axis's point nearest the
+/// origin. A tilt worth `0.6` of the band's Zero there reads square and
+/// answers as the untilted wall does; one worth `1.5` of it is undecided
+/// and is no pose an arm claims. Mutants: lever the tilt by half or a
+/// millionth of that (the outside row answers), or by twice it (the
+/// inside row refuses).
+#[test]
+fn the_square_reading_is_levered_by_the_reach() {
+    let donut = ring(2.0, 0.5);
+    let k = (0.15, 0.1, 0.2);
+    let reach = Reach {
+        centre: p(0.0, 0.0, 0.0),
+        radius: 50.0,
+    };
+    // The untilted axis passes `(0, e, z0)` along `x`, its point nearest
+    // the origin; a tilt of `1e-10` and less moves it by far less than
+    // the band.
+    let lever = 2.0 * (f64::hypot(k.0, k.1) + reach.radius);
+    let tilt = |of_zero: f64| of_zero * band().zero() / lever;
+    answers_within(
+        "a tilt 0.6 of the band's Zero",
+        &donut,
+        &wall_along(v(1.0, 0.0, tilt(0.6)), k),
+        &[ON_WALL; 4],
+        reach,
+    );
+    let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
+    for sec in [
+        classify(&donut.surface(), &outside.surface(), reach, band()),
+        classify(&outside.surface(), &donut.surface(), reach, band()),
+    ] {
+        assert!(
+            matches!(sec, Section::Intractable),
+            "a tilt 1.5 of the band's Zero: {sec:?}"
+        );
+    }
+}
+
+/// `a − b` as its rounded value and the rounding's error, exactly
+/// (Knuth's two-sum).
+fn two_diff(a: f64, b: f64) -> (f64, f64) {
+    let s = a - b;
+    let bv = s - a;
+    (s, (a - (s - bv)) + (-b - bv))
+}
+
+/// **A pipe laid along the core's tangent: every fold the arm answers
+/// lies within the band of its true fold, or the arm refuses R-tan.** A
+/// torus about `z` at a centre well off the origin, `R ∈ {1, 30, 1000}`,
+/// `r = 0.3 R`, and a wall along `x` of radius `r` whose trace `K` is
+/// `T₊` moved by `δ` at `30°` in `Π`, `δ` from `3ε` to `0.1 r`: `K`
+/// crosses `T₊` at the angle `δ/r`, and the rounding of `K`'s centre
+/// (read from operands `~R` across) moves a fold along both circles by
+/// that rounding over the angle. Each answered fold witness (the
+/// witnesses in `Π`, at `x = c_x`) is measured against the stored pose
+/// exactly: its residuals off `K` and off `T₊`, from error-free
+/// differences of the stored coordinates, solved for the step to the
+/// true crossing. Static, so it also holds that some fold answers and
+/// some refuses for its drift. Mutant: drop the drift's refusal, and the
+/// folds at `R = 1000` stand up to `~1e4` bands off.
+#[test]
+fn a_pipe_along_the_cores_tangent_places_its_folds_within_the_band() {
+    let eps = band().zero();
+    let (mut answered, mut drifting, mut worst) = (0usize, 0usize, 0.0f64);
+    for big_r in [1.0, 30.0, 1000.0] {
+        let r = 0.3 * big_r;
+        let c = p(0.7003 * big_r, -0.4137 * big_r, 0.2501 * big_r);
+        let ring = Ring {
+            c,
+            a: Vec3::unit_z(),
+            b1: Vec3::unit_x(),
+            big_r,
+            r,
+        };
+        let reach = Reach {
+            centre: c,
+            radius: 1.5 * (big_r + r),
+        };
+        for delta in [3.0 * eps, 1e3 * eps, 1e-7 * r, 1e-5 * r, 1e-3 * r, 0.1 * r] {
+            let (dy, dz) = (delta * 0.75f64.sqrt(), delta * 0.5);
+            let o = p(c.x + 1.3 * big_r, c.y + big_r + dy, c.z + dz);
+            let wall = Wall {
+                o,
+                d: Vec3::unit_x(),
+                e1: Vec3::unit_y(),
+                rc: r,
+            };
+            let what = format!("R {big_r}, δ {delta:e}");
+            let parts = match classify(&ring.surface(), &wall.surface(), reach, band()) {
+                Section::Tangent("section_torus_square_wall_fold_drift") => {
+                    drifting += 1;
+                    continue;
+                }
+                Section::Tangent(_) => continue,
+                Section::Components { parts, .. } => parts,
+                other => panic!("{what}: {other:?}"),
+            };
+            for w in parts.iter().filter_map(|c| c.witness) {
+                if w.x != c.x {
+                    continue;
+                }
+                // `W − K`'s centre and `W − T₊`'s, in `Π`'s `(y, z)`.
+                let k = [two_diff(w.y, o.y), two_diff(w.z, o.z)].map(|(h, l)| h + l);
+                let (ty, ty_err) = two_diff(w.y, c.y);
+                let (tz, tz_err) = two_diff(w.z, c.z);
+                assert!(
+                    ty >= big_r / 2.0 && ty <= 2.0 * big_r,
+                    "{what}: the fold {w:?} is on T₊"
+                );
+                let t = [(ty - big_r) + ty_err, tz + tz_err];
+                let (nk, nt) = (k[0].hypot(k[1]), t[0].hypot(t[1]));
+                let (res_k, res_t) = (nk - r, nt - r);
+                let (uk, ut) = ([k[0] / nk, k[1] / nk], [t[0] / nt, t[1] / nt]);
+                let det = uk[0] * ut[1] - uk[1] * ut[0];
+                let step = (
+                    (-res_k * ut[1] + res_t * uk[1]) / det,
+                    (-uk[0] * res_t + ut[0] * res_k) / det,
+                );
+                let drift = step.0.hypot(step.1);
+                worst = worst.max(drift / eps);
+                answered += 1;
+                assert!(
+                    drift <= eps,
+                    "{what}: the fold witness {w:?} stands {drift:e} from its true fold"
+                );
+            }
+        }
+    }
+    println!("[pipe] {answered} folds answered, worst at {worst:.3} bands; {drifting} refused");
+    assert!(
+        answered > 0 && drifting > 0,
+        "{answered} folds answered, {drifting} refused for their drift"
+    );
 }

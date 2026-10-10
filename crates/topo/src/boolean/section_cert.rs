@@ -60,14 +60,15 @@
 //!   on a boundary or with no verdict, refuses undecided (R-undec).
 //!
 //! One witness point per component is complete on the arms below: a
-//! lone component is cleared by W4 or decided by its point, and every
-//! other multi-component section is essential or unbounded on a
-//! carrier, which W1 and W2 clear. The exception is cone × sphere, where
-//! a ball beside the apex can meet each nappe in one null loop (with
-//! the apex outside the ball no nappe can carry essential curves while
-//! the other carries a loop): each loop is cleared by its witness or,
-//! with an event on the pair, refuses R-undec, since the event may lie
-//! on the other loop.
+//! lone component is cleared by W4 or decided by its point, and a
+//! component essential or unbounded on a carrier is cleared by W1 or W2.
+//! A section with a null component beside others — cone × sphere, where
+//! a ball beside the apex can meet each nappe in one null loop, and
+//! torus × square cylinder, where a wall biting the tube's inner side
+//! leaves a null loop beside two essential ones and one cutting its top
+//! leaves two null loops — clears each null loop by its witness or, with
+//! an event on the pair, refuses R-undec, since the event may lie on
+//! another component.
 //!
 //! # The refusals
 //!
@@ -84,6 +85,12 @@
 //!   A margin decided `Zero` where the carriers touch at one point is a
 //!   touch instead (below), and refuses R-tan only when it is not
 //!   certified out of either face.
+//! - **R-order**: a crossing of the carriers the closed form cannot
+//!   place on either side of a line it reads the section by. On the
+//!   square wall, a fold or a strip crossing within the band of the
+//!   torus's top or bottom parallel, where the tube's sheets join: the
+//!   carriers cross there, but which side it falls on decides how the
+//!   folds pair.
 //! - **R-loop** and **R-undec**: the no-event decision, above.
 //! - **Lone-vertex loops** refuse per pair (below).
 //!
@@ -307,6 +314,10 @@ pub(crate) enum Section<T: Real> {
     /// A classification margin is `Zero` or undecided: R-tan, naming the
     /// predicate.
     Tangent(&'static str),
+    /// A crossing of the carriers the classification cannot place on
+    /// either side of a line it reads the section by: R-order, naming the
+    /// predicate.
+    Unordered(&'static str),
     /// A classification margin decided `Zero` where the carriers touch
     /// at one point: the section, if the carriers meet at all, lies in
     /// the touch's ball.
@@ -353,6 +364,8 @@ pub(crate) enum Refusal {
     Reach,
     /// R-tan, with the margin's predicate.
     Tangent(&'static str),
+    /// R-order, with the margin's predicate.
+    Unordered(&'static str),
     /// R-loop: a component certified inside both faces, no event.
     Loop,
     /// R-undec: no witness cleared a component and none proved it
@@ -376,6 +389,12 @@ impl Refusal {
                 "a curved face and a face of the other solid have tangent or near-tangent \
                  carriers and no crossing layer saw an event; the section's component count is \
                  not certified there"
+            }
+            Self::Unordered(_) => {
+                "a curved face and a face of the other solid cross where the section's closed \
+                 form cannot place the crossing on either side of a line it reads the section \
+                 by, and no crossing layer saw an event; the section's component count is not \
+                 certified there"
             }
             Self::Loop => {
                 "a curved face meets a face of the other solid in a closed loop interior to \
@@ -405,7 +424,7 @@ fn unit<T: Real>(v: Vec3<T>) -> Vec3<T> {
 /// size: `v − a·(a·v)` keeps a component along `a` of `v`'s size times
 /// the rounding, which dividing by a small norm (a plane or a centre
 /// near the axis) turns into a direction off the plane square to `a`.
-fn square_to<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
+fn perp_to<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
     let perp = a.cross(v.cross(a));
     (perp, perp.norm())
 }
@@ -414,7 +433,7 @@ fn square_to<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
 /// norm `s` of `v`'s part square to `a`, and the map from `Π`'s
 /// coordinates — `x` along that part, `y` along `a` — to space.
 fn meridian<T: Real>(c: Point3<T>, a: Vec3<T>, v: Vec3<T>) -> (T, impl Fn(T, T) -> Point3<T>) {
-    let (perp, s) = square_to(v, a);
+    let (perp, s) = perp_to(v, a);
     (s, move |x: T, y: T| c + perp / s * x + a * y)
 }
 
@@ -730,7 +749,7 @@ fn torus_pair<T: Decide>(
             match axis_pose(c, a, c2, unit(a2), reach, band) {
                 Pose::Coaxial => {
                     let z2 = (c2 - c).dot(a);
-                    let d = Vec3::new(big_r2 - big_r, z2, T::zero()).norm();
+                    let d = hypot(big_r2 - big_r, z2);
                     match signs(
                         [
                             ("section_torus_coaxial_tube_reach", r + r2 - d),
@@ -804,6 +823,13 @@ fn pivot<T: Real>(o: Point3<T>, d: Vec3<T>, reach: Reach<T>) -> Point3<T> {
     o + d * (reach.centre - o).dot(d)
 }
 
+/// The lever of a tilt read about the pivot `at` (module docs, the lever
+/// and its pivot): the reach's farthest distance from it, doubled for the
+/// two axes' share.
+fn lever<T: Real>(at: Point3<T>, reach: Reach<T>) -> T {
+    ((reach.centre - at).norm() + reach.radius) * T::from_f64(2.0)
+}
+
 /// Decides the axis pose: the tilt levered by the reach's farthest
 /// distance from the pivot, the offset read AT the pivot, in metres.
 /// An undecided margin is not a pose any arm here claims.
@@ -816,12 +842,16 @@ fn axis_pose<T: Decide>(
     band: Band,
 ) -> Pose<T> {
     let at = pivot(o, d, reach);
-    let lever = ((reach.centre - at).norm() + reach.radius) * T::from_f64(2.0);
     let tilt = a.cross(d).norm();
-    if sign("section_axes_tilt", Margin::levered(tilt, lever), band) != Some(Sign::Zero) {
+    if sign(
+        "section_axes_tilt",
+        Margin::levered(tilt, lever(at, reach)),
+        band,
+    ) != Some(Sign::Zero)
+    {
         return Pose::Other;
     }
-    let (perp, e) = square_to(at - c, a);
+    let (perp, e) = perp_to(at - c, a);
     match sign("section_axes_offset", Margin::of(e), band) {
         Some(Sign::Zero) => Pose::Coaxial,
         Some(Sign::Positive) => Pose::Parallel {
@@ -917,7 +947,7 @@ fn torus_sphere<T: Decide>(
     let w = cs - c;
     let ca = w.dot(a);
     let (s, in_pi) = meridian(c, a, w);
-    let dist = |x: T| Vec3::new(x, ca, T::zero()).norm();
+    let dist = |x: T| hypot(x, ca);
     let (d_near, d_far) = (dist(s - big_r), dist(s + big_r));
     let cuts = |d: T| (d + r - rho).min(rho - (d - r).abs());
     let [near, far] = match signs([(NEAR, cuts(d_near)), (FAR, cuts(d_far))], band) {
@@ -1075,14 +1105,19 @@ fn torus_parallel_cylinder<T: Decide>(
 /// **A cylinder whose axis stands square to the torus axis**, read in the
 /// meridian plane `Π` through the torus centre normal to it: `d` the
 /// wall's unit axis, `across = a × d`, and `(e, z0)` the axis's trace in
-/// `Π`, `e` along `across` and `z0` along `a`.
+/// `Π`, `e` along `across` and `z0` along `a`. `slop` bounds how far the
+/// rounding leaves `e` and `z0` from their exact values.
 #[derive(Clone, Copy, Debug)]
 struct SquareWall<T: Real> {
     d: Vec3<T>,
     across: Vec3<T>,
     e: T,
     z0: T,
+    slop: T,
 }
+
+/// The ulps of its operands' size a coordinate of the trace carries.
+const SQUARE_TRACE_ULPS: f64 = 2.0;
 
 /// Decides whether the partner axis `(o, d)` stands square to the torus
 /// axis `a`: `a·d` levered as [`axis_pose`] levers a tilt. Square, the
@@ -1097,25 +1132,28 @@ fn square_pose<T: Decide>(
     reach: Reach<T>,
     band: Band,
 ) -> Option<SquareWall<T>> {
-    let at = pivot(o, d, reach);
-    let lever = ((reach.centre - at).norm() + reach.radius) * T::from_f64(2.0);
     if sign(
         "section_torus_square_wall_tilt",
-        Margin::levered(a.dot(d), lever),
+        Margin::levered(a.dot(d), lever(pivot(o, d, reach), reach)),
         band,
     ) != Some(Sign::Zero)
     {
         return None;
     }
-    let (along, n) = square_to(d, a);
+    // The pivot's offset from the torus centre, summed from the stored
+    // operands so that neither's distance from the origin is rounded in.
+    let reach_along = (reach.centre - o).dot(d);
+    let w = (o - c) + d * reach_along;
+    let (along, n) = perp_to(d, a);
     let d = along / n;
     let across = a.cross(d);
-    let w = at - c;
     Some(SquareWall {
         d,
         across,
         e: w.dot(across),
         z0: w.dot(a),
+        slop: ((o - c).norm() + reach_along.abs() + w.norm())
+            * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON),
     })
 }
 
@@ -1140,6 +1178,9 @@ struct Edge {
 }
 
 const SQUARE_WALK: &str = "section_torus_square_wall_walk";
+const SQUARE_ORDER: &str = "section_torus_square_wall_order";
+const SQUARE_FOLD_HALF: &str = "section_torus_square_wall_fold_half";
+const SQUARE_EDGE_OVER: &str = "section_torus_square_wall_edge_over";
 
 /// **Torus × a cylinder whose axis is square to the torus's**, the wall
 /// `wall` of radius `rc`.
@@ -1179,10 +1220,12 @@ const SQUARE_WALK: &str = "section_torus_square_wall_walk";
 ///
 /// Every fold and strip crossing is a circle meeting a circle or a line
 /// in `Π`, in closed form; each component's witness is one of its folds,
-/// or for a fold-free lift a point where its sheets stand apart. Any
-/// margin `Zero` or undecided — `K` tangent to a tube circle or a strip
-/// edge, a fold or strip crossing at a tube circle's top or bottom, two
-/// crossings in one place along `K` — refuses R-tan.
+/// or for a fold-free lift a point where its sheets stand apart. A margin
+/// `Zero` or undecided where the carriers are tangent — `K` tangent to a
+/// tube circle, or to a strip edge over the parallel, a fold too shallow
+/// to place within the band, two crossings in one place along `K` —
+/// refuses R-tan; a fold or strip crossing at a tube circle's top or
+/// bottom, where they cross, refuses R-order.
 fn torus_square_cylinder<T: Decide>(
     c: Point3<T>,
     a: Vec3<T>,
@@ -1192,22 +1235,35 @@ fn torus_square_cylinder<T: Decide>(
     rc: T,
     band: Band,
 ) -> Section<T> {
-    let &SquareWall { d, across, e, z0 } = wall;
+    let &SquareWall {
+        d,
+        across,
+        e,
+        z0,
+        slop,
+    } = wall;
     let at = |y: T, z: T, t: T| c + across * y + a * z + d * t;
-    let parts = match signs(
-        [
-            ("section_torus_square_wall_top", z0 + rc - r),
-            ("section_torus_square_wall_bottom", rc - z0 - r),
-        ],
-        band,
-    ) {
-        Ok([false, false]) => square_folds([big_r, r], (e, z0, rc), band)
-            .and_then(|folds| inside_strip([big_r, r], (e, z0, rc), &folds, at, band)),
-        Ok([top, bottom]) => square_folds([big_r, r], (e, z0, rc), band).and_then(|folds| {
-            across_strip([big_r, r], (e, z0, rc), [top, bottom], &folds, at, band)
-        }),
-        Err(tan) => Err(tan.into()),
-    };
+    let k = (e, z0, rc);
+    let parts = (|| {
+        let top = reaches_edge(
+            "section_torus_square_wall_top",
+            z0 + rc - r,
+            (e, big_r),
+            band,
+        )?;
+        let bottom = reaches_edge(
+            "section_torus_square_wall_bottom",
+            rc - z0 - r,
+            (e, big_r),
+            band,
+        )?;
+        let folds = square_folds([big_r, r], k, slop, band)?;
+        if top || bottom {
+            across_strip([big_r, r], k, [top, bottom], &folds, at, band)
+        } else {
+            inside_strip([big_r, r], k, &folds, at, band)
+        }
+    })();
     match parts {
         Ok(parts) => {
             let single = parts.len() == 1;
@@ -1218,16 +1274,27 @@ fn torus_square_cylinder<T: Decide>(
 }
 
 /// `K`'s crossings with the tube circles `T±`: none or two each.
+///
+/// A fold is where `K` crosses a tube circle at the angle `θ` between
+/// them, `sin θ = dist·half / (r·rc)` for centres `dist` apart and the
+/// crossings `half` off their line. Where the angle is shallow the
+/// rounding `slop` of `K`'s centre moves the crossing `slop / sin θ` along
+/// both circles while it stays on each: a fold whose drift the band does
+/// not decide `Zero` is a near-tangency at the fold (the carriers' normals
+/// there stand `θ` apart) and refuses R-tan. A fold within the band of a
+/// tube circle's top or bottom point lies on neither half; the carriers
+/// cross there, and it refuses [`Section::Unordered`].
 fn square_folds<T: Decide>(
     [big_r, r]: [T; 2],
     (e, z0, rc): (T, T, T),
+    slop: T,
     band: Band,
 ) -> Result<Vec<Fold<T>>, Section<T>> {
     let mut out = Vec::new();
     for plus in [true, false] {
         let sigma = if plus { T::one() } else { -T::one() };
         let dy = e - sigma * big_r;
-        let dist = Vec3::new(dy, z0, T::zero()).norm();
+        let dist = hypot(dy, z0);
         let [cut] = signs(
             [(
                 "section_torus_square_wall_tube",
@@ -1243,16 +1310,58 @@ fn square_folds<T: Decide>(
         let (uy, uz) = (dy / dist, z0 / dist);
         let along = (dist.powi(2) + (r - rc) * (r + rc)) / (dist + dist);
         let half = ((r - along) * (r + along)).sqrt();
+        let drift = (slop + (e.abs() + big_r + rc) * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON))
+            * r
+            * rc
+            / (dist * half);
+        if sign(
+            "section_torus_square_wall_fold_drift",
+            Margin::of(drift),
+            band,
+        ) != Some(Sign::Zero)
+        {
+            return Err(Section::Tangent("section_torus_square_wall_fold_drift"));
+        }
         for s in [half, -half] {
             let (y, z) = (sigma * big_r + uy * along - uz * s, uz * along + uy * s);
-            let [outer] = signs(
-                [("section_torus_square_wall_fold_half", sigma * y - big_r)],
-                band,
-            )?;
+            let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
+                .map_err(|_| Section::Unordered(SQUARE_FOLD_HALF))?;
             out.push(Fold { plus, y, z, outer });
         }
     }
     Ok(out)
+}
+
+/// `(x² + y²)^½`.
+fn hypot<T: Real>(x: T, y: T) -> T {
+    (x * x + y * y).sqrt()
+}
+
+/// Whether `K` reaches past a strip edge's line, by the margin `m` of its
+/// reach there. `K` within the band of tangent to the line touches it at
+/// `(e, ±r)`: over the parallel (`|e| ≤ R`) the wall is tangent to the
+/// torus there, a pinch, R-tan; beyond it no line of the wall near that
+/// point meets the torus, and the section is the one of `K` held just
+/// short of the line, a pose the band admits.
+fn reaches_edge<T: Decide>(
+    name: &'static str,
+    m: T,
+    (e, big_r): (T, T),
+    band: Band,
+) -> Result<bool, Section<T>> {
+    match signs([(name, m)], band) {
+        Ok([past]) => Ok(past),
+        Err(_)
+            if sign(
+                "section_torus_square_wall_edge_clear",
+                Margin::of(e.abs() - big_r),
+                band,
+            ) == Some(Sign::Positive) =>
+        {
+            Ok(false)
+        }
+        Err(pinch) => Err(pinch.into()),
+    }
 }
 
 /// The radius of the sheet `ρ = R ± √(r² − z²)` at height `z`.
@@ -1298,9 +1407,11 @@ fn through<T: Real>(
 /// in `ρ ≥ |Y|`: one component each. On the inner loop, one circle's
 /// folds bound the rest of `K`, which then stands between the discs;
 /// both circles' folds bound the two arcs of `K` between the discs, each
-/// from `T₊` to `T₋` and winding about the torus axis. A fold-free loop
-/// lies wholly on one side, read at `K`'s farthest reach from the torus
-/// axis, `|e| + rc` at height `z0`.
+/// from `T₊` to `T₋` and winding about the torus axis. (Folds on both
+/// outer halves would need `K` to reach past `y = ±R` inside `|z| < r`,
+/// `rc > R > r`.) On a fold-free loop `ρ − |Y|` keeps one sign, its zeros
+/// being folds, so any point of `K` decides it: the arm reads the point
+/// it witnesses with, `(e − rc, z0)`.
 fn inside_strip<T: Decide>(
     ring: [T; 2],
     (e, z0, rc): (T, T, T),
@@ -1319,21 +1430,13 @@ fn inside_strip<T: Decide>(
         };
         match (on(true).as_slice(), on(false).as_slice()) {
             ([], []) => {
-                let rho = sheet(ring, z0, outer);
-                if signs(
-                    [("section_torus_square_wall_sheet", rho - e.abs() - rc)],
-                    band,
-                )? == [true]
-                {
-                    parts.extend(lifts((e - rc, z0, rho), [false, true], at));
+                let (y, rho) = (e - rc, sheet(ring, z0, outer));
+                if signs([("section_torus_square_wall_sheet", rho - y.abs())], band)? == [true] {
+                    parts.extend(lifts((y, z0, rho), [false, true], at));
                 }
             }
             ([f, _], []) | ([], [f, _]) => parts.push(through(*f, false, at)),
-            ([p, _], [_, _]) if outer => {
-                parts.push(through(*p, false, at));
-                parts.push(through(on(false)[0], false, at));
-            }
-            ([p1, p2], [_, _]) => {
+            ([p1, p2], [_, _]) if !outer => {
                 parts.push(through(*p1, true, at));
                 parts.push(through(*p2, true, at));
             }
@@ -1364,7 +1467,7 @@ fn across_strip<T: Decide>(
     let [big_r, r] = ring;
     if top != bottom {
         let m = if top { r - (z0 - rc) } else { z0 + rc + r };
-        if signs([("section_torus_square_wall_meets", m)], band)? == [false] {
+        if !reaches_edge("section_torus_square_wall_meets", m, (e, big_r), band)? {
             return Ok(Vec::new());
         }
     }
@@ -1381,10 +1484,8 @@ fn across_strip<T: Decide>(
         let w = ((rc - h) * (rc + h)).sqrt();
         for right in [true, false] {
             let y = if right { e + w } else { e - w };
-            let [over] = signs(
-                [("section_torus_square_wall_edge_over", big_r - y.abs())],
-                band,
-            )?;
+            let [over] = signs([(SQUARE_EDGE_OVER, big_r - y.abs())], band)
+                .map_err(|_| Section::Unordered(SQUARE_EDGE_OVER))?;
             edges.push((
                 psi(y, z),
                 Edge {
@@ -1450,14 +1551,17 @@ fn across_strip<T: Decide>(
 /// pair decided apart (as arc length): two in one place within the band
 /// refuse R-tan.
 fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(), Section<T>> {
-    const ORDER: &str = "section_torus_square_wall_order";
     for i in 1..xs.len() {
         let mut j = i;
         while j > 0 {
-            match sign(ORDER, Margin::levered(xs[j - 1].0 - xs[j].0, rc), band) {
+            match sign(
+                SQUARE_ORDER,
+                Margin::levered(xs[j - 1].0 - xs[j].0, rc),
+                band,
+            ) {
                 Some(Sign::Positive) => xs.swap(j - 1, j),
                 Some(Sign::Negative) => break,
-                _ => return Err(Section::Tangent(ORDER)),
+                _ => return Err(Section::Tangent(SQUARE_ORDER)),
             }
             j -= 1;
         }
@@ -1623,7 +1727,7 @@ fn cone_plane<T: Decide>(
                 Some(Sign::Negative) => -n,
                 _ => return Section::Tangent("section_cone_plane_facing"),
             };
-            let (across, width) = square_to(facing, cone.a);
+            let (across, width) = perp_to(facing, cone.a);
             let r = match sign(
                 "section_cone_plane_meridian",
                 Margin::levered(width, lever),
@@ -1674,7 +1778,7 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
-    let (across, offset) = square_to(delta, cone.a);
+    let (across, offset) = perp_to(delta, cone.a);
     let r = match sign("section_cone_sphere_axis", Margin::of(offset), band) {
         Some(Sign::Positive) => across / offset,
         Some(Sign::Zero) => cone.u_ref,
@@ -1804,7 +1908,7 @@ fn cylinder_cylinder<T: Decide>(
         Some(Sign::Zero) => {
             let at = pivot(o2, d2, reach);
             let w = at - o1;
-            let (_, offset) = square_to(w, d1);
+            let (_, offset) = perp_to(w, d1);
             return match sign(
                 "section_cylinder_pair_coincident",
                 Margin::of(offset + (r1 - r2).abs()),
@@ -1959,7 +2063,7 @@ fn sphere_cylinder<T: Decide>(
 ) -> Section<T> {
     let w = cs - o;
     let foot = o + d * w.dot(d);
-    let (perp, e) = square_to(w, d);
+    let (perp, e) = perp_to(w, d);
     let q_min = (e - rc).abs();
     const REACH: &str = "section_sphere_cylinder_reach";
     let [reach, girdle] = match signs(
@@ -2021,6 +2125,7 @@ pub(crate) fn certify<T: Decide>(
     let (parts, single) = match section {
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
+        Section::Unordered(name) => return Err(Refusal::Unordered(name)),
         Section::Touch(t) if !evented => {
             let placed = place(t.at);
             return [Side::F, Side::G]
@@ -2073,6 +2178,8 @@ pub(crate) fn certify<T: Decide>(
 
 #[cfg(test)]
 mod cone_search;
+#[cfg(test)]
+mod search_kit;
 #[cfg(test)]
 #[path = "section_cert_cone_rows.rs"]
 mod section_cert_cone_rows;

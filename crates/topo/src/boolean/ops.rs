@@ -7519,6 +7519,7 @@ mod cut_holder_rows {
         for refusal in [
             SectionRefusal::Reach,
             SectionRefusal::Tangent("section_sphere_plane_reach"),
+            SectionRefusal::Unordered("section_torus_square_wall_fold_half"),
             SectionRefusal::Undecided,
             SectionRefusal::LoneVertex,
         ] {

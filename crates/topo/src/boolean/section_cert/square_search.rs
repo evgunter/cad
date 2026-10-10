@@ -10,8 +10,11 @@
 //! The oracle traces the zero set of the TORUS's residual on the
 //! cylinder's own chart — azimuth `θ` periodic, `t` along the stored
 //! axis over a window holding the whole torus — and cuts it into
-//! components by cell adjacency. It never reads the meridian plane the
-//! arm works in. Each component is classed twice from the cells it
+//! components by cell adjacency. The trace never reads the meridian
+//! plane the arm works in; the gate that decides whether a pose is too
+//! near a configuration change for the trace to read
+//! ([`degeneracy`]) does, in its own frame from the stored carriers.
+//! Each component is classed twice from the cells it
 //! crosses: essential on the wall iff it crosses the seam `θ = 0` an odd
 //! number of times, and essential on the torus iff the torus azimuth or
 //! tube angle of the cells it runs through wraps an odd number of times
@@ -23,11 +26,14 @@
 //! classes, distinct components for distinct parts, and the swapped order
 //! the same with its flags exchanged.
 //!
-//! Where it does not — an offset under `0.03` of the smaller of the two
-//! radii, or two trace resolutions disagreeing — the classes are not
-//! read: an offset inside a quarter of the band's Zero must refuse R-tan,
-//! and one between must answer with every witness on both carriers, or
-//! refuse R-tan within a few escalation widths.
+//! Where it does not — a pose within `0.03` of the smaller of the two
+//! radii of a degeneracy, or two trace resolutions disagreeing — the
+//! classes are not read: a pose inside a quarter of the band's Zero of a
+//! degeneracy must refuse, and one between must answer with every
+//! witness on both carriers, or refuse within a few escalation widths of
+//! a degeneracy of the refusal's kind. A fold too shallow to place
+//! within the band refuses R-tan wherever the oracle's own crossing
+//! angle puts its rounding drift within a small factor of the band.
 //!
 //! `dump_for_the_mpmath_oracle` writes the fixed rows' poses and a
 //! sample of this search's, with the arm's answers, for
@@ -53,15 +59,12 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
+use super::search_kit::{band, offset, unit_vec};
 use super::*;
 use core::f64::consts::TAU;
 use geom::Surface;
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::fuzz::{self, Rng};
-
-pub(super) fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A torus's frame.
 #[derive(Clone, Copy, Debug)]
@@ -297,30 +300,75 @@ pub(super) fn resolution(ring: &Ring, wall: &Wall) -> usize {
     (n.ceil() as usize).clamp(480, 8000)
 }
 
-/// How far the pose stands from the nearest configuration where the
-/// trace `K` of the wall in the meridian plane changes how it meets the
-/// torus's: `K` tangent to a strip line `z = ±r`, tangent to a tube
-/// circle, or through a tube circle's top or bottom point. Read in the
-/// oracle's own frame from the stored carriers.
-pub(super) fn degeneracy(ring: &Ring, wall: &Wall) -> f64 {
+/// The trace `(e, z0)` of the wall's axis in the meridian plane, `e`
+/// along `a × d` and `z0` along `a`, read in the oracle's own frame from
+/// the stored carriers.
+fn meridian_trace(ring: &Ring, wall: &Wall) -> (f64, f64) {
     let d = ring.a.cross(wall.d.cross(ring.a)).normalize();
     let across = ring.a.cross(d);
     let w = wall.o - ring.c;
-    let (e, z0, rc, big_r, r) = (w.dot(across), w.dot(ring.a), wall.rc, ring.big_r, ring.r);
-    let mut m = f64::INFINITY;
+    (w.dot(across), w.dot(ring.a))
+}
+
+/// How far the pose stands from the nearest configuration where the
+/// trace `K` of the wall in the meridian plane changes how it meets the
+/// torus's: `tangent`, `K` tangent to a tube circle, or to a strip line
+/// `z = ±r` where it touches the line over the parallel (beyond it no
+/// line of the wall near the touching point meets the torus); `top`,
+/// `K` through a tube circle's top or bottom point, where it crosses the
+/// circle but the crossing stands on neither half.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Degeneracy {
+    pub tangent: f64,
+    pub top: f64,
+}
+
+impl Degeneracy {
+    pub(super) fn nearest(self) -> f64 {
+        self.tangent.min(self.top)
+    }
+}
+
+pub(super) fn degeneracy(ring: &Ring, wall: &Wall) -> Degeneracy {
+    let (e, z0) = meridian_trace(ring, wall);
+    let (rc, big_r, r) = (wall.rc, ring.big_r, ring.r);
+    let mut tangent = f64::INFINITY;
+    let mut top = f64::INFINITY;
     for edge in [r, -r] {
-        m = m.min((z0 + rc - edge).abs()).min((z0 - rc - edge).abs());
+        for reach in [z0 + rc, z0 - rc] {
+            tangent = tangent.min((reach - edge).abs().max(e.abs() - big_r));
+        }
     }
     for sigma in [1.0, -1.0] {
         let dist = (e - sigma * big_r).hypot(z0);
-        m = m
+        tangent = tangent
             .min((dist - (r + rc)).abs())
             .min((dist - (r - rc).abs()).abs());
         for edge in [r, -r] {
-            m = m.min(((e - sigma * big_r).hypot(z0 - edge) - rc).abs());
+            top = top.min(((e - sigma * big_r).hypot(z0 - edge) - rc).abs());
         }
     }
-    m
+    Degeneracy { tangent, top }
+}
+
+/// The oracle's bound on how far rounding can move a fold along `K`: an
+/// ulp of the stored operands' size over the sine of the angle at which
+/// `K` crosses the tube circle, the largest over its crossings.
+pub(super) fn fold_drift(ring: &Ring, wall: &Wall) -> f64 {
+    let (e, z0) = meridian_trace(ring, wall);
+    let (rc, big_r, r) = (wall.rc, ring.big_r, ring.r);
+    let size = (wall.o - ring.c).norm() + 3.0 * (big_r + r + rc);
+    let mut drift = 0.0f64;
+    for sigma in [1.0, -1.0] {
+        let dist = (e - sigma * big_r).hypot(z0);
+        if dist <= (r - rc).abs() || dist >= r + rc {
+            continue;
+        }
+        let along = (dist * dist + r * r - rc * rc) / (2.0 * dist);
+        let sin = dist * (r * r - along * along).max(0.0).sqrt() / (r * rc);
+        drift = drift.max(size * f64::EPSILON / sin);
+    }
+    drift
 }
 
 /// The mismatches of `sec` against the traced section, `resolved` saying
@@ -335,7 +383,13 @@ pub(super) fn mismatches(
     let Section::Components { parts, single } = sec else {
         return vec![format!("not classified: {sec:?}")];
     };
-    let scale = ring.big_r + ring.r;
+    // The square reading turns the wall by a tilt the band decides
+    // `Zero` at the reach's lever, which moves it by less than the band;
+    // the rest is rounding, ulps of the operands' size.
+    let size = (ring.c - Point3::origin()).norm()
+        + (wall.o - Point3::origin()).norm()
+        + 3.0 * (ring.big_r + ring.r + wall.rc);
+    let off = band().zero() + 64.0 * f64::EPSILON * size;
     for c in parts {
         let Some(w) = c.witness else {
             bad.push(format!("a part with no witness: {c:?}"));
@@ -343,7 +397,7 @@ pub(super) fn mismatches(
         };
         for surf in [&ring.surface(), &wall.surface()] {
             let r = geom_brep::implicit_residual(surf, w);
-            if r.abs() > 1e-10 * scale {
+            if r.abs() > off {
                 bad.push(format!("the witness {w:?} is {r} off {surf:?}"));
             }
         }
@@ -397,53 +451,29 @@ pub(super) fn swapped_agrees(sec: &Section<f64>, back: &Section<f64>) -> bool {
                         && x.witness.map(|p| [p.x, p.y, p.z]) == y.witness.map(|p| [p.x, p.y, p.z])
                 })
         }
-        (Section::Tangent(x), Section::Tangent(y)) => x == y,
+        (Section::Tangent(x), Section::Tangent(y))
+        | (Section::Unordered(x), Section::Unordered(y)) => x == y,
         (Section::Intractable, Section::Intractable) => true,
         _ => false,
     }
 }
 
-fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
-    loop {
-        let v = Vec3::new(
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-        );
-        let n = v.norm();
-        if n > 0.2 && n < 1.0 {
-            return v / n;
-        }
-    }
-}
-
-/// An offset from a margin's zero, relative, either sign: half the
-/// draws log-uniform in `[0.03, 0.5]`, half in `[1e-12, 0.5]`, into the
-/// band and through it.
-fn offset(rng: &mut Rng) -> f64 {
-    let floor = if rng.unit() < 0.5 { 0.03f64 } else { 1e-12 };
-    let m = (rng.range(floor.ln(), 0.5f64.ln())).exp();
-    if rng.unit() < 0.5 { m } else { -m }
-}
-
-/// One search pose: the torus, the wall, the trace `(e, z0, rc)` of its
-/// axis in the meridian plane, and the margin it was built near (in
-/// metres, as the arm decides it), `None` for none.
+/// One search pose: the torus and the wall.
 pub(super) struct Pose {
     pub what: String,
     pub ring: Ring,
     pub wall: Wall,
-    pub margin: Option<f64>,
 }
 
 /// The margin families a pose is built near.
-const FAMILIES: [&str; 6] = [
+const FAMILIES: [&str; 7] = [
     "anywhere",
     "a strip edge",
     "a tube circle, outside",
     "a tube circle, nested",
     "a strip crossing at a tube circle's top",
     "two tube circles at once",
+    "a pipe along the core's tangent",
 ];
 
 /// A random pose of family `fam`.
@@ -459,23 +489,19 @@ pub(super) fn pose(rng: &mut Rng, fam: usize) -> Pose {
     let sigma = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
     let phi = rng.range(0.0, TAU);
     let dlen = offset(rng) * r.min(rc);
-    let (e, z0, margin) = match fam {
+    let (e, z0) = match fam {
         1 => {
             let flip = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
             let e = rng.range(-1.3, 1.3) * (big_r + r);
-            (e, flip * (r - rc + dlen), Some(dlen))
+            (e, flip * (r - rc + dlen))
         }
         2 => {
             let k = r + rc - dlen;
-            (sigma * big_r + k * phi.cos(), k * phi.sin(), Some(dlen))
+            (sigma * big_r + k * phi.cos(), k * phi.sin())
         }
         3 => {
             let k = (r - rc).abs() + dlen.abs();
-            (
-                sigma * big_r + k * phi.cos(),
-                k * phi.sin(),
-                Some(dlen.abs()),
-            )
+            (sigma * big_r + k * phi.cos(), k * phi.sin())
         }
         4 => {
             // A crossing of `z = ±r` at `|y| = R − δ`, the circle through
@@ -484,13 +510,12 @@ pub(super) fn pose(rng: &mut Rng, fam: usize) -> Pose {
             let flip = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
             let chi = rng.range(-1.37, 1.37) + if rng.unit() < 0.5 { 0.0 } else { TAU / 2.0 };
             let (yy, zz) = (sigma * (big_r - dlen), flip * r);
-            (yy + rc * chi.cos(), zz + rc * chi.sin(), Some(dlen))
+            (yy + rc * chi.cos(), zz + rc * chi.sin())
         }
         5 => {
             // About the torus axis's own trace, touching both tube
             // circles at once: their near points at `rc = R − r`, their
             // far points at `rc = R + r`.
-            let (e, z0) = (0.0, 0.0);
             // The near points only where that radius is one (`R − r`
             // can be shorter than the offset).
             let near = big_r - r + dlen;
@@ -499,7 +524,25 @@ pub(super) fn pose(rng: &mut Rng, fam: usize) -> Pose {
             } else {
                 big_r + r - dlen
             };
-            return square_pose_at(rng, fam, (big_r, r), (e, z0, rc_both), Some(dlen));
+            return square_pose_at(rng, fam, (big_r, r), (0.0, 0.0, rc_both));
+        }
+        6 => {
+            // A pipe of the tube's radius, or within a tenth of it, laid
+            // along the core circle's tangent and moved off it by `dlen`
+            // in `Π`: `K` all but on a tube circle, crossing it at the
+            // angle `dlen / r`.
+            let rc_pipe = if rng.unit() < 0.5 {
+                r
+            } else {
+                r * (1.0 + 0.1 * offset(rng))
+            };
+            let k = dlen.abs();
+            return square_pose_at(
+                rng,
+                fam,
+                (big_r, r),
+                (sigma * big_r + k * phi.cos(), k * phi.sin(), rc_pipe),
+            );
         }
         _ => (
             rng.range(-1.3, 1.3) * (big_r + r),
@@ -508,21 +551,20 @@ pub(super) fn pose(rng: &mut Rng, fam: usize) -> Pose {
             } else {
                 rng.range(-1.5, 1.5) * r
             },
-            None,
         ),
     };
-    square_pose_at(rng, fam, (big_r, r), (e, z0, rc), margin)
+    square_pose_at(rng, fam, (big_r, r), (e, z0, rc))
 }
 
 /// A pose of family `fam` with the trace `(e, z0, rc)`, on a random
-/// torus frame: the wall's axis square to it, turned by an in-band tilt
-/// now and then, and stored from anywhere on it.
+/// torus frame: the wall's axis square to it, turned now and then by a
+/// tilt inside the band at the pose's lever, and stored from anywhere on
+/// it.
 fn square_pose_at(
     rng: &mut Rng,
     fam: usize,
     (big_r, r): (f64, f64),
     (e, z0, rc): (f64, f64, f64),
-    margin: Option<f64>,
 ) -> Pose {
     let a = unit_vec(rng);
     let (b1, b2) = a.orthonormal_basis();
@@ -531,16 +573,19 @@ fn square_pose_at(
         rng.range(-big_r, big_r),
         rng.range(-big_r, big_r),
     );
+    let ring = Ring { c, a, b1, big_r, r };
     let psi = rng.range(0.0, TAU);
     let d0 = b1 * psi.cos() + b2 * psi.sin();
     let across = a.cross(d0);
+    let foot = c + across * e + a * z0;
+    // The foot is the pivot: the axis's point nearest the reach's centre.
+    let lever = super::lever(foot, reach_of(&ring));
     let tilt = if rng.unit() < 0.3 {
-        rng.range(1e-18f64.ln(), 1e-13f64.ln()).exp()
+        band().zero() / lever * rng.range(1e-6f64.ln(), 0.25f64.ln()).exp()
     } else {
         0.0
     };
     let d = (d0 + a * tilt).normalize();
-    let foot = c + across * e + a * z0;
     let o = foot + d * rng.range(-3.0, 3.0) * big_r;
     let e1 = d.orthonormal_basis().0;
     Pose {
@@ -548,9 +593,8 @@ fn square_pose_at(
             "{}: R {big_r}, r {r}, (e, z0, rc) ({e}, {z0}, {rc}), tilt {tilt}",
             FAMILIES[fam]
         ),
-        ring: Ring { c, a, b1, big_r, r },
+        ring,
         wall: Wall { o, d, e1, rc },
-        margin,
     }
 }
 
@@ -576,24 +620,40 @@ fn check(p: &Pose) -> (Vec<String>, &'static str) {
             "the swapped order disagrees: {sec:?} against {back:?}"
         ));
     }
-    let m = p.margin.map_or(f64::INFINITY, f64::abs);
-    if m <= 0.25 * b.zero() {
-        if !matches!(sec, Section::Tangent(_)) {
-            bad.push(format!("margin {m} in the band, answered {sec:?}"));
+    let deg = degeneracy(&p.ring, &p.wall);
+    if deg.nearest() <= 0.25 * b.zero() {
+        if !matches!(sec, Section::Tangent(_) | Section::Unordered(_)) {
+            bad.push(format!("{deg:?} in the band, answered {sec:?}"));
         }
         return (bad, "in the band");
     }
-    if let Section::Tangent(_) = sec {
-        if m > 16.0 * b.escalate() {
-            bad.push(format!("R-tan at a margin of {m}: {sec:?}"));
+    let near = |m: f64| m <= 16.0 * b.escalate();
+    match &sec {
+        Section::Tangent(name) => {
+            let shallow = *name == "section_torus_square_wall_fold_drift"
+                && fold_drift(&p.ring, &p.wall) >= b.zero() / 32.0;
+            let walk = matches!(
+                *name,
+                "section_torus_square_wall_walk" | "section_torus_square_wall_order"
+            ) && near(deg.nearest());
+            if !(shallow || walk || near(deg.tangent)) {
+                bad.push(format!("R-tan at {deg:?}: {sec:?}"));
+            }
+            return (bad, "R-tan");
         }
-        return (bad, "R-tan");
+        Section::Unordered(_) => {
+            if !near(deg.top) {
+                bad.push(format!("R-order at {deg:?}: {sec:?}"));
+            }
+            return (bad, "R-order");
+        }
+        _ => {}
     }
     let win = window(&p.ring, &p.wall);
     let nth = resolution(&p.ring, &p.wall);
     let fine = trace(&p.ring, &p.wall, win, nth, 801);
     let coarse = trace(&p.ring, &p.wall, win, nth / 2, 401);
-    let clear = degeneracy(&p.ring, &p.wall) >= 0.03 * p.ring.r.min(p.wall.rc);
+    let clear = deg.nearest() >= 0.03 * p.ring.r.min(p.wall.rc);
     let resolved = match (&fine, &coarse) {
         (Some(f), Some(c)) if clear && f.sorted() == c.sorted() => Some(f),
         (None, _) => {
