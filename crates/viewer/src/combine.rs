@@ -75,9 +75,6 @@ enum BooleanPicks {
     Pair(Seats),
 }
 
-/// The subtraction's seats, in their order: kept, then removed.
-const SUBTRACT_SEATS: [Seat; 2] = [Seat::SubtractFrom, Seat::SubtractTool];
-
 impl Default for BooleanTool {
     fn default() -> Self {
         Self::new()
@@ -104,7 +101,11 @@ impl BooleanTool {
         self.held = match (held, op) {
             (BooleanPicks::Members(members), BooleanOp::Subtract) => {
                 let mut first = members.into_iter();
-                BooleanPicks::Pair(Seats::holding(SUBTRACT_SEATS, [first.next(), first.next()]))
+                BooleanPicks::Pair(Seats::holding(
+                    // The subtraction's seats, kept then removed.
+                    [Seat::SubtractFrom, Seat::SubtractTool],
+                    [first.next(), first.next()],
+                ))
             }
             (BooleanPicks::Pair(seats), BooleanOp::Union | BooleanOp::Intersect) => {
                 BooleanPicks::Members(seats.spoken().iter().flatten().cloned().collect())

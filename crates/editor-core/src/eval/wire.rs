@@ -392,12 +392,11 @@ where
             } else {
                 BooleanOp::Intersect
             };
-            let members = combine_members(node, members, doc, unprojected, vals, tol)?;
             wire_combine(
                 &crate::verbs::boolean::boolean(),
-                op,
+                (op, node, members),
                 id,
-                &members,
+                (unprojected, vals),
                 declare,
                 doc,
                 env.boolean_sweep,
@@ -2973,66 +2972,6 @@ struct Member<T: Decide> {
     table: Arc<NameTable>,
 }
 
-/// **A union's or an intersect's members, read off its `Bodies`
-/// argument** (DM4): each spelled read, projected one by one (two ports
-/// of one split are two bodies, which one map keyed by the split
-/// cannot hold), or each member of a family read whole, in index
-/// order, its table the family's rows for that member.
-fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
-    node: &Node<ProfileProgram>,
-    members: &crate::Bodies<crate::BodyRead<crate::VarId>>,
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> Result<Vec<Member<T>>, NodeErrorKind> {
-    use crate::OperandSlot as O;
-    match members {
-        crate::Bodies::Spelled(reads) => reads
-            .iter()
-            .enumerate()
-            .map(|(i, member)| {
-                let read = member.read;
-                let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
-                let at = super::read_at(doc, slot, read)?;
-                let projected = reads_projected(node, &[(slot, read)], doc, results, vals)?;
-                let results = projected.as_ref().unwrap_or(results);
-                Ok(Member {
-                    read,
-                    body: Arc::new(finished_operand(results, at, tol)?),
-                    table: Arc::clone(&value_of(results, at)?.name_table),
-                })
-            })
-            .collect(),
-        crate::Bodies::Family(crate::BodyRead { read, at: _ }) => {
-            let at = super::read_at(doc, O::Members, *read)?;
-            let value = value_of(results, at)?;
-            let ValuePayload::Instances(bodies) = &value.payload else {
-                return Err(wrong_operand(value, at, super::family::INSTANCES));
-            };
-            bodies
-                .iter()
-                .enumerate()
-                .map(|(i, body)| {
-                    let index = u32::try_from(i).unwrap_or(u32::MAX);
-                    let table = value
-                        .name_table
-                        .project(index)
-                        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-                    names::check_total(&table, body, 0).map_err(NodeErrorKind::Naming)?;
-                    let body = T::gate_at_rest_kept((**body).clone(), tol)
-                        .map_err(|errors| NodeErrorKind::UnfinishedOperand { input: at, errors })?;
-                    Ok(Member {
-                        read: *read,
-                        body: Arc::new(body),
-                        table: Arc::new(table),
-                    })
-                })
-                .collect()
-        }
-    }
-}
-
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
 // candidate generation reads coordinate brackets (the L7 driver-code
 // allowance).
@@ -3168,14 +3107,75 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 #[allow(clippy::too_many_arguments)] // one parameter per named input, as `wire_subtract`
 fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
-    op: BooleanOp,
+    (op, node, bodies): (
+        BooleanOp,
+        &Node<ProfileProgram>,
+        &crate::Bodies<crate::BodyRead<crate::VarId>>,
+    ),
     id: RecipeNodeId,
-    members: &[Member<T>],
+    (results, vals): (&Results<T>, &SlotValues<T>),
     declared: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
+    // The members, read off the `Bodies` argument (DM4): each spelled
+    // read, projected one by one (two ports of one split are two bodies,
+    // which one map keyed by the split cannot hold), or each member of a
+    // family read whole, in index order, its table the family's rows for
+    // that member.
+    let members: Result<Vec<Member<T>>, NodeErrorKind> = {
+        let members = bodies;
+        use crate::OperandSlot as O;
+        match members {
+            crate::Bodies::Spelled(reads) => reads
+                .iter()
+                .enumerate()
+                .map(|(i, member)| {
+                    let read = member.read;
+                    let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
+                    let at = super::read_at(doc, slot, read)?;
+                    let projected = reads_projected(node, &[(slot, read)], doc, results, vals)?;
+                    let results = projected.as_ref().unwrap_or(results);
+                    Ok(Member {
+                        read,
+                        body: Arc::new(finished_operand(results, at, tol)?),
+                        table: Arc::clone(&value_of(results, at)?.name_table),
+                    })
+                })
+                .collect(),
+            crate::Bodies::Family(crate::BodyRead { read, at: _ }) => {
+                let at = super::read_at(doc, O::Members, *read)?;
+                let value = value_of(results, at)?;
+                let ValuePayload::Instances(bodies) = &value.payload else {
+                    return Err(wrong_operand(value, at, super::family::INSTANCES));
+                };
+                bodies
+                    .iter()
+                    .enumerate()
+                    .map(|(i, body)| {
+                        let index = u32::try_from(i).unwrap_or(u32::MAX);
+                        let table = value
+                            .name_table
+                            .project(index)
+                            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+                        names::check_total(&table, body, 0).map_err(NodeErrorKind::Naming)?;
+                        let body =
+                            T::gate_at_rest_kept((**body).clone(), tol).map_err(|errors| {
+                                NodeErrorKind::UnfinishedOperand { input: at, errors }
+                            })?;
+                        Ok(Member {
+                            read: *read,
+                            body: Arc::new(body),
+                            table: Arc::new(table),
+                        })
+                    })
+                    .collect()
+            }
+        }
+    };
+    let members = members?;
+    let members = members.as_slice();
     let empty = || {
         Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
