@@ -175,6 +175,13 @@ use crate::net;
 /// bound, and neither follows the other.
 const RATIONAL_METER_SPLITS: usize = 16;
 
+/// The integral speed meter's piece schedule (D9: structure, never a
+/// decision): the third assembly of `speed_lower_bound`'s integral arm
+/// reads each nonempty span as this many equal pieces. See
+/// `piece_assembly`'s docs and the swaying-corner rows in
+/// `tests/curves/m5_pr7_speed_meter.rs`.
+const INTEGRAL_METER_SPLITS: usize = 16;
+
 macro_rules! nurbs_curve {
     ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
         #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
@@ -906,15 +913,6 @@ macro_rules! nurbs_curve {
                 Ok((cur, bound))
             }
 
-            /// A certified sup-norm bound on `|C_self − C_other|` for
-            /// two curves **sharing one knot vector** (same degree,
-            /// same control count; weights may differ): the
-            /// `net::removal_pass_bound` formula, which only uses
-            /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
-            /// of unity and the positive-weight convex hull. Poison
-            /// (NaN) when the structures do not match — total, never
-            /// a fabricated bound. Crate-internal: the fitting stack's
-            /// deviation measurements (M5 PR 4) ride it.
             /// A **certified lower bound** on `‖C′(t)‖` over the whole
             /// domain, in meters per parameter unit — the "meter" a
             /// parameter-space margin must be multiplied by to become a
@@ -940,9 +938,8 @@ macro_rules! nurbs_curve {
             /// `C′(t)` is a **convex combination** of the local `Qᵢ`.
             /// Fix any unit direction `d`: then
             /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)` over the `Qᵢ` active where
-            /// `d` is applied. Since M8-14 (#222) the arm runs **two
-            /// independent assemblies** of that inequality and states
-            /// their join:
+            /// `d` is applied. The arm runs **three independent
+            /// assemblies** of that inequality and states their join:
             ///
             /// 1. the **global-chord** assembly — the retired original
             ///    arm, verbatim: one direction (first→last control
@@ -957,14 +954,25 @@ macro_rules! nurbs_curve {
             ///    `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`,
             ///    so the min over spans of per-span bounds still
             ///    bounds the whole domain (the M8-2 review's
-            ///    soundness argument, unchanged).
+            ///    soundness argument, unchanged);
+            /// 3. the **piece** assembly ([`Self::piece_assembly`]):
+            ///    each nonempty span cut into
+            ///    [`INTEGRAL_METER_SPLITS`] pieces, each piece
+            ///    projecting the derivative's own Bernstein
+            ///    coefficients there on their sum's direction. A curve
+            ///    that sways across its control chords — a wavy
+            ///    loft's corner — has `Qᵢ` pointing back along every
+            ///    chord the first two try, while on a short piece the
+            ///    coefficients crowd around `C′` itself, so this
+            ///    assembly answers wherever the speed stays clear of
+            ///    zero at the piece scale.
             ///
             /// **The join**: an assembly whose direction collapsed
-            /// (poison) abstains; if both abstain the answer is
-            /// poison; if both are real the answer is their `max` —
+            /// (poison) abstains; if every one abstains the answer is
+            /// poison; otherwise it is the `max` of the real ones —
             /// sound because each is independently a lower bound on
-            /// the same `inf‖C′‖`. Every cell of that lattice — both
-            /// abstentions, both-poison, and the poisoned-INPUT
+            /// the same `inf‖C′‖`. Every cell of that lattice — the
+            /// abstentions, all-poison, and the poisoned-INPUT
             /// no-laundering claim below — is EXERCISED on
             /// bitwise-exact fixtures by the adopted review probes
             /// (`tests/curves/lt_r1_probes.rs::r1_join_abstention_logic`,
@@ -1049,8 +1057,8 @@ macro_rules! nurbs_curve {
             /// derivative coefficient (`u_{i+p+1} ≤ u_{i+1}` — a
             /// structural violation the old arm turned into ±∞/NaN
             /// arithmetic instead of naming), a knot vector with no
-            /// nonempty span, or BOTH assemblies abstaining — every
-            /// one yields NaN. A bound is never fabricated. The
+            /// nonempty span, or EVERY assembly abstaining — each one
+            /// yields NaN. A bound is never fabricated. The
             /// knot-difference clause is DEFENSIVE: it needs an
             /// interior multiplicity of `p + 1`, which Clamped-v1
             /// validation forbids (interior multiplicity ≤ `p`, end
@@ -1190,13 +1198,114 @@ macro_rules! nurbs_curve {
                     }
                     acc.unwrap_or(poison)
                 };
+                let pieces = self.piece_assembly(&coeffs);
                 // ---- The join (doc: "The join"). ----
-                geom_core::InfSpeed::new(match (global.is_poison(), perspan.is_poison()) {
-                    (true, true) => poison,
-                    (true, false) => perspan,
-                    (false, true) => global,
-                    (false, false) => global.max(perspan),
-                })
+                let joined = [global, perspan, pieces]
+                    .into_iter()
+                    .filter(|b| !b.is_poison())
+                    .reduce(Real::max);
+                geom_core::InfSpeed::new(joined.unwrap_or(poison))
+            }
+
+            /// Assembly 3 of [`Self::speed_lower_bound`]'s integral arm:
+            /// every nonempty span cut into [`INTEGRAL_METER_SPLITS`]
+            /// equal pieces, and on each piece the BERNSTEIN
+            /// coefficients `βₖ` of `C′` there. On the piece `C′` is a
+            /// convex combination of the `βₖ`, so for the unit
+            /// direction `d` of their sum (the piece's chord)
+            /// `‖C′‖ ≥ d·C′ ≥ minₖ d·βₖ`; the min over pieces and spans
+            /// bounds the whole domain.
+            ///
+            /// The span's own coefficients are blossoms of the
+            /// degree-`q = p − 1` derivative spline,
+            /// `D(u_s^{q−k}, u_{s+1}^k)` by de Boor's pyramid on
+            /// `coeffs` (the derivative's knots are the curve's less one
+            /// at each end); the pieces are then cut off the front one
+            /// at a time by de Casteljau at `λ = 1/(pieces left)`. Every
+            /// ratio is formed at `T` from `f64` structure, so at the
+            /// interval scalar each `βₖ` encloses the exact one for the
+            /// exact cut, and the pieces cover the span in ℝ — no
+            /// refined net is rounded to `f64` on the way.
+            ///
+            /// A piece whose coefficients sum to zero makes `d` `0/0`:
+            /// poison, and the assembly abstains at the join.
+            fn piece_assembly(&self, coeffs: &[$Vector<T>]) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                let q = p - 1;
+                let knots = self.knots.knots();
+                let mut acc: Option<T> = None;
+                let mut rest = Vec::with_capacity(p);
+                let (mut level, mut piece) = (Vec::with_capacity(p), Vec::with_capacity(p));
+                for index in self.knots.first_span()..=self.knots.last_span() {
+                    let Some(span) = self.knots.span(index) else {
+                        continue;
+                    };
+                    let (lo_i, span) = (span.first_control(), span.index());
+                    let (Some(active), Some(&u0), Some(&u1)) =
+                        (coeffs.get(lo_i..span), knots.get(span), knots.get(span + 1))
+                    else {
+                        return poison;
+                    };
+                    let (u0, u1) = (T::from_f64(u0), T::from_f64(u1));
+                    rest.clear();
+                    for k in 0..=q {
+                        // The pyramid at `(u0^{q−k}, u1^k)`, level `r`
+                        // reading the `r`-th argument. Derivative index
+                        // `j` has knots `τ_j = u_{j+1}`.
+                        level.clear();
+                        level.extend_from_slice(active);
+                        for r in 1..=q {
+                            let t = if r <= q - k { u0 } else { u1 };
+                            for jj in (r..=q).rev() {
+                                let j = lo_i + jj;
+                                let (Some(&lo), Some(&hi)) =
+                                    (knots.get(j + 1), knots.get(j + 2 + q - r))
+                                else {
+                                    return poison;
+                                };
+                                let lo = T::from_f64(lo);
+                                let alpha = (t - lo) / (T::from_f64(hi) - lo);
+                                level[jj] = level[jj - 1] + (level[jj] - level[jj - 1]) * alpha;
+                            }
+                        }
+                        rest.push(level[q]);
+                    }
+                    for left in (1..=INTEGRAL_METER_SPLITS).rev() {
+                        // Cut `[current, u_{s+1}]` at `1/left` of its
+                        // way: the front is this piece, the back the
+                        // rest (the last piece is the rest itself).
+                        piece.clear();
+                        if left == 1 {
+                            piece.extend_from_slice(&rest);
+                        } else {
+                            #[allow(clippy::cast_precision_loss)]
+                            let lambda = T::one() / T::from_f64(left as f64);
+                            level.clear();
+                            level.extend_from_slice(&rest);
+                            piece.push(level[0]);
+                            for r in 1..=q {
+                                for i in 0..=(q - r) {
+                                    level[i] = level[i] + (level[i + 1] - level[i]) * lambda;
+                                }
+                                piece.push(level[0]);
+                                rest[q - r] = level[q - r];
+                            }
+                        }
+                        let Some(sum) = piece.iter().copied().reduce(|x, y| x + y) else {
+                            return poison;
+                        };
+                        let d = sum / sum.norm();
+                        for v in &piece {
+                            let v = d.dot(*v);
+                            acc = Some(match acc {
+                                None => v,
+                                Some(m) => m.min(v),
+                            });
+                        }
+                    }
+                }
+                acc.unwrap_or(poison)
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a
@@ -1395,6 +1504,15 @@ macro_rules! nurbs_curve {
                 acc.unwrap_or(poison)
             }
 
+            /// A certified sup-norm bound on `|C_self − C_other|` for
+            /// two curves **sharing one knot vector** (same degree,
+            /// same control count; weights may differ): the
+            /// `net::removal_pass_bound` formula, which only uses
+            /// that sharing — `(Cmax·Bw + Bwp)/w̃min` through partition
+            /// of unity and the positive-weight convex hull. Poison
+            /// (NaN) when the structures do not match — total, never
+            /// a fabricated bound. Crate-internal: the fitting stack's
+            /// deviation measurements (M5 PR 4) ride it.
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
                 if self.knots != other.knots || self.control.len() != other.control.len() {
                     return T::from_f64(f64::NAN);

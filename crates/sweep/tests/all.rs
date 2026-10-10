@@ -69,6 +69,8 @@ mod a_ring_on_a_cone_face;
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_swaying_loft_corner_meters.rs"]
+mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]

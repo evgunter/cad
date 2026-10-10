@@ -2,10 +2,12 @@
 id: a-swaying-loft-corner-refuses-as-a-vanishing-span
 kind: issue
 title: A loft whose corner path sways sideways refuses at certification as a vanishingly short edge: the span meter's chord bound collapses on a sound curve
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: M
+branch: nurbs/swaying-loft-span-meter
+closed: 2026-10-10
 refs: [nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one]
 ---
 
@@ -46,3 +48,21 @@ answer.
 Found building the stand-in body for
 `work/emit/a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter.md`
 (`emit_topo`'s `nurbs_crossings_rank_by_parameter` rows use `a = 0.25`).
+
+## Closed
+
+`NurbsCurve3::speed_lower_bound`'s integral arm gained a third
+assembly, `piece_assembly`: every nonempty span cut into
+`INTEGRAL_METER_SPLITS` (16) pieces, each projecting the derivative's
+Bernstein coefficients on that piece (blossoms of the derivative
+spline, formed at `T` from the stored net, so the interval lane
+encloses them) onto their sum's direction. It joins the global and
+per-span chord assemblies by `max`, so no carrier's bound went down.
+The loft family `a ∈ {0.75, 1, 1.5, 2}` at v-degree 2 and `a = 0.5` at
+v-degree 3 now builds closed
+(`sweep/tests/a_swaying_loft_corner_meters.rs`); on the interpolated
+swaying corner the meter reads 0.57–0.99 of the true minimum speed,
+never above it, and a randomized set of nets that stall exactly still
+refuses (`geom/tests/curves/swaying_corner_meter.rs`). The refusal's
+routing is no longer this row's: ENCL's `SpanMeterCollapsed` already
+names the meter, not the edge's length.
