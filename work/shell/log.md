@@ -1366,3 +1366,4 @@ Ev said go.
   - Before the ruling, Ev asked whether B could avoid computing work it throws away. Both designers answered yes. A's lazy variant always ran the proof.
   - The ruling is recorded in the item's `## Decided`, and `needs_ev` is cleared.
   - Unit (c), the arm, is scoped by it. Units (a), the iso-row narrowing, and (b), the general door, are unaffected.
+- **Filed** `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). It is unit (b) of the wall-seam cut, the door half of PR 4515's designed state.
