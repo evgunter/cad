@@ -98,10 +98,10 @@
 //! runs: the conformal face-pair arm ([`sweep_conformal_patches`]) and
 //! the declared-record confirm arm ([`confirm_curve_and_patch_records`],
 //! its Door 2) each push [`ValidationError::CensusLaneUnsupported`]
-//! naming the pair instead of examining it, and the crossing rung's
-//! backing consult ([`pair_region_verified`]) answers `false`, so a
-//! crossing the pair would have backed stays an
-//! [`ValidationError::UndeclaredContact`]. `validate_pseudomanifold`
+//! naming the pair instead of examining it, and the region-confined
+//! rungs' backing consult ([`pair_region_verified`], for a crossing and
+//! for an edge-on-face bound) answers `false`, so an event the pair
+//! would have backed stays an [`ValidationError::UndeclaredContact`]. `validate_pseudomanifold`
 //! hands `Some(RegionLane::certified())`; its `_structural` twin hands
 //! `None` at every scalar it is called at — a dual's only route, and
 //! an `f64` caller's when it chooses that door.
@@ -147,25 +147,24 @@
 //! post-ratification annotation; `crates/topo/README.md`):
 //! *a declared pair answers exactly for its verified interface — the
 //! overlap region, with material opposition being what "interface"
-//! means for a crossing.* One consult site holds that strength today:
-//! the crossing rung ([`ee_cross_backed`], born at it). Every other
-//! rung is structural-incidence and region-unconfined —
-//! GRANDFATHERED BY NAME, each to be migrated one at a time with its
-//! own measurement: [`Declared::vv_face_backed`] at
-//! [`sweep_vertex_vertex`], [`Declared::vf_face_backed`] at
-//! [`sweep_vertex_face`], [`Declared::ve_face_backed`] at
-//! [`sweep_vertex_edge`], [`ee_bound_backed`]'s face-pair arms, and
-//! [`ef_bound_backed`]'s face-pair arms — the last with its cut-schedule
-//! blocker gone (the edge-on-face bullet below), its migration parked
-//! with the declared-pair machinery D10 retires
-//! (`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
+//! means for a crossing.* Two consult sites hold that strength: the
+//! crossing rung ([`ee_cross_backed`], born at it) and
+//! [`ef_bound_backed`]'s face-pair arms
+//! ([`Declared::vf_face_backed_confined`]). Every other rung is
+//! structural-incidence and region-unconfined — GRANDFATHERED BY NAME,
+//! each to be migrated one at a time with its own measurement:
+//! [`Declared::vv_face_backed`] at [`sweep_vertex_vertex`],
+//! [`Declared::vf_face_backed`] at [`sweep_vertex_face`],
+//! [`Declared::ve_face_backed`] at [`sweep_vertex_edge`], and
+//! [`ee_bound_backed`]'s face-pair arms. The face pairs every rung reads
+//! are the ones the op's curve and patch records name, not user
+//! declarations.
 //! A grandfathered rung asks whether a declared face pair HOLDS the
 //! entities of the event — one on each side, through boundary
 //! membership and an edge's incidence to the faces it bounds — and
 //! never where on those faces the event lies, so it backs an event on
 //! the entities it holds even where that event lies outside the
-//! pair's own overlap region (the demonstrated reach:
-//! `review_mate4a_r2_probes`' unrelated-pair rows).
+//! pair's own overlap region.
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are certified by
 //! **reconstruction from their bounding vertex events**:
@@ -197,14 +196,14 @@
 //!   - **The edge's own vertex.** It must be v-on-f-declared on this
 //!     face, v-v-declared with a coincident vertex of the face's
 //!     boundary, backed by a declared face pair naming this face and
-//!     one holding the vertex (`vf_face_backed`),
+//!     one holding the vertex, inside the pair's verified interface,
 //!     `(vertex, edge)`-recorded onto an edge of the face's boundary,
 //!     or itself a vertex of the face's boundary or on one point with
 //!     one (structural).
 //!   - **A boundary vertex of the face resting on the edge's
 //!     interior.** A vertex-on-edge event: its `(vertex, edge)` record,
 //!     or a declared face pair holding that vertex on one boundary and
-//!     naming a face the edge bounds (`ve_face_backed`).
+//!     naming a face the edge bounds, inside its verified interface.
 //!   - **A boundary edge crossing the edge's interior.** The edge-edge
 //!     lane's `EdgeEdgeCross` event ([`boundary_crossings`] cuts there):
 //!     an op's edge-edge record, or [`ee_cross_backed`]. A conic
@@ -901,6 +900,48 @@ impl Declared {
     /// migrations land one measured step at a time).
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
+    }
+
+    /// [`Declared::vf_face_backed`] at the UNIFIED strength: a declared
+    /// pair `(g, f)` holding `v` on `g`'s boundary backs the event at
+    /// `q` only where `q` lies on both carriers within both closed
+    /// regions ([`pair_holds_point`]) and the pair's own overlap
+    /// verifies ([`pair_region_verified`], either frame order). A
+    /// touching event has no crossing to take a side on, so there is no
+    /// side test. Planar-first, as the crossing rung: a curved pair
+    /// answers nothing here. Every candidate pair is read, so what is
+    /// pushed does not depend on key order.
+    #[allow(clippy::too_many_arguments)] // the confinement's whole state
+    fn vf_face_backed_confined<T: Decide>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        v: VertexKey,
+        f: FaceKey,
+        q: Point3<T>,
+        band: Band,
+        region: Option<RegionLane<T>>,
+        errors: &mut Vec<ValidationError>,
+    ) -> bool {
+        let Some(gs) = geo.vertex_faces.get(&v) else {
+            return false;
+        };
+        let mut backed = false;
+        for &g in gs {
+            if !self.faces.contains(&(g, f)) {
+                continue;
+            }
+            let (Some(fg), Some(ff)) = (planar_face(geo, g), planar_face(geo, f)) else {
+                continue;
+            };
+            if pair_holds_point(body, fg, ff, q, band, errors)
+                && (pair_region_verified(body, g, f, band, region)
+                    || pair_region_verified(body, f, g, band, region))
+            {
+                backed = true;
+            }
+        }
+        backed
     }
 
     /// The rung for a touch at a **conventional vertex**: it has no
@@ -1655,9 +1696,9 @@ fn edge_vertex_at<T: Decide>(
     }
 }
 
-/// Some boundary vertex of `f` sitting AT the point `q` satisfies
-/// `backs` — the census's own coincidence test, short-circuiting on the
-/// first vertex that backs (escalations pushed as they are decided).
+/// Every boundary vertex of `f` sitting AT the point `q` — the census's
+/// own coincidence test, each vertex decided (escalations pushed), so
+/// what is pushed does not depend on which vertex backs.
 ///
 /// AGREEMENT REQUIRED with [`ef_overlap_lane`]'s cut test: that lane
 /// admits a cut when the vertex's perpendicular offset from the edge's
@@ -1669,14 +1710,14 @@ fn edge_vertex_at<T: Decide>(
 /// same band, which they do. They are not shared as one call because
 /// this helper also serves a bound with no cut behind it, where `q` is
 /// the edge's own endpoint and no line test has been made.
-fn any_boundary_vertex_at<T: Decide>(
+fn boundary_vertices_at<T: Decide>(
     f: &FaceGeo<T>,
     geo: &Geo<T>,
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-    mut backs: impl FnMut(VertexKey) -> bool,
-) -> bool {
+) -> Vec<VertexKey> {
+    let mut out = Vec::new();
     for &w in &f.boundary {
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
@@ -1687,20 +1728,21 @@ fn any_boundary_vertex_at<T: Decide>(
             band,
             errors,
         ) == Some(true)
-            && backs(w)
         {
-            return true;
+            out.push(w);
         }
     }
-    false
+    out
 }
 
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
 /// at the two granularities a bound can have.
 ///
-/// **Grandfathered at the region-unconfined strength** (the module
-/// docs' roster): its vertex arms back at the same strength as their
-/// siblings, no stronger.
+/// Its face-pair arms hold the unified strength: a declared pair backs
+/// the bound only where the bound lies in the pair's verified interface
+/// ([`Declared::vf_face_backed_confined`]). They are read last, after
+/// every record and structural arm, so a pair consulted for a bound
+/// something else already backs pushes nothing.
 ///
 /// Where a boundary edge of `f` crosses the edge at the bound, the
 /// event is that `EdgeEdgeCross`, and it takes that lane's backing: an
@@ -1709,7 +1751,8 @@ fn any_boundary_vertex_at<T: Decide>(
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
-/// boundary vertex of `f`, face-backed onto `f`, `(vertex, edge)`-recorded
+/// boundary vertex of `f`, face-backed onto `f` inside the pair's
+/// interface, `(vertex, edge)`-recorded
 /// onto an edge bounding `f` (it rests on `f`'s boundary), or the
 /// vertex is itself on `f`'s boundary or shares its point with a
 /// boundary vertex of `f` at the bound (structural).
@@ -1717,8 +1760,9 @@ fn any_boundary_vertex_at<T: Decide>(
 /// Where it does not, a boundary vertex of `f` rests at the bound: the
 /// event is a vertex-on-edge, and it takes that lane's backing
 /// (its `(vertex, edge)` record, or the same declared face pair one
-/// incidence step further out), exactly as [`ee_bound_backed`]'s
-/// asymmetric arm reads it for a collinear overlap. A bound is a bound
+/// incidence step further out, inside its interface), as
+/// [`ee_bound_backed`]'s asymmetric arm reads it (grandfathered there)
+/// for a collinear overlap. A bound is a bound
 /// of the overlap because some entity ends there; which side's entity
 /// that is, is a fact about the configuration, not about what a
 /// declaration can hold.
@@ -1756,24 +1800,35 @@ fn ef_bound_backed<T: Decide>(
         CutAt::ConicCrossing => return false,
         CutAt::Vertex => {}
     }
+    let confined = |v, g: FaceKey, errors: &mut Vec<ValidationError>| {
+        declared.vf_face_backed_confined(body, geo, v, g, q, band, region, errors)
+    };
     let Some(ve) = edge_vertex_at(e, cut.s, band, errors) else {
-        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-            declared.ve_recorded(w, e.key) || declared.ve_face_backed(geo, w, e)
-        });
+        let at = boundary_vertices_at(f, geo, q, band, errors);
+        if at.iter().any(|&w| declared.ve_recorded(w, e.key)) {
+            return true;
+        }
+        let mut backed = false;
+        for w in at {
+            for g in [e.f_plus, e.f_minus] {
+                backed |= confined(w, g, errors);
+            }
+        }
+        return backed;
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
-        || declared.vf_face_backed(geo, ve, f.key)
         || geo
             .edges
             .iter()
             .any(|g| (g.f_plus == f.key || g.f_minus == f.key) && declared.ve_recorded(ve, g.key))
+        || boundary_vertices_at(f, geo, q, band, errors)
+            .into_iter()
+            .any(|w| geo.same_point(ve, w) || declared.vv.contains(&(ve, w)))
     {
         return true;
     }
-    any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-        geo.same_point(ve, w) || declared.vv.contains(&(ve, w))
-    })
+    confined(ve, f.key, errors)
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
@@ -2563,13 +2618,12 @@ fn ee_cross_backed<T: Decide>(
         {
             continue; // the pair's carrier does not hold the crossing
         }
-        let (Some(da), Some(db)) = (body.get_face(fa), body.get_face(fb)) else {
-            continue;
-        };
-        let (Some(sa), Some(sb)) = (body.surfaces.get(da.surface), body.surfaces.get(db.surface))
-        else {
-            continue;
-        };
+        // Both faces are in the snapshot, read off the live arena.
+        let (da, db) = (
+            proven(&body.faces, fa, EntityId::Face),
+            proven(&body.faces, fb, EntityId::Face),
+        );
+        let (sa, sb) = (body.face_surface_linked(fa, da), body.face_surface_linked(fb, db));
         let arm_extent = ea.len.min(eb.len);
         // The Smooth-site precondition, established rather than
         // assumed. After the edge screen a definitely-Transverse
@@ -2911,9 +2965,10 @@ fn sweep_conformal_patches<T: Decide>(
     for (_, group) in by_key.iter() {
         for (i, &fa) in group.iter().enumerate() {
             for &fb in &group[i + 1..] {
-                let (Some(da), Some(db)) = (body.get_face(fa), body.get_face(fb)) else {
-                    continue;
-                };
+                let (da, db) = (
+                    proven(&body.faces, fa, EntityId::Face),
+                    proven(&body.faces, fb, EntityId::Face),
+                );
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
@@ -7451,6 +7506,73 @@ mod tests {
         assert!(
             !pair_region_verified(&seat.body, seat.post_top, seat.shelf_bottom, band(), None),
             "no door, no verification"
+        );
+    }
+
+    /// **The crossing rung reads a declared face's surface as a link.**
+    /// On the declared straddle seat the rung backs the cap side edge's
+    /// crossing with the shelf edge; with the cap's surface record torn
+    /// from the arena after the snapshot, the rung panics naming the
+    /// face's `surface` link rather than reading the pair as absent.
+    #[test]
+    #[should_panic(expected = "'s surface names")]
+    fn the_crossing_rung_panics_on_a_torn_declared_surface() {
+        let mut seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
+        let mut records = ContactRecords::default();
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: seat.post_top,
+                face_b: seat.shelf_bottom,
+            },
+            crate::Cites::decided(0),
+        ));
+        let declared = Declared::index(&records);
+        let geo = snapshot(&seat.body);
+        let on = |e: &&EdgeGeo<f64>, pick: fn(Point3<f64>) -> bool| {
+            [e.p0, e.p0 + e.dir * e.len]
+                .into_iter()
+                .all(|p| p.z == 0.5 && pick(p))
+        };
+        let ea = geo
+            .edges
+            .iter()
+            .find(|e| on(e, |p| p.x == 0.30))
+            .expect("the cap's x = 0.30 top edge");
+        let eb = geo
+            .edges
+            .iter()
+            .find(|e| on(e, |p| p.y == 0.30))
+            .expect("the shelf's y = 0.30 underside edge");
+        let q = Point3::new(0.30, 0.30, 0.5);
+        let mut errors = Vec::new();
+        let region = Some(RegionLane::certified());
+        let intact = ee_cross_backed(
+            &seat.body,
+            &geo,
+            &declared,
+            ea,
+            eb,
+            q,
+            band(),
+            region,
+            &mut errors,
+        );
+        assert!(
+            matches!(intact, CrossingBacking::Backed) && errors.is_empty(),
+            "the intact seat backs the crossing: {errors:?}"
+        );
+        let surface = seat.body.get_face(seat.post_top).expect("the cap").surface;
+        seat.body.surfaces.remove(surface).expect("its surface");
+        ee_cross_backed(
+            &seat.body,
+            &geo,
+            &declared,
+            ea,
+            eb,
+            q,
+            band(),
+            region,
+            &mut errors,
         );
     }
 
