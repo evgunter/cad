@@ -31,7 +31,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::ssi::PointLever;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal, SsiLimb,
     plane_nurbs_limbs,
 };
 use geom_core::{FileCoincidence, Tol};
@@ -324,11 +324,11 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
 }
 
 /// **The door's falsifier row.** The displaced carrier's refusal
-/// arrives as `CertifyError::PlaneNurbs`, still carrying the measured
-/// bound — the declare-and-check payload survives the mapping, and the
-/// import door reads its miss.
+/// arrives as `CertifyError::PlaneNurbs`, limb 1 still carrying its
+/// measured miss — the declare-and-check payload survives the mapping,
+/// and the import door reads that miss.
 #[test]
-fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
+fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
     // Scaled with ε, exactly as the lane row above (same reason).
     let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
@@ -344,6 +344,7 @@ fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
     ) {
         Err(e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, value, .. })) => {
             println!("M7-8 door falsifier: {} measured {value:e} m", limb.name());
+            assert_eq!(limb, SsiLimb::OnLocus, "limb 1 measures the miss: {e:?}");
             assert!(value >= off * 0.5, "the measured bound: {value:e}");
             // The import door reads the miss the limb carries: an ε_in
             // past it holds the miss, so the sentence says it lies

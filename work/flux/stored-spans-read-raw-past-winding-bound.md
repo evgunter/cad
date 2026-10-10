@@ -7,7 +7,7 @@ opened: 2026-09-03
 github: 1618
 refs: [1617]
 priority: P0
-cost: D
+cost: M
 ---
 
 ## From GitHub issue 1618
