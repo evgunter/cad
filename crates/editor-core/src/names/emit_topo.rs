@@ -5223,12 +5223,11 @@ mod nurbs_crossings_rank_by_parameter {
             .certified()
             .unwrap()
             .restated_spec();
-        let geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. } = spec.description else {
+        let geom_brep::EdgeDescriptionSpec::Intersection { pair, .. } = spec.description else {
             panic!("the cube's edges are described as intersections");
         };
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair,
             witness: nurbs.eval(0.5),
         };
         spec.carrier = geom::Curve3::Nurbs(std::sync::Arc::new(nurbs));

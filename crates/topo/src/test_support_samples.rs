@@ -426,7 +426,7 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::WindingExceeded,
         CertifyError::ResidualExceeded {
-            check: CertCheck::Surface1Residual,
+            check: CertCheck::SurfaceResidual { surface: key },
             sample: 4,
             margin: MarginDiag::value(3e-8),
         },

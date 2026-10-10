@@ -2860,10 +2860,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
-        | CertCheck::Surface1Residual
-        | CertCheck::Surface2Residual
-        | CertCheck::WitnessSurface1
-        | CertCheck::WitnessSurface2
+        | CertCheck::SurfaceResidual { .. }
+        | CertCheck::WitnessSurfaceResidual { .. }
         | CertCheck::WitnessMidpoint
         | CertCheck::TangentParallel
         | CertCheck::TangentHull
@@ -6455,9 +6453,9 @@ pub(crate) fn tier3_local_checks_marked<
         let (f_plus, f_minus) = sides.faces();
         let one_face = f_plus == f_minus;
         let adjacent = match curve.description() {
-            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                !one_face && Body::<T>::cites_pair((*s1, *s2), fs_plus, fs_minus)
+            geom_brep::EdgeDescription::Intersection { pair, .. }
+            | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                !one_face && *pair == geom_brep::SurfacePair::new(fs_plus, fs_minus)
             }
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
@@ -12708,8 +12706,7 @@ mod tests {
             };
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
+                    pair: geom_brep::SurfacePair::new(cyl, plane),
                     witness: frame.at((u0 + u1) * 0.5, v0),
                 },
                 carrier: geom::Curve3::Circle {
@@ -13691,8 +13688,7 @@ mod tests {
         };
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: cylinder,
+                pair: geom_brep::SurfacePair::new(plane, cylinder),
                 witness: carrier.mid_point(t0, t1),
             },
             carrier,
@@ -13942,7 +13938,7 @@ mod tests {
     #[test]
     fn a_ring_by_a_spiric_edge_is_placed_and_one_in_its_band_is_reported() {
         use core::f64::consts::FRAC_PI_2;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let spiric = geom::Curve3::Spiric {
@@ -13976,8 +13972,7 @@ mod tests {
                 p1,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: torus,
-                        s2: plane,
+                        pair: SurfacePair::new(torus, plane),
                         witness: spiric.eval(0.0),
                     },
                     carrier: spiric.clone(),
@@ -15993,7 +15988,12 @@ mod certify_escalation_rows {
                  file; report it",
             ),
             (
-                escalated(CertCheck::Surface1Residual, MarginDiag::INVALID),
+                escalated(
+                    CertCheck::SurfaceResidual {
+                        surface: crate::SurfaceKey::default(),
+                    },
+                    MarginDiag::INVALID,
+                ),
                 "whether it lies where its description says is undecided. There is no way \
                  through: this is a kernel defect or a damaged \
                  file; report it",
@@ -16058,7 +16058,9 @@ mod certify_escalation_rows {
             // reaches: an approximation's residual, and the lane's limb.
             (
                 says(CertifyError::ResidualExceeded {
-                    check: CertCheck::Surface2Residual,
+                    check: CertCheck::SurfaceResidual {
+                        surface: crate::SurfaceKey::default(),
+                    },
                     sample: 0,
                     margin: geom_core::MarginDiag::value(3e-8),
                 }),

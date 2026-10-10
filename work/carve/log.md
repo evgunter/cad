@@ -377,6 +377,45 @@ to a reviewer's first probe.
 
 Signed: (CARVE orchestrator)
 
+## 2026-10-07 — `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself` closed (PR 4189)
+
+`EdgeDescription::Intersection` and `TangentIntersection` now hold a
+`geom_brep::SurfacePair`. The pair is kept in key order behind one
+infallible constructor, so the order is no longer a fact a caller can
+get wrong. Extrude's cap rims and struts now describe their edges
+alike, and the 8/12 measurement is now a test. Every both-ways check is
+gone with it.
+
+The designer pair agreed on the type. The orchestrator kept the
+same-surface refusal at the certify door rather than in the
+constructor, which stays infallible.
+
+Review: single FULL, with no MAJOR finding.
+
+- **No body moved.** Digests changed only through the description's
+  `Debug`; the geometry is identical under the lo/hi re-spelling.
+- **The frozen-count rise has a known cause.** The transversality
+  wedge's `n1.cross(n2)` is now read in key order rather than builder
+  order. That changes the form, not the value, and no decision depends
+  on the order.
+
+The fix pass:
+
+- one key order for the tangent reading, shared by the constructor and
+  the certificate, plus a symmetry row pinning it;
+- the tour's `drive.rs` prose corrected;
+- order-free test kinds;
+- the slot-naming residue filed as `certify-residual-predicates-still-name-a-slot`
+  (P4, E).
+
+`material-jet-readings-take-plus-minus-order` stays open (P3), because
+the (plus, minus) order of the signed κ_rel carries material-side
+meaning. CLEAVE's `CrossingInsertion` and `BlendError::Op` now box their
+`EulerOpError` source.
+
+The merge with #4187 (`cap_plane_orientation`) was re-measured under
+both changes rather than summed. The sym11, m10_9, m10_sym_profile and
+m10_bulge ledgers each state the combined cause at their site.
 ## 2026-10-07 — `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body` closed (PR 4193)
 
 A loft's v is now a function of its whole section set: Eq. 10.8 chord
@@ -456,5 +495,23 @@ priority seam:
 
 The plan gives the next sitting's order. The reflected placement comes
 first, because it is the one row that builds a wrong body silently.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-10 — sitting closed; CARVE handed back
+
+PR 4189 merges with this state sync, which closes six of the seven P0
+rows. Its two filed rows moved to CARVEREST. Reaching a mergeable head
+took the PR more than a dozen merges of main after its review. The last one
+conflicted only in `.config/nextest.toml`'s slow set, which nearly every
+PR edits, so that merge was verified locally on the merged tree against
+exactly the delta: clippy, the two incoming PRs' rows, and the census
+goldens. It was then merged without another hosted round, which a slow
+set touched by every PR would never have let converge. The PR carries
+the evidence.
+
+`self-overlapping-spines-build-and-validate` stays parked on the
+clearance certificate. CARVE goes to `ready`, with no orchestrator; the
+plan gives the next sitting's order.
 
 Signed: (CARVE orchestrator)
