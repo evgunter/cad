@@ -329,6 +329,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
 ///
+/// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
+/// to turn its offset from the axis: 8 of its points moved by at most 2
+/// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
 /// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
 /// axis is a line on the node): its in-plane axis datum left, so every
 /// later node id re-mints and the name table with it. No outcome or
@@ -341,7 +345,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0xdb95_b8fc_06b7_a993),
         ("cut_cylinder", 0x4318_92f9_c696_0fd1),
         ("boss_union", 0x05b4_17a8_c844_6429),
-        ("kitchen_sink", 0xbcb8_5815_76af_f1ea),
+        ("kitchen_sink", 0xd620_6a3e_0abf_8866),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
