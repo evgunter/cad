@@ -8649,10 +8649,10 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
     body.points.get(body.vertices.get(vertex)?.point).copied()
 }
 
-/// **Tier 3′** (M3 PR 6a, F1/F2): the pseudomanifold at-rest validator
-/// for declared-contact bodies — tier 3's full local battery **plus**
-/// the global coincidence census tier 3 defers, certified against the
-/// body's declared-contact records.
+/// **Tier 3′** (F1/F2): the pseudomanifold at-rest validator for
+/// bodies that touch — tier 3's full local battery **plus** the global
+/// coincidence census tier 3 defers, certified against the body's
+/// contact records.
 ///
 /// Structure (D1):
 /// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).

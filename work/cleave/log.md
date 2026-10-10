@@ -706,3 +706,11 @@ Signed (CLEAVE orchestrator).
   `near-tangent-pierce-poses-reach-three-classification-invariants`,
   `continuation-scan-box-fallback-reads-a-world-axis-run` and
   `split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence`.
+- **PR 4546 merged** (the P0 mints re-scope; tracker only).
+  - The census found 69 arms: 24 CLEAVE, 35 D10-held, and the rest PRED, CHART, TOPO and
+    RESTFRONT.
+  - Step 3 of the 10-03 design is superseded. Main's vocabulary already does the job, and its
+    contradictions go with D10 stage 4.
+  - Seven units are filed: four are dispatchable P1s; the stage-4 unit and the seal are parked; the
+    ratchet gate is P3.
+  - The umbrella is re-prioritised P0 → P1 and `design: true` moves to the stage-4 unit.
