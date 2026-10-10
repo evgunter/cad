@@ -2,7 +2,9 @@
 id: an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane
 kind: issue
 title: A cylinder wall carrying a ring trimmed by ellipse arcs (a tilted bar through a pipe) has no volume lane: RingOnCurvedFace
-status: open
+status: review
+pr: 4557
+branch: flux/ellipse-ring
 opened: 2026-10-02
 ---
 
