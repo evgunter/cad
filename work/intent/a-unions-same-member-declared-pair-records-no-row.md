@@ -2,7 +2,7 @@
 id: a-unions-same-member-declared-pair-records-no-row
 kind: issue
 title: An n-ary union's declared pair whose two sites are one member is verified at its fold step, and that step's row is dropped
-status: parked
+status: open
 opened: 2026-10-08
 priority: P1
 cost: M

@@ -142,7 +142,9 @@ use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::{AtRestBody, decide, scaffolds_at_rest, validate, validate_closed};
+use crate::validate::{
+    AtRestBody, ValidationError, decide, scaffolds_at_rest, validate, validate_closed,
+};
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
 
@@ -3592,12 +3594,16 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// finished ([`AtRestPolicy::gate_at_rest_kept`]: tier 3, whose first
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
-/// gate, [`structural_gate`] runs in its place.
+/// gate, [`structural_gate`] runs in its place. The at-rest gate's
+/// findings are typed by [`finished_body_refusal`]; the structural
+/// gate's are structure alone, the kernel's.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Pieces`] where the body's pieces cannot be read;
-/// [`BooleanError::ResultInvalid`] carrying the validator's findings.
+/// [`BooleanError::Escalated`] where every finding is the operands'
+/// ill-conditioning, and [`BooleanError::ResultInvalid`] carrying the
+/// validator's findings otherwise.
 pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     body: Body<T>,
     band: Band,
@@ -3616,11 +3622,186 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         from.elapsed(),
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
-    let kept = kept.map_err(|errors| BooleanError::ResultInvalid { errors })?;
+    let kept = kept.map_err(finished_body_refusal)?;
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
     Ok(kept)
+}
+
+/// **How the finished-body gate types what it found** (D10, Booleans):
+/// a result holds no in-band pair or shell, and one that does is the
+/// operands' ill-conditioning, which definite cuts can compose. So where
+/// every finding is born of a margin certified in band, the refusal is
+/// [`BooleanError::Escalated`] on the shell whose certified enclosure
+/// binds the offer (nearest zero: a tolerance deciding it decides every
+/// other), naming how many more lie in band; its recourse is a smaller
+/// tolerance or moved parts. Any other finding is the kernel's own
+/// defect, and the refusal is [`BooleanError::ResultInvalid`] carrying
+/// every finding. Each finding's arm is [`finding_arm`]'s.
+fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
+    let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
+    let binding = in_band.as_deref().and_then(|shells| {
+        shells
+            .iter()
+            .copied()
+            .reduce(|a, b| {
+                if a.certified.margin.binds_before(b.certified.margin) {
+                    a
+                } else {
+                    b
+                }
+            })
+            .map(|binding| (binding, shells.len() - 1))
+    });
+    match binding {
+        Some((binding, others)) => BooleanError::Escalated {
+            decision: BooleanDecision::ShellRole {
+                solid: binding.solid,
+                shell: binding.shell,
+                others,
+            },
+            diag: binding.certified,
+        },
+        None => BooleanError::ResultInvalid { errors },
+    }
+}
+
+/// A shell of the result certified in band.
+#[derive(Clone, Copy)]
+struct InBandShell {
+    /// Its solid.
+    solid: crate::entity::SolidKey,
+    /// The shell.
+    shell: ShellKey,
+    /// Its certified enclosure of `V/A`, wholly in one sliver band.
+    certified: Indeterminate,
+}
+
+/// **Which of Q1's arms one finding of the finished-body gate is**: the
+/// shell and certified margin of a finding certified in band, or `None`
+/// for the kernel's. Every finding states its arm here.
+fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
+    use crate::props::ShellClassifyError;
+    use ValidationError as V;
+    match finding {
+        // In band: a shell whose volume over its area, re-derived in
+        // interval arithmetic, lies wholly inside one sliver band.
+        // The certificate decides, whatever words the walk's ends gave the
+        // refusal: a walk that read zero is refuted by it.
+        V::ShellRoleUndecided {
+            solid,
+            error:
+                ShellClassifyError::Escalated { shell, .. }
+                | ShellClassifyError::ZeroVolume { shell, .. }
+                | ShellClassifyError::Straddles { shell }
+                | ShellClassifyError::Props { shell, .. },
+            sliver: Some(certified),
+        } => Some(InBandShell {
+            solid: *solid,
+            shell: *shell,
+            certified: *certified.reading(),
+        }),
+        // Undecided, and not certified in band: a role read whose
+        // enclosure the arithmetic left wider than the band or straddling
+        // its edge (`work/join/a-threshold-straddling-in-band-shell-is-typed-the-kernels.md`),
+        // or poisoned; or a band that does not form.
+        V::ShellRoleUndecided { .. } => None,
+        // Undecided at a point margin the gate has not shown conditioned
+        // (`work/join/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
+        V::DegenerateTorusEscalated { .. }
+        | V::PlanarFaceEscalated { .. }
+        | V::PlanarBoundaryEscalated { .. }
+        | V::SliverDihedral { .. }
+        | V::JoinUndecidedAtRest { .. }
+        | V::VolumeSignUnresolved { .. }
+        | V::RingContactEscalated { .. }
+        | V::RingNestingUndecided { .. }
+        | V::RingPairContactEscalated { .. }
+        | V::PinchCornerEscalated { .. } => None,
+        // The census's findings: the door runs no census
+        // (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+        V::UndeclaredContact { .. }
+        | V::StaleContactDeclaration { .. }
+        | V::ContactContradicted { .. }
+        | V::CensusEscalated { .. }
+        | V::CensusUnsupported { .. }
+        | V::CensusLaneUnsupported { .. }
+        | V::CensusUndecidable { .. }
+        | V::InstanceInterference { .. } => None,
+        // A certificate that failed or a lane that cannot run: the
+        // kernel's.
+        V::Band { .. }
+        | V::UncertifiableSurface { .. }
+        | V::PoisonedSurfaceDescription { .. }
+        | V::ApproxCertification { .. }
+        | V::ApproxLaneUnsupported { .. }
+        | V::PoisonedSurfaceDatum { .. }
+        | V::UnrepresentableSurfaceDatum { .. }
+        | V::PoisonedCurveDatum { .. }
+        | V::UnrepresentableCurveDatum { .. }
+        | V::EdgeCertification { .. }
+        | V::VolumeUncomputable { .. }
+        | V::Pcurve { .. } => None,
+        // Definite findings: a kernel defect.
+        V::DanglingDescription { .. }
+        | V::DegenerateTorus { .. }
+        | V::DescriptionNotAdjacent { .. }
+        | V::PlanarFaceResidual { .. }
+        | V::PlanarBoundaryResidual { .. }
+        | V::TransverseNotIntrinsic { .. }
+        | V::ScaffoldAtRest { .. }
+        | V::JoinableVertexAtRest { .. }
+        | V::TangentNotIntrinsic { .. }
+        | V::LaminaWedge { .. }
+        | V::NoDihedralArm { .. }
+        | V::LoopRoleInverted { .. }
+        | V::CurvedSenseInverted { .. }
+        | V::NegativeVolume { .. }
+        | V::RingMeetsOuter { .. }
+        | V::RingOutsideOuter { .. }
+        | V::RingMeetsRing { .. }
+        | V::PinchCornerCrossed { .. }
+        | V::ShellWinding { .. }
+        | V::SolidOuterShells { .. }
+        | V::DanglingTopology { .. }
+        | V::DanglingGeometry { .. }
+        | V::NextPrevMismatch { .. }
+        | V::LoopCycleOverrun { .. }
+        | V::ParentLoopMismatch { .. }
+        | V::UnreachableHalfEdge { .. }
+        | V::EdgeHalvesIdentical { .. }
+        | V::EdgeSlotBackpointerMismatch { .. }
+        | V::HalfEdgeUnclaimed { .. }
+        | V::HalfEdgeMultiplyClaimed { .. }
+        | V::EdgeNotAntiparallel { .. }
+        | V::EmanatingStartMismatch { .. }
+        | V::EmptyLoopVertexWithEmanating { .. }
+        | V::LoneVertexWithIncidence { .. }
+        | V::VertexOrbitOverrun { .. }
+        | V::OrbitForeignMember { .. }
+        | V::SplitVertexOrbit { .. }
+        | V::OuterListedAsRing { .. }
+        | V::BackPointerMismatch { .. }
+        | V::OrphanEntity { .. }
+        | V::MultiplyOwned { .. }
+        | V::OrphanGeometry { .. }
+        | V::SolidWithoutShells { .. }
+        | V::ShellWithoutFaces { .. }
+        | V::EdgeAcrossShells { .. }
+        | V::ComponentEulerViolation { .. }
+        | V::MissingProvenance { .. }
+        | V::LeakedProvenance { .. }
+        | V::ScaffoldingEmptyLoop { .. }
+        | V::ScaffoldingStrutVertex { .. }
+        | V::ShellDisconnected { .. }
+        | V::NullScaffoldShared { .. }
+        | V::LeakedNullFaceRecord { .. }
+        | V::StaleNullFaceLoop { .. }
+        | V::StaleNullFaceOwnership { .. }
+        | V::NullEdgeAtRest { .. }
+        | V::NullFaceAtRest { .. } => None,
+    }
 }
 
 /// The result gate where no at-rest gate ran (a dual's policy answers
@@ -5408,6 +5589,110 @@ mod tests {
                     | V::DescriptionNotAdjacent { .. }
             )) > 0
         );
+    }
+
+    /// **The gate's findings take their arm** (D10, Booleans): shells
+    /// certified slivers alone are the operands' ill-conditioning,
+    /// refused `Escalated` on the one whose enclosure binds the offer
+    /// (nearest zero, on either side, in either order) and naming how many
+    /// more lie in band; the same shell beside a definite finding, or an
+    /// escalation the arithmetic may have made, is the kernel's.
+    #[test]
+    fn the_gate_types_only_certified_in_band_findings_escalated() {
+        use crate::ShellClassifyError as S;
+        use crate::ValidationError as V;
+        use crate::entity::{ShellKey, SolidKey};
+        use crate::props::CertifiedSliver;
+        use geom_core::{Band, Indeterminate, MarginDiag};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |margin, terminal_sliver| Indeterminate {
+            margin,
+            band,
+            predicate: Some("positive_volume"),
+            terminal_sliver,
+        };
+        let walk = read(MarginDiag::value(3.05e-9), false);
+        let sliver = |lo, hi| {
+            CertifiedSliver::of(read(MarginDiag::enclosure(lo, hi), true)).expect("in band")
+        };
+        let (thin, thick) = (sliver(-3.29e-9, -3.28e-9), sliver(6.57e-9, 6.58e-9));
+        let shells: Vec<ShellKey> = (1..=3)
+            .map(|n: u64| slotmap::KeyData::from_ffi((1 << 32) | n).into())
+            .collect();
+        let role = |shell: ShellKey, sliver: Option<CertifiedSliver>| V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::Escalated {
+                shell,
+                source: walk,
+            },
+            sliver: sliver.map(Box::new),
+        };
+        // A walk that read zero, refuted by the certificate.
+        let zero_read = |shell: ShellKey, sliver: Option<CertifiedSliver>| V::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error: S::ZeroVolume {
+                shell,
+                verdict: geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(8.7e-10),
+                    band,
+                },
+            },
+            sliver: sliver.map(Box::new),
+        };
+        let definite = V::NegativeVolume {
+            solid: SolidKey::default(),
+        };
+        for (what, errors) in [
+            (
+                "thin first",
+                vec![role(shells[0], Some(thin)), role(shells[1], Some(thick))],
+            ),
+            (
+                "thick first",
+                vec![role(shells[1], Some(thick)), role(shells[0], Some(thin))],
+            ),
+            (
+                "the thin one's walk read zero",
+                vec![
+                    role(shells[1], Some(thick)),
+                    zero_read(shells[0], Some(thin)),
+                ],
+            ),
+        ] {
+            let refusal = super::finished_body_refusal(errors);
+            assert!(
+                matches!(
+                    &refusal,
+                    BooleanError::Escalated {
+                        decision: BooleanDecision::ShellRole { shell, others: 1, .. },
+                        diag,
+                    } if *shell == shells[0] && diag == thin.reading()
+                ),
+                "{what}: the thinner shell binds, the other counted: {refusal:?}"
+            );
+        }
+        for (what, errors) in [
+            ("an uncertified escalation", vec![role(shells[0], None)]),
+            ("an uncertified zero", vec![zero_read(shells[0], None)]),
+            (
+                "beside one",
+                vec![role(shells[0], Some(thin)), role(shells[2], None)],
+            ),
+            (
+                "beside a definite finding",
+                vec![role(shells[0], Some(thin)), definite],
+            ),
+            ("nothing", Vec::new()),
+        ] {
+            let n = errors.len();
+            assert!(
+                matches!(
+                    super::finished_body_refusal(errors),
+                    BooleanError::ResultInvalid { errors } if errors.len() == n
+                ),
+                "{what}: the kernel's, every finding kept"
+            );
+        }
     }
 
     /// **At a dual the result gate is main's structural gate.** A dual's

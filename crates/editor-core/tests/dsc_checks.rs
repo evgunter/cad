@@ -345,13 +345,13 @@ fn in_band_shell_escalates_typed_never_guessed() {
 
 /// The void side of the same decision: a 3 m box holding a unit-square
 /// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
-/// `V/A` is negative and in band, so its role does not read, and the
-/// Boolean door's result gate (tier 3) refuses the union naming that
-/// shell (check 10's `ShellRoleUndecided`): a solid whose shells cannot
-/// be wound is not built, so the checks run stops at its placement,
-/// poisoned through it.
-/// The refusal carries the escalation, and a margin on a side the
-/// decision accepts ends valued at `|m|/K`.
+/// `V/A`, certified about the body, lies wholly in band on the void side,
+/// so the Boolean door's result gate refuses the union as the operands'
+/// ill-conditioning (D10, Booleans: `Escalated` on the shell's role, not
+/// `ResultInvalid`): a result holding an in-band shell is not built, so
+/// the checks run stops at its placement, poisoned through the failed
+/// boolean. The refusal carries the certified enclosure, and ends valued
+/// at `|m|/K` off its nearer end.
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
@@ -361,7 +361,6 @@ fn in_band_shell_escalates_typed_never_guessed() {
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
     use geom_core::{Band, ErrorTextReading};
-    use topo::ValidationError;
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
@@ -399,45 +398,40 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         "expected the placement poisoned through the failed boolean, got: {refused:?}"
     );
     let failed = ev.node_error(root).expect("the root's refusal");
-    let editor_core::NodeErrorKind::Boolean(topo::BooleanError::ResultInvalid { errors }) =
-        &failed.kind
-    else {
-        panic!("expected the door's result gate, got: {failed:?}");
-    };
-    let [
-        error @ ValidationError::ShellRoleUndecided {
-            error: ShellClassifyError::Escalated { source: ind, .. },
-            ..
+    let editor_core::NodeErrorKind::Boolean(
+        error @ topo::BooleanError::Escalated {
+            decision: topo::BooleanDecision::ShellRole { others: 0, .. },
+            diag,
         },
-    ] = errors.as_slice()
+    ) = &failed.kind
     else {
-        panic!("expected the cavity's undecided role, alone, got: {errors:?}");
+        panic!("expected the door's in-band typing, got: {failed:?}");
     };
-    // Check 10 reads a shell's role under check 7's names.
-    assert_eq!(ind.predicate, Some("positive_volume"), "{error}");
-    assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
-    let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
-        panic!("expected a valued margin, got: {error}");
+    // Check 10's certified reading, wholly in the band.
+    assert_eq!(diag.predicate, Some("positive_volume_exact"), "{error}");
+    assert!(diag.terminal_sliver, "{error}");
+    assert_eq!(diag.band, Band::linear(tol).expect("the run's band"));
+    let ErrorTextReading::Enclosure { lo, hi } = diag.margin.diagnostic_f64_for_error_text() else {
+        panic!("expected a certified enclosure, got: {error}");
     };
     // The cavity's own V/A on the void side: a unit square `h` deep,
     // `h` the sheet as its two planes are represented.
     let h = 2.0 - (0.5 + (1.5 - t));
     let want = -h / (2.0 + 4.0 * h);
     assert!(
-        m < 0.0 && (m - want).abs() <= 1e-6 * want.abs(),
-        "margin {m:e}, want ≈ {want:e}"
+        lo <= hi && hi < 0.0 && (hi - want).abs() <= 1e-6 * want.abs(),
+        "enclosure [{lo:e}, {hi:e}], want ≈ {want:e}"
     );
-    let below = m.abs() / (ind.band.escalate() / ind.band.zero());
-    let ending = format!(
-        "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
-         intended, tighten the tolerance below {below:e} m"
-    );
+    let below = hi.abs() / (diag.band.escalate() / diag.band.zero());
     let rendered = error.to_string();
     assert!(
+        rendered.starts_with("whether a shell of the result bounds material or a cavity"),
+        "{rendered}"
+    );
+    assert!(
         rendered.ends_with(&format!(
-            "margin {m:e} lies inside the ambiguity band ({:e}, {:e}). {ending}",
-            ind.band.zero(),
-            ind.band.escalate()
+            "Recourse: move the parts so the pieces and cavities they leave are clearly thick, \
+             or, if this thickness is intended, tighten the tolerance below {below:e} m"
         )),
         "{rendered}"
     );
