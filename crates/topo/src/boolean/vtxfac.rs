@@ -164,7 +164,18 @@ pub(super) fn partner_side<T: Decide>(
             let lever = datum.lever.within(reach.length());
             let code = pierce_side(dir, reach, datum.normal, datum.shape, lever, band)
                 .map(|read| read.code);
-            if matches!(code, Err(BooleanError::Escalated { decision: super::BooleanDecision::ConicBend, .. })) { { use std::io::Write as _; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt") { let _ = writeln!(f, "PARTNER {:?}", std::thread::current().name()); } } }
+            if matches!(
+                code,
+                Err(BooleanError::Escalated {
+                    decision: super::BooleanDecision::ConicBend,
+                    ..
+                })
+            ) {
+                {
+                    use std::io::Write as _;
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt") { let _ = writeln!(f, "PARTNER {:?}", std::thread::current().name()); }
+                }
+            }
             match code {
                 Ok(c @ (SideCode::In | SideCode::Out)) if side.is_none_or(|k| k == c) => {
                     side = Some(c);
@@ -894,7 +905,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
-        { use std::io::Write as _; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt") { let _ = writeln!(f, "SURFACED {:?}", std::thread::current().name()); } }
+        {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(
+                "/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt",
+            ) {
+                let _ = writeln!(f, "SURFACED {:?}", std::thread::current().name());
+            }
+        }
         return Err(refusal);
     }
     resolve_on_entries(&mut entries, band)?;

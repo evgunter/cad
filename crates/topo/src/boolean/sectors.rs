@@ -847,10 +847,20 @@ fn conic_side<T: Decide>(
         Margin::of(lift - rise(dir, n, l).abs()),
         band,
     )
-    .map_err(|diag| { { use std::io::Write as _; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt") { let _ = writeln!(f, "RAISED {:?}", std::thread::current().name()); } } BooleanError::Escalated {
-        decision: BooleanDecision::ConicBend,
-        diag,
-    }})?;
+    .map_err(|diag| {
+        {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(
+                "/root/.local/share/cad-work/contacthold-sidecode/scratch/conicbend-census.txt",
+            ) {
+                let _ = writeln!(f, "RAISED {:?}", std::thread::current().name());
+            }
+        }
+        BooleanError::Escalated {
+            decision: BooleanDecision::ConicBend,
+            diag,
+        }
+    })?;
     // The lift that cleared is at most the sagitta `½·|κ·n̂|·l²`
     // (`|κ·n̂| ≥ least·|N̂·n̂|` and `2·sin²(x/2) ≤ x²/2`), so the
     // sagitta's sign is decided wherever the lift's was.
