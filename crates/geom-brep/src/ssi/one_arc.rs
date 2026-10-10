@@ -62,7 +62,7 @@
 //! says so ([`Shortfall::Undecided`]).
 
 use geom::{NurbsCurve2, Surface};
-use geom_core::{Band, Bounds, CertifiedBounds, Interval};
+use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point2};
 
 use super::ChartAxis;
 use super::boundary::{ChartEnd, ChartSide, Reading, SIDES, cut_along, read_stretch, side_stretch};
@@ -744,6 +744,13 @@ fn link<T: CertifiedBounds>(
     }
 }
 
+/// The pcurve's point at a parameter the walk chose in `f64` (a
+/// window's end): a computed value, so at `Sym` an unknown. `None` off
+/// the pcurve's spans.
+fn pcurve_at<T: CertifiedBounds>(pcurve: &NurbsCurve2<T>, t: f64) -> Option<Point2<T>> {
+    Some(pcurve.span_at(t)?.eval_in_span(T::from_computed(t)))
+}
+
 /// **The chart chain's solution set is one arc, and it spans the
 /// carrier** (module docs).
 ///
@@ -767,10 +774,9 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
     ends: [Box3; 2],
 ) -> Result<(), Shortfall> {
     let at = |t: f64| {
-        let Some(span) = pcurve.span_at(t) else {
+        let Some(p) = pcurve_at(pcurve, t) else {
             return (f64::NAN, f64::NAN);
         };
-        let p = span.eval_in_span(T::from_f64(t));
         (0.5 * (p.x.lo() + p.x.hi()), 0.5 * (p.y.lo() + p.y.hi()))
     };
     let clipped = windows
@@ -1240,6 +1246,32 @@ mod tests {
             vec![1.0; spans as usize + 1],
         )
         .unwrap()
+    }
+
+    /// A window's end is a parameter the walk chose in `f64`, so the
+    /// pcurve point read there is a function of an unknown at `Sym`; a
+    /// constant parameter would re-value to its own bits.
+    #[test]
+    fn a_window_ends_parameter_enters_as_a_computed_value() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let none = |_| None;
+        let (revalued, _) = with_session(budget, || {
+            let pc = across(0.25, 2).map_scalar(S::from_f64);
+            let p = super::pcurve_at(&pc, 0.3).expect("0.3 is on the pcurve");
+            (revalue(p.x.node(), &none), revalue(p.y.node(), &none))
+        });
+        assert_eq!(
+            revalued,
+            (None, None),
+            "the point reads the walk's parameter"
+        );
     }
 
     /// The fold's run band, at its ε.

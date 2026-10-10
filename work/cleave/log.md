@@ -720,3 +720,6 @@ Signed (CLEAVE orchestrator).
 - **PR 4224 merged** (the interval join-order frame; single FULL review, fix pass done). The
   oblique-frame residual and the axis-plane residual are P3 rows. The frame-building triplication is
   filed on HONE, and the `SectionFace` renumbering is evidence on EMIT's ordinal row.
+- **PR 4571 merged** (mints unit 1; single FULL review, fix pass done). It announces two seams:
+  `geom_brep::normal_alignment` / `ParallelNormal`, and `geom_core::k_stats::decide_nonzero_reported`
+  on SCALAR's ground. Unit 2 (PR 4578) must reconcile its own `k_stats` doors against these.

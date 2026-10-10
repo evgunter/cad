@@ -617,7 +617,9 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             Some(held) => {
                 // Every seat reading the selection admits its body
                 // (the edit door's rule, `edit::selection_body_kind`):
-                // a `Bodies` only where mate sides alone read it.
+                // a `Bodies` only where mate sides alone read it. The
+                // body read observes; each seat reading the selection
+                // is asked of the copy in the operand walk.
                 let narrow = crate::SlotKind::Is(crate::VarKind::Body);
                 let expected = if snapshot.nodes.values().any(|node| {
                     node.operand_rows().into_iter().any(|(slot, read)| {
@@ -630,15 +632,13 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 } else {
                     crate::SlotKind::Placeable
                 };
-                match snapshot.read_fault(held, expected, None)? {
+                match snapshot.read_fault(held, expected, None, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
                     },
-                    crate::doc::ReadFault::WorldCopy { placement } => {
-                        SelectionBodyFault::WorldCopy {
-                            placement: snapshot.spoken(placement),
-                        }
+                    crate::doc::ReadFault::WorldCopy { .. } => {
+                        unreachable!("an observing read admits a world copy")
                     }
                     crate::doc::ReadFault::OtherHalf { .. } => {
                         unreachable!("a selection's body read selects no half")
@@ -785,7 +785,12 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
             Some(
-                match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
+                match snapshot.read_fault(
+                    held,
+                    slot.kind(),
+                    node.selected_half(),
+                    crate::doc::Reader::of(slot.kind()),
+                )? {
                     crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
                         node: snapshot.spoken(id),
                         slot: SlotId::Operand(slot),
@@ -1125,11 +1130,6 @@ pub enum SelectionBodyFault {
         body: Box<SpokenVar>,
         /// Its kind.
         found: crate::VarKind,
-    },
-    /// A world placement's copy.
-    WorldCopy {
-        /// The placement.
-        placement: SpokenNode,
     },
 }
 
@@ -1642,11 +1642,6 @@ impl core::fmt::Display for SnapshotError {
                         crate::sentence::article(&found.to_string())
                     )
                 }
-                SelectionBodyFault::WorldCopy { placement } => write!(
-                    f,
-                    "{var} selects in the world copy {placement} makes, which only the product \
-                     and export read"
-                ),
             },
             Self::ReadsWorldCopy {
                 node,
@@ -1654,8 +1649,8 @@ impl core::fmt::Display for SnapshotError {
                 placement,
             } => write!(
                 f,
-                "{node}'s {slot} reads the world copy {placement} makes, which only the product \
-                 and export read"
+                "{node}'s {slot} reads the world copy {placement} makes, which no construction \
+                 reads: only the product, export and a measure do"
             ),
             Self::ReadCycle { at } => write!(
                 f,

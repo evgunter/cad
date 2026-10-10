@@ -60,7 +60,7 @@ pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
-pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub(crate) use emit_topo::{FaceDescent, OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
     Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_name,
     member_view, name_union,

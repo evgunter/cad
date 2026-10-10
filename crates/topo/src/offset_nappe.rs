@@ -14,7 +14,7 @@
 //! the consumer's. This module is the one place the OFFSET LANE reads
 //! it: [`face_nappe`] decides it from the face's own corner stations,
 //! [`group_nappe`] agrees it across a chart's faces, and the axial
-//! door, the per-chart door, that door's apex-window gate and
+//! door, the general door, that door's apex-window gate and
 //! `geom_brep::ConeOffset::displacement` all turn by the single answer
 //! those two return. A second reading of the same fact — per point, per
 //! window, per door — is a sign that can disagree with itself, which is

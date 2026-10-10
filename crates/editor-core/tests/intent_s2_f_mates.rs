@@ -629,3 +629,34 @@ fn a_face_based_side_that_vanishes_refuses_as_the_solve_naming_the_side() {
         ev.node_error(mate).map(|e| &e.kind)
     );
 }
+
+/// **A mate side reads the body, not its world copy** (stage 5 B's
+/// `Reader`): a side is a construction seat, so a selection of a
+/// placement's copy refuses at the door, and the gate's copy rule
+/// carries the face to the copy instead.
+#[test]
+fn a_mate_side_read_at_a_world_copy_refuses() {
+    let (doc, [a, b], _, body) = pair("f-world-copy");
+    let (doc, placed) = fixture::place(doc, a);
+    let refused = editor_core::apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(seat(body, (placed, a), (b, b))),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect_err("a side reads the body the placement copies");
+    assert!(
+        matches!(
+            &refused,
+            editor_core::EditError::ReadsWorldCopy {
+                slot: editor_core::SlotId::Operand(OperandSlot::Side(editor_core::MateSide::A)),
+                placement,
+                ..
+            } if *placement == doc.spoken(placed)
+        ),
+        "{refused:?}"
+    );
+}
