@@ -637,15 +637,15 @@ fn the_apex_cap_measures_on_a_general_cone() {
 // One extent, three doors
 // ---------------------------------------------------------------------
 
-/// **A folded apex carries its guard, so no door can read a side off
-/// an extent nothing checked.** The fold lives in the shared parse and
-/// refuses there, which is the only arrangement in which the flux
-/// lane, the shape door and the material-side gate agree about what
-/// the boundary bounds. Left to the caller, two of the three forgot:
-/// a half rim only answered `Ok(())` at the door and a definite
-/// `Encoded` side at the gate for a boundary `curved_face` refused —
-/// an unpaired derivation, which is what raises `CurvedSenseInverted`
-/// on a face whose honest answer is `NotIsoRectangle`.
+/// **A boundary that does not close is refused at every door.** The
+/// apex fold lives in the shared parse and refuses there, so the flux
+/// lane and the shape door refuse by the fold's guard. The
+/// material-side gate reads the boundary's vector area, which is the
+/// region's only for a closed loop, and refuses on its own closure
+/// decide. Left unchecked, a half rim answered a definite `Encoded`
+/// side at the gate for a boundary `curved_face` refused — an unpaired
+/// derivation, which is what raises `CurvedSenseInverted` on a face
+/// whose honest answer is a refusal.
 #[test]
 fn a_boundary_that_does_not_close_refuses_at_every_door() {
     for (name, edges) in [
@@ -659,7 +659,7 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
         let gate = boundary_material_sign(&cone(), &edges, band()).map(|_| ());
         let flux = curved_face(&cone(), &edges, true, band()).map(|_| ());
         println!("  {name:<24} door={door:?} gate={gate:?} flux={flux:?}");
-        for (which, got) in [("door", &door), ("gate", &gate), ("flux", &flux)] {
+        for (which, got) in [("door", &door), ("flux", &flux)] {
             assert!(
                 matches!(
                     got,
@@ -670,6 +670,13 @@ fn a_boundary_that_does_not_close_refuses_at_every_door() {
                 "{name}: the {which} must refuse by the guard's own name, got {got:?}"
             );
         }
+        assert_eq!(
+            gate,
+            Err(PropsError::NotIsoRectangle {
+                what: "props_loop_closed"
+            }),
+            "{name}: the gate refuses the open loop"
+        );
     }
     // The floor, unmoved: the true zero-extent patch is not folded at
     // all (its rims run opposite ways), so the door still admits it —

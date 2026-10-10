@@ -1309,18 +1309,19 @@ pub enum ValidationError {
     /// [`crate::Face::sense`] bit **definitely disagrees** with the
     /// material side its own boundary encodes — the
     /// [`Self::LoopRoleInverted`] sibling for the analytic curved kinds
-    /// (cylinder, cone, rim-bearing sphere, torus). The face's two
-    /// orientation encodings are the S10 `sense` bit and the stored
-    /// outer-loop traversal (interior-left): the flux derivations read
-    /// the material side off the latter
-    /// (`geom_brep::props::boundary_material_sign` — the rim-side /
-    /// meridian-orientation decides), and a face where the two
-    /// encodings disagree is INSIDE-OUT at that face. Tier 3 refuses
-    /// it here, per face, and no volume gate can: the flux is
-    /// traversal-derived, so a lone `sense` flip on a rim-bearing
-    /// curved face is BIT-IDENTICAL in volume (executed truth table,
-    /// M6-6 substrate — washer walls, cone laterals, sphere zones,
-    /// torus bands all certified green before this arm).
+    /// (cylinder, cone, sphere, torus). The face's two orientation
+    /// encodings are the S10 `sense` bit and the stored loop traversal
+    /// (interior-left), read per kind off the quantity its flux
+    /// integrates (`geom_brep::props::boundary_material_sign_loops`:
+    /// the chart Green form's area, the cone's axial vector area, the
+    /// sphere's Gauss–Bonnet area or pole-free side); a face where the
+    /// two disagree is INSIDE-OUT at that face. Tier 3 refuses it here,
+    /// per face: on every kind but the sphere the flux is
+    /// traversal-derived, so a lone `sense` flip there is BIT-IDENTICAL
+    /// in volume (executed truth table, M6-6 substrate — washer walls,
+    /// cone laterals, torus bands all certified green before this arm),
+    /// and the sphere's flux refuses the same face
+    /// (`PropsError::SenseContradicted`).
     ///
     /// The comparison is **combinatorial** — two exact ±1s, no
     /// comparand, no new margin: the derived side reuses the flux
@@ -1328,25 +1329,16 @@ pub enum ValidationError {
     /// from check 7: only a DEFINITE disagreement refuses; an
     /// escalated/degenerate/out-of-inventory derivation is exempt.
     ///
-    /// **What is exempt, in full**, because this set is larger than a
-    /// reader expects and it grew:
+    /// **What is exempt, in full**:
     ///
-    /// * the **rimless** sphere band — its boundary encodes no side at
-    ///   all (`s_f` IS the bit), the documented residual;
-    /// * a face whose **domain is not an iso-parameter rectangle**.
-    ///   `props`' side derivation runs the `props_rim_level` predicate
-    ///   before answering, on all four curved kinds, because
-    ///   `lo + hi − 2v` reads *which extreme is this rim at* and that
-    ///   is a material side only on a rectangle. Such a face returns
-    ///   `Err` and is exempt HERE, which is correct — without the
-    ///   premise it returned a definite ±1 that depended on where
-    ///   `loop_edges` started the cycle, and this arm turned that into
-    ///   a refusal that also suppressed check 7's honest
-    ///   `VolumeUncomputable { NotIsoRectangle }` through the
-    ///   `errors.is_empty()` gate. **The coverage is real and is
-    ///   given up on purpose**: the corpus's `cross.step` and
-    ///   `tee.step` walls are exempt here now, and the flux lane
-    ///   refuses those bodies anyway;
+    /// * a one-loop sphere face with **both chart poles on its loop**
+    ///   (a lune, a hemisphere split at its poles) — its boundary
+    ///   encodes no side, the documented residual; such faces meet
+    ///   their seam siblings tangentially, where check 4 reads a flip
+    ///   as a lamina;
+    /// * a sphere face with a pole on each side of its loop, whose
+    ///   reading refuses under either bit — check 7 reports it through
+    ///   the flux's `SenseContradicted`;
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
@@ -1388,12 +1380,14 @@ pub enum ValidationError {
     ///
     /// * `Face` — **row 2**, and the reachable one. The body carries a
     ///   face whose measurement lane the kernel has not built: today
-    ///   the cone, sphere and torus closed forms need an iso-parameter
-    ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
-    ///   the certified-quadrature lane consumes only conic/NURBS trims.
+    ///   the cone's closed form needs an iso-parameter rectangle on a
+    ///   rim-and-generator boundary (`geom_brep::props`'
+    ///   `props_rim_level`, S58) and the certified-quadrature lane
+    ///   consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a cone wall or a rim-and-ruling cylinder or torus
-    ///   wall, which a boolean pierce leaves in the face it pierces.
+    ///   other than a cone wall or a cylinder, torus or sphere face
+    ///   bounded by lines and circles, which a boolean pierce leaves in
+    ///   the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -3030,16 +3024,18 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
-            // A tilted-circle sphere face whose loop does not bound a
-            // region of its sphere, or whose bit its boundary
-            // contradicts: stored data that is wrong.
+            // A sphere face whose loops do not bound a region of its
+            // sphere, or whose bit its boundary contradicts (an inverted
+            // bit, or a chart pole inside the face): stored data that is
+            // wrong.
             P::SphereLoop { .. } => reading(
                 "a sphere face's boundary does not bound a region of its sphere",
                 DEFECT.into(),
                 true,
             ),
             P::SenseContradicted => reading(
-                "a sphere face is inside-out against its own boundary",
+                "a sphere face is inside-out against its own boundary, or holds a pole of \
+                 its sphere inside it",
                 DEFECT.into(),
                 true,
             ),
@@ -6919,34 +6915,21 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign_loops` re-runs the
-    // sub-derivations the flux lanes consume: the chart Green form's
-    // sign on a cylinder (`props_chart_area_side`, over every loop, so
-    // a notched or ringed wall is checked, not exempt), and the
-    // rim-side / meridian-orientation reading on the iso kinds
-    // (`props_rim_side`, `props_rim_level`, `props_circle_axis_class`,
-    // `props_meridian_orient` — already length-metered named decides).
-    // No new comparand exists: the final comparison is two exact ±1s,
-    // genuinely combinatorial.
+    // `geom_brep::props::boundary_material_sign_loops` reads every
+    // loop, per kind: the chart Green form's sign on a cylinder or
+    // torus (`props_chart_area_side`), the axial vector area's on a
+    // cone (`props_cone_area_side`), and on a sphere the Gauss–Bonnet
+    // area's sign with holes (`props_sphere_area_side`) or the loop's
+    // pole-free side without (`props_sphere_pole_winding`). None rests
+    // on an iso-rectangle premise. The final comparison is two exact
+    // ±1s, genuinely combinatorial.
     //
-    // `props_rim_level` — the iso-rectangle premise — is on the iso
-    // kinds' list because their rim-side derivation rests on it: `lo + hi − 2v` is a
-    // material side only on a domain whose rims all sit at an extreme,
-    // and without it a plus-shaped face answered a definite ±1 that
-    // depended on where `loop_edges` started the cycle. Such a face now
-    // arrives here as `Err`, i.e. EXEMPT by the posture below, which is
-    // what it always should have been: this arm firing on it pushed a
-    // `CurvedSenseInverted` that suppressed check 7's honest
-    // `VolumeUncomputable { NotIsoRectangle }` through the
-    // `errors.is_empty()` gate.
-    // Fires BEFORE check 7, which cannot see this defect — the flux is
-    // traversal-derived, so a lone sense flip on a rim-bearing curved
-    // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth
-    // table: washer walls, cone laterals, sphere zones, torus bands
-    // all certified green before this arm), and a whole-body-inverted
-    // washer/cone/donut even keeps its POSITIVE volume (this arm
-    // refuses their walls; the planar arm above, their arc-bounded
-    // caps).
+    // Fires BEFORE check 7, which cannot see this defect on the
+    // traversal-derived kinds: a lone sense flip on a cylinder, cone
+    // or torus face leaves the volume BIT-IDENTICAL (M6-6 substrate
+    // truth table), and a whole-body-inverted washer/cone/donut even
+    // keeps its POSITIVE volume (this arm refuses their walls; the
+    // planar arm above, their arc-bounded caps).
     //
     // Posture inherited (check 7): only a DEFINITE disagreement
     // refuses. A failed derivation (escalated classification,
@@ -6958,12 +6941,10 @@ pub(crate) fn tier3_local_checks_marked<
     // (bit-free) quadrature flux AND an exempt parse, so its flips —
     // single-face and whole-body — certify green today (executed on
     // the tilted-section cylinder, pinned as residual; closes when the
-    // ellipse-rim material-side encoding lands). The rimless sphere
-    // band returns `Unencoded` (its
+    // ellipse-rim material-side encoding lands). A one-loop sphere
+    // face with both poles on its loop returns `Unencoded` (its
     // boundary encodes no side; the bit is the ONLY encoding) and
-    // stays exempt: the documented residual — a half-flipped rimless
-    // ball meters V = 0, Zero-exempt by the ratified posture, while
-    // the fully-inverted ball is check 7's NegativeVolume.
+    // stays exempt: the documented residual.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         let Some(surface) = body.surfaces.get(face.surface) else {
@@ -6997,16 +6978,18 @@ pub(crate) fn tier3_local_checks_marked<
                 }
             }
             // The boundary encodes no side, so there is no second
-            // encoding to cross-check the stored bit against: the
-            // rimless sphere band, the documented residual above.
+            // encoding to cross-check the stored bit against: a sphere
+            // face with both poles on its loop, the residual above.
             // An ANSWER, not a refusal.
             Ok(geom_brep::props::MaterialSign::Unencoded) => {}
             // A REFUSED derivation is exempt here, never a
             // disagreement (the posture above, and the contract on
             // `boundary_material_sign` itself). It is not a discard:
             // every cause reachable on this arm is a premise the flux
-            // lane runs before it integrates, so the same face refuses
-            // there and check 7 reports it cause-carrying as
+            // lane runs before it integrates, or a face of no area or
+            // a side read in the band, so a face that refuses here for
+            // a cause the volume needs refuses there and check 7
+            // reports it cause-carrying as
             // `VolumeUncomputable { source }`. Pushing anything here
             // would DESTROY that report rather than add to it, check 7
             // being gated on `errors.is_empty()` — the recorded

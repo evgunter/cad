@@ -1,9 +1,9 @@
-//! **The sphere flux arm's Gauss–Bonnet form** (`curved::sphere_circle_loop`),
+//! **The sphere flux arm's Gauss–Bonnet form** (`curved::sphere_face`),
 //! held to Girard's theorem: a spherical triangle with three right
 //! angles — the octant `x, y, z > 0` — has area `R²·π/2`, on a sphere
-//! whose chart axis is `(1, 1, 1)/√3`, so each of its three great-circle
-//! arcs is tilted against the chart (neither a rim nor a meridian) and
-//! the face takes the loop form, not the iso-rectangle one.
+//! whose chart axis is `(1, 1, −1)/√3`, so each of its three
+//! great-circle arcs is tilted against the chart (neither a rim nor a
+//! meridian) and neither chart pole lies in the octant or on its loop.
 //!
 //! The flux is `σ·R·Area + c·A⃗` with `A⃗` the octant's vector area,
 //! `(R²π/4)(1, 1, 1)` — a quarter disc projected on each axis plane — so
@@ -27,7 +27,7 @@ fn sphere(c: Vec3<f64>) -> Surface<f64> {
     Surface::Sphere {
         center: p3(c.x, c.y, c.z),
         radius: R,
-        axis: v3(k, k, k),
+        axis: v3(k, k, -k),
         u_ref: v3(1.0, -1.0, 0.0) * (1.0 / 2.0_f64.sqrt()),
     }
 }
@@ -72,21 +72,14 @@ fn the_octant_meets_girard_and_its_vector_area() {
             "{label}: flux {} != {flux}",
             fc.flux
         );
-        // The same loop under the reversed bit bounds the rest of the
-        // sphere, facing in: its area is the complement and its radial
-        // term turns over, while the traversal-read A⃗ does not.
-        let fc = curved_face(&sphere(c), &octant(c), false, band()).expect("the complement");
-        let rest = 4.0 * PI * R * R - area;
-        let flux = -R * rest + (c.x + c.y + c.z) * R * R * PI / 4.0;
-        assert!(
-            (fc.area - rest).abs() < 1e-12,
-            "{label}: area {} != {rest}",
-            fc.area
-        );
-        assert!(
-            (fc.flux - flux).abs() < 1e-12,
-            "{label}: flux {} != {flux}",
-            fc.flux
+        // The same loop under the reversed bit claims the rest of the
+        // sphere, which holds both chart poles: the loop's pole-free
+        // side contradicts the bit, and the face is refused rather than
+        // measured as the complement.
+        assert_eq!(
+            curved_face(&sphere(c), &octant(c), false, band()).map(|_| ()),
+            Err(geom_brep::props::PropsError::SenseContradicted),
+            "{label}: the reversed bit"
         );
     }
 }

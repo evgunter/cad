@@ -258,12 +258,11 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
 /// edges traversed opposite ways. The SHAPE door still admits it — its
 /// carriers are a rim and a certified meridian great circle, and both
 /// rims sit at an extreme, which is all that door asks — and the
-/// BRANCH door still refuses it naming the meridian. What no longer
-/// holds is the middle line: the flux lane gave it the NEGATIVE of the
-/// half-cap's contribution off the same levels, which is how a closed
-/// sphere measured zero, and it now refuses the face by the premise
-/// the two traversals differ on. Three doors, three answers, and the
-/// one that changed is the one the issue was about.
+/// BRANCH door still refuses it naming the meridian. The flux lane
+/// once gave it the NEGATIVE of the half-cap's contribution off the
+/// same levels, which is how a closed sphere measured zero; it now
+/// reads the loop, whose left side holds the south pole with the north
+/// one on the loop, and refuses the face as one that would hold a pole.
 #[test]
 fn r2_the_l_shaped_complement_at_the_predicate() {
     let bd = band();
@@ -278,13 +277,8 @@ fn r2_the_l_shaped_complement_at_the_predicate() {
         fc_cap.flux, fc_cap.area
     );
     assert!(
-        matches!(
-            fc_ell,
-            Err(PropsError::NotIsoRectangle {
-                what: "props_rim_interior_side"
-            })
-        ),
-        "issue 1598: the complement's interior side points out of the folded extent"
+        matches!(fc_ell, Err(PropsError::SenseContradicted)),
+        "issue 1598: the complement would hold the south pole: {fc_ell:?}"
     );
     assert!(matches!(
         require_one_chart_branch(&sphere(), &ell, bd),

@@ -676,7 +676,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&sp, &[e], true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::SphereLoop {
+                what: "sphere boundary edge is not a circle"
+            })
         ),
         "line on sphere must refuse"
     );

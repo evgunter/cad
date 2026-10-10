@@ -201,9 +201,9 @@ pub enum MassPropsError {
         /// The per-face failure.
         source: PropsError,
     },
-    /// A curved face carries interior rings and is neither a cone wall
-    /// nor a cylinder or torus wall bounded by rims and rulings — the
-    /// ringed curved faces the closed forms measure
+    /// A curved face carries interior rings and is neither a cone wall,
+    /// nor a cylinder, torus or sphere face bounded by lines and circles
+    /// — the ringed curved faces the closed forms measure
     /// (`geom_brep::props::curved_face_loops`). A boolean pierce leaves
     /// a ring in the wall it pierces.
     RingOnCurvedFace {
@@ -239,8 +239,8 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cone wall, or a cylinder or torus wall bounded by circles \
-                 about its axis and its own meridians. Recourse: move the cut so it \
+                 other than a cone wall, a sphere face bounded by circles, or a cylinder or \
+                 torus wall bounded by circles about its axis and its own meridians. Recourse: move the cut so it \
                  crosses the face's edge instead of closing inside the face"
             ),
             Self::Corrupt { what } => write!(
@@ -2497,9 +2497,8 @@ fn face_loops<T: Decide>(
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane, a cylinder, a torus and a cone over every loop, a
-/// sphere over its outer loop and its sense (a ring there is refused
-/// before this is reached, `RingOnCurvedFace`). The face walk runs it
+/// at, over every loop: a plane, a cylinder, a torus, a cone, and a
+/// sphere (which also reads its sense). The face walk runs it
 /// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
 /// interval scalar over the same geometry lifted.
 fn closed_form_of<U: Decide>(
@@ -2547,9 +2546,10 @@ fn face_flux<T: Decide>(
         }
         _ => {
             // A cone face's closed form reads every loop of lines and
-            // conics, and a cylinder or torus face's every loop of rims
-            // and rulings (`geom_brep::props::curved_face_loops`); no other
-            // curved kind, and no quadrature lane, reads a ring.
+            // conics, a cylinder or torus face's every loop of rims and
+            // rulings, and a sphere face's every loop of circles
+            // (`geom_brep::props::curved_face_loops`); no spline kind,
+            // and no quadrature lane, reads a ring.
             let mut rings = Vec::with_capacity(face.rings.len());
             for &lk in &face.rings {
                 rings.push(loop_edges(body, lk)?.0);
@@ -2565,7 +2565,7 @@ fn face_flux<T: Decide>(
             };
             let reads_rings = match surface {
                 Surface::Cone { .. } => true,
-                Surface::Cylinder { .. } | Surface::Torus { .. } => {
+                Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Sphere { .. } => {
                     untrimmed(&outer) && rings.iter().all(|r| untrimmed(r))
                 }
                 _ => false,

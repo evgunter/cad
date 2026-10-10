@@ -11,7 +11,7 @@ use crate::shared::surf;
 use crate::shared::tol::band;
 use crate::shared::topo;
 use geom::Surface;
-use geom_brep::props::{LoopEdge, PropsError, curved_face};
+use geom_brep::props::{LoopEdge, PropsError, curved_face, require_iso_rectangle};
 use geom_core::Real;
 
 const RS: f64 = 0.010;
@@ -177,17 +177,18 @@ fn probe_interval_half_cap_certifies() {
 // The rim lever — separations spanning the band
 // ------------------------------------------------------------------
 
-/// The 893 step at rim separations spanning the band: chords of
-/// `0.25·zero` and `0.5·zero` accept (one level by this ε);
-/// `10·escalate` and `1000·escalate` refuse by the named predicate;
-/// the seam between `zero` and `escalate` may go either way but must
-/// REFUSE typed (Escalated), never accept-and-measure the step. Each
-/// rung is stated the way the certified world can state it: above the
-/// band the step is a meridian edge (the staircase); at and below the
-/// escalation band that edge's span is one certification refuses or
-/// escalates as not forward (re-decided at the parse as
-/// `props_meridian_span_forward`), so the two rims meet at a junction
-/// instead and the rung asks `props_rim_level` alone.
+/// The 893 step at rim separations spanning the band, at the shape
+/// door (`require_iso_rectangle`, `mesh`'s), whose parse still reads
+/// rim levels: chords of `0.25·zero` and `0.5·zero` accept (one level
+/// by this ε); `10·escalate` and `1000·escalate` refuse by the named
+/// predicate; the seam between `zero` and `escalate` may go either way
+/// but must REFUSE typed, never accept the step. Each rung is stated
+/// the way the certified world can state it: above the band the step
+/// is a meridian edge (the staircase); at and below the escalation band
+/// that edge's span is one certification refuses or escalates as not
+/// forward, so the two rims meet at a junction instead and the rung
+/// asks `props_rim_level` alone. The flux lane reads no level: the
+/// staircase measures its own area exactly.
 #[test]
 fn probe_near_polar_separation_ladder() {
     let b = band();
@@ -220,20 +221,24 @@ fn probe_near_polar_separation_ladder() {
                 great(-1.0, v2 - dv, 0.2, 4, 0),
             ]
         };
-        let got = curved_face(&sphere::<f64>(), &edges, true, b);
+        let got = require_iso_rectangle(&sphere::<f64>(), &edges, b);
         match want {
             "accept" => {
                 got.unwrap_or_else(|e| panic!("sep {sep:e}: sub-band step refused: {e:?}"));
             }
-            "refuse-iso" => assert!(
-                matches!(
-                    got,
-                    Err(PropsError::NotIsoRectangle {
-                        what: "props_rim_level"
-                    })
-                ),
-                "sep {sep:e}: staircase must refuse by props_rim_level: {got:?}"
-            ),
+            "refuse-iso" => {
+                assert!(
+                    matches!(
+                        got,
+                        Err(PropsError::NotIsoRectangle {
+                            what: "props_rim_level"
+                        })
+                    ),
+                    "sep {sep:e}: staircase must refuse by props_rim_level: {got:?}"
+                );
+                let exact = RS * RS * ((v2 - dv).sin() + v2.sin() - 2.0 * 0.2_f64.sin());
+                assert_area(&format!("sep {sep:e}: the staircase"), &edges, exact);
+            }
             "refuse-any" => assert!(
                 got.is_err(),
                 "sep {sep:e} (ambiguity seam): must refuse typed, got {got:?}"
@@ -244,9 +249,10 @@ fn probe_near_polar_separation_ladder() {
 }
 
 /// The SAME separation at the equator and near the pole must decide
-/// the same way now that the chord is direction-true: 10·escalate of
-/// true separation refuses in both regimes (the old axial lever
-/// refused at the equator and accepted near the pole).
+/// the same way at the shape door now that the chord is direction-true:
+/// 10·escalate of true separation refuses in both regimes (the old
+/// axial lever refused at the equator and accepted near the pole). The
+/// flux lane measures the staircase at every latitude.
 #[test]
 fn probe_lever_is_latitude_uniform() {
     let b = band();
@@ -263,13 +269,15 @@ fn probe_lever_is_latitude_uniform() {
         ];
         assert!(
             matches!(
-                curved_face(&sphere::<f64>(), &edges, true, b),
+                require_iso_rectangle(&sphere::<f64>(), &edges, b),
                 Err(PropsError::NotIsoRectangle {
                     what: "props_rim_level"
                 })
             ),
-            "staircase at base latitude {base} must refuse"
+            "staircase at base latitude {base} must refuse at the door"
         );
+        let exact = RS * RS * (v1.sin() + v2.sin() - 2.0 * 0.05_f64.sin());
+        assert_area(&format!("staircase at base latitude {base}"), &edges, exact);
     }
 }
 
@@ -278,27 +286,24 @@ fn probe_lever_is_latitude_uniform() {
 // ------------------------------------------------------------------
 
 /// A polar CAP — one full rim at latitude `b`, no meridians: the pole
-/// is in the face INTERIOR and no edge's span can fold it. This probe
-/// recorded the refusal that became issue 1250; the disposition it
-/// records now is the served one. No edge's SPAN folds the pole
-/// still — what names it is the rim's TRAVERSAL, `+u` here, whose
-/// interior side is `+v`, so the extent is `[sin b, +1]` and the face
-/// measures the spherical cap `2πR²(1 − sin b)`. Traversed the other
-/// way the same rim bounds the ball minus that cap. The rows that own
-/// the mechanism are `props_sphere_pole_side.rs`; this one keeps the
-/// probe's own before/after.
+/// is in the face INTERIOR. This probe recorded the refusal that became
+/// issue 1250, then the cap measured off the rim's traversal; a chart
+/// pole inside a face is now a vertex the face owes, so the rim has a
+/// pole on each side and no pole-free side under either bit, and the
+/// face is refused `SenseContradicted` whichever way the rim runs —
+/// the form import must normalise.
 #[test]
 fn probe_full_polar_cap_disposition() {
     let b: f64 = 0.5;
-    for (u0, u1, exact) in [
-        (0.0, 2.0 * PI, 2.0 * PI * RS * RS * (1.0 - b.sin())),
-        (2.0 * PI, 0.0, 2.0 * PI * RS * RS * (1.0 + b.sin())),
-    ] {
+    for (u0, u1) in [(0.0, 2.0 * PI), (2.0 * PI, 0.0)] {
         let edges = vec![rim(b, u0, u1, 0, 0)];
-        let got = curved_face(&sphere::<f64>(), &edges, true, band())
-            .unwrap_or_else(|e| panic!("the cap disposition changed: {e:?}"));
-        let rel = (got.area - exact).abs() / exact;
-        assert!(rel < 1e-12, "cap {u0}->{u1}: area {} vs {exact}", got.area);
+        for sense in [true, false] {
+            assert_eq!(
+                curved_face(&sphere::<f64>(), &edges, sense, band()).map(|_| ()),
+                Err(PropsError::SenseContradicted),
+                "cap {u0}->{u1}, sense {sense}"
+            );
+        }
     }
 }
 
