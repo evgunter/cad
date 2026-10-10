@@ -4070,6 +4070,7 @@ mod properties_pane_tests {
                 node: extrude(),
                 slot: SlotId::Distance,
                 var,
+                share: false,
                 text: String::new(),
             }),
             "the field opens empty, for the variable the slot reads"
@@ -4121,6 +4122,7 @@ mod properties_pane_tests {
             node: extrude(),
             slot: SlotId::Distance,
             var: beam,
+            name: None,
         });
         assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
         let painted = pane.quiet();
@@ -4134,6 +4136,81 @@ mod properties_pane_tests {
                 .map(|name| name.as_str()),
             Some("beam"),
             "beam keeps its name"
+        );
+    }
+
+    /// **Accepting an unnamed offer names it and shares it as one
+    /// step** (VR2: a variable two slots share has a name): the frame's
+    /// origin x and the extrude's depth are typed alike, so the depth is
+    /// offered the origin's unnamed variable; its button opens the empty
+    /// naming field rather than sharing it, the document moving not at
+    /// all, and the commit names it and makes the depth read it in one
+    /// undo step, which undo takes back whole.
+    #[test]
+    fn accepting_an_unnamed_offer_opens_the_name_field_and_shares_as_one_step() {
+        let value = 0.004;
+        let mut pane = Driven::with(vec![
+            SessionOp::SetSlot {
+                node: frame_datum(),
+                slot: SlotId::Origin(pncad::document::Axis3::X),
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(value),
+            },
+            SessionOp::Select(Selection::Node(extrude())),
+        ]);
+        pane.quiet();
+        let doc = pane.app.session.committed_doc();
+        let origin = doc
+            .slot(frame_datum(), SlotId::Origin(pncad::document::Axis3::X))
+            .expect("the frame reads its origin x");
+        assert!(doc.var_name(origin).is_none(), "the premise: it is unnamed");
+        let offered = pane.app.session.offered(extrude(), SlotId::Distance);
+        let offer = offered
+            .iter()
+            .find(|offer| offer.var == origin)
+            .expect("the origin's variable is offered")
+            .label
+            .clone();
+        let steps = pane.app.session.history().len();
+        pane.click(&offer);
+        assert_eq!(
+            pane.app.drafts.name_draft,
+            Some(crate::drafts::NameDraft {
+                node: extrude(),
+                slot: SlotId::Distance,
+                var: origin,
+                share: true,
+                text: String::new(),
+            }),
+            "the field opens empty, for the variable offered"
+        );
+        assert_eq!(pane.app.session.history().len(), steps, "nothing moved yet");
+        pane.app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is open")
+            .text = "gap".to_owned();
+        pane.quiet();
+        let prior = pane.app.session.committed_doc().clone();
+        pane.click("Name");
+        let doc = pane.app.session.committed_doc();
+        assert_eq!(doc.var_name(origin).map(|name| name.as_str()), Some("gap"));
+        assert_eq!(
+            doc.slot(extrude(), SlotId::Distance),
+            Some(origin),
+            "the depth reads the named variable"
+        );
+        assert_eq!(pane.app.session.history().len(), steps + 1, "one step");
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+        assert!(pane.app.session.perform(SessionOp::Undo).refusal.is_none());
+        assert!(
+            pane.app.session.committed_doc().bit_eq(&prior),
+            "undo takes the name and the share back whole"
         );
     }
 

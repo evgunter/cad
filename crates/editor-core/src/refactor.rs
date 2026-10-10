@@ -1838,6 +1838,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PayloadUnresolvedVar { .. }
             | EditError::VarNameUnchanged { .. }
             | EditError::AnonymousVarUnread { .. }
+            | EditError::SharedVarNeedsName { .. }
             | EditError::DeleteAnonymousVar { .. }
             | EditError::MeasureMalformed { .. }
             | EditError::AssertionTarget { .. }
@@ -2523,10 +2524,9 @@ fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<Var
 ///
 /// A named variable is declared in the target before any node reads
 /// it. An anonymous one crosses as an entry of the fresh table of the
-/// first carried edit that reads it, directly or through the
-/// definitions of other anonymous variables, with its definition bit
-/// for bit, distribution included; a later carried reader reads the
-/// id that edit minted.
+/// carried edit that reads it, directly or through the definitions of
+/// other anonymous variables, with its definition bit for bit,
+/// distribution included: it has one reader (VR2).
 struct VarCarry<'s> {
     source: &'s ProfileDoc,
     map: BTreeMap<VarId, VarId>,
@@ -2535,7 +2535,7 @@ struct VarCarry<'s> {
 /// One carried edit's variables: the fresh table it carries and the
 /// source variable each entry stands for.
 struct Carried {
-    fresh: Vec<VarDecl>,
+    fresh: Vec<crate::FreshEntry>,
     anonymous: Vec<VarId>,
 }
 
@@ -2618,7 +2618,7 @@ impl<'s> VarCarry<'s> {
         let anonymous = self.unheld(reads);
         let fresh = anonymous
             .iter()
-            .map(|&var| self.decl(&anonymous, var))
+            .map(|&var| self.decl(&anonymous, var).into())
             .collect();
         Carried { fresh, anonymous }
     }

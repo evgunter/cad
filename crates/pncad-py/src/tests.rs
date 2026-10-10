@@ -3086,6 +3086,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::VarNameUnchanged { var: spv() }, &["param"]);
     carries(&E::AnonymousVarUnread { var: spv() }, &["param"]);
+    carries(&E::SharedVarNeedsName { var: spv() }, &["param"]);
     carries(&E::DeleteAnonymousVar { var: spv() }, &["param"]);
     carries(
         &E::SlotUnknownVarName {
@@ -5221,6 +5222,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "set_extrude_side_on_non_extrude",
             "set_members_on_non_list",
             "set_program_on_non_profile",
+            "shared_var_needs_name",
             "slot_dimension_mismatch",
             "slot_unknown_var_name",
             "slot_unresolved_var",
@@ -6252,6 +6254,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "read_cycle",
             "reader_of_unminted_var",
             "reads_world_copy",
+            "shared_var_needs_name",
             "slot_var_kind",
             "step_ids",
             "var_kind",
@@ -6782,6 +6785,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
+    // One fact (VR2) at the edit and load doors: a variable with no
+    // name that more than one reader reads.
+    ("shared_var_needs_name", 2),
     ("shell", 2),
     ("skin", 2),
     ("sliver_join", 2),

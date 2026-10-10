@@ -45,11 +45,17 @@ in the unit it was written in.
 A value typed at a slot — a number, or a written quantity like
 `5 mm` — gives the slot a new variable of its own, whatever it read
 before. When other variables of the same kind hold the same value, the
-slot's row says `same value as` and names each one: click one to make
-the slot read it (one undoable edit; the two then move together), or
-**keep separate** to keep the typed value distinct. A slot whose
-variable has no name has a **name…** button that opens an empty field;
-nothing is stored until you type a name and press **Name** or Enter.
+slot's row says `same value as` and names each one. Clicking a named
+one makes the slot read it, as one undoable edit. Clicking an unnamed
+one opens an empty name field instead, because a variable two slots
+share has a name. Typing a name and pressing **Name** or Enter names the
+variable and makes the slot read it, as one undo step. **keep
+separate** keeps the typed value distinct. A slot reading a shared
+variable is driven by it: a value typed there is refused, naming the
+variable, and the slot's expression text makes it its own again. A
+slot whose variable has no name has a **name…** button that opens an
+empty field; nothing is stored until you type a name and press
+**Name** or Enter.
 
 In the Properties panel, the document-variables list ends with an
 add-variable row (name + dimension + value, written in the working

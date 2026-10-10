@@ -73,7 +73,9 @@ fn block(
 /// **A twin of the block `extrude`** ([`block`]): its frame, profile and
 /// extrude inserted again, every slot reading the original's variable
 /// ([`Node::authored`]), so the two are one geometry by structure —
-/// equal values typed apart are two variables, which is no sharing.
+/// equal values typed apart are two variables, which is no sharing. A
+/// variable two slots share is named (VR2), so each the original reads
+/// unnamed is named first.
 fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let Some(Node::Extrude { profile, .. }) = doc.node(extrude) else {
         panic!("{extrude} is a block's extrude")
@@ -92,6 +94,25 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
             .unwrap_or_else(|| panic!("{id} is in the document"))
             .authored(doc)
     };
+    let mut doc = doc;
+    for id in [frame, profile, extrude] {
+        let slots = doc.node(id).expect("held").slots();
+        for slot in slots {
+            let var = doc.slot(id, slot).expect("a slot reads a variable");
+            if doc.var_name(var).is_none() {
+                let name = editor_core::VarName::new(format!("twin_{}", doc.var_names().len()))
+                    .expect("a name");
+                doc = step(
+                    doc,
+                    DocEdit::RenameVar {
+                        var: var.into(),
+                        name: Some(name),
+                    },
+                )
+                .0;
+            }
+        }
+    }
     let node = authored(&doc, frame);
     let (doc, frame) = insert(doc, node);
     let mut node = authored(&doc, profile);

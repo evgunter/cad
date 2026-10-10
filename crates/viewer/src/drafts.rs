@@ -622,10 +622,11 @@ impl RowEdit {
 /// only when the person commits it (VR2).
 ///
 /// **It names the variable it was opened for, never the slot's reader
-/// at commit.** The field stands only while the slot still reads that
-/// variable and it is still unnamed; an accepted offer, a retype or an
-/// undo closes it, so a name typed for one variable can never land on
-/// another.
+/// at commit.** The field stands only while that variable is still
+/// unnamed and still the one it was opened for: the slot's own, or the
+/// unnamed variable on offer there (`share`). An accepted offer, a
+/// retype or an undo closes it, so a name typed for one variable can
+/// never land on another.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NameDraft {
     /// The node whose row the field is drawn under.
@@ -634,6 +635,11 @@ pub(crate) struct NameDraft {
     pub(crate) slot: SlotId,
     /// The variable the field was opened for, and the one it names.
     pub(crate) var: VarId,
+    /// Whether the field was opened by accepting an offer of an unnamed
+    /// variable: its commit names the variable and makes the slot read
+    /// it, as one step, since a variable two slots share has a name
+    /// (VR2).
+    pub(crate) share: bool,
     /// The text in the field.
     pub(crate) text: String,
 }

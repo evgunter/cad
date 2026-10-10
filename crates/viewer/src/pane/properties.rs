@@ -896,8 +896,11 @@ impl ViewerBehavior<'_> {
     /// existing variable of equal value as a button whose click makes
     /// the slot read it ([`SessionOp::SetSlotVariable`]), and a button
     /// that declines, keeping the variable the typing minted
-    /// ([`SessionOp::DeclineOffer`]). Nothing is drawn while nothing is
-    /// offered (`DocSession::offered`).
+    /// ([`SessionOp::DeclineOffer`]). An unnamed variable's button
+    /// opens the naming field instead, empty: a variable two slots
+    /// share has a name (VR2), and the commit names it and shares it as
+    /// one step. Nothing is drawn while nothing is offered
+    /// (`DocSession::offered`).
     fn offer_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, slot: SlotId) {
         let offered = self.session.offered(node, slot);
         if offered.is_empty() {
@@ -906,15 +909,29 @@ impl ViewerBehavior<'_> {
         ui.horizontal_wrapped(|ui| {
             crate::widgets::message_toned(ui, "same value as", &self.theme, Tone::Advisory);
             for offer in offered {
-                if ui
+                let named = self.session.committed_doc().var_name(offer.var).is_some();
+                let hover = if named { OFFER_HOVER } else { SHARE_HOVER };
+                if !ui
                     .add(egui::Button::new(offer.label.as_str()).small())
-                    .on_hover_text(OFFER_HOVER)
+                    .on_hover_text(hover)
                     .clicked()
                 {
+                    continue;
+                }
+                if named {
                     self.ops.push(SessionOp::SetSlotVariable {
                         node,
                         slot,
                         var: offer.var,
+                        name: None,
+                    });
+                } else {
+                    self.drafts.name_draft = Some(NameDraft {
+                        node,
+                        slot,
+                        var: offer.var,
+                        share: true,
+                        text: String::new(),
                     });
                 }
             }
@@ -950,6 +967,7 @@ impl ViewerBehavior<'_> {
                 node,
                 slot: row.slot,
                 var,
+                share: false,
                 text: String::new(),
             });
         }
@@ -958,15 +976,17 @@ impl ViewerBehavior<'_> {
     /// **The naming field**, under the row whose button opened it: the
     /// person's text, committed as one
     /// [`SessionOp::RenameVar`] of the variable the field was opened
-    /// for, on its button or Enter, abandoned on `cancel`. A text that
-    /// is no name disables the commit and says why on hover, in the
-    /// name door's words.
+    /// for — or, opened from an offer, as the
+    /// [`SessionOp::SetSlotVariable`] that names it and makes the slot
+    /// read it — on its button or Enter, abandoned on `cancel`. A text
+    /// that is no name disables the commit and says why on hover, in
+    /// the name door's words.
     ///
-    /// The field stands while the slot reads that variable and it is
-    /// unnamed ([`NameDraft`]): a commit the door takes names it, and
-    /// the field closes on the next frame; a commit the door refuses
-    /// (a name taken) leaves it unnamed, so the field and its text stay
-    /// for the person to amend.
+    /// The field stands while that variable is unnamed and the slot
+    /// reads it, or it is still on offer there ([`NameDraft`]): a
+    /// commit the door takes names it, and the field closes on the next
+    /// frame; a commit the door refuses (a name taken) leaves it
+    /// unnamed, so the field and its text stay for the person to amend.
     fn name_field_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, slot: SlotId) {
         let Some(draft) = &self.drafts.name_draft else {
             return;
@@ -974,9 +994,17 @@ impl ViewerBehavior<'_> {
         if (draft.node, draft.slot) != (node, slot) {
             return;
         }
-        let var = draft.var;
+        let (var, share) = (draft.var, draft.share);
         let doc = self.session.committed_doc();
-        if doc.slot(node, slot) != Some(var) || doc.var_name(var).is_some() {
+        let opened_for = if share {
+            self.session
+                .offered(node, slot)
+                .iter()
+                .any(|offer| offer.var == var)
+        } else {
+            doc.slot(node, slot) == Some(var)
+        };
+        if !opened_for || doc.var_name(var).is_some() {
             self.drafts.name_draft = None;
             return;
         }
@@ -1000,9 +1028,18 @@ impl ViewerBehavior<'_> {
             cancel = ui.add(egui::Button::new("cancel").small()).clicked();
         });
         if let Some(name) = commit {
-            self.ops.push(SessionOp::RenameVar {
-                var,
-                name: Some(name),
+            self.ops.push(if share {
+                SessionOp::SetSlotVariable {
+                    node,
+                    slot,
+                    var,
+                    name: Some(name),
+                }
+            } else {
+                SessionOp::RenameVar {
+                    var,
+                    name: Some(name),
+                }
             });
         } else if cancel {
             self.drafts.name_draft = None;
@@ -1529,6 +1566,10 @@ fn hide_toggle(
 /// What an offered variable's button says on hover.
 const OFFER_HOVER: &str = "read this variable here instead of the value typed: the two slots then \
                            move together";
+
+/// What an unnamed offered variable's button says on hover.
+const SHARE_HOVER: &str = "name this variable to read it here instead of the value typed: a \
+                           variable two slots share has a name";
 
 /// What the decline button says on hover.
 const DECLINE_HOVER: &str = "keep the value typed as its own variable";

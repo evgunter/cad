@@ -243,7 +243,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
+pub use var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.

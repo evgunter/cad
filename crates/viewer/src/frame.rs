@@ -2986,6 +2986,7 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         | Refusal::NoSuchVariable(_)
         | Refusal::VariableIsDefined(_)
         | Refusal::NotOffered(_)
+        | Refusal::OfferIsNamed(_)
         | Refusal::ConstantRefused { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }

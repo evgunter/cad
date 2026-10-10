@@ -1091,24 +1091,37 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
     assert!(!said.contains("which stays"), "{said:?}");
 }
 
-/// A named definition reading the cut extrude's anonymous depth moves
-/// with it, and the round trip is exact: the comparator reads the
-/// anonymous id as its image, through the slot that holds it.
+/// A named definition reading the cut extrude's depth moves with it,
+/// and the round trip is exact. The depth is anonymous, so the
+/// definition's read refuses until the depth is named (VR2): a variable
+/// two readers share has a name.
 #[test]
-fn a_named_definition_reading_an_anonymous_variable_comes_back() {
+fn a_named_definition_reading_the_depth_comes_back() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork6-anon-read"), Tol::witness());
     let (doc, cut) = block(doc, 0.0, len(0.5));
     let depth = doc
         .slot(cut[2], SlotId::Distance)
         .expect("the extrude reads its depth");
     assert_eq!(doc.var_name(depth), None, "the depth is anonymous");
-    let doc = declare_as(
-        &doc,
-        "k",
-        VarDecl::defined(
+    let k = DocEdit::DeclareVar {
+        name: n("k"),
+        def: VarDecl::defined(
             Formula::add(Formula::var(depth, Dimension::Length), len(0.001)).expect("lengths add"),
         ),
-    );
+    };
+    match try_step(&doc, k.clone()) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), depth),
+        other => panic!("a definition sharing the depth refuses until it is named, got {other:?}"),
+    }
+    let doc = step(
+        &doc,
+        DocEdit::RenameVar {
+            var: depth.into(),
+            name: Some(n("depth")),
+        },
+    )
+    .doc;
+    let doc = step(&doc, k).doc;
     let (doc, _) = block(doc, 10.0, len(1.0));
     let (out, store) = split_into_store(&doc, cut, "fork6-anon-read-part");
     assert_eq!(out.remainder.var_named("k"), None, "k left");
