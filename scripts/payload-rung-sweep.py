@@ -76,6 +76,10 @@ follow one across four documents.
                                            curated unconditionally, so a rung
                                            reachable only in one feature
                                            unification looks like any other)
+  (k) a discriminant behind an     CLOSED  `sweep` (one rung: an uncurated
+      uncurated struct payload             struct payload's bare-`pub` fields
+                                           are read as payloads of its carrier;
+                                           a struct inside it is not followed)
 
 THE DISPOSITION TABLE (`DISPOSITIONS`) is the argued set as data: every
 narrowed name that has already been decided, with the home of the argument. It
@@ -200,6 +204,28 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Unwalked": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
                            "re-exported whole; Python's `Coincidence.residual` says the "
                            "arm, crates/pncad-py/src/py/value.rs (`Coincidence`)"),
+
+    # Blind spot (k)'s rows: a discriminant behind an uncurated struct
+    # payload, reported under the carrier `via` the struct.
+    #
+    # The scaffold description's rung is argued whole: `MappedCurve` is the
+    # `Scaffold` arm's struct, and `MappedSource` is its discriminant;
+    # `ChartCurve` is the `Chart` arm's struct, and `Pcurve` is its
+    # discriminant.
+    "MappedSource": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    "Pcurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    "AdoptionCandidate": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "BifurcationKind": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "DecisionSite": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Discharge": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "EntityKey": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Implicated": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "JoinReading": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "OperandKeys": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Placed": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "RowCell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "UncrossableCarrier": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list
@@ -250,6 +276,9 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Unplaced": ("argued", "the placement vocabulary is `document`'s and is spelled "
                            "once, beside `Evaluation`; the general rule is at the "
                            "payload-rule header of crates/pncad/src/document.rs"),
+    # Blind spot (k): curated on `document`, reached under the prelude's
+    # `BooleanBody` via `Coincidence`.
+    "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
 }
 
 
@@ -670,11 +699,12 @@ def is_refusal_type(name: str) -> bool:
 class Row:
     """One (carrier, payload) pair the sweep found."""
 
-    __slots__ = ("carrier", "carrier_lists", "hit", "hit_lists", "state")
+    __slots__ = ("carrier", "carrier_lists", "hit", "hit_lists", "state", "via")
 
-    def __init__(self, carrier, carrier_lists, hit, hit_lists, state):
+    def __init__(self, carrier, carrier_lists, hit, hit_lists, state, via=None):
         self.carrier, self.carrier_lists = carrier, carrier_lists
         self.hit, self.hit_lists, self.state = hit, hit_lists, state
+        self.via = via
 
     def key(self) -> tuple:
         return (self.hit.name, self.carrier.name, self.carrier.site)
@@ -690,6 +720,7 @@ class Row:
             "carrier_at": self.carrier.site,
             "carrier_lists": sorted(self.carrier_lists),
             "state": self.state,
+            "via": self.via.name if self.via else None,
         }
 
 
@@ -728,19 +759,38 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
 
     raw: list[Row] = []
     cross: list[Row] = []
-    for decl, on_lists in carriers:
-        for ident in sorted(payload_identifiers(decl)):
-            if ident == decl.name:
+
+    def payload_rows(decl: Decl, on_lists: set[str], via: Decl | None = None) -> list[Row]:
+        """The rows of `decl`'s own payloads, as rungs of `decl` (or of the
+        carrier `via` stands under)."""
+        rows = []
+        for ident in sorted(payload_identifiers(via or decl)):
+            if ident in (decl.name, (via or decl).name):
                 continue
-            same = [d for d in index.get(ident, []) if d.crate == decl.crate]
+            home = (via or decl).crate
+            same = [d for d in index.get(ident, []) if d.crate == home]
             hits = same or index.get(ident, [])
             if not hits:
                 continue
             hit_lists = set(names.get(ident, {}))
             if hit_lists & on_lists:
                 continue  # curated beside its carrier: not a rung at all
-            row = Row(decl, on_lists, hits[0], hit_lists, "uncurated" if not hit_lists else "cross-list")
+            state = "uncurated" if not hit_lists else "cross-list"
+            rows.append(Row(decl, on_lists, hits[0], hit_lists, state, via))
+        return rows
+
+    for decl, on_lists in carriers:
+        for row in payload_rows(decl, on_lists):
             (raw if row.state == "uncurated" else cross).append(row)
+            # BLIND SPOT (k), CLOSED: a discriminant one rung down, behind a
+            # struct payload that is itself on no list. A caller holding the
+            # carrier reaches that struct's bare-`pub` fields, so an enum in
+            # one of them is a branch it can take and the façade cannot name;
+            # its row is reported under the CARRIER, `via` the struct. One
+            # rung only: a struct inside that struct is not followed.
+            if row.state == "uncurated" and row.hit.kind == "struct" and row.via is None:
+                for deep in payload_rows(decl, on_lists, via=row.hit):
+                    (raw if deep.state == "uncurated" else cross).append(deep)
 
     raw.sort(key=Row.key)
     cross.sort(key=Row.key)
@@ -808,9 +858,10 @@ def _table(rows: list[Row]) -> list[str]:
         lists = "+".join(sorted(r.hit_lists)) or "-"
         disp = DISPOSITIONS.get(r.hit.name) or CROSS_LIST_DISPOSITIONS.get(r.hit.name)
         tail = f"  [{disp[0]}: {disp[1]}]" if disp else "  [UNDISPOSED]"
+        via = f" via {r.via.name}" if r.via else ""
         lines.append(
             f"  {r.hit.name} ({r.hit.crate}, {lists}) at {r.hit.site}"
-            f"\n      under {r.carrier.name} "
+            f"\n      under {r.carrier.name}{via} "
             f"({'+'.join(sorted(r.carrier_lists))}) at {r.carrier.site}{tail}"
         )
     return lines
@@ -876,6 +927,7 @@ pub enum Carrier {
     Faulty(ThingError),
     Fielded(Detail),
     Foreign(BetaRung),
+    Boxed(Envelope),
     #[default]
     Blank,
 }
@@ -887,6 +939,8 @@ pub enum Ghost { G }
 pub enum ThingError { E }
 pub enum Secret { S }
 pub struct Detail { pub x: u8 }
+pub struct Envelope { pub source: Deep, pub inner: Detail, kept: Secret }
+pub enum Deep { D }
 pub struct DocCarrier {
     pub open: Rung,
     hidden: Secret,
@@ -951,9 +1005,10 @@ def selftest() -> int:
         # literal; beta declares three. `Wrapped` and `Marker` are declared and
         # curated by nothing, so they are carriers of nothing and move only
         # this count; they are here as the two member-shape witnesses below.
-        want("declared types", counts["declared"], 15)
-        want("raw hits", counts["raw"], 7)
-        want("narrowed", counts["narrowed"], 4)
+        want("declared types", counts["declared"], 17)
+        # `Envelope` and, through it, `Deep` and `Detail` (blind spot (k)).
+        want("raw hits", counts["raw"], 10)
+        want("narrowed", counts["narrowed"], 5)
         want("cross-list raw", result["cross_list"], 1)
         want("cross-list narrowed", len(result["narrowed_cross"]), 1)
 
@@ -963,6 +1018,7 @@ def selftest() -> int:
             narrowed,
             [
                 ("BetaRung", "BetaCarrier"),
+                ("Deep", "Carrier"),
                 ("Rung", "Carrier"),
                 ("Rung", "DocCarrier"),
                 ("Rung", "GatedCarrier"),
@@ -988,6 +1044,17 @@ def selftest() -> int:
         want("a refusal payload is raw and not narrowed", "ThingError" in raw, True)
         want("a struct payload is raw and not narrowed", "Detail" in raw, True)
         want(
+            "blind spot (k) is closed: an enum behind a struct payload is a rung of the carrier",
+            [(r.hit.name, r.carrier.name, r.via.name if r.via else None)
+             for r in result["narrowed"] if r.hit.name == "Deep"],
+            [("Deep", "Carrier", "Envelope")],
+        )
+        want(
+            "a private field behind a struct payload is not followed",
+            "Secret" in raw,
+            False,
+        )
+        want(
             "a payload curated beside its carrier is no rung at all",
             "Shared" in raw or "Shared" in {r.hit.name for r in result["cross"]},
             False,
@@ -1001,7 +1068,7 @@ def selftest() -> int:
         want(
             "an enum's members are its variant names, in declaration order",
             members["Carrier"],
-            ["Plain", "Sibling", "Named", "Ghost", "Faulty", "Fielded", "Foreign", "Blank"],
+            ["Plain", "Sibling", "Named", "Ghost", "Faulty", "Fielded", "Foreign", "Boxed", "Blank"],
         )
         want(
             "an attribute is not the member's name",
@@ -1038,7 +1105,7 @@ def selftest() -> int:
         want(
             "and the rung under it",
             sorted((r.hit.name, r.carrier.name) for r in three["narrowed"]),
-            [("Rung", "Carrier"), ("Rung", "DocCarrier")],
+            [("Deep", "Carrier"), ("Rung", "Carrier"), ("Rung", "DocCarrier")],
         )
 
     for line in failures:
