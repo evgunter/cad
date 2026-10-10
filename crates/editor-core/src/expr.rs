@@ -649,7 +649,7 @@ pub(crate) enum Terminal<'a, L> {
 
 /// **How deep an expression may nest**: the longest chain of nodes
 /// from the root to a leaf, both ends included. The one bound on an
-/// [`Expr`] and on a [`crate::MeasureExpr`], read by every door that
+/// [`Expr`], read by every door that
 /// mints one: the smart constructors refuse past it
 /// ([`DimensionError::NestedTooDeep`]), the text parser builds through
 /// them, and the load door refuses a file nested deeper than the bound

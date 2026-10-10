@@ -867,6 +867,78 @@ impl McConfig {
     }
 }
 
+/// **One asserted value's empirical summary** — ADVISORY: the scalar
+/// an assertion reads (a measure's output, or a formula over outputs
+/// such as a web), read per sample with its measures bound. The
+/// statistics are over the samples that HAD a value; `unmeasured`
+/// counts the rest and is never averaged over.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct McValue {
+    row: a::McValue,
+    var: super::doc::Var,
+}
+
+#[pymethods]
+impl McValue {
+    /// The variable this row summarizes.
+    #[getter]
+    fn var(&self) -> super::doc::Var {
+        self.var
+    }
+
+    /// The sample mean, over the samples where it had a value.
+    #[getter]
+    fn mean(&self) -> f64 {
+        self.row.mean
+    }
+
+    /// The sample standard deviation (the `N − 1` form).
+    #[getter]
+    fn sigma(&self) -> f64 {
+        self.row.sigma
+    }
+
+    /// The least value.
+    #[getter]
+    fn min(&self) -> f64 {
+        self.row.min
+    }
+
+    /// The greatest.
+    #[getter]
+    fn max(&self) -> f64 {
+        self.row.max
+    }
+
+    /// How many samples produced a value.
+    #[getter]
+    fn measured(&self) -> usize {
+        self.row.measured
+    }
+
+    /// How many produced none. Counted, never averaged over.
+    #[getter]
+    fn unmeasured(&self) -> usize {
+        self.row.unmeasured
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.row == other.row
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "McValue(var={}, mean={}, sigma={}, measured={}, unmeasured={})",
+            self.row.var.full(),
+            self.row.mean,
+            self.row.sigma,
+            self.row.measured,
+            self.row.unmeasured
+        )
+    }
+}
+
 /// **One measure node's empirical summary** — ADVISORY, and the label
 /// is on the report this row is not reachable without.
 ///
@@ -1044,6 +1116,20 @@ impl McReport {
             .collect()
     }
 
+    /// Per value an assertion reads, each once, in the order of the
+    /// first assertion reading it.
+    #[getter]
+    fn values(&self) -> Vec<McValue> {
+        self.report
+            .values
+            .iter()
+            .map(|row| McValue {
+                row: row.clone(),
+                var: super::doc::Var::of(&self.doc, row.var),
+            })
+            .collect()
+    }
+
     /// Per assertion node, in the document's own node order.
     #[getter]
     fn assertions(&self) -> Vec<McAssertion> {
@@ -1171,6 +1257,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AnalyzedBox>()?;
     m.add_class::<McConfig>()?;
     m.add_class::<McMeasure>()?;
+    m.add_class::<McValue>()?;
     m.add_class::<McAssertion>()?;
     m.add_class::<McReport>()?;
     m.add_function(wrap_pyfunction!(analyzed_box, m)?)?;

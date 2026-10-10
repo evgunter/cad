@@ -399,6 +399,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     };
     let mut ranked = base.clone();
     ranked
@@ -1555,6 +1556,7 @@ fn one_node_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 

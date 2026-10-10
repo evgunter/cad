@@ -345,6 +345,9 @@ pub enum ChartRegionError {
     Corrupt,
 }
 
+/// What [`ChartRegionError::Escalated`] leaves undecided.
+const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
+
 impl core::fmt::Display for ChartRegionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -426,10 +429,18 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
+            // A poisoned margin is reached by no declaration or move.
+            Self::Escalated(diag) if diag.margin.is_invalid() => write!(
+                f,
+                "chart-region: {}",
+                diag.undecided(
+                    OVERLAP_SUBJECT,
+                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                )
+            ),
             Self::Escalated(diag) => write!(
                 f,
-                "chart-region: a decision about how the two faces' regions overlap is too \
-                 close to call: {diag}"
+                "chart-region: a decision about {OVERLAP_SUBJECT} is too close to call: {diag}"
             ),
             Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::NoRaySettled),
             Self::WitnessSegmentCapExceeded { segments } => write!(
@@ -3493,6 +3504,33 @@ mod tests {
 
     pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A poisoned overlap decision ends in the build's defect ending**
+    /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
+    /// readable. A margin that was read keeps the coincidence menu.
+    #[test]
+    fn a_poisoned_overlap_escalation_ends_in_the_defect_ending() {
+        let diag = |margin| Indeterminate {
+            margin,
+            band: band(),
+            predicate: Some("chart_region_cyl_axis_sense"),
+            terminal_sliver: false,
+        };
+        let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
+        let text = poisoned.to_string();
+        assert!(
+            text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+            "{text}"
+        );
+        assert!(!text.contains("declare"), "{text}");
+        let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
+        assert!(
+            in_band
+                .to_string()
+                .contains(geom_core::COINCIDENCE_RECOURSE),
+            "{in_band}"
+        );
     }
 
     /// **A ray read in band is set aside, and a later ray answers**

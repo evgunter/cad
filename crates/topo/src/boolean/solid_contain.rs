@@ -183,9 +183,7 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{
-    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3,
-};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
@@ -195,10 +193,11 @@ use crate::live::linked;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::containment::{
-    LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
+    Escalation, LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
     point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::recourse::Reading;
 
 use super::rim_wedge::Rim;
 use super::sphere_region::{RegionRefusal, SphereFaceRegion, sphere_face_region};
@@ -520,11 +519,16 @@ impl From<PointInLoopError> for PointInSolidError {
 impl core::fmt::Display for PointInSolidError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The escalation names no decision, so it ends as the
+            // containment door ends the same escalation
+            // (`ContainError::Escalated` with no decision).
             Self::Escalated { diag, .. } => write!(
                 f,
-                "cannot tell what is inside the solid: one of its faces is too close \
-                 to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
-                diag.payload()
+                "cannot tell what is inside the solid: {}",
+                diag.undecided(
+                    super::placement_subject(None),
+                    super::placement_ending(None, Escalation::Margin, diag, Reading::Build),
+                )
             ),
             Self::RayExhausted => write!(
                 f,
@@ -5946,5 +5950,65 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| outline(b),
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod escalated_ending_rows {
+    use geom_core::{MarginDiag, UNREADABLE_MARGIN_NOTE};
+
+    use super::*;
+    use crate::boolean::ContainError;
+
+    /// **A solid door's escalation ends as the unnamed placement does**
+    /// (D4 ¶1 (i): one recourse per decision): the containment door
+    /// carries the same escalation — the sphere region's, on the same face
+    /// — as `ContainError::Escalated` naming no decision, and both end in
+    /// the placement's own lever. A point has no coincidence to declare,
+    /// and a poisoned margin — a NaN, or the invalid margin the door
+    /// mints where two decided readings contradict each other (wall
+    /// pieces on opposite sides of one junction, two counts of one
+    /// quartic's roots) or a face has no latitude at all — keeps the lever
+    /// with the build's unreadable-margin note: another point is a way
+    /// through, as `PointInSolidError::in_band` says.
+    #[test]
+    fn a_solid_escalation_ends_as_the_unnamed_placement_does() {
+        let face = FaceKey::default();
+        for margin in [MarginDiag::INVALID, MarginDiag::value(5e-9)] {
+            let diag = Indeterminate {
+                margin,
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("bool_ray_torus_count"),
+                terminal_sliver: false,
+            };
+            let contfp = ContainError::Escalated {
+                decision: None,
+                escalation: Escalation::Margin,
+                diag,
+            }
+            .to_string();
+            let placement = contfp.strip_prefix("contfp: ").unwrap();
+            for (label, e) in [
+                ("solid door", PointInSolidError::Escalated { face, diag }),
+                (
+                    "sphere region",
+                    RegionRefusal::Escalated(diag).of_face(face),
+                ),
+            ] {
+                let text = e.to_string();
+                assert_eq!(
+                    text.strip_prefix("cannot tell what is inside the solid: "),
+                    Some(placement),
+                    "{label} on {margin}"
+                );
+                assert!(!text.contains("declare"), "{label}: {text}");
+                assert_eq!(
+                    text.ends_with(UNREADABLE_MARGIN_NOTE),
+                    margin.is_invalid(),
+                    "{label}: {text}"
+                );
+            }
+        }
     }
 }

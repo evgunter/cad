@@ -2808,29 +2808,28 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         let first = found.remove(0);
         vec![first, last]
     };
+    // Read AT the plate extrude the walls were selected from —
+    // nothing places this geometry, so the reading site is that node,
+    // spelled explicitly rather than assumed.
+    let [a, b]: [pncad::document::SitedRef; 2] = walls
+        .into_iter()
+        .map(|name| pncad::document::SitedRef::new(plate, name))
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("two walls");
     let (doc, measure) = insert(
         doc,
-        Node::measure(
-            pncad::document::MeasureExpr::primitive(pncad::document::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            // Read AT the plate extrude the walls were selected from —
-            // nothing places this geometry, so the reading site is that
-            // node, spelled explicitly rather than assumed.
-            walls
-                .into_iter()
-                .map(|name| pncad::document::SitedRef::new(plate, name))
-                .collect(),
-        )
-        .expect("both indices address a reference"),
+        Node::Measure {
+            primitive: pncad::document::MeasurePrimitive::Distance { a, b },
+        },
     );
+    let value = doc.output(measure, 0).expect("a measure defines its value");
     // A distance is a magnitude, so `>= 0` holds for any selection —
     // the verdict is about the READ door, not about the geometry.
     let (doc, _) = insert(
         doc,
         Node::Assertion {
-            measure: measure.into(),
+            value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
             bound: len(0.0),
             dir: pncad::document::AssertionDir::AtLeast,
         },

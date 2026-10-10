@@ -13,9 +13,8 @@ use crate::fixture::value_channel::body_digest;
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
     AssertionDir, BooleanOp, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
-    InlineError, Maintenance, MeasureExpr, MeasurePrimitive, Node, NodeResult, ProductError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named,
-    run_checks,
+    InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
 };
 use geom_core::Tol;
 
@@ -189,21 +188,18 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> StableName {
 fn a_measured_and_asserted_block_placed_is_the_product() {
     let doc = ProfileDoc::empty_derived("intent-c-measured", Tol::witness());
     let (doc, b) = block(doc, 0.0);
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(b, cap(b, CapEnd::Start)),
-                SitedRef::new(b, cap(b, CapEnd::End)),
-            ],
-        )
-        .expect("indices in range"),
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(b, cap(b, CapEnd::Start)),
+            SitedRef::new(b, cap(b, CapEnd::End)),
+        ],
     );
     let (doc, _) = insert(
-        doc,
+        doc.clone(),
         Node::Assertion {
-            measure: measure.into(),
+            value: crate::fixture::value_of(&doc, measure),
             bound: len(0.5),
             dir: AssertionDir::AtLeast,
         },
@@ -237,21 +233,18 @@ fn a_failing_measure_and_its_assertion_gate_no_placement() {
         node: b,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(b, cap(b, CapEnd::Start)),
-                SitedRef::new(b, vanished),
-            ],
-        )
-        .expect("indices in range"),
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(b, cap(b, CapEnd::Start)),
+            SitedRef::new(b, vanished),
+        ],
     );
     let (doc, assertion) = insert(
-        doc,
+        doc.clone(),
         Node::Assertion {
-            measure: measure.into(),
+            value: crate::fixture::value_of(&doc, measure),
             bound: len(0.5),
             dir: AssertionDir::AtLeast,
         },
@@ -916,14 +909,10 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
     let (doc, p) = place(doc, a);
     let (doc, q) = place(doc, b);
     let measure = |sites: [(RecipeNodeId, StableName); 2]| {
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            sites
-                .into_iter()
-                .map(|(at, name)| SitedRef::new(at, name))
-                .collect(),
-        )
-        .expect("a distance over two sites")
+        let [a, b] = sites.map(|(at, name)| SitedRef::new(at, name));
+        Node::Measure {
+            primitive: MeasurePrimitive::Distance { a, b },
+        }
     };
     let at_copies = measure([
         (p, cap(a, CapEnd::End).in_copy(p)),
