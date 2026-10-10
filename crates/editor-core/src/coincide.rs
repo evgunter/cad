@@ -249,6 +249,8 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::EqualAngles => "makes an equal angle at its turn with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
+        topo::Relation::TangentContact { seam: false } => "touches tangentially against",
+        topo::Relation::TangentContact { seam: true } => "continues tangentially into",
         topo::Relation::Coaxial => "shares an axis with",
         topo::Relation::CoRuled => "is ruled along one direction with",
     }
@@ -257,8 +259,10 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
 /// A decision site in words.
 pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
     match site {
-        topo::DecisionSite::PlaneLadder => "a declared pair of planes read as one",
-        topo::DecisionSite::CarrierLadder => "a declared pair of carriers read as one",
+        topo::DecisionSite::PlaneLadder => "a pair of planes its margins read as one",
+        topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
+        topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
+        topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
         topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
@@ -364,7 +368,7 @@ fn operation<P>(
     at: RecipeNodeId,
     read: crate::VarId,
 ) -> Result<RecipeNodeId, Unwalked> {
-    doc.operation_of(read).ok_or(Unwalked::Unresolved(at))
+    doc.read_operation(read).ok_or(Unwalked::Unresolved(at))
 }
 
 /// **The input a carried segment at `at` names its entity in**, by the
@@ -401,9 +405,13 @@ fn carried_input<P>(
         // from its one target.
         (
             _,
-            Node::Fillet { target, .. }
-            | Node::Chamfer { target, .. }
-            | Node::Shell { target, .. }
+            Node::Fillet {
+                selection: target, ..
+            }
+            | Node::Chamfer {
+                selection: target, ..
+            }
+            | Node::Shell { open: target, .. }
             | Node::Split { target, .. },
         ) => operation(doc, at, *target),
         _ => Err(misplaced),

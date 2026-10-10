@@ -21,7 +21,8 @@ use crate::node::SitedRef;
 /// Which closed-form measurement a measure computes, over which two
 /// references `R`.
 ///
-/// A [`crate::Node::Measure`] holds one over [`SitedRef`]s; another
+/// A [`crate::Node::Measure`] holds one over its reads (a stored
+/// node's [`crate::VarId`]s, authored as [`SitedRef`]s); another
 /// reference type is the same primitive read elsewhere, through
 /// [`Self::try_map`].
 ///
@@ -136,13 +137,103 @@ impl<R> MeasurePrimitive<R> {
         })
     }
 
+    /// The same primitive over other references, `f` applied to each in
+    /// argument order.
+    pub fn map<R2>(&self, mut f: impl FnMut(&R) -> R2) -> MeasurePrimitive<R2> {
+        match self.try_map(|r| Ok::<_, core::convert::Infallible>(f(r))) {
+            Ok(mapped) => mapped,
+            Err(never) => match never {},
+        }
+    }
+
     /// The primitive's name, for diagnostics and the wire.
     pub fn verb(&self) -> &'static str {
+        self.kind().verb()
+    }
+
+    /// Which primitive this is, without its references.
+    pub fn kind(&self) -> MeasureVerb {
         match self {
-            Self::Distance { .. } => "distance",
-            Self::Angle { .. } => "angle",
-            Self::Gap { .. } => "gap",
-            Self::MinClearance { .. } => "min_clearance",
+            Self::Distance { .. } => MeasureVerb::Distance,
+            Self::Angle { .. } => MeasureVerb::Angle,
+            Self::Gap { .. } => MeasureVerb::Gap,
+            Self::MinClearance { .. } => MeasureVerb::MinClearance,
+        }
+    }
+}
+
+/// **Which primitive a measure is, and what its references admit**
+/// (FORK-VTX): the kinds a reference of each primitive may read, fixed
+/// by the primitive and checked at the edit and load doors as any
+/// operand seat's kind is, since a selection's kind is fixed when it is
+/// minted.
+///
+/// | primitive | a reference reads |
+/// | --- | --- |
+/// | `distance` | a `Face`, an `Edge` or a `Vertex` |
+/// | `angle` | a `Face` or an `Edge` |
+/// | `min_clearance` | a `Body` or a `Face` |
+/// | `gap` | a `Face` |
+///
+/// What stays at evaluation is the carrier CLASS (a cone face in a
+/// `distance`, a pair with no closed form): a surface class is not a
+/// kind ([`MeasureUnsupported`](crate::eval::measure::MeasureUnsupported)).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum MeasureVerb {
+    /// [`MeasurePrimitive::Distance`].
+    Distance,
+    /// [`MeasurePrimitive::Angle`].
+    Angle,
+    /// [`MeasurePrimitive::MinClearance`].
+    MinClearance,
+    /// [`MeasurePrimitive::Gap`].
+    Gap,
+}
+
+impl MeasureVerb {
+    /// The primitive's name, for diagnostics and the wire.
+    #[must_use]
+    pub const fn verb(self) -> &'static str {
+        match self {
+            Self::Distance => "distance",
+            Self::Angle => "angle",
+            Self::Gap => "gap",
+            Self::MinClearance => "min_clearance",
+        }
+    }
+
+    /// Whether a reference of this primitive may read a variable of
+    /// `kind`.
+    #[must_use]
+    pub const fn admits(self, kind: crate::VarKind) -> bool {
+        use crate::VarKind as K;
+        match self {
+            Self::Distance => matches!(kind, K::Face | K::Edge | K::Vertex),
+            Self::Angle => matches!(kind, K::Face | K::Edge),
+            Self::MinClearance => matches!(kind, K::Body | K::Face),
+            Self::Gap => matches!(kind, K::Face),
+        }
+    }
+
+    /// The admitted kinds as a reader says them, read off
+    /// [`Self::admits`]: "a face, an edge or a vertex".
+    #[must_use]
+    pub fn admitted(self) -> String {
+        use crate::VarKind as K;
+        let said: Vec<String> = [K::Body, K::Face, K::Edge, K::Vertex]
+            .into_iter()
+            .filter(|&kind| self.admits(kind))
+            .map(|kind| {
+                let word = kind.to_string();
+                format!("{} {word}", crate::sentence::article(&word))
+            })
+            .collect();
+        match said.as_slice() {
+            [] => String::new(),
+            [one] => one.clone(),
+            [init @ .., last] => format!("{} or {last}", init.join(", ")),
         }
     }
 }

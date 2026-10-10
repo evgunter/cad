@@ -16,9 +16,9 @@
 //! declared cylindrical `Rest` on an azimuth-SPLIT shared carrier is no
 //! longer refused there. Not every member of that class leaves the
 //! union clean: a partially engaged, floating or mid-bore peg leaves a
-//! cylindrical declared pair alive in the result, which the F7 merge
-//! door records (`DeclaredCarrierUnsupported`, no curved declared
-//! rung) as it ships the body. The probe suites beside this one carry those rows
+//! cylindrical declared pair alive in the result, whose wall runs the
+//! F7 merge door records as period closures (`PeriodClosure`) as it
+//! ships the body. The probe suites beside this one carry those rows
 //! (`curved_mergedoor`, `r1_probes_m9_3`) and pin each as what it is.
 //!
 //! **ε posture.** Every row runs at `Tol::witness()`, and the arm they

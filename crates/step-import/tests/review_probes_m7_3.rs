@@ -12,6 +12,7 @@ use crate::common;
 
 use common::{arena_census, fixture};
 use geom_core::Tol;
+use geom_core::test_support::upper;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use step_import::{ImportOptions, StepImport, import_step};
@@ -97,10 +98,10 @@ fn probe_refit_seam_refuses_typed() {
                 topo::EulerOpError::Certification {
                     error:
                         geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                            value,
+                            margin,
                             ..
                         }),
-                } => Some((value, a.refusal.render(*file))),
+                } => Some((upper(margin), a.refusal.render(*file))),
                 _ => None,
             });
             let Some((measured, rendered)) = limb else {

@@ -8,7 +8,7 @@ github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
-blocked_on: [booleans-glue-on-zero]
+blocked_on: [declared-pairs-retire]
 ---
 
 ## From GitHub issue 941

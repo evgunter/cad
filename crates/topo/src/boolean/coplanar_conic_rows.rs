@@ -33,7 +33,6 @@ pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
     cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, core::f64::consts::PI),
         (-1.0, 1.0),
         tol,

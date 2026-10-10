@@ -955,10 +955,10 @@ pub enum AssemblyError {
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
-    /// `SurfaceKey` within one body, or the same `GeomSource` across
-    /// bodies — which two instances of a part satisfy by neither half,
-    /// so a declared cross-instance pair ends here whatever its
-    /// geometry. Closing that is a cross-instance chart rung in the
+    /// `SurfaceKey` within one body, or two descriptions that read
+    /// bit-identical — which two placed instances of a part satisfy by
+    /// neither half, so a declared cross-instance pair ends here
+    /// whatever its geometry. Closing that is a cross-instance chart rung in the
     /// census, not work this layer can do; the day it lands,
     /// [`assemble`] returns `Ok` for these documents and every arm
     /// matching here goes dead.
@@ -1552,7 +1552,7 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
             let Some(consumer_node) = doc.node(consumer) else {
                 continue;
             };
-            let defined_by = |var| doc.defined_by(var).map(|(at, _)| at);
+            let defined_by = |var| doc.read_operation(var);
             for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
                 match step {
                     crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {

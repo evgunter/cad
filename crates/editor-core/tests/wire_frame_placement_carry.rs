@@ -292,8 +292,13 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, derived) = fixture::insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: cube.into(),
-            face: fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(
+                    cube,
+                    editor_core::RoleSeg::Cap(editor_core::CapEnd::End),
+                )],
+            ),
             spin: fixture::ang(0.0),
         }),
     );

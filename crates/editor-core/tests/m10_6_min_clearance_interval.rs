@@ -48,8 +48,8 @@ use editor_core::stackup::stackup;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
     EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -498,9 +498,12 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 }
 
 /// **Row 5**: a reference that names neither a body nor a face refuses
-/// typed, naming what it found.
+/// at the door, as the seat's kind (FORK-VTX): a `min_clearance`
+/// reference reads a `Body` or a `Face`, and a selection's kind is fixed
+/// when it is minted, so the edge's selection is refused before any
+/// evaluation sees it.
 #[test]
-fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
+fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -516,30 +519,34 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measured = r.measure(
-        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-        &[
-            // A real EDGE name — the extrude's own lateral edge at
-            // profile vertex 0 — so the reference resolves and the
-            // refusal is about its KIND rather than about a name
-            // that names nothing.
-            SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
-            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-        ],
+    // A real EDGE name — the extrude's own lateral edge at profile
+    // vertex 0 — so the refusal is about its KIND rather than about a
+    // name that names nothing.
+    let edge = SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2));
+    let face = SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
+    let refused = editor_core::measure(
+        &r.doc,
+        &[MeasurePrimitive::MinClearance { a: edge, b: face }],
+        Tol::witness(),
+        &editor_core::RefusingReach,
     );
-    let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);
-    let ev = eval_over::<geom_core::Interval>(&r.doc, None);
-    let Some(NodeResult::Failed(err)) = ev.result(measure) else {
-        panic!("an edge is not a selection, so the measure refuses");
+    let Err(err) = refused else {
+        panic!("an edge is no min_clearance reference, so the insert refuses");
     };
     assert!(
         matches!(
-            err.kind,
-            NodeErrorKind::MeasureSelectionKind { verb: "min_clearance", found }
-                if found.kind() == editor_core::EntityKind::Edge
+            &err,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Edge,
+                expected: editor_core::SlotKind::Measured(editor_core::MeasureVerb::MinClearance),
+                ..
+            }
         ),
-        "typed, naming what it found: {}",
-        err.kind
+        "typed, naming what it found: {err:?}"
+    );
+    assert!(
+        err.to_string().contains("a body or a face"),
+        "the refusal says what the reference admits: {err}"
     );
 }
 

@@ -7,13 +7,14 @@
 //!
 //! Two families, and they no longer share a fate:
 //!
-//! - #347's cylinder unions still refuse, each at its own door: the
-//!   coaxial poses at the reduction, as an undeclared aligned wall
-//!   pair; the Steinmetz pose at `CurvedPierceUnsupported`, the curved
-//!   sweep arm's frontier; and the parallel pose — whose rim
-//!   crossings the circle × cylinder root lane certifies — at its
-//!   coplanar cap discs' undeclared coincidence. The rows below pin
-//!   each door with the datum that says whose work it waits on.
+//! - #347's cylinder unions split in two. The coaxial poses and the
+//!   parallel pose — whose rim crossings the circle × cylinder root
+//!   lane certifies — meet their partner in a carrier their margins
+//!   decide one (the walls, or the cap discs), which the boolean glues
+//!   undeclared: each builds the union the flush detector's
+//!   declarations build, at its closed form. The Steinmetz pose
+//!   refuses at `CurvedPierceUnsupported`, the curved sweep arm's
+//!   frontier, pinned with the datum that says whose work it waits on.
 //! - #347's bracket bound is GONE. It used to read `r ≤ 4` passes,
 //!   `r ≥ 5` refuses — exactly `2r > 8`, the corner round's CARRIER
 //!   reaching the pocket's `x = 8` wall while its ARC stayed 2 mm
@@ -28,6 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
@@ -66,8 +68,8 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 }
 
 /// The carrier kind of the edge a refusal names — the datum that says
-/// WHICH family a row belongs to: a circle's door waits on a
-/// declaration, a line's on second-order or declaration work.
+/// WHICH family a row belongs to: a line's door waits on second-order
+/// work.
 fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
     let BooleanError::CurvedPierceUnsupported { edge, .. } = err else {
         panic!("not a pierce refusal: {err:?}");
@@ -86,31 +88,29 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 }
 
 /// #347's "two `circle`-derived cylinders refuse to union at all
-/// (coaxial or not)": every pose still refuses before the join — three
-/// at an undeclared coincidence, one at the CURVED SWEEP ARM's
-/// frontier — and none of them at a kind gate.
+/// (coaxial or not)": three poses build now and one refuses at the
+/// CURVED SWEEP ARM's frontier, none of them at a kind gate.
 ///
-/// **The four rows are not one family, and the ring lane moves none of
-/// them.** Each is named with the pair that actually raises, measured
-/// rather than inferred, and with the carrier kind pinned because that
-/// is what decides whose work the row is waiting on:
+/// **The four rows are not one family.** Each is named with what
+/// decides it, measured rather than inferred:
 ///
 /// 1. `coaxial-equal-r` — the two walls are ONE carrier facing the same
-///    way. An undeclared value-coincident pair; CONTACT-DESIGN C2/C4
-///    forbid inferring the gluing at any ε, so the reduction refuses
-///    the pair before its crossing layer runs, naming it and its
-///    aligned relation, and its destination is the declaration ladder.
+///    way, decided by margin, so the boolean glues them as the
+///    continuation they are: the union is the `z ∈ [0, 3]` cylinder.
 /// 2. `coaxial-stacked` — the walls are one carrier carried on across
-///    the caps: an undeclared continuation, refused at the same door
-///    for the same reason.
+///    the caps, and the caps rest on each other: the `z ∈ [0, 4]`
+///    cylinder.
 /// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall,
 ///    and the conic × quadric root door (`topo::boolean::conic_quadric`)
 ///    certifies where. Both operands span one height, so their cap
-///    discs overlap in the planes `z = 0` and `z = 2`: an undeclared
-///    coincidence, refused at `UndeclaredCoincidence` and moved by a
-///    declaration, as rows 1–2 are. Staggered in height the same pair
-///    pierces, and stops at the pierce's sector side
-///    (`tang_circle_cylinder.rs`).
+///    discs overlap in the planes `z = 0` and `z = 2`, one plane each
+///    by margin, which the boolean glues: the union is the two discs'
+///    union, two high. Staggered in height the same pair pierces, and
+///    stops at the pierce's sector side (`tang_circle_cylinder.rs`).
+///
+/// Each of rows 1–3 is the union with every flush finding declared, bit
+/// for bit (D10), and meters at its closed form.
+///
 /// 4. `steinmetz` — A's seam RULING is TANGENT to B's wall. The two
 ///    walls meet in two ellipses that CROSS at `(±1, 0, 0)`, where the
 ///    surfaces are mutually tangent, and the extruded circle puts its
@@ -119,13 +119,50 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    loose about it: `m = 0` centres the parabola's vertex, where the
 ///    charge `q/8` IS the true dip. A tangency is not a crossing at any
 ///    order the pierce machinery reads, so the ring lane leaves it
-///    where it is; what moves this row is a second-order lane or a
-///    declaration, not an arm.
-///
-/// Every row refuses for a reason the ARMS unit does not touch, which
-/// is why this table pins the reason and not just the variant.
+///    where it is; what moves this row is a second-order lane, not an
+///    arm. The carrier of the edge it names is pinned, because that is
+///    what decides whose work the row is waiting on.
 #[test]
-fn cylinder_unions_refuse_before_the_join_each_at_its_own_door() {
+fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce() {
+    let tol = Tol::witness();
+    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    // The overlap of two unit discs whose centres are 1.2 apart.
+    let lens = 2.0 * 0.6_f64.acos() - 0.6 * (4.0_f64 - 1.44).sqrt();
+    for (name, b, want) in [
+        ("coaxial-equal-r", cyl(0.0, 0.0, 1.0, 1.0, 3.0), 3.0 * PI),
+        ("coaxial-stacked", cyl(0.0, 0.0, 1.0, 2.0, 4.0), 4.0 * PI),
+        (
+            "parallel-equal-r",
+            cyl(1.2, 0.0, 1.0, 0.0, 2.0),
+            2.0 * (2.0 * PI - lens),
+        ),
+    ] {
+        let (a, b) = (
+            finished("operand A", a.clone(), tol),
+            finished("operand B", b, tol),
+        );
+        let found = topo::flush::find_flush_candidates(&a, &b, tol).unwrap();
+        assert!(!found.is_empty(), "{name}: the pair has a flush finding");
+        let declared = topo::union_with(&a, &b, &topo::flush::declare_all(&found), tol);
+        let Ok(topo::BooleanResult::Body(bb)) = &declared else {
+            panic!("{name}: the declared union builds: {declared:?}");
+        };
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol),
+            Ok(()),
+            "{name}: tier 3"
+        );
+        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        assert!(
+            (v - want).abs() < 1e-9,
+            "{name}: {v} vs the closed form {want}"
+        );
+        assert_eq!(
+            outcome(&topo::union(&a, &b, tol)),
+            outcome(&declared),
+            "{name}: undeclared is the declared union"
+        );
+    }
     let turned = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &Affine3::rotation_about_axis(
@@ -133,97 +170,29 @@ fn cylinder_unions_refuse_before_the_join_each_at_its_own_door() {
             Vec3::new(1.0, 0.0, 0.0),
             PI / 2.0,
         ),
-        Tol::witness(),
+        tol,
     )
     .unwrap();
-    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let a_tall = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
-    let rows: [(&str, BooleanError); 3] = [
-        // Coaxial, equal radius, overlapping heights: B's rim circles
-        // lie ON A's wall carrier, so the circle row's residual is a
-        // zero constant and the incidence is undeclared.
-        (
-            "coaxial-equal-r",
-            union_err(&a, &cyl(0.0, 0.0, 1.0, 1.0, 3.0)),
-        ),
-        // Coaxial, equal radius, stacked cap-to-cap.
-        (
-            "coaxial-stacked",
-            union_err(&a, &cyl(0.0, 0.0, 1.0, 2.0, 4.0)),
-        ),
-        // Perpendicular axes, equal radius (the Steinmetz pair).
-        ("steinmetz", union_err(&a_tall, &turned)),
-    ];
-    // The carrier of the edge each row names — the family datum (doc
-    // above): an undeclared wall pair (`None`) waits on a declaration,
-    // a `line` row on second-order or declaration work.
-    let carriers = [None, None, Some("line")];
-    for ((name, err), want) in rows.into_iter().zip(carriers) {
-        let Some(want) = want else {
-            assert!(
-                matches!(
-                    err,
-                    BooleanError::UndeclaredCoincidence {
-                        relation: topo::PlaneRelation::SameOriented,
-                        ..
-                    }
-                ),
-                "{name}: expected the undeclared aligned wall pair, got {err:?}"
-            );
-            continue;
-        };
-        assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-            "{name}: expected the curved pierce door, got {err:?}"
-        );
-        // The carrier is read from the body the refusal NAMES, not from
-        // an assumption that it is always A: the pierce row measures
-        // A-side today, and asserting that here means a row that moves
-        // to B reds this table instead of silently reading the wrong
-        // body's arena.
-        let BooleanError::CurvedPierceUnsupported { operand, .. } = err else {
-            panic!("{name}: not a pierce refusal: {err:?}");
-        };
-        assert_eq!(
-            operand,
-            topo::Operand::A,
-            "{name}: this table reads the carrier out of A's arena"
-        );
-        let owner = if name == "steinmetz" { &a_tall } else { &a };
-        assert_eq!(refused_carrier(owner, &err), want, "{name}");
-    }
-    // Parallel axes, definitely crossing walls, one height: the cap
-    // discs at z = 0 coincide, and the refusal names that pair of planes.
-    let b = cyl(1.2, 0.0, 1.0, 0.0, 2.0);
-    let err = union_err(&a, &b);
-    let BooleanError::UndeclaredCoincidence { pair, .. } = &err else {
-        panic!("parallel-equal-r: expected the cap discs' coincidence, got {err:?}");
-    };
-    let plane_of = |body: &Body<f64>, f: topo::FaceKey| match body
-        .get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
-    {
-        Some(topo::Surface::Plane { origin, normal, .. }) => (origin.z, normal.z),
-        other => panic!("parallel-equal-r: a cap plane, got {other:?}"),
-    };
-    let heights: Vec<f64> = pair
-        .iter()
-        .map(|&(operand, f)| {
-            let body = if operand == topo::Operand::A { &a } else { &b };
-            let (z, nz) = plane_of(body, f);
-            assert!(
-                (nz.abs() - 1.0).abs() < 1e-12,
-                "parallel-equal-r: a cap disc square to the axes: n_z {nz}"
-            );
-            z
-        })
-        .collect();
+    // The Steinmetz pair: perpendicular axes, equal radius.
+    let err = union_err(&a_tall, &turned);
     assert!(
-        pair[0].0 != pair[1].0
-            && (heights[0] - heights[1]).abs() < 1e-12
-            && [0.0, 2.0].iter().any(|h| (heights[0] - h).abs() < 1e-12),
-        "parallel-equal-r: one cap disc of each operand, in one cap plane: {pair:?} at {heights:?}"
+        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+        "steinmetz: expected the curved pierce door, got {err:?}"
     );
+    // The carrier is read from the body the refusal NAMES, not from an
+    // assumption that it is always A: the pierce row measures A-side
+    // today, and asserting that here means a row that moves to B reds
+    // this table instead of silently reading the wrong body's arena.
+    let BooleanError::CurvedPierceUnsupported { operand, .. } = err else {
+        panic!("steinmetz: not a pierce refusal: {err:?}");
+    };
+    assert_eq!(
+        operand,
+        topo::Operand::A,
+        "steinmetz: this table reads the carrier out of A's arena"
+    );
+    assert_eq!(refused_carrier(&a_tall, &err), "line", "steinmetz");
 }
 
 /// The COAXIAL UNEQUAL-radius pose (a boss on a shaft) is not a pierce

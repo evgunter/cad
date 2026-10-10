@@ -189,7 +189,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     .unwrap();
     let via = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: BooleanDeclarations::none(),
+        declare: Box::new(BooleanDeclarations::none()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap();
@@ -241,7 +241,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 
     let via = Verb::Boolean {
         op: BooleanOp::Intersect,
-        declare: BooleanDeclarations::none(),
+        declare: Box::new(BooleanDeclarations::none()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap();
@@ -252,12 +252,12 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 }
 
 /// **A boolean refusal crosses unaltered.** The fixture is two cubes
-/// resting face on face with nothing declared — the undeclared-
-/// coincidence refusal, reached identically both ways.
+/// 2ε apart, inside the ambiguity band at every ε — the in-band
+/// refusal, reached identically both ways.
 #[test]
 fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     let a = unit_cube();
-    let b = shifted_cube(Vec3::new(1.0, 0.0, 0.0));
+    let b = shifted_cube(Vec3::new(1.0 + 2.0 * tol().eps(), 0.0, 0.0));
 
     let door = boolean_op_with(
         BooleanOp::Union,
@@ -270,7 +270,7 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     .unwrap_err();
     let via = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: BooleanDeclarations::none(),
+        declare: Box::new(BooleanDeclarations::none()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap_err();
@@ -303,7 +303,7 @@ fn sample(kind: VerbKind) -> Verb<f64> {
         },
         VerbKind::Boolean(op) => Verb::Boolean {
             op,
-            declare: BooleanDeclarations::none(),
+            declare: Box::new(BooleanDeclarations::none()),
         },
         VerbKind::Split => Verb::Split {
             plane: z_plane(0.5),
@@ -524,7 +524,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     // and names a `Boolean` door no caller can reach.
     let err = Verb::Boolean {
         op: BooleanOp::Subtract,
-        declare: BooleanDeclarations::none(),
+        declare: Box::new(BooleanDeclarations::none()),
     }
     .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a boolean takes two operands, not one");
