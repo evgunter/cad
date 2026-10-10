@@ -240,6 +240,8 @@ fn clone_product(
         cited_inputs: product.cited_inputs.clone(),
         refused_at_rest: product.refused_at_rest.clone(),
         solid_copies: product.solid_copies.clone(),
+        copies: product.copies.clone(),
+        gap_assertions: product.gap_assertions.clone(),
         minted: product.minted.clone(),
         unminted: product.unminted.clone(),
         carried: product.carried.clone(),
