@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [a-torus-meridian-rims-span-bound-is-wider-than-the-band]
 ---
 
 
@@ -60,3 +61,15 @@ deflation in the root lane, is still the route.
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E makes the seam a verdict. The glue door declares a pair the witness lane verifies as a seam itself, including two faces ending on one circle (`crates/topo/src/boolean/glue.rs:98`, `tangency`, through `rim_wedge::shared_rim`). The licence the fix names therefore exists undeclared too. The graze is unchanged: `the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer` still pins `CurvedPierceUnsupported` (`crates/sweep/tests/mate7a_torus_rest.rs:940`). The fix stands: an edge-local deflation of the rim root in the circle × torus lane, licensed by the verified seam.
+
+## 2026-10-10: the fixture stops earlier now (CONTACTHOLD, `contacthold/tangent-locus`)
+
+The seam "verified" only because `contact_verify` subtracted the
+jet schedule's span bound (1.21 m on this meridian rim) from each
+sample's residual. With the verify side carrying it, the declared
+seam escalates at the witness lane (`contact_tangent_on_1`), before
+the graze, in both orders. The test is re-pinned as
+`the_g1_tube_chain_declared_a_seam_escalates_at_the_witness_lane`.
+Reaching the graze again waits on
+`a-torus-meridian-rims-span-bound-is-wider-than-the-band`.
+

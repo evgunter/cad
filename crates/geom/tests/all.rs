@@ -121,6 +121,8 @@ mod curves_nurbs_interval;
 mod curves_param_near;
 #[path = "curves/param_near_interval.rs"]
 mod curves_param_near_interval;
+#[path = "curves/piece_coverage_meter.rs"]
+mod curves_piece_coverage_meter;
 #[path = "curves/projection.rs"]
 mod curves_projection;
 #[path = "curves/r2_lt_probes.rs"]
@@ -137,6 +139,8 @@ mod curves_review_m5_pr4_adversarial;
 mod curves_span_window_pairing;
 #[path = "curves/split_at.rs"]
 mod curves_split_at;
+#[path = "curves/swaying_corner_meter.rs"]
+mod curves_swaying_corner_meter;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
 #[path = "n2r1_probes.rs"]
