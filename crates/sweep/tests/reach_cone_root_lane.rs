@@ -289,8 +289,15 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
 /// outside the kernel, stable to 4e-6 from 200³.
 const CUBE_ON_THE_WIDENING_WALL: f64 = 0.030_601;
 
+/// The overlap of the same cube with [`NARROWING`], by the same midpoint
+/// rule over the cube's own box, stable to 2e-8 from 400³ to 800³.
+const CUBE_ON_THE_NARROWING_WALL: f64 = 0.029_738_0;
+
 /// **Every op on a cone wall answers its truth or refuses typed.** The
-/// turned cube across the widening wall builds under all four ops: each
+/// turned cube across the widening wall and across the narrowing one,
+/// placed across the frustum's seam and inside one wall face (where ∪
+/// and A ∖ B keep its footprint as a ring on the cone face), builds
+/// under all four ops: each
 /// body's volume is its closed form from the frustum's, the cube's and
 /// their overlap, it passes tier 3, and `point_in_solid` agrees with
 /// both operands' closed-form membership over a grid. The tilted rod
@@ -299,82 +306,104 @@ const CUBE_ON_THE_WIDENING_WALL: f64 = 0.030_601;
 #[test]
 fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
     let tol = Tol::witness();
-    let f = WIDENING;
-    let cone = f.body();
-    let cube = diagonal_cube(0.4, [-0.75, 0.5, 0.0]);
-    let frustum = Solid::Revolved {
-        y0: f.y0,
-        y1: f.y1,
-        r0: f.r0,
-        k: f.k,
-        window: None,
-    };
     let d = Vec3::new(1.0, 1.0, 1.0) / 3f64.sqrt();
-    let turned = Solid::Brick([(-0.2, 0.2); 3]).posed(
-        Affine3::translation(Vec3::new(-0.75, 0.5, 0.0))
-            * Affine3::rotation_about_axis(
-                Point3::origin(),
-                Vec3::new(-1.0, 0.0, 1.0) / 2f64.sqrt(),
-                d.y.acos(),
-            ),
-    );
-    let (va, vb, vi) = (
-        PI / 3.0 * (0.25 + 0.5 + 1.0),
-        0.064,
-        CUBE_ON_THE_WIDENING_WALL,
-    );
-    let points = solid_truth::grid(Point3::new(-1.1, 0.0, -0.4), Point3::new(-0.4, 1.0, 0.4), 7);
-    for (op_label, got, op, x, y, v) in [
+    for (place, c, (lo, hi)) in [
         (
-            "∪",
-            topo::union(&cone, &cube, tol),
-            Op::Union,
-            &frustum,
-            &turned,
-            va + vb - vi,
+            "across the seam",
+            [-0.75, 0.5, 0.0],
+            (Point3::new(-1.1, 0.0, -0.4), Point3::new(-0.4, 1.0, 0.4)),
         ),
         (
-            "∩",
-            topo::intersect(&cone, &cube, tol),
-            Op::Intersect,
-            &frustum,
-            &turned,
-            vi,
-        ),
-        (
-            "A ∖ B",
-            topo::subtract(&cone, &cube, tol),
-            Op::Subtract,
-            &frustum,
-            &turned,
-            va - vi,
-        ),
-        (
-            "B ∖ A",
-            topo::subtract(&cube, &cone, tol),
-            Op::Subtract,
-            &turned,
-            &frustum,
-            vb - vi,
+            "inside one wall face",
+            [0.0, 0.5, -0.75],
+            (Point3::new(-0.4, 0.0, -1.1), Point3::new(0.4, 1.0, -0.4)),
         ),
     ] {
-        // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
-        // sections: one grid point refuses `PartialConeFace` there,
-        // measured at every ε row.
-        let partial = if matches!(op_label, "∪" | "A ∖ B") {
-            1
-        } else {
-            0
-        };
-        solid_truth::assert_is_but(
-            &format!("the turned cube, {op_label}"),
-            &got,
-            Want::Body(v, 1e-5),
-            &|q| op.depth(x, y, q),
-            &[],
-            &points,
-            partial,
+        let cube = diagonal_cube(0.4, c);
+        let turned = Solid::Brick([(-0.2, 0.2); 3]).posed(
+            Affine3::translation(Vec3::new(c[0], c[1], c[2]))
+                * Affine3::rotation_about_axis(
+                    Point3::origin(),
+                    Vec3::new(-1.0, 0.0, 1.0) / 2f64.sqrt(),
+                    d.y.acos(),
+                ),
         );
+        let points = solid_truth::grid(lo, hi, 7);
+        for (wall, f, overlap) in [
+            ("widening", WIDENING, CUBE_ON_THE_WIDENING_WALL),
+            ("narrowing", NARROWING, CUBE_ON_THE_NARROWING_WALL),
+        ] {
+            let cone = f.body();
+            let frustum = Solid::Revolved {
+                y0: f.y0,
+                y1: f.y1,
+                r0: f.r0,
+                k: f.k,
+                window: None,
+            };
+            let (vb, vi) = (0.064, overlap);
+            // The frustum's volume, `π·h·(r₀² + r₀·r₁ + r₁²)/3`.
+            let va =
+                PI * (f.y1 - f.y0) / 3.0 * (f.r0.powi(2) + f.r0 * f.r(f.y1) + f.r(f.y1).powi(2));
+            for (op_label, got, op, x, y, v) in [
+                (
+                    "∪",
+                    topo::union(&cone, &cube, tol),
+                    Op::Union,
+                    &frustum,
+                    &turned,
+                    va + vb - vi,
+                ),
+                (
+                    "∩",
+                    topo::intersect(&cone, &cube, tol),
+                    Op::Intersect,
+                    &frustum,
+                    &turned,
+                    vi,
+                ),
+                (
+                    "A ∖ B",
+                    topo::subtract(&cone, &cube, tol),
+                    Op::Subtract,
+                    &frustum,
+                    &turned,
+                    va - vi,
+                ),
+                (
+                    "B ∖ A",
+                    topo::subtract(&cube, &cone, tol),
+                    Op::Subtract,
+                    &turned,
+                    &frustum,
+                    vb - vi,
+                ),
+            ] {
+                // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
+                // sections, whose trim `point_in_solid` cannot always read
+                // (`PartialConeFace`); inside one wall face, that face
+                // carries the cube's footprint as a ring. On the widening wall
+                // one grid point refuses there; on the narrowing wall 153 do,
+                // and 152 in ∩ and B ∖ A. Measured in both places at every ε
+                // row.
+                let keeps_the_wall = matches!(op_label, "∪" | "A ∖ B");
+                let partial = match (wall, keeps_the_wall) {
+                    ("widening", true) => 1,
+                    ("widening", false) => 0,
+                    (_, true) => 153,
+                    (_, false) => 152,
+                };
+                solid_truth::assert_is_but(
+                    &format!("the turned cube {place} on the {wall} wall, {op_label}"),
+                    &got,
+                    Want::Body(v, 1e-5),
+                    &|q| op.depth(x, y, q),
+                    &[],
+                    &points,
+                    partial,
+                );
+            }
+        }
     }
     let narrowing = NARROWING.body();
     let rod = rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]);

@@ -85,7 +85,7 @@ pub fn curved_face<T: Decide>(
             axis,
             half_angle,
             ..
-        } => cone_face_closed_form(apex, axis, half_angle, outer, band),
+        } => cone_face_closed_form(apex, axis, half_angle, &[outer], band),
         Surface::Sphere {
             center,
             radius,
@@ -279,10 +279,10 @@ pub fn boundary_material_sign<T: Decide>(
 }
 
 /// [`boundary_material_sign`] over a face's outer loop AND its rings: a
-/// cylinder face reads its side off every loop's chart Green form, as
-/// its flux does ([`curved_face_loops`]); every other kind reads one
-/// loop, and a ringed face of another kind refuses, exempt at a gating
-/// caller.
+/// cylinder or torus face reads its side off every loop's chart Green
+/// form, as its flux does ([`curved_face_loops`]); a cone face off its
+/// outer loop; a sphere reads one loop, and a ringed sphere refuses,
+/// exempt at a gating caller.
 ///
 /// # Errors
 ///
@@ -312,9 +312,14 @@ pub fn boundary_material_sign_loops<T: Decide>(
             },
             _,
         ) => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
-        (_, [outer]) => boundary_material_sign(surface, outer, band),
+        // A cone face's flux reads its rings as holes
+        // ([`cone_face_closed_form`]), and its outer loop's traversal
+        // encodes the face's side whatever holes it carries.
+        (Surface::Cone { .. }, [outer, ..]) | (_, [outer]) => {
+            boundary_material_sign(surface, outer, band)
+        }
         _ => Err(PropsError::NotIsoRectangle {
-            what: "a ringed curved face other than a cylinder or a torus encodes no side here",
+            what: "a ringed sphere or spline face encodes no side here",
         }),
     }
 }
@@ -1802,9 +1807,11 @@ fn chart_area_side<T: Decide>(area: T, length: T, band: Band) -> Result<Material
 }
 
 /// [`curved_face`] over a face's outer loop AND its rings. A cylinder
-/// face takes every loop into its chart Green form
-/// ([`cylinder_face`]); every other kind reads one loop, so a ring
-/// there is refused by the owning body before this is called.
+/// or torus face takes every loop into its chart Green form
+/// ([`cylinder_face`], [`torus_face`]) and a cone face into its
+/// boundary's vector area ([`cone_face_closed_form`]); a sphere reads
+/// one loop, so a ring there is refused by the owning body before this
+/// is called.
 ///
 /// # Errors
 ///
@@ -1835,9 +1842,18 @@ pub fn curved_face_loops<T: Decide>(
             },
             _,
         ) => torus_face(center, axis, major_radius, minor_radius, loops, band),
+        (
+            &Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+            _,
+        ) => cone_face_closed_form(apex, axis, half_angle, loops, band),
         (_, [outer]) => curved_face(surface, outer, sense, band),
         _ => Err(PropsError::NotIsoRectangle {
-            what: "a ringed curved face other than a cylinder or a torus has no closed form",
+            what: "a ringed sphere or spline face has no closed form",
         }),
     }
 }
@@ -1962,17 +1978,18 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 
 /// **A cone face's flux and area, in closed form** — no quadrature, and
 /// the one home of both for every cone face, iso-bounded or trimmed by a
-/// plane section.
+/// plane section, with or without rings.
 ///
 /// Every point of a cone lies on a generator through the apex, and the
 /// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
 /// whole face. The flux is therefore `∮ p·n dA = apex·∮ n dA = apex·A⃗`,
-/// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]).
-/// The normal makes the constant angle `n·axis = ∓sin α` with the axis
-/// on each nappe, so the area is `|axis·A⃗| / sin α` — for a face on ONE
-/// nappe. The traversal's winding orients `A⃗`, so no sense bit is read.
+/// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]),
+/// summed over every loop. The normal makes the constant angle
+/// `n·axis = ∓sin α` with the axis on each nappe, so the area is
+/// `|axis·A⃗| / sin α` — for a face on ONE nappe. The traversal's winding
+/// orients `A⃗`, so no sense bit is read.
 ///
-/// What admits the boundary, and decides its nappe, is per class:
+/// What admits the outer loop, and decides its nappe, is per class:
 ///
 /// - **Rims and generators** take the shared iso parse
 ///   ([`cone_boundary`], the apex folded in): a positive extent, the
@@ -1985,25 +2002,32 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 ///   ellipse lies on one nappe whole. A spline or spiric edge could
 ///   cross the apex between its ends, so it refuses.
 ///
+/// A ring's nappe is read off its endpoints the second way, and the
+/// face's loops must close and its rings be holes in it
+/// ([`require_cone_rings_are_holes`]).
+///
 /// # Errors
 ///
 /// The iso parse's refusals; [`PropsError::Unimplemented`] for a spline
 /// or spiric edge; [`PropsError::NappeSpanning`] for a face on both
-/// nappes; [`PropsError::Escalated`] for an in-band decision.
+/// nappes; [`PropsError::NotIsoRectangle`] for a ring that is not a
+/// hole; [`PropsError::Escalated`] for an in-band decision.
 pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     half_angle: T,
-    edges: &[LoopEdge<T>],
+    loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    let Some((&edges, rings)) = loops.split_first() else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "curved face with an empty boundary",
+        });
+    };
     let (sin_a, cos_a) = half_angle.sin_cos();
     let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
-    let (lo, hi) = if edges
-        .iter()
-        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
-    {
-        let mut ends = Vec::with_capacity(2 * edges.len());
+    let mut ends = Vec::new();
+    let endpoint_read = |edges: &[LoopEdge<T>], ends: &mut Vec<T>| {
         for e in edges {
             match e.carrier {
                 Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {}
@@ -2012,7 +2036,13 @@ pub fn cone_face_closed_form<T: Decide>(
             ends.push(slant(e.carrier.eval(e.t0)));
             ends.push(slant(e.carrier.eval(e.t1)));
         }
-        min_max(&ends)?
+        Ok(())
+    };
+    if edges
+        .iter()
+        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
+    {
+        endpoint_read(edges, &mut ends)?;
     } else {
         // A generator-free cone boundary of rims alone carries no extent
         // of its own: every level it touches is a rim's slant, and where
@@ -2025,8 +2055,12 @@ pub fn cone_face_closed_form<T: Decide>(
         // The iso-rectangle premise (S58/#649), and one azimuth span.
         require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
         du_of_rims(&b.rims, b.arms, band)?;
-        (lo, hi)
-    };
+        ends.extend([lo, hi]);
+    }
+    for ring in rings {
+        endpoint_read(ring, &mut ends)?;
+    }
+    let (lo, hi) = min_max(&ends)?;
     // Single-nappe check: a definitely-negative low AND a
     // definitely-positive high straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?;
@@ -2034,11 +2068,165 @@ pub fn cone_face_closed_form<T: Decide>(
     if s_lo == Sign::Negative && s_hi == Sign::Positive {
         return Err(PropsError::NappeSpanning);
     }
-    let va = loop_vector_area(edges, apex)?;
+    let mut per_loop = Vec::with_capacity(loops.len());
+    let mut va = Vec3::zero();
+    for &edges in loops {
+        let loop_va = loop_vector_area(edges, apex)?;
+        per_loop.push(axis.dot(loop_va));
+        va = va + loop_va;
+    }
+    if !rings.is_empty() {
+        require_cone_rings_are_holes(apex, axis, sin_a, loops, &per_loop, band)?;
+    }
     Ok(FaceContribution {
         flux: (apex - Point3::origin()).dot(va),
         area: (axis.dot(va) / sin_a).abs(),
     })
+}
+
+/// **A ringed cone face's rings are holes in it.** The vector area sums
+/// to the face's only when its boundary bounds it, so, as the cylinder's
+/// and the torus's chart Green forms require of theirs
+/// ([`cylinder_chart`], [`torus_chart`]):
+///
+/// - every loop closes (`props_loop_closed`);
+/// - every ring is contractible on the nappe, winding the axis zero
+///   times (`props_cone_ring_contractible`). A ring that winds it is a
+///   band's second rim: which of the band's two rims is the outer loop
+///   is not a fact about the band, so the sign test below cannot read
+///   it, and it refuses;
+/// - every ring is wound against the face, its axial vector area
+///   `axis·A⃗` of the opposite sign to the whole's (`props_ring_winding`),
+///   each metered as the mean width `2·A/P` of the area `|axis·A⃗|/sin α`
+///   it encloses over an upper bound on its perimeter. A ring wound the
+///   same way would be ADDED to the face's area, silently.
+///
+/// The winding is the ring's azimuth about the axis summed edge by edge.
+/// A segment turns through the principal angle between its ends' radial
+/// directions, which is its whole turn: a segment on the cone is a
+/// generator (no turn), and a segment off the axis turns through less
+/// than half a turn. A circle or ellipse on a cone is a plane section
+/// that meets every generator of its nappe once, so it winds the axis
+/// once, its azimuth monotone along it in the sense its plane normal
+/// makes with the axis: an arc turns through the principal angle between
+/// its ends taken the long way round when that angle runs against its
+/// sense (`props_cone_ring_arc_turn`). Every ring point is read off the
+/// axis (`props_cone_ring_off_apex`), where the azimuth is defined.
+fn require_cone_rings_are_holes<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    loops: &[&[LoopEdge<T>]],
+    per_loop: &[T],
+    band: Band,
+) -> Result<(), PropsError> {
+    let refuse = |what| Err(PropsError::NotIsoRectangle { what });
+    let two = T::from_f64(2.0);
+    let radial = |p: Point3<T>| {
+        let w = p - apex;
+        w - axis * w.dot(axis)
+    };
+    // The principal angle about `axis` from `a`'s radial direction to
+    // `b`'s.
+    let turn = |a: Vec3<T>, b: Vec3<T>| axis.dot(a.cross(b)).atan2(a.dot(b));
+    let mut perimeter = T::zero();
+    let mut lengths = Vec::with_capacity(loops.len());
+    for &edges in loops {
+        let mut length = T::zero();
+        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
+            require_zero(
+                "props_loop_closed",
+                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
+                band,
+                Premise::Inventory,
+            )?;
+            // An upper bound on the edge's length: a conic's speed is at
+            // most its major semi-axis.
+            length = length
+                + match e.carrier {
+                    Curve3::Circle { radius, .. } => radius * (e.t1 - e.t0).abs(),
+                    Curve3::Ellipse { major, minor, .. } => major.max(minor) * (e.t1 - e.t0).abs(),
+                    _ => (e.p1() - e.p0()).norm(),
+                };
+        }
+        perimeter = perimeter + length;
+        lengths.push(length);
+    }
+    let total = per_loop.iter().fold(T::zero(), |acc, &s| acc + s);
+    let whole = classify(
+        "props_chart_area_side",
+        Margin::over_lever(total / sin_a * two, perimeter),
+        band,
+        PropsCheck::Inventory,
+    )?;
+    for ((&ring, &s), &length) in loops.iter().zip(per_loop).zip(&lengths).skip(1) {
+        let mut winding = T::zero();
+        let mut arm = T::zero();
+        for e in ring {
+            let (a, b) = (radial(e.p0()), radial(e.p1()));
+            let rho = a.norm();
+            if classify(
+                "props_cone_ring_off_apex",
+                Margin::of(rho),
+                band,
+                PropsCheck::Inventory,
+            )? != Sign::Positive
+            {
+                return refuse("props_cone_ring_off_apex");
+            }
+            arm = arm.max(rho);
+            let principal = turn(a, b);
+            let step = match e.carrier {
+                Curve3::Circle { axis: n, .. } | Curve3::Ellipse { axis: n, .. } => {
+                    let sense = match classify(
+                        "props_cone_ring_arc_sense",
+                        Margin::levered(n.dot(axis), rho),
+                        band,
+                        PropsCheck::Inventory,
+                    )? {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => -T::one(),
+                        Sign::Zero => return refuse("props_cone_ring_arc_sense"),
+                    };
+                    match classify(
+                        "props_cone_ring_arc_turn",
+                        Margin::levered(principal * sense, rho),
+                        band,
+                        PropsCheck::Inventory,
+                    )? {
+                        Sign::Positive => principal,
+                        Sign::Negative => principal + sense * T::tau(),
+                        Sign::Zero => return refuse("props_cone_ring_arc_turn"),
+                    }
+                }
+                _ => principal,
+            };
+            winding = if e.forward {
+                winding + step
+            } else {
+                winding - step
+            };
+        }
+        if classify(
+            "props_cone_ring_contractible",
+            Margin::levered(winding, arm),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Zero
+        {
+            return refuse("props_cone_ring_contractible");
+        }
+        let side = classify(
+            "props_ring_winding",
+            Margin::over_lever(s / sin_a * two, length),
+            band,
+            PropsCheck::Inventory,
+        )?;
+        if side == Sign::Zero || whole == Sign::Zero || side == whole {
+            return refuse("props_ring_winding");
+        }
+    }
+    Ok(())
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
