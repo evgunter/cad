@@ -112,7 +112,12 @@ fn tangency<T: Decide>(
         (kind(a, fa)?, kind(b, fb)?),
         (Plane, Cylinder) | (Cylinder, Plane) | (Cylinder, Cylinder)
     );
-    if !ruled && !matches!(super::rim_wedge::shared_rim(a, fa, b, fb, band), Ok(Some(_))) {
+    if !ruled
+        && !matches!(
+            super::rim_wedge::shared_rim(a, fa, b, fb, band),
+            Ok(Some(_))
+        )
+    {
         return None;
     }
     [Tangency::Contact, Tangency::Seam]

@@ -11,10 +11,7 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::COINCIDENCE_RECOURSE;
 use geom_core::Tol;
-use topo::{
-    BooleanOp, ContactRecords, ValidationError, boolean_reduce,
-    validate_pseudomanifold,
-};
+use topo::{BooleanOp, ContactRecords, ValidationError, boolean_reduce, validate_pseudomanifold};
 
 /// The recourse a message must carry exactly once. An undeclared
 /// contact carries the TWO-arm contact menu (SELECT-DESIGN §3d,

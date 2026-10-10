@@ -242,9 +242,8 @@ fn one_axis_tilt_two_levers_two_answers() {
     let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| {
         wall_sheet(CylFrame::tilted(r, tilt), u0, u1, z0, z1)
     };
-    let small = |u0: f64, u1: f64, z0: f64, z1: f64| {
-        wall_sheet(CylFrame::canonical(1e-3), u0, u1, z0, z1)
-    };
+    let small =
+        |u0: f64, u1: f64, z0: f64, z1: f64| wall_sheet(CylFrame::canonical(1e-3), u0, u1, z0, z1);
     // The PEG: radius 1 mm, wall 1 mm — hyp ≈ 1.4 mm, so the tilt's
     // displacement anywhere on the pair is ≤ ~6e-10 m, inside the
     // band. B's window strictly inside A's, so the geometry DECIDES:

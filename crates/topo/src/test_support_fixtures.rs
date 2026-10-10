@@ -1429,8 +1429,7 @@ pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     (v0, v1): (f64, f64),
     tol: Tol,
 ) -> FaceKey {
-    let (face, _) =
-        cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, (u0, u1), (v0, v1), tol);
+    let (face, _) = cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, (u0, u1), (v0, v1), tol);
     crate::pcurves::mint_pcurves(body, tol).unwrap();
     face
 }

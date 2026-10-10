@@ -937,7 +937,10 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let g = &outcome.groups[0];
     assert_eq!(g.kept, cube.seed.face);
     assert_eq!(g.absorbed.len(), 4);
-    assert!(g.absorbed.contains(&center), "the value-equal center merges");
+    assert!(
+        g.absorbed.contains(&center),
+        "the value-equal center merges"
+    );
     assert_eq!(cube.body.faces().count(), 6); // 6 cube faces
     // Geometry-neutral: tier 2 holds (tier 3 is out of reach for
     // chord-line descriptions), volume unchanged (analytically the

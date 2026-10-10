@@ -49,8 +49,7 @@ fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
     // pushes B's TRUE world z strictly DOWN); no seam crossing.
     let (u0, u1) = (0.2_f64, 1.4_f64);
     let ha = 1e5 * eps;
-    let Some((body_a, fa_key)) = try_wall_sheet(CylFrame::canonical(1.0), u0, u1, 0.0, ha)
-    else {
+    let Some((body_a, fa_key)) = try_wall_sheet(CylFrame::canonical(1.0), u0, u1, 0.0, ha) else {
         println!("the fixture cannot be minted at this ε — standing down");
         return;
     };
@@ -207,13 +206,7 @@ fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
 fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
     // The unit's own SeamBranch row generalised: spans summing past τ.
     let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 0.0, 3.5, 0.0, 1.0);
-    let (b, fbk) = wall_sheet(
-        CylFrame::opposed(0.7),
-        0.7 - 6.5,
-        0.7 - 3.3,
-        -0.45,
-        -0.05,
-    );
+    let (b, fbk) = wall_sheet(CylFrame::opposed(0.7), 0.7 - 6.5, 0.7 - 3.3, -0.45, -0.05);
     println!(
         "un-windowable pair: {}",
         verdict_class(declared_pair_overlap(
@@ -255,13 +248,7 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
 #[test]
 fn probe5_door_one_verdict_is_ignored_at_every_variant() {
     let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 0.2, 1.6, 0.0, 1.0);
-    let (b, fbk) = wall_sheet(
-        CylFrame::opposed(0.7),
-        0.7 - 1.3,
-        0.7 - 0.5,
-        -0.45,
-        -0.05,
-    );
+    let (b, fbk) = wall_sheet(CylFrame::opposed(0.7), 0.7 - 1.3, 0.7 - 0.5, -0.45, -0.05);
     // NOTE: `ContactVerdict` has only PASSING variants (Definite /
     // Bridged) — a refusal is `ContactRefusal`, a separate type — so
     // ignoring `door_one` cannot admit a pair Door 1 refused.

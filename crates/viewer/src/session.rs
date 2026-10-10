@@ -97,7 +97,8 @@ pub use op::{
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
+    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, VersionOffer, admits,
+    face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 

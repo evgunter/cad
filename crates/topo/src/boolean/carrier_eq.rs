@@ -1207,7 +1207,10 @@ mod tests {
         let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
         match carrier_eq_reading(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
             Ok((CarrierRelation::SameOriented, ContactVerdict::Definite, Some(margin))) => {
-                assert!(!margin.is_invalid(), "the first datum's decided margin rides");
+                assert!(
+                    !margin.is_invalid(),
+                    "the first datum's decided margin rides"
+                );
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }

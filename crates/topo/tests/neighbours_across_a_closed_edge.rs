@@ -20,8 +20,7 @@ use crate::common;
 
 use geom_core::{Point3, Tol};
 use topo::{
-    Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, Operand,
-    PlaneRung,
+    Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, Operand, PlaneRung,
 };
 
 /// The brick `[0, 4s]² × [0, s]`, its top face and the first half-edge

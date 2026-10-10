@@ -35,7 +35,6 @@
 //! kernel's question: the document's coincidence door decides it
 //! (D10, Coincidence).
 
-
 use super::carrier_eq::{CarrierDesc, CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
@@ -339,9 +338,14 @@ mod tests {
             (p1, PlaneRelation::SameOriented),
             (p1_rev, PlaneRelation::SameOpposite),
         ] {
-            let (rel, verdict, margin) =
-                plane_ladder(&p1, &other, PlaneIdentity::NONE, &ConsumedExtent::arm(1.0), band())
-                    .unwrap();
+            let (rel, verdict, margin) = plane_ladder(
+                &p1,
+                &other,
+                PlaneIdentity::NONE,
+                &ConsumedExtent::arm(1.0),
+                band(),
+            )
+            .unwrap();
             assert_eq!((rel, verdict), (want, ContactVerdict::Definite));
             let margin = margin.expect("a Zero verdict carries the margin it was decided on");
             assert_eq!(margin.kind(), geom_core::MarginKind::Value, "{margin:?}");
@@ -438,7 +442,13 @@ mod tests {
         let p1 = plane([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]);
         let eps = geom_core::Tol::witness().get().eps;
         let read = |p2: PlaneDesc<f64>| {
-            plane_ladder(&p1, &p2, PlaneIdentity::NONE, &ConsumedExtent::arm(1.0), band())
+            plane_ladder(
+                &p1,
+                &p2,
+                PlaneIdentity::NONE,
+                &ConsumedExtent::arm(1.0),
+                band(),
+            )
         };
         let (rel, _, margin) = read(plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]))
             .expect("a quarter-ε offset decides zero");

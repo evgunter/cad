@@ -266,14 +266,9 @@ where
             )?,
             names::empty(),
         )),
-        Node::Extrude { profile, side, .. } => wire_extrude(
-            id,
-            at(O::Profile, *profile)?,
-            *side,
-            results,
-            vals,
-            tol,
-        ),
+        Node::Extrude { profile, side, .. } => {
+            wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
+        }
         Node::Revolve { profile, axis, .. } => {
             let (profile, axis) = (at(O::Profile, *profile)?, at(O::Axis, *axis)?);
             wire_revolve(id, profile, axis, doc, results, vals, tol)
@@ -1636,7 +1631,10 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
         .map_err(verb_refused)?;
     // Eager N4 emission, BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out.body)), out.table))
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(out.body)),
+        out.table,
+    ))
 }
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
@@ -4343,11 +4341,10 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
     }
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
-    let built =
-        sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
-            sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
-            other => NodeErrorKind::Loft(other),
-        })?;
+    let built = sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
+        sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
+        other => NodeErrorKind::Loft(other),
+    })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
     // so wall `k` is named by one locator per section.

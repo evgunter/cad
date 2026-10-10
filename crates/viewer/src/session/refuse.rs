@@ -16,9 +16,8 @@
 
 use pncad::document::{
     BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError,
-    Evaluation, HeldNodes, Node, ParseError, ProfileProgram,
-    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
-    held_by,
+    Evaluation, HeldNodes, Node, ParseError, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+    SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{InterrogateError, face_carrier_kind};
@@ -729,7 +728,6 @@ impl Refusal {
             offer.part
         )
     }
-
 }
 
 impl core::fmt::Display for Refusal {

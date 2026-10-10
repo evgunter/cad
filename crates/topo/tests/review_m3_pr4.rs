@@ -474,8 +474,7 @@ fn notch_fill_dense_ties() {
                 assert_eq!(red.contacts.vv.len(), 6, "op {op:?}");
             }
             Err(
-                e @ (BooleanError::ClassificationInvariant { .. }
-                | BooleanError::Escalated { .. }),
+                e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
             ) => {
                 eprintln!("op {op:?}: refused: {e}");
             }

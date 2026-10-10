@@ -170,10 +170,7 @@ fn corner_kiss_touch_and_near_miss() {
         Tol::witness(),
     );
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::Escalated { .. }),
-        "{err:?}"
-    );
+    assert!(matches!(err, BooleanError::Escalated { .. }), "{err:?}");
     // Definite gap (1000ε): clean miss, no contacts at all.
     let g = 1.0 + 1000.0 * eps;
     let b = finished(

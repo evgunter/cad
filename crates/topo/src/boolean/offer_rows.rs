@@ -668,13 +668,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
 fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
-    let xw = cyl_wall_sheet(
-        &mut x,
-        CylFrame::canonical(r),
-        (0.5, 1.0),
-        (0.25, 0.5),
-        tol,
-    );
+    let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
     let sense = x.get_face(xw).unwrap().sense;
     x.set_face_sense(xw, !sense).unwrap();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
@@ -1074,15 +1068,9 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    pair_section_frame(
-        &c,
-        &s,
-        Point3::new(0.0, 0.0, 0.0),
-        None,
-        band(),
-    )
-    .map(|_| ())
-    .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+    pair_section_frame(&c, &s, Point3::new(0.0, 0.0, 0.0), None, band())
+        .map(|_| ())
+        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane

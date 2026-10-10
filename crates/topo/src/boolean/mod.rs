@@ -117,8 +117,8 @@ pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
     BooleanDecision, Coincide, Contradiction, CrossingDecision, DeclarationRead, LeverArm,
-    PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion,
-    TorusConvention, WallRung,
+    PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention,
+    WallRung,
 };
 mod rim_wedge;
 pub(crate) mod sectors;
@@ -135,8 +135,8 @@ pub(crate) mod vtxfac;
 pub(crate) mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point3, Real, Sign, Tol,
+    Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
+    Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -5557,13 +5557,7 @@ fn verify_tangency_declaration<T: Decide>(
         // poisoned datum refuses as itself.
         Ok(Err(carrier_eq::CarrierEqError::Undecided { coincidence, .. })) => {
             let diag = readable_coincidence(coincidence, [(Operand::A, fa), (Operand::B, fb)])?;
-            return Err(claim.contradicted_by(
-                fa,
-                fb,
-                Some(Contradiction::OneCarrier),
-                diag,
-                None,
-            ));
+            return Err(claim.contradicted_by(fa, fb, Some(Contradiction::OneCarrier), diag, None));
         }
         Ok(Err(carrier_eq::CarrierEqError::Escalated { rung, diag })) => {
             return Err(BooleanError::plane_identity(

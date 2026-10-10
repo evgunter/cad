@@ -29,8 +29,8 @@ use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seats, seat_line};
 use crate::session::{
-    Creation, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection,
-    SessionOp, Standing, face_frame_seat_drawn,
+    Creation, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp, Standing,
+    face_frame_seat_drawn,
 };
 use crate::sketch;
 use crate::theme::Theme;

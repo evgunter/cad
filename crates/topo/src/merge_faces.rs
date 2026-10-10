@@ -821,7 +821,9 @@ impl MergeDecision {
             // The displacement is a bound over a ball enclosing the
             // faces, not a reading of them.
             Self::DeclaredReach => Unsized::LastResort.recourse(arm, Reading::Build),
-            Self::Neighbours(rung) => crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag),
+            Self::Neighbours(rung) => {
+                crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
+            }
             Self::NeighbourCoincidence => crate::boolean::refusal_routes::neighbour_ending(diag),
             Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
         }
@@ -2316,15 +2318,17 @@ impl<T: Decide> Body<T> {
         // declaration. A face whose extent does not read has no
         // reach to settle, which the reach decision names.
         let (on1, on2) = (self.boundary_points(f1), self.boundary_points(f2));
-        let reach = crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
-            .map_err(|_| MergeCoplanarError::Escalated {
-                decision: MergeDecision::DeclaredReach,
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("merge_declared_extent"),
-                    terminal_sliver: false,
-                },
+        let reach =
+            crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band).map_err(|_| {
+                MergeCoplanarError::Escalated {
+                    decision: MergeDecision::DeclaredReach,
+                    diag: Indeterminate {
+                        margin: geom_core::MarginDiag::INVALID,
+                        band,
+                        predicate: Some("merge_declared_extent"),
+                        terminal_sliver: false,
+                    },
+                }
             })?;
         let extent = crate::boolean::ConsumedExtent {
             reach: reach.reach,
@@ -3322,9 +3326,10 @@ mod tests {
             let want = tear(&mut body, hp, hm);
             let mut got = None;
             let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
-                got = Some(body.kind_census().and_then(|census| {
-                    body.faces_continue(hp, hm, &census.described, &ctx)
-                }));
+                got = Some(
+                    body.kind_census()
+                        .and_then(|census| body.faces_continue(hp, hm, &census.described, &ctx)),
+                );
             }));
             match (want, panicked) {
                 (None, None) => assert_eq!(got, Some(Ok(true)), "tearing {what}"),

@@ -338,12 +338,7 @@ fn one_sum_differential() {
                 o1 + y * (r1 * rng.r(0.5, 1.0)) + a1 * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
-            let got = cylinder_cylinder_section(
-                &c1,
-                &c2,
-                &Reach::Ball(ball),
-                b,
-            );
+            let got = cylinder_cylinder_section(&c1, &c2, &Reach::Ball(ball), b);
             let label = match &got {
                 Ok(v) => head_of(format!("{v:?}")),
                 e => esc(e),

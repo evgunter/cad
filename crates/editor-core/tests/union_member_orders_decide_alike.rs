@@ -14,10 +14,11 @@
 //! - **the outcome's kind**: every order builds, or every order refuses;
 //! - **a refusal**: the pass's own, the same in every order — or a
 //!   fold step's, which names its step ([`NodeErrorKind::UnionFoldStep`]);
-//! - **the rows**: the union's coincidences, each spelled by the member
-//!   cells it names, as a multiset;
+//! - **the rows**: the union's coincidences, each an unordered pair of
+//!   the member cells it names, as a multiset;
 //! - **the names**: every name of the union's table beside the geometry
-//!   it binds;
+//!   it binds, the union's own id spelled as one placeholder (each order
+//!   is its own node);
 //! - **the topology**: the result's face, edge and vertex counts, and
 //!   its volume.
 //!
@@ -175,10 +176,14 @@ fn decide(fixture: Members, order: &[usize]) -> Decided {
 
 fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
     let value = ev.value(union).expect("the union evaluated");
-    let mut rows: Vec<String> = value.coincidences.iter().map(|r| format!("{r:?}")).collect();
+    let mut rows: Vec<String> = value.coincidences.iter().map(row).collect();
     rows.sort();
+    // Each order is its own union node, so its id is spelled as one
+    // placeholder wherever a name cites it.
+    let own = format!("{union:?}");
     let mut names = BTreeMap::new();
     for line in named_geometry(ev, union, false).expect("a union is never empty") {
+        let line = line.replace(&own, "the union");
         let (n, g) = line.rsplit_once(" @ ").expect("a name @ geometry row");
         assert!(
             names.insert(n.to_string(), g.to_string()).is_none(),
@@ -200,6 +205,18 @@ fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
         topology,
         volume,
     }
+}
+
+/// A coincidence row as an unordered pair of cells beside what was
+/// decided between them: which member is folded first decides which
+/// cell the pass reads first, and nothing else about the row.
+fn row(r: &editor_core::NamedCoincidence) -> String {
+    let mut cells = r.cells.clone().map(|c| format!("{c:?}"));
+    cells.sort();
+    format!(
+        "{cells:?} {:?} {:?} {:?} {:?}",
+        r.relation, r.site, r.margin, r.discharge
+    )
 }
 
 /// `a` and `b` decided alike: the volumes to the summation's rounding,

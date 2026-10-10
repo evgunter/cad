@@ -3832,8 +3832,7 @@ mod frame_dispatch_tests {
                 ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
             ] {
                 let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-                let got =
-                    pair_section_frame(a, b, at, span, band());
+                let got = pair_section_frame(a, b, at, span, band());
                 assert!(
                     matches!(got, Ok(None)),
                     "stored {along} m along ({label}): the tangent ruling's frame, got {:?}",
@@ -3900,13 +3899,7 @@ mod frame_dispatch_tests {
             };
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
             let extent = super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
-            let got = super::pair_section_frame_at(
-                a,
-                b,
-                at,
-                extent,
-                band(),
-            );
+            let got = super::pair_section_frame_at(a, b, at, extent, band());
             (label, got)
         })
         .collect()
@@ -4390,13 +4383,7 @@ mod frame_dispatch_tests {
                 ("plane, coin", &plane, &coin),
                 ("coin, plane", &coin, &plane),
             ] {
-                let got = pair_section_frame(
-                    a,
-                    b,
-                    coin_face,
-                    None,
-                    band(),
-                );
+                let got = pair_section_frame(a, b, coin_face, None, band());
                 assert!(
                     matches!(
                         got,
@@ -4572,8 +4559,7 @@ mod frame_dispatch_tests {
             (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
         for (a, b, cylinder_pair) in curved_pairs {
-            let got =
-                pair_section_frame(&a, &b, at(), None, band());
+            let got = pair_section_frame(&a, &b, at(), None, band());
             if cylinder_pair {
                 assert!(
                     matches!(
@@ -4770,13 +4756,7 @@ mod frame_dispatch_tests {
     fn the_wired_pairs_keep_their_verdicts() {
         assert!(
             matches!(
-                pair_section_frame(
-                    &plane(),
-                    &plane(),
-                    at(),
-                    None,
-                    band()
-                ),
+                pair_section_frame(&plane(), &plane(), at(), None, band()),
                 Ok(None)
             ),
             "plane×plane is straight by construction"
@@ -4813,13 +4793,7 @@ mod frame_dispatch_tests {
         );
         assert!(
             matches!(
-                pair_section_frame(
-                    &plane(),
-                    &sphere(),
-                    at(),
-                    None,
-                    band()
-                ),
+                pair_section_frame(&plane(), &sphere(), at(), None, band()),
                 Ok(Some(_))
             ),
             "plane×sphere names its circle frame"
@@ -5449,23 +5423,11 @@ mod transverse_cs_frame_rows {
             for (order, got) in [
                 (
                     "cylinder first",
-                    pair_section_frame(
-                        &cyl,
-                        &sph,
-                        at(),
-                        None,
-                        band(),
-                    ),
+                    pair_section_frame(&cyl, &sph, at(), None, band()),
                 ),
                 (
                     "sphere first",
-                    pair_section_frame(
-                        &sph,
-                        &cyl,
-                        at(),
-                        None,
-                        band(),
-                    ),
+                    pair_section_frame(&sph, &cyl, at(), None, band()),
                 ),
             ] {
                 let Ok(Some((c, axis))) = got else {
@@ -5509,13 +5471,7 @@ mod transverse_cs_frame_rows {
     fn the_loop_count_picks_the_frame() {
         for (label, pose) in poses() {
             let (cyl, sph) = pose.surfaces();
-            let Ok(Some((c, axis))) = pair_section_frame(
-                &cyl,
-                &sph,
-                at(),
-                None,
-                band(),
-            ) else {
+            let Ok(Some((c, axis))) = pair_section_frame(&cyl, &sph, at(), None, band()) else {
                 panic!("{label}: a frame");
             };
             let two = pose.big > pose.r + pose.d;
@@ -5549,7 +5505,11 @@ mod transverse_cs_frame_rows {
         for (label, pose, want) in [
             ("node", Pose::at(0.5, 0.25, 0.75), "NoArm"),
             ("coaxial", Pose::at(0.5, 0.0, 0.75), "a frame"),
-            ("offset in band", Pose::at(0.5, 4.0 * eps, 0.75), "cs_coaxial"),
+            (
+                "offset in band",
+                Pose::at(0.5, 4.0 * eps, 0.75),
+                "cs_coaxial",
+            ),
             (
                 "reach in band",
                 Pose::at(0.5, 0.25, 0.75 + 4.0 * eps),
@@ -5557,13 +5517,7 @@ mod transverse_cs_frame_rows {
             ),
         ] {
             let (cyl, sph) = pose.surfaces();
-            let got = pair_section_frame(
-                &cyl,
-                &sph,
-                at(),
-                None,
-                band(),
-            );
+            let got = pair_section_frame(&cyl, &sph, at(), None, band());
             let read = match got {
                 Err(FrameError::NoArm) => "NoArm",
                 Ok(Some(_)) => "a frame",

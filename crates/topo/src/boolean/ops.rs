@@ -6983,7 +6983,10 @@ mod tests {
     #[test]
     fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
         use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
-        let (kept, strut) = (crate::entity::FaceKey::default(), crate::entity::EdgeKey::default());
+        let (kept, strut) = (
+            crate::entity::FaceKey::default(),
+            crate::entity::EdgeKey::default(),
+        );
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let diag = geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value((band.zero() * band.escalate()).sqrt()),

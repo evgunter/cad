@@ -1586,7 +1586,8 @@ impl BooleanDecision {
     /// one ending the verdict gives.
     #[must_use]
     pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        diag.undecided(self.subject(), self.recourse(diag)).to_string()
+        diag.undecided(self.subject(), self.recourse(diag))
+            .to_string()
     }
 
     /// The one ending the verdict gives at `diag`, with no subject.
@@ -1609,10 +1610,10 @@ pub(in crate::boolean) mod tests {
     use crate::merge_faces::MergeCoplanarError;
     use crate::sector_shape::SectorRungKind;
     use crate::splitting::SplitReduceError;
+    use geom_brep::recourse::Classified;
     use geom_core::{
         Band, KERNEL_DEFECT_ENDING, MarginDiag, Point3, Tol, UNREADABLE_MARGIN_NOTE, Vec3,
     };
-    use geom_brep::recourse::Classified;
     use strum::IntoEnumIterator as _;
     use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
 
@@ -2552,7 +2553,9 @@ pub(in crate::boolean) mod tests {
             DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
         let settled = |which: Coincide| -> &'static [BooleanCoincidence] {
             match which {
-                Coincide::OnPlanes | Coincide::Carriers => &[BooleanCoincidence::REST, BooleanCoincidence::Continuation],
+                Coincide::OnPlanes | Coincide::Carriers => {
+                    &[BooleanCoincidence::REST, BooleanCoincidence::Continuation]
+                }
                 Coincide::Sectors => &[
                     BooleanCoincidence::REST,
                     BooleanCoincidence::TANGENT,

@@ -217,9 +217,7 @@ pub fn tangent_locus<T: Decide>(
             // External tangency first (|w| = r1 + r2): the common case
             // and the flush detector's; internal (|w| = |r1 − r2|)
             // second. Fixed probe order (D9).
-            match parallel_cylinder_gap_reported((*r1, *r2), dist, swing, band)
-                .map_err(escalate)?
-            {
+            match parallel_cylinder_gap_reported((*r1, *r2), dist, swing, band).map_err(escalate)? {
                 (Sign::Zero, gap) => {
                     let w_hat = w.normalize();
                     return Ok(TangentLocus::Line {

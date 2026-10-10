@@ -249,8 +249,8 @@ use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{
-    AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal,
-    Selection, SessionOp, VersionOffer,
+    AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
+    SessionOp, VersionOffer,
 };
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};

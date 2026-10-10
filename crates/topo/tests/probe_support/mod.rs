@@ -30,13 +30,7 @@ pub(crate) fn wall_sheet(
     v1: f64,
 ) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(
-        &mut body,
-        frame,
-        (u0, u1),
-        (v0, v1),
-        Tol::witness(),
-    );
+    let face = cyl_wall_sheet(&mut body, frame, (u0, u1), (v0, v1), Tol::witness());
     (body, face)
 }
 
