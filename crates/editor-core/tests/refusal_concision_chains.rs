@@ -1659,7 +1659,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::CrossingInsertion {
                 edge,
                 endpoints: (vertex, vertex),
-                source: euler(),
+                source: Box::new(euler()),
             },
         ),
         ("Euler", R::Euler(euler())),
@@ -2028,7 +2028,12 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         ),
         (
             "surface-residual",
-            escalated(CertCheck::Surface1Residual, in_band),
+            escalated(
+                CertCheck::SurfaceResidual {
+                    surface: topo::SurfaceKey::default(),
+                },
+                in_band,
+            ),
             geom_core::KERNEL_LIMIT_RECOURSE,
         ),
     ]
@@ -2709,7 +2714,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Op",
             E::Op {
                 site: "strut mev",
-                source: euler(),
+                source: Box::new(euler()),
             },
         ),
     ]

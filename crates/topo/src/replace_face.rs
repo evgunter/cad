@@ -219,7 +219,7 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
@@ -2570,28 +2570,19 @@ fn plan_edge<T: Decide>(
             wrap: false,
             declared: carried_declaration()?,
         },
-        EdgeDescription::Intersection { s1, s2, .. }
-        | EdgeDescription::TangentIntersection { s1, s2, .. }
-            if s1 == old_key || s2 == old_key =>
+        EdgeDescription::Intersection { pair, .. }
+        | EdgeDescription::TangentIntersection { pair, .. }
+            if let Some(other) = pair.other(old_key) =>
         {
-            let other = if s1 == old_key { s2 } else { s1 };
             neighbour_section(other)?;
-            let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
-            let (n1, n2) = if s1 == old_key {
-                (old_key, s2)
-            } else {
-                (s1, old_key)
-            };
-            if tangent {
+            if matches!(description, EdgeDescription::TangentIntersection { .. }) {
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: n1,
-                    s2: n2,
+                    pair,
                     witness: new_mid,
                 }
             } else {
                 EdgeDescriptionSpec::Intersection {
-                    s1: n1,
-                    s2: n2,
+                    pair,
                     witness: new_mid,
                 }
             }
@@ -2658,11 +2649,11 @@ fn plan_edge<T: Decide>(
             }
             crate::offset_restate::held_neighbour_image(old_key, c.surface, declared, new_mid)
         }
-        EdgeDescription::Intersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        EdgeDescription::Intersection { pair, witness } => {
+            EdgeDescriptionSpec::Intersection { pair, witness }
         }
-        EdgeDescription::TangentIntersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        EdgeDescription::TangentIntersection { pair, witness } => {
+            EdgeDescriptionSpec::TangentIntersection { pair, witness }
         }
     };
 
@@ -2932,15 +2923,6 @@ fn derive_edge<T: Decide>(
         Ok(carrier) => (carrier, None),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
     };
-    // A section with a plane names the plane first, whichever seat
-    // either surface held before; any other pair keeps the neighbour's
-    // seat.
-    let (s1, s2) = match (plane_wall, description) {
-        (Some(_), _) if matches!(neighbour, Surface::Plane { .. }) => (other_key, old_key),
-        (Some(_), _) => (old_key, other_key),
-        (None, EdgeDescription::Intersection { s2, .. }) if *s2 == old_key => (other_key, old_key),
-        (None, _) => (old_key, other_key),
-    };
     // A derived spline section is a new curve on its own domain, running
     // with the old carrier: the old edge's parameters name nothing on
     // it, so it spans that domain until `read_ends` reads its feet. A
@@ -2956,7 +2938,10 @@ fn derive_edge<T: Decide>(
     Ok(EdgePlan {
         edge,
         spec: EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(old_key, other_key),
+                witness,
+            },
             carrier,
             param_start: t0,
             param_end: t1,
@@ -3162,17 +3147,13 @@ pub(crate) fn remap_description<T: Real>(
 ) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::Intersection {
-                s1: map(s1),
-                s2: map(s2),
-                witness,
-            }
-        }
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+        EdgeDescriptionSpec::Intersection { pair, witness } => EdgeDescriptionSpec::Intersection {
+            pair: pair.map(map),
+            witness,
+        },
+        EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection {
-                s1: map(s1),
-                s2: map(s2),
+                pair: pair.map(map),
                 witness,
             }
         }
@@ -3468,17 +3449,11 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.mid_point(t0, t1);
         description = match description {
-            EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
-                witness: mid,
-            },
-            EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
-                EdgeDescriptionSpec::TangentIntersection {
-                    s1,
-                    s2,
-                    witness: mid,
-                }
+            EdgeDescriptionSpec::Intersection { pair, .. } => {
+                EdgeDescriptionSpec::Intersection { pair, witness: mid }
+            }
+            EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
+                EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
             }
             other => other,
         };
@@ -4681,7 +4656,7 @@ mod torn_body_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod read_ends_rows {
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{EdgePlan, ReplaceFaceError, read_ends};
@@ -4693,8 +4668,7 @@ mod read_ends_rows {
             edge: EdgeKey::default(),
             spec: EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: SurfaceKey::default(),
-                    s2: SurfaceKey::default(),
+                    pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
                     witness: Point3::origin(),
                 },
                 carrier,
