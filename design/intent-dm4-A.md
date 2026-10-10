@@ -313,6 +313,69 @@ keys) carries the index. That is cost; the per-`k` implicit read already
 is "the family at an index", with the index supplied by the evaluation
 instead of the slot, so (iii) gives the explicit spelling the same shape.
 
+### 9. Round 6: one list argument, self-union, and item 3 without `copy`
+
+**1. One argument of kind `Bodies` (sure).** Union and intersect take
+one argument, and its kind is `Bodies`, the family of `Body` (D10,
+FORK-PAT). There is one kind and two forms of filling the slot, because
+D10 has no list literal and a family is the only `Bodies` *value*: the
+slot holds one read of a `Bodies` variable (`Union(xs)`), or the member
+reads spelled at the slot (`Union([a, b, c])`, the "list of reads" of
+S3M, which a placement's shape list already is: the same argument type
+in both nodes). A mix is ill-typed at the door (`SlotVarKind`: a `Body`
+read beside a `Bodies` read), which retires the family-containment
+relation §8 gave DM5. Item 4 keeps (iii), now with less to carry:
+`xs[i]` is an indexed read of `xs`, so `Union(xs)` and
+`Union([xs[0], xs[1]])` both name `From { read: xs, of: Member { (i),
+of } }`, and `Union([a, b, c])` names `From { read: a, of }` and so on.
+The spelled form is the slot's, not a value, so no later reader can read
+"that list" as a `Bodies`; a reusable family is an index.
+
+**2. Self-union: (c), likely.** Nothing is wrong with `A ∪ A`, and DM5
+already says so of two variables holding one body (`Part(Instance(0))`
+beside its master builds `A ∪ A = A` by the coincident-shell lane). The
+same read twice should be the same case, not a second rule:
+
+- **(a) refuse the duplicate read** (today). Keeps a syntactic refusal
+  beside a semantic admission of the identical geometry: the thing Ev
+  asked about. Names: none, it refuses.
+- **(b) the list is a set.** The door collapses `[A, A]` to `[A]`: a
+  silent rewrite of what the author wrote, and still a second rule
+  beside the two-variables case, which is not collapsed but glued.
+- **(c) duplicates are kept and glue.** `[A, A]` is judged like any pair:
+  every cell of `A` meets itself, the same construction read twice, so
+  the coincidence is structural and the glue keeps `A`'s description;
+  `A ∪ A` and `A ∩ A` are `A`, `A − A` the typed empty. Names: each
+  result entity is one entity of `A` glued to itself, one row,
+  `From { read: A, of }`; a `Merged` of a row with itself is that row
+  (N3's flat set). So one read twice and two variables holding one body
+  are one case, answered by the operation, and DM5's door check retires
+  (`DuplicateInput` and the validator's arm with it). Two indices
+  landing on one member at the current values are the same case, so §8's
+  evaluation-time arm retires too. A loft section repeated is a
+  degenerate geometry refusal at evaluation, not a door rule.
+
+**3. Item 3 without `copy` (holds, sure).** There is no copy function:
+`P1` and `P2` are two placements of `X`, each defining a copy of `X` in
+its targets' space, both equally copies of the original. When both are
+pinned into one space, a later `Place [P1, P2]` reads two shapes of one
+space and defines a copy of each; a placement adds no name segment (N1),
+so both outputs carry `X`'s rows verbatim, and one per-node table cannot
+hold them (`NameTable::insert` refuses `DuplicateName`). Unbuilt, as
+before; the split and the pattern are the built cases of the same
+compensation.
+
+**Ratified text that changes.** DM4: `Union { members: Vec<…> }` becomes
+one `Bodies` argument in the two forms above, for union and intersect;
+"DM5 makes it unique" goes. DM5: the door check and `DuplicateInput`
+retire; the clause becomes "a read repeated is answered by the
+operation" with its three answers. D10 Repetition and FORK-PAT: "`union`
+and `subtract` read a family as their members" becomes "`union` and
+`intersect` take a `Bodies`: a family, or its members spelled as reads;
+a subtract's tool is one `Body`". D10 Variables' `Bodies` ("an ordered
+list of bodies whose length is a `Count`") already fits: the spelled
+form's length is a literal count. DM3 as §8.
+
 ### Clauses changed
 
 - REFERENCES **DM4**: "Naming keys by member" → by the read; "It sits
