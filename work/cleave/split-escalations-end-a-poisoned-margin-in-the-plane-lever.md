@@ -48,3 +48,20 @@ Carry how the reading stands, as `splitting::containment::Escalation` does (`Mar
 - the lever plus the note on poison an input can carry.
 
 This moves mints, so `agreed_section`, `rules:197` and `rules:319` wait on `topo-mints-indeterminates-outside-the-funnel` where that row owns the sites.
+
+## Built in part (branch `cleave/split-rules-mint-no-invalid`)
+
+`SplitReduceError::SliverSector` is done. It carries
+`SectorReading::{Escalated, Collapsed, GrazeAgainstNeighbours,
+TangencyStraddle}` in place of an `Indeterminate`, and ends through
+`LeverOnly` at `Reading::Build`:
+
+- the lever alone on a read margin, a collapsed face, a disagreement or
+  a straddle;
+- the lever plus `UNREADABLE_MARGIN_NOTE` on a poisoned funnel margin.
+
+No `SliverSector` arm is a decided contradiction any more, so none
+takes the defect ending.
+
+Still open on this row: `CrossingEscalated`, `SplitJoinError`,
+`SectionError::WindingUndecided` and `SplitFinishError`.

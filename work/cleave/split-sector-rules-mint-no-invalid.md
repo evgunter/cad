@@ -50,3 +50,68 @@ Pin each moved arm's ending before and after. An arm that stops saying
 
 Re-run the re-scope's two passes over `crates/topo/src/splitting/`
 before landing.
+
+## Built (branch `cleave/split-rules-mint-no-invalid`)
+
+Measured on `origin/main` `4925e78683` first. Every site minted
+`MarginDiag::INVALID`, and each refusal read "margin is invalid (NaN or
+a refused enclosure)":
+
+- **C4** reproduces through the public `split` at ε = 1e-9, 1e-6 and
+  1e-12. The witness is a bar `20K` long with a half-round end and a
+  plane through the smooth edge, tilted `{0.1, 0.3, 0.6}·ε` off the
+  flat: 12 poses per row.
+- **C1, C2, C3** reproduce at the unit level, on the cube corner with
+  pure bands. C1 is unreachable through `classify_neighborhood`, because
+  `sector_shape` decides the sector arm past Kε first and the face extent
+  is at least that arm. C2, and C3's `Tangent` arm, need K < √2.
+- **C5** reproduces at K = 2, at four ε values.
+
+Per site:
+
+- **C1** goes through `decide_magnitude_reported`. A decided Zero is
+  `SectorReading::Collapsed(Classified)`, which carries the face extent
+  and the band.
+- **C2** asks of the same data (`n_face`, `n_SP`, the face extent) twice.
+  `Tangent` re-answered the parallelism gate's own question.
+  - The gate's Zero arm now mints `rules::Parallel`. The sense is then
+    read through `geom_brep::enters_material_parallel`, which uses the
+    nonzero gate and has no `Tangent`.
+  - A decided zero is the gate's tagged rejection. It means the face is
+    too short to read its sense.
+- **C3** has two arms.
+  - `Tangent` is C2's double read and takes the same door. `Parallel`
+    now reaches `wall_graze` in place of a `bool`.
+  - `Exits` does not read the same data: the wall's outward normal
+    against the neighbours' sides, which other reads decided. It is
+    `SectorReading::GrazeAgainstNeighbours`, a disagreement, and not a
+    contradiction.
+- **C4** is a straddle: one tilt of the plane, read over two faces'
+  extents (F11), lands on both sides of the band. It is
+  `SectorReading::TangencyStraddle`.
+- **C5** goes through `decide_nonzero`. The rejection carries `D`.
+
+The endings, before → after:
+
+- **`SliverSector`, every arm:** the split's lever → the split's lever.
+  `SliverSector` read no `is_invalid()` route.
+  - Now it ends through `LeverOnly` at `Reading::Build`.
+  - A poisoned funnel margin adds `UNREADABLE_MARGIN_NOTE`. This is the
+    `SliverSector` part of
+    `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.
+- **C5 at the split** (`CrossingEscalated`): the lever → the lever.
+- **C5 at the Boolean** (`EdgeOnPlane`, sized): lever plus the
+  unreadable note → lever plus "tighten the tolerance below |D|/K".
+- **C5 at the census** (`too_close`): the defect ending → the coincidence
+  menu.
+
+The two C5 moves are the decided margin read as what it is. Both are
+pinned (`classify::tests::a_graze_side_decided_zero_keeps_its_margin`).
+
+Census over `crates/topo/src/splitting/`, production code only:
+
+- **Pass 1.** Before: 8 mints (`rules.rs` ×4, `classify.rs` ×1,
+  `containment.rs` ×2, `order.rs` ×1), plus one false positive, the
+  return type of `ConicRootFault::diag`. After: 3 (C6, C7, C8), plus the
+  same false positive.
+- **Pass 2** (`terminal_sliver:`): 0 before and 0 after.

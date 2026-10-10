@@ -89,6 +89,7 @@ mod section;
 mod section_loops;
 pub(crate) mod spiric_arc;
 
+use geom_brep::recourse::{Classified, LeverOnly, Reading, RefusedArm};
 use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
 use crate::body::Body;
@@ -362,15 +363,17 @@ pub enum SplitReduceError {
         /// The escalation diagnostics.
         diag: Indeterminate,
     },
-    /// A sector-level predicate (coplanarity gate, material sense,
-    /// wideness, or bisector side) escalated at an ON vertex.
+    /// A sector-level reading at an ON vertex (the face's extent, the
+    /// coplanarity gate, the material sense, wideness, the bisector side,
+    /// or a grazed wall's material) cannot place the vertex's
+    /// neighbourhood at this ε.
     SliverSector {
         /// The ON vertex being classified.
         vertex: VertexKey,
         /// The sector's face.
         face: FaceKey,
-        /// The escalation diagnostics (named predicate inside).
-        diag: Indeterminate,
+        /// How the refused reading stands.
+        reading: SectorReading,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -467,6 +470,76 @@ pub enum SplitReduceError {
     Euler(EulerOpError),
 }
 
+/// **How the reading a [`SplitReduceError::SliverSector`] refuses
+/// stands**, which its ending follows from (D4 ¶1 (i)): every arm ends
+/// in the split's lever, read at the operation, and a margin that could
+/// not be read adds its note.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SectorReading {
+    /// A sector predicate's escalation: its margin in the band or
+    /// unreadable, or a gate's rejection of the sign it decided
+    /// ([`geom_core::MarginDiag::rejected_sign`]).
+    Escalated(Indeterminate),
+    /// The face's extent from the vertex decided zero
+    /// (`split_sector_extent`): the face collapses onto the vertex at this
+    /// ε, and no angle across it can be metered.
+    Collapsed(Classified),
+    /// A wall the plane grazes holds its material across from the edges
+    /// beside it in the vertex's cycle: the wall's outward normal over
+    /// its face extent and those edges' own sides, decided apart.
+    GrazeAgainstNeighbours,
+    /// At a smooth edge in the plane, one face reads the plane tangent
+    /// over its face extent and the other reads it clear over its own
+    /// (ledger F11): one tilt of the plane, read over two arms, on both
+    /// sides of the band.
+    TangencyStraddle,
+}
+
+impl SectorReading {
+    /// The refused arm the shared table reads this reading as.
+    #[must_use]
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match self {
+            Self::Escalated(diag) => RefusedArm::Undecided(diag),
+            Self::Collapsed(classified) => RefusedArm::Zero(*classified),
+            Self::GrazeAgainstNeighbours => RefusedArm::SignCertain(None),
+            Self::TangencyStraddle => RefusedArm::Straddle,
+        }
+    }
+
+    /// The one ending a refusal of this reading carries.
+    #[must_use]
+    pub fn ending(&self) -> String {
+        LeverOnly {
+            lever: SPLIT_COINCIDENCE_RECOURSE,
+        }
+        .recourse(self.arm(), Reading::Build)
+    }
+}
+
+impl core::fmt::Display for SectorReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Escalated(diag) => diag.payload().fmt(f),
+            Self::Collapsed(Classified { margin, band }) => write!(
+                f,
+                "the face's extent from the vertex, {margin:e}, lies within the zero band \
+                 (±{:e})",
+                band.zero()
+            ),
+            Self::GrazeAgainstNeighbours => write!(
+                f,
+                "a wall the plane grazes holds its material across from the edges beside it"
+            ),
+            Self::TangencyStraddle => write!(
+                f,
+                "the two faces at a smooth edge in the plane read it tangent and clear of \
+                 tangency, each over its own extent"
+            ),
+        }
+    }
+}
+
 impl From<BandError> for SplitReduceError {
     fn from(e: BandError) -> Self {
         Self::Band(e)
@@ -553,11 +626,11 @@ impl core::fmt::Display for SplitReduceError {
                  {SPLIT_COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
-            Self::SliverSector { diag, .. } => write!(
+            Self::SliverSector { reading, .. } => write!(
                 f,
                 "which side of the split plane a face leaves a vertex on is too close to \
-                 call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
+                 call ({reading}). {}",
+                reading.ending()
             ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,

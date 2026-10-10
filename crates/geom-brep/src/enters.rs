@@ -324,6 +324,53 @@ pub fn enters_material<T: Decide>(
     )
 }
 
+/// The verdict of [`enters_material_parallel`]: [`EntersMaterial`] for a
+/// direction parallel to the face's normal, which is never `Tangent`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParallelSense {
+    /// `dir` points against the outward normal, into the material.
+    Enters,
+    /// `dir` points along the outward normal, away from the material.
+    Exits,
+}
+
+/// **`enters_material_parallel`** — [`enters_material`] for a `dir` its
+/// caller has already decided parallel to the face's normal over `arm`
+/// (their sine, metered there, in the zero band): which way along that
+/// line the material lies. A parallel `dir` is never tangent, so the
+/// sign is read through the nonzero gate
+/// ([`geom_core::k_stats::decide_nonzero`]) and the verdict has no
+/// `Tangent`. A margin decided zero means the arm is too short to read
+/// the sense at this ε: the sine and the cosine over one arm both lie
+/// in the zero band only on an arm under √2·ε, which an arm decided
+/// past K·ε is only where K < √2. The gate's rejection carries that
+/// margin.
+///
+/// # Errors
+///
+/// As [`enters_material`]: [`LeverRung::Arm`], predicate
+/// `"enters_material_arm"`, or [`LeverRung::Reading`], predicate
+/// `"enters_material"`, which also carries the nonzero gate's rejection
+/// of a margin decided zero.
+pub fn enters_material_parallel<T: Decide>(
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<ParallelSense, LeverEscalation> {
+    crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)?;
+    let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
+    Ok(
+        match geom_core::k_stats::decide_nonzero("enters_material", margin, band)
+            .map_err(LeverEscalation::reading)?
+        {
+            geom_core::k_stats::NonzeroSign::Negative => ParallelSense::Enters,
+            geom_core::k_stats::NonzeroSign::Positive => ParallelSense::Exits,
+        },
+    )
+}
+
 /// **`enters_material_order2`** — the second-order descent of the
 /// sector trilean (C7/C12.2, M5 PR 9): where first-order data ties
 /// (a departure direction exactly IN the reference plane — the
