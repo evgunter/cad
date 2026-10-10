@@ -64,6 +64,7 @@ use geom_brep::{
     CERT_SAMPLES, implicit_outward_normal, sample_param, tangent_certificate_lane, tangent_jet,
     tangent_span_bounds,
 };
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 use crate::body::Body;
@@ -325,32 +326,14 @@ pub fn tangent_locus_relation<T: Decide>(
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
         let (p, tau) = carrier.ders1(t);
-        // (1) On both surfaces. The sag bound rides the residual so
-        // the between-sample interior is covered by the same
-        // certificate the edge lane uses.
-        for (name, s) in [("contact_tangent_on_1", s1), ("contact_tangent_on_2", s2)] {
+        // (1) On both surfaces, read across the spans each sample
+        // bounds ([`on_surface`]).
+        for (name, miss, s) in [
+            ("contact_tangent_on_1", "contact_tangent_off_1", s1),
+            ("contact_tangent_on_2", "contact_tangent_off_2", s2),
+        ] {
             let r = geom_brep::implicit_residual(s, p);
-            let padded = Margin::of(r.abs() - bounds.residual_sag);
-            match crate::validate::decide(name, padded, band) {
-                Ok(Sign::Positive) => {
-                    return Err(ContactRefusal::Contradicted {
-                        diag: Indeterminate {
-                            margin: geom_core::MarginDiag::INVALID,
-                            band,
-                            predicate: Some(name),
-                            terminal_sliver: false,
-                        },
-                        steer: Some(FIT_DEFERRAL),
-                    });
-                }
-                Ok(Sign::Zero | Sign::Negative) => {}
-                // MUST-VERIFY-DEFINITE (C4): "the locus on both
-                // surfaces within ε". An in-band residual is neither
-                // verified nor contradicted, and it is NOT the bridged
-                // residue — that list holds in-band κ_rel and nothing
-                // else. So it escalates, declared or not.
-                Err(diag) => return Err(ContactRefusal::Escalated { diag }),
-            }
+            on_surface([name, miss], r, bounds.residual_sag, band)?;
         }
         let jet = tangent_jet(s1, s2, p, tau);
         // (2) Senses opposed: the two faces' OUTWARD normals must
@@ -404,14 +387,19 @@ pub fn tangent_locus_relation<T: Decide>(
         // last — computing it early must not let it refuse before the
         // first-order test (which can contradict) has spoken.
         let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
-        let second_order_definite =
-            match crate::validate::decide("contact_tangent_second_order", so, band) {
-                Ok(Sign::Positive) => Some(true),
-                // An exact zero is the #175 neutral point: definite,
-                // and definitely NOT a usable lever.
-                Ok(Sign::Zero | Sign::Negative) => Some(false),
-                Err(_) => None,
-            };
+        // Both readings run detached so the second-order one's
+        // escalation reaches the frame's log only where the outcome
+        // rests on it (`k_stats::splice_superseded`, below).
+        let (second_order, second_order_log) = geom_core::k_stats::detached(|| {
+            crate::validate::decide("contact_tangent_second_order", so, band)
+        });
+        let second_order_definite = match second_order {
+            Ok(Sign::Positive) => Some(true),
+            // An exact zero is the #175 neutral point: definite,
+            // and definitely NOT a usable lever.
+            Ok(Sign::Zero | Sign::Negative) => Some(false),
+            Err(_) => None,
+        };
         // (3) First-order tangency. With a definite κ_rel the lever is
         // C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
         // certifier uses). Without one the derived angle is unbounded,
@@ -429,7 +417,20 @@ pub fn tangent_locus_relation<T: Decide>(
         } else {
             Margin::levered(jet.sin_theta, arm)
         };
-        match crate::validate::decide("contact_tangent_parallel", parallel, band) {
+        let (first_order, first_order_log) = geom_core::k_stats::detached(|| {
+            crate::validate::decide("contact_tangent_parallel", parallel, band)
+        });
+        // An in-band second-order reading is overruled when the
+        // first-order reading refuses on its own: a definite defect
+        // contradicts, and an in-band one is the escalation returned.
+        // Only a verified first order leaves the outcome resting on it.
+        if second_order_definite.is_none() && !matches!(first_order, Ok(Sign::Zero)) {
+            geom_core::k_stats::splice_superseded(second_order_log);
+        } else {
+            geom_core::k_stats::splice(second_order_log);
+        }
+        geom_core::k_stats::splice(first_order_log);
+        match first_order {
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
@@ -452,20 +453,19 @@ pub fn tangent_locus_relation<T: Decide>(
         // is the jet certificate's own verdict; an in-band κ_rel or an
         // exact zero at an isolated neutral point is what a
         // declaration carries and what a detector refuses.
-        match second_order_definite {
-            Some(true) => {}
+        match second_order {
+            Ok(Sign::Positive) => {}
             residue => {
                 if !declared {
                     return Err(ContactRefusal::Escalated {
-                        diag: Indeterminate {
+                        diag: residue.err().unwrap_or(Indeterminate {
                             margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some("contact_tangent_second_order"),
                             terminal_sliver: false,
-                        },
+                        }),
                     });
                 }
-                let _ = residue;
                 bridged = true;
             }
         }
@@ -475,6 +475,47 @@ pub fn tangent_locus_relation<T: Decide>(
     } else {
         ContactVerdict::Definite
     })
+}
+
+/// **The locus on a surface, read across the spans a sample bounds**:
+/// `r` the sample's implicit residual and `sag` the span bound
+/// (`TangentSpanBounds::residual_sag`). A span's interior stands within
+/// its larger end residual plus `sag` (the edge certifier's
+/// `tangent_hull_sup`), so each verdict is decided on its own side:
+///
+/// - verified on the far side, `|r| + sag` within ε (`on`), which at
+///   every sample bounds every point of the locus;
+/// - contradicted by the sample itself, `r` definitely nonzero (`off`):
+///   a measured point of the locus off the surface is a miss whatever
+///   the spans do, so the sag does not shrink it;
+/// - escalated between: an in-band far side, or a sample on the surface
+///   whose spans are not known to be (a shorter span decides it).
+///
+/// MUST-VERIFY-DEFINITE (C4): "the locus on both surfaces within ε".
+/// The in-band residual is not the bridged residue — that list holds
+/// in-band κ_rel and nothing else — so it escalates, declared or not.
+fn on_surface<T: Decide>(
+    [on, off]: [&'static str; 2],
+    r: T,
+    sag: T,
+    band: Band,
+) -> Result<(), ContactRefusal> {
+    match geom_core::k_stats::decide_magnitude(on, Margin::of(r.abs() + sag), band) {
+        Ok(Magnitude::Zero) => Ok(()),
+        Ok(Magnitude::Positive) => match crate::validate::decide_nonzero(off, Margin::of(r), band) {
+            Ok(_) => Err(ContactRefusal::Contradicted {
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some(on),
+                    terminal_sliver: false,
+                },
+                steer: Some(FIT_DEFERRAL),
+            }),
+            Err(diag) => Err(ContactRefusal::Escalated { diag }),
+        },
+        Err(diag) => Err(ContactRefusal::Escalated { diag }),
+    }
 }
 
 #[cfg(test)]
@@ -659,5 +700,128 @@ mod tests {
         );
         assert_eq!(fit_steer(Contradiction::CylinderAxesNotParallel), None);
         assert_eq!(fit_steer(Contradiction::PlanesNotParallel), None);
+    }
+
+    /// The on-surface gate's three verdicts, each on its own side of
+    /// the `|r| ± sag` bracket: the verify side carries the sag, the
+    /// contradiction side reads the sample alone. Each row a padding
+    /// error could flip is named for the error that flips it.
+    #[test]
+    fn on_surface_pads_each_verdict_in_its_own_direction() {
+        let b = band();
+        let (eps, big) = (b.zero(), 2.0 * b.escalate());
+        #[derive(Debug, PartialEq)]
+        enum Want {
+            On,
+            Escalated,
+            Contradicted,
+        }
+        for (r, sag, want, why) in [
+            (0.0, 0.0, Want::On, "an exact sample, no sag"),
+            (0.4 * eps, 0.4 * eps, Want::On, "the sum within ε"),
+            (0.6 * eps, 0.6 * eps, Want::Escalated, "each within ε, the sum in band"),
+            (0.0, big, Want::Escalated, "on at the sample, a sag beyond K·ε between"),
+            (big, 1.5 * big, Want::Contradicted, "a definite miss under a larger sag"),
+            (-big, 0.0, Want::Contradicted, "a definite miss on the other side"),
+            (0.6 * eps, big, Want::Escalated, "an in-band sample under a large sag"),
+        ] {
+            let got = match on_surface(["probe_on", "probe_off"], r, sag, b) {
+                Ok(()) => Want::On,
+                Err(ContactRefusal::Escalated { .. }) => Want::Escalated,
+                Err(ContactRefusal::Contradicted { diag, .. }) => {
+                    assert_eq!(diag.predicate, Some("probe_on"), "{why}");
+                    Want::Contradicted
+                }
+                Err(other) => panic!("{why}: {other:?}"),
+            };
+            assert_eq!(got, want, "{why}: r = {r:e}, sag = {sag:e}");
+        }
+    }
+
+    /// A pin in a bore, radii `1` and `1 + δ`, axes along z, placed so
+    /// the two walls cross at angle `φ` along a z-line (they touch along
+    /// it at `φ = 0`). `δ` is set so the second-order
+    /// sagitta reads `so_in_eps · ε`; the carrier is the crossing line.
+    fn pin_in_bore(
+        so_in_eps: f64,
+        phi: f64,
+    ) -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>) {
+        let b = band();
+        let cyl = |c: [f64; 3], radius: f64| Surface::Cylinder {
+            origin: Point3::from_array(c),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // `κ_rel = 1 − 1/R₂` across the touch, levered at the pin's
+        // unit radius: the sagitta is `κ_rel / 2`.
+        let kappa = 2.0 * so_in_eps * b.zero();
+        let r2 = 1.0 / (1.0 - kappa);
+        // The walls meet at `(−1, 0)`: the pin's outward normal there is
+        // `−x̂`, and the bore's radial is that turned by `φ`.
+        let (sin, cos) = phi.sin_cos();
+        (
+            cyl([0.0, 0.0, 0.0], 1.0),
+            cyl([-1.0 + r2 * cos, r2 * sin, 0.0], r2),
+            line([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        )
+    }
+
+    /// The second-order reading is decided first and acted on last, so
+    /// its escalation reaches the frame's log only when the outcome
+    /// rests on it: a definite first-order defect contradicts with an
+    /// empty escalation log, and an in-band one is the log's only
+    /// escalation. Where the outcome does rest on it (undeclared, the
+    /// first order verified), the refusal carries the reading itself.
+    #[test]
+    fn an_overruled_second_order_escalation_leaves_the_log() {
+        let b = band();
+        let read = |phi: f64, declared: bool| {
+            let (pin, bore, along) = pin_in_bore(3.0, phi);
+            // The fixture's premise, read at the first sample: the
+            // second-order sagitta in band.
+            let p = along.eval(-1.0);
+            let jet = tangent_jet(&pin, &bore, p, Vec3::new(0.0, 0.0, 1.0));
+            let drift = tangent_span_bounds(&pin, &bore, &along, -1.0, 1.0)
+                .unwrap()
+                .kappa_drift;
+            let so = 0.5 * (jet.kappa_rel.abs() - drift);
+            assert!(
+                so > b.zero() && so < b.escalate(),
+                "phi = {phi:e}: the second-order sagitta {so:e} is in band"
+            );
+            let bracket = geom_core::k_stats::Bracket::open();
+            let out = tangent_locus_relation(
+                &pin, true, &bore, false, &along, -1.0, 1.0, declared, b,
+            );
+            let log = bracket.finish();
+            let escalations: Vec<_> = log.escalations.iter().map(|e| e.source).collect();
+            (out, escalations)
+        };
+        // A definite crossing: the parallelism defect contradicts.
+        let (out, escalations) = read(1e-3, true);
+        assert!(
+            matches!(
+                out,
+                Err(ContactRefusal::Contradicted { diag, .. })
+                    if diag.predicate == Some("contact_tangent_parallel")
+            ),
+            "a definite defect contradicts: {out:?}"
+        );
+        assert_eq!(escalations, vec![], "a contradiction leaves no escalation");
+        // An in-band crossing: the parallel reading is the refusal.
+        let (out, escalations) = read((3.0 * b.zero()).asin(), true);
+        let Err(ContactRefusal::Escalated { diag }) = out else {
+            panic!("an in-band defect escalates: {out:?}");
+        };
+        assert_eq!(diag.predicate, Some("contact_tangent_parallel"));
+        assert_eq!(escalations, vec![diag], "the refusal is the log's escalation");
+        // A touch, undeclared: the second-order reading is the refusal.
+        let (out, escalations) = read(0.0, false);
+        let Err(ContactRefusal::Escalated { diag }) = out else {
+            panic!("an undeclared in-band κ_rel escalates: {out:?}");
+        };
+        assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
+        assert_eq!(escalations, vec![diag], "the refusal is the log's escalation");
     }
 }
