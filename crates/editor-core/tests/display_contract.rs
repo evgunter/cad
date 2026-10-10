@@ -21,9 +21,9 @@ use editor_core::{
     InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeshPickError,
     MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
     PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
-    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
-    StepSegmentsError, UnnamedEntity, VarName,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
+    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;

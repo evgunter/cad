@@ -2740,8 +2740,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocumentId,
-        EditError as E, Frame, FreeValue, MetaVersionError, RecipeNodeId, SlotId,
-        StepId, StepIdFault, VarName,
+        EditError as E, Frame, FreeValue, MetaVersionError, RecipeNodeId, SlotId, StepId,
+        StepIdFault, VarName,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};

@@ -136,9 +136,8 @@ use pncad::document::{
     Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
     NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
-    UpdateError,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,

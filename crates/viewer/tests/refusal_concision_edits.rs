@@ -22,8 +22,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
     DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode,
-    StableName, StepIdFault, VarName,
+    MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode, StableName,
+    StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
