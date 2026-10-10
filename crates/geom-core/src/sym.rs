@@ -933,14 +933,14 @@
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **106
-//! names** at M10-7, **105** since one retired. The rule is written out in
+//! names** at M10-7, **104** since two retired. The rule is written out in
 //! `work/sym/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
 //! | bucket | count |
 //! | --- | --- |
-//! | IMPLICIT (S-CERT's frontier) | 4 |
+//! | IMPLICIT (S-CERT's frontier) | 3 |
 //! | NOT A PREDICATE | 8 |
 //! | EXPLICIT | 93 |
 //!
@@ -949,13 +949,12 @@
 //! one states its own. The difference is filter width, not new
 //! predicates.
 //!
-//! **IMPLICIT — 4**, and this is the census's load-bearing claim:
+//! **IMPLICIT — 3**, and this is the census's load-bearing claim:
 //! `ssi_on_locus` and `ssi_on_locus_foot` (a marched intersection
-//! point's residual and the foot of its projection),
-//! `plane_nurbs_on_locus` (a chart-image foot) and
-//! `offset_corner_on_surface` (an offset corner found by a root
-//! solve) — EXACTLY the four S-CERT's frontier item already names, at
-//! either filter width. A quantity found by iteration has no expression
+//! point's residual and the foot of its projection, the plane × NURBS
+//! lane's chart-image foot among them) and `offset_corner_on_surface`
+//! (an offset corner found by a root solve) — EXACTLY the quantities
+//! S-CERT's frontier item already names, at either filter width. A quantity found by iteration has no expression
 //! in the parameters, so no normal form reaches it and its residual
 //! widens with the box whatever this tier does.
 //!

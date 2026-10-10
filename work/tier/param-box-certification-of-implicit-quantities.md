@@ -32,8 +32,8 @@ symbolic layer does. Sites of that shape in the funnel's identity-shaped
 population (PR #1231's sweep of 57 names):
 - `ssi_on_locus`, `ssi_on_locus_foot` — `crates/geom-brep/src/ssi/certify.rs:370`, `:441`
   (a marched intersection point's residual against both surfaces; the
-  foot of its projection);
-- `plane_nurbs_on_locus` — `crates/geom-brep/src/certify.rs:1940`;
+  foot of its projection, the plane × NURBS lane's chart-image foot
+  among them);
 - `offset_reanchor_on_carrier` — `crates/topo/src/replace_face.rs:1928`.
 Over a box each is the statement "the implicit function x(p) stays on
 the locus for all p in the box", which is a parameter-dependent

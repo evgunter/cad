@@ -190,9 +190,9 @@ pub enum CertCheck {
     /// conventional description makes, whatever certification lane its
     /// [`crate::Pcurve`] belongs to.
     ChartResidual,
-    /// Intersection, plane × NURBS (M7-8): limb 1's largest sampled
-    /// on-locus residual over both operands — the closed-form plane
-    /// distance and the certified foot distance on the wall.
+    /// Intersection, plane × NURBS (M7-8): limb 1's on-locus residual
+    /// at a schedule sample, on either operand — the closed-form plane
+    /// distance or the certified foot distance on the wall.
     PlaneNurbsOnLocus,
     /// Intersection, plane × NURBS (M7-8): limb 2's certified
     /// **sup-norm** bound over the whole span — the number that
@@ -245,10 +245,10 @@ pub enum CertCheck {
 ///
 /// **The word carries the KIND of quantity the check meters**, because
 /// the sentence cannot. [`CertifyError::ResidualExceeded`] wrote the
-/// noun itself — "{check} residual at sample …" — for all thirteen
-/// checks that reach it, and three of them meter no residual:
-/// [`CertCheck::TangentHull`] and [`CertCheck::PlaneNurbsHull`] are sup
-/// bounds, and [`CertCheck::TangentParallel`] a parallelism defect. A
+/// noun itself — "{check} residual at sample …" — for all eleven
+/// checks that reach it, and two of them meter no residual:
+/// [`CertCheck::TangentHull`] is a sup bound, and
+/// [`CertCheck::TangentParallel`] a parallelism defect. A
 /// noun owned by the sentence is a noun the sentence cannot get right
 /// for every check that reaches it.
 impl core::fmt::Display for CertCheck {
@@ -589,9 +589,9 @@ impl core::fmt::Display for CertifyError {
                  sample-schedule winding alias (8kτ family)"
             ),
             // The check says its own noun ([`CertCheck`]'s `Display`);
-            // this sentence decides only the grammar around it. Five of
-            // the fifteen checks that reach this arm meter no residual
-            // (two sup bounds, a parallelism defect, a component, an
+            // this sentence decides only the grammar around it. Four of
+            // the thirteen checks that reach this arm meter no residual
+            // (a sup bound, a parallelism defect, a component, an
             // excess), so the noun is not the sentence's to write.
             Self::ResidualExceeded { check, sample, .. } => {
                 if *sample == NOT_A_SAMPLE {
@@ -1425,8 +1425,8 @@ impl<T: Decide> EdgeCurve<T> {
 /// Its one constructor is [`NurbsLane::certified`], bounded on
 /// [`geom_core::CertifiedBounds`], so holding a value of this type IS
 /// the statement that the scalar it is parameterised by may certify,
-/// and the limbs a door checks are the ones `plane_nurbs_limbs`
-/// derived. The field is private and no other constructor exists. A
+/// and the limbs a door records are the ones `plane_nurbs_limbs`
+/// derived and decided. The field is private and no other constructor exists. A
 /// scalar that may not certify cannot write the value:
 ///
 /// ```compile_fail,E0599
@@ -1449,7 +1449,7 @@ impl<T: Decide> EdgeCurve<T> {
 ///     band: Band,
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
-///     // checks zeroed.
+///     // records zeroed.
 ///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
 ///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
@@ -1483,7 +1483,7 @@ impl<T: Decide> EdgeCurve<T> {
 ///     band: Band,
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
-///     // checks zeroed.
+///     // records zeroed.
 ///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
 ///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
@@ -2975,25 +2975,15 @@ fn run_checks<T: Decide>(
         let Some(wall) = wall.spline_chart() else {
             return Err(CertifyError::Unimplemented);
         };
+        // The lane decided every residual folded into both limbs at
+        // `band`; they enter the certificate's worst residual and are
+        // not decided again.
         let limbs = lane
             .limbs(carrier, plane, wall, extent, band)
             .map_err(from_plane_nurbs)?;
-        check_residual(
-            "plane_nurbs_on_locus",
-            CertCheck::PlaneNurbsOnLocus,
-            NOT_A_SAMPLE,
-            Margin::of(limbs.on_locus_max),
-            band,
-            &mut max_residual,
-        )?;
-        check_residual(
-            "plane_nurbs_hull_sup",
-            CertCheck::PlaneNurbsHull,
-            NOT_A_SAMPLE,
-            Margin::of(limbs.hull_sup),
-            band,
-            &mut max_residual,
-        )?;
+        max_residual = max_residual
+            .max(limbs.on_locus_max.abs())
+            .max(limbs.hull_sup.abs());
     }
 
     // ---- Intersection of two analytic surfaces over a rung-3 carrier:
@@ -5058,7 +5048,7 @@ mod tests {
             );
         }
         let exceeded = CertifyError::ResidualExceeded {
-            check: CertCheck::PlaneNurbsHull,
+            check: CertCheck::TangentHull,
             sample: NOT_A_SAMPLE,
             margin: MarginDiag::value(3e-8),
         }

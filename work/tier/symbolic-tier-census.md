@@ -10,7 +10,7 @@ cost: D
 
 **The long form of M10-7's census** — the full table, one row per name,
 which `geom_core::sym`'s module docs summarize and cite. It lives here
-rather than in the module because 105 rows of evidence is a reference
+rather than in the module because 104 rows of evidence is a reference
 and the module needs to stay readable; the module carries the counts,
 the argument and the two families that matter, and points here for the
 rest.
@@ -29,9 +29,11 @@ B: grep -rhoE '"[a-z0-9_]*(coincid|cosurface|identity|endpoint|on_surface|
 then the union, minus the bare filter words themselves (`carrier`,
 `parallel`, `matches`, `identity`, `circles`, `coincide`, `coincident`,
 `coincidence`, `no_carrier`) and minus test-harness names matching
-`matches_loopbuilder`. **106 names** at M10-7; **105 rows** since
+`matches_loopbuilder`. **106 names** at M10-7; **104 rows** since
 `bool_germ_frame_axes_parallel` retired into the section table's
-`cc_axes_parallel` (TANG, PR 4118).
+`cc_axes_parallel` (TANG, PR 4118) and `plane_nurbs_on_locus` into
+`ssi_on_locus_foot`, which the plane × NURBS lane decides the same
+foot under.
 
 **Its blind spots, which are the previous sweep's and are still real.**
 A misses a predicate named through a wrapper or a table — and that miss
@@ -48,16 +50,16 @@ not reproducible from a rule written down anywhere, so this file states
 its own rule rather than quoting a count it cannot re-derive. The
 difference is filter width, not new predicates: the buckets' SHAPE is
 unchanged, and the one claim that matters — that the IMPLICIT bucket is
-exactly S-CERT's four names and no more — holds at either width.
+exactly S-CERT's quantities and no more — holds at either width.
 
 ## The counts
 
 | bucket | count |
 | --- | --- |
-| IMPLICIT (S-CERT's frontier) | 4 |
+| IMPLICIT (S-CERT's frontier) | 3 |
 | NOT A PREDICATE | 8 |
 | EXPLICIT | 93 |
-| **total** | **105** |
+| **total** | **104** |
 
 **The table is M10-7's sweep less its retirements, not a re-run.**
 Re-running the rule above on 2026-10-06 (PR 4118) returns 482 names:
@@ -107,7 +109,6 @@ CSV rather than a name filter.
 | name | bucket | evidence | site | rule (M10-8) |
 | --- | --- | --- | --- | --- |
 | `offset_reanchor_on_carrier` | IMPLICIT | an offset carrier re-anchored through a solve | `crates/topo/src/replace_face.rs` | not in the M10-8 documents |
-| `plane_nurbs_on_locus` | IMPLICIT | a chart-image foot, found by a solve | `crates/geom-brep/src/certify.rs` | not in the M10-8 documents |
 | `ssi_on_locus` | IMPLICIT | a marched intersection point's residual | `crates/geom-brep/src/ssi/certify.rs` | not in the M10-8 documents |
 | `ssi_on_locus_foot` | IMPLICIT | the foot of that point's projection | `crates/geom-brep/src/ssi/certify.rs` | not in the M10-8 documents |
 | `arc_continue_needs_arc_carrier` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` | not in the M10-8 documents |
