@@ -65,8 +65,6 @@ crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-
 crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index]	a stored knot
 crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	<fn>	the tube's bounds the certification computed
 crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	clearance	a tube clearance the certification computed
-crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	hull.sup	a hull bound the interval certification computed
-crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	sup	a hull bound the interval certification computed
 crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (a + b)	a window's midpoint on the traced carrier's knots
 crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	w.mid	a window's midpoint on the traced carrier's knots
 crates/geom-brep/src/ssi/certify.rs	4	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	t	a sample on the traced carrier's knot domain (a fitted NURBS)

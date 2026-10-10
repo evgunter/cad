@@ -911,7 +911,7 @@ fn hull_limb<T: Decide>(
     let hull = match stopped {
         Subdivided::Bound(hull) => hull,
         Subdivided::Value { hull, at: t, floor } => {
-            let value = T::from_f64(floor);
+            let value = T::from_computed(floor);
             let decided = decide_reported(arm.value, Margin::of(value), band);
             at.spans.push(RefusedSpan { lo: t, hi: t });
             hull.uncleared(band, &mut at.spans);
@@ -924,7 +924,7 @@ fn hull_limb<T: Decide>(
             hull
         }
     };
-    let sup = T::from_f64(hull.sup);
+    let sup = T::from_computed(hull.sup);
     let decided = decide_reported(arm.sup, Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, &mut at.spans);
