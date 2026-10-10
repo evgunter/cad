@@ -780,33 +780,35 @@ against all moved planes; planes meeting revolved walls through
 its two moved surfaces, transporting it only where both sides' offset
 actions agree on it, and each corner as a root of the moved surfaces
 meeting it; the first two are its closed forms, and
-`replace_faces_offset` is its one-chart spelling), then inserted through the shared void-insertion
-door `boolean::voids::insert_void` with the construction's own
-d-vs-reach margins carried as `VoidContainment::Carried` evidence; the
-door never derives containment. The result is a two-shell solid, and the
-invariant this preserves is that every cavity is born through that one
-door (three producers: boolean subtraction, shell, the full revolve of a
-holed profile). *Opened* (`shell_open`): the sealed construction, then
-each designated chart's cavity counterpart offset back outward onto it
-and the pair reduced by rim surgery (`canonicalize_chart`, `kfmrh`) to
-one annular rim face. Nothing opens; the result is closed, the
-designated shell's thin solid is single-shell (a hollow operand's other
-thin solids keep their two), and the invariant is closure, not genus
-(one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
-inverted cavity walls at edge re-attachment. A fitted face's edge with a
-plane is their section over the fit (C5), and a row of its fit beside
-an analytic face held still is extracted from the new fit. Its corners
-are the planes' roots along those edges, a section's sought from its
-end at the corner; the fit itself is not rooted, and a corner no root
-of which lies on a moved fit refuses (`CornerSection`). Its other
-boundary refuses: `Approx` against anything but a plane, a seam between
-two moved fits included (`NeighborPairUnroutable`, naming `Approx`); by
-`FittedBoundaryUnsupported`, a row of the fit
-shared with a spline or another fitted face, a curve on the fit that
-does not run along its rows, a scaffold edge, and a seam the face shares
-with itself; a section outside the fit's window (the section's own
-verdict); and a scalar with no fit or section lane
-(`ApproxLaneUnsupported`, `NurbsLaneUnsupported`).
+`replace_faces_offset` is its one-chart spelling), then inserted
+through the shared void-insertion door `boolean::voids::insert_void`
+with the construction's own d-vs-reach margins carried as
+`VoidContainment::Carried` evidence; the door never derives
+containment. The result is a two-shell solid, and the invariant this
+preserves is that every cavity is born through that one door (three
+producers: boolean subtraction, shell, the full revolve of a holed
+profile). *Opened* (`shell_open`): the sealed construction, then each
+designated chart's cavity counterpart offset back outward onto it and
+the pair reduced by rim surgery (`canonicalize_chart`, `kfmrh`) to one
+annular rim face. Nothing opens; the result is closed, the designated
+shell's thin solid is single-shell (a hollow operand's other thin
+solids keep their two), and the invariant is closure, not genus (one
+opening is a cup, genus 0). Refusals: a wall past a curved face's reach
+at O1's floor, inverted cavity walls at edge re-attachment. A fitted
+face's edge with a plane is their section over the fit (C5), and a row
+of its fit beside an analytic face held still is extracted from the new
+fit. Its corners are the planes' roots along those edges, a section's
+sought from its end at the corner; the fit itself is not rooted, and a
+corner no root of which lies on a moved fit refuses (`CornerSection`,
+naming the corner's vertex and an edge of the fit meeting it). Its
+other boundary refuses: `Approx` against anything but a plane, a seam
+between two moved fits included (`NeighborPairUnroutable`, naming
+`Approx`); by `FittedBoundaryUnsupported`, a row of the fit shared with
+a spline or another fitted face, a curve on the fit that does not run
+along its rows, a scaffold edge, and a seam the face shares with
+itself; a section outside the fit's window (the section's own verdict);
+and a scalar with no fit or section lane (`ApproxLaneUnsupported`,
+`NurbsLaneUnsupported`).
 
 **O5 — The validator re-derives per face, as it does per edge.** Tier 3
 never trusts a stored certificate: `validate.rs` re-runs the O3

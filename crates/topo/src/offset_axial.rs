@@ -479,17 +479,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
     let seen = crate::offset_together::well_formed(body, moves)?;
-    // The scope is the SOLIDS the moves touch, and every face of each
-    // of them must be in the set: a corner belongs to one solid, so a
-    // solid named in part has corners whose answer depends on faces
-    // the door was not told about, while a solid named not at all has
-    // no corner this call can disturb.
     let scope = crate::offset_together::scope_of_moves(body, moves)?;
-    for (face, _) in body.faces() {
-        if scope.holds_face(face) && !seen.contains(&face) {
-            return Err(ReplaceFaceError::TogetherPartialSet { face });
-        }
-    }
+    crate::offset_together::covers_its_solids(body, &scope, &seen)?;
 
     // ---- Decide: the axis, and every chart against it. ----
     //

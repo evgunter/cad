@@ -259,9 +259,8 @@ the table.
   ring's does. Self-retiring in klein's wall-6 shape — a different
   refusal, or a success, fails the tour. Issue #986 — the scene is
   built and pinning; the issue is still open and wants closing.
-- **`shell`'s PER-CHART arm survives exactly ONE junction shape, and it
-  is not about curvature — and since #1081's PR-2a that arm is not the
-  only one.** An all-planar body is offset SIMULTANEOUSLY and its
+- **`shell`'s former PER-CHART arm survived exactly ONE junction shape,
+  and it was not about curvature.** An all-planar body is offset SIMULTANEOUSLY and its
   oblique corners hollow; what is described below is the per-chart door,
   which `shell` no longer takes: a solid neither planar nor axial goes
   through `topo::offset_surfaces_together`, every chart at once. Added

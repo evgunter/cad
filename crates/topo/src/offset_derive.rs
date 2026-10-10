@@ -519,7 +519,7 @@ fn plane_plane<T: Decide>(
     let dir = n1.cross(*n2);
     if zero("offset_section_planes_parallel", dir.norm() * extent, band)? {
         return Ok(Err(SectionVerdict::Unsupported {
-            what: "the moved plane is parallel to the held one",
+            what: "the two planes are parallel",
         }));
     }
     let dir = dir.normalize();
@@ -571,9 +571,28 @@ pub(crate) fn analytic_root<T: Decide>(
             what: "a moved surface's root along a spline edge is solved for a plane only",
         }));
     }
+    // The graze is decided at every iterate before the step divides by
+    // `g·d`: a carrier tangent to the surface there has no transversal
+    // root to step toward, and a step through a vanishing or undecided
+    // `g·d` would carry no number at all.
+    let sine_at = |p: Point3<T>, d: Vec3<T>| {
+        let g = geom_brep::implicit_gradient(surface, p);
+        g.dot(d) / (g.norm() * d.norm())
+    };
     let mut t = seed;
     for _ in 0..NEWTON_STEPS {
         let (p, d) = carrier.ders1(t);
+        let sine = sine_at(p, d);
+        if !matches!(
+            decide(
+                "offset_corner_graze",
+                Margin::levered(sine.abs(), extent),
+                band
+            ),
+            Ok(Sign::Positive)
+        ) {
+            return Ok(Err(CornerVerdict::Graze { sine }));
+        }
         let f = geom_brep::implicit_residual(surface, p);
         let g = geom_brep::implicit_gradient(surface, p);
         t = t - f / g.dot(d);

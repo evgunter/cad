@@ -191,15 +191,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
-    well_formed(body, moves)?;
+    let seen = well_formed(body, moves)?;
 
-    // ---- Decide: the scope gate. ----
-    //
-    // The scope is the SOLIDS the moves touch, and every face of each
-    // of them must be in the set: a corner belongs to one solid, so a
-    // solid named in part has corners whose answer depends on faces
-    // the door was not told about, while a solid named not at all has
-    // no corner this call can disturb.
+    // ---- Decide: the scope gate (`covers_its_solids`). ----
     let scope = scope_of_moves(body, moves)?;
     let mut planes: Vec<(FaceKey, MovedPlane<T>)> = Vec::new();
     for m in moves {
@@ -227,11 +221,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             ));
         }
     }
-    for (face, _) in body.faces() {
-        if scope.holds_face(face) && !planes.iter().any(|(k, _)| *k == face) {
-            return Err(ReplaceFaceError::TogetherPartialSet { face });
-        }
-    }
+    covers_its_solids(body, &scope, &seen)?;
     let plane_of = |face: FaceKey| planes.iter().find(|(k, _)| *k == face).map(|(_, p)| p);
 
     // ---- Decide: every corner, before anything is written. ----
@@ -920,6 +910,26 @@ pub(crate) fn well_formed<T: Real>(
         }
     }
     Ok(seen)
+}
+
+/// **No solid is touched in part**: every face of every solid `scope`
+/// names is one of the faces `seen` the moves name
+/// ([`ReplaceFaceError::TogetherPartialSet`]). A corner belongs to one
+/// solid, so a solid named in part has corners whose answer depends on
+/// faces the door was not told about, while a solid named not at all
+/// has no corner the call can disturb.
+pub(crate) fn covers_its_solids<T: Real>(
+    body: &Body<T>,
+    scope: &Scope,
+    seen: &[FaceKey],
+) -> Result<(), ReplaceFaceError<T>> {
+    match body
+        .faces()
+        .find(|(face, _)| scope.holds_face(*face) && !seen.contains(face))
+    {
+        Some((face, _)) => Err(ReplaceFaceError::TogetherPartialSet { face }),
+        None => Ok(()),
+    }
 }
 
 /// The scope a move set names: the solids its faces lie on, in the

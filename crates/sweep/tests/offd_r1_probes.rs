@@ -557,8 +557,13 @@ fn moved_together_the_walls_refuse_at_a_seam_between_two_fits() {
             })
             .collect();
         let mut moved = body.clone();
-        let e = topo::offset_surfaces_together(&mut moved, &moves, Tol::witness())
-            .expect_err("a seam between two moved fits has no section");
+        let e = topo::offset_surfaces_together(
+            &mut moved,
+            &moves,
+            common::approx::band(),
+            Tol::witness(),
+        )
+        .expect_err("a seam between two moved fits has no section");
         if curved && Tol::witness().eps() < CURVED_FIT_REACH {
             // The twisted wall's fit stops short of ε, and every surface
             // is minted before any edge is planned.

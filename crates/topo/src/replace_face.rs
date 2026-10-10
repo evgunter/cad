@@ -1562,7 +1562,10 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     tol: Tol,
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
-    offset_charts_staged(body, &[(faces, d)], tol, join)
+    // The one band every decision classifies at, derived from the same
+    // witness the fit door reads.
+    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
+    offset_charts_staged(body, &[(faces, d)], band, tol, join)
 }
 
 /// One chart the door moves, resolved and minted before anything is
@@ -1600,12 +1603,10 @@ fn moved_of<'c, 'a, T: Real>(
 pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[(&[FaceKey], T)],
+    band: Band,
     tol: Tol,
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
-    // The one band every decision below classifies at, derived from the
-    // same witness the fit door reads.
-    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
     // ---- Decide: the groups. ----
     if moves.is_empty() {
         return Err(ReplaceFaceError::EmptyGroup);
@@ -2618,9 +2619,7 @@ fn plan_between_moved<T: Decide>(
     let (t0, t1) = curve.params();
     let old = curve.carrier();
     let description = curve.description().clone();
-    if matches!(description, EdgeDescription::Scaffold(_)) {
-        return Err(ReplaceFaceError::DeclaredEdgeTilted { edge });
-    }
+    untilted(edge, &description)?;
     if let Some((carrier, delta)) = carried_alike(edge, old, (t0, t1), (a, b), band, tol)? {
         let mid = carrier.mid_point(t0, t1);
         // Both charts move, so an image in either has slid within it and
@@ -2673,11 +2672,22 @@ fn plan_between_moved<T: Decide>(
 
 /// The edge's image under both sides' offset actions, where the two
 /// agree: each side's transport ([`transport_curve`]) read at the
-/// edge's ends and middle, and every pair within ε. `None` where
-/// either side has no exact action on the carrier — a fitted or spline
-/// chart's lane is a translation by its mid-domain normal, exact only
-/// where that normal is constant, so it is no witness — or where the
-/// two disagree.
+/// edge's ends and middle, and every pair within ε.
+///
+/// Only a lane that IS its surface's offset action on the carrier is a
+/// witness: a plane's translation of any carrier, a cylinder's or a
+/// cone's of a line (a ruling, along which the action's displacement is
+/// constant), and the closed-form re-mint of a circle on a cylinder,
+/// cone, sphere or torus. A spline carrier on a cylinder or a cone is
+/// translated by the displacement at its middle, exact only along a
+/// ruling, and a fitted or spline chart's lane by its mid-domain
+/// normal, so neither decides anything and the edge takes the section.
+///
+/// Three samples decide agreement for these images. Each is the
+/// carrier translated, the carrier under a homothety (a sphere), or a
+/// circle. Two translations that agree at one point are one map; a
+/// translation and a homothety, or two homotheties, that agree at two
+/// distinct points are one map; and three points fix a circle.
 fn carried_alike<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,
@@ -2686,9 +2696,12 @@ fn carried_alike<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Transported<T>, ReplaceFaceError<T>> {
-    let spline =
-        |c: &MovedChart<'_, T>| matches!(c.old_surface, Surface::Nurbs(_) | Surface::Approx(_));
-    if spline(a) || spline(b) {
+    let exact = |c: &MovedChart<'_, T>| match c.old_surface {
+        Surface::Nurbs(_) | Surface::Approx(_) => false,
+        Surface::Cylinder { .. } | Surface::Cone { .. } => !matches!(old, Curve3::Nurbs(_)),
+        Surface::Plane { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
+    };
+    if !exact(a) || !exact(b) {
         return Ok(None);
     }
     let mid = old.mid_point(t0, t1);
@@ -2710,6 +2723,19 @@ fn carried_alike<T: Decide>(
     Ok(Some(on_a))
 }
 
+/// An edge still scaffolded between two distinct surfaces, at least one
+/// moving, is tilted by the move, and its sketch record cannot follow
+/// ([`ReplaceFaceError::DeclaredEdgeTilted`]).
+fn untilted<T: Real>(
+    edge: EdgeKey,
+    description: &EdgeDescription<T>,
+) -> Result<(), ReplaceFaceError<T>> {
+    match description {
+        EdgeDescription::Scaffold(_) => Err(ReplaceFaceError::DeclaredEdgeTilted { edge }),
+        _ => Ok(()),
+    }
+}
+
 /// **An edge between the moved surface and a neighbour the move does not
 /// carry onto itself** — a held surface, or another moved one: their
 /// section, nearest the old carrier and
@@ -2720,16 +2746,19 @@ fn carried_alike<T: Decide>(
 fn derive_edge<T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     (curve, description, (t0, t1)): (&geom_brep::EdgeCurve<T>, &EdgeDescription<T>, (T, T)),
-    (old_key, other_key, new_surface, held): (SurfaceKey, SurfaceKey, &Surface<T>, &Surface<T>),
+    (old_key, other_key, new_surface, neighbour): (
+        SurfaceKey,
+        SurfaceKey,
+        &Surface<T>,
+        &Surface<T>,
+    ),
     extent: T,
     band: Band,
     section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::SectionVerdict;
-    if matches!(description, EdgeDescription::Scaffold(_)) {
-        return Err(ReplaceFaceError::DeclaredEdgeTilted { edge });
-    }
-    let (kind, other_kind) = (new_surface.kind(), held.kind());
+    untilted(edge, description)?;
+    let (kind, other_kind) = (new_surface.kind(), neighbour.kind());
     if !geom_brep::intersect::route(kind, other_kind).implemented {
         return Err(ReplaceFaceError::NeighborPairUnroutable {
             edge,
@@ -2749,7 +2778,7 @@ fn derive_edge<T: Decide>(
     let old = curve.carrier();
     // The kind pair routes; the arm is asked whether it serves this
     // pose, over the edge's reach.
-    let posed = pose_route(new_surface, held, old, t0, t1, band).map_err(|e| match e {
+    let posed = pose_route(new_surface, neighbour, old, t0, t1, band).map_err(|e| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
             ReplaceFaceError::Escalated { source }
@@ -2780,7 +2809,7 @@ fn derive_edge<T: Decide>(
     let esc = |source| ReplaceFaceError::Escalated { source };
     // A fitted surface is its fit as a section operand: its spline
     // chart, as for evaluation and pcurves.
-    let plane_wall = match (new_surface, held) {
+    let plane_wall = match (new_surface, neighbour) {
         (plane @ Surface::Plane { .. }, wall) | (wall, plane @ Surface::Plane { .. }) => {
             wall.spline_chart().map(|wall| (plane, wall))
         }
@@ -2796,20 +2825,25 @@ fn derive_edge<T: Decide>(
                 .map_err(esc)?
                 .map(|c| Curve3::Nurbs(Arc::new(c)))
         }
-        None => {
-            crate::offset_derive::section_closed(new_surface, held, old, (t0, t1), extent, band)
-                .map_err(esc)?
-        }
+        None => crate::offset_derive::section_closed(
+            new_surface,
+            neighbour,
+            old,
+            (t0, t1),
+            extent,
+            band,
+        )
+        .map_err(esc)?,
     };
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
     };
     // A section with a plane names the plane first, whichever seat
-    // either surface held before; any other pair keeps the held
-    // surface's seat.
+    // either surface held before; any other pair keeps the neighbour's
+    // seat.
     let (s1, s2) = match (plane_wall, description) {
-        (Some(_), _) if matches!(held, Surface::Plane { .. }) => (other_key, old_key),
+        (Some(_), _) if matches!(neighbour, Surface::Plane { .. }) => (other_key, old_key),
         (Some(_), _) => (old_key, other_key),
         (None, EdgeDescription::Intersection { s2, .. }) if *s2 == old_key => (other_key, old_key),
         (None, _) => (old_key, other_key),
@@ -3127,8 +3161,18 @@ fn plan_reanchors<T: Decide>(
                 .find(|((group, _), _)| group.contains(&v))
                 .map(|(_, d)| *d)
         };
-        let d = offset_at(start)
-            .or_else(|| offset_at(end))
+        // The distance a collapse of this edge names: the move that
+        // rooted the end, else the move that placed its corner.
+        let distance_at = |v: VertexKey, is_start: bool| {
+            solved
+                .iter()
+                .find(|(e, s, ..)| *e == edge && *s == is_start)
+                .map(|(.., d)| *d)
+                .or_else(|| offset_at(v))
+        };
+        let d = new_start
+            .and(distance_at(start, true))
+            .or_else(|| distance_at(end, false))
             .unwrap_or_else(|| unreachable!("{edge:?} ends at a moved corner, read off its group"));
         let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
@@ -3146,8 +3190,9 @@ fn plan_reanchors<T: Decide>(
             let vertex = if is_start { start } else { end };
             let root = solved
                 .iter()
-                .find(|(e, s, _)| *e == edge && *s == is_start)
-                .map(|(_, _, t)| *t);
+                .find(|(e, s, ..)| *e == edge && *s == is_start)
+                .map(|(_, _, t, _)| *t);
+            let d = distance_at(vertex, is_start).unwrap_or(d);
             // Anchored at the parameter THIS ENDPOINT had, not at the
             // span's midpoint: the stored range is the traversed arc,
             // not a canonical one, so the turn it sits on is the datum
@@ -3367,11 +3412,12 @@ fn plan_reanchors<T: Decide>(
 struct Corners<T: Real> {
     groups: Vec<(Vec<VertexKey>, Point3<T>)>,
     /// Beside each group, the distance the first chart moving it moved
-    /// by: what a move through an edge there is refused with.
+    /// by: what a move through an edge there is refused with where no
+    /// root along the edge names its own (`solved`).
     offsets: Vec<T>,
-    /// `(edge, is_start, t)`: the corner at that end of an untouched
-    /// edge is its carrier at `t`.
-    solved: Vec<(EdgeKey, bool, T)>,
+    /// `(edge, is_start, t, d)`: the corner at that end of an untouched
+    /// edge is its carrier at `t`, rooted on a surface moved by `d`.
+    solved: Vec<(EdgeKey, bool, T, T)>,
     /// The corners placed by roots rather than by the transports.
     rooted: Vec<VertexKey>,
 }
@@ -3594,7 +3640,18 @@ fn solve_corners<T: Decide>(
             .filter(|(v, _)| group.contains(v))
             .map(|(_, point)| point)
             .collect();
-        let points = if all_hold && !transported.is_empty() {
+        // Where two or more charts move, the transports place the corner
+        // exactly when every edge meeting it was transported: each lies on
+        // both its moved surfaces, so their ends agreeing (checked
+        // pairwise below) puts the corner on every surface there.
+        let refused_here = plans
+            .iter()
+            .filter(|p| group.contains(&p.start) || group.contains(&p.end))
+            .find_map(|p| p.refused.clone());
+        let carried_whole = movers.len() > 1
+            && refused_here.is_none()
+            && incident.iter().all(|i| i.boundary && !i.derived);
+        let points = if (all_hold || carried_whole) && !transported.is_empty() {
             transported
         } else {
             corners.rooted.extend(group.iter().copied());
@@ -3603,12 +3660,25 @@ fn solve_corners<T: Decide>(
             let mut covered: Vec<SurfaceKey> = Vec::new();
             // The first lane verdict a derived section passed over.
             let mut passed: Option<(EdgeKey, CornerVerdict<T>)> = None;
+            // The surfaces a candidate grazed: a tangent carrier puts no
+            // root there, and the corner stands on the other candidates,
+            // one of which must lie on the grazed surface.
+            let mut grazed: Vec<(SurfaceKey, EdgeKey, CornerVerdict<T>)> = Vec::new();
             for inc in &incident {
                 let on_moved = inc.sides.iter().any(|&k| is_moved(k));
                 for &k in around
                     .iter()
                     .filter(|k| !inc.sides.contains(k) && (on_moved || is_moved(**k)))
                 {
+                    // The move a collapse along this edge is: the rooted
+                    // surface's own where it moves, else the edge's moved
+                    // side's.
+                    let Some(d) = moved_of(charts, k)
+                        .or_else(|| inc.sides.iter().find_map(|&s| moved_of(charts, s)))
+                        .map(|c| c.d)
+                    else {
+                        unreachable!("a root is sought only where a surface or the edge moves")
+                    };
                     let surface = surface_of(k);
                     if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
                         continue;
@@ -3644,11 +3714,18 @@ fn solve_corners<T: Decide>(
                                     }
                                 }
                             }
-                            carrier => crate::offset_derive::analytic_root(
+                            carrier => match crate::offset_derive::analytic_root(
                                 surface, carrier, seed, inc.extent, band,
                             )
                             .map_err(esc)?
-                            .map_err(corner)?,
+                            {
+                                Ok(t) => t,
+                                Err(verdict @ CornerVerdict::Graze { .. }) => {
+                                    grazed.push((k, edge, verdict));
+                                    continue;
+                                }
+                                Err(verdict) => return Err(corner(verdict)),
+                            },
                         };
                         points.push(inc.carrier.eval(t));
                         for s in inc.sides.into_iter().chain([k]) {
@@ -3657,25 +3734,41 @@ fn solve_corners<T: Decide>(
                             }
                         }
                         if !inc.boundary {
-                            corners.solved.push((edge, is_start, t));
+                            corners.solved.push((edge, is_start, t, d));
                         }
                     }
                 }
             }
-            if points.is_empty() {
-                // A corner with no root to stand on, beside a section that
-                // refused, is that refusal's.
-                if let Some(refused) = plans
-                    .iter()
-                    .filter(|p| group.contains(&p.start) || group.contains(&p.end))
-                    .find_map(|p| p.refused.clone())
-                {
+            if let Some((_, edge, verdict)) = grazed
+                .iter()
+                .find(|(k, ..)| !covered.contains(k))
+                .cloned()
+                .filter(|_| !points.is_empty())
+            {
+                // A grazed surface no other candidate lies on: the corner
+                // is not on it, and the graze is why. A refused section
+                // beside the corner is the more specific answer.
+                return Err(refused_here.unwrap_or(ReplaceFaceError::CornerSection {
+                    vertex,
+                    edge,
+                    verdict,
+                }));
+            }
+            let bare = movers.iter().find(|c| !covered.contains(&c.old_key));
+            if points.is_empty() || bare.is_some() {
+                // A corner with no root to stand on, or a moved surface no
+                // candidate lies on, beside a section that refused, is that
+                // refusal's.
+                if let Some(refused) = refused_here {
                     return Err(refused);
                 }
             }
-            if let Some(bare) = movers.iter().find(|c| !covered.contains(&c.old_key)) {
-                // Else the verdict of a derived section it passed over.
-                if let Some((edge, verdict)) = passed {
+            if let Some(bare) = bare {
+                // Else the verdict of a derived section it passed over, or
+                // of a candidate that grazed.
+                if let Some((edge, verdict)) =
+                    passed.or_else(|| grazed.first().map(|(_, e, v)| (*e, v.clone())))
+                {
                     return Err(ReplaceFaceError::CornerSection {
                         vertex,
                         edge,

@@ -1431,6 +1431,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             OffsetDoor::General => crate::offset_general::offset_surfaces_together_staged(
                 &mut cavity,
                 &moves,
+                band,
                 tol,
                 false,
             ),
@@ -1648,8 +1649,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // than a transport, and what keeps those charts and their
         // corners untouched.
         // The same decision as the cavity's (`offset_door`), read on the
-        // result body. An ALL-PLANAR body's lift takes the general door
-        // rather than Cramer's: only ONE chart moves here, and the
+        // result body, and the same door except on an ALL-PLANAR solid:
+        // where the decision names Cramer's closed form, the lift takes
+        // the general door, because only ONE chart moves here and the
         // general door roots the moved plane's corners against its
         // UNTOUCHED neighbours — one plane against two fixed ones is
         // exact at every corner, oblique or not. Measured on the oblique
@@ -1696,7 +1698,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 &mut out, &moves, band, tol, false,
             ),
             OffsetDoor::Planar | OffsetDoor::General => {
-                crate::offset_general::offset_surfaces_together_staged(&mut out, &moves, tol, false)
+                crate::offset_general::offset_surfaces_together_staged(
+                    &mut out, &moves, band, tol, false,
+                )
             }
         };
         outcome.map_err(|error| ShellError::Lift {
@@ -3532,10 +3536,17 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
         | ReplaceFaceError::IsoRow { edge, .. }
-        | ReplaceFaceError::Structure { edge, .. } => {
-            face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus)
-        }
-        _ => None,
+        | ReplaceFaceError::Structure { edge, .. }
+        | ReplaceFaceError::Op {
+            edge: Some(edge), ..
+        } => face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus),
+        ReplaceFaceError::Band { .. }
+        | ReplaceFaceError::EmptyGroup
+        | ReplaceFaceError::Escalated { .. }
+        | ReplaceFaceError::Op { edge: None, .. }
+        | ReplaceFaceError::Pcurve { .. }
+        | ReplaceFaceError::Join { .. }
+        | ReplaceFaceError::ResultNotClosed { .. } => None,
     }
 }
 

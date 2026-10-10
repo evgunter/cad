@@ -27,7 +27,8 @@
 //!   itself moves with that chart;
 //! - **each corner is a root of the moved surfaces meeting it**, under
 //!   the pairwise-agreement rule, every surface standing as moved; a
-//!   moved surface no candidate lies on refuses the corner by name.
+//!   moved surface no candidate lies on refuses the corner, naming its
+//!   vertex and an edge meeting it on that surface.
 //!
 //! The edges and corners are the ones [`crate::replace_faces_offset`]
 //! derives for a single chart, read with every surface moved: one move
@@ -71,27 +72,28 @@ use crate::replace_face::{OffsetOutcome, ReplaceFaceError};
 /// **Offset every chart of the solids `moves` touch, at once** (module
 /// docs).
 ///
-/// The run's ε arrives as the [`Tol`] witness alone and the door
-/// derives its band from it, as [`crate::replace_faces_offset`] does.
-/// The body is **untouched on every `Err`**: every surface, edge and
+/// `band` is the run's band at `tol`, as the siblings take it; every
+/// decision of the call classifies at it. The body is **untouched on every `Err`**: every surface, edge and
 /// corner is decided read-only, the writes go to a clone, and the clone
 /// is adopted only once it validates at tier 2. The door **ends with
 /// the join** (`docs/DESIGN.md`, maximal edges).
 ///
 /// # Errors
 ///
-/// [`ReplaceFaceError`]: the move set's own gates
-/// ([`ReplaceFaceError::TogetherChartMixed`],
+/// [`ReplaceFaceError`]: the move set's own gates (`EmptyGroup`,
+/// `StaleFace`, [`ReplaceFaceError::TogetherChartMixed`],
 /// [`ReplaceFaceError::TogetherFaceRepeated`],
 /// [`ReplaceFaceError::TogetherPartialSet`]), then every refusal of
-/// [`crate::replace_faces_offset`]'s, raised for whichever chart, edge
-/// or corner it is about.
+/// [`crate::replace_faces_offset`]'s past its group gates, raised for
+/// whichever chart, edge or corner it is about.
 pub fn offset_surfaces_together<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
+    band: Band,
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
-    offset_surfaces_together_staged(body, moves, tol, true).map(|joins| OffsetOutcome { joins })
+    offset_surfaces_together_staged(body, moves, band, tol, true)
+        .map(|joins| OffsetOutcome { joins })
 }
 
 /// [`offset_surfaces_together`], ending with the join where `join` is
@@ -101,17 +103,13 @@ pub fn offset_surfaces_together<T: Decide + crate::props::AtRestPolicy>(
 pub(crate) fn offset_surfaces_together_staged<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
+    band: Band,
     tol: Tol,
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
-    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
     let seen = crate::offset_together::well_formed(body, moves)?;
     let scope = crate::offset_together::scope_of_moves(body, moves)?;
-    for (face, _) in body.faces() {
-        if scope.holds_face(face) && !seen.contains(&face) {
-            return Err(ReplaceFaceError::TogetherPartialSet { face });
-        }
-    }
+    crate::offset_together::covers_its_solids(body, &scope, &seen)?;
     let mut moving: Vec<(&[FaceKey], T)> = Vec::with_capacity(moves.len());
     for m in moves {
         if crate::offset_restate::chart_moves(m.distance, band)? {
@@ -126,5 +124,8 @@ pub(crate) fn offset_surfaces_together_staged<T: Decide + crate::props::AtRestPo
         body.adopt(staged);
         return Ok(joins);
     }
-    crate::replace_face::offset_charts_staged(body, &moving, tol, join)
+    // The core's own group gates pass on a well-formed move set and are
+    // the single-face verb's; they run again here, on charts known to
+    // be whole and distinct, at the cost of one face lookup each.
+    crate::replace_face::offset_charts_staged(body, &moving, band, tol, join)
 }
