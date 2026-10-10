@@ -2,7 +2,7 @@
 id: fluxhold
 kind: program
 title: FLUXHOLD — FLUX's rows on the D10 hold: assertions, the driver over an assembly, authored directions and the declare lever
-status: blocked
+status: ready
 opened: 2026-10-10
 area: kernel
 prefix: fluxhold/

@@ -3297,7 +3297,7 @@ NOT_BOUND = {
     #
     #   - FIVE leave the roster ENTIRELY under rule 1, because
     #     `pncad.pyi` declares each top-level at the same spelling:
-    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionDir` as the
+    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionRelation` as the
     #     authoring vocabulary, and `MeasureNodeFault` and
     #     `MeasureUnavailableAt` as exception classes keeping their
     #     Rust types' own names. (INTENT stage 2 PR D retires

@@ -315,6 +315,13 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `intent_s2_c_world`'s migration check holds each product to its
 /// pre-C digest.
 ///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
+///
 /// RE-BLESSED, all five, for INTENT stage 4 E (booleans glue on Zero):
 /// a body no longer carries provenance side tables (`GeomSource`
 /// stamps, field and axis sources), and the digest feeds each body's
@@ -326,8 +333,8 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x3fb1_d208_1d37_5a93),
         ("corner_table", 0xdb95_b8fc_06b7_a993),
-        ("cut_cylinder", 0xb918_821a_3a37_bbad),
-        ("boss_union", 0x4bc1_fbda_3d17_a0e1),
+        ("cut_cylinder", 0x4318_92f9_c696_0fd1),
+        ("boss_union", 0x05b4_17a8_c844_6429),
         ("kitchen_sink", 0x98c0_fba7_09be_e02d),
     ];
     let mut moved: Vec<String> = Vec::new();

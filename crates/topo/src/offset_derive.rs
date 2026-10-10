@@ -101,6 +101,8 @@ pub enum SplineRoot {
     /// lies past the near end — or the far end is, the move having
     /// passed through the whole edge.
     Short {
+        /// The near end's parameter.
+        end: f64,
         /// The near end's distance to the surface, in metres.
         near_gap: f64,
         /// The near end is closer to the surface than the far end.
@@ -886,6 +888,7 @@ fn plane_spline_root(
     };
     let phi = |t: f64| (carrier.eval(t) - origin).dot(normal).abs();
     Ok(SplineRoot::Short {
+        end: near_end,
         near_gap: phi(near_end),
         near: phi(near_end) <= phi(far_end),
     })

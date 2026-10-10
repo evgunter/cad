@@ -2177,17 +2177,18 @@ class MeasurePrimitive:
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-class AssertionDir:
-    """Which way a `Node.assertion` constrains its measure. Two
-    directions and both still gate: a clearance requirement is
-    `AtLeast`, a maximum-gap requirement is `AtMost`."""
+class AssertionRelation:
+    """The relation a `Node.assertion` states between its value and its
+    bound: `AtLeast`, `AtMost` or `Equal` (equal at the document's
+    tolerance)."""
 
-    AtLeast: Final[AssertionDir]
-    AtMost: Final[AssertionDir]
+    AtLeast: Final[AssertionRelation]
+    AtMost: Final[AssertionRelation]
+    Equal: Final[AssertionRelation]
 
     @property
     def symbol(self) -> str:
-        """The relation as a report reads it: `">="` or `"<="`."""
+        """The relation as a report reads it: `">="`, `"<="` or `"="`."""
 
 class Node:
     """A recipe node, before insertion."""
@@ -2653,7 +2654,7 @@ class Node:
         `evaluate`."""
 
     @staticmethod
-    def assertion(value: _SlotArg, dir: AssertionDir, bound: Formula) -> Node:
+    def assertion(value: _SlotArg, relation: AssertionRelation, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.

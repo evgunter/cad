@@ -136,7 +136,7 @@ pub use editor_core::{Placement, Step};
 // A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
 // `Recording::measure`) records one measure per primitive and answers
 // their outputs as `Measured` (in a `MeasureOutcome`). A caller who
-// cannot spell them cannot author one at all; `AssertionDir` is a field
+// cannot spell them cannot author one at all; `AssertionRelation` is a field
 // of `Node::Assertion` for the same reason. `Observed` and
 // `ObservedRefusal` are what `Evaluation::reading` answers a measured
 // value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
@@ -160,7 +160,7 @@ pub use editor_core::{Placement, Step};
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
     MeasureUnavailableAt, Measured, NotAFaceName, Observed, ObservedRefusal, SitedFace, SitedRef,
     UnevaluatedReason, measure,
 };

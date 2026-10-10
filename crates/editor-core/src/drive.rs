@@ -23,8 +23,9 @@
 //!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
 //!    same signs, in order. "Certifying" is one exclusion and it is
 //!    named at [`crate::drive::certifying_vector`]: an `Assertion` node
-//!    reports and gates nothing (E10 v1), and certification is a gate,
-//!    so its rows are not in the comparison.
+//!    checks and never places (D10), so its rows are not in the
+//!    comparison. An assertion the leaf could not decide is still an
+//!    indeterminacy, and bisects under 1.
 //!
 //! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
 //! The numeric channel is `Interval`'s, verbatim and bit for bit —
@@ -486,10 +487,11 @@ impl Default for DriveConfig {
 /// A free function and not a method on the strict form: the form is
 /// `resolve::vdiff`'s, beside the population form it is the counterpart
 /// of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
-/// kind qualifies and it is [`Node::Assertion`], whose contract is that
-/// nothing downstream reads its verdict — "no gate consults it" (E10
-/// v1: assertions report; a gating mode is additive policy nobody has
-/// ratified), and certification IS a gate. The measure node itself is
+/// kind qualifies and it is [`Node::Assertion`]: an assertion checks
+/// and never places (D10), so a leaf whose verdict differs from the
+/// witness's is not a different build. Its comparison's escalation is
+/// still read by `classify_replay`'s definiteness step, so an
+/// assertion the leaf cannot decide bisects. The measure node itself is
 /// NOT dropped: a leaf where the measurement could not be taken is not
 /// the witness build, and that difference stays in the comparison.
 ///

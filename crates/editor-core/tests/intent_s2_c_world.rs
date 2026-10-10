@@ -12,9 +12,10 @@ use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    AssertionDir, BooleanOp, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
-    InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
+    AssertionRelation, BooleanOp, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind,
+    ExtrudeSide, InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named,
+    run_checks,
 };
 use geom_core::Tol;
 
@@ -201,7 +202,7 @@ fn a_measured_and_asserted_block_placed_is_the_product() {
         Node::Assertion {
             value: crate::fixture::value_of(&doc, measure),
             bound: len(0.5),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let (doc, _) = place(doc, b);
@@ -246,7 +247,7 @@ fn a_failing_measure_and_its_assertion_gate_no_placement() {
         Node::Assertion {
             value: crate::fixture::value_of(&doc, measure),
             bound: len(0.5),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let (doc, _) = place(doc, b);
