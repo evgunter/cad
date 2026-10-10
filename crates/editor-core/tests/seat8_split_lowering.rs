@@ -217,13 +217,20 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
 /// to turn its offset from the axis: 8 of its points moved by at most 2
 /// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
-        ("part_select", 0xee85_93f5_da33_1dc5),
-        ("kitchen_sink", 0xf7a5_0ea1_0b22_9203),
+        ("cut_cylinder", 0x2f75_0d41_c9ca_4e19u64),
+        ("part_select", 0xf814_0be7_909f_d317),
+        ("kitchen_sink", 0x85ff_813c_10fc_b28f),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -320,6 +327,13 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -340,7 +354,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x392d4572060a0b1d,
+        got, 0x80bf_b0ea_1f66_8105,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

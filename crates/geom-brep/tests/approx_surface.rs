@@ -542,7 +542,7 @@ fn approx_is_its_own_kind_and_routes_as_its_fit() {
 fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
     use geom::Curve3;
     use geom_brep::keys::SurfaceKey;
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::spline::KnotVector;
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -583,7 +583,10 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
         let s2 = arena.insert(wall);
         EdgeCurve::certify_via(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { s1, s2, witness: m },
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(s1, s2),
+                    witness: m,
+                },
                 carrier: carrier.clone(),
                 param_start: t0,
                 param_end: t1,

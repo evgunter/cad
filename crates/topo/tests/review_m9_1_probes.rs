@@ -179,7 +179,7 @@ fn probe_tangent_definite_separation_contradicts() {
         .unwrap_err();
     match err {
         topo::ContactRefusal::Contradicted { diag, steer } => {
-            assert_eq!(diag.predicate, Some("contact_tangent_on_2"));
+            assert_eq!(diag.predicate, Some("contact_tangent_off_2"));
             assert_eq!(steer, Some(topo::FIT_DEFERRAL));
         }
         other => panic!("expected Contradicted, got {other:?}"),

@@ -12,7 +12,9 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::{AnalyticRung3Refusal, CertifyError, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{
+    AnalyticRung3Refusal, CertifyError, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair,
+};
 use geom_core::spline::KnotVector;
 use geom_core::test_support::upper;
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -82,8 +84,7 @@ fn build(c: &Arc<NurbsCurve3<f64>>) -> (Body<f64>, Result<topo::MevCreated, Eule
         p1,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: ck,
-                s2: pk,
+                pair: SurfacePair::new(ck, pk),
                 witness: c.eval(0.5),
             },
             carrier: Curve3::Nurbs(Arc::clone(c)),

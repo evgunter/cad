@@ -2,11 +2,12 @@
 id: ef-bound-backed-migrates-to-region-confinement
 kind: issue
 title: ef_bound_backed's declared face-pair arms are grandfathered (region-unconfined); their migration is CONTACT-12's dropped step 2
-status: review
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
 pr: 4559
+closed: 2026-10-10
 ---
 
 
@@ -39,3 +40,7 @@ regions, so no point test is run: CONTACT-12's version (commit
 merits) also ran `pair_holds_point`, which the review of PR 4559 showed
 is implied at both call sites and only pushed in-band escalations. The anomaly pin is re-baselined as
 `r2_an_unrelated_declared_pair_backs_no_ef_bound`.
+
+## Closed (2026-10-10, PR 4559)
+
+Merged after a full single review and a verified fix pass.

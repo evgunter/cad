@@ -2,11 +2,12 @@
 id: census-edge-pass-reads-no-line-conic-crossing
 kind: issue
 title: The census's edge passes never read a line crossing a coplanar conic boundary arc as an event
-status: review
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
 pr: 4559
+closed: 2026-10-10
 ---
 
 
@@ -67,3 +68,7 @@ crosses the cap's rim at `x ≈ 0.071` and `x ≈ 0.529`.
 No code change. The row closes at the PR's merge; if the chart row
 lands, a line × conic crossing rung is a new row against the measured
 seat above.
+
+## Closed (2026-10-10, PR 4559)
+
+Merged after a full single review and a verified fix pass.

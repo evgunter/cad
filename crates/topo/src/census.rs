@@ -27,11 +27,11 @@
 //!   the chart-region predicate); declared curve/patch records (the
 //!   jet schedule; the patch certifier). A proper pierce
 //!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable at rest — a
-//!   transverse dive is interpenetration, and the vocabulary that
-//!   could admit one (C6's recorded interference gate-skips) does
-//!   not exist yet; the MATE-4b ruling defers that arm to C6's era
-//!   BY NAME. The recourse is separating the bodies or making the
-//!   crossing a boolean's working state. An in-plane `EdgeEdgeCross`
+//!   transverse dive is interpenetration, and no record backs it.
+//!   Between two copies at rest the assembly layer reports it as an
+//!   interference finding; inside one body the recourse is separating
+//!   the solids or making the crossing a boolean's working state. An
+//!   in-plane `EdgeEdgeCross`
 //!   at a declared seat is different: it is what an overhanging seat
 //!   looks like from the census's side, and it is backable at the
 //!   unified strength ([`ee_cross_backed`] — the crossing point in
@@ -283,7 +283,8 @@ use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
 use crate::validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
+    CensusContact, CensusSubject, CensusUnsupportedCause, CrossingSideVerdict, StaleDeclaration,
+    ValidationError, decide,
 };
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
@@ -1899,14 +1900,11 @@ fn pair_edge_face<T: Decide>(
             //
             // NO backing rung is consulted, deliberately: a
             // transverse dive through a face's interior is
-            // interpenetration however the seat is declared,
-            // and the vocabulary that could admit one —
-            // C6's recorded interference gate-skips — does
-            // not exist yet. The MATE-4b ruling defers this
-            // class to that era BY NAME (staging, stage 2);
-            // the crossing rung [`ee_cross_backed`] is the
-            // in-contact-plane stage 1 and does not reach
-            // here.
+            // interpenetration however the seat is declared
+            // (between two copies at rest, the assembly
+            // layer's interference evidence); the crossing
+            // rung [`ee_cross_backed`] is the in-contact-plane
+            // case and does not reach here.
             if contain(body, f, q, band, errors) == Some(FaceContainment::In) {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::EdgeFacePierce {
@@ -2471,44 +2469,6 @@ fn pair_edge_edge<T: Decide>(
     }
 }
 
-/// The crossing rung's SIDE VERDICT — deliberately three-valued, and
-/// the declared-interpenetration hook: a future C6 class (recorded
-/// interference gate-skips, A5's interference-fit representation)
-/// consumes [`SameSide`](Self::SameSide) as its ADMISSION evidence,
-/// so no bool may stand where this enum does. Today exactly one
-/// variant backs; the other two refuse, each its own way (the
-/// [`ee_cross_backed`] contract). The hook's PAYLOAD PATH today is a
-/// string: the verdict is rendered into the refusal's witness text
-/// (display data by that field's contract) — no error variant carries
-/// the enum itself, so C6's consumption needs a typed field on the
-/// refusal in its era, not just visibility. Stated here so the hook
-/// is not over-claimed: what exists is the vocabulary and the named
-/// refusal, not a machine-readable channel.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CrossingSideVerdict {
-    /// The two faces' material lies on opposite sides of the shared
-    /// carrier at the crossing — the legal in-contact-plane crossing
-    /// (an overhanging seat), the backing verdict.
-    OppositeSides,
-    /// The material lies on ONE side: the crossing is transverse —
-    /// interpenetration evidence. Refuses, NAMING this verdict
-    /// (C6's future admission evidence, never silently a plain
-    /// undeclared finding).
-    SameSide,
-    /// The side question did not reach a verdict at a candidate that
-    /// held the crossing: the site's margins escalated in band, or —
-    /// contradicting the carrier screens that just passed — the
-    /// dihedral gate could not establish the Smooth precondition the
-    /// sense algebra requires ([`geom_brep::classify_material_pairing`]'s
-    /// contract). Escalated typed either way
-    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
-    /// fake side verdict. A pair whose carriers are DEFINITELY
-    /// transverse at the crossing never reaches this arm at all: the
-    /// edge screen refuses it silently first, because a question about
-    /// "the shared carrier" has no subject there.
-    Undecided,
-}
-
 /// What the crossing rung answered for one `EdgeEdgeCross`.
 enum CrossingBacking {
     /// A declared pair answers for the crossing: point in its
@@ -2586,8 +2546,8 @@ enum CrossingBacking {
 /// paragraph, not an accident.
 ///
 /// Curved pairs are outside the planar-first rung and never answer;
-/// `EdgeFacePierce` takes NO rung at all (the MATE-4b staging: a
-/// transverse dive is interpenetration until C6's era, by name).
+/// `EdgeFacePierce` takes NO rung at all: a transverse dive is
+/// interpenetration.
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
 fn ee_cross_backed<T: Decide>(
     body: &Body<T>,
@@ -2774,28 +2734,25 @@ fn ee_crossing_lane<T: Decide>(
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
+                    side: None,
                 },
                 witness: witness(q),
             });
         }
         CrossingBacking::Refused(verdict) => {
-            // The witness is the POSITION; the side verdict rides after
-            // it, behind " — ", for `Debug` and the caller, and the
-            // message renders the position alone (the field's
-            // contract). Same-side is interpenetration evidence (the
-            // C6 hook); undecided is already escalated typed alongside
-            // this finding.
-            let verdict = match verdict {
-                CrossingSideVerdict::OppositeSides => unreachable!("Backed above"),
-                CrossingSideVerdict::SameSide => "side verdict: same-side",
-                CrossingSideVerdict::Undecided => "side verdict: undecided",
-            };
+            // Same-side is interpenetration evidence, which the at-rest
+            // door between two copies reads off this field; undecided
+            // is already escalated typed alongside this finding.
+            if verdict == CrossingSideVerdict::OppositeSides {
+                unreachable!("Backed above");
+            }
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
+                    side: Some(verdict),
                 },
-                witness: format!("{} — {verdict}", witness(q)),
+                witness: witness(q),
             });
         }
     }
@@ -4020,7 +3977,7 @@ impl TouchSite {
             CensusContact::EdgeEdgeOverlap { a, b } => Self::EdgeEdge(a, b),
             CensusContact::VertexOnFace { vertex, face } => Self::VertexOnFace(vertex, face),
             CensusContact::EdgeFaceOverlap { edge, face } => Self::EdgeInFace(edge, face),
-            CensusContact::EdgeEdgeCross { a, b } => Self::EdgeCross(a, b),
+            CensusContact::EdgeEdgeCross { a, b, .. } => Self::EdgeCross(a, b),
             CensusContact::EdgeFacePierce { .. } | CensusContact::ConformalPatch { .. } => {
                 return None;
             }
@@ -5387,10 +5344,10 @@ fn backstop_apart<T: Decide>(
 /// The unsound direction is a deferral keyed on *whether* records
 /// exist: a truthful declaration then switches the containment
 /// examination off, and an instance embedded in another's material
-/// validates clean — which it did until the deferral was removed. What
-/// a recorded interference fit is, and what it may skip, is C6's
-/// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
-/// gate-skips are not implemented.
+/// validates clean — which it did until the deferral was removed. No
+/// record admits an interference: between two copies at rest the
+/// assembly layer reports it as a finding (ASSEMBLY A5
+/// *Interference.*).
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -8377,7 +8334,7 @@ mod tests {
     /// in the cap's plane, far away.
     fn half_disc_cap_and_far_cube() -> Body<f64> {
         use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let (p0, p1) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
@@ -8397,8 +8354,7 @@ mod tests {
                 p1,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: cyl,
-                        s2: plane,
+                        pair: SurfacePair::new(cyl, plane),
                         witness: Point3::new(0.0, 1.0, 0.0),
                     },
                     carrier: Curve3::Circle {
@@ -8436,7 +8392,7 @@ mod tests {
     /// minor angle `v ∈ [v0, v1]` — and the chord closing it.
     fn spiric_cap(big_r: f64, r: f64, offset: f64, (v0, v1): (f64, f64)) -> Body<f64> {
         use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let tol = Tol::witness();
         let spiric = Curve3::Spiric {
             center: Point3::origin(),
@@ -8469,8 +8425,7 @@ mod tests {
                 p1,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: torus,
-                        s2: plane,
+                        pair: SurfacePair::new(torus, plane),
                         witness: spiric.eval(0.5 * (v0 + v1)),
                     },
                     carrier: spiric,
@@ -10917,8 +10872,7 @@ mod tests {
                     p1,
                     EdgeCurveSpec {
                         description: EdgeDescriptionSpec::Intersection {
-                            s1: cyl,
-                            s2: plane,
+                            pair: geom_brep::SurfacePair::new(cyl, plane),
                             witness: carrier.eval(geom::mid_param(t0, t1)),
                         },
                         carrier,
