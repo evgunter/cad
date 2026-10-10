@@ -535,6 +535,62 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
     }
 }
 
+/// **Moved together, the walls refuse at a seam between two moved fits.**
+/// The general simultaneous door moves every chart of the solid by
+/// `100·ε` — a move the door reads as one at every ε row (`5e-10` is
+/// decided zero at 1e-9), and small enough for the twisted wall's fit to
+/// certify wherever it does at `5e-10` — so a wall's seam with the next
+/// wall is no longer a row shared with a held neighbour: both walls
+/// move, the seam is the section of their two fits, and C5 has no arm
+/// for it.
+#[test]
+fn moved_together_the_walls_refuse_at_a_seam_between_two_fits() {
+    for (name, body, curved) in [
+        ("planar prism", prism(), false),
+        ("twisted loft", twisted_loft(0.3), true),
+    ] {
+        let moves: Vec<topo::ChartMove<f64>> = body
+            .faces()
+            .map(|(k, _)| topo::ChartMove {
+                faces: vec![k],
+                distance: 100.0 * Tol::witness().eps(),
+            })
+            .collect();
+        let mut moved = body.clone();
+        let e = topo::offset_surfaces_together(&mut moved, &moves, Tol::witness())
+            .expect_err("a seam between two moved fits has no section");
+        if curved && Tol::witness().eps() < CURVED_FIT_REACH {
+            // The twisted wall's fit stops short of ε, and every surface
+            // is minted before any edge is planned.
+            assert!(
+                matches!(e, ReplaceFaceError::Fit { .. }),
+                "{name}: expected the fit to refuse short of ε, got {e}"
+            );
+            continue;
+        }
+        let ReplaceFaceError::NeighborPairUnroutable {
+            edge,
+            kind: geom::SurfaceKind::Approx,
+            other_kind: geom::SurfaceKind::Approx,
+        } = e
+        else {
+            panic!("{name}: expected the seam between two moved fits to refuse, got {e}");
+        };
+        let data = body.get_edge(edge).expect("the seam resolves");
+        let walls = [data.he_plus, data.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .filter(|f| {
+                matches!(
+                    body.get_face(*f).and_then(|f| body.get_surface(f.surface)),
+                    Some(geom::Surface::Nurbs(_))
+                )
+            })
+            .count();
+        assert_eq!(walls, 2, "{name}: {edge:?} is a seam between two walls");
+    }
+}
+
 /// **An offset as deep as the walls are tall collapses their seams, and
 /// says so.** The prism's walls are 1 m tall: moving the top cap 1 m
 /// down puts each vertical seam's moved end on its other end, and 1.5 m

@@ -29,6 +29,16 @@
 //! **The neighbours' surfaces are untouched.** Only the named face's
 //! surface is replaced; every other face keeps the chart it had.
 //!
+//! **This door is one chart of the general simultaneous door**
+//! ([`crate::offset_surfaces_together`]), and its body is that door's:
+//! every chart named is minted first, an edge is planned against the
+//! moved surfaces on both of its sides, and a corner is solved against
+//! every surface meeting it as moved. What follows is stated for one
+//! moved chart; where a second moved chart is the edge's other side,
+//! the edge is transported where both sides' offset actions agree on it
+//! (a G1 pair holding the move, two coplanar charts moved alike) and is
+//! otherwise the section of the two MOVED surfaces through C5.
+//!
 //! **What the move does to an edge depends on the neighbour.** An edge
 //! between the moved surface and a held one is their SECTION
 //! ([`crate::offset_derive`]): the C5 arm's closed form, or for a plane
@@ -58,7 +68,9 @@
 //! that corner, the section running with the old edge, and a surface
 //! its lane does not root contributes no root. A spline or fitted
 //! surface is never the one rooted, so a moved fitted face's corner
-//! stands on the held surfaces' roots along its sections.
+//! stands on the other surfaces' roots along its sections; a moved
+//! surface that no root at its corner lies on refuses the corner by
+//! name ([`ReplaceFaceError::CornerSection`]).
 //!
 //! What must then be re-derived is everything the replaced chart
 //! carries:
@@ -2699,8 +2711,9 @@ fn carried_alike<T: Decide>(
     Ok(Some(on_a))
 }
 
-/// **An edge between the moved surface and a held one the move does not
-/// carry onto itself**: their section, nearest the old carrier and
+/// **An edge between the moved surface and a neighbour the move does not
+/// carry onto itself** — a held surface, or another moved one: their
+/// section, nearest the old carrier and
 /// running with it, stated as their `Intersection` with any sketch
 /// record beside it dropped — the moved edge is not the curve a sketch
 /// drew. Its ends are its corners', read once those are solved.

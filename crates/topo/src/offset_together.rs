@@ -1,24 +1,22 @@
 //! `offset_planes_together` — the SIMULTANEOUS offset door, planar
 //! corners.
 //!
-//! # Why this exists, and why the per-face door could not be widened
+//! # Why this exists
 //!
 //! [`crate::replace_faces_offset`] moves ONE chart and re-describes its
 //! boundary against neighbours that did not move. Composing it over
-//! every chart of a body — which is what `shell` did — cannot produce
-//! an offset body at an OBLIQUE junction, and the reason is arithmetic
-//! rather than a posture:
+//! every chart of a body cannot produce an offset body at an OBLIQUE
+//! junction, and the reason is arithmetic rather than a posture:
 //!
 //! The corner an offset body needs where planes `n₁, n₂, n₃` meet is
 //! the point satisfying `nᵢ·x = nᵢ·oᵢ + dᵢ` for every `i` at once. A
 //! rigid transport of it by each chart's own `d·nᵢ` accumulates
 //! `Σ dᵢ·nᵢ`, which agrees exactly when the normals are mutually
 //! perpendicular and diverges otherwise: on a regular hexagonal prism
-//! at `t = 0.02` it lands 11.5 mm from the true corner. The per-chart
-//! door solves such a corner one chart at a time, as a root against the
-//! surfaces meeting it; this door solves it ONCE, against every moved
-//! plane meeting it, and re-derives each edge as the intersection of
-//! its TWO MOVED planes.
+//! at `t = 0.02` it lands 11.5 mm from the true corner. This door
+//! solves it ONCE, against every moved plane meeting it, and re-derives
+//! each edge as the intersection of its TWO MOVED planes: the closed
+//! form of [`crate::offset_surfaces_together`] on an all-planar solid.
 //!
 //! # Scope, stated as a gate rather than as a hope
 //!
@@ -30,8 +28,8 @@
 //! moves has corners it cannot solve without every other chart at that
 //! corner, and a partially moving solid has corners whose answer
 //! depends on faces it was not told about.
-//! Curved corners are the C5-table work that follows this unit; until
-//! it lands they refuse where they always did.
+//! A solid with a curved face goes through
+//! [`crate::offset_surfaces_together`] instead.
 //!
 //! **The unit is the SOLID, not the body.** A corner is the meeting of
 //! charts that belong to one solid — two solids share no vertex, no

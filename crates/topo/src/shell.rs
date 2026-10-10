@@ -27,7 +27,7 @@
 //! A door whose argument means something about material — this verb's
 //! thickness, into the solid — takes a finished body; a door whose
 //! argument is stated against charts alone takes a [`Body`], tier 2 in
-//! and tier 2 out. [`crate::replace_faces_offset`],
+//! and tier 2 out. [`crate::offset_surfaces_together`],
 //! [`crate::offset_planes_together`] and
 //! [`crate::offset_charts_together`] are the second kind: each reads
 //! `d` along a chart's stored normal, no face's sense deciding the
@@ -69,10 +69,11 @@
 //!    once and solves each corner against all the moved planes meeting
 //!    it; a body of revolution goes through
 //!    [`crate::offset_charts_together`], which solves each corner in
-//!    the meridian half-plane; anything else goes chart by chart
-//!    through [`crate::replace_faces_offset`], which derives each edge
-//!    between a moved and a held surface as their section and solves
-//!    each moved corner as a root against the surfaces meeting it;
+//!    the meridian half-plane; anything else goes through
+//!    [`crate::offset_surfaces_together`], which moves every chart at
+//!    once too, derives each edge as the section of its two moved
+//!    surfaces and solves each corner as a root of the moved surfaces
+//!    meeting it. The first two are that door's closed forms;
 //! 2. that body inserted through the shared void-insertion door
 //!    ([`crate::boolean::voids::insert_hollow_voids`]) with carried evidence —
 //!    every shell of it, grafted under the operand solid its own solid
@@ -252,9 +253,10 @@
 //! 1. the sealed shell, exactly as above — so the evidence handed to
 //!    the void door is the strict one, before anything is opened;
 //! 2. per designated CHART, its CAVITY counterpart offset back OUTWARD
-//!    by `t` (the same door ladder as the cavity's —
+//!    by `t` (the same door ladder as the cavity's, every other chart
+//!    named at distance zero —
 //!    [`crate::offset_charts_together`] for a solid of revolution,
-//!    [`crate::replace_faces_offset`] otherwise), which lands it on
+//!    [`crate::offset_surfaces_together`] otherwise), which lands it on
 //!    the designated face's own surface and — because the door
 //!    re-describes a moved face's boundary against its untouched
 //!    neighbours — extends the cavity's side walls up to meet it;
@@ -1412,21 +1414,21 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // vertex or an edge; the last two are resolved to a face they
         // touch.
         let outcome = match door {
-            OffsetDoor::ChartsTogether => crate::offset_axial::offset_charts_together_staged(
+            OffsetDoor::Axial => crate::offset_axial::offset_charts_together_staged(
                 &mut cavity,
                 &moves,
                 band,
                 tol,
                 false,
             ),
-            OffsetDoor::PlanesTogether => crate::offset_together::offset_planes_together_staged(
+            OffsetDoor::Planar => crate::offset_together::offset_planes_together_staged(
                 &mut cavity,
                 &moves,
                 band,
                 tol,
                 false,
             ),
-            OffsetDoor::SurfacesTogether => crate::offset_general::offset_surfaces_together_staged(
+            OffsetDoor::General => crate::offset_general::offset_surfaces_together_staged(
                 &mut cavity,
                 &moves,
                 tol,
@@ -1690,10 +1692,10 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             })
             .collect();
         let outcome = match lift_door {
-            OffsetDoor::ChartsTogether => crate::offset_axial::offset_charts_together_staged(
+            OffsetDoor::Axial => crate::offset_axial::offset_charts_together_staged(
                 &mut out, &moves, band, tol, false,
             ),
-            OffsetDoor::PlanesTogether | OffsetDoor::SurfacesTogether => {
+            OffsetDoor::Planar | OffsetDoor::General => {
                 crate::offset_general::offset_surfaces_together_staged(&mut out, &moves, tol, false)
             }
         };
@@ -3449,16 +3451,16 @@ fn mean_radius<T: Real>(points: &[geom_core::Point3<T>], centre: geom_core::Poin
 enum OffsetDoor {
     /// Every face is a plane: [`crate::offset_planes_together`], every
     /// chart at once, each corner solved against all the moved planes.
-    PlanesTogether,
+    Planar,
     /// An axial body — every face of revolution about one axis, or a
     /// plane normal or parallel to it (a bored box and a D-shaft as
     /// much as a vessel): [`crate::offset_charts_together`], each
     /// corner solved in the meridian half-plane.
-    ChartsTogether,
+    Axial,
     /// Anything else: [`crate::offset_surfaces_together`], every chart
     /// at once, each edge the section of its two moved surfaces and each
     /// corner a root of the moved surfaces meeting it.
-    SurfacesTogether,
+    General,
 }
 
 /// The door for the solids `scope` names. A door is a property of a
@@ -3466,7 +3468,7 @@ enum OffsetDoor {
 /// all-planar nor axial while each of the two is one of those — so the
 /// ladder reads that solid's
 /// own faces and nothing else. An UNDECIDED axis gate is not
-/// `SurfacesTogether`: it escalates typed, and the caller refuses with it
+/// `General`: it escalates typed, and the caller refuses with it
 /// rather than taking the other branch (`is_axial`'s docs).
 fn offset_door<T: Decide>(
     body: &Body<T>,
@@ -3478,12 +3480,12 @@ fn offset_door<T: Decide>(
         .filter(|(k, _)| scope.holds_face(*k))
         .all(|(k, f)| matches!(body.face_surface_linked(k, f), geom::Surface::Plane { .. }));
     if all_planar {
-        return Ok(OffsetDoor::PlanesTogether);
+        return Ok(OffsetDoor::Planar);
     }
     Ok(if crate::offset_axial::is_axial_in(body, scope, band)? {
-        OffsetDoor::ChartsTogether
+        OffsetDoor::Axial
     } else {
-        OffsetDoor::SurfacesTogether
+        OffsetDoor::General
     })
 }
 

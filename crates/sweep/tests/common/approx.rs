@@ -308,6 +308,78 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     (body, face)
 }
 
+/// **The unit box under a spline cap, at rest**: [`unit_box`] with its
+/// `z = 1` cap re-charted as a described biquadratic NURBS over exactly
+/// the cap's square, its middle control point raised by `bump` (`0` is
+/// flat), and the cap's four edges re-described as iso images on that
+/// chart. The net's `x` and `y` are linear in `(u, v)` and its boundary
+/// rows are the box's top edges, so each image is the edge's own line
+/// read in chart coordinates, halved, and exact. Ends with the closing
+/// mint, so the body is valid at rest.
+pub fn box_with_spline_cap(bump: f64) -> (Body<f64>, FaceKey) {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::new();
+    for x in [0.0, 1.0, 2.0] {
+        for y in [0.0, 1.0, 2.0] {
+            let z = if x == 1.0 && y == 1.0 {
+                1.0 + bump
+            } else {
+                1.0
+            };
+            control.push(Point3::new(x, y, z));
+        }
+    }
+    let cap = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
+    let mut body = unit_box();
+    let face = top_face(&body);
+    // Lifts RechartStrandsDescriptions: the spline chart goes on first; the edges are re-described on it after.
+    let surface = body
+        .set_face_surface_unvouched_for_tests(
+            face,
+            FaceSurface::New {
+                surface: Surface::Nurbs(Arc::new(cap)),
+                sense: true,
+            },
+        )
+        .expect("the attach-layer door accepts a live face");
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the cap's outer loop is a cycle");
+    };
+    let mut specs = Vec::new();
+    for he in body.loop_cycle(first).unwrap() {
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(CurveGeom::certified)
+            .expect("a box edge carries a certified curve");
+        let Curve3::Line { origin, dir } = *curve.carrier() else {
+            panic!("a box edge's carrier is a line");
+        };
+        let (param_start, param_end) = curve.params();
+        let p0 = Point2::new(origin.x * 0.5, origin.y * 0.5);
+        let pl = geom_core::Vec2::new(dir.x * 0.5, dir.y * 0.5);
+        specs.push((
+            edge,
+            EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::chart_image(
+                    surface,
+                    geom_brep::Pcurve::IsoLine { p0, pl },
+                ),
+                carrier: curve.carrier().clone(),
+                param_start,
+                param_end,
+            },
+        ));
+    }
+    for (edge, spec) in specs {
+        body.set_edge_curve(edge, spec, Tol::witness())
+            .unwrap_or_else(|e| panic!("re-describing {edge:?} on the spline chart: {e}"));
+    }
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the cap's rows derive on its chart");
+    (body, face)
+}
+
 /// Every non-placeholder spline wall of `body`, keyed.
 pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
     body.faces()

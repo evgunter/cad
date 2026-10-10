@@ -1,8 +1,9 @@
-//! **The per-chart offset door's derivations**: what an edge and a
-//! corner become when one chart moves and its neighbours hold.
+//! **The offset door's derivations**: what an edge and a corner become
+//! when charts move ([`crate::replace_faces_offset`],
+//! [`crate::offset_surfaces_together`]).
 //!
-//! An edge between the moved surface and a distinct held surface is
-//! their **section** ([`section_closed`] through the C5 table's closed
+//! An edge between a moved surface and a distinct surface, held or
+//! moved, is their **section** ([`section_closed`] through the C5 table's closed
 //! forms, [`SectionLane`] for a plane against a spline wall), seeded by
 //! the old carrier for branch and sense. A moved corner is a **root**
 //! of a surface meeting it along an edge meeting it ([`analytic_root`],
@@ -21,7 +22,7 @@ use geom_brep::ssi::{BoundarySection, SsiDomain, SsiError};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
-/// Why an edge between the moved surface and a held one has no section
+/// Why an edge between a moved surface and its neighbour has no section
 /// this door can state.
 #[derive(Clone, Debug)]
 pub enum SectionVerdict {
@@ -111,7 +112,7 @@ pub enum SplineRoot {
 }
 
 /// The plane × spline-wall section and the plane's root along a spline
-/// carrier — the per-chart door's spline lane, at the one scalar its
+/// carrier — the offset door's spline lane, at the one scalar its
 /// march is written in (`geom_brep::plane_nurbs_ssi` is an `f64`
 /// module). Where a scalar holds none
 /// ([`crate::AtRestPolicy::section_lane`]), a slanted spline edge
@@ -418,7 +419,7 @@ pub(crate) fn section_closed<T: Decide>(
         }
         _ => {
             return Ok(Err(SectionVerdict::Unsupported {
-                what: "the per-chart door derives a section through a plane, or of a cone \
+                what: "the offset door derives a section through a plane, or of a cone \
                        and a coaxial cylinder, only",
             }));
         }

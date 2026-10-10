@@ -39,4 +39,4 @@ The guard's text this item quotes now reads "a row of this fit shared
 with another fitted face" (`crates/topo/src/replace_face.rs:2034`), and
 "… with a spline face" where the neighbour is an unmoved NURBS wall.
 Pinned in `crates/sweep/tests/encl_curved_loft_shell.rs`,
-`shelling_the_vase_refuses_at_its_rims_certificate`.
+`shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate`.
