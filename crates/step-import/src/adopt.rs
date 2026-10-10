@@ -43,7 +43,7 @@
 
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
@@ -925,29 +925,29 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line { origin, dir } if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| MappedCurve::PlacedSegment {
+        Curve3::Line { origin, dir } if nurbs_rim => line_frame(*origin, *dir).map(|place| {
+            MappedCurve::whole(MappedSource::PlacedSegment {
                 segment: geom_brep::SketchSegment::Line {
                     a: Point2::new(t0, 0.0),
                     b: Point2::new(t1, 0.0),
                 },
                 place,
             })
-        }
-        Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
+        }),
+        Curve3::Line { .. } => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
-            range: geom_brep::SweepRange::whole(),
-        }),
-        Curve3::Circle { center, axis, .. } => Some(MappedCurve::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
-            angle: t1 - t0,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        })),
+        Curve3::Circle { center, axis, .. } => {
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis_origin: *center,
+                axis_dir: *axis,
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }

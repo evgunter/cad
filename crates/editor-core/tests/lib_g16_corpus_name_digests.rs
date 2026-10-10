@@ -149,6 +149,14 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// row holds those tables too. What each document delivers did not
 /// move: `intent_s2_c_world`'s migration check holds each product to
 /// its pre-C digest.
+///
+/// **Re-pinned for INTENT stage 2 PR E** (a selection is a variable):
+/// the seven documents that blend, shell, frame on a face or measure —
+/// `measured_web`, `die_fillet`, `die_chamfer`, `face_sketch`,
+/// `die_composed`, `die_composed_tour` and `reshaped_rod` — now mint a
+/// selection variable each such node reads, so their node ids moved and
+/// every row naming them; every other row held its word, and the
+/// id-masked geometry fence held untouched.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xddcc3ced224b3abe),
     ("corner_table", 0xbf41aa6a471ab71c),
@@ -160,25 +168,25 @@ const PINNED: &[(&str, u64)] = &[
     ("declared_tangency", 0x370595ad9c1f1053),
     ("kitchen_sink", 0x9b19e7c275c8b587),
     ("cut_cylinder", 0xecad82208268b4e3),
-    ("measured_web", 0x9eb1447312b30c8f),
+    ("measured_web", 0xa8eab47c82dec152),
     ("boss_union", 0xbb9123c70a8e96d8),
-    ("die_fillet", 0x89166ac05d7aa862),
-    ("die_chamfer", 0xe4b825bef56c47a6),
+    ("die_fillet", 0xac1b616d285f9b3e),
+    ("die_chamfer", 0x2111595b3f98da9c),
     ("die_pips", 0x5f07295c3f1a2633),
     ("heat_sink_fins", 0xf0b12754e2c4efed),
     ("die_tool", 0x1cd399b374c5520c),
-    ("face_sketch", 0xac24651484178273),
+    ("face_sketch", 0x033a72b2be1ba6b8),
     ("part_select", 0xbd9176c4c3e50f39),
     ("loft_prism", 0x4413e8ba1b27cd15),
-    ("die_composed", 0x690e7c680cebda97),
-    ("die_composed_tour", 0x7e7ec4fb3e9e7dbd),
+    ("die_composed", 0x95a151a7e9e9c601),
+    ("die_composed_tour", 0x55b7629845fad59a),
     ("plate_param", 0xb8c9e234c718e107),
     ("kiss_carry", 0x8be2464010f4249d),
     ("tube_ring", 0x0d0d950420bce9dd),
     ("tube_arc", 0x0dc2a35cb5306ecc),
     ("hollow_tube_elbow", 0xa033450e9f76acfa),
     ("hollow_tube_ring", 0x2c05f4d199bc5e59),
-    ("reshaped_rod", 0x9cf09f79ade28dac),
+    ("reshaped_rod", 0x6c79d38da35bb4ae),
 ];
 
 #[test]

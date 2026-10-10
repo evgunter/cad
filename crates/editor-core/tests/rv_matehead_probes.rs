@@ -88,7 +88,11 @@ fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
     to.kind = EntityKind::Edge;
     match apply(
         &doc,
-        &DocEdit::Rebind { from, to },
+        &DocEdit::Rebind {
+            body: None,
+            from,
+            to,
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {

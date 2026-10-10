@@ -1,6 +1,6 @@
 //! ExprPath stability, RecipeNodeId permanence, and graph-validation
-//! refusals (spec D5 + D8) — the contracts GeomSource (PR 5) and the
-//! naming layer (N1) will lean on.
+//! refusals (spec D5 + D8) — the contracts the naming layer (N1)
+//! leans on.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, scl};

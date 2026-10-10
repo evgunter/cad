@@ -545,6 +545,26 @@ where
     T: Decide,
     P: RaySpace<T>,
 {
+    on_segment_margin(a, b, q, rows, band).map(|on| on.is_some())
+}
+
+/// [`on_segment`], answering the margin that decided `q` on the segment
+/// (`None` off it).
+///
+/// # Errors
+///
+/// As [`on_segment`].
+pub(crate) fn on_segment_margin<T, P>(
+    a: P,
+    b: P,
+    q: P,
+    rows: &ParityRows,
+    band: Band,
+) -> Result<Option<geom_core::MarginDiag>, Indeterminate>
+where
+    T: Decide,
+    P: RaySpace<T>,
+{
     let e = b.disp(a);
     let w = q.disp(a);
     let len2 = P::norm_squared(e);
@@ -564,7 +584,8 @@ where
     // handed to `Margin::of` already rooted.
     // Zero ⇒ on boundary; Positive (Negative unreachable for a
     // distance) ⇒ strictly off this segment.
-    Ok(decide(rows.boundary, P::length_margin(gap), band)? == Sign::Zero)
+    let decided = geom_core::k_stats::decide_reported(rows.boundary, P::length_margin(gap), band)?;
+    Ok((decided.sign == Sign::Zero).then_some(decided.margin))
 }
 
 /// One schedule member's parity walk, in the in-plane orthonormal

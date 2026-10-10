@@ -197,9 +197,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "AssertionDimension",
     "AxisInDifferentPlane",
     "BlendSelectionEmpty",
-    "BlendSelectionKind",
-    "BlendSelectionResolve/Ambiguous",
-    "BlendSelectionResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DeclareResolve/Ambiguous",
@@ -219,20 +219,20 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
-    "FaceFrameKind",
+    "SelectKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
-    "FaceFrameResolve/Ambiguous",
-    "FaceFrameResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
     "MeasureNonFinite",
     "MeasureNotParallel",
-    "MeasureRefResolve/Ambiguous",
-    "MeasureRefResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
     "MeasureRefUnreadable/NoSuchBody",
@@ -243,7 +243,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureRefUnreadable/Readback",
     "MeasureRefUnreadable/WholeBody",
     "MeasureRefUnreadable/WrongKind",
-    "MeasureSelectionKind",
     "MeasureUnsupported",
     "MissingInput",
     "MissingSlot",
@@ -258,8 +257,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "NonPositiveCount",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    "ParamSourceAttach/FieldNotOnKind",
-    "ParamSourceAttach/StaleKey",
     "PayloadExpr",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
@@ -275,9 +272,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Seed/UnknownVar",
     "SeedPinnedSection",
     "ShellLaneUnsupported",
-    "ShellOpenKind",
-    "ShellOpenResolve/Ambiguous",
-    "ShellOpenResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
     "VerbArity",
@@ -3434,47 +3431,17 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     for (n, e) in naming {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
     }
-    for (n, e) in [
-        ("StaleKey", topo::ParamAttachError::StaleKey),
-        (
-            "FieldNotOnKind",
-            topo::ParamAttachError::FieldNotOnKind {
-                field: topo::SurfaceField::TorusMinorRadius,
-            },
-        ),
-    ] {
-        rows.push(row(
-            &format!("ParamSourceAttach/{n}"),
-            NodeErrorKind::ParamSourceAttach(e),
-        ));
-    }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 5] = [
+    let wraps: [(&str, Wrap); 2] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
             reference: 0,
         }),
-        ("BlendSelectionResolve", |error| {
-            NodeErrorKind::BlendSelectionResolve {
-                verb: sweep::blend::BlendKind::Chamfer,
-                error,
-                reference: 0,
-            }
-        }),
-        ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve {
-                error,
-                reference: 0,
-            }
-        }),
-        ("FaceFrameResolve", |error| {
-            NodeErrorKind::FaceFrameResolve { error }
-        }),
-        ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve {
-                error,
-                reference: 0,
-            }
+        ("SelectResolve", |error| NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
+            error,
+            reference: 0,
         }),
     ];
     for (wrap, build) in wraps {
@@ -3504,48 +3471,25 @@ fn doc_ref() -> editor_core::DocRef {
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
-        BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
-        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError, PartFault,
-        SitedRef, WitnessAge, WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, DirectionRefusal, EntityKind, FaceName, Implicated,
+        InterrogateError, PartFault, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
-    let sited = |node| SitedRef {
-        at: RecipeNodeId::new(0, tagged(node)),
-        name: stable(EntityKind::Face, node),
-    };
-    let finding = |relation| FlushFinding {
-        pair: (sited(2), sited(3)),
-        class: BooleanCoincidence::REST,
-        evidence: FlushEvidence {
-            relation,
-            rung: FlushRung::DecidedCoincident,
-        },
-    };
     let mut rows = vec![
         row(
-            "UndeclaredContact(rest)",
-            NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(finding(topo::PlaneRelation::SameOpposite)),
-                merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
-            },
-        ),
-        row(
-            "UndeclaredContact(flush, merged)",
-            NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(finding(topo::PlaneRelation::SameOriented)),
-                merged: Box::new((vec![sited(2), sited(4)], Vec::new())),
-                diag: diag(),
-            },
-        ),
-        row(
-            "UndeclarableContact",
-            NodeErrorKind::UndeclarableContact {
-                row: Box::new(face()),
-                diag: diag(),
+            "UnionFoldStep",
+            NodeErrorKind::UnionFoldStep {
+                member: RecipeNodeId::new(0, tagged(2)),
+                refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
+                    decision: topo::BooleanDecision::Coincidence(
+                        topo::Coincide::Carriers,
+                        topo::DeclarationRead::Moot,
+                    ),
+                    diag: diag(),
+                })),
             },
         ),
         row(
@@ -3694,7 +3638,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("MeasureRefUnreadable/{n}"),
             NodeErrorKind::MeasureRefUnreadable {
-                name: Box::new(face()),
+                slot: editor_core::OperandSlot::Measured(editor_core::MeasureVerb::Distance, 0),
+                var: editor_core::VarId::new(0, 7),
                 error,
             },
         ));
@@ -4611,10 +4556,7 @@ const REPLACE_FACE_ARMS: [&str; 41] = [
 /// where another kind is wanted.
 fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::measure::MeasurePrimitive;
-    use editor_core::{
-        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
-    };
+    use editor_core::{CancelToken, Datum, EvalOptions, Node, NodeResult, ProfileDoc, evaluate};
     use geom_core::Tol;
     let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
     let (doc, profile) = on_frame(
@@ -4634,21 +4576,14 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     );
     let face = fname(body, wall(&doc, body, 2));
     let edge = fixture::prism_edges(&doc, body, 4).remove(2);
-    let vertex = fixture::cap_vertex(body, CapEnd::End, crate::fixture::vpiece(&doc, body, 0, 0));
     let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
     let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body.into(),
-            face: edge,
+            face: editor_core::Operand::select(body, vec![edge]),
             spin: ang(0.0),
         }),
-    );
-    let (doc, measure) = crate::fixture::measure_node(
-        &doc,
-        MeasurePrimitive::MinClearance { a: 0, b: 1 },
-        vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
     );
     let mut ev = evaluate::<f64>(
         &doc,
@@ -4658,10 +4593,9 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Tol::witness(),
     );
     [
-        ("ShellOpenKind", shell),
-        ("BlendSelectionKind", fillet),
-        ("FaceFrameKind", frame),
-        ("MeasureSelectionKind", measure),
+        ("SelectKind", shell),
+        ("SelectKind", fillet),
+        ("SelectKind", frame),
     ]
     .into_iter()
     .map(|(n, node)| match ev.nodes.remove(&node) {

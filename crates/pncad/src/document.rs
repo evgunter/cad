@@ -136,7 +136,7 @@ pub use editor_core::{Placement, Step};
 // A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
 // `Recording::measure`) records one measure per primitive and answers
 // their outputs as `Measured` (in a `MeasureOutcome`). A caller who
-// cannot spell them cannot author one at all; `AssertionDir` is a field
+// cannot spell them cannot author one at all; `AssertionRelation` is a field
 // of `Node::Assertion` for the same reason. `Observed` and
 // `ObservedRefusal` are what `Evaluation::reading` answers a measured
 // value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
@@ -160,9 +160,9 @@ pub use editor_core::{Placement, Step};
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
-    MeasureUnavailableAt, Measured, NotAFaceName, Observed, ObservedRefusal, SitedFace, SitedRef,
-    UnevaluatedReason, measure,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
+    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.
@@ -256,8 +256,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
-    UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
-    WrittenDef,
+    Select, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault,
+    VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -342,7 +342,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SnapshotError, load, save,
+    SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -375,10 +375,11 @@ pub use editor_core::ContentBits;
 // `product` is the whole-document gather of those copies. `OwnSpace`
 // is one unplaced group's own space, which a `Product` carries beside
 // the world for the at-rest gate to check, and `own_spaces` gathers
-// every one.
+// every one. `AtRestRow` is one of the product's at-rest decisions,
+// the mate it is decided for beside the census's row.
 pub use editor_core::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
-    own_spaces, product, product_recorded,
+    AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
+    SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -564,7 +565,7 @@ pub use editor_core::{
 // the door is a module so its `Recourse` keeps its name. A cell on a
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
-pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
+pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///

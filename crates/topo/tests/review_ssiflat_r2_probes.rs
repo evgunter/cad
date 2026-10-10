@@ -15,6 +15,7 @@
 
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, certify_rung3};
+use geom_core::test_support::upper;
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::fixture::arc_chain;
@@ -204,10 +205,7 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(SsiError::CertificateEscalated { cause, .. })
                 if cause.predicate == Some("ssi_hull_sup") =>
             {
-                match cause.margin.diagnostic_f64_for_error_text() {
-                    geom_core::ErrorTextReading::Enclosure { hi, .. } => Some(hi),
-                    other => panic!("unexpected margin shape at div={div}: {other:?}"),
-                }
+                Some(upper(cause.margin))
             }
             Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
         }
@@ -235,33 +233,18 @@ fn the_interval_hull_bound_is_span_dependent() {
     );
 }
 
-/// PROBE 4 (claim C2, the sweep's blind spot): `ssi_refusal` is not the
-/// only site that manufactures a NaN margin. `ssi/certify.rs:844`
-/// raises `SsiError::CertificateLimb { limb: Tube, value: f64::NAN }`
-/// when the tube ladder is EMPTY — a structural refusal with no margin
-/// at all, reachable on a legal body whose feature extent is under
-/// `64·ε`. The PR's rewritten `ssi_refusal` turns that into
-/// `Some(MarginKind::Value(NaN))`, which is exactly the manufactured
-/// poison #925 was filed as, wearing the label the classifier reserves
-/// for a real f64 margin — and the text still says a limb "exceeded ε".
-///
-/// This row goes RED when that site is swept (it should be `None`, or a
-/// distinct structural variant), which is the point: it pins the hole.
+/// PROBE 4 (claim C2): a structural tube refusal carries no margin.
+/// Where the tube ladder is empty, reachable on a legal body whose
+/// feature extent is under `64·ε`, the certificate measured nothing, so
+/// it refuses as `SsiError::TubeLadderEmpty`: it names the ladder,
+/// carries no magnitude, and shows no NaN to a consumer, where a limb
+/// refusal would say a limb exceeded ε on a number nothing measured.
 #[test]
 fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // extent ≈ the arc's control-net diameter; the ladder is empty once
     // `extent/8 < 8·ε`, i.e. extent < 64·ε = 6.4e-5 m here. The radius
     // also has to keep the arc's METRE span above ε, or the earlier
     // `pcurve_interval_meter` check answers first — 1e-5 m clears both.
-    //
-    // AMENDED (fix pass): this probe was written RED-by-design, pinning
-    // that the structural empty-ladder case still minted
-    // `CertificateLimb { limb: Tube, value: NaN }` — a structural
-    // refusal wearing a limb-exceeded costume. That is fixed at the
-    // SOURCE (`SsiError::TubeLadderEmpty`), so the probe now pins the
-    // honest shape instead: a refusal that names the ladder, carries NO
-    // magnitude because it measured nothing, and shows no NaN to a
-    // consumer.
     let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
         .expect_err("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
     assert!(

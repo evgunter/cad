@@ -755,20 +755,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }
             },
         };
-        // Oriented sources (S10): both descriptions carry OUTWARD
-        // material sides, so rung 1's syntactic Same± verdict has to
-        // see the face senses as well as the surfaces' `orient` tags.
-        let (g1, g2) = (
-            super::reduce::face_oriented_source(piercing_body, s.face),
-            super::reduce::face_oriented_source(pierced_body, contact.face),
-        );
         let id = super::PlaneIdentity {
-            s1: g1.as_ref(),
-            s2: g2.as_ref(),
             declared: declared_one_carrier,
         };
-        // A declared pair reads as the door read it at rest, over both
-        // faces; an undeclared one at the sector's arm.
+        // A glued pair reads as the door read it at rest, over both
+        // faces; any other at the sector's arm.
         let extent = if declared_one_carrier {
             declared.consumed(piercing, s.face, pierced_op, contact.face)?
         } else {
@@ -777,42 +768,57 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.arm,
             ))
         };
-        let rel = match super::carrier_eq::carrier_eq(
+        let pair = (piercing, s.face, pierced_op, contact.face);
+        let rel = match super::carrier_eq::carrier_eq_reading(
             &sector_carrier,
             &pierced_carrier,
             id,
             &extent,
             band,
         ) {
-            Ok(super::PlaneRelation::Distinct) => {
+            Ok((super::PlaneRelation::Distinct, ..)) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "geometrically coplanar sector with definitely-distinct plane",
                 });
             }
-            Ok(rel) => rel,
+            Ok((rel, ..)) if declared_one_carrier => rel,
+            // One plane at the sector's arm, for a pair the glue door
+            // did not glue over the faces.
+            Ok((rel, _, margin)) => {
+                return Err(super::unglued_coincidence(
+                    // A reading with no margin is one carrier by structure (one key,
+                    // or bit-identical descriptions), which the glue door glues
+                    // wherever the two faces meet, as they do at this corner.
+                    margin.ok_or(BooleanError::ClassificationInvariant {
+                        what: "a corner pair one carrier by structure the glue door left unglued",
+                    })?,
+                    declared.carriers_read(pair, rel),
+                    band,
+                ));
+            }
             // In band, unreachable here: `bool_sector_coplanar` read
             // this same margin (the two normals' cross, at `s.arm`)
-            // zero above for an undeclared pair, and a declared `Rest`
-            // pair's rung bridges it. The door is `recl`'s, which
-            // reaches it at another arm.
+            // zero above for an unglued pair, and a glued pair's rung
+            // bridges it. The door is `recl`'s, which reaches it at
+            // another arm.
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
                     declared.on_pair_door(
-                        (piercing, s.face, pierced_op, contact.face),
+                        pair,
                         super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
                     ),
                     diag,
                 ));
             }
-            Err(PlaneEqError::Undeclared {
+            Err(PlaneEqError::Undecided {
                 coincidence,
                 relation,
             }) => {
-                return Err(super::undeclared_coincidence(
+                return Err(super::undecided_coincidence(
                     coincidence,
                     [(piercing, s.face), (pierced_op, contact.face)],
-                    relation,
+                    declared.carriers_read(pair, relation),
                 ));
             }
             Err(PlaneEqError::Contradicted { fact, .. }) => {
@@ -1423,7 +1429,11 @@ mod tests {
             (
                 "pierced twice by A",
                 ContactRecords {
-                    a_on_b: vec![vf(v, f), vf(w, f), vf(v, g)],
+                    a_on_b: vec![
+                        crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
+                        crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
+                        crate::Cited::new(vf(v, g), crate::Cites::decided(0)),
+                    ],
                     ..Default::default()
                 },
                 Err((
@@ -1435,8 +1445,12 @@ mod tests {
             (
                 "pierced and paired, B",
                 ContactRecords {
-                    b_on_a: vec![vf(w, f)],
-                    vv: vec![vv(x, v), vv(v, w), vv(x, w)],
+                    b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
+                    vv: vec![
+                        crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
+                    ],
                     ..Default::default()
                 },
                 Ok(vec![((Operand::B, w), SectorRead::Pair(v))]),
@@ -1444,7 +1458,11 @@ mod tests {
             (
                 "paired twice",
                 ContactRecords {
-                    vv: vec![vv(v, w), vv(v, x), vv(x, w)],
+                    vv: vec![
+                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
+                    ],
                     ..Default::default()
                 },
                 Ok(vec![]),
@@ -1452,8 +1470,8 @@ mod tests {
             (
                 "one key on each operand, pierced by A's and paired by B's",
                 ContactRecords {
-                    a_on_b: vec![vf(v, f)],
-                    vv: vec![vv(w, v)],
+                    a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
+                    vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
                     ..Default::default()
                 },
                 Ok(vec![]),

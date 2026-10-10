@@ -427,11 +427,14 @@ pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
     }
 }
 
-/// The one classification funnel of this crate (the `geom-brep`
-/// pattern): delegates to the unified recorder funnel
+/// The crate's plain classification door (the `geom-brep` pattern):
+/// delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
 /// for the margin-telemetry recorder, classifies through the
-/// sanctioned [`Decide`] door, and tags any escalation.
+/// sanctioned [`Decide`] door, and tags any escalation. A decision
+/// whose margin is kept (a contact's, recorded as a coincidence) goes
+/// to the same funnel's `decide_reported` or `decide_magnitude_reported`,
+/// which classify and record exactly as this does.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
@@ -16002,7 +16005,6 @@ mod certify_escalation_rows {
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::OnLocus,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
@@ -16025,7 +16027,6 @@ mod certify_escalation_rows {
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::HullSup,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
@@ -16038,7 +16039,6 @@ mod certify_escalation_rows {
                     geom_brep::AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
                         limb: geom_brep::ssi::SsiLimb::HullSup,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),

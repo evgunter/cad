@@ -100,6 +100,7 @@ DOOR_RE='diagnostic_f64_for_error_text'
 # definition home that mints a valued reading.
 MINT_ALLOWLIST=(
   'crates/geom-core/src/interval.rs 1 the interval classifier reports the enclosure it classified'
+  'crates/step-import/src/lib.rs 1 an import anchor row reports the distance its own comparison against the file eps_in read'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/sectors.rs 1 a bisector read On between definite bounds reports what is known of it, the zero band'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'

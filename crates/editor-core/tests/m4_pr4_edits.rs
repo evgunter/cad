@@ -131,6 +131,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
         .doc
         .apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap(t.b),
                 to: cap(t.c),
             },
@@ -153,6 +154,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
             .doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.a),
                 },
@@ -189,6 +191,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: cap(t.b),
             to: cap(t.c),
         },
@@ -280,6 +283,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.b),
                 },
@@ -301,6 +305,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: body_c,
                 },
@@ -319,6 +324,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         doc_del
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.b),
                     to: cap(t.c),
                 },
@@ -336,6 +342,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: foreign.clone(),
                     to: cap(t.c),
                 },
@@ -354,6 +361,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     assert_eq!(
         late.apply(
             &DocEdit::Rebind {
+                body: None,
                 from: cap(t.b),
                 to: cap(e),
             },
@@ -371,6 +379,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
                     to: cap(t.c),
                 },
@@ -386,6 +395,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
         t.doc
             .apply(
                 &DocEdit::Rebind {
+                    body: None,
                     from: cap(t.c), // referenced nowhere
                     to: cap(t.a),
                 },

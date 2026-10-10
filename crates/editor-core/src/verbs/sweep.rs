@@ -41,50 +41,30 @@
 //!
 //! The two readers below are NEAR-TWINS, and the third profile verb
 //! adds a third of the same shape: match this family's arm, call this
-//! family's emitter, destructure the bundle, export the walls, refuse
-//! every other arm by name. What differs is the last two steps only —
-//! `Extruded::side_faces` mints one wall per canonical segment, while
-//! `Revolved::walls` is per canonical segment and OPTIONAL. The shared
-//! part is not extractable while the record arm, the bundle type and
-//! the emitter are all per family: a generic body would take three
-//! function pointers and a match it cannot write, which is the
-//! vocabulary match again with extra steps. The join to make, if a
-//! third reader wants one, is on the WALL EXPORT alone.
+//! family's emitter, destructure the bundle, refuse every other arm by
+//! name. The shared part is not extractable while the record arm, the
+//! bundle type and the emitter are all per family: a generic body would
+//! take three function pointers and a match it cannot write, which is
+//! the vocabulary match again with extra steps.
 
 use std::sync::Arc;
 
 use geom_core::Decide;
 use sweep::{Extruded, Revolution, RevolveAxis, Revolved};
-use topo::{Body, FaceKey};
-use verbs::{EdgeScalar, FlowSource, Verb, VerbRecord};
+use topo::Body;
+use verbs::{Verb, VerbRecord};
 
 use crate::eval::NodeErrorKind;
 use crate::names::{self, NameTable};
 use crate::node::RecipeNodeId;
 
-/// **What a sweep produced, read out of its record**: the body, the
-/// names emitted from the birth record, and the wall faces per
-/// CANONICAL profile loop.
-///
-/// The walls are here because they are what a per-edge flow source is
-/// attached through — the wall swept from a profile edge is the entity
-/// that stores that edge's radius — and because reading them out of a
-/// family's own bundle is exactly what [`ProfileVerb::read`] is for.
-/// They keep BOTH of the record's indices, loop and canonical segment:
-/// which profile edge a wall was swept from is what says which of the
-/// profile's radii it carries, and a chain loop's radii differ per
-/// edge.
+/// **What a sweep produced, read out of its record**: the body and the
+/// names emitted from the birth record.
 pub(crate) struct SweptOut<T: Decide> {
     /// The swept body, moved out of the record.
     pub(crate) body: Body<T>,
     /// The names, emitted before the record was taken apart.
     pub(crate) table: Arc<NameTable>,
-    /// The wall faces, per canonical profile loop and then per
-    /// canonical segment of that loop. `None` is a POSITION and not a
-    /// hole to close: a segment that minted no wall (a revolve's
-    /// on-axis edge) still occupies its index, which is what keeps the
-    /// list alignable with a per-segment token list.
-    pub(crate) walls: Vec<Vec<Option<FaceKey>>>,
 }
 
 /// A profile verb's record reader: this node's id, the record the run
@@ -173,20 +153,11 @@ fn read_extrude<T: Decide>(
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     let built = super::read_record(record, extrude_record, foreign_record)?;
     let table = names::name_extrude(id, &built, pieces).map_err(NodeErrorKind::Naming)?;
-    // One wall per canonical segment, every one of them minted: an
-    // extruded segment always sweeps a face (a run's segments share
-    // its one wall).
-    let walls = canonical_side_faces(&built);
     let Extruded { body, .. } = built;
-    Ok(SweptOut { body, table, walls })
+    Ok(SweptOut { body, table })
 }
 
-/// The revolve's reader. Its walls are per canonical segment and
-/// OPTIONAL — an on-axis segment sweeps no wall at all — and both the
-/// index and the `None` are kept: the attach is per profile edge, so a
-/// segment that minted no wall has to stay a position in the list
-/// rather than shifting every later segment's wall onto the wrong
-/// edge.
+/// The revolve's reader.
 fn read_revolve<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
@@ -195,19 +166,8 @@ fn read_revolve<T: Decide>(
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     let built = super::read_record(record, revolve_record, foreign_record)?;
     let table = names::name_revolve(id, &built, pieces).map_err(NodeErrorKind::Naming)?;
-    let walls = built.walls();
     let Revolved { body, .. } = built;
-    Ok(SweptOut { body, table, walls })
-}
-
-/// An extrusion's wall per CANONICAL segment
-/// (`Extruded::canonical_side_faces`), in the revolve's `Option` shape.
-fn canonical_side_faces<T: Decide>(built: &Extruded<T>) -> Vec<Vec<Option<topo::FaceKey>>> {
-    built
-        .canonical_side_faces()
-        .into_iter()
-        .map(|faces| faces.into_iter().map(Some).collect())
-        .collect()
+    Ok(SweptOut { body, table })
 }
 
 /// The extrude's correspondence.
@@ -231,15 +191,6 @@ pub(crate) fn revolve<T: Decide>() -> ProfileVerb<T, (RevolveAxis<T>, Revolution
         foreign_record: "the revolve returned a record that is not a revolve's",
     }
 }
-
-/// **The per-edge flow source the sweeps declare**, named once here so
-/// the lowering asks the declaration for it rather than spelling the
-/// source kind inline.
-///
-/// It is not a per-verb field: both sweeps declare the same source, and
-/// which FIELDS it reaches is the kernel-side declaration's answer
-/// (`verbs::VerbKind::param_flow`), read at the attach.
-pub(crate) const PROFILE_RADIUS: FlowSource = FlowSource::ProfileEdge(EdgeScalar::Radius);
 
 #[cfg(test)]
 #[allow(clippy::panic)]
@@ -287,24 +238,5 @@ mod tests {
         assert!(e.contains("extrude"), "the extrude's refusal reads {e}");
         assert!(r.contains("revolve"), "the revolve's refusal reads {r}");
         assert_ne!(e, r, "both sweeps share one wrong-family sentence");
-    }
-
-    /// The source the lowering attaches through is the one both verbs
-    /// declare — a pin on the pair of them, so a declaration that
-    /// dropped the row on one verb is not silently covered by the
-    /// other.
-    #[test]
-    fn both_sweeps_declare_the_profile_radius_source() {
-        for kind in [VerbKind::Extrude, VerbKind::Revolve] {
-            let row = kind
-                .param_flow()
-                .iter()
-                .find(|row| row.source == PROFILE_RADIUS)
-                .unwrap_or_else(|| panic!("{kind:?} declares no profile-radius row"));
-            assert!(
-                !row.fields.is_empty(),
-                "{kind:?}'s profile-radius row reaches no field"
-            );
-        }
     }
 }

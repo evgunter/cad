@@ -21,25 +21,26 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// A square profile `[0,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
+/// A square profile `[o,s]²` on `plane`, as a loop program.
+fn square(plane: RecipeNodeId, o: f64, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([len(0.0), len(0.0)]),
-            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
+            ProgramStep::At([len(o), len(o)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(o)])),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(s)])),
-            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(o), len(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
     })
 }
 
-/// Two boxes SHARING the z=0 plane (and the x=0 / y=0 side planes),
-/// subtracted: the kernel never infers coincidence, so the Boolean
-/// node FAILS — and a node downstream of it is POISONED. Returns the
-/// document plus the failing and poisoned ids.
+/// Two boxes sharing the z=0 plane, the inner one's x and y side
+/// planes off the outer's by a gap strictly inside the ambiguity band,
+/// subtracted: the margins decide neither plane pair one carrier nor
+/// two, so the Boolean node FAILS — and a node downstream of it is
+/// POISONED. Returns the document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
@@ -59,7 +60,10 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // Both boxes are sketched on the same plane — that is the whole
     // point of the row — so they name ONE frame between them.
     let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
-    let outer_profile = insert(&mut doc, Box::new(square(plane, 2.0)));
+    let tol = Tol::witness().get();
+    // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
+    let gap = 0.5 * (tol.eps + tol.k * tol.eps);
+    let outer_profile = insert(&mut doc, Box::new(square(plane, 0.0, 2.0)));
     let outer = insert(
         &mut doc,
         Box::new(Node::Extrude {
@@ -68,7 +72,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             side: ExtrudeSide::Along,
         }),
     );
-    let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
+    let inner_profile = insert(&mut doc, Box::new(square(plane, gap, 1.0)));
     let inner = insert(
         &mut doc,
         Box::new(Node::Extrude {
@@ -194,9 +198,8 @@ fn refusals_render_as_prose_not_debug_guts() {
         )
     );
 
-    // The live failure: the coincident Boolean's message states the
-    // problem and the two-armed recourse (since R3 the refusal is the
-    // typed menu variant); the enum's structure (variant names,
+    // The live failure: the in-band Boolean's message states the
+    // problem and its recourse; the enum's structure (variant names,
     // braces) stays OUT of the prose.
     let (doc, cut, _) = doc_with_failure();
     let ev = run(&doc);
@@ -204,22 +207,21 @@ fn refusals_render_as_prose_not_debug_guts() {
     let message = error.to_string();
     assert!(
         message.starts_with(&format!(
-            "node {} failed: ",
+            "node {} failed: the Boolean op refused: ",
             test_utils::refusal::tag(cut.0.digest())
         )),
         "{message}"
     );
     assert!(
-        message.contains("Boolean refused an undeclared coincidence"),
+        message.contains("inside the ambiguity band") && message.contains("Recourse: "),
         "{message}"
     );
-    assert!(message.contains("add the candidate pair"), "{message}");
     for guts in [
-        "UndeclaredCoincidence",
-        "UndeclaredContact",
-        "FlushFinding",
+        "Escalated",
+        "BooleanDecision",
         "{",
         "Indeterminate",
+        "MarginDiag",
     ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
     }
@@ -301,8 +303,9 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             }),
             reference: 0,
         },
-        K::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        K::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
             error: Box::new(editor_core::ResolveError::Ambiguous {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
@@ -381,7 +384,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
             K::DeclareResolve { error, .. } => error.to_string(),
-            K::BlendSelectionResolve { error, .. } => error.to_string(),
+            K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),

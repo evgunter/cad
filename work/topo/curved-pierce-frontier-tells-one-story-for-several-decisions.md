@@ -2,9 +2,8 @@
 id: curved-pierce-frontier-tells-one-story-for-several-decisions
 kind: issue
 title: topo: CurvedPierceUnsupported offers the declaration from every arm of curved_face_arm, including arms that read none, and the radius guards' decided arm renders as a join desync
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -105,3 +104,10 @@ adopted from the review's `zz_coincfr_rows.rs`):
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the defect is which arm offers the declaration, and the radius guards sit behind CoaxialEvidence::Declared; the declare offer and the axis channel retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E makes both halves sharper.
+
+- **The declare offer.** `CurvedPierceUnsupported` still ends in `COINCIDENCE_RECOURSE`, "declare the coincidence, or move the geometry" (`crates/topo/src/boolean/mod.rs:3415`–`:3422`). The glue door now declares every Zero-decided pair and every witness-verified tangency itself (`crates/topo/src/boolean/glue.rs:40`). The zero-endpoint arms whose `covered` twin read a declaration therefore get the cover undeclared, and a declaration settles no arm. The offer is false at every arm, not only at those the row lists. The offer's retirement is F's (`boolean-declared-doors-still-offer-the-declare-menu`).
+- **The radius guards.** `CoaxialEvidence` is deleted, and `cs_pair_frame` decides the coaxial pose by its margin, so its arms are reachable from a public door now. `SectionError::DegenerateOperand` still falls into the catch-all `FrameError::Desync` (`crates/topo/src/boolean/join.rs:2696`), so the decided radius arm can render as a kernel-bug `JoinDesync` on a legal input. That half is live and needs no F.

@@ -2,10 +2,9 @@
 id: contact-verify-on-surface-residual-subtracts-its-sag
 kind: issue
 title: contact_verify's on-surface residual decides |r| − residual_sag where the edge certifier decides r + residual_sag, so the verify direction is padded the wrong way
-status: parked
+status: open
 opened: 2026-10-03
 priority: P1
-blocked_on: [booleans-glue-on-zero]
 cost: E
 ---
 
@@ -43,3 +42,7 @@ pad) and contradict on `|r| − sag`.
 ## Parked on the D10 hold (2026-10-08)
 
 After that unit this gate (`r.abs() - residual_sag`, `contact_verify.rs`) becomes the tangency glue decision, so that unit must carry this fix. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+The glue door runs this verifier on undeclared pairs as well, so the padding direction now decides undeclared glue too. The question this row asks still holds.

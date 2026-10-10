@@ -12,7 +12,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::corpus::{body_of, failures};
+use crate::corpus::failures;
 use crate::fixture::split_world as split;
 use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
@@ -23,9 +23,7 @@ use editor_core::{
     Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl,
     VarId, VarName, apply, evaluate, load, save,
 };
-use geom_brep::RadiusEvidence;
 use geom_core::Tol;
-use topo::{Body, FaceKey, SurfaceField};
 
 /// The blend radius, millimetres (dyadic in metres).
 const R_MM: f64 = 125.0;
@@ -90,35 +88,10 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     (doc, cube, blend)
 }
 
-/// One cylindrical blend carrier of `body`, in deterministic arena order.
-fn a_cylinder_face(body: &Body<f64>) -> FaceKey {
-    topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends")
-}
-
-/// The radius token a blend's cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face = a_cylinder_face(body);
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
-}
-
-fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
-    topo::field_source_evidence(
-        a,
-        a_cylinder_face(a),
-        b,
-        a_cylinder_face(b),
-        SurfaceField::CylinderRadius,
-    )
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, editor_core::SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 fn radius(doc: &ProfileDoc, blend: RecipeNodeId) -> VarId {
@@ -129,10 +102,10 @@ fn radius(doc: &ProfileDoc, blend: RecipeNodeId) -> VarId {
 // --------------------------------------------------------------- row 5
 
 /// Row 5: two blends each written `125 mm` read two variables, so their
-/// radius tokens differ and the radii are not `Declared` the same; the
-/// same two blends reading one variable lower equal and are. A third
-/// blend reading the first's unnamed variable refuses until it is named
-/// (VR2). Breaks if the lowering dedups written values by value.
+/// radii spell differently; the same two blends reading one variable
+/// spell equal. A third blend reading the first's unnamed variable
+/// refuses until it is named (VR2). Breaks if the lowering dedups
+/// written values by value.
 #[test]
 fn two_typed_values_are_two_variables() {
     let typed = || Formula::length_in(R_MM, quantity::MM).unwrap();
@@ -149,9 +122,7 @@ fn two_typed_values_are_two_variables() {
     );
     let ev = eval(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let (ba, bb) = (body_of(&ev, a), body_of(&ev, b));
-    assert_ne!(radius_token(ba), radius_token(bb));
-    assert_ne!(evidence(ba, bb), RadiusEvidence::Declared);
+    assert_ne!(radius_spelling(&doc, a), radius_spelling(&doc, b));
 
     let shared = radius(&doc, a);
     let (doc, _, c) = filleted(doc, 8.0, typed());
@@ -180,20 +151,18 @@ fn two_typed_values_are_two_variables() {
         "a variable passed is the variable read"
     );
     let ev = eval(&doc);
-    let (ba, bc) = (body_of(&ev, a), body_of(&ev, c));
-    assert_eq!(radius_token(ba), radius_token(bc));
-    assert_eq!(evidence(ba, bc), RadiusEvidence::Declared);
+    assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
+    assert_eq!(radius_spelling(&doc, a), radius_spelling(&doc, c));
 }
 
 // --------------------------------------------------------------- row 6
 
-/// Row 6: blends written `w·2`, `w·2` and `h` (with `h := w·2`) lower to
-/// one radius token — a slot's token is its variable's expansion, not
-/// the id of the anonymous variable the formula minted — and `w·3`
-/// lowers to another. Breaks if a token encodes a defined variable's
-/// id.
+/// Row 6: blends written `w·2`, `w·2` and `h` (with `h := w·2`) spell
+/// one radius — a slot's spelling is its variable's expansion, not the
+/// id of the anonymous variable the formula minted — and `w·3` spells
+/// another. Breaks if a spelling encodes a defined variable's id.
 #[test]
-fn a_token_is_the_expansions_shape() {
+fn a_spelling_is_the_expansions_shape() {
     let doc = ProfileDoc::empty(
         DocumentId::derive("intent-literals-c-shape"),
         Tol::witness(),
@@ -212,7 +181,7 @@ fn a_token_is_the_expansions_shape() {
     );
     let ev = eval(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
+    let token = |blend| radius_spelling(&doc, blend);
     assert_eq!(token(a), token(b));
     assert_eq!(token(a), token(c));
     assert_ne!(token(a), token(d));
@@ -1036,7 +1005,7 @@ fn toleranced(doc: &ProfileDoc, var: VarId) -> ProfileDoc {
 
 /// An untoleranced variable is a constant of the symbolic lane (VR8):
 /// two separately typed equal values decide `x − y` Zero there, named
-/// or anonymous, while their tokens still differ — coincidence is
+/// or anonymous, while their spellings still differ — coincidence is
 /// structure's question, not the analysis's. Breaks if the lane binds
 /// an untoleranced variable as a symbol: the decision is then numeric
 /// ([`assert_constants`]), though it still reads Zero.
@@ -1050,9 +1019,9 @@ fn an_untoleranced_variable_is_a_constant_in_the_symbolic_lane() {
     let ev = eval(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_ne!(
-        radius_token(body_of(&ev, a)),
-        radius_token(body_of(&ev, b)),
-        "the tokens read ids"
+        radius_spelling(&doc, a),
+        radius_spelling(&doc, b),
+        "the spellings read ids"
     );
 
     let doc = declare(&doc, "w", length(0.0625));

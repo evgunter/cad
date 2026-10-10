@@ -189,23 +189,25 @@ the parts come from.
 
 ### 2.1 The worked example
 
-The bracket: a base plate, an upright web sunk into it and poking out
-the top, and a lightening pocket entering from below and stopping
-inside the material. Three boxes, a union and a subtract.
+The bracket: a base plate, an upright web standing on it, and a
+lightening pocket entering from below and stopping inside the
+material. Three boxes, a union and a subtract.
 
 | part | x (mm) | y (mm) | z (mm) |
 |---|---|---|---|
 | base plate | 0 … 80 | 0 … 40 | 0 … 8 |
-| upright web | 36 … 44 | 5 … 35 | 4 … 34 |
-| pocket (subtracted) | 8 … 28 | 10 … 30 | −2 … 5 |
+| upright web | 36 … 44 | 5 … 35 | 8 … 34 |
+| pocket (subtracted) | 8 … 28 | 10 … 30 | 0 … 5 |
 
-Every solid here genuinely *interpenetrates* the one it is combined
-with — the web is sunk 4 mm into the plate, the pocket pokes 2 mm out
-below it. That is not laziness with round numbers. The kernel refuses
-a boolean whose operands merely *touch* on a shared plane until you
-declare that contact, because inferring "these two planes are the
-same plane" from float equality is exactly the guess it will not
-make. Section 2.3 and the fail-loud tour return to this.
+The web stands flush on the plate's top, and the pocket's floor is
+flush with the plate's bottom. Where two faces meet on one plane the
+kernel decides it from their margins — "these two planes are one
+plane" within the tolerance — and glues them, declared or not; it
+records each such decision so the document can say which ones its
+construction proves (the `unproven-coincidence` lint). Two faces whose
+planes lie apart inside the tolerance's ambiguity band — too far to
+call one plane, too near to call two — are a sliver, and refuse: the
+fail-loud tour returns to this.
 
 `crates/pncad-py/examples/bracket.py` builds this model with one
 addition the table cannot hold: since the PATHS lattice crossed to
@@ -555,8 +557,8 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, 
 
 let mm = |v: f64| (v * MM).meters();
 let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 
 let bracket = union(&base, &web, tol)?;
 let bracket = bracket.body().expect("a non-empty union");
@@ -600,8 +602,8 @@ use pncad::prelude::*;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let body = &result.body;
@@ -684,8 +686,8 @@ use pncad::prelude::*;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let props = mass_properties(&result.body, tol)?;
@@ -757,8 +759,8 @@ use pncad::prelude::*;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let mesh = tessellate(&result.body, 0.0005, tol)   // 0.5 mm chord budget
@@ -797,8 +799,8 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
@@ -847,8 +849,8 @@ use pncad::step_import::StepImport;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
@@ -932,9 +934,9 @@ def slab(doc, x, y, z):
 
 doc = Doc()
 base = slab(doc, (0 * mm, 80 * mm), (0 * mm, 40 * mm), (0 * mm, 8 * mm))
-web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (4 * mm, 34 * mm))
+web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm))
 bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
-pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (-2 * mm, 5 * mm))
+pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm))
 lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
 
 # Evaluation is TOTAL: it never raises. Ask which nodes succeeded.

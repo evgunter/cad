@@ -3645,7 +3645,7 @@ pub(crate) mod tests {
     /// different surface's bound. The rational arm never had a
     /// whole-net counterpart — it has always been a fold.
     pub(crate) fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
-        use geom_core::spline::net::TensorNet;
+        use geom_core::spline::TensorCoeffs;
         assert!(
             !patch_bound::is_rational(s),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
@@ -3653,19 +3653,11 @@ pub(crate) mod tests {
         let (kv_u, kv_v) = (s.knots_u(), s.knots_v());
         patch_bound::check_direction(kv_u).ok()?;
         patch_bound::check_direction(kv_v).ok()?;
-        let kv_u1 = (kv_u.degree() >= 2)
-            .then(|| patch_bound::derived_knots(kv_u))
-            .transpose()
-            .ok()?;
-        let kv_v1 = (kv_v.degree() >= 2)
-            .then(|| patch_bound::derived_knots(kv_v))
-            .transpose()
-            .ok()?;
-        let (nu, nv) = s.control_counts();
+        let nv = kv_v.control_count();
         let zero = Interval::zero();
         let mut sq = [zero; 5];
         for c in 0..3 {
-            let base = TensorNet::from_fn(nu, nv, |i, j| {
+            let base = TensorCoeffs::from_fn(kv_u, kv_v, |i, j| {
                 let p = s.control()[i * nv + j];
                 Interval::point(match c {
                     0 => p.x,
@@ -3673,11 +3665,27 @@ pub(crate) mod tests {
                     _ => p.z,
                 })
             });
-            let d10 = base.diff_u_knots(kv_u);
-            let d01 = base.diff_v_knots(kv_v);
-            let d11 = d10.diff_v_knots(kv_v);
-            let g20 = kv_u1.as_ref().map_or(zero, |k| d10.diff_u_knots(k).hull());
-            let g02 = kv_v1.as_ref().map_or(zero, |k| d01.diff_v_knots(k).hull());
+            // `check_direction` admits a degree-1 direction only without
+            // interior knots and a higher one only below full
+            // multiplicity, so on this unrefined net `derivative_*` is
+            // `None` exactly at degree 1, where the second partial is
+            // zero. Any other `None` is a broken premise, said loudly.
+            let second = |h: Option<Interval>, degree: usize| match h {
+                Some(h) => h,
+                None if degree == 1 => zero,
+                None => {
+                    panic!("a degree-{degree} direction past check_direction has no derived vector")
+                }
+            };
+            let (d10, d01, d11) = (base.diff_u(), base.diff_v(), base.diff_uv());
+            let g20 = second(
+                base.derivative_u().map(|d| d.diff_u().hull()),
+                kv_u.degree(),
+            );
+            let g02 = second(
+                base.derivative_v().map(|d| d.diff_v().hull()),
+                kv_v.degree(),
+            );
             for (slot, h) in sq
                 .iter_mut()
                 .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])

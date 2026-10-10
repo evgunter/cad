@@ -282,7 +282,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "crosslap",
         || {
-            let (a, b, glued, b_lifted, _refusal) = crosslap::build(tol);
+            let (a, b, glued, b_lifted) = crosslap::build(tol);
             vec![
                 seamed("crosslap_a", a),
                 seamed("crosslap_b", b),
