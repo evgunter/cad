@@ -232,8 +232,6 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// It ends with the closing mint: every cap edge's row derives and
 /// certifies on the fit's chart, so the body is valid at rest and weighs.
 pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
-    let mut body = unit_box();
-    let face = top_face(&body);
     let approx = geom_brep::approx_offset_surface_at(
         Arc::new(pulled_back(&planar_patch(1.0), d)),
         d,
@@ -241,21 +239,37 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
         band(),
     )
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
-    // Lifts RechartStrandsDescriptions: the Approx chart goes on first; the edges are re-described on it after.
+    assert!(
+        matches!(approx, Surface::Approx(_)),
+        "the door mints the variant"
+    );
+    box_with_spline_cap(approx)
+}
+
+/// **A box whose top cap wears `chart`, a spline chart of the cap plane
+/// `(u, v) ↦ (2u, 2v, 1)`, described on its own chart** — the surgery
+/// [`box_with_approx_cap`] runs, for any chart with that
+/// parameterization: a [`planar_patch`] at `z = 1` as plain `Nurbs`, or
+/// its certified `Approx`.
+pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
+    let mut body = unit_box();
+    let face = top_face(&body);
+    // Lifts RechartStrandsDescriptions: the spline chart goes on first; the edges are re-described on it after.
     let surface = body
         .set_face_surface_unvouched_for_tests(
             face,
             FaceSurface::New {
-                surface: approx,
+                surface: chart,
                 sense: true,
             },
         )
         .expect("the attach-layer door accepts a live face");
 
-    let fit = match body.get_surface(surface) {
-        Some(Surface::Approx(a)) => a.fit().clone(),
-        other => panic!("the cap wears the approximating surface, got {other:?}"),
-    };
+    let fit = body
+        .get_surface(surface)
+        .and_then(Surface::spline_chart)
+        .expect("the cap wears a spline chart")
+        .clone();
     let outer = body.get_face(face).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("the cap's outer loop is a cycle");
@@ -306,6 +320,28 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     }
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the cap's rows derive on its chart");
     (body, face)
+}
+
+/// **The unit box under a curved spline cap, at rest**:
+/// [`box_with_spline_cap`] on a biquadratic NURBS over exactly the
+/// cap's square, its middle control point raised by `bump` (`0` is
+/// flat). The net's `x` and `y` are linear in `(u, v)`, and its
+/// boundary rows are the box's top edges.
+pub fn box_with_bumped_cap(bump: f64) -> (Body<f64>, FaceKey) {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::new();
+    for x in [0.0, 1.0, 2.0] {
+        for y in [0.0, 1.0, 2.0] {
+            let z = if x == 1.0 && y == 1.0 {
+                1.0 + bump
+            } else {
+                1.0
+            };
+            control.push(Point3::new(x, y, z));
+        }
+    }
+    let cap = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
+    box_with_spline_cap(Surface::Nurbs(Arc::new(cap)))
 }
 
 /// Every non-placeholder spline wall of `body`, keyed.

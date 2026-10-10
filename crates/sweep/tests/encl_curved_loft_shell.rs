@@ -1,5 +1,5 @@
 //! **Bodies with NURBS walls, against the shell verb and the offset
-//! door it runs per face.**
+//! doors it runs.**
 //!
 //! The twisted loft (`common::approx::twisted_loft`) is lofted through
 //! `sweep::loft_body` between a square and the same square turned
@@ -8,16 +8,14 @@
 //! the natural operand for the question "what does a shell of a
 //! spline-walled body cost at the run's ε", and these rows pin why that
 //! cost cannot be taken yet, at the thickness a user would ask for:
-//! `topo::shell` refuses before any wall is fitted.
+//! `topo::shell` moves every chart at once and refuses at a wall, at its
+//! offset fit or at a seam between two moved fits.
 //!
-//! A cap's offset moves the cap's corners, so each seam between two
-//! walls that ends at a moved corner is re-anchored on its lofted
-//! spline carrier. The twist slants those seams, and the per-chart
-//! door moves the cap rigidly along its normal, so the moved corner
-//! leaves a slanted seam by the thickness times the slant's sine: the
-//! oblique-junction refusal, met here on a spline wall. The straight
-//! prism's seams are parallel to the cap normal, so its re-anchor
-//! holds and the moved rim lands on an interior row of each wall.
+//! A cap moved alone moves the cap's corners along the slanted seams:
+//! each corner is the moved plane's root along its seam, and each rim
+//! the moved plane's section of its wall. The straight prism's seams
+//! are parallel to the cap normal, so its moved rim lands on an interior
+//! row of each wall.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -34,14 +32,6 @@ const THICKNESS: f64 = 0.05;
 
 fn is_spline_wall(walls: &[(FaceKey, impl Sized)], face: FaceKey) -> bool {
     walls.iter().any(|(k, _)| *k == face)
-}
-
-fn is_cap<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> bool {
-    matches!(
-        body.get_face(face)
-            .and_then(|f| body.get_surface(f.surface)),
-        Some(geom::Surface::Plane { .. })
-    )
 }
 
 /// The `z = 1` cap, whose chart normal points out of the body.
@@ -167,10 +157,11 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
     );
 }
 
-/// With its caps derived, the curved loft's shell moves on to the walls
-/// and refuses at the first one: its offset fit where ε is tighter than
-/// the fit reaches, its seam with the next wall where the fit
-/// certifies.
+/// The curved loft's shell moves every chart at once, so it mints every
+/// wall's offset fit before any edge, and refuses at a wall: its offset
+/// fit where ε is tighter than the fit reaches, and where the fit
+/// certifies, at a seam between two walls, which is the section of two
+/// moved fits and has no C5 arm.
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -204,13 +195,16 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
         );
     } else {
-        // The wall's rims with the caps derive as the plane × fit
-        // sections; its seam with the next wall is one of the fit's own
-        // rows, shared with that unmoved spline wall, and refuses.
-        let ReplaceFaceError::FittedBoundaryUnsupported { edge, what } = error.as_ref() else {
-            panic!("eps {eps:e}: expected the fitted wall's seam to refuse, got {e}");
+        // Both walls of a seam move, so the seam is the section of their
+        // two fits, which C5 does not route.
+        let ReplaceFaceError::NeighborPairUnroutable {
+            edge,
+            kind: geom::SurfaceKind::Approx,
+            other_kind: geom::SurfaceKind::Approx,
+        } = error.as_ref()
+        else {
+            panic!("eps {eps:e}: expected the seam between two moved fits to refuse, got {e}");
         };
-        assert_eq!(*what, "a row of this fit shared with a spline face");
         assert_wall_seam(&body, *edge, "the refused seam");
     }
 }
@@ -332,17 +326,19 @@ fn vase() -> Body<f64> {
     .body
 }
 
-/// The vase's walls are rational, and the moved plane's section of one
-/// is not exact structure as a row (its skinned weights differ along
-/// the stacking by an ulp), so the door marches it. The plane × NURBS
-/// certificate then refuses the marched rim on its rational wall, by
-/// its own limb-2 bound, as the door re-charts the cap: the shell
-/// refuses at a cap before any wall moves, so the walls' smooth seams
-/// are never reached. A wall moved alone refuses at its fit instead:
-/// its net carries a C⁰ crease the fit's Taylor bound cannot cross.
+/// The shell moves every chart at once and mints every new surface
+/// first, so it refuses at a wall's fit: the wall's net carries a C⁰
+/// crease the fit's Taylor bound cannot cross. A cap moved alone meets
+/// its rim instead. The vase's walls are rational, and the moved
+/// plane's section of one is not exact structure as a row (its skinned
+/// weights differ along the stacking by an ulp), so the door marches
+/// it, and the plane × NURBS certificate refuses the marched rim on its
+/// rational wall, by its own limb-2 bound, as the door re-charts the
+/// cap.
 #[test]
-fn shelling_the_vase_refuses_at_its_rims_certificate() {
+fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate() {
     let body = vase();
+    let walls = nurbs_walls(&body);
     let e = topo::shell(
         &finished("the vase", body.clone(), Tol::witness()),
         THICKNESS,
@@ -352,7 +348,35 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
-    assert!(is_cap(&body, *face), "the refusing face is not a cap: {e}");
+    assert!(
+        is_spline_wall(&walls, *face),
+        "the refusing face is not a wall: {e}"
+    );
+    assert!(
+        matches!(
+            error.as_ref(),
+            ReplaceFaceError::Fit {
+                error: geom_brep::OffsetFitError::PatchBound(
+                    geom_brep::patch_bound::PatchBoundError::Crease
+                ),
+                ..
+            }
+        ),
+        "expected the wall's fit to refuse at its crease, got {e}"
+    );
+    // The bottom cap, moved alone into the vase.
+    let (cap, d) = body
+        .faces()
+        .find_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) if origin.z < 0.5 => {
+                Some((k, THICKNESS * normal.z.signum()))
+            }
+            _ => None,
+        })
+        .expect("the vase has a bottom cap");
+    let mut alone = body.clone();
+    let error = topo::replace_face_offset(&mut alone, cap, d, Tol::witness())
+        .expect_err("the vase's cap does not move alone today");
     let ReplaceFaceError::Op {
         error:
             topo::EulerOpError::RechartFalsifies {
@@ -365,38 +389,21 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                 ..
             },
         ..
-    } = error.as_ref()
+    } = &error
     else {
-        panic!("expected the rim certificate's limb-2 refusal, got {e}");
+        panic!("expected the rim certificate's limb-2 refusal, got {error}");
     };
     assert!(
         upper(*margin) > 1e2 * Tol::witness().eps(),
         "limb 2 is far past the band, not at its edge: {margin}"
     );
     let data = body.get_edge(*edge).expect("the rim resolves");
-    let walls = nurbs_walls(&body);
     assert!(
         [data.he_plus, data.he_minus]
             .into_iter()
             .filter_map(|he| body.face_of_half_edge(he))
             .any(|f| is_spline_wall(&walls, f)),
         "the refused rim bounds a spline wall"
-    );
-    let (wall, _) = walls[0];
-    let mut alone = body.clone();
-    let e = topo::replace_face_offset(&mut alone, wall, -THICKNESS, Tol::witness())
-        .expect_err("a vase wall does not move alone today");
-    assert!(
-        matches!(
-            e,
-            ReplaceFaceError::Fit {
-                error: geom_brep::OffsetFitError::PatchBound(
-                    geom_brep::patch_bound::PatchBoundError::Crease
-                ),
-                ..
-            }
-        ),
-        "expected the wall's fit to refuse at its crease, got {e}"
     );
 }
 
@@ -926,4 +933,177 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         topo::transform_rigid(&body, &rigid, Tol::witness())
             .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
     }
+}
+
+/// The box whose cap wears the planar NURBS patch over `[0, 2]²`, each
+/// cap edge its `IsoLine` image on the patch's chart.
+fn spline_capped_box() -> (Body<f64>, FaceKey) {
+    use crate::common::approx::{box_with_spline_cap, planar_patch};
+    box_with_spline_cap(geom::Surface::Nurbs(std::sync::Arc::new(planar_patch(1.0))))
+}
+
+/// The certified curve `edge` of `body` carries.
+fn certified_curve(body: &Body<f64>, edge: EdgeKey) -> geom_brep::EdgeCurve<f64> {
+    body.get_curve_geom(body.get_edge(edge).expect("a live edge").curve)
+        .and_then(topo::CurveGeom::certified)
+        .expect("a certified curve")
+        .clone()
+}
+
+/// **A moved spline cap plans each edge on its image's own row.** The
+/// box's cap wears a planar NURBS patch whose chart is
+/// `(u, v) ↦ (2u, 2v, 1)`, and each cap edge is described as its
+/// `IsoLine` image on that chart (`common::approx::box_with_spline_cap`):
+/// the edges along `y` hold `u` fixed, and the edges along `x` hold `v`
+/// fixed and MOVE `u`. Every side is a plane containing the cap's
+/// normal, so it holds the move, and each edge is the row of the new
+/// fit its image names: a `u` row or a `v` row at the image's own fixed
+/// parameter, re-stated at the chart's own domain end, its ends the old
+/// corners carried along the normal. The door then builds the moved
+/// box, every corner of the cap at `z = 1 + d`.
+#[test]
+fn a_moved_spline_caps_edges_are_each_images_own_row() {
+    use geom_brep::{EdgeDescriptionSpec, Pcurve};
+    let d = -THICKNESS;
+    let (body, cap) = spline_capped_box();
+    let cap_key = body.get_face(cap).expect("the cap resolves").surface;
+    let (mut u_rows, mut v_rows) = (0, 0);
+    for (edge, spec) in topo::offset_edge_specs_for_tests(&body, cap, d, Tol::witness()) {
+        let spec = spec.unwrap_or_else(|e| panic!("{edge:?}: the cap edge plans: {e}"));
+        let EdgeDescriptionSpec::Chart {
+            surface,
+            image: Some(Pcurve::IsoLine { p0, pl }),
+            ..
+        } = spec.description
+        else {
+            panic!("{edge:?}: a row of the new fit, got {:?}", spec.description);
+        };
+        assert_eq!(surface, cap_key, "{edge:?}: on the cap's own chart key");
+        let old = certified_curve(&body, edge);
+        let (t0, t1) = old.params();
+        let (a, b) = (old.carrier().eval(t0), old.carrier().eval(t1));
+        let fixed = if pl.x == 0.0 {
+            u_rows += 1;
+            assert!(
+                (a.x - b.x).abs() < 1e-12,
+                "{edge:?}: a u row is an edge along y"
+            );
+            (p0.x, a.x)
+        } else {
+            v_rows += 1;
+            assert_eq!(pl.y, 0.0, "{edge:?}: a row holds one parameter fixed");
+            assert!(
+                (a.y - b.y).abs() < 1e-12,
+                "{edge:?}: a v row is an edge along x"
+            );
+            (p0.y, a.y)
+        };
+        assert_eq!(
+            2.0 * fixed.0,
+            fixed.1,
+            "{edge:?}: the row is the image's own line, at the chart's own end"
+        );
+        let shift = Vec3::new(0.0, 0.0, d);
+        let ends = [
+            spec.carrier.eval(spec.param_start),
+            spec.carrier.eval(spec.param_end),
+        ];
+        assert!(
+            ends[0].distance(a + shift) < 1e-9 && ends[1].distance(b + shift) < 1e-9,
+            "{edge:?}: the row runs between the carried corners, got {ends:?} for {a:?}–{b:?}"
+        );
+    }
+    assert_eq!((u_rows, v_rows), (2, 2), "two edges of each kind");
+
+    let mut moved = body.clone();
+    topo::replace_face_offset(&mut moved, cap, d, Tol::witness())
+        .expect("the fitted cap moves between its held sides");
+    let mut corners = 0;
+    for (he, _) in moved.half_edges() {
+        if moved.face_of_half_edge(he) == Some(cap) {
+            let p = moved.half_edge_start_point(he).expect("a corner");
+            assert!(
+                (p.z - (1.0 + d)).abs() < 1e-9,
+                "a corner of the moved cap is at z = {}, got {p:?}",
+                1.0 + d
+            );
+            corners += 1;
+        }
+    }
+    assert_eq!(corners, 4, "the cap keeps its four corners");
+}
+
+/// **A side that does not hold the move takes the section route.** The
+/// box with the spline cap has its `x = 2` side re-charted onto a plane
+/// tilted about the cap's edge, so the edge still lies on it but the
+/// cap's normal does not. That edge is a row of the cap's fit, and the
+/// row moved with the fit would leave the tilted plane; it plans as the
+/// section of the new fit with the plane instead, stated as their
+/// `Intersection` with the plane first, on the tilted plane and the
+/// moved cap.
+#[test]
+fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
+    use geom_brep::EdgeDescriptionSpec;
+    let d = -THICKNESS;
+    let (mut body, cap) = spline_capped_box();
+    let cap_key = body.get_face(cap).expect("the cap resolves").surface;
+    let side = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Plane { normal, origin, .. })
+                    if normal.x.abs() > 0.5 && origin.x > 1.0
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the box has an x = 2 side");
+    let tilt: f64 = 0.3;
+    let normal = Vec3::new(tilt.cos(), 0.0, -tilt.sin());
+    // Lifts RechartStrandsDescriptions: only the cap's edge with this
+    // side is planned, and it lies on the tilted plane.
+    let tilted = body
+        .set_face_surface_unvouched_for_tests(
+            side,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Plane {
+                    origin: geom_core::Point3::new(2.0, 0.0, 1.0),
+                    normal,
+                    u_ref: Vec3::new(0.0, 1.0, 0.0),
+                },
+                sense: true,
+            },
+        )
+        .expect("the attach-layer door accepts a live face");
+    let on_tilted =
+        |p: geom_core::Point3<f64>| (p - geom_core::Point3::new(2.0, 0.0, 1.0)).dot(normal);
+    let mut sections = 0;
+    for (edge, spec) in topo::offset_edge_specs_for_tests(&body, cap, d, Tol::witness()) {
+        let spec = spec.unwrap_or_else(|e| panic!("{edge:?}: the cap edge plans: {e}"));
+        let old = certified_curve(&body, edge);
+        let (t0, t1) = old.params();
+        if on_tilted(old.carrier().eval(t0)).abs() > 1e-12
+            || on_tilted(old.carrier().eval(t1)).abs() > 1e-12
+        {
+            continue;
+        }
+        sections += 1;
+        assert!(
+            matches!(
+                spec.description,
+                EdgeDescriptionSpec::Intersection { s1, s2, .. } if s1 == tilted && s2 == cap_key
+            ),
+            "the tilted side's edge is its section with the fit, got {:?}",
+            spec.description
+        );
+        let (s0, s1) = (spec.param_start, spec.param_end);
+        for t in [s0, 0.5 * (s0 + s1), s1] {
+            let p = spec.carrier.eval(t);
+            assert!(
+                on_tilted(p).abs() < 1e-9 && (p.z - (1.0 + d)).abs() < 1e-9,
+                "the section lies on the tilted side and the moved cap, at {p:?}"
+            );
+        }
+    }
+    assert_eq!(sections, 1, "one cap edge lies on the tilted side");
 }

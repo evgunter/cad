@@ -351,3 +351,92 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - **Not dispatched:**
   - `degree-elevation-recomposition…` (P4), which sits behind fork3's answer on the applier;
   - `tilted-lune-sits-at-the-f64-floor-of-its-band` (P3 E). Q2 left the lune green at all three ε, because its axis passes through the origin. The hosted/local split it records needs PR 4441's old head to reproduce, so it waits for a nightly reading. (NURBS orchestrator)
+
+## 2026-10-10 — Fork3 converges; its build dispatched; two clarifications to Ev
+
+**Fork3** (the certified spline combine) converged in round 2, without crossing over. A is Opus and B is Fable, by byte 154, recorded on `analysis/design-fork/nurbs-fork3-combine`.
+- **Q1, the step's form.** It is the monotone two-point form, met with the sources' hull, as a door `Certification::between`.
+  - A moved from midpoint–radius after running B's rows. Monotone is tighter on every row, by 1.4–4×, and midpoint–radius fails the 254-cut row's 2p+1 ceiling at degree 3.
+  - A also moved to keeping the hull meet. Without it, either form steps outside the sources' hull, below zero at a subnormal weight, which breaks PR 3737's weight-range guarantee.
+- **Row 1's 2.4× is stale.** It was the serial extra-break insertion that PR 4489 removed. Today every form reads the r1 envelope the same to seven digits.
+- **Q2, the projective applier.** The knot algebra becomes unrepresentable at `Interval`. B had said no shipped path reached it, and corrected that: `NurbsLane::<Interval>::certified()` → `plane_nurbs_limbs` → `localized` → `refine_knots_u/v` → `apply_points` with a point-lifted `f64` λ, and `ssi/certify::refined` likewise. Both run from editor-core's `Interval` replay. A certified plane × NURBS claim was therefore about a neighbour of the described wall, at ulp scale; no verdict was shown to flip.
+- **Q3, the primitive.** One blossom, `CoeffWindow::blossom(args)`, with `restrict` as sugar. `insert_once_ring` and `sub_segment` retire.
+- **Asked of Ev,** as `[ev]` PR 4539 with fork row 107: two wording clarifications both designers found.
+  - W1's "number of restrictions" is to read "inherited width multiplied per step".
+  - C6 is to say a refinement inside a certificate is held as homogeneous enclosures.
+
+  Neither changes a decision, so the build does not wait on them.
+- **Build, dispatched 14:59Z on `a80985928917`,** as two lanes:
+  - A: `nurbs/monotone-step-and-blossom` closes `the-convex-boehm-step-…` and `certified-blossom-primitive-…`;
+  - B: `nurbs/knot-algebra-off-the-ring` closes `the-projective-applier-…`. It measures before choosing between dropping `localized`/`refined` at `Interval` and refining homogeneous channels.
+- **Filed** off-question:
+  - `work/ssiarith/ssi-cut-derivative-box-is-wider-than-the-whole-cell`;
+  - `work/encl/offset-fit-composite-elevates-a-rational-direction-at-f64`.
+
+  The quad sites (`ring_lerp`, `bezier_blocks`, `bezier_bisect`, `de_boor_on`) and `sub_piece` are covered by the two build lanes. (NURBS orchestrator)
+
+## 2026-10-10 — Ev adopts fork3's text (PR 4539); PR 4535 merged; PR 4540 to a HOLDOUT pair
+
+- **PR 4539** merged after Ev's "sounds good". W1 now reads "inherited width multiplied per step", and C6 says a certified refinement is held homogeneously. Fork row 107 is complete: A = Opus, B = Fable, and Ev's decision matched both.
+- **PR 4535** (`nurbs_iso` reads the surface; `NetView` and its count re-check deleted) merged on green CI. Tier: the orchestrator's read. The change is mechanical, and bit-identity was shown over 3000 random surfaces with an identical sha256 of 84,156 printed results.
+- **PR 4540** (`speed_lower_bound` gains a piece assembly: Bernstein coefficients of `C′` on 16 pieces per span, joined by `max`) goes to the dual tier. A new certified lower bound that read high would certify an edge it should refuse.
+  - Class M. Rule 1 byte 18, mod 3 = 0, gives HOLDOUT: a concurrent Opus pair on the frozen head `5ec41ae290`, with identical briefs.
+  - The PR filed `a-swaying-rational-corner-refuses-at-the-rational-speed-meter` (P3 M) on this slate.
+- **PR 4518** carries DR-143 and merges on green. (NURBS orchestrator)
+- 2026-10-10 16:17 — PR 4518 conflicted with main in `docs/DUAL-REVIEW-LOG.md`, because GERM's DR-143 (PR #4522) landed first. I renumbered ours to DR-144 and kept both rows. That makes **twenty M-tier units under rule 1's arms**, so the full readout (rule 9) is owed, and I recorded the triggering row, so I ask Ev.
+  - Readout writer: a blind lane, on `analysis/dual-review/readout-4`. I do not read it.
+  - Row `the-dual-review-streams-fourth-readout-is-owed` (needs_ev). The `[ev]` PR opens when the writer is done.
+  - The arms continue unchanged. (NURBS orchestrator)
+- 2026-10-10 16:56 — **Readout 4** is `[ev]` PR 4555, written blind; the orchestrator has not read it.
+  **PR 4540's HOLDOUT pair** is in. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally is 0 pending the blinded coding (coding byte 201).
+  - Bilateral:
+    - interior-piece coverage is guarded only by chance (the stall fuzz plants stalls only at knots);
+    - the join's docs over-claim (dropping the global or per-span assembly turns nothing red);
+    - whole-body `Interval` certification costs 3–5× main, undisclosed.
+  - Unilateral: `pcurve_cache::chart_stretch_inf` is a missed inf producer, reading 0 on every new loft wall (one reviewer, demonstrated).
+  - The fix pass went to the implementer. It also asks for each piece to be cut by blossom from the span row, per W1 as clarified today.
+  - **Fork3 builds** are up as PR 4551 (A) and PR 4553 (B), with CI pending. Review tiers at arrival:
+    - A, the step door plus the primitive behind every certified spline step: H, dual (concurrent).
+    - B: dual if its route changes certification, otherwise single. (NURBS orchestrator)
+- 2026-10-10 17:28 — **PR 4518 merged** with DR-144 (Q2, `q + R(p − q)`). The `revolved-point-eval-levers…` row closes with it.
+  - **PR 4540's coding** came back: 11 bilateral findings, 8 unilateral to the R2 report and 6 to the R1 report, tally 0. The nearest miss is R1's `chart_stretch_inf`, which fails (a) because it was raised as MINOR. The pair was fair. This matches the pre-note.
+  - **PR 4553** (fork3 build B: the knot algebra bounded off `Interval`; `localized` dropped by route (a); `refined` re-routed homogeneously by route (b); the speed meter and quad sites through `apply_certified`) is CI-green.
+    - Its tier: dual, class M. It changes the certification route of plane × NURBS and SSI and bounds the knot API across `geom`; the design is settled and the route was measured.
+    - Rule 1 byte 182, mod 3 = 2, gives SEQUENTIAL: one FULL review on `e32d58c62d`.
+    - The PR reports `topo::rim_dim_review_probes::silent_fixed_predicates_scale_linearly` red on main under `--all-features`. The review is to confirm or refute it before it is filed.
+  - **PR 4551** (fork3 build A) is still fixing a red test job. (NURBS orchestrator)
+- 2026-10-10 18:06 — **PR 4551** (fork3 build A: `Certification::between`, `CoeffWindow::blossom`/`restrict`; `insert_once_ring` and `sub_segment` deleted) is CI-green on `18b5722731`.
+  - The build found and fixed a plane chart's box (`frame_box_on`) that read one span's extension over a multi-span net, with a red-on-main row.
+  - Tier: H dual, CONCURRENT. It is the certified step under every spline operation plus a new primitive, across 28 files. Two Opus reviewers with identical briefs, dispatched together on the frozen head.
+  - Tracker sync PR 4563 merged. (NURBS orchestrator)
+- 2026-10-10 18:21 — Ev ruled on **readout 4** (PR 4555): "the current pattern can continue, iirc 20 more majors or 2 more unilateral majors where the other side didn't catch the issue at all". That is rule 9 as it stands, so the protocol is unchanged.
+  - The ruling is recorded in `docs/DUAL-REVIEW-LOG.md`, and the count restarts after DR-144; it stands at 1 (DR-145).
+  - The row is closed, and PR 4555 is closed unmerged. (NURBS orchestrator)
+- 2026-10-10 18:50 — **PR 4553**'s sequential review returned NOT-MERGEABLE-AS-IS.
+  - **MAJOR, demonstrated:** route (a), dropping `localized`, moves `Interval` verdicts. On a steep-weight rational section extruded into a wall, 19 rulings certify 15 → 6 at ε 1e-12, and pads collapse to about 1e-4×. The PR's route measurement was `f64`-only.
+  - **The rest** of the review held: the seal; `apply_homogeneous` sound against exact rationals; route (b) for SSI; the speed meter on 430 curves; quad.
+  - **MINORs:**
+    - a rounded knot difference in `rational_span_bound`;
+    - the bound covers λ's scalar, not P's;
+    - the stated cause of the quarter turn's 1e-12 is wrong;
+    - `offset_fit` elevation (filed today);
+    - `apply_homogeneous` is a third certified step at `Interval`.
+  - **Next:** the fix pass takes route (b) for the wall too. Per the SEQUENTIAL arm, a second whole-unit Opus review follows. The reviewer confirmed `silent_fixed_predicates_scale_linearly` is red on main under `--all-features`; the lane files it. (NURBS orchestrator)
+- 2026-10-10 19:33 — **PR 4551's H pair** is in. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally pre-note is 0. Blinded coding is dispatched (byte 104).
+  - **Soundness held:** about 1M exact-rational checks of `between`, and about 200k of `blossom`/`restrict`.
+  - **`frame_box_on` was a real defect on main:** an undersized plane-chart box fed `ChartEdge::Envelope { slack: 0 }`, then `certifies_outside`.
+  - **Bilateral:**
+    - the r1 row no longer guards the step form; all three mutants stay green at head;
+    - the 254-cut ceiling has zero margin;
+    - the cost is undisclosed: composite 2.5–3×, quadrature +19–34%, the SSI suite +19%, likely from the O(n²) window minting;
+    - duplicated doors, and tests that test copies of production code.
+  - The fix pass went to build A. (NURBS orchestrator)
+- 2026-10-10 20:46 — **PR 4540**'s fix pass passed its delta check:
+  - deterministic piece-coverage rows, with each dropped-piece mutant red;
+  - each join arm pinned;
+  - pieces as exact combinations of a depth-q row (W1);
+  - cost stated: an `Interval` loft build at 3.7–5.5× main;
+  - `chart_stretch_inf` filed on PCERT.
+
+  Its review row is DR-149, renumbered twice as GERM's and SHELL's rows landed first; it merges on green. Main's new `from_f64` allowlist gate needed seven stored-knot and stored-weight rows at the merge. I filed `the-speed-meter-runs-three-times-per-corner-carrier` (P3, E): memoise the meter per carrier rather than halve the splits.
+- **PR 4551's** blinded coding: tally 0, fair, matching the pre-note. Its fix pass and PR 4553's are both still running. (NURBS orchestrator)
