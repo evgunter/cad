@@ -244,7 +244,18 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
-        &mut body, loop_index, col, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
+        &mut body,
+        loop_index,
+        col,
+        &hes,
+        &qs,
+        &qs,
+        frame,
+        theta,
+        axis_c,
+        place.into(),
+        frame.n3,
+        band,
         tol,
     )?;
 
@@ -399,7 +410,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
         &TurnEnds {
             near: q,
             far: q,
-            place_far: frame.place,
+            place_far: frame.place.into(),
             n_far: frame.n3,
         },
         theta,
@@ -486,9 +497,8 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let n = segs.len();
     let k = n - run.len;
     let half = theta * T::from_f64(0.5);
-    let rot_pi = geom_core::Affine3::rotation_about_axis(frame.o3, frame.a3, half);
-    let place_pi = rot_pi * place;
-    let n_pi = rot_pi.linear * frame.n3;
+    let far = crate::swept::Placing::turned(place, frame.o3, frame.a3, half);
+    let n_pi = geom_core::Affine3::rotation_about_axis(frame.o3, frame.a3, half).linear * frame.n3;
     // Wire segment i is swept segment (run.start + run.len + i) mod n;
     // wire vertex i is wire segment i's start; wire vertex k is the
     // run's start vertex (both tips pinned).
@@ -501,7 +511,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             if pinned(i) {
                 qw[i]
             } else {
-                rot_pi.transform_point(qw[i])
+                far.point(segs[wvert(i)].a)
             }
         })
         .collect();
@@ -607,7 +617,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1], tol),
+            placed_segment_spec(&segs[wseg(i)], far, n_pi, qpi[i], qpi[i + 1], tol),
             surface,
             tol,
         )?;
@@ -673,15 +683,18 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         // guarantee (its comment carries the argument).
         crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r, tol);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
-                geom_brep::MappedSource::RevolvedPoint {
+            // The return half of the whole turn's own range, on the
+            // sketch placement: no turned placement is evaluated.
+            description: geom_brep::EdgeDescriptionSpec::Scaffold(
+                geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
                     point: segs[wseg(i)].a,
-                    place: place_pi,
+                    place,
                     axis_origin: frame.o3,
                     axis_dir: frame.a3,
-                    angle: half,
-                },
-            )),
+                    angle: theta,
+                })
+                .restrict(T::from_f64(0.5), T::one()),
+            ),
             carrier: geom::Curve3::Circle {
                 center,
                 axis: axis_c,
