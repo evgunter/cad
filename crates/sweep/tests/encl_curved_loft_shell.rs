@@ -359,8 +359,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                 error:
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::HullSup,
-                        value,
-                        ..
+                        margin,
                     }),
                 ..
             },
@@ -370,8 +369,8 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
         panic!("expected the rim certificate's limb-2 refusal, got {e}");
     };
     assert!(
-        *value > 1e2 * Tol::witness().eps(),
-        "limb 2 is far past the band, not at its edge: {value}"
+        upper(*margin) > 1e2 * Tol::witness().eps(),
+        "limb 2 is far past the band, not at its edge: {margin}"
     );
     let data = body.get_edge(*edge).expect("the rim resolves");
     let walls = nurbs_walls(&body);
@@ -464,12 +463,12 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         match error {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                 limb: geom_brep::ssi::SsiLimb::HullSup,
-                value,
-                ..
+                margin,
             }) => {
+                let value = upper(*margin);
                 assert!(
-                    micrometres.contains(value) && *value > 10.0 * eps,
-                    "eps {eps:e}, d {d}: limb 2 refused at {value:e}"
+                    micrometres.contains(&value) && value > 10.0 * eps,
+                    "eps {eps:e}, d {d}: limb 2 refused at {margin:e}"
                 );
             }
             geom_brep::CertifyError::Escalated { check, .. } => {
@@ -925,5 +924,15 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         );
         topo::transform_rigid(&body, &rigid, Tol::witness())
             .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+    }
+}
+
+/// The refusal's bound as the classifier saw it: the point margin, or
+/// the enclosure's upper end.
+fn upper(margin: geom_core::MarginDiag) -> f64 {
+    match margin.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m)
+        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
+        geom_core::ErrorTextReading::Invalid => f64::NAN,
     }
 }

@@ -177,13 +177,12 @@ fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
                         error:
                             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                                 limb: geom_brep::SsiLimb::OnLocus,
-                                value,
-                                ..
+                                margin,
                             }),
                         ..
                     },
                 ..
-            }) => assert!((value - 0.25).abs() < 1e-9, "the gap: {value}"),
+            }) => assert!((upper(margin) - 0.25).abs() < 1e-9, "the gap: {margin}"),
             other => panic!("cap {cap:?} outward: {:?}", other.map(|_| ())),
         }
     }
@@ -266,4 +265,14 @@ fn place(text: &str) -> String {
     );
     let at = text.rfind("ENDSEC;").unwrap();
     format!("{}{block}{}", &text[..at], &text[at..])
+}
+
+/// The refusal's bound as the classifier saw it: the point margin, or
+/// the enclosure's upper end.
+fn upper(margin: geom_core::MarginDiag) -> f64 {
+    match margin.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m)
+        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
+        geom_core::ErrorTextReading::Invalid => f64::NAN,
+    }
 }

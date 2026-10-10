@@ -552,9 +552,9 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                    value, ..
+                    margin, ..
                 }),
-        } => Some(value),
+        } => Some(upper(margin)),
         _ => None,
     });
     let Some(measured) = measured else {
@@ -619,3 +619,13 @@ fn plane_nurbs_seams(
 // quarter-cylinder-meets-plane geometry at the lane and at the door.
 // What the rows above add is the CONSEQUENCE — the certified seam
 // charts on both of its faces and the body is first-class.
+
+/// The refusal's bound as the classifier saw it: the point margin, or
+/// the enclosure's upper end.
+fn upper(margin: geom_core::MarginDiag) -> f64 {
+    match margin.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m)
+        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
+        geom_core::ErrorTextReading::Invalid => f64::NAN,
+    }
+}

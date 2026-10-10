@@ -97,10 +97,10 @@ fn probe_refit_seam_refuses_typed() {
                 topo::EulerOpError::Certification {
                     error:
                         geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                            value,
+                            margin,
                             ..
                         }),
-                } => Some((value, a.refusal.render(*file))),
+                } => Some((upper(margin), a.refusal.render(*file))),
                 _ => None,
             });
             let Some((measured, rendered)) = limb else {
@@ -631,4 +631,14 @@ fn probe_iso_adoption_deterministic() {
     let b = solid(&orig, "second");
     assert_eq!(dump(&a), dump(&b), "adoption deterministic");
     eprintln!("PROBE iso payloads: {:?}", dump(&a));
+}
+
+/// The refusal's bound as the classifier saw it: the point margin, or
+/// the enclosure's upper end.
+fn upper(margin: geom_core::MarginDiag) -> f64 {
+    match margin.diagnostic_f64_for_error_text() {
+        geom_core::ErrorTextReading::Value(m)
+        | geom_core::ErrorTextReading::Enclosure { hi: m, .. } => m,
+        geom_core::ErrorTextReading::Invalid => f64::NAN,
+    }
 }
