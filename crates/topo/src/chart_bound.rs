@@ -690,6 +690,7 @@ mod tests {
 
 #[cfg(test)]
 mod from_computed_rows {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::revalue_pin::{S, revalued};
     use geom_core::{SupSpeed, Tol};

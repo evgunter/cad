@@ -9,6 +9,7 @@
 //! computes from it (a cell of a window, a quadrature's pad), and hand
 //! that to the site: a site that re-enters it as a constant re-values
 //! to where `p0` put it, and is counted laundered.
+#![allow(clippy::expect_used)]
 
 use geom_core::sym::revalue::{record, revalue};
 use geom_core::sym::with_session;

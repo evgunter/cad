@@ -2630,7 +2630,7 @@ fn face_flux<T: Decide>(
                             bounds
                         }
                     };
-                    let (at, fp, ap) = quad_lane::contribution(bounds.flux, bounds.area);
+                    let (at, fp, ap) = quadrature_contribution(bounds.flux, bounds.area);
                     flux_pad += fp;
                     area_pad += ap;
                     enclosure = Some((bounds.flux, bounds.area));
@@ -2663,6 +2663,22 @@ fn face_flux<T: Decide>(
         converged_at,
         refusal,
     })
+}
+
+/// A face's contribution as its two quadrature enclosures' midpoints,
+/// and their half-widths: each midpoint is an `f64` the quadrature
+/// computed, so it enters as a computed value.
+fn quadrature_contribution<T: Real>(
+    flux: Interval,
+    area: Interval,
+) -> (FaceContribution<T>, f64, f64) {
+    let (fc, fp) = quad_lane::mid_pad(flux);
+    let (ac, ap) = quad_lane::mid_pad(area);
+    let at = FaceContribution {
+        flux: T::from_computed(fc),
+        area: T::from_computed(ac),
+    };
+    (at, fp, ap)
 }
 
 /// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
@@ -4924,7 +4940,7 @@ mod shell_role_refusal_tests {
 
 #[cfg(test)]
 mod from_computed_rows {
-    use super::{MassProperties, quad_lane};
+    use super::{MassProperties, quadrature_contribution};
     use crate::revalue_pin::{Revalued, S, revalued};
     use geom_core::Real;
     use geom_core::interval::Interval;
@@ -4964,7 +4980,7 @@ mod from_computed_rows {
     fn the_quadrature_midpoints_enter_as_computed() {
         let found = revalued([1.0, 1.0 + 1.0e-3], |p, _| {
             let x = Interval::from_f64(p);
-            let (at, _, _) = quad_lane::contribution::<S>(x * x * x, x * x);
+            let (at, _, _) = quadrature_contribution::<S>(x * x * x, x * x);
             vec![at.flux, at.area]
         });
         assert_eq!(

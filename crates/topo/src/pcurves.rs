@@ -7359,7 +7359,7 @@ mod row_space_tests {
 
 #[cfg(test)]
 mod from_computed_rows {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use std::sync::Arc;
 
     use geom::{NurbsSurface, Surface};

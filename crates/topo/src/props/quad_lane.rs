@@ -39,22 +39,6 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
 }
 
-/// A face's contribution as its two enclosures' midpoints, and their
-/// half-widths: each midpoint is an `f64` this quadrature computed, so
-/// it enters as a computed value.
-pub(super) fn contribution<T: geom_core::Real>(
-    flux: Interval,
-    area: Interval,
-) -> (FaceContribution<T>, f64, f64) {
-    let (fc, fp) = mid_pad(flux);
-    let (ac, ap) = mid_pad(area);
-    let at = FaceContribution {
-        flux: T::from_computed(fc),
-        area: T::from_computed(ac),
-    };
-    (at, fp, ap)
-}
-
 /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
 /// recovered algebraically from the carrier frame and the interval
 /// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
