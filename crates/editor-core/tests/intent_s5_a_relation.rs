@@ -71,9 +71,10 @@ fn verdict(doc: &ProfileDoc, id: RecipeNodeId) -> AssertionVerdict<f64> {
 }
 
 /// **(A, test 1) `=` decides at f64 through a document.** A 10 mm
-/// distance under `= 10 mm` holds; under `= 10.001 mm` and `= 9.999 mm`
-/// it is violated with both numbers; a bound a few ε off is undecided.
-/// Breaks if `Equal` reuses one of `AtLeast`'s ends (`10 = 9.999`
+/// distance under `= 10 mm` holds; under a bound 100ε above or below
+/// (past the K·ε band at every ε row) it is violated with both numbers;
+/// a bound a few ε off is undecided.
+/// Breaks if `Equal` reuses one of `AtLeast`'s ends (the bound below
 /// holds), or the band arm is lost (the 3ε row is `Violated`).
 #[test]
 fn equal_decides_a_measured_distance() {
@@ -82,8 +83,8 @@ fn equal_decides_a_measured_distance() {
     let read = fixture::read_var(&doc, out);
     let rows = [
         (DEPTH, "Holds"),
-        (0.010_001, "Violated"),
-        (0.009_999, "Violated"),
+        (DEPTH + 100.0 * eps, "Violated"),
+        (DEPTH - 100.0 * eps, "Violated"),
         (DEPTH + 3.0 * eps, "Unevaluated"),
     ];
     let mut doc = doc;

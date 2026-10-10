@@ -738,7 +738,10 @@ mod tests {
         let ten = 0.010;
         assert_eq!(decide(ten, ten, Equal), "Holds");
         assert_eq!(decide(ten, ten + eps / 2.0, Equal), "Holds");
-        assert_eq!(decide(ten, 0.010_001, Equal), "Violated");
+        // Past the band at every ε row (K·ε is 10ε).
+        let off = 100.0 * eps;
+        assert_eq!(decide(ten, ten + off, Equal), "Violated");
+        assert_eq!(decide(ten, ten - off, Equal), "Violated");
         assert_eq!(decide(ten, 0.009, Equal), "Violated");
         assert_eq!(decide(ten, 0.009, AtLeast), "Holds");
         assert_eq!(decide(ten, 0.009, AtMost), "Violated");
