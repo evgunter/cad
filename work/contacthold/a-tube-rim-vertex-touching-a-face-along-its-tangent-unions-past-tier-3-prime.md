@@ -2,12 +2,13 @@
 id: a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime
 kind: issue
 title: A tube's rim vertex touching a face whose plane holds the rim tangent unions with the exact volume but fails tier 3′
-status: review
+status: closed
 pr: 4550
 opened: 2026-10-04
 priority: P2
 cost: M
 rides_with: census-backstop-separates-curved-pairs-only-along-world-axes
+closed: 2026-10-10
 ---
 
 
@@ -80,3 +81,8 @@ witness for `census-backstop-separates-curved-pairs-only-along-world-axes`
 and rides with it. Its pin is one pose per rim, both orders, exact volume
 and tier 3′. Probe: `contacthold/tube-rim-measure`,
 `crates/sweep/tests/contacthold_tube_rim_probe.rs`. (CONTACTHOLD orchestrator)
+
+## Closed (2026-10-10, PR 4550)
+
+Pinned by `crates/sweep/tests/tube_rim_touch_rows.rs` (both rims, both
+orders, exact volume, tier 3′), with torus and band-scale guards.

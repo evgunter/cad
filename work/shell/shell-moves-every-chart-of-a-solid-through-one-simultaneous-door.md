@@ -2,13 +2,14 @@
 id: shell-moves-every-chart-of-a-solid-through-one-simultaneous-door
 kind: issue
 title: shell moves a solid that is neither planar nor axial chart by chart through replace_faces_offset, so each intermediate section lands on a moved fit's window edge; one general simultaneous door owes every edge as its moved surfaces' section and every corner as their root
-status: open
+status: closed
 priority: P2
 cost: H
 refs: [a-wall-seam-between-two-fits-has-no-section, a-saddle-walls-offset-fit-stalls-short-of-the-default-eps]
 opened: 2026-10-10
 pr: 4524
 branch: shell/general-door
+closed: 2026-10-10
 ---
 
 
@@ -57,3 +58,7 @@ Every planar and axial body must keep its outcome and its stored bits. That need
 7. **Prove the point.** Build at least one non-planar, non-axial solid that `PerChart` refused or built order-dependently, and that the general door builds. Pin its closed form and its tier-3 validity, or its typed refusal past the door.
 8. **O4.** O4's "anything else chart by chart through `replace_faces_offset`" in `crates/geom-brep/README.md` is agent text. Reword it with the code, along with the `shell.rs` and `replace_face.rs` module docs.
 9. **No regression.** Every planar and axial body keeps its outcome and its stored bits, shown by a merge-base differential over geom-brep, topo, sweep, editor-core, `demos/tour` and the corpus documents, at the default ε and at `CAD_TOLERANCE_EPS=1e-12`, every moved row explained.
+
+## Closed
+
+Closed by PR 4524 (DR-148), merged 2026-10-10. `topo::offset_surfaces_together` is the general simultaneous door, and `shell`'s PerChart arm is retired. G1 corners build: the graze is decided before each Newton step, and corners whose every edge transported take their transports. Wall–wall seams between two moved fits refuse `NeighborPairUnroutable(Approx, Approx)` until the NURBS × NURBS arm lands (unit 19).

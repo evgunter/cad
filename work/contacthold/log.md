@@ -204,3 +204,44 @@ rows ride with it, and `topo-surgery-…` and `declared-faces-…` park on
 it. It's dispatched once disk and slots free up. PR 4558's review came
 back with no MAJOR, so a fix pass is out. PR 4550's verifier passed it,
 and it merges after its last README word. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4559 verified; PR 4575 to a concurrent dual
+
+- PR 4559's delta review passed (mutations re-run; the line × conic guard
+  rows still refuse with PR 4550 merged, held by backstop arm 1's
+  `CurvedWithinReach` for the three rows with no overlap cell). I made
+  its doc and row nits myself (comments and tracker only). It merges on
+  green.
+- PR 4575 (side-code order 2, class H): a **concurrent dual pair** on
+  frozen head `5ca970782b` under protocol `da5dbd1532`, with identical
+  briefs and claims (the In/Out lift bound, the On height bound, the
+  narrowing's two regression measurements, the pins, `ConicBend`'s wiring,
+  the dip correction). R1 runs in the implementer's clone, R2 in its own;
+  the method is the same. The census lane's space is reclaimed for R2.
+  — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4559 merged; PR 4575's dual adjudicated; the record build dispatched
+
+- PR 4559 (census) merged after a verified fix pass. Its three rows are
+  closed.
+- PR 4575 dual (concurrent, frozen `5ca970782b`): R1 and R2 each gave
+  APPROVE-WITH-FIXES with no MAJOR, so there are no tally candidates.
+  Bilateral findings: the certified lower bound is unpinned (surviving
+  mutants); `ConicBend`'s text is false; the dip's HONE attribution
+  doesn't hold; the residue row has no reaching reproduction; the
+  splitting sibling `enters_material_order2` certifies less; the refusal
+  comes before the lump. The pair is flagged: R1 glimpsed R2's command
+  line (method only). R2's `ConicBend` census was not run (build slot),
+  so the fix pass runs it. The union went to the implementer's fix pass;
+  the pre-note is held for the DR row at merge.
+- Disk freed (R2, census and tangent lanes reclaimed: 20 GB), so
+  `at-rest-records-are-unordered-cell-pairs` is dispatched to
+  `contacthold/at-rest-cell-pairs` (H, dual review). — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4558 merged
+
+The tangent locus PR merged after a full single review and a verified fix
+pass, which closes its three rows. The lane pushed one empty commit to
+re-trigger CI before it found the merge conflict that was blocking the
+run. That is a rule slip, left in history (merge-only). The plan now
+lists the rows this session's reviews filed. — (CONTACTHOLD orchestrator)
