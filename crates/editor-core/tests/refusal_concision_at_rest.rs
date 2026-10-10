@@ -45,7 +45,7 @@ use topo::{ContactClass, FaceKey, ValidationError};
 
 /// The labels a finding legitimately opens with, each on the routes
 /// (or the one sample) whose rendering writes it: the two badges' names
-/// as the viewer writes them, the product gate's root address, and the
+/// as the viewer writes them, the product gate's placement address, and the
 /// attribution header's relation (`mate 7's declared Rest contact,
 /// refuted (…): …`).
 const LABELS: &[(&str, &str)] = &[
@@ -55,8 +55,8 @@ const LABELS: &[(&str, &str)] = &[
     ("at rest, product", "at rest"),
     ("product", "product"),
     ("at rest, product", "product"),
-    ("product", "root 000000000005 output 0"),
-    ("at rest, product", "root 000000000005 output 0"),
+    ("product", "placement 000000000005 output 0"),
+    ("at rest, product", "placement 000000000005 output 0"),
     ("refuted, carried", "refuted"),
     ("declined, carried", "declined"),
     // A sentence whose clause carries no word the shape check reads as

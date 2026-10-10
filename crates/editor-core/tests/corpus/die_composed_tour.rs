@@ -17,21 +17,15 @@
 //!
 //! The scene's `build` authors THREE fillets, because it narrates
 //! three stops and a stop renders one body. The third is the blank —
-//! the same cube filleted with no pips cut — and it is a DAG sink, so
-//! in a document it is a second product root sitting exactly on the
-//! first: coincident faces, doubled volume, the #1162 separation
-//! defect. The tour already ruled on that for its viewer document and
-//! deletes the blank (`diefillet::gallery_document`), and the ruling
-//! does not weaken when the consumer is a corpus — the registry
-//! evaluates, gathers and round-trips what it holds. So this is the
-//! tour's DOCUMENT, blank deleted, and the exported log carries that
-//! deletion rather than a shorter build.
+//! the same cube filleted with no pips cut. The document places the
+//! composed die alone (`diefillet::gallery_document`); the blank stays
+//! in the log as a value nothing places (DM4), so it is in no product.
 //!
-//! Registering the three-root form instead was measured, not assumed:
-//! its product refuses `assemble` at `f64` with vertex-vertex
-//! `UndeclaredContact` findings between the two dice, which puts it in
-//! the divergence set `r2_m10_di_probes` pins — a row about coincident
-//! roots inside a pin about the dual census door.
+//! Placing the blank as well puts a second die exactly on the first:
+//! that product refuses `assemble` at `f64` with vertex-vertex
+//! `UndeclaredContact` findings between the two dice, which would put
+//! it in the divergence set `r2_m10_di_probes` pins — a row about
+//! coincident copies inside a pin about the dual census door.
 //!
 //! # Why the document arrives as BYTES
 //!
@@ -202,13 +196,19 @@ pub fn document() -> CorpusDoc {
             .expect("the tour's edit log replays")
             .doc;
     }
-    let composed = *doc.ids().last().expect("the die has nodes");
+    let Some(&placement) = doc.placements().last() else {
+        panic!("the tour's die is placed in the world")
+    };
+    let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
+        unreachable!("a placement is a world placement")
+    };
+    let composed = doc.operation_of(*body).expect("the placed body is live");
     assert!(
         matches!(
-            doc.node(composed).expect("the last node"),
+            doc.node(composed).expect("the placed node"),
             Node::Fillet { .. }
         ),
-        "the tour's die ends in the rim blend; if it no longer does, \
+        "the tour's die places the rim blend; if it no longer does, \
          this document's `result` names the wrong node"
     );
     let pip = first_pip(&doc);

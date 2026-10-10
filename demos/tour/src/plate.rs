@@ -11,20 +11,19 @@
 //! picture cannot survive.
 //!
 //! **The study's document does not cut its holes**: the web is read
-//! off the hole extrudes' own walls, so its product is the blank. A
-//! user would write the holes one of two natural ways, and both stop
-//! short of the study:
+//! off the hole extrudes' own walls, and the document places the
+//! blank, so its product is a slab with no holes. A user would write
+//! the holes one of two natural ways, and both stop short of the
+//! study:
 //!
 //! - **cut**: the blank minus the two hole extrudes, [`cut_plate`],
-//!   authored beside the study and attempted every run as two walls —
-//!   the certified drive certifies no box of it, and it has no product
-//!   root;
+//!   authored beside the study and attempted every run as a wall —
+//!   the certified drive certifies no box of it. It places the cut
+//!   part, which is its product;
 //! - **sketched**: one extrude of a profile with the two circles as
 //!   inner loops. No boolean, so no tie: it certifies whole boxes up to
 //!   `1e-2` of the study, and 0 of 512 leaves over the real study
 //!   (`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
-//!   Its measure would read the part's own walls, so it has no product
-//!   root either.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -161,13 +160,11 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
 /// (the other, inner-loop circles in one extrude, is the module doc's):
 /// the holes subtracted from the blank by two `Boolean(Subtract)`s, and
 /// the web read off the cut part's bore walls. Not the study's
-/// document, because two doors refuse it:
-/// the certified drive certifies no box of it
+/// document, because the certified drive certifies no box of it
 /// (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
-/// pinned in [`crate::tolerance`]), and its one root is the assertion,
-/// so it has no product to draw
-/// (`work/recipe/a-measured-part-is-not-a-product-root.md`, pinned in
-/// [`crate::gallery`]).
+/// pinned in [`crate::tolerance`]). It places the cut part, and the
+/// web measure reading that part does not keep it out of the product
+/// (pinned in [`crate::gallery`]).
 pub fn cut_plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -> Plate {
     author(spacing_half_width, radius_sigma, bound, true, tol)
 }
@@ -307,19 +304,25 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // second's A side, then the first's B side.
     let face = || NamePat::of_kind(EntityKind::Face);
     let from = |side: SegTag, inner: NamePat| face().seg(SegPat::tag(side).of([inner]));
-    let sites = if cut {
+    let (placed, sites) = if cut {
         let drilled = subtract(&mut doc, blank, hole_a);
         let part = subtract(&mut doc, drilled, hole_b);
-        [
-            (
-                part,
-                from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
-            ),
-            (part, from(SegTag::FromB, face().node(hole_b))),
-        ]
+        (
+            part,
+            [
+                (
+                    part,
+                    from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
+                ),
+                (part, from(SegTag::FromB, face().node(hole_b))),
+            ],
+        )
     } else {
-        [(hole_a, face()), (hole_b, face())]
+        (blank, [(hole_a, face()), (hole_b, face())])
     };
+    let placement =
+        apply(&doc, &DocEdit::place(placed, None), tol, &RefusingReach).expect("the plate places");
+    doc = placement.doc;
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask for each hole's

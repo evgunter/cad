@@ -86,6 +86,8 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
 
+    r.place(boss);
+
     CorpusDoc {
         name: "face_sketch",
         about: "DOCM-1: a boss sketched ON a box's top face through a derived frame (Datum::FaceFrame)",
