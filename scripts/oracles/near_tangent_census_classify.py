@@ -33,6 +33,9 @@ Each escalation is then classed:
 
 `python3 scripts/oracles/near_tangent_census_classify.py [eps] < probe.log`
 prints one line per escalation and a count per predicate, tilt and class.
+Two edges that share a point also carry the census clause's one number for
+them (`docs/DESIGN.md`, tier 3'): the far-end gap, their largest distance
+over the shorter edge, placed zero, in band or definite.
 A definite `EdgeEdgeCross` finding is read too: `b-arith` where the exact
 crossing parameters put the crossing at an end of an edge.
 """
@@ -213,6 +216,10 @@ def segments(a: dict[str, Any], b: dict[str, Any], keps: Decimal) -> dict[str, A
     return {
         "dist": dist,
         "run": run,
+        # The census clause's one number for cells that share a point:
+        # their largest distance over the shorter cell, at an end of it
+        # (the distance is convex), so its far end's.
+        "gap": max(point_segment(s0, o0, o1), point_segment(s1, o0, o1)),
         "shared_point": bool(set(a["pk"]) & set(b["pk"])),
         "ends": min(EXACT.norm(sub(p, q)) for p in (a0, a1) for q in (b0, b1)),
     }
@@ -287,6 +294,8 @@ def classify(
         shape = (
             f"sin {sin:.3e}, {where}, dist {g['dist']:.3e}, K*eps run {g['run']:.3e}"
         )
+        if g["shared_point"]:
+            shape += f", far-end gap {g['gap']:.3e} ({band.place(g['gap'])})"
         # Two segments from one point at angle t lie within K*eps of each
         # other for K*eps/t, whatever t; a sliver is a run that is a visible
         # share of the shorter edge, which this takes as 1%.
@@ -343,6 +352,7 @@ def classify(
     return "a", f"vertex {w['v']} {dist:.3e} from the segment"
 
 
+GAP = re.compile(r"far-end gap \S+ \((\w+)\)")
 TAG = re.compile(r"^(\S+) nt e(\d) a(\d+) d(\S+) (pc|cp) ([UIS])$")
 FINDING = re.compile(r"^  FINDING (.*?) \| esc pm_census_(\S+) (\S+)$")
 CROSS = re.compile(
@@ -420,6 +430,16 @@ def main() -> None:
     print("# predicate, d, class: escalations")
     for k in sorted(by):
         print(f"# {k[0]} {k[1]} {k[2]}: {by[k]}")
+    # The census clause's arms on the pairs that share a point: a definite
+    # far-end gap is legal, one in band a sliver, a zero a coincidence.
+    gaps: dict[tuple[str, str], int] = defaultdict(int)
+    for _, _, _, _, _, cls, why in rows:
+        g = GAP.search(why)
+        if g:
+            gaps[(cls, g.group(1))] += 1
+    print("# shared-point pairs by class and far-end gap: count")
+    for k in sorted(gaps):
+        print(f"# {k[0]} gap {k[1]}: {gaps[k]}")
 
 
 if __name__ == "__main__":

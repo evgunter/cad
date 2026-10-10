@@ -60,7 +60,7 @@ impl FaceSelection {
     ///
     /// Falls back to [`FaceSelection::node`] for a name the vocabulary
     /// walk cannot classify, so an unclassified role degrades to the
-    /// drawn root rather than to no feature at all.
+    /// drawn copy rather than to no feature at all.
     pub fn feature(&self) -> RecipeNodeId {
         attribute(&self.name).minted_by().unwrap_or(self.node)
     }
@@ -196,7 +196,7 @@ impl Selection {
     /// The recipe node this selection is about, when it is about one:
     /// the node itself, or the feature a picked face belongs to
     /// ([`FaceSelection::feature`] — the node that MADE the face, not
-    /// the root that drew it).
+    /// the copy that drew it).
     ///
     /// **The one home for the viewport→tree inversion.** The feature
     /// tree's highlight and the property panel's slot rows both read
@@ -226,10 +226,9 @@ impl Selection {
     /// highlight and the property panel ask [`Selection::node`], and
     /// every seated tool asks this — `crate::tools`' one pick route.
     ///
-    /// A pick on a pattern's or a split's picture answers the PATTERN
-    /// or the SPLIT, since that is the root whose value was drawn; the
-    /// output-body index riding on the pick says which of its bodies,
-    /// and no seat reads it.
+    /// A pick is on a world placement's copy (A10), and a seat takes the
+    /// body that placement places: [`crate::seats::Seats::pick`] reads
+    /// it through [`crate::world::seat_of`].
     pub fn seat_node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),

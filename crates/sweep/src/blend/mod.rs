@@ -500,7 +500,7 @@ impl BlendDecision {
                 at_zero: None,
             }
             .recourse(arm, Reading::Build),
-            None => LeverOnly { lever }.recourse(arm),
+            None => LeverOnly { lever }.recourse(arm, Reading::Build),
         }
     }
 }

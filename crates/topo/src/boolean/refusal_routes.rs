@@ -319,6 +319,25 @@ pub enum BooleanDecision {
     /// positive margin, the conventional description on zero). Asked of
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
+    /// Whether a shell of the result bounds material or a cavity, at the
+    /// finished-body gate: its volume over its area, the mean thickness
+    /// it stands for (`chk_shell_volume_sign`), either definite sign a
+    /// role. Raised only where the shell's certified reading lies wholly
+    /// in band: a shell in band of having no volume, which definite cuts
+    /// can compose, so the operands are ill-conditioned at this ε. It
+    /// names the shell whose reading binds the offer, and how many more
+    /// lie in band, each decided by the same tolerance.
+    ShellRole {
+        /// The binding shell's solid, in the refused result. The result is
+        /// never returned, so this and `shell` are diagnostic only: they
+        /// tell refusals apart, and locate nothing a caller holds
+        /// (`work/join/the-shell-role-refusal-locates-no-piece.md`).
+        solid: crate::entity::SolidKey,
+        /// The binding shell, diagnostic only as `solid` is.
+        shell: crate::entity::ShellKey,
+        /// How many more of the result's shells lie in band.
+        others: usize,
+    },
     /// A question the curved-extent scan asks of a sphere face, which
     /// takes no declarations.
     Sphere(SphereQuestion),
@@ -821,6 +840,17 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
+/// Whether a shell of the result bounds material or a cavity
+/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, the shell's
+/// mean thickness, a length, and either definite sign is a role.
+const RESULT_SHELL: SizedDecision = SizedDecision {
+    lever: "move the parts so the pieces and cavities they leave are clearly thick",
+    size: "thickness",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
 /// Whether the faces touching along a seam curve apart or share their
 /// curvature ([`BooleanDecision::SeamJet`]): the sagitta their relative
 /// bend subtends over the folded lever arm, a determinate tangency on a
@@ -1236,7 +1266,7 @@ impl Ending {
         let arm = RefusedArm::Undecided(diag);
         match self {
             Self::Sized(decision) => decision.recourse(arm, Reading::Build),
-            Self::Lever(lever) => LeverOnly { lever }.recourse(arm),
+            Self::Lever(lever) => LeverOnly { lever }.recourse(arm, Reading::Build),
             Self::Frontier(what) => format!("{what}. {}", geom_core::NOT_YET_ENDING),
             Self::Unsized(decision) => decision.recourse(arm, Reading::Build),
             Self::Placement(decision, escalation) => decision.lever_ending(escalation, diag),
@@ -1398,6 +1428,7 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
+            Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
         }
@@ -1587,6 +1618,7 @@ impl BooleanDecision {
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
+            Self::ShellRole { .. } => Ending::Sized(RESULT_SHELL),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -1598,8 +1630,19 @@ impl BooleanDecision {
     /// one ending the verdict gives.
     #[must_use]
     pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        diag.undecided(self.subject(), self.ending(diag).recourse(diag))
-            .to_string()
+        let ending = self.ending(diag).recourse(diag);
+        let ending = match self {
+            Self::ShellRole { others: 0, .. } => ending,
+            Self::ShellRole { others: 1, .. } => format!(
+                "1 more shell of the result lies in band, decided by the same tolerance. {ending}"
+            ),
+            Self::ShellRole { others, .. } => format!(
+                "{others} more shells of the result lie in band, decided by the same \
+                 tolerance. {ending}"
+            ),
+            _ => ending,
+        };
+        diag.undecided(self.subject(), ending).to_string()
     }
 }
 
@@ -1833,6 +1876,11 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
+                BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
+                    solid: crate::entity::SolidKey::default(),
+                    shell: crate::entity::ShellKey::default(),
+                    others: 0,
+                }],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
                     .map(BooleanDecision::Sphere)
                     .collect(),
@@ -2192,6 +2240,14 @@ pub(in crate::boolean) mod tests {
                     "Recourse: move the geometry so the faces touching along that seam either \
                      clearly curve apart there or clearly share their curvature",
                     SizedPass::NonNegative,
+                ),
+            ),
+            BooleanDecision::ShellRole { .. } => (
+                "whether a shell of the result bounds material or a cavity",
+                Ending::Sized(
+                    "Recourse: move the parts so the pieces and cavities they leave are clearly \
+                     thick",
+                    SizedPass::NonZero,
                 ),
             ),
             BooleanDecision::Sphere(SphereQuestion::AgainstPlane) => (

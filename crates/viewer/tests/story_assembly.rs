@@ -238,7 +238,11 @@ fn the_windmill_story() {
     assert_eq!(session.history().len(), 3, "root plus two adds");
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
-    assert_eq!(session.doc().ids().len(), 1, "the slip is off the path");
+    assert_eq!(
+        session.doc().ids().len(),
+        2,
+        "the slip is off the path: the tower and its placement"
+    );
     let abandoned = session
         .history()
         .entry(session.history().current())
@@ -262,13 +266,13 @@ fn the_windmill_story() {
     );
     assert_eq!(
         history.entry(abandoned).doc().ids().len(),
-        2,
-        "the abandoned two-tower document is intact"
+        4,
+        "the abandoned two-tower document is intact, each tower placed"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().ids().len(), 1);
+    assert_eq!(session.doc().ids().len(), 2);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -285,10 +289,9 @@ fn the_windmill_story() {
 
     // ── 4. RESOLVE: two instance rows, both ok.
     session.pump();
-    let rows = session.tree_rows();
+    let rows = common::asm::instance_rows(&session);
     assert_eq!(rows.len(), 2);
     for row in &rows {
-        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -381,7 +384,11 @@ fn the_windmill_story() {
         .pick_for(eval, &ray, &session.display_view())
         .expect("the pick answers")
         .expect("the cursor is aimed at the tower's top");
-    assert_eq!(hit.node, tower_i, "the highest surface is the tower's");
+    assert_eq!(
+        hit.node,
+        common::copy_of(session.committed_doc(), tower_i),
+        "the highest surface is the tower's copy"
+    );
     assert!(
         (hit.point.z - TOWER_HEIGHT).abs() < 1e-9,
         "the hit is the top face, at {:?}",
@@ -439,9 +446,16 @@ fn the_windmill_story() {
     // hub's probe superseded — discarded, not zeroed.
     let hub_bottom =
         common::displayed_face_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
-    assert_eq!(hub_bottom.node, hub_i, "the parked hub is picked");
+    assert_eq!(
+        hub_bottom.node,
+        common::copy_of(session.committed_doc(), hub_i),
+        "the parked hub's copy is picked"
+    );
     let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
-    assert_eq!(tower_top.node, tower_i);
+    assert_eq!(
+        tower_top.node,
+        common::copy_of(session.committed_doc(), tower_i)
+    );
     let mut tool = MateTool::new();
     tool.pick(session.doc(), hub_bottom.clone());
     tool.pick(session.doc(), tower_top);
@@ -543,7 +557,11 @@ fn the_windmill_story() {
         session.doc().node(seat_mate).is_none(),
         "undo removes the mate"
     );
-    assert_eq!(session.tree_rows().len(), 2, "two instances again");
+    assert_eq!(
+        session.tree_rows().len(),
+        4,
+        "two instances and their placements again"
+    );
     session.perform(SessionOp::Redo);
     session.pump();
     assert!(
@@ -576,22 +594,36 @@ fn the_windmill_story() {
         &index,
         &asm::up_at(SAIL_A_PARK[0], SAIL_A_PARK[1]),
     );
-    assert_eq!(sail_a_bottom.node, sail_a);
+    assert_eq!(
+        sail_a_bottom.node,
+        common::copy_of(session.committed_doc(), sail_a)
+    );
     let sail_b_bottom = common::displayed_face_at(
         &session,
         &index,
         &asm::up_at(SAIL_B_PARK[0], SAIL_B_PARK[1]),
     );
-    assert_eq!(sail_b_bottom.node, sail_b);
+    assert_eq!(
+        sail_b_bottom.node,
+        common::copy_of(session.committed_doc(), sail_b)
+    );
     // The hub's front and back walls, picked at the seated hub's
     // mid-height from either side.
     let wall_z = TOWER_HEIGHT + HUB_SIDE / 2.0;
     let front_wall =
         common::displayed_face_at(&session, &index, &common::along_y(1.0, 0.0, wall_z));
-    assert_eq!(front_wall.node, hub_i, "the seated hub's front wall");
+    assert_eq!(
+        front_wall.node,
+        common::copy_of(session.committed_doc(), hub_i),
+        "the seated hub's front wall"
+    );
     let back_wall =
         common::displayed_face_at(&session, &index, &common::along_y(-1.0, 0.0, wall_z));
-    assert_eq!(back_wall.node, hub_i, "the seated hub's back wall");
+    assert_eq!(
+        back_wall.node,
+        common::copy_of(session.committed_doc(), hub_i),
+        "the seated hub's back wall"
+    );
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
     let mut tool = MateTool::new();
@@ -722,7 +754,11 @@ fn the_windmill_story() {
     // induces — the gate's verdict is the truth about this design,
     // shown on the draw path rather than saved for an export.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 7, "four instances and three mates");
+    assert_eq!(
+        rows.len(),
+        11,
+        "four instances, their four placements and three mates"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -813,8 +849,8 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.doc().ids().len(),
-        7,
-        "the history holds the four instances and three mates it held before"
+        11,
+        "the history holds the four placed instances and three mates it held before"
     );
     session.pump();
     for row in session.tree_rows() {
@@ -835,7 +871,7 @@ fn the_windmill_story() {
         "save → reopen is bit-identity on the document"
     );
     let rows = reopened.tree_rows();
-    assert_eq!(rows.len(), 7, "the whole recipe came back");
+    assert_eq!(rows.len(), 11, "the whole recipe came back");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

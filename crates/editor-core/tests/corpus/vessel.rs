@@ -113,6 +113,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         len(WALL),
         open,
     ));
+    r.place(vessel);
 
     CorpusDoc {
         name: "vessel",
