@@ -2,11 +2,12 @@
 id: die-volume-backstop-launders-a-constant-no-open-row-names
 kind: issue
 title: die's volume_backstop re-values away from p1 with every topo site fixed, and no open launders row names the constant
-status: open
+status: closed
 opened: 2026-10-10
 priority: P0
 cost: M
 refs: [a-computed-value-re-enters-as-a-constant, the-from-f64-gate-reads-every-generic-crate, topo-keeps-computed-values-in-t]
+closed: 2026-10-10
 ---
 
 
@@ -49,3 +50,7 @@ Owed: name the constant (list the `Lit` leaves of decision #10548's DAG,
 or bisect the document's nodes), then fix it where it lives, or
 classify it under `the-from-f64-gate-reads-every-generic-crate` if it is
 one of that row's sites.
+
+## Closed
+
+A census artefact, not a laundering (PR 4596). The census paired decisions by position and name. `volume_backstop_violation` (#10547) answers `Zero` at p0 (the planar subtract's identity cancels exactly) and `Negative` at p1 (−3.1e-17 of rounding), so the builds take different arms of `bound_holds`. p0 decides arm 2's `hi / lever` and p1 decides arm 1's `lo / lever`, both under the name `volume_backstop`, and the census compared those two different margins. The p1 margin's `lo` is topo's `margin.lo()`, which `topo-keeps-computed-values-in-t` enters through `from_computed`. With PR 4596's sign-aware pairing, `die` reads laundered `{}`.
