@@ -310,7 +310,7 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         es.sort_unstable();
         es
     });
-    if let Err(e) = topo::test_support::meeting::corners_disjoint(body) {
+    if let Err(e) = topo::test_support::meeting::corners_disjoint(body, Tol::witness()) {
         panic!("{what}: {e}");
     }
     Outcome {

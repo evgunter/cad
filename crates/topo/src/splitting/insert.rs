@@ -25,9 +25,13 @@
 //!
 //! # Reading the corners
 //!
-//! With one run there is one corner, its two cuts. With more, the germs
-//! are ordered about the plane's normal ([`section_chords`]), and each
-//! germ whose material lies after it pairs with the next.
+//! With one run there is one corner, its two cuts. With more, the
+//! corners are read from the order of the germs about the plane's
+//! normal ([`section_chords`]), each germ the material starts at paired
+//! with the next. The topology decides what it can: a germ beside an
+//! entry the plane holds lies along that entry, and the two germs either
+//! side of one such entry are ordered with no reading. Only germs of
+//! different sectors are ordered by reading their directions.
 //!
 //! # Minting
 //!
@@ -52,10 +56,14 @@
 //! cached ON (the old vertex's own point: structural coincidence).
 
 use geom_core::k_stats::NonzeroSign;
-use geom_core::{Band, Decide, Margin, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 
-use super::{NullEdgeRecord, PlaneSide, SectorEntry, SectorEntryKind, SplitReduceError};
+use super::neighborhood::EntryRay;
+use super::{
+    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
+    SplitReduceError,
+};
 use crate::body::Body;
 use crate::entity::{EntityId, VertexKey};
 use crate::euler::{MevSite, RunSite};
@@ -105,85 +113,117 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
 /// more pairs) paired as the material lies between their germs round
 /// the plane's `normal`.
 ///
-/// Cut `c`'s germ is the direction in the plane inside the sector
-/// between `dirs[c]` and `dirs[c + 1]`, `|ŵ·n| û + |û·n| ŵ`: a positive
+/// Cut `c`'s germ lies in the plane inside the sector between
+/// `rays[c]` and `rays[c + 1]`. Where one bound lies in the plane (its
+/// side was On before rules (a) and (b)) the germ is that bound, read
+/// off the topology. Otherwise it is `|ŵ·n| û + |û·n| ŵ`: a positive
 /// combination of the bounds, so inside the sector (every sector of the
-/// array is under 180°), and in the plane, the two bounds lying on
-/// opposite sides of it or one in it. The sector sweeps counterclockwise
-/// about its face's outward normal from `ŵ` to `û` (the `neighborhood`
-/// module's convention), so the material lies counterclockwise of the
-/// germ about `n` exactly when `entries[c]` is Above: at such a germ the
-/// material starts, and it ends at the next.
+/// array is under 180°), and in the plane, the bounds lying on opposite
+/// sides of it. The sector sweeps counterclockwise about its face's
+/// outward normal from `ŵ` to `û` (the `neighborhood` module's
+/// convention), so the material lies counterclockwise of the germ about
+/// `n` exactly when `entries[c]` is Above: there it starts, and it ends
+/// at the next germ.
 ///
-/// Germs are ordered counterclockwise from the first by their sines
-/// about `n` (`split_germ_side`, `split_germ_order`), levered at the
-/// shorter arm a reading uses; one on the first germ's line is placed by
-/// its cosine (`split_germ_sense`). Two germs along one direction (an
-/// edge in the plane bounding both sectors, or a duplicate's bisector in
-/// it) are ordered by the alternation of starts and ends, which their
-/// neighbours fix.
+/// The two germs either side of one in-plane entry share that entry's
+/// direction, and the material does not lie between them: both faces at
+/// the entry leave it to one side, and rule (b) sends the entry to the
+/// other only where its wedge there is reflex, which holds material on
+/// both sides of it in the plane. So such a pair is ordered end first,
+/// with no reading. Every other germ is placed by reading: by its sine
+/// about `n` from the first germ (`split_germ_side`), its cosine where
+/// that is zero (`split_germ_sense`), and its sine from another germ in
+/// the same half-turn (`split_germ_order`), each levered at the shortest
+/// reach it reads. Two germs of different sectors that a reading puts
+/// on one line are a coincidence to the tolerance: the section would
+/// hold two vertices within it of each other.
 ///
 /// # Errors
 ///
 /// [`SplitReduceError::SectionGermsEscalated`] where a reading lands in
 /// the band; [`SplitReduceError::SectionGermsUnordered`] where a germ has
-/// no direction, more than two germs share one, every germ shares one
-/// with another, or the starts and ends do not alternate.
+/// no line, two germs of different sectors lie on one line, or the order
+/// read does not alternate starts and ends.
 fn section_chords<T: Decide>(
     normal: Vec3<T>,
-    vertex: VertexKey,
-    entries: &[SectorEntry],
-    dirs: &[Vec3<T>],
+    hood: &Neighborhood<'_, T>,
     cuts: &[usize],
     band: Band,
 ) -> Result<Vec<[usize; 2]>, SplitReduceError> {
+    let Neighborhood {
+        vertex,
+        entries,
+        rays,
+    } = *hood;
     let n = entries.len();
-    let escalated = |diag| SplitReduceError::SectionGermsEscalated { vertex, diag };
-    let unordered = || SplitReduceError::SectionGermsUnordered { vertex };
+    let escalated = |reading, diag| SplitReduceError::SectionGermsEscalated {
+        vertex,
+        reading,
+        diag,
+    };
+    let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
+    // Each germ: its unit direction, its reach, and the in-plane entry
+    // it lies along, if any.
     let germs = cuts
         .iter()
         .map(|&c| {
-            let (u, w) = (dirs[c], dirs[(c + 1) % n]);
-            let arm = u.norm().min(w.norm());
-            let (u, w) = (u.normalize(), w.normalize());
+            let (a, b) = (c, (c + 1) % n);
+            let (u, w) = (rays[a], rays[b]);
+            let arm = u.dir.norm().min(w.dir.norm());
+            match (u.in_plane, w.in_plane) {
+                (true, false) => return Ok((u.dir.normalize(), arm, Some(a))),
+                (false, true) => return Ok((w.dir.normalize(), arm, Some(b))),
+                (true, true) => return Err(unordered(SectionGermFault::NoLine)),
+                (false, false) => {}
+            }
+            let (u, w) = (u.dir.normalize(), w.dir.normalize());
             let d = u * w.dot(normal).abs() + w * u.dot(normal).abs();
             match decide("split_germ_line", Margin::levered(d.norm(), arm), band) {
-                Ok(Sign::Positive) => Ok((d.normalize(), arm)),
-                Ok(_) => Err(unordered()),
-                Err(diag) => Err(escalated(diag)),
+                Ok(Sign::Positive) => Ok((d.normalize(), arm, None)),
+                Ok(_) => Err(unordered(SectionGermFault::NoLine)),
+                Err(diag) => Err(escalated(SectionGermReading::Line, diag)),
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let order = |diag| escalated(SectionGermReading::Order, diag);
     // Each germ's slot counterclockwise from germ 0: along it (0), the
     // open half-turn after it (1), opposite it (2), the half-turn back
     // to it (3).
-    let (r, r_arm) = germs[0];
+    let (r, r_arm, _) = germs[0];
     let slot = |g: Vec3<T>, arm: T| -> Result<u8, SplitReduceError> {
         let arm = arm.min(r_arm);
         match decide(
             "split_germ_side",
             Margin::levered(r.cross(g).dot(normal), arm),
             band,
-        ) {
-            Ok(Sign::Positive) => Ok(1),
-            Ok(Sign::Negative) => Ok(3),
-            Ok(Sign::Zero) => {
-                match decide_nonzero("split_germ_sense", Margin::levered(r.dot(g), arm), band) {
-                    Ok(NonzeroSign::Positive) => Ok(0),
-                    Ok(NonzeroSign::Negative) => Ok(2),
-                    Err(diag) => Err(escalated(diag)),
+        )
+        .map_err(order)?
+        {
+            Sign::Positive => Ok(1),
+            Sign::Negative => Ok(3),
+            Sign::Zero => {
+                match decide_nonzero("split_germ_sense", Margin::levered(r.dot(g), arm), band)
+                    .map_err(order)?
+                {
+                    NonzeroSign::Positive => Ok(0),
+                    NonzeroSign::Negative => Ok(2),
                 }
             }
-            Err(diag) => Err(escalated(diag)),
         }
     };
-    // The germs in counterclockwise order, those along one direction
-    // grouped.
+    // The germs in counterclockwise order, the two along one in-plane
+    // entry grouped with no reading.
     let mut groups: Vec<(u8, Vec<usize>)> = Vec::new();
-    for (i, &(g, g_arm)) in germs.iter().enumerate() {
-        let s = slot(g, g_arm)?;
+    for (i, &(g, g_arm, along)) in germs.iter().enumerate() {
+        if let Some(j) = groups
+            .iter()
+            .position(|(_, m)| along.is_some() && germs[m[0]].2 == along)
+        {
+            groups[j].1.push(i);
+            continue;
+        }
+        let s = if i == 0 { 0 } else { slot(g, g_arm)? };
         let mut at = groups.len();
-        let mut along = None;
         for (j, (t, members)) in groups.iter().enumerate() {
             if *t < s {
                 continue;
@@ -193,76 +233,67 @@ fn section_chords<T: Decide>(
                 break;
             }
             if s % 2 == 0 {
-                along = Some(j);
-                break;
+                return Err(unordered(SectionGermFault::Coincident));
             }
-            let (h, h_arm) = germs[members[0]];
-            let order = Margin::levered(h.cross(g).dot(normal), g_arm.min(h_arm));
-            match decide("split_germ_order", order, band) {
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
+            let (h, h_arm, _) = germs[members[0]];
+            let sine = Margin::levered(h.cross(g).dot(normal), g_arm.min(h_arm));
+            match decide("split_germ_order", sine, band).map_err(order)? {
+                Sign::Positive => {}
+                Sign::Negative => {
                     at = j;
                     break;
                 }
-                Ok(Sign::Zero) => {
-                    along = Some(j);
-                    break;
-                }
-                Err(diag) => return Err(escalated(diag)),
+                Sign::Zero => return Err(unordered(SectionGermFault::Coincident)),
             }
         }
-        match along {
-            Some(j) => groups[j].1.push(i),
-            None => groups.insert(at, (s, vec![i])),
-        }
+        groups.insert(at, (s, vec![i]));
     }
+    // A pair along one in-plane entry: its end first.
     let starts = |i: usize| entries[cuts[i]].class == PlaneSide::Above;
-    let first = groups
+    let seq: Vec<usize> = groups
         .iter()
-        .position(|(_, members)| members.len() == 1)
-        .ok_or_else(unordered)?;
-    let mut seq = Vec::with_capacity(cuts.len());
-    let mut start = starts(groups[first].1[0]);
-    for k in 0..groups.len() {
-        match groups[(first + k) % groups.len()].1[..] {
-            [a] if starts(a) == start => seq.push(a),
-            [a, b] if starts(a) != starts(b) => {
-                seq.extend(if starts(a) == start { [a, b] } else { [b, a] });
-                start = !start;
-            }
-            _ => return Err(unordered()),
-        }
-        start = !start;
-    }
+        .flat_map(|(_, m)| match m[..] {
+            [a, b] if starts(a) => vec![b, a],
+            _ => m.clone(),
+        })
+        .collect();
     let m = seq.len();
+    if (0..m).any(|j| starts(seq[j]) == starts(seq[(j + 1) % m])) {
+        return Err(unordered(SectionGermFault::Alternation));
+    }
     Ok((0..m)
         .filter(|&j| starts(seq[j]))
         .map(|j| [cuts[seq[j]], cuts[seq[(j + 1) % m]]])
         .collect())
 }
 
+/// One ON vertex's classified neighborhood: its entries, and each
+/// entry's ray (`neighborhood::classify_neighborhood_rays`).
+#[derive(Clone, Copy)]
+pub(super) struct Neighborhood<'a, T: Real> {
+    pub vertex: VertexKey,
+    pub entries: &'a [SectorEntry],
+    pub rays: &'a [EntryRay<T>],
+}
+
 /// Mints the vertex's null edges (module docs): one per corner of the
-/// section, F9 attributes recorded, each copy cached ON. `dirs` are the
-/// entries' directions out of the vertex
-/// (`neighborhood::classify_neighborhood_dirs`), read only where two or
-/// more runs need their corners ordered.
+/// section, F9 attributes recorded, each copy cached ON. The rays are
+/// read only where two or more runs need their corners ordered.
 ///
 /// # Errors
 ///
 /// [`section_chords`]'s refusals, [`SplitReduceError::SectionGermsUnordered`]
 /// where the corners cross as chords of the orbit or a corner's arc
 /// starts and ends on different sides, and the mint's own.
-#[allow(clippy::too_many_arguments)] // the reduction's state, threaded whole
 pub(super) fn insert_null_edges<T: Decide>(
     body: &mut Body<T>,
     normal: Vec3<T>,
-    vertex: VertexKey,
-    entries: &[SectorEntry],
-    dirs: &[Vec3<T>],
+    hood: &Neighborhood<'_, T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     records: &mut Vec<NullEdgeRecord>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
+    let (vertex, entries) = (hood.vertex, hood.entries);
     let n = entries.len();
     let Some(anchor) = entries.iter().position(|e| e.class == PlaneSide::Below) else {
         return Ok(());
@@ -272,9 +303,9 @@ pub(super) fn insert_null_edges<T: Decide>(
     let corners = match cuts[..] {
         [] => return Ok(()),
         [a, b] => vec![[a, b]],
-        _ => section_chords(normal, vertex, entries, dirs, &cuts, band)?,
+        _ => section_chords(normal, hood, &cuts, band)?,
     };
-    let unordered = || SplitReduceError::SectionGermsUnordered { vertex };
+    let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
     // Each corner as its arc after the anchor, `(p, q)`: the entries
     // `anchor + p + 1 ..= anchor + q`.
     let mut arcs: Vec<(usize, usize)> = corners
@@ -291,7 +322,8 @@ pub(super) fn insert_null_edges<T: Decide>(
         order[q] = Some(2 * i + 1);
     }
     let order: Vec<usize> = order.into_iter().flatten().collect();
-    let tree = crate::null::ring_tree(&order, Some(0)).ok_or_else(unordered)?;
+    let tree = crate::null::ring_tree(&order, Some(0))
+        .ok_or_else(|| unordered(SectionGermFault::Crossing))?;
     // The vertex standing for each corner's child region, once minted.
     let mut child: Vec<Option<VertexKey>> = vec![None; arcs.len()];
     for strut in tree {
@@ -305,7 +337,7 @@ pub(super) fn insert_null_edges<T: Decide>(
         let arc = |j: usize| &entries[(anchor + p + 1 + j) % n];
         let side = arc(0).class;
         if arc(q - p - 1).class != side {
-            return Err(unordered());
+            return Err(unordered(SectionGermFault::ArcSides));
         }
         let mut real = (0..q - p)
             .map(arc)
@@ -331,15 +363,11 @@ pub(super) fn insert_null_edges<T: Decide>(
                     site @ RunSite::WholeOrbit { .. } => (site.mev_site(), true, true),
                 }
             }
-            // Duplicate-only arc: the dangling strut inside the wide
-            // sector P, spliced before `after`, the next real orbit edge
-            // Q. The arc is P's one duplicate (sharing P's half), and P
-            // and Q lie just outside it, in the parent region, so both
-            // are at `at`. Every other corner's mint moves only real
-            // halves of its own arc, and splices only before its first
-            // half, the successor of its last, or its own `after`, whose
-            // predecessor is another sector: none is Q. So the corner is
-            // still `after`'s at `at`, however many corners minted first.
+            // A duplicate alone: the strut inside its wide sector P,
+            // before the next real edge Q. P and Q lie just outside the
+            // arc, in the parent region, and another corner's mint
+            // splices only at its own arc's ends, so Q's corner is still
+            // at `at`.
             _ => {
                 let after = &entries[(anchor + q + 1) % n];
                 if body.proven_orbit_step(arc(0).he) != after.he

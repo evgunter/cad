@@ -1621,13 +1621,56 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::UnderflowedSectorChord { vertex, face },
         ),
         (
-            "SectionGermsEscalated",
+            "SectionGermsEscalated(Line)",
             R::SectionGermsEscalated {
                 vertex,
+                reading: topo::SectionGermReading::Line,
                 diag: diag(),
             },
         ),
-        ("SectionGermsUnordered", R::SectionGermsUnordered { vertex }),
+        (
+            "SectionGermsEscalated(Order)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Order,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsUnordered(NoLine)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::NoLine,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Coincident)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Coincident,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Alternation)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Alternation,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Crossing)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Crossing,
+            },
+        ),
+        (
+            "SectionGermsUnordered(ArcSides)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::ArcSides,
+            },
+        ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),

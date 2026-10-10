@@ -125,6 +125,38 @@ pub struct SplitPlane<T: Real> {
     pub normal: UnitVec3<T>,
 }
 
+/// Which reading of where the split plane leaves the faces round a
+/// vertex escalated ([`SplitReduceError::SectionGermsEscalated`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionGermReading {
+    /// Whether a face meets the plane along a line there
+    /// (`split_germ_line`).
+    Line,
+    /// The order of two germs about the plane's normal
+    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`).
+    Order,
+}
+
+/// Why the germs round a vertex fix no corners of the section there
+/// ([`SplitReduceError::SectionGermsUnordered`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionGermFault {
+    /// A face whose bounds lie on two sides of the plane meets it along
+    /// no line: its bounds both lie in the plane, or it lies in it to
+    /// the tolerance.
+    NoLine,
+    /// Two germs of different sectors lie along one direction, to the
+    /// tolerance.
+    Coincident,
+    /// The germs as read do not alternate between the material's starts
+    /// and ends.
+    Alternation,
+    /// The corners as read cross as chords of the vertex's orbit.
+    Crossing,
+    /// A corner's arc of the orbit starts and ends on different sides.
+    ArcSides,
+}
+
 /// A trilean side verdict against the split plane (the classification
 /// currency of the whole reduction; `comp`'s −1/0/+1 as a typed enum).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -372,25 +404,24 @@ pub enum SplitReduceError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
-    /// The directions in which the plane leaves the faces round an ON
-    /// vertex could not be ordered about its normal: a reading landed in
-    /// the band, so which germs bound each corner of the section there
-    /// is undecided.
+    /// Where the plane leaves the faces round an ON vertex could not be
+    /// read: a reading landed in the band, so which germs bound each
+    /// corner of the section there is undecided.
     SectionGermsEscalated {
         /// The ON vertex.
         vertex: VertexKey,
+        /// Which reading escalated.
+        reading: SectionGermReading,
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
     /// The directions in which the plane leaves the faces round an ON
-    /// vertex fix no corners of the section there: a germ has no
-    /// direction, more than two share one, every germ shares one with
-    /// another, the material's starts and ends do not alternate round
-    /// the vertex, or the corners they make cross as chords of its
-    /// orbit.
+    /// vertex fix no corners of the section there; `fault` names why.
     SectionGermsUnordered {
         /// The ON vertex.
         vertex: VertexKey,
+        /// What fixed no corners.
+        fault: SectionGermFault,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -579,17 +610,41 @@ impl core::fmt::Display for SplitReduceError {
                  call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
-            Self::SectionGermsEscalated { diag, .. } => write!(
-                f,
-                "the directions in which the split plane leaves the faces round a vertex \
-                 are too close to order ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
-            Self::SectionGermsUnordered { .. } => write!(
-                f,
-                "the directions in which the split plane leaves the faces round a vertex \
-                 fix no corners of the section there. Recourse: {SPLIT_COINCIDENCE_RECOURSE}"
-            ),
+            Self::SectionGermsEscalated { reading, diag, .. } => match reading {
+                SectionGermReading::Line => write!(
+                    f,
+                    "a face round a vertex lies too nearly in the split plane to say where \
+                     the plane leaves it ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                    diag.payload()
+                ),
+                SectionGermReading::Order => write!(
+                    f,
+                    "where the split plane leaves two faces round a vertex is too close to \
+                     order ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                    diag.payload()
+                ),
+            },
+            Self::SectionGermsUnordered { fault, .. } => {
+                let what = match fault {
+                    SectionGermFault::NoLine => {
+                        "a face round a vertex leaves the split plane along no line"
+                    }
+                    SectionGermFault::Coincident => {
+                        "the split plane leaves two faces round a vertex along one direction"
+                    }
+                    SectionGermFault::Alternation => {
+                        "material and gap do not alternate round a vertex in the split plane"
+                    }
+                    SectionGermFault::Crossing => {
+                        "the corners of the section round a vertex cross one another"
+                    }
+                    SectionGermFault::ArcSides => {
+                        "a corner of the section round a vertex has both sides of the plane \
+                         beyond it"
+                    }
+                };
+                write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
+            }
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
@@ -732,8 +787,8 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut null_edges = Vec::new();
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
-        let (entries, dirs) =
-            neighborhood::classify_neighborhood_dirs(&body, plane, &sides, v, band)?;
+        let (entries, rays) =
+            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, band)?;
         let runs = insert::above_runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A
@@ -754,12 +809,15 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 discharge: crate::Discharge::Numeric,
             });
         }
+        let hood = insert::Neighborhood {
+            vertex: v,
+            entries: &entries,
+            rays: &rays,
+        };
         insert::insert_null_edges(
             &mut body,
             plane.normal.get(),
-            v,
-            &entries,
-            &dirs,
+            &hood,
             &mut sides,
             &mut null_edges,
             band,

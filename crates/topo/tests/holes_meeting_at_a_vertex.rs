@@ -83,7 +83,7 @@ fn every_order(label: &str, holes: &[Hole], counts: [usize; 3]) {
             (v - volume).abs() < 1e-9,
             "{what}: volume {v}, closed form {volume}"
         );
-        assert_eq!(corners_disjoint(&body), Ok(()), "{what}: corners");
+        assert_eq!(corners_disjoint(&body, t()), Ok(()), "{what}: corners");
         let s = shape(&body);
         let at_c = body
             .vertices()
@@ -154,7 +154,7 @@ fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, pose: &Pose) {
         (v - want).abs() < 1e-9,
         "{what}: volume {v}, expected {want}"
     );
-    assert_eq!(corners_disjoint(b), Ok(()), "{what}: corners");
+    assert_eq!(corners_disjoint(b, t()), Ok(()), "{what}: corners");
     let block = posed_box(
         "a block across the meeting point",
         [(1.21, 1.77), (0.68, 1.31), (0.86, 1.52)],
@@ -301,7 +301,7 @@ fn grid(k: usize) {
                         validate_pseudomanifold(&b, &r.contacts, t()).is_ok(),
                         "{label}: P − U, tier 3′"
                     );
-                    assert_eq!(corners_disjoint(&b), Ok(()), "{label}: P − U, corners");
+                    assert_eq!(corners_disjoint(&b, t()), Ok(()), "{label}: P − U, corners");
                     let v = volume(&b);
                     assert!(
                         (v - (6.0 - inside)).abs() < 1e-8,

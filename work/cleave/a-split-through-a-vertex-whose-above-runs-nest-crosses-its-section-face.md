@@ -112,3 +112,39 @@ verbs and editor-core (8,315 tests) and is retired, with
 `PinchCornerCrossed`); tier 2 cannot, a corner's order being an angle.
 `split` does not run tier 3 on its sides by design (its pinch pieces
 carry contacts it declares nowhere). No validator gap.
+
+### Fix pass (PR 4565 review)
+
+The first build read every germ's direction, which regressed two classes
+base split soundly: crowns whose valley edges lie in the plane (every
+germ one of a pair along an in-plane edge, refused `Unordered`), and an
+in-plane edge whose far end is decided On within ε of the plane (its two
+germs tilted apart by about `δ·cot(slope)` into the band, refused
+`Escalated`). Now the topology decides what it can: a germ beside an
+entry the plane holds is that entry's direction, and the two germs
+either side of one such entry are ordered end first with no reading
+(rule (b) sends the entry across only where its wedge is reflex, which
+holds material on both sides of it in the plane, so no corner lies
+between them). Only germs of different sectors are read, and two a
+reading puts on one line refuse as a coincidence.
+
+Measured with the reviewer's probe (31 families × 5 poses × ±n, ε =
+1e-9, 1e-6, 1e-12, both trees on the `K·ε` corner check): no family,
+pose or ε that base splits soundly fails on head.
+
+Rows added: an in-plane edge at the apex exact and near (δ ∈ {0, ±0.3ε,
+±0.6ε, ±0.9ε}); crowns whose valleys lie in the plane, one of them a
+V-groove floor bent at the vertex, against a closed form; and the
+coincidence refusal (a W whose germs lie 0.3ε apart). `corners_disjoint`
+groups corners within `K·ε` rather than on a micron grid.
+
+Refusals name their cause: `SectionGermsEscalated { reading }` (`Line`
+or `Order`) and `SectionGermsUnordered { fault }` (`NoLine`,
+`Coincident`, `Alternation`, `Crossing`, `ArcSides`). `Coincident` has a
+witness. The others need readings decided outside the band to contradict
+the topology that tolerance-decided On verdicts encode, which a vertex
+decided On while off the plane can do, so they stay typed refusals.
+
+Filed: `work/hone/germ-orders-about-a-normal-have-two-homes.md` (the
+split's germ order beside the boolean's `germ_order`, `strut_order` and
+`direction_sense`).

@@ -31,10 +31,10 @@ of one carrier on a side, so the mirrored run joins: a row that names
 the joined edge through the editor, and so reads the flipped record's
 side.
 
-## Moot on `cleave/apex-section-corners`
+## Moot once PR 4565 merges
 
-The split no longer has a mirrored lane: its reduction keeps one vertex
-per piece round a vertex on each side, so the rerun under the flipped
-plane is gone, and `SplitNaming::mirrored` with it. Every split record
-states its sides against the caller's plane as made, which ordinary
-joined split rows already read through the emitter's check.
+The split has no mirrored lane: its reduction keeps one vertex per
+piece round a vertex on each side, so it never reruns under the flipped
+plane, and `SplitNaming::mirrored` is gone. Every split record states
+its sides against the caller's plane as made, which ordinary joined
+split rows read through the emitter's check.

@@ -10,8 +10,6 @@
 //! across one another ([`leaned`], [`arch`]) they may cross above it.
 //! The poses ([`Pose`], [`poses`]) move the whole scene rigidly.
 
-use std::collections::BTreeMap;
-
 use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::{Face, HalfEdgeKey, LoopBoundary};
@@ -414,14 +412,16 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 /// or two loops through one vertex, pass their corners there without
 /// crossing. A corner sweeps counterclockwise from its leaving edge to
 /// its arriving one, the face on the left. Corners are grouped by
-/// point, rounded to a micron ([`at`]), so the corners of several
-/// vertices on one point (a pinch split per cone) are compared too.
+/// point, two corners lying on one point where they are no further
+/// apart than `tol`'s escalation distance `K·ε`, so the corners of
+/// several vertices on one point (a pinch split per cone) are compared
+/// too, and distinct vertices any further apart are not.
 ///
 /// It reads planar faces with straight edges of positive length, an
 /// outer loop that is a cycle and corners whose two edges leave along
 /// different directions, and refuses any other face rather than
 /// measure it.
-pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
+pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
     use std::f64::consts::TAU;
     for (fk, f) in body.faces() {
         if !matches!(
@@ -480,7 +480,7 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
         let u = n.cross(seed).normalize();
         let v = n.cross(u);
         let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
-        let mut corners: BTreeMap<Point, Vec<(f64, f64)>> = BTreeMap::new();
+        let mut corners: Vec<(Point3<f64>, f64, f64)> = Vec::new();
         for cycle in &cycles {
             let m = cycle.len();
             for i in 0..m {
@@ -503,15 +503,34 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
                         cycle[i]
                     ));
                 }
-                corners.entry(at(here)).or_default().push((from, sweep));
+                corners.push((here, from, sweep));
             }
         }
-        for (pk, cs) in corners {
-            for (i, &(a, sa)) in cs.iter().enumerate() {
-                for &(b, sb) in &cs[i + 1..] {
-                    if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
-                        return Err(format!("{fk:?}: two corners at {pk:?} overlap"));
-                    }
+        // One point: corners chained within `K·ε` of one another.
+        let near = tol.eps() * tol.k();
+        let mut group: Vec<usize> = (0..corners.len()).collect();
+        let root = |g: &[usize], mut i: usize| {
+            while g[i] != i {
+                i = g[i];
+            }
+            i
+        };
+        for i in 0..corners.len() {
+            for j in i + 1..corners.len() {
+                if corners[i].0.distance(corners[j].0) <= near {
+                    let (a, b) = (root(&group, i), root(&group, j));
+                    group[a.max(b)] = a.min(b);
+                }
+            }
+        }
+        for i in 0..corners.len() {
+            for j in i + 1..corners.len() {
+                if root(&group, i) != root(&group, j) {
+                    continue;
+                }
+                let ((p, a, sa), (_, b, sb)) = (corners[i], corners[j]);
+                if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
+                    return Err(format!("{fk:?}: two corners at {:?} overlap", at(p)));
                 }
             }
         }

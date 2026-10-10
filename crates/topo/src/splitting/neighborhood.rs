@@ -207,19 +207,27 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
-    classify_neighborhood_dirs(body, plane, sides, vertex, band).map(|(entries, _)| entries)
+    classify_neighborhood_rays(body, plane, sides, vertex, band).map(|(entries, _)| entries)
 }
 
-/// [`classify_neighborhood`], with each entry's direction out of the
-/// vertex beside it, scaled to its reach: an edge entry's [`chord`], a
-/// duplicate's bisector at its sector's arm.
-pub(super) fn classify_neighborhood_dirs<T: Decide>(
+/// One entry's ray out of the vertex: its direction scaled to its
+/// reach (an edge entry's [`chord`], a duplicate's bisector at its
+/// sector's arm), and whether the plane holds it (its side read On,
+/// before rules (a) and (b) send it to one).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct EntryRay<T: geom_core::Real> {
+    pub dir: Vec3<T>,
+    pub in_plane: bool,
+}
+
+/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it.
+pub(super) fn classify_neighborhood_rays<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     vertex: VertexKey,
     band: Band,
-) -> Result<(Vec<SectorEntry>, Vec<Vec3<T>>), SplitReduceError> {
+) -> Result<(Vec<SectorEntry>, Vec<EntryRay<T>>), SplitReduceError> {
     if body.get_vertex(vertex).is_none() {
         return Err(SplitReduceError::StaleVertex { vertex });
     }
@@ -349,9 +357,17 @@ pub(super) fn classify_neighborhood_dirs<T: Decide>(
         }
     }
 
+    let rays = dirs
+        .into_iter()
+        .zip(&entries)
+        .map(|(dir, e)| EntryRay {
+            dir,
+            in_plane: e.class == PlaneSide::On,
+        })
+        .collect();
     let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
     rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
-    Ok((entries, dirs))
+    Ok((entries, rays))
 }
 
 #[cfg(test)]

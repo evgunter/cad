@@ -935,10 +935,11 @@ pub use split::SplitEdgeCreated;
 pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionError, SectionPolygon, SectionRegion,
-    SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart,
-    SplitPlane, SplitReduceError, SplitReduction, SplitResult, Uncrossable, UncrossableCarrier,
-    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    PointInLoopError, Section, SectionEdge, SectionError, SectionGermFault, SectionGermReading,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
+    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

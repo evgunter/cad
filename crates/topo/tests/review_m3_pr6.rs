@@ -99,7 +99,7 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// half does under the same plane: tier 3 on both sides, two shells on
 /// each side of the both-sided profile, and the volume conserved. Each
 /// tip mints a copy for the side its pieces meet on, whichever side of
-/// the plane that is, so no tip needs the mirrored rerun.
+/// the plane that is.
 fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for (profile, shells) in [
         (BUMP_ONLY, [1, 2]),
