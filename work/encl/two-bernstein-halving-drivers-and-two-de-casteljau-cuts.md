@@ -21,7 +21,7 @@ one: what each halves, and how it reads the halves, differ.
   taken from the previous half and its width compounds). It spends a
   halving count (`SIDE_SIGN_HALVINGS`, `:297`, 200 000) and stops in
   band where a piece's halves' hull is no narrower than its own.
-- `geom_brep::ssi::certify::subdivide` (`crates/geom-brep/src/ssi/certify.rs:828`)
+- `geom_brep::ssi::certify::subdivide` (`crates/geom-brep/src/ssi/certify.rs:841`)
   reads a bound and the values at breaks. It halves breadth first, in
   rounds, and rebuilds the whole composite each round from the cut
   parameters (`CurveCertData::with_breaks`, the tensor residual's extra
@@ -30,7 +30,8 @@ one: what each halves, and how it reads the halves, differ.
   recomputed over its rounds and `SSI_HULL_CUTS` cuts, takes the worst
   spans first when a round would pass the cut cap, and stops where two
   rounds in a row leave the lowest bound over the whole carrier where it
-  was.
+  was. Every round's bound is certified, so the limb is read on the
+  lowest round's hull, not on the last round's.
 
 One driver would need a common notion of a piece, which today is a raw
 row in the first and a span of a rebuilt composite in the second, and a

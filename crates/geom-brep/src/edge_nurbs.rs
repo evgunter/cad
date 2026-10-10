@@ -808,19 +808,15 @@ pub enum Rung3Limb {
 }
 
 impl Rung3Limb {
-    /// The SSI certificate's limb this one is.
+    /// The limb's name, as [`SsiLimb::name`] gives the SSI limb this
+    /// one is (its check is not that limb's: [`Rung3Limb::check`]).
     #[must_use]
-    pub fn ssi(self) -> SsiLimb {
+    pub fn name(self) -> &'static str {
         match self {
             Self::HullSup => SsiLimb::HullSup,
             Self::Tube => SsiLimb::Tube,
         }
-    }
-
-    /// The limb's name, as [`SsiLimb::name`] gives it.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        self.ssi().name()
+        .name()
     }
 
     /// The certification check a refusal of this limb is a refused arm
@@ -936,6 +932,13 @@ impl AnalyticRung3Refusal {
                 limb: Rung3Limb::Tube,
                 cause,
             },
+            // `Limbs::Tube` asks no operand for limbs 1 and 2, so the
+            // only escalation `certify_branch` can return here is limb
+            // 3's own (`tube_transversality`).
+            SsiError::CertificateEscalated { limb, .. } => unreachable!(
+                "the tube-only certificate escalated on limb {}, which Limbs::Tube never asks",
+                limb.name()
+            ),
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
             _ => Self::Unsupported {
                 what: "the uniqueness tube refused for a reason outside this certificate's \

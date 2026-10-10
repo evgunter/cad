@@ -783,8 +783,9 @@ pub(crate) const SSI_HULL_WORK: usize = 4096;
 /// would let a few more rounds run.
 pub(crate) const SSI_HULL_CUTS: usize = 1024;
 
-/// How many rounds in a row may leave the lowest bound over the whole
-/// carrier where it was before the subdivision stops on it.
+/// The subdivision stops on the round that makes this many rounds in a
+/// row that do not lower the lowest bound over the whole carrier: at 2
+/// it stops on the second such round, and one is all it lets pass.
 const SSI_HULL_IDLE_ROUNDS: usize = 2;
 
 /// Where limb 2's subdivision stopped.
@@ -825,6 +826,18 @@ enum Subdivided {
 /// thread a span mask through that algebra, and the tensor residual,
 /// whose spans are composed one by one, would need a public door of its
 /// own that only this caller reads.
+///
+/// Three outcomes follow from that and are the code's, not accidents:
+/// - a first hull whose composite already has more spans than
+///   [`SSI_HULL_WORK`] (spans plus the round's cuts) gets no round at
+///   all, so a refusal on its bound is a refusal on an unsubdivided
+///   carrier;
+/// - a later round whose bound is NaN stops the subdivision on the
+///   lowest certified bound before it, so the limb refuses on that
+///   bound and does not escalate (only a NaN first hull reaches the
+///   caller as NaN);
+/// - a round whose bound equals the lowest counts as idle, and the
+///   older hull is kept.
 fn subdivide(
     hull: impl Fn(&[f64]) -> Result<Hull, SsiError>,
     band: Band,
@@ -847,8 +860,13 @@ fn subdivide(
         }
         let mut next = h.to_halve(band);
         next.truncate(SSI_HULL_CUTS - cuts.len());
+        // On the first hull `work` is 0, so a composite over the budget
+        // stops here unsubdivided.
         let cost = h.spans.len() + next.len();
         let refused = h.sup.is_nan();
+        // A NaN bound compares as not lower, so a later round's NaN keeps
+        // the earlier certified hull and stops on it (`refused` below);
+        // an equal bound is idle too and keeps the older hull.
         let low = match lowest.take() {
             Some(low) if h.sup.partial_cmp(&low.sup) != Some(core::cmp::Ordering::Less) => {
                 idle += 1;

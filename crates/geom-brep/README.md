@@ -92,7 +92,11 @@ clear (against an analytic operand that value is limb 1's residual, a
 measured miss; against a NURBS one it is the bound's own quantity at a
 point, a bound on the miss); and refuses on the lowest bound any round
 reached where the budget is spent, or two rounds in a row leave that
-lowest bound where it was, first. (3) The uniqueness tube: over a chain of boxes of certified radius
+lowest bound where it was, first — so a first composite already over
+`SSI_HULL_WORK` spans is never subdivided and refuses on its first
+hull, a later round whose bound is NaN stops on the lowest certified
+bound before it rather than escalating, and a round that only equals
+the lowest bound counts as not lowering it. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
