@@ -18,3 +18,9 @@ Two of the rows were filed on PR 4189's branch:
 `material-jet-readings-take-plus-minus-order` and
 `certify-residual-predicates-still-name-a-slot`. They arrive with that
 PR's state sync.
+
+## 2026-10-10 — PR 4189's two rows arrived
+
+`material-jet-readings-take-plus-minus-order` and
+`certify-residual-predicates-still-name-a-slot` moved here with PR
+4189's state sync. The slate is 17 points.
