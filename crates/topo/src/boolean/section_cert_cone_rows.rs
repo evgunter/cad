@@ -14,9 +14,10 @@
     clippy::float_cmp
 )]
 
+use super::search_kit::band;
 use super::section_cert_rows::{
-    IN, OUT, Shape, Step, at, band, classify, cone_at, cone_sheet, cylinder, on_both, p, plane,
-    shape, sphere, tangent, unit_cone, v, witness,
+    IN, OUT, Shape, Step, at, classify, cone_at, cone_sheet, cylinder, on_both, p, plane, shape,
+    sphere, tangent, unit_cone, v, witness,
 };
 use super::*;
 use crate::boolean::ops;
