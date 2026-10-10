@@ -1394,3 +1394,8 @@ Ev said go.
   - Every other iso image takes the section route, so both seams of a lofted wall now refuse alike.
   - The arm reads the image's own row, reflected through 0 when the edge runs against it, and the wrap flag travels.
   - The orchestrator merged main twice; the row was renumbered DR-144 → DR-145, and a stale duplicate tally line was removed.
+- **Unit 18 merged** (PR 4524, DR-148, H tier, concurrent pair). `topo::offset_surfaces_together` is the general simultaneous door: every non-planar, non-axial solid moves all its charts at once. Edges are transported where both offset actions agree, and are otherwise sections of the two moved surfaces; corners are rooted with every surface moved. `shell`'s PerChart arm is retired.
+  - The review's bilateral MAJOR is fixed: a G1 corner escalated a NaN. The graze is now decided before every Newton step, grazing candidates root nothing, and fully transported corners take their transports. The stadium prism and the one- and twelve-fillet boxes now build at their closed forms.
+  - Filed `a-move-past-a-fitted-solids-reach-refuses-op-not-the-collapse` (P3).
+  - The orchestrator merged main once, a union of the slow-set line.
+  - Next per the plan: unit 19, the NURBS × NURBS arm (`Section` handle, `branch_at`/`all()`), as ruled in PR 4515.
