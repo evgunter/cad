@@ -210,3 +210,19 @@ convergence escalation,
 `work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`,
 met on the same face shape. Pinned by `band_planar_oblique_fillet.rs`
 `a_brick_through_a_steep_elliptic_end_builds_in_every_op`.
+
+## A second fixture: the tilted rod's pieces (GERM, 2026-10-10)
+
+Measured on `germ/radial-hole-through-a-tube`, where the section
+certificate's square-wall arm lets the tilted rod of
+`crates/sweep/tests/germ_tilted_rod.rs` (radius `0.15`, axis from
+`(1.8, 0, 0)` along `(−sin β, 0, −cos β)` over `t ∈ [−0.3, 1.4]`) build
+against the half donut at `β = 0.3, 0.4`. The rod pieces the cap's plane
+`z = 0` trims along an ellipse — `h ∩ c`, `c ∩ h` and `c ∖ h` — measure
+exactly through `topo::mass_properties` (`πr²·1.4` and `πr²·0.3`), and
+`point_in_solid` answers every probe inside them, but refuses
+`VolumeUncertified` at probes outside them whose rays miss them:
+`(−2, 0, −0.1)` for both ∩ at spin 0 and for `c ∖ h` at every spin, and
+the rod's axis point at `t = 0.7` for `c ∖ h` at every spin. Pinned by
+`the_rod_short_of_the_inner_equator_answers_every_op`, which admits that
+refusal on the trimmed pieces' outside probes only.
