@@ -2,12 +2,10 @@
 id: topo-mints-indeterminates-outside-the-funnel
 kind: issue
 title: topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites
-status: dispatched
+status: open
 opened: 2026-09-20
-priority: P0
+priority: P1
 cost: M
-design: true
-branch: cleave/mints-steps-3-5-scope
 ---
 
 
@@ -629,3 +627,13 @@ Each unit is one PR, filed as its own row with `parent:` set to this row.
 Units 1–6 are P1, not P0: no remaining site is a wrong answer on normal
 geometry, and the user-visible text that drove P0 went with stage 4 E.
 The row's header is left as the orchestrator set it.
+
+## Orchestrator ruling on the re-scope (2026-10-10)
+
+The 2026-10-03 design was a designer pair's, not ratified text. Its step 3 is superseded as the
+re-scope above measures. The contradictions it would type go with D10 stage 4, and main's
+`Decided`/`Classified`/`RefusedArm` vocabulary already carries what `Definite` was for. The units
+above replace steps 3–5. This row is their umbrella and closes when the seal lands. It is at P1 now:
+no remaining site answers wrongly on normal geometry, and the user-visible text that made it P0
+went with stage 4 E. Its open design question moves to the stage-4 unit. Each unit must keep its
+ending by type, and pin it before and after (the re-scope's conflict with ENCL's endings).
