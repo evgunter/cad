@@ -356,6 +356,8 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_corner_flat_at_its_short_bounds.rs"]
+mod a_corner_flat_at_its_short_bounds;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
 mod a_meridian_witness_contradicts_only_off_its_locus;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]

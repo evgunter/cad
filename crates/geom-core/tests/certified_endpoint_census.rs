@@ -306,6 +306,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
     ),
     (
+        "crates/geom-brep/src/props/spiric.rs",
+        10,
+        9,
+        "the remaining 1 is `trig_range`'s half-width, safe by construction: it reads \
+         `pt` differences of two f64 ends the function has checked finite and ordered, \
+         so no operand can be refused. Every other read sits in a function that refuses \
+         a refused input by name (`trig_of`, `span_rates`, `composite`, `wall_chart`)",
+    ),
+    (
         "crates/geom-brep/src/ssi.rs",
         6,
         0,
@@ -390,7 +399,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          construction",
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
+    ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.
