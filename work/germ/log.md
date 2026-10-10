@@ -861,3 +861,17 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - MINOR-2: PROXIMITY_FACTOR's ceiling is still called "binding" (`lib.rs:274`, `threshold_provenance.rs:600`, K-REPORT);
     - NITs: one label spelled two ways; a hone item that claims dev-probe goes green.
 - 2026-10-10 19:30 — Ev saw the DR-147 short readout on PR 4576: "thanks for letting me know! glad to hear it wasn't a very serious issue". That is an acknowledgement, not a ruling. PR 4576 is closed unmerged and unsubscribed, and the item is closed via 4579.
+- 2026-10-10 19:56 — PR 4574 (k-lint zero-arm tally) merged. I made the review's fixes myself:
+  - a row pins the tally's order and its first-on-tie rule (the no-sort and `>=` mutants are both red);
+  - the PROXIMITY_FACTOR ceiling is restated as the nearer edge and a re-cut trigger that no longer gates (lib.rs, threshold_provenance.rs, K-REPORT);
+  - one label;
+  - the hone item's "green" claim corrected.
+
+  k-lint passes locally (fmt, tests, clippy), and the previous head was green on hosted CI. The item `circle-torus-root-slack-crowds-the-zero-band-at-1e-12` is closed.
+- 2026-10-10 19:56 — Next P2 dispatched: `pn-apex-line-outcomes-stand-in-for-a-section-off-the-apex` (M), a live 0.075 m wrong answer on needle cones.
+  - Arm byte 186, mod 3 = 0: **HOLDOUT**.
+  - Cloud session `session_01NyfdwZBmADe95nafYfTuyS`, branch `germ/pn-apex-line-outcomes`.
+  - The brief carries the DR-147 lesson: validate every new row at all three ε.
+  - Still open in `work/germ/`:
+    - the P1 `c5-plane-torus-cone-cylinder-arms` (H; the GermFrame Plane×Torus door, with TANG's measurement), not yet scoped;
+    - several items with no priority, to triage.
