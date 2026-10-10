@@ -34,6 +34,9 @@ const FILES: [&str; 5] = [
 /// with stage 2 unit B merged (`0811289515`), by [`print_product_rows`]'s
 /// gather over the root list there. The composed die's two rows moved
 /// from B's branch record with main's blend change (`d5a518b1b2`).
+/// `kitchen_sink`'s row moved when a revolve's turned vertex came to
+/// turn its offset from the axis: 8 of its points, by at most 2 ulps
+/// (`m10_p_fence`'s header has the dump).
 const PRE_C: [(&str, &str); 34] = [
     ("die", "fa9ad86b30e8d844/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -43,7 +46,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "ea1ce7f968a62d47/88"),
-    ("kitchen_sink", "a4152d07cf293bb9/196"),
+    ("kitchen_sink", "e6fec2fe2d687b79/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),

@@ -51,3 +51,23 @@ monotonically about any one axis). This is a different construction from
 the cylinder × sphere frame, whose loops are graphs over a circle of one
 operand. Past a frame, each pair meets the lane door
 (`cylinder-sphere-germ-pair-has-no-join-lane`).
+
+## The radial hole stops here too (GERM, 2026-10-10)
+
+Measured on `germ/radial-hole-through-a-tube`, which gives the section
+certificate its square-wall arm (a cylinder whose axis is square to the
+torus axis). The donut (`R = 2`, `r = 0.5`, revolved about `y`) minus a
+rod along `x` of radius `0.2`, through both walls of the tube
+(`x ∈ [1, 3]`), through the inner side (`[1, 2]`), through the outer side
+(`[2, 3]`), and off the axis (`[1, 3]` at `(y, z) = (0.1, 0.15)`): every
+torus × wall pair of the section report answers `Ok` (each was
+`Err(Reach)` on main), and ∖ refuses `GermFrameUnsupported { a_kind:
+Torus, b_kind: Cylinder }` at the join. Pinned by
+`crates/sweep/tests/germ_radial_hole.rs`
+`a_radial_hole_through_the_tube_stops_at_the_germ_frame`, which turns red
+the day this frame lands. The section there is the arm's: in the
+meridian plane normal to the rod, its trace circle against the tube
+circles, each loop lying over a run of that circle with two points
+(`±t` along the rod) over each of its points (`section_cert.rs`
+`torus_square_cylinder`), which may be the frame's starting point for
+this one pose.

@@ -2,7 +2,7 @@
 id: face-boundary-walks-spell-the-linked-prelude-by-hand
 kind: issue
 title: Face boundary walks spell the linked member prelude by hand
-status: dispatched
+status: open
 opened: 2026-10-06
 priority: P3
 cost: E
