@@ -96,6 +96,10 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// its own, so it moves neither the geometry fence nor any other
 /// document's names.
 ///
+/// `measured_web`'s row moved, alone, when a measure became one
+/// primitive (INTENT stage 2 PR D): its measure's mint preimage moved
+/// with the node's shape, and with it the ids its tables are keyed by.
+///
 /// `die_composed` and `die_composed_tour` are the only registered
 /// documents that carve a CLOSED chain, so they are the only two whose
 /// tables carry the rim-phase roles at all (four band trimlines and
@@ -156,7 +160,7 @@ const PINNED: &[(&str, u64)] = &[
     ("declared_tangency", 0x370595ad9c1f1053),
     ("kitchen_sink", 0x9b19e7c275c8b587),
     ("cut_cylinder", 0xecad82208268b4e3),
-    ("measured_web", 0x7fba4bc12841678a),
+    ("measured_web", 0x9eb1447312b30c8f),
     ("boss_union", 0xbb9123c70a8e96d8),
     ("die_fillet", 0x89166ac05d7aa862),
     ("die_chamfer", 0xe4b825bef56c47a6),

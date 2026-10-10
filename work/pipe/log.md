@@ -144,3 +144,49 @@ comment in `crates/topo`. That is past the 15-minute bar
 (`memories/orchestration-model.md`). The cause is likely that a
 `topo` comment edit seeds the full topo build and its dependants.
 Reported here; no lane is dispatched on it yet.
+
+## 2026-10-10 — D291 and the witness-cap split land (PR 4486); wave 1 done; the track is handed back
+
+**The review.** STYLE, single reviewer, with two claims to falsify. It
+found no MAJOR, and both claims held: D291's arms were unreachable by
+construction, and both cap faces are reached and named consistently.
+The fix pass took everything except S8. The reviewer's 930 targeted
+tests passed.
+
+- **MINOR-1, the second face spelled wrong** (ordering rule 5, as the
+  plan forecast). The cell face reported `cap + 1` probes and called it
+  "over the cap", although the walk makes at most `cap`. The payload is
+  now the probes actually made.
+- **MINOR-2.** The stale shared-cap doc is fixed, and each cap now
+  carries its own rationale.
+- **S1, the class D291 belongs to.** The `ConicAmplitude` and `Spiric`
+  consumers re-read `certified` behind a dead fallback. Every
+  `edge_box_rule` arm now reads what the rule carries, and census's
+  silent `Spiric` `None` is gone.
+- **Smaller fixes.** budget→cap is one word throughout. The topo
+  README's stale "untyped" sentence is restated.
+- **NOTE-1 not done.** An end-to-end row through `declared_pair_overlap`
+  needs declared flush faces with more than 128 segments, and factoring
+  the mapping out would restructure declared-pair code on the D10
+  hold's ground. That door's arms change only by rename. The review
+  tier is recorded in the PR body.
+
+**Seam with INTENT.** The two arm renames sit inside
+`chart_region::declared_pair_overlap`, which `intent/s4-e-glue-on-zero`
+also edits. I left a line on INTENT's log.
+
+**Wave 1 is done.**
+
+| PR | rows |
+| --- | --- |
+| 4480 | pickup state |
+| 4483 | the described-net routing pass (2 rows on SHELF, 2 on FLUX) |
+| 4482 | `S350` |
+| 4486 | `D291` and the witness-cap split |
+
+**The track goes `blocked` and is handed back.** What is left is
+`topo-shared-cores-hosted-in-one-half` and `S5`, parked on INTENT's
+`booleans-glue-on-zero` and `declared-pairs-retire`. Both rows are
+this program's charter, so there is nothing to cut into a new program.
+The plan sets no exit criteria, so the program closes without a walk
+once those two land.

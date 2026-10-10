@@ -23,4 +23,4 @@ A measure's output is observed. Only an assertion reads an observed variable, di
 
 ## Carried from unit B (PR 4342)
 
-Fold `NodeErrorKind::UnresolvedSite` into `UnresolvedRead` when a measure's `at` becomes a read.
+Fold `NodeErrorKind::UnresolvedSite` into `UnresolvedRead` when a measure's `at` becomes a read. Moved to unit E (`select-defines-face-and-edge-variables`): a measure's refs stay `SitedRef` until E (spec §5), so in D a site is still a node, not a read.

@@ -229,7 +229,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
-    "MeasureMalformed",
     "MeasureNonFinite",
     "MeasureNotParallel",
     "MeasureRefResolve/Ambiguous",
@@ -1770,6 +1769,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
+        ),
+        (
+            "DescribeSideEscalated",
+            F::DescribeSideEscalated { edge, diag: diag() },
         ),
         (
             "DescribeBendEscalated",
@@ -3502,8 +3505,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
-        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
-        MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
+        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError, PartFault,
+        SitedRef, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
@@ -3601,14 +3604,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 verb: "distance",
                 a: "cylinder",
                 b: "torus",
-            }),
-        ),
-        row(
-            "MeasureMalformed",
-            NodeErrorKind::MeasureMalformed(MeasureNodeFault::RefIndexOutOfRange {
-                verb: "min_clearance",
-                index: 2,
-                refs: 2,
             }),
         ),
         row(
@@ -4616,7 +4611,7 @@ const REPLACE_FACE_ARMS: [&str; 41] = [
 /// where another kind is wanted.
 fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::measure::{MeasureExpr, MeasurePrimitive};
+    use editor_core::measure::MeasurePrimitive;
     use editor_core::{
         CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
     };
@@ -4650,13 +4645,10 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
             spin: ang(0.0),
         }),
     );
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
-        )
-        .expect("both indices in range"),
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasurePrimitive::MinClearance { a: 0, b: 1 },
+        vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
     );
     let mut ev = evaluate::<f64>(
         &doc,
