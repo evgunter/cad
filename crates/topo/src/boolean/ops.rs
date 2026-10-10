@@ -279,7 +279,7 @@ pub struct BooleanNaming {
     /// B-side chord-mef fragment rows, in B-CLONE keys (translate the
     /// new-face column through `graft_faces` for result keys).
     pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
-    /// The reduction's declared-contact records BEFORE result
+    /// The reduction's contact records BEFORE result
     /// remapping: each row's A column in A-CLONE keys and its B column
     /// in B-CLONE keys — the result's keys on whichever side is
     /// `Direct`, the graft's source keys on a `Grafted` side, and keys
@@ -7937,6 +7937,7 @@ mod cut_holder_rows {
         for refusal in [
             SectionRefusal::Reach,
             SectionRefusal::Tangent("section_sphere_plane_reach"),
+            SectionRefusal::Unordered("section_torus_square_wall_fold_half"),
             SectionRefusal::Undecided,
             SectionRefusal::LoneVertex,
         ] {

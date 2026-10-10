@@ -421,3 +421,40 @@ Signed: (CARVE orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+
+## 2026-10-10 — third priority-seam cut: CARVEREST opened
+
+Five of the seven P0 rows are closed and merged:
+
+- PR 4185: the self-closed link;
+- PR 4186: coincident sections;
+- PR 4187: cap winding;
+- PR 4188: the inverted top normal;
+- PR 4193: the loft's v.
+
+PR 4189 (the surface pair's order) is reviewed and was green on the
+2026-10-07 base. It is now being merged forward over three days of
+main. `self-overlapping-spines-build-and-validate` is parked on the
+clearance certificate.
+
+The reviews filed rows faster than the units closed them, and other
+programs filed two more here: NURBS filed
+`skin-union-mints-a-hairline-span-from-knots-an-ulp-apart`, and ENCL
+filed `sweep-dihedral-readers-drop-the-arm-rung`, which this commit
+prices P2/M. CARVE measured 37 points against 30, so it is cut on its
+priority seam:
+
+- **CARVE keeps P0–P2: 20 points.**
+- **The P3/P4 rows go to a new program, CARVEREST (band
+  12700–12799).** They moved by `git mv`, keeping their ids, and the
+  one work file that cited a moved row by path is re-pointed.
+  CARVETAIL could not take them: the D10 hold's stage-4 releases and
+  SHELL's filing had put it at 19 points on its own.
+- **PR 4189's two filed rows**, `material-jet-readings-take-plus-minus-order`
+  and `certify-residual-predicates-still-name-a-slot`, move to
+  CARVEREST in that PR's state sync.
+
+The plan gives the next sitting's order. The reflected placement comes
+first, because it is the one row that builds a wrong body silently.
+
+Signed: (CARVE orchestrator)
