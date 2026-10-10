@@ -175,7 +175,7 @@ pub(crate) fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> 
     })
 }
 
-/// How many spans the carrier is refined to before the hull limbs run.
+/// How many spans limbs 2 and 3 cut the carrier into ([`cert_grid`]).
 /// More spans ⇒ tighter hulls and a tighter tube, at linear cost; this
 /// is a **structure** choice (C6's f64 lane), not a decision.
 pub const SSI_CERT_SPANS: usize = 32;
@@ -449,8 +449,8 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
-    // Limb 2's hull: the implicit form composed with the refined
-    // carrier, in metres.
+    // Limb 2's hull: the implicit form composed with the carrier cut at
+    // `cert_grid`, in metres.
     let hull = || -> Result<Hull, SsiError> {
         let (form, to_meters) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
@@ -534,8 +534,8 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // break list by exact knot insertion, so alignment is recovered
         // structurally rather than approximated by a whole-domain radius.
         // The `SSI_CERT_SPANS` uniform breaks are injected for hull
-        // tightness — the same structure choice `refined` makes for the box
-        // chain (C6's f64 lane), expressed as breaks instead of a refit.
+        // tightness — the same structure choice `cert_grid` makes for the
+        // analytic limb and the box chain (C6's f64 lane).
         let coords = carrier.certified_coords();
         let cdata =
             CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
