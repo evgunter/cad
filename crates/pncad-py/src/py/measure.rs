@@ -211,28 +211,29 @@ impl MeasurePrimitive {
     }
 }
 
-/// Which way an assertion constrains its measure (E10).
+/// The relation an assertion states between its value and its bound
+/// (D10: `≥`, `≤`, `=`).
 ///
-/// Two directions and no third, and both still gate: a clearance
-/// requirement is `AtLeast`, a maximum-gap requirement is `AtMost`.
-///
-/// Rust has ONE `AssertionDir` — the kernel enum the recipe node
+/// Rust has ONE `AssertionRelation` — the kernel enum the recipe node
 /// carries — and this is its binding. The mirror exists because
 /// `#[pyclass]` cannot be attached to a type from another crate; the
-/// obligation it owes the kernel is that every kernel direction has a
-/// member here, which [`_binds_every_kernel_direction`] enforces.
+/// obligation it owes the kernel is that every kernel relation has a
+/// member here, which [`_binds_every_kernel_relation`] enforces.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum AssertionDir {
+pub(crate) enum AssertionRelation {
     /// The measured quantity must be at least the bound.
     AtLeast,
     /// The measured quantity must be at most the bound.
     AtMost,
+    /// The measured quantity must equal the bound, at the document's
+    /// tolerance.
+    Equal,
 }
 
 #[pymethods]
-impl AssertionDir {
-    /// The relation as it reads in a report: `">="` or `"<="`.
+impl AssertionRelation {
+    /// The relation as it reads in a report: `">="`, `"<="` or `"="`.
     ///
     /// The kernel's own `symbol()`, not a second rendering.
     #[getter]
@@ -241,33 +242,35 @@ impl AssertionDir {
     }
 }
 
-impl AssertionDir {
-    pub(crate) fn to_kernel(self) -> d::AssertionDir {
+impl AssertionRelation {
+    pub(crate) fn to_kernel(self) -> d::AssertionRelation {
         match self {
-            Self::AtLeast => d::AssertionDir::AtLeast,
-            Self::AtMost => d::AssertionDir::AtMost,
+            Self::AtLeast => d::AssertionRelation::AtLeast,
+            Self::AtMost => d::AssertionRelation::AtMost,
+            Self::Equal => d::AssertionRelation::Equal,
         }
     }
 }
 
-/// Every kernel direction has a member on the Python mirror.
+/// Every kernel relation has a member on the Python mirror.
 ///
 /// The direction is the load-bearing one, exactly as it is for
 /// `ExtrudeSide`: `to_kernel` matches on `Self`, a closed local enum, so
 /// it says nothing about the kernel growing. This match is over the
-/// KERNEL enum, so a direction added there breaks this build and the
+/// KERNEL enum, so a relation added there breaks this build and the
 /// binding must be written. Never called; the type-checked match is
 /// the whole product.
-const fn _binds_every_kernel_direction(kernel: d::AssertionDir) -> AssertionDir {
+const fn _binds_every_kernel_relation(kernel: d::AssertionRelation) -> AssertionRelation {
     match kernel {
-        d::AssertionDir::AtLeast => AssertionDir::AtLeast,
-        d::AssertionDir::AtMost => AssertionDir::AtMost,
+        d::AssertionRelation::AtLeast => AssertionRelation::AtLeast,
+        d::AssertionRelation::AtMost => AssertionRelation::AtMost,
+        d::AssertionRelation::Equal => AssertionRelation::Equal,
     }
 }
 
 /// Register the measurement authoring vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MeasurePrimitive>()?;
-    m.add_class::<AssertionDir>()?;
+    m.add_class::<AssertionRelation>()?;
     Ok(())
 }

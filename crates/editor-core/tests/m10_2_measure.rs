@@ -18,10 +18,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeErrorKind,
-    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName, apply, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName,
+    apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::{Point3, Tol};
@@ -379,7 +380,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             node: Box::new(Node::Assertion {
                 value,
                 bound: len(MIN_WEB),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -723,7 +724,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
             node: Box::new(Node::Assertion {
                 value: over_zero,
                 bound: len(1.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1061,7 +1062,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::value_of(&doc, measure),
                 bound: len(0.1),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },

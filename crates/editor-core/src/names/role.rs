@@ -1977,7 +1977,7 @@ pub(crate) fn lift<P>(
         Node::Assertion {
             value,
             bound: _,
-            dir: _,
+            relation: _,
         } => seat(*value, Lift::Dropped).into_iter().collect(),
         Node::Extrude {
             profile,

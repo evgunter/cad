@@ -115,6 +115,15 @@
 //! `measured_web`'s row and no other, and the id-masked geometry fence
 //! below did not move: no body's point moved anywhere.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN AN ASSERTION'S `dir` BECAME
+//! `relation`** (INTENT stage 5 PR A), through `measured_web` only.
+//! The mint preimage is the stored node, so the renamed field moved the
+//! assertion's id and every id the mint chain draws after it (the
+//! placement's). No outcome or point moved: `lib_g16_corpus_name_digests`
+//! moved `measured_web`'s row alone, the id-masked geometry fence held,
+//! and the assertion's verdict, dumped at `f64` and at `Interval` on main
+//! and on the branch, was the same text.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -821,7 +830,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xc62b_2a55_d007_27e9, 0x96d6_523f_249f_7bc5),
+        (0x7c7a_412f_84d4_ddd1, 0x1e6c_f6dd_d0a1_b42d),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -847,7 +856,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xdc6d_c91a_6225_ec29, 0xe101_b3b9_e86f_8a8d),
+        (0xf550_577b_5a80_4f25, 0x0a71_f86f_379b_cc09),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -871,7 +880,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xc62b_2a55_d007_27e9, 0x96d6_523f_249f_7bc5),
+        (0x7c7a_412f_84d4_ddd1, 0x1e6c_f6dd_d0a1_b42d),
         "the corpus's Probe evaluation moved"
     );
 }

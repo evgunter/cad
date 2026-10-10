@@ -16,13 +16,11 @@
 //!   linearized implicit residual, through `ssi_on_locus`;
 //! - **NURBS operand**: no implicit form exists, so the residual is
 //!   `|C(t) − S(u*, v*)|` at a **certified foot point** from
-//!   `geom::surfaces::projection` — and the projection's own
-//!   orthogonality residual is banded too (`ssi_foot_orthogonality`,
-//!   normalized by the chart speed so the margin is in meters). That
-//!   second band is what stops a bad projection laundering a bad cache
-//!   (C2.1 verbatim): a foot on the far sheet has vanishing
-//!   orthogonality and a large distance; a clamped domain-edge foot has
-//!   a small distance and a large orthogonality. Both are visible.
+//!   `geom::surfaces::projection` (`ssi_on_locus_foot`). Any point of
+//!   the surface bounds the carrier's distance from it above, so the
+//!   foot is owed no limb of its own: a foot on the far sheet reads a
+//!   large distance and refuses, and no foot reads less than the true
+//!   distance.
 //!
 //! # Limb 2 — sup-norm honesty (between the samples)
 //!
@@ -265,8 +263,7 @@ pub struct SsiCertificate<T: Real> {
 /// acceptance suite) can tell them apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SsiLimb {
-    /// Limb 1 — on-locus residual (including the foot-point
-    /// orthogonality check).
+    /// Limb 1 — on-locus residual.
     OnLocus,
     /// Limb 2 — the control-hull sup-norm bound.
     HullSup,
@@ -618,36 +615,6 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                     limb: SsiLimb::OnLocus,
                     cause,
                 });
-            }
-        }
-        // The orthogonality residuals, normalized by the chart speeds
-        // so the margin is a length: |S_d·r|/|S_d| is the component of
-        // the offset along that parameter line, in meters.
-        let jet = surface.ders(T::from_f64(proj.u), T::from_f64(proj.v));
-        for (res, speed) in [
-            (proj.orthogonality_u, jet.du.norm()),
-            (proj.orthogonality_v, jet.dv.norm()),
-        ] {
-            let margin = Margin::levered_inv(res, speed);
-            match decide_reported("ssi_foot_orthogonality", margin, band) {
-                Ok(Decided {
-                    sign: Sign::Zero, ..
-                }) => {}
-                Ok(Decided {
-                    margin: reading, ..
-                }) => {
-                    return Err(SsiError::CertificateLimb {
-                        limb: SsiLimb::OnLocus,
-                        value: margin.value().hi(),
-                        margin: reading,
-                    });
-                }
-                Err(cause) => {
-                    return Err(SsiError::CertificateEscalated {
-                        limb: SsiLimb::OnLocus,
-                        cause,
-                    });
-                }
             }
         }
     }

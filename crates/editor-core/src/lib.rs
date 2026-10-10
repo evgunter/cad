@@ -172,7 +172,7 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasurePrimitive,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Certified, MeasurePrimitive,
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };

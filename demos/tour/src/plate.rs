@@ -29,9 +29,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
+    AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -368,7 +368,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         Node::Assertion {
             value: web,
             bound: len(bound),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
         tol,
     );

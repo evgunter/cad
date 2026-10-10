@@ -1,7 +1,7 @@
 """Authoring a measurement, and reading the web back (LIB-B-MEASURES).
 
 The census family B-MEASURES chartered the AUTHORING half of
-ERROR-DESIGN E3/E10: `MeasurePrimitive`'s four verbs and `AssertionDir`
+ERROR-DESIGN E3/E10: `MeasurePrimitive`'s four verbs and `AssertionRelation`
 onto `Node.measure` / `Doc.measure` / `Node.assertion`, with
 `MeasureUnavailableAt` as the refusal the fourth verb adds. Arithmetic
 over measured values is an ordinary formula over the measures' outputs:
@@ -40,7 +40,7 @@ import unittest
 
 import pncad
 from pncad import (
-    AssertionDir,
+    AssertionRelation,
     Doc,
     DocEdit,
     FreeVar,
@@ -176,11 +176,13 @@ class TestTheVerbVocabulary(unittest.TestCase):
         with self.assertRaises(ValueError):
             MeasurePrimitive.distance((node, "the top face"), (node, "the other"))
 
-    def test_the_two_directions_keep_the_kernels_symbols(self):
-        self.assertEqual(AssertionDir.AtLeast.symbol, ">=")
-        self.assertEqual(AssertionDir.AtMost.symbol, "<=")
-        self.assertEqual(AssertionDir.AtLeast, AssertionDir.AtLeast)
-        self.assertNotEqual(AssertionDir.AtLeast, AssertionDir.AtMost)
+    def test_the_three_relations_keep_the_kernels_symbols(self):
+        self.assertEqual(AssertionRelation.AtLeast.symbol, ">=")
+        self.assertEqual(AssertionRelation.AtMost.symbol, "<=")
+        self.assertEqual(AssertionRelation.Equal.symbol, "=")
+        self.assertEqual(AssertionRelation.AtLeast, AssertionRelation.AtLeast)
+        self.assertNotEqual(AssertionRelation.AtLeast, AssertionRelation.AtMost)
+        self.assertNotEqual(AssertionRelation.Equal, AssertionRelation.AtLeast)
 
 
 class TestTheArithmeticIsAFormula(unittest.TestCase):
@@ -418,7 +420,7 @@ class TestTheFourthVerb(unittest.TestCase):
         hidden. NOT a poisoning — the measure did not fail."""
         doc, node = self.clearance_document()
         assertion = doc.insert(
-            Node.assertion(doc.output(node), AssertionDir.AtLeast, doc.parse_formula("1 mm"))
+            Node.assertion(doc.output(node), AssertionRelation.AtLeast, doc.parse_formula("1 mm"))
         )
         answer = verdict(doc, assertion)
         self.assertEqual(answer.status, "Unevaluated")
@@ -468,7 +470,7 @@ class TestTheAssertion(unittest.TestCase):
         re-authoring the node."""
         doc, measure = self.web_document(500.0)
         assertion = doc.insert(
-            Node.assertion(doc.output(measure), AssertionDir.AtLeast, doc.parse_formula("bound"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula("bound"))
         )
         self.assertEqual(doc.node_kind(assertion), "assertion")
 
@@ -495,7 +497,7 @@ class TestTheAssertion(unittest.TestCase):
     def test_the_other_direction_gates_the_other_way(self):
         doc, measure = self.web_document(700.0)
         assertion = doc.insert(
-            Node.assertion(doc.output(measure), AssertionDir.AtMost, doc.parse_formula("bound"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtMost, doc.parse_formula("bound"))
         )
         self.assertEqual(verdict(doc, assertion).status, "Holds")
         doc.apply(
@@ -505,6 +507,22 @@ class TestTheAssertion(unittest.TestCase):
         )
         self.assertEqual(verdict(doc, assertion).status, "Violated")
 
+    def test_equal_holds_only_at_the_bound(self):
+        """`relation=AssertionRelation.Equal`: the 0.6 m web equals a
+        600 mm bound and is violated by 500 mm and 700 mm alike."""
+        doc, measure = self.web_document(600.0)
+        assertion = doc.insert(
+            Node.assertion(
+                doc.output(measure),
+                relation=AssertionRelation.Equal,
+                bound=doc.parse_formula("bound"),
+            )
+        )
+        self.assertEqual(verdict(doc, assertion).status, "Holds")
+        for off in (500, 700):
+            doc.apply(DocEdit.set_var_value(VarName("bound"), FreeValue.length(off * mm)))
+            self.assertEqual(verdict(doc, assertion).status, "Violated", off)
+
     def test_a_verdict_is_report_only(self):
         """A `Violated` assertion changes no downstream outcome: the
         same document with and without it saves the same recipe for
@@ -512,7 +530,7 @@ class TestTheAssertion(unittest.TestCase):
         doc, measure = self.web_document(700.0)
         without = doc.save()
         assertion = doc.insert(
-            Node.assertion(doc.output(measure), AssertionDir.AtLeast, doc.parse_formula("bound"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula("bound"))
         )
         self.assertEqual(verdict(doc, assertion).status, "Violated")
         # Every node that existed before the assertion still evaluates
@@ -536,7 +554,7 @@ class TestTheAssertion(unittest.TestCase):
             Node.measure(MeasurePrimitive.min_clearance((left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])))
         )
         assertion = doc.insert(
-            Node.assertion(doc.output(measure), AssertionDir.AtLeast, doc.parse_formula("1 m"))
+            Node.assertion(doc.output(measure), AssertionRelation.AtLeast, doc.parse_formula("1 m"))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(assertion)
@@ -552,7 +570,7 @@ class TestTheAssertion(unittest.TestCase):
         # `13 m / s` with `s` bound to zero.
         over_zero = doc.parse_formula("13 m / s")
         assertion = doc.insert(
-            Node.assertion(over_zero, AssertionDir.AtLeast, doc.parse_formula("1 m"))
+            Node.assertion(over_zero, AssertionRelation.AtLeast, doc.parse_formula("1 m"))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(assertion)
@@ -581,7 +599,7 @@ class TestTheRefusals(unittest.TestCase):
     def test_an_assertion_must_read_a_scalar(self):
         doc, node, _ = self.one_face()
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.assertion(doc.output(node), AssertionDir.AtLeast, doc.parse_formula("1 m")))
+            doc.insert(Node.assertion(doc.output(node), AssertionRelation.AtLeast, doc.parse_formula("1 m")))
         self.assertEqual(caught.exception.variant, "payload_var_kind")
 
     def test_a_construction_cannot_read_a_measured_value(self):
@@ -609,12 +627,12 @@ class TestTheRefusals(unittest.TestCase):
         )
         with self.assertRaises(EditError) as caught:
             doc.insert(
-                Node.assertion(doc.output(measure), AssertionDir.AtMost, doc.parse_formula("1 m"))
+                Node.assertion(doc.output(measure), AssertionRelation.AtMost, doc.parse_formula("1 m"))
             )
         self.assertEqual(caught.exception.variant, "assertion_dimension")
         # And the matching dimension is accepted, so the row above is
         # about the mismatch rather than about assertions on angles.
-        doc.insert(Node.assertion(doc.output(measure), AssertionDir.AtMost, doc.parse_formula("4 rad")))
+        doc.insert(Node.assertion(doc.output(measure), AssertionRelation.AtMost, doc.parse_formula("4 rad")))
 
     def test_deleting_a_referenced_node_strands_the_measure(self):
         """A measure CONSUMES the values it names, so its references
@@ -751,7 +769,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         assertion = doc.insert(
             Node.assertion(
                 doc.parse_formula("span - bound"),
-                AssertionDir.AtLeast,
+                AssertionRelation.AtLeast,
                 doc.parse_formula("0.1 m"),
             )
         )

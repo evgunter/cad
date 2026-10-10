@@ -19,11 +19,12 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit, DocumentId, EntityKind,
-    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram, MeasurePrimitive,
-    NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SnapshotError,
-    StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate, select_where,
+    AssertionRelation, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit,
+    DocumentId, EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred,
+    LoopProgram, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    select_where,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -811,7 +812,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
                 bound: len(100.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -915,7 +916,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::value_of(&with_measure_doc, measure),
                 bound: len(100.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1156,7 +1157,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::value_of(&d2, measure),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1180,7 +1181,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::value_of(&d2, measure),
                 bound: ang(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1199,7 +1200,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
                     editor_core::Dimension::Length,
                 ),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1256,7 +1257,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
                 node: Box::new(Node::Assertion {
                     value: crate::fixture::value_of(&d3, measure),
                     bound: len(0.02),
-                    dir: AssertionDir::AtLeast,
+                    relation: AssertionRelation::AtLeast,
                 }),
                 fresh: Vec::new(),
             },
@@ -1335,7 +1336,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::value_of(&d2, measure),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1438,7 +1439,7 @@ fn r2_a_measured_quotient_that_is_not_finite_refuses() {
             node: Box::new(Node::Assertion {
                 value: value.clone(),
                 bound: len(1.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1506,7 +1507,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
             node: Box::new(Node::Assertion {
                 value: value.clone(),
                 bound: len(1.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },

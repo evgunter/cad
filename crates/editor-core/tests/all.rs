@@ -771,6 +771,8 @@ mod intent_s2_b_reads;
 mod intent_s2_c_world;
 #[path = "intent_s2_d_measure.rs"]
 mod intent_s2_d_measure;
+#[path = "intent_s5_a_relation.rs"]
+mod intent_s5_a_relation;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

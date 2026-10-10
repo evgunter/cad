@@ -93,11 +93,11 @@ only as a hint.
    (ratified)").
 2. **The bulge form has a second home in geom-brep.** The B-rep's own
    description layer stores it: `geom_brep::SketchSegment::Arc { a, b,
-   bulge }` inside `MappedCurve::PlacedSegment` (`geom-brep/src/mapped.rs`,
+   bulge }` inside `MappedSource::PlacedSegment` (`geom-brep/src/mapped.rs`,
    "the ratified zero-redundancy bulge form"). Every profile-derived edge
    is minted through it (`swept::sketch_segment`, `placed_segment_spec`).
    A full-turn rim edge cannot be described in it, so the change reaches
-   `geom-brep`, `topo` (`split.rs` via `SketchSegment::restrict`,
+   `geom-brep`, `topo` (`split.rs` via `MappedCurve::restrict`,
    `offset_axial.rs`, `replace_face.rs`, `transform.rs`) and certification
    (`certify.rs`).
 3. **The saved format does not store the lowered form.** It stores

@@ -432,12 +432,16 @@ pub use geom::SurfaceKind;
 // body-lineage-scoped against the evaluation that minted them and
 // which `pncad`'s own guard forbids naming.
 //
-// **`MappedCurve` is NOT here, and that is measured — a further
-// entry of the `BandField` family of payloads argued OUT of this
-// list, and the first whose reason is the ARM rather than the
-// payload.** It is
+// **`MappedCurve` and its discriminant `MappedSource` are NOT here,
+// and that is measured — a further entry of the `BandField` family of
+// payloads argued OUT of this list, and the first whose reason is the
+// ARM rather than the payload.** `MappedCurve` is
 // `EdgeDescription::Scaffold`'s payload: the sketch pushforward a D3
-// scaffolding description carries. Three measurements settle it.
+// scaffolding description carries, a struct of the `MappedSource` a
+// reader would branch on and the sub-range the edge covers. The
+// payload-rung sweep reaches `MappedSource` through that struct (its
+// blind spot (k)) and pins it to this argument. Three measurements
+// settle it.
 //
 // The arm is fenced to CONSTRUCTION and refused at rest. `Scaffold`
 // is the transient door — a pushforward standing in for an edge whose
@@ -452,15 +456,15 @@ pub use geom::SurfaceKind;
 // caller can neither be handed a scaffold at rest nor write one. In
 // the kernel the discriminant has consumers and every one of them is
 // a re-MINT rather than a read — `transform`, the axial offset and
-// `replace_face` each match the three arms to rebuild the same arm
-// under a map — which is the construction half of the CUR3 rule, on
+// `replace_face` each match `MappedSource`'s three arms to rebuild the
+// same arm under a map — which is the construction half of the CUR3 rule, on
 // the side of the boundary that owns the scaffolding.
 //
 // And the rung is uncarried WHOLE, not at one arm.
 // `EdgeDescription::Chart` carries a `ChartCurve`, whose `pcurve`
 // field is a four-arm `Pcurve` — a real discriminant a reader of an
 // at-rest conventional edge would branch on — and neither is curated.
-// Carrying `MappedCurve` alone would make this refusal's read-back
+// Carrying `MappedSource` alone would make this refusal's read-back
 // matchable at the fenced arm and not at the one every at-rest
 // conventional edge actually has, which is the inconsistency the
 // `Convexity` carriage in group 3 closed, in reverse.
@@ -468,7 +472,7 @@ pub use geom::SurfaceKind;
 // This flips if a door ever hands a caller the description of a
 // TRANSIENT edge — the Euler scaffolding surface, which this façade
 // does not expose. When it does, the rung is carried WHOLE
-// (`ChartCurve`, `Pcurve` and `MappedCurve` together), because the
+// (`ChartCurve`, `Pcurve`, `MappedCurve` and `MappedSource` together), because the
 // fenced arm is the last one a reader needs and not the first.
 // Stated so the next curation pass re-measures rather than
 // re-deriving.

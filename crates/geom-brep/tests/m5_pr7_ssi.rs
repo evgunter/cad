@@ -1099,7 +1099,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     //
     // A pcurve corruption leaves limb 1 clean — the foot-point check
     // re-projects from the corrupted warm start and converges to the
-    // true foot, so on-locus distance and orthogonality stay in band —
+    // true foot, so the on-locus distance stays in band —
     // while limb 2, which consumes the pcurve AS the parameter map,
     // must see |S(P(t)) − C(t)| at the corruption's full size. The
     // displacement scales from the resolved band (definitely positive

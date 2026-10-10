@@ -2813,7 +2813,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Assertion {
             value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
             bound: len(0.0),
-            dir: pncad::document::AssertionDir::AtLeast,
+            relation: pncad::document::AssertionRelation::AtLeast,
         },
     );
     (doc, solid)

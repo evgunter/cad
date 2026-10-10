@@ -7,7 +7,7 @@ declares unrepresentable, plus the typed-quantity boundary.
 
 from pncad import (
     MeasurePrimitive,
-    AssertionDir,
+    AssertionRelation,
     AnalysisPolicy,
     analyzed_box,
     McConfig,
@@ -624,14 +624,14 @@ WrittenLength.canonical_in(0.025, mm)  # ty: error
 # order from being a thing to remember.
 _value = doc.output(solid)
 assert _value is not None
-Node.assertion(_value, doc.parse_formula("1 m"), AssertionDir.AtLeast)  # ty: error
-Node.assertion(_value, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
+Node.assertion(_value, doc.parse_formula("1 m"), AssertionRelation.AtLeast)  # ty: error
+Node.assertion(_value, AssertionRelation.AtLeast, AssertionRelation.AtMost)  # ty: error
 
 # A PRIMITIVE IS NOT A VALUE. It is what a measure is built FROM;
 # handing it where the value it measures belongs confuses the two
 # halves the measurement vocabulary keeps apart.
 _span = MeasurePrimitive.distance((solid, "a face"), (solid, "another"))
-Node.assertion(_span, AssertionDir.AtLeast, doc.parse_formula("1 m"))  # ty: error
+Node.assertion(_span, AssertionRelation.AtLeast, doc.parse_formula("1 m"))  # ty: error
 doc.insert(_span)  # ty: error
 
 # A reference is a PAIR — the name alone does not say where its
@@ -642,7 +642,7 @@ MeasurePrimitive.distance("a face", "another")  # ty: error
 # The bound takes the expression door and not the quantity one: a
 # typed length cannot be an angle bound, and the whole point of the
 # `Formula` seat is that the dimension is the value's.
-Node.assertion(_value, AssertionDir.AtLeast, 1 * mm)  # ty: error
+Node.assertion(_value, AssertionRelation.AtLeast, 1 * mm)  # ty: error
 
 # The verb vocabulary is a frozen value: a primitive is restated by
 # building a new one, never by editing one in place.

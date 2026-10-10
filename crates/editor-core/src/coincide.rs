@@ -255,6 +255,8 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::EqualAngles => "makes an equal angle at its turn with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
+        topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
 
@@ -265,6 +267,10 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CarrierLadder => "a declared pair of carriers read as one",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
+        topo::DecisionSite::BatterySupportAxis => {
+            "a blend's two supports read as sharing the axis its band is minted on"
+        }
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }
