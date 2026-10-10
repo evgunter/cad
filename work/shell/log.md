@@ -1339,3 +1339,17 @@ Ev said go.
 - **Unit 16 review 1** (PR 4467, sequential, head fd80908701): REJECT, one MAJOR (executed). The arc refinement ignores half-edge orientation, so a minus-oriented spline or spiric arc's cut has holes, and `walls_cross` reads a 0.06 m overlap as clear. Reachable on the bowl sector's caps, right there only by distance. Fix pass sent (orientation; minus-orientation rows; the speed ball intersected with the hull ball). A second Opus review is owed on the fixed head.
 - **Unit 16 review 2** (PR 4467, head 1b400e68f4): APPROVE-WITH-FIXES, no MAJOR. Review 1's MAJOR is confirmed fixed. The reviewer could not build an adjacent-wall crossing through `shell` (105 shapes). Final pass sent: a symmetric Zero contact (the verdict depended on argument order), pins for the weight term and the hull ball, the over-coverage claim corrected, the interval enclosure, and the shared spiric ball. The orchestrator checks the delta and merges; no third review.
 - **Unit 16 merged** (PR 4467, DR-133, M-tier sequential): the tilted read now accepts a Zero touch only at a shared vertex, reads edge-adjacent pairs less their joints, and refines spline and spiric edges on their carrier with the window run the way the half-edge runs. A contact on `L` is read from either side. Review 1 REJECT: one MAJOR, a minus-oriented arc read a 0.06 m overlap as clear. Fixed; review 2 APPROVE-WITH-FIXES with no MAJOR. Filed: `clearance-footprint-reads-an-arc-as-its-whole-carrier-ball` (P3). Note: the row was not quite the last commit; the lane's work-note commit landed after it, concurrently.
+- **Wall-seam fork to Ev** (2026-10-10, fork-log row 106): `a-wall-seam-between-two-fits-has-no-section`.
+  - The designer pair agrees on the final state, recorded in the item's `## Designed`:
+    - the crease seam is a fit × fit section;
+    - `shell` moves every chart through one general simultaneous door;
+    - the iso-row arm narrows;
+    - curved clearance is promoted to a gate;
+    - D2 does not change now.
+  - They split on one question, now an `[ev]` PR: whether the NURBS × NURBS arm is a seeded operation, with C5 rows stating seeded or complete, or one complete arm. It took three rounds: round 1 crossed over, round 2 returned both to their first positions, and round 3 held.
+  - Unit cut, pending the ruling:
+    - (a) narrow the iso-row arm (M; independent of the ruling);
+    - (b) the general simultaneous door (H; can precede the arm against plane + fit pairs);
+    - (c) the NURBS × NURBS arm, whose scope is set by the ruling;
+    - (d) curved clearance as a gate;
+    - (e) the saddle fit's reach at the default ε (measure first; no item yet).

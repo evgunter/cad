@@ -7,6 +7,7 @@ opened: 2026-10-08
 priority: P2
 cost: H
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap]
+needs_ev: true
 ---
 
 Filed from the designer pair on `a-fitted-wall-has-no-section-with-a-moved-cap`
@@ -60,3 +61,39 @@ Pinned in `crates/sweep/tests/encl_curved_loft_shell.rs`,
 `the_fitted_obstruction_holds_on_a_curved_fit` (the seam) and
 `a_fitted_walls_rims_answer_for_themselves_behind_its_seams` (each
 edge).
+
+## Designed
+
+A designer pair weighed this item on 2026-10-10 (fork-log row 106). Both designers agree on the following:
+
+- **The seam.** A crease seam between two moved spline walls is `Intersection { fit_i, fit_j }`. That is a rung-3 section of the two fits, certified by C2's three limbs on both charts, with its witness pinned. Nothing about either fit is composed into the edge's bound: each fit's distance from its description is its face's claim, re-derived by O5.
+  - The row a loft writes for a seam is exact only at rest. After a move at a crease, the new seam lies `d·cot(φ/2)` inside each moved row, where φ is the interior dihedral. So neither fit's row is the seam.
+- **One door for the whole solid.** `shell` moves every chart of a solid at once through one general simultaneous door. Each edge is the section of its two moved surfaces through C5, and each corner is the root of the moved surfaces that meet there. `offset_planes_together` and `offset_charts_together` are that door's closed forms. `replace_faces_offset` stays the single-face verb.
+  - Why not one face at a time: a lone moved wall's section with a held neighbour sits `d·cot φ` from the moved row. That changes sign at 90°, so on the twisted loft it falls outside the fit's window along part of the seam.
+- **The iso-row arm narrows.** `plan_edge`'s iso-row arm fires only for a self-shared image, or where the distinct neighbour holds the move (`holds_the_move` gains its NURBS-mover arms). Every other iso image on a moving fit takes the section route, so both seams of a wall answer alike. The guard's two strings, "a row of this fit shared with a spline face" and "with another fitted face", retire.
+  - The same change closes a gap: today the arm extracts a row off an analytic neighbour that does not hold the move (a tilted side plane), and only tier 2 catches it, without naming it.
+- **Clearance becomes a gate.** Curved wall clearance (geom-brep README, Open) is the gate before a shelled loft is sound at rest. `moved_walls_cross` reads planar pairs only.
+- **D2 does not change now.** D2's predicate owes `Intersection` only for a definitely-transverse edge. `dihedral.rs` answers `InBand` for any spline operand, and `validate.rs` exempts NURBS-adjacent edges by kind. A NURBS × NURBS arm alone therefore owes nothing on a loft seam.
+  - `loft.rs`'s phase-6 docs gain one line: the strut is an exact shared boundary row of both walls, and its chart image states it exactly.
+  - A shared-row carve-out goes into D2 with the change that teaches the dihedral classifier spline kinds.
+- **Still refused:**
+  - a smooth (G1) seam between two fits, which is `two-fits-sharing-a-smooth-seam-disagree-by-their-certificates`;
+  - a concave crease, whose section lies outside both windows and refuses by its own window verdict;
+  - the twisted wall's fit at the default ε (`Fit { BudgetExhausted }`, 4.12e-9 achieved), its own gate;
+  - the Interval scalar (`NurbsLaneUnsupported`).
+
+## The question
+
+Is a certified single-component section an operation the kernel offers?
+
+- **A seeded operation.** C5's rows state which operations a pair supports:
+  - *seeded*: the component through a witness;
+  - *complete*: every branch.
+  
+  Each refuses typed where it is not built. The shell seam is the seeded component, traced from the old seam to the corner surfaces' crossings. The boolean asks for complete. C3 gains a sentence naming the seeded operation beside the in-op exhaustiveness of the all-branches door.
+- **One complete arm.** The NURBS × NURBS arm returns every branch over the product of the two knot rectangles:
+  - a boundary pass of each surface against each side of the other;
+  - a two-chart tube;
+  - subdivision with hull exclusion.
+  
+  The offset door keeps the witness's component, and the boolean takes all of them. C3 and C5 change only to list the arm as implemented.
