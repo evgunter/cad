@@ -767,3 +767,7 @@ mod intent_vars_2_table;
 mod intent_vars_3_readers;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "glue_on_zero_rows.rs"]
+mod glue_on_zero_rows;
+#[path = "union_member_orders_decide_alike.rs"]
+mod union_member_orders_decide_alike;
