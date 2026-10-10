@@ -2,11 +2,11 @@
 id: a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime
 kind: issue
 title: A tube's rim vertex touching a face whose plane holds the rim tangent unions with the exact volume but fails tier 3′
-status: dispatched
+status: open
 opened: 2026-10-04
 priority: P2
 cost: M
-branch: contacthold/tube-rim-measure
+rides_with: census-backstop-separates-curved-pairs-only-along-world-axes
 ---
 
 
@@ -66,3 +66,16 @@ each rim with an exact-volume row that asserts tier 3′.
 ## Parked on the D10 hold (2026-10-08)
 
 Unsure: if the cure is a value-inferred vertex-on-face record (`reduce.rs`), the one recording door owns it; if the boolean misses the lone rim vertex, it is vertex-classification work. Measure first at release. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Measured (2026-10-10): the seat is the census backstop
+
+Reproduces on main after E and B2 (all eight poses × orders). The union
+carries the right record, a cited `VfContact` of the rim vertex on the
+cube face, so neither the record nor vertex classification is at fault.
+Tier 3′ fails on `census::sweep_cross_solid_backstop` arm 1, which can
+only clear a curved pair along a world axis while the cube face is
+tilted. A control 0.05 apart refuses the same pairs. This row is the
+witness for `census-backstop-separates-curved-pairs-only-along-world-axes`
+and rides with it. Its pin is one pose per rim, both orders, exact volume
+and tier 3′. Probe: `contacthold/tube-rim-measure`,
+`crates/sweep/tests/contacthold_tube_rim_probe.rs`. (CONTACTHOLD orchestrator)

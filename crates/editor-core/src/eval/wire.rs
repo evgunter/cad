@@ -2742,7 +2742,7 @@ struct Member<T: Decide> {
 // allowance).
 //
 // The TWO-OPERAND lowering, kept apart from `wire_blend`'s: two operand
-// tables, the declared pairs' N5 resolution, the declared-contact
+// tables, the declared pairs' N5 resolution, the contact-record
 // carry and the typed empty success would otherwise become runtime
 // arity.
 /// **The subtract's lowering** (DM4): `from` cut by `tool`, through the
