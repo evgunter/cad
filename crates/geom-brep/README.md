@@ -46,7 +46,7 @@ escalated typed refusal, never a raw comparison.
 
 **C1 — Intersection loci live on a three-rung ladder.** The *carrier*
 of an `Intersection` edge (the 3-D curve cached against the intensional
-description `{s1, s2, witness}`) is, by surface-kind pair and most exact
+description `{pair, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
@@ -540,7 +540,7 @@ table is a function of recipe structure and verdicts only.
 ### Tangency
 
 **C7 — `TangentIntersection` and second-order sector classification.**
-`EdgeDescription::TangentIntersection { s1, s2, witness }` mirrors
+`EdgeDescription::TangentIntersection { pair, witness }` mirrors
 `Intersection` one differential order up. Its jet (`tangent.rs`,
 `TangentJet { sin_theta, kappa_rel }`) is certified per sample: surface
 coincidence within ε, normal parallelism within the derived angle at
@@ -672,7 +672,11 @@ harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+`QuadratureBudget`, never a silent Gaussian. A plane cap or torus wall
+bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
+area and the wall's chart Green form along the spiric are elliptic
+integrals in the torus minor angle, enclosed by a fifth-order Taylor
+rule whose only non-ring operation is `√`, on the same schedule. A sphere face whose
 boundary circles are tilted against its chart has no conic or spline
 trim and is on the closed-form lane, measured by Gauss–Bonnet over its
 circle arcs (`props/curved.rs`, `sphere_circle_loop`). A chart

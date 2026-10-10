@@ -14,7 +14,7 @@ use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::recourse::Reading;
 use geom_brep::{
     AnalyticRung3Refusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
-    Rung3Limb, SurfaceKey, chart_pcurve_over,
+    Rung3Limb, SurfaceKey, SurfacePair, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, FileCoincidence, Interval, KERNEL_LIMIT_RECOURSE, Point3, Real, Vec3};
@@ -91,8 +91,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     let (k1, k2) = (arena.insert(s1), arena.insert(s2));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: c.eval(T::from_f64(0.5 * (d0 + d1))),
         },
         carrier: c.clone(),
@@ -337,8 +336,7 @@ fn certify_over(
     let (k1, k2) = (arena.insert(s1), arena.insert(s2));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: c.eval(0.5 * (t0 + t1)),
         },
         carrier: c.clone(),
