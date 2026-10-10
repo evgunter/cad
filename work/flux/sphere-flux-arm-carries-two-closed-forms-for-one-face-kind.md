@@ -7,7 +7,6 @@ opened: 2026-10-02
 priority: P1
 cost: H
 design: true
-needs_ev: true
 ---
 
 
@@ -120,3 +119,10 @@ while tier 3 stays green.
 
 The build owes a row executing the box ∖ shallow-ball flip, as the
 witness for why the reader stays.
+
+## Ev's answer (2026-10-10, PR 4549)
+
+Ev, on PR 4549: *"this works"*. The PR 2850 ruling, *a chart
+singularity inside a face is a vertex of it*, now bears the one-loop
+side check. Its present-tense home is `crates/geom-brep/README.md`,
+C12 (7). The build (`flux/sphere-arm`) keeps the one-loop reader.
