@@ -779,3 +779,5 @@ mod intent_vars_3_readers;
 mod run_wall_offers;
 #[path = "union_member_orders_decide_alike.rs"]
 mod union_member_orders_decide_alike;
+#[path = "r2_s2f_probes.rs"]
+mod r2_s2f_probes;
