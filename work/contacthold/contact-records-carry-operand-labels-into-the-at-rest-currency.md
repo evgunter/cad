@@ -2,7 +2,7 @@
 id: contact-records-carry-operand-labels-into-the-at-rest-currency
 kind: issue
 title: ContactRecords' operand-labelled lists (a_on_b, b_on_a; VvContact a/b as A-clone/B-clone keys) are reduction vocabulary used as the at-rest declaration type
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: M

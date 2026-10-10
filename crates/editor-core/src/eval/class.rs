@@ -1018,7 +1018,10 @@ mod tests {
             }),
             C::PartProduct => part(crate::PartFault::PartProduct {
                 held: Default::default(),
-                refusal: crate::ProductError::NoBodyRoots.into(),
+                refusal: crate::ProductError::EmptyProduct {
+                    unplaced: Vec::new(),
+                }
+                .into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
                 cycle: vec![doc_ref(), doc_ref()],

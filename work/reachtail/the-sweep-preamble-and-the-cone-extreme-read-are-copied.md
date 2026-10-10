@@ -1,7 +1,7 @@
 ---
 id: the-sweep-preamble-and-the-cone-extreme-read-are-copied
 kind: issue
-title: sweep_split_admitting_cones is a third copy of the gate → clone → sweep_and_settle preamble, and conic_clearance's cone arm re-spells first_harmonic_arm's extreme read
+title: sweep_split is a third copy of the gate → clone → sweep_and_settle preamble, and conic_clearance's cone arm re-spells first_harmonic_arm's extreme read
 status: open
 opened: 2026-10-06
 priority: P4
@@ -15,7 +15,7 @@ first review (r1 Q1).
 
 ## What
 
-- `boolean::sweep_split_admitting_cones`
+- `boolean::sweep_split`
   (`crates/topo/src/boolean/mod.rs:3944`) is a third copy of the gate →
   clone → `sweep_and_settle` preamble, beside `sweep_traces_with_pad`
   (`mod.rs:3879`) and `sweep_records` (`mod.rs:3989`).

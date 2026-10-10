@@ -371,13 +371,17 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
     out
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the finished
+/// heat sink, placed in the world.
 ///
 /// The same `build_doc` the stops walk — the gallery must not be a
 /// second authoring of the scene, or it would stop being evidence
 /// about this one.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    scene_doc(tol).doc
+    let r = scene_doc(tol);
+    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
+        .expect("the heat sink places")
+        .doc
 }
 
 /// Flush fins, measured live — the module docs' first section: the

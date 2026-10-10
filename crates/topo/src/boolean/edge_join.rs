@@ -141,6 +141,26 @@ pub struct JoinUndecided {
     pub reading: JoinReading,
 }
 
+impl JoinUndecided {
+    /// The escalation this refusal carries, where its reading is a
+    /// margin the band could not decide: what a reader over stored
+    /// geometry ends at rest itself ([`JOIN_SUBJECT`], [`JOIN_LEVER`]).
+    #[must_use]
+    pub fn diag(&self) -> Option<&Indeterminate> {
+        match &self.reading {
+            JoinReading::Regularity(diag)
+            | JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)) => Some(diag),
+            JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(_)) => None,
+        }
+    }
+}
+
+/// The question an undecided join asks ([`JoinRefusal::Undecided`]).
+pub const JOIN_SUBJECT: &str = "whether two edges meeting at a vertex on one curve are one edge";
+
+/// The undecided join's geometry lever.
+pub const JOIN_LEVER: &str = "move the vertex clear of the pole, apex or tangency it sits near";
+
 /// Which reading of [`JoinUndecided`] escalated.
 #[derive(Clone, Debug, PartialEq)]
 pub enum JoinReading {
@@ -564,10 +584,9 @@ impl core::fmt::Display for JoinRefusal {
         let undecided = |f: &mut core::fmt::Formatter<'_>, diag: &Indeterminate| {
             write!(
                 f,
-                "whether two edges meeting at a vertex on one curve are one edge is undecided \
-                 ({}). {}",
+                "{JOIN_SUBJECT} is undecided ({}). {}",
                 diag.payload(),
-                diag.ending("move the vertex clear of the pole, apex or tangency it sits near")
+                diag.ending(JOIN_LEVER)
             )
         };
         match self {

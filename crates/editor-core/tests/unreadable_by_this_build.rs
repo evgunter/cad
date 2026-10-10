@@ -194,7 +194,7 @@ const OLDER_SHAPED: &str = concat!(
     "c264d945b32\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"21:9fe386cec8abaedb\",\"22:3e2fb0ac",
     "72647b8e\",\"23:465379dd775c12be\",\"24:0495217d37468ca6\",\"25:f252c518f0a50982\"]]}},",
     "\"28:431c72536b7ab1f8\":{\"Extrude\":{\"profile\":\"26:430f4189a776294e\",\"distance\":\"27",
-    ":ba3d8dce8cc42ae6\",\"side\":\"along\"}}},\"roots\":[\"28:431c72536b7ab1f8\"],\"vars\":{\"1:",
+    ":ba3d8dce8cc42ae6\",\"side\":\"along\"}}},\"vars\":{\"1:",
     "b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"",
     "value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"",
     "Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef",

@@ -24,7 +24,7 @@ These rows, raised through `PathError` (`crates/profile/src/path.rs`), `ProfileE
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  33 feature-tree rows.
+  32 feature-tree rows.
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
   3 status-line rows.
 
@@ -101,3 +101,14 @@ such as `loop_orientation`, `canonical_order_x`, `ray_side` or
 `path_arc_bulge`. The list's doc says each listed name's levers are
 "exactly the three" the menu names; for those, the first lever is not
 one.
+
+## After stage 4 G (`tangent-joints-are-derived`)
+
+A profile stores no declaration now: `ProfileLoop::tangent_joints` is
+gone, a tangent joint is constructed (`.tangent()`, the fillet, the
+continuations, `.cusp()`) or decided Zero at validation and recorded,
+and `UndeclaredTangency` is retired. The near-tangency site note
+(`validate.rs`, `ProfileError::Escalated`'s `Display`) now names the
+construct lever. The `SHARED_CLAUSE_ONLY` observation above stands: the
+menu's declare lever has no object for those names, and now has none
+for the junction and carrier names either.

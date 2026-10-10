@@ -455,10 +455,10 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     };
     let msg = format!("{err}");
     // What the JOIN dispatch wires, stated as the recourse: a plane
-    // face against a plane, cylinder or sphere face — so the sentence
-    // does not read as cone/torus-only, and does not claim the wider
-    // SECTION-FRAME dispatch's pairs as join arms.
-    let wired = "they meet only where a plane face meets a plane, cylinder or sphere face";
+    // face against a plane, cylinder, sphere or cone face — so the
+    // sentence does not claim the wider SECTION-FRAME dispatch's pairs
+    // as join arms.
+    let wired = "they meet only where a plane face meets a plane, cylinder, sphere or cone face";
     assert!(
         msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"

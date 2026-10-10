@@ -477,25 +477,23 @@ const DOC_LABEL: &str = "die";
 /// recipe at every ε row.
 ///
 /// The exported document is [`gallery_document`]'s — the scene as a
-/// DOCUMENT, blank fillet deleted — and for that function's own
-/// reason, which does not stop being true when the consumer is a test
-/// corpus instead of a viewer. A corpus evaluates, gathers and
-/// round-trips its documents; a second root sitting exactly on the
-/// first is the #1162 defect there too.
+/// DOCUMENT, the composed die placed and the blank left unplaced — for
+/// that function's own reason, which does not stop being true when the
+/// consumer is a test corpus instead of a viewer: a corpus evaluates,
+/// gathers and round-trips its documents, and its product is the die.
 ///
 /// The log is DERIVED from the built document rather than recorded
 /// beside it, and the derivation is exact because [`build`] mints every
 /// node through one `InsertNode` against the empty document: ids are
-/// minted in insertion order, so replaying `order()`'s nodes and then
-/// the same deletion rebuilds the document — ids and all, hole
-/// included, and the profiles' step ids with them, minted afresh in
-/// the same order. That is asserted here rather than assumed: a `build` that
+/// minted in insertion order, so replaying the built nodes and then
+/// the one placement rebuilds the document — ids and all, and the
+/// profiles' step ids with them, minted afresh in the same order. That is asserted here rather than assumed: a `build` that
 /// grows a non-insert edit fails this door instead of quietly
 /// exporting a document that is not the one the scene renders.
 pub fn corpus_text(tol: Tol) -> String {
     let die = build(tol);
     // Re-inserting as written reproduces the document only where no
-    // anonymous variable is shared or toleranced
+    // anonymous variable is read twice by its formula or toleranced
     // (`Node::written`'s precondition); the replay's ids, compared
     // below, rule out a value edited after its insert.
     assert_eq!(
@@ -525,23 +523,18 @@ pub fn corpus_text(tol: Tol) -> String {
             }
         })
         .collect();
-    edits.push(DocEdit::DeleteNode { id: die.blank });
+    edits.push(DocEdit::place(die.composed, None));
     let mut replay = empty.clone();
     for edit in &edits {
         replay = apply(&replay, edit, tol, &RefusingReach)
             .expect("the derived log replays")
             .doc;
     }
-    let built: Vec<_> = die
-        .doc
-        .ids()
-        .into_iter()
-        .filter(|&id| id != die.blank)
-        .collect();
+    let published = gallery_document(tol);
     assert_eq!(
         replay.ids(),
-        built,
-        "the replay re-mints every node id `build` minted, the blank deleted"
+        published.ids(),
+        "the replay re-mints every node id `build` minted, then the placement's"
     );
     // The ids were cleared on the strength of the insert door minting
     // them again in the same order; that precondition is checked
@@ -559,63 +552,51 @@ pub fn corpus_text(tol: Tol) -> String {
         }
     }
     assert_eq!(
-        replay,
-        gallery_document(tol),
+        replay, published,
         "the derived log must reproduce the document this scene publishes"
     );
     save(&empty, &edits, tol).expect("the die document saves")
 }
 
 /// This scene's recipe, as a document the GUI can open — **the
-/// composed die, and only it**.
+/// composed die, placed in the world**.
 ///
 /// The same `build` the stops walk, geometric selections and all: what
 /// a reader opens in the viewer is the document this scene renders,
-/// not a re-authoring of it. One node is then DELETED, and the reason
-/// is the difference between a tour and a document.
+/// not a re-authoring of it, plus the one edit that says which of its
+/// bodies the document is about.
 ///
-/// # Why the blank is not in the file
+/// # Why the blank is not in the product
 ///
 /// The scene has three stops and `build` authors all three, because a
 /// stop renders ONE named body and three stops need three of them.
 /// [`Die::blank`] is a second fillet of the same cube, consumed by
-/// nothing — a narration body, and a DAG sink.
+/// nothing — a narration body.
 ///
-/// A document is not a tour. Its product is the gather of every root,
-/// the root set is exactly the sink set (`editor_core::roots`:
-/// coverage plus ancestor-freedom), so a sink authored for narration
-/// is a product root whether or not the scene means it as one. The
-/// blank is the composed die's own outer shape with no pips cut, so
-/// the two roots sit exactly on each other: the blank's material plugs
-/// every pip cavity, the outer faces z-fight, and the product's volume
-/// counts the same material twice (115 faces, V = 1.918146 ≈ 2 ×
-/// 0.952915). That is the gallery bug #1162 diagnosed. What #1162
-/// landed is the separation resident that REPORTS it — deliberately,
-/// because a viewer must keep drawing a document a modeller is trying
-/// to fix. Nothing was ever going to make this file draw the die.
+/// A document's product is the world: the copies its placements
+/// define, and nothing else (A10). The file places the scene's
+/// SUBJECT — "the composed die, which remains the sheet's die" (Ev's
+/// montage curation, #218 follow-up, which ruled the two partial dice
+/// out of the sheet for reading as near-duplicates) — and nothing
+/// places the blank, so the blank stays a value in the file, outside
+/// the product. It is the composed die's own outer shape with no pips
+/// cut; placed beside the die it would plug every pip cavity and
+/// count the same material twice (the #1162 defect, which the
+/// separation resident reports).
 ///
-/// So the file carries the scene's SUBJECT — "the composed die, which
-/// remains the sheet's die" (Ev's montage curation, #218 follow-up,
-/// which already ruled the two partial dice out of the sheet for
-/// reading as near-duplicates). The blank keeps its stop, its
-/// narration and its render; what it loses is a second root in one
-/// `.pncad`, where it could only ever be an obstruction.
-///
-/// The deletion goes through the ordinary edit door, so the root list
-/// is maintained by `roots::on_delete` rather than asserted here, and
-/// the remaining document is exactly the recipe that builds the die:
-/// 32 nodes, one root, 89 faces, V = 0.952915, no separation finding.
-/// The 21 pips are the members of ONE `Node::Union`, so the node count
-/// is the pips, the blank and the two blends — not a chain length.
+/// The product is one copy of the die: 89 faces, V = 0.952915, no
+/// separation finding. The 21 pips are the members of ONE
+/// `Node::Union`, so the node count is the pips, the blank, the two
+/// blends and the placement — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(
         &die.doc,
-        &DocEdit::DeleteNode { id: die.blank },
+        &DocEdit::place(die.composed, None),
         tol,
         &RefusingReach,
     )
-    .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
+    .expect("the composed die places")
     .doc
 }
 

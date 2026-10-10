@@ -15,8 +15,8 @@
 
 use geom_core::{Point3, Tol};
 use topo::{
-    AtRestBody, BooleanDeclarations, BooleanError, ShellClassifyError, ShellRole, ValidationError,
-    classify_shells, intersect_with,
+    AtRestBody, BooleanDecision, BooleanDeclarations, BooleanError, ShellRole, classify_shells,
+    intersect_with,
 };
 
 use crate::common;
@@ -53,14 +53,19 @@ fn basis(m: V3) -> (V3, V3) {
     (u, cross(m, u))
 }
 
-/// The probe's `notch307` prism ∩ its cube at pose `nt e0 a<a> d<d>`,
-/// in the probe's own arithmetic.
-fn notch307_meet(a: u32, d: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
-    let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
-    let prism = common::prism::<f64>(&profile, 1.0, tol).body;
+/// The probe's prism `profile` (corner `v`, its edge `e` there) and its
+/// cube at pose `nt e<·> a<a> d<d>`, in the probe's own arithmetic.
+fn corner_pose(
+    profile: &[(f64, f64)],
+    v: V3,
+    e: V3,
+    a: u32,
+    d: f64,
+    tol: Tol,
+) -> (AtRestBody<f64>, AtRestBody<f64>) {
+    let prism = common::prism::<f64>(profile, 1.0, tol).body;
     let prism = AtRestBody::validate(prism, tol).expect("the prism is at rest");
-    let v: V3 = [2.0, 1.0, 1.0];
-    let e = unit([2.0, 1.0, 0.0]);
+    let e = unit(e);
     let (p1, p2) = basis(e);
     let al = std::f64::consts::TAU * (f64::from(a) + 0.25) / 16.0;
     let base = add(scale(p1, al.cos()), scale(p2, al.sin()));
@@ -75,6 +80,13 @@ fn notch307_meet(a: u32, d: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, B
         tol,
     );
     let cube = AtRestBody::validate(cube, tol).expect("the cube is at rest");
+    (prism, cube)
+}
+
+/// The probe's `notch307` prism ∩ its cube at pose `nt e0 a<a> d<d>`.
+fn notch307_meet(a: u32, d: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
+    let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+    let (prism, cube) = corner_pose(&profile, [2.0, 1.0, 1.0], [2.0, 1.0, 0.0], a, d, tol);
     intersect_with(&prism, &cube, &BooleanDeclarations::default(), tol)
 }
 
@@ -118,8 +130,9 @@ fn a_near_tangent_wedge_tens_of_bands_thick_reads_outer() {
 }
 
 /// **The in-band twin**: at `d = 1e-11` (pose `a3`) the wedge is less
-/// than a band thick, and the ∩ refuses its role on an enclosure wholly
-/// inside the sliver band, not on one straddling zero.
+/// than a band thick, and the ∩ refuses its result as the operands'
+/// ill-conditioning (D10, Booleans), on the wedge's certified enclosure
+/// wholly inside the sliver band, not on one straddling zero.
 #[test]
 fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
     let tol = Tol::witness();
@@ -127,21 +140,54 @@ fn a_near_tangent_wedge_in_band_refuses_on_an_enclosure_inside_the_band() {
         return;
     }
     let refusal = notch307_meet(3, 1e-11, tol).map(|_| ());
-    let Err(BooleanError::ResultInvalid { errors }) = &refusal else {
-        panic!("the ∩ refuses its result, got {refusal:?}");
-    };
-    let [
-        ValidationError::ShellRoleUndecided {
-            error: ShellClassifyError::Escalated { source, .. },
-            ..
-        },
-    ] = errors.as_slice()
+    let Err(BooleanError::Escalated {
+        decision: BooleanDecision::ShellRole { others: 0, .. },
+        diag,
+    }) = &refusal
     else {
-        panic!("one shell's role is undecided, got {errors:?}");
+        panic!("the ∩ refuses its in-band shell, got {refusal:?}");
     };
     assert_eq!(
-        (source.predicate, source.terminal_sliver),
+        (diag.predicate, diag.terminal_sliver),
         (Some("positive_volume_exact"), true),
-        "the certified reading is wholly inside the sliver band: {source:?}"
+        "the certified reading is wholly inside the sliver band: {diag:?}"
     );
+}
+
+/// **A walk that reads zero does not hide a certified sliver**: at
+/// `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the ∩'s lump has its `V/A`
+/// certified in [1.69973e-9, 1.69973e-9], wholly in band, while the f64
+/// walk reads 8.7e-10 (prism first) and 3.3e-10 (cube first), in the
+/// zero band. The door reads the certificate, in both orders.
+#[test]
+fn a_sliver_the_walk_reads_as_zero_refuses_in_band_in_both_orders() {
+    let tol = Tol::witness();
+    if (tol.eps() - 1e-9).abs() > 1e-21 {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-9",
+            "the walk reads this pose's lump in the zero band at ε = 1e-9 only",
+        );
+        return;
+    }
+    let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
+    let (prism, cube) = corner_pose(&profile, [2.0, 0.5, 1.0], [2.0, 3.5, 0.0], 1, 6e-9, tol);
+    let decls = BooleanDeclarations::default();
+    for (order, refusal) in [
+        ("prism first", intersect_with(&prism, &cube, &decls, tol)),
+        ("cube first", intersect_with(&cube, &prism, &decls, tol)),
+    ] {
+        let refusal = refusal.map(|_| ());
+        let Err(BooleanError::Escalated {
+            decision: BooleanDecision::ShellRole { others: 0, .. },
+            diag,
+        }) = &refusal
+        else {
+            panic!("{order}: the ∩ refuses its certified sliver in band, got {refusal:?}");
+        };
+        assert!(diag.terminal_sliver, "{order}: {diag:?}");
+        assert!(
+            diag.to_string().contains("enclosure [1.69972"),
+            "{order}: the certified V/A is quoted: {diag}"
+        );
+    }
 }

@@ -32,7 +32,7 @@
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::test_support::bulge_loop;
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::{block, brick, corners, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis};
 use topo::{Body, ShellKey, ShellRole, SolidKey};
@@ -122,24 +122,20 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
 /// **The domed vessel**: a cylinder of radius `r` and height `h` under
 /// a hemisphere of the same radius, tangent to the wall at the equator.
 pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {
-    revolved_full(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
-            (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
-    )
+    revolved_full(bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
+        (Point2::new(0.0, h + r), 0.0),
+    ]))
 }
 
 /// **The nearly domed vessel**: [`domed_vessel`] whose cap is a sphere
 /// of radius `r + gap`, so it meets the wall at `asin(r / (r + gap))`,
-/// short of tangent by `gap`. `declared` declares the joint tangent,
-/// which the profile accepts only while the crossing angle is within
-/// its tolerance. Returns the body, the sphere's radius and its centre
-/// height.
-pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64, declared: bool) -> (Body<f64>, f64, f64) {
+/// short of tangent by `gap`; while the crossing angle is within the
+/// profile's tolerance, validation decides the joint tangent. Returns
+/// the body, the sphere's radius and its centre height.
+pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64) -> (Body<f64>, f64, f64) {
     let rho = r + gap;
     let polar = (r / rho).asin();
     let rise = rho * (1.0 - polar.cos());
@@ -149,11 +145,6 @@ pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64, declared: bool) -> (Body<f6
         (Point2::new(r, h), (polar / 4.0).tan()),
         (Point2::new(0.0, h + rise), 0.0),
     ]);
-    let meridian = if declared {
-        meridian.with_tangent_joints(vec![2])
-    } else {
-        meridian
-    };
     (revolved_full(meridian), rho, h + rise - rho)
 }
 

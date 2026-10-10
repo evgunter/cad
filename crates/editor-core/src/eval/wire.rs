@@ -269,17 +269,24 @@ where
             wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
-        Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(
+        Node::Profile(program) => {
+            let payload = wire_profile(
                 program,
                 at(O::Frame, program.frame)?,
                 results,
                 profile_pre,
                 env.lane,
                 tol,
-            )?,
-            names::empty(),
-        )),
+            )?;
+            let rows = match &payload {
+                ValuePayload::Profile(value) => {
+                    crate::coincide::name_junctions(id, &value.validated, &value.pieces)
+                        .map_err(NodeErrorKind::Naming)?
+                }
+                _ => Vec::new(),
+            };
+            Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
+        }
         Node::Extrude { profile, side, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
         }
@@ -382,6 +389,11 @@ where
         }
         Node::Transform { input, placement } => {
             wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
+        }
+        Node::PlaceInWorld { body, pose } => {
+            let at = at(O::Body, *body)?;
+            let port = doc.defined_by(*body).map_or(0, |(_, port)| port);
+            wire_place_in_world(id, at, port, pose, results, vals, tol)
         }
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
@@ -4066,6 +4078,73 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let map = placement.motion(vals, band(tol)?)?;
     let payload = placeable.map(|body, _| place(body, Some(&map), tol))?;
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
+}
+
+/// **A world placement** (A10): the body read, at port `port` of the
+/// operation `of`, placed at `pose` as one copy named under this node
+/// ([`names::name_placed`]). A split's half is its port, as a read of
+/// any port is that output. A boolean's empty result places as itself:
+/// an empty copy, a typed success (F8) the gather finds no solid in.
+///
+/// The copy carries the body's declared contact records and the
+/// declaration rows keyed with them (ASM-R2b D-1) verbatim: a rigid
+/// placement keeps every arena key (`transform_rigid`), so they key the
+/// copy as they keyed the body. A split's half carries none, as its
+/// value carries none.
+fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
+    id: RecipeNodeId,
+    of: RecipeNodeId,
+    port: u8,
+    pose: &crate::placement::Placement,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let value = value_of(results, of)?;
+    let mut contacts = Arc::clone(&value.contacts);
+    let mut carried = Arc::clone(&value.carried);
+    let (body, index) = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Empty) => {
+            return Ok(OpOut::plain(
+                ValuePayload::Boolean(BooleanValue::Empty),
+                names::empty(),
+            ));
+        }
+        ValuePayload::Boolean(BooleanValue::Body {
+            body,
+            contacts: records,
+            ..
+        }) => {
+            contacts = Arc::clone(records);
+            (Arc::clone(body), 0)
+        }
+        ValuePayload::Split { above, below } => {
+            let half = if port == 0 {
+                SplitHalf::Above
+            } else {
+                SplitHalf::Below
+            };
+            contacts = Arc::default();
+            carried = Arc::default();
+            match if port == 0 { above } else { below } {
+                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
+                SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
+            }
+        }
+        _ => (read_body(results, of)?, 0),
+    };
+    let table = value
+        .name_table
+        .project(index)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
+    let placed = place(&body, map.as_ref(), tol)?;
+    let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut {
+        contacts,
+        carried,
+        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table).carrying(value.parts)
+    })
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),

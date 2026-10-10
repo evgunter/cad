@@ -719,7 +719,7 @@ fn a_count_a_definition_reads_does_not_reproduce() {
                 .unwrap(),
                 side: ExtrudeSide::Along,
             }),
-            fresh: vec![VarDecl::Free(FreeVar::Count { value: 2 })],
+            fresh: vec![VarDecl::Free(FreeVar::Count { value: 2 }).into()],
         },
     );
     let [entry] = applied.record.fresh[..] else {

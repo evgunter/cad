@@ -137,16 +137,75 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 
 /// **The registered split documents' evaluations are bit-identical**
 /// through the verb lowering — bodies on both sides and name tables —
-/// one committed number each. They are goldens in the ordinary sense —
-/// when one moves the question is whether the new behaviour is right,
-/// never how to restore the old number.
+/// one committed number each.
+///
+/// The numbers were taken on this branch and re-taken on the extracted
+/// merge base with this file and the shared feed copied onto it; all
+/// three reproduce there. That differential is what "nothing observable moved" means;
+/// without it the constants would only say the branch agrees with
+/// itself. They are goldens in the ordinary sense — when one moves the
+/// question is whether the new behaviour is right, never how to restore
+/// the old number.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
+/// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
+/// main's shared copy points: each moved it alone — the split halves'
+/// union builds in the chord join (JOIN-1), and
+/// an op's copies of one vertex share its point, so the arena order the
+/// digest hashes moved (main) — and the merged tree is neither value.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink` only, when declaring a
+/// variable began minting its id on the document's chain: every node
+/// minted after a declare was renumbered, and this digest feeds ids.
+/// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a chart image's flag became
+/// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
+/// whose field name moved; with `wrap: ` read back as `seam: ` the feed
+/// reproduces every old constant, so no evaluation moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
+///
+/// RE-BLESSED, `cut_cylinder` only, when a swept point's description began
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x241e03514e94a3d9u64),
-        ("part_select", 0xd3ee30c3ca181ed9),
-        ("kitchen_sink", 0xbe0fcb2bd9b2b528),
+        ("cut_cylinder", 0x5b24_7f0a_1360_4db4u64),
+        ("part_select", 0x0f2b_e2d0_e2c1_5eff),
+        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

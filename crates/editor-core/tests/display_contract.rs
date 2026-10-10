@@ -21,9 +21,9 @@ use editor_core::{
     InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeasureNodeFault,
     MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
     ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
-    StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
+    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
+    StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -1104,6 +1104,8 @@ test_utils::f6_variants! {
         OperandUnminted,
         SlotVarKind,
         PartHalfPort,
+        ReadsWorldCopy,
+        MeasuresWorldCopy,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1117,12 +1119,12 @@ test_utils::f6_variants! {
         SlotVarKind,
         PayloadVarKind,
         AnonymousVarUnread,
+        SharedVarNeedsName,
         DefinitionReadsUnmintedVar,
         DefinitionVarKind,
         DefinitionCycle,
         DefinitionTooLarge,
         EpsilonInvalid,
-        Roots,
         NotAGauge,
         GaugeCycle,
         PlacementNonFinite,
@@ -1177,7 +1179,7 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`RootFault`, `PlacementRuleFault`, `MeasureNodeFault`,
+/// (`PlacementRuleFault`, `MeasureNodeFault`,
 /// `InputFault`, `MetaVersionError`) rather than restating it, and the
 /// two placement-frame arms forward the frame rule's clause — so each
 /// case below asks for the payload's words, which is what proves the
@@ -1236,6 +1238,21 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 )),
             },
             vec!["selects the below half but reads #9:"],
+        ),
+        (
+            SnapshotError::ReadsWorldCopy {
+                node: node(),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                placement: absent(9),
+            },
+            vec!["reads the world copy", "construction never reads the world"],
+        ),
+        (
+            SnapshotError::MeasuresWorldCopy {
+                node: node(),
+                placement: absent(9),
+            },
+            vec!["is sited at", "only the product and export read"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },
@@ -1346,6 +1363,15 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "#0:0000000000070000 has no name and nothing reads it",
                 "one something reads",
+            ],
+        ),
+        (
+            SnapshotError::SharedVarNeedsName {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec![
+                "#0:0000000000070000 has no name and more than one reader",
+                "regenerate the file",
             ],
         ),
         (
@@ -1473,16 +1499,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
             vec!["recorded ε", "finite and strictly positive"],
-        ),
-        (
-            SnapshotError::Roots(RootFault::Ancestor {
-                ancestor: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
-                descendant: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
-            }),
-            vec![
-                "product root node 000000000001 is an ancestor of product root node \
-                 000000000002",
-            ],
         ),
         (
             SnapshotError::NotAGauge {
@@ -3156,7 +3172,7 @@ fn maintenance_display_says_what_the_edit_did() {
             },
             vec![
                 "nothing reading #0:0000000000070000",
-                "went with its last reader",
+                "went with its reader",
             ],
         ),
         (
@@ -3562,6 +3578,16 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             InlineError::InstanceOutputUncarried {
                 name: name.clone(),
                 why: editor_core::Uncarried::HeirNamed { held: name.clone() },
+            }
+            .to_string(),
+        ),
+        (
+            "InlineError::InstanceOutputUncarried (posed)",
+            InlineError::InstanceOutputUncarried {
+                name: name.clone(),
+                why: editor_core::Uncarried::Posed {
+                    placement: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
+                },
             }
             .to_string(),
         ),

@@ -370,7 +370,7 @@ fn ball_planes(tube: &AtRestBody<f64>) -> [usize; 2] {
             .expect("the union joins")
     };
     let ball = ball();
-    [planes(&join(tube, &ball).1), planes(&join(&ball, tube).0)]
+    [planes(&join(tube, &ball).b), planes(&join(&ball, tube).a)]
 }
 
 /// **One aux plane per edge, and only where no arm reads the pair.**

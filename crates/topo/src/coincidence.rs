@@ -61,11 +61,14 @@ pub enum Relation {
     /// The two cells make equal angles with a third (an isosceles
     /// turn, whose mitre lands on that third edge).
     EqualAngles,
-    /// Two surfaces touching along a locus, tangent there: the outward
-    /// sides opposed (a tangent contact) or, `aligned`, one surface
-    /// carried on tangentially (a seam).
+    /// The two cells meet in first-order contact: tangent at their
+    /// common locus, the second carrying on the first's heading
+    /// (`aligned`: a smooth joint between curves, a seam between
+    /// surfaces) or reversed (a cusp between curves, a tangent contact
+    /// between surfaces, their outward sides opposed).
     Tangent {
-        /// The two outward sides agree (a seam).
+        /// Whether the second carries on the first rather than
+        /// reversing it.
         aligned: bool,
     },
 }
@@ -109,6 +112,9 @@ pub enum DecisionSite {
     SplitOn,
     /// The blend battery's isosceles turn (`fillet3_turn_isosceles`).
     BatteryTurn,
+    /// A profile's junction no constructor made, its carriers' margin
+    /// decided Zero (`profile`'s joint pass).
+    ProfileJunction,
 }
 
 /// **How a row's Zero was discharged.** Every row a lane records today

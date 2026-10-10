@@ -3,7 +3,8 @@
 //! intended tangency is exact by construction, and every authored
 //! point lies on the final path, authored once** — the ratified design
 //! of `docs/PATHS-DESIGN.md` §§1–7, lowered to the existing v1 form
-//! ([`ProfileLoop`]: segments + declared tangency flags).
+//! ([`ProfileLoop`]: vertices and segments), carried with the joints it
+//! constructed tangent as a [`ConstructedLoop`].
 //!
 //! # The binding lattice
 //!
@@ -51,9 +52,9 @@
 //! is a TANGENT joint, and EVERY closing verb takes it. The check reads
 //! the arriving direction and `Start`'s own direction and nothing else
 //! — never whether the two carriers are the same, which is the ruling
-//! of 2026-09-02: every zero-turn joint is a declared tangent joint.
-//! Undeclared, a tangent seam refuses [`PathError::SeamTangent`] from
-//! every closing verb, exactly as before.
+//! of 2026-09-02: every zero-turn joint is a tangent joint (D1).
+//! Not constructed, a tangent seam refuses [`PathError::SeamTangent`]
+//! from every closing verb.
 //!
 //! # Lowering
 //!
@@ -66,7 +67,7 @@
 //! (`sugar::line_line_fillet_trims`), so the two doors emit
 //! bit-identical fillet geometry. The #101 verify layer
 //! ([`crate::Profile::validate`]) runs UNCHANGED on the lowered
-//! output: every declared flag is re-verified at build —
+//! output: every constructed joint is verified at build —
 //! verified-never-trusted; nothing is trusted because the algebra
 //! produced it.
 //!
@@ -166,7 +167,7 @@
 //!     .fillet(r, tol)?.at(Point2::new(-1.0, 0.0), tol)?.angle(south, tol)?
 //!     .fillet(r, tol)?.to(Start, tol)?;
 //! assert_eq!(square.loop_.vertices().len(), 8);
-//! assert_eq!(square.loop_.tangent_joints().len(), 8);
+//! assert_eq!(square.loop_.constructed_joints().len(), 8);
 //! // The chain also RECORDED itself: the program replays to the same
 //! // loop, bit for bit (profiles-as-programs v2 — see [`program`]).
 //! assert_eq!(square.program.len(), 13);
@@ -506,13 +507,13 @@ impl Start {
     /// here: the entry's first side is already authored and cannot
     /// carry the seam's content from the front (§2's entry rule).
     ///
-    /// **Every zero-turn joint is a declared tangent joint** (Ev,
-    /// in-chat, 2026-09-02), so there is nothing else to declare and no
+    /// **Every zero-turn joint is a tangent joint** (Ev, in-chat,
+    /// 2026-09-02; D1), so there is nothing else to construct and no
     /// sibling token. Every closing verb takes it — `line_to`,
     /// `continue_to`, `tangent_arc_to`, `arc_to(Bulge { … })` —
     /// because what it classifies is the JOINT, not the shape of the
-    /// leg reaching it. The lowered loop carries the flag at joint 0,
-    /// which the verify layer re-checks.
+    /// leg reaching it. The lowered loop constructs joint 0, which
+    /// validation verifies.
     ///
     /// The kernel CHECKS the arriving direction against `Start`'s own
     /// direction, banded through the funnel and levered by the arriving
@@ -1159,7 +1160,7 @@ pub enum PathError<T: Real> {
     },
     /// A fillet radius that is not definitely positive: r = 0
     /// degenerates the arc and a negative r mirrors the tangent points
-    /// past the corner — either way the declared-tangent construction
+    /// past the corner — either way the tangent construction
     /// the fillet promises does not exist. Classified through the
     /// funnel (`path_fillet_radius`) at `.fillet(r)` itself, before an
     /// arrival can be authored against it.
@@ -2229,7 +2230,7 @@ struct Tip<T: Real> {
     pos: Option<PosData<T>>,
     ang: Option<Dir<T>>,
     /// Whether the bound angle was inherited by `.tangent()` (the
-    /// declared-tangency continuations; drives the §4 item 4 checks).
+    /// constructed-tangency continuations; drives the §4 item 4 checks).
     ang_by_tangent: bool,
 }
 
@@ -2338,7 +2339,7 @@ struct PendingMeta<T: Real> {
     /// radius at all, so the arc it emits has no address to record.
     incoming_radius: bool,
     /// The ray was bound by `.tangent()` (or ray-extended off a leg
-    /// end): its origin joint is already declared.
+    /// end): its origin joint is already constructed.
     by_tangent: bool,
     /// The ray origin's incoming carrier, if the origin was a leg end.
     origin_incoming: Option<Incoming<T>>,
@@ -2352,7 +2353,7 @@ struct PendingMeta<T: Real> {
 
 /// The accumulated lowering state: the vertex chain emitted so far
 /// (mirroring the raw chain builder's emission verb-for-verb), the
-/// declared joints, the entry pose (the [`Start`] value), and the
+/// constructed joints, the entry pose (the [`Start`] value), and the
 /// pending fillet, if a side is open.
 #[doc(hidden)]
 #[derive(Clone, Debug)]
@@ -2361,6 +2362,8 @@ pub struct Core<T: Real> {
     /// leaving it, `None` for a line (and for the chain's last vertex
     /// until its segment is set).
     verts: Vec<(Point2<T>, Option<BuiltArc<T>>)>,
+    /// The joints the chain's constructors made tangent
+    /// ([`ConstructedLoop::constructed_joints`]).
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
@@ -2657,9 +2660,8 @@ impl<T: Real> Core<T> {
             })
     }
 
-    /// Declares the joint at the current last vertex tangent
-    /// (the raw `declare_tangent`).
-    fn declare_last(&mut self) {
+    /// Constructs the joint at the current last vertex tangent.
+    fn construct_last(&mut self) {
         if let Some(last) = self.verts.len().checked_sub(1) {
             self.tangent.push(last);
         }
@@ -2733,15 +2735,15 @@ impl<T: Real> Core<T> {
             })
     }
 
-    /// Declares the SEAM joint — joint 0, the entry vertex — tangent,
-    /// which is the flag the verify layer re-checks. EVERY declared
-    /// arrival lands here: every zero-turn joint is a declared tangent
-    /// joint (Ev, in-chat, 2026-09-02), so there is no second kind of
-    /// declaration to sort.
+    /// Constructs the SEAM joint — joint 0, the entry vertex — tangent,
+    /// which validation verifies. EVERY tangent arrival lands here:
+    /// every zero-turn joint is a tangent joint (Ev, in-chat,
+    /// 2026-09-02; D1), so there is no second kind of construction to
+    /// sort.
     ///
     /// The seam fillet does the same push inline when its arc IS the
     /// closing segment.
-    fn declare_seam(&mut self) {
+    fn construct_seam(&mut self) {
         if !self.tangent.contains(&0) {
             self.tangent.push(0);
         }
@@ -2759,11 +2761,14 @@ impl<T: Real> Core<T> {
         let structure = self.take_structure();
         let structure = structure.into_record(spans, radii, pieces);
         structure.check_role_lists(&self.program);
+        let mut joints = core::mem::take(&mut self.tangent);
+        joints.sort_unstable();
+        joints.dedup();
         ClosedLoop {
-            loop_: ConstructedLoop(ProfileLoop::from_chain(
-                self.stored_chain(Some(tol)),
-                self.tangent,
-            )),
+            loop_: ConstructedLoop {
+                loop_: ProfileLoop::from_chain(self.stored_chain(Some(tol))),
+                joints,
+            },
             program: self.program,
             structure,
         }
@@ -3022,7 +3027,8 @@ fn junction_check<T: Decide>(
             let margin = turn * inc.arm;
             // Which refusal class — tangent (dep ≈ incoming) or cusp
             // (dep ≈ reverse)? `path_junction_side`, in its one home
-            // (validation asks it of every declared joint too).
+            // (validation asks it of every tangent joint between two
+            // carriers too).
             match seg::junction_reverses(u_in, u_dep, inc.arm, band) {
                 Ok(true) => Err(PathError::JunctionCusp {
                     margin,
@@ -3065,12 +3071,10 @@ fn junction_check<T: Decide>(
 /// direction — which is exactly what the interior junction check reads
 /// of a directed point. The seam's other half is the FOLLOWING leg, and
 /// the chain has no business seeing it. **Every zero-turn joint is a
-/// declared tangent joint** (Ev, in-chat, 2026-09-02): whether the
-/// seam's two sides ride one carrier or two, a declared zero-turn joint
-/// is tangent, so there is nothing here to ask about carriers and
-/// nothing to sort. What the data gate still owns is the UNDECLARED
-/// case in a materialized loop
-/// ([`crate::ProfileError::UndeclaredTangency`]).
+/// tangent joint** (Ev, in-chat, 2026-09-02; D1): whether the seam's
+/// two sides ride one carrier or two, a constructed zero-turn joint is
+/// tangent, so there is nothing here to ask about carriers and
+/// nothing to sort.
 ///
 /// The datum is `sin` of the turn — dimensionless — so comparing it
 /// against a LENGTH tolerance is a category error until an arm says
@@ -3354,7 +3358,7 @@ fn fillet_arc_carrier<T: Real>(
 impl<T: Decide> Core<T> {
     /// **The door never mints a joint the validator refuses.**
     ///
-    /// A fillet's declared tangency is a claim about the CARRIERS the
+    /// A fillet's constructed tangency is a claim about the CARRIERS the
     /// loop stores, and a profile stores an arc as its carrier and sweep
     /// between two vertices. The door stores the fillet's carrier as it
     /// built it, but what a reader gets back is whatever that segment
@@ -3392,13 +3396,13 @@ impl<T: Decide> Core<T> {
     /// refused on its own terms, which is not a tangency disagreement,
     /// and the joint it sits on is skipped here.
     ///
-    /// **Only DECLARED joints are read**, and that is the whole reach.
+    /// **Only CONSTRUCTED joints are read**, and that is the whole reach.
     /// EVERY fillet arc the chain emits is in the list — the one door
     /// that used to store its arc without recording it, the exact-fit
     /// arc close, goes through [`Core::record_fillet_arc`] like the
-    /// rest — so what scopes the reading is the declaration set and
-    /// nothing else. A fillet's OUTGOING joint is declared by
-    /// construction at every door but three, and at each of the three
+    /// rest — so what scopes the reading is the constructed set and
+    /// nothing else. A fillet's OUTGOING joint is constructed at every
+    /// door but three, and at each of the three
     /// the direction leaving the arc is not the door's to claim:
     ///
     /// - an exact outgoing fit onto a far-end anchor, and an interior
@@ -3415,11 +3419,12 @@ impl<T: Decide> Core<T> {
     /// form that stopped being the arc the resolver computed is read
     /// at that joint even where the outgoing one is skipped.
     ///
-    /// What an undeclared joint CAN do is come back `Tangent` and draw
-    /// `UndeclaredTangency` from validation; that is a claim about the
-    /// declaration set rather than about the stored form, it is the
-    /// same at every scalar and tolerance, and `rejections.rs` is where
-    /// it is refused. The skip below is that boundary, not an oversight.
+    /// What a joint no constructor made CAN do is come back `Tangent` at
+    /// validation, which records it as a tangency decided from values;
+    /// that is a fact about the stored form's carriers rather than a
+    /// disagreement with a construction, so it is validation's and not
+    /// this reading's. The skip below is that boundary, not an
+    /// oversight.
     fn fillets_carry_their_tangency(&self, tol: Tol) -> Result<(), PathError<T>> {
         let band = linear_band(tol)?;
         let n = self.verts.len();
@@ -3499,10 +3504,10 @@ impl<T: Decide> Core<T> {
                 let reading = seg::joint_tangency(prev, next, band)
                     .map_err(|source| PathError::Escalated { source })?;
                 match reading.class {
-                    // A declared joint whose carriers are tangent is
+                    // A constructed joint whose carriers are tangent is
                     // the construction verified; one whose carriers are
-                    // the SAME is a declared tangent joint too (the
-                    // directions agree), and validation accepts it.
+                    // the SAME is a tangent joint too (the directions
+                    // agree), and validation accepts it.
                     seg::JointClass::Tangent | seg::JointClass::SameCarrier => {}
                     seg::JointClass::Transversal if stores_an_arc => {
                         return Err(PathError::FilletCarrierBelowSceneResolution {
@@ -3723,10 +3728,10 @@ impl<T: Decide> Core<T> {
         );
         register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
         // (5) incoming side emission: Positive fit emits the straight
-        // piece + declared joint (exactly the raw fillet's rule); Zero
-        // fit springs the arc off the last vertex — if that joint
-        // carries a declared flag (a `.tangent()` ray, or a previous
-        // fillet's arc end), §4 item 4 refuses carrier identity there.
+        // piece + constructed joint (exactly the raw fillet's rule); Zero
+        // fit springs the arc off the last vertex — if that joint is
+        // constructed (a `.tangent()` ray, or a previous fillet's arc
+        // end), §4 item 4 refuses carrier identity there.
         if trims.fit_in == Sign::Positive {
             if meta.by_tangent
                 && meta
@@ -3741,7 +3746,7 @@ impl<T: Decide> Core<T> {
             } else {
                 self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
                 self.push_line(trims.t1)?;
-                self.declare_last();
+                self.construct_last();
             }
         }
         // (6) the arc. Interior: emitted, its outgoing joint declared
@@ -3775,7 +3780,7 @@ impl<T: Decide> Core<T> {
             // next direction is free — declaring would be a claim, not
             // a construction.
             if kind == ArrivalKind::Continues || trims.fit_out == Sign::Positive {
-                self.declare_last();
+                self.construct_last();
                 self.run_out = Some(PendingRunOut {
                     step: meta.bound_at,
                     anchor: arr_pos,
@@ -3796,11 +3801,11 @@ impl<T: Decide> Core<T> {
     /// authored that incoming carrier (`PendingMeta::incoming_radius`).
     ///
     /// Bit-identity note: this is `fillet_corner`'s emission verbatim
-    /// (`arc_to_center(t1, centre, sweep)` / `line_to(t1)`, then
-    /// `declare_tangent()`), which is what lets a migrated site
-    /// reproduce the hand-authored loop to the bit. A `Zero` fit emits
-    /// nothing and springs the arc off the last vertex, where §4 item 4
-    /// refuses carrier identity against an already-declared neighbour.
+    /// (`arc_to_center(t1, centre, sweep)` / `line_to(t1)`, then the
+    /// joint constructed), which is what lets a migrated site reproduce
+    /// the hand-authored loop to the bit. A `Zero` fit emits nothing and
+    /// springs the arc off the last vertex, where §4 item 4 refuses
+    /// carrier identity against an already-constructed neighbour.
     fn emit_fillet_in(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
@@ -3836,7 +3841,7 @@ impl<T: Decide> Core<T> {
                 }
             }
             if !(t.in_arc.is_none() && merge) {
-                self.declare_last();
+                self.construct_last();
             }
         }
         Ok(())
@@ -3917,7 +3922,7 @@ impl<T: Decide> Core<T> {
         self.push_arc(t.t2, t.fillet())?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if let Some(carrier) = follows {
-            self.declare_last();
+            self.construct_last();
             if let ArrivalCarrier::Ray { anchor, dir } = carrier {
                 self.run_out = Some(PendingRunOut {
                     step: bound_at,
@@ -4177,7 +4182,7 @@ fn circle_loop<T: Real>(
             (start, Segment::Arc(arc.arc))
         })
         .collect();
-    ProfileLoop::from_chain(chain, Vec::new())
+    ProfileLoop::from_chain(chain)
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -4251,16 +4256,17 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             .and_then(|p| p.incoming.as_ref())
             .map(|inc| inc.ang);
         self.tip.ang_by_tangent = true;
-        self.core.declare_last();
+        self.core.construct_last();
         in_state(self.core, self.tip)
     }
 
     /// The kernel behind the table's cusp row (recording is the row's,
     /// not the kernel's): the tangent kernel with the ray reversed.
-    /// The declaration it emits is the SAME one `.tangent()` emits —
-    /// the profile data gate judges declared joints by carrier
-    /// tangency, which is direction-agnostic, so a reverse-tangent
-    /// joint needs no second flag to be accepted there.
+    /// The joint it constructs is the SAME one `.tangent()` constructs —
+    /// validation verifies a constructed joint by carrier tangency,
+    /// which is direction-agnostic, and reads its heading apart (a
+    /// cusp), so a reverse-tangent joint needs no second kind of
+    /// construction.
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self
             .tip
@@ -4269,7 +4275,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             .and_then(|p| p.incoming.as_ref())
             .map(|inc| inc.ang.reversed());
         self.tip.ang_by_tangent = true;
-        self.core.declare_last();
+        self.core.construct_last();
         in_state(self.core, self.tip)
     }
 
@@ -4329,13 +4335,12 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // claim about the emitted coordinates: `at + û·len` rounds like
         // any other sum, so two legs of equal length lay down identical
         // displacements only while those sums are exact.
-        // The continuation verbs DECLARE the zero-turn joint they mint
-        // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
-        // declared tangent joint). The departure is the incoming ray
-        // itself, so the joint at this vertex is tangent by
-        // construction — declaration BY construction, exactly as
-        // `.tangent()` is, and the verify layer re-checks the flag.
-        self.core.declare_last();
+        // The continuation verbs CONSTRUCT the zero-turn joint they
+        // mint (Ev, in-chat, 2026-09-02; D1: every zero-turn joint is a
+        // tangent joint). The departure is the incoming ray itself, so
+        // the joint at this vertex is tangent by construction, exactly
+        // as `.tangent()`'s is, and validation verifies it.
+        self.core.construct_last();
         let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
         Ok(in_state(self.core, tip))
     }
@@ -4446,13 +4451,12 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (at, ang) = self.continuation_ray("continue_to on a tip without incoming data")?;
         Self::on_ray_extent(at, ang, target, tol)?;
-        // The continuation verbs DECLARE the zero-turn joint they mint
-        // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
-        // declared tangent joint). The departure is the incoming ray
-        // itself, so the joint at this vertex is tangent by
-        // construction — declaration BY construction, exactly as
-        // `.tangent()` is, and the verify layer re-checks the flag.
-        self.core.declare_last();
+        // The continuation verbs CONSTRUCT the zero-turn joint they
+        // mint (Ev, in-chat, 2026-09-02; D1: every zero-turn joint is a
+        // tangent joint). The departure is the incoming ray itself, so
+        // the joint at this vertex is tangent by construction, exactly
+        // as `.tangent()`'s is, and validation verifies it.
+        self.core.construct_last();
         let tip = emit_straight_leg_at(&mut self.core, target, ang)?;
         Ok(in_state(self.core, tip))
     }
@@ -4550,7 +4554,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // rotations need one each.
         if declared {
             seam_arrival_check(ang, arm, start_ang, tol)?;
-            self.core.declare_seam();
+            self.core.construct_seam();
         } else {
             junction_check(
                 &Incoming {
@@ -4563,13 +4567,12 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                 tol,
             )?;
         }
-        // The continuation verbs DECLARE the zero-turn joint they mint
-        // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
-        // declared tangent joint). The departure is the incoming ray
-        // itself, so the joint at this vertex is tangent by
-        // construction — declaration BY construction, exactly as
-        // `.tangent()` is, and the verify layer re-checks the flag.
-        self.core.declare_last();
+        // The continuation verbs CONSTRUCT the zero-turn joint they
+        // mint (Ev, in-chat, 2026-09-02; D1: every zero-turn joint is a
+        // tangent joint). The departure is the incoming ray itself, so
+        // the joint at this vertex is tangent by construction, exactly
+        // as `.tangent()`'s is, and validation verifies it.
+        self.core.construct_last();
         self.core.close_leaving(None, FirstSeg::Line)?;
         self.core.build(tol)
     }
@@ -4715,8 +4718,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// The tangent-arc seam. The arc is constructed from the DEPARTURE
     /// as it always was; `declared` ([`Start::arrives_tangent`]) says
     /// the ARRIVAL is G1 by intent, which inverts the seam junction's
-    /// verdict and declares joint 0 tangent so the verify layer
-    /// re-checks the flag it now carries. One end constructs, the other
+    /// verdict and constructs joint 0 tangent, which validation
+    /// verifies. One end constructs, the other
     /// is checked — nothing is overdetermined, and a shape no circular
     /// arc can serve refuses with the seam fillet named.
     fn tangent_arc_to_start(
@@ -4734,7 +4737,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let arm = leg_arm(g.carrier, g.chord);
         if declared {
             seam_arrival_check(g.end_ang, arm, start_ang, tol)?;
-            self.core.declare_seam();
+            self.core.construct_seam();
         } else {
             junction_check(
                 &Incoming {
@@ -4817,7 +4820,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let arm = (start_pos - head).norm_squared().sqrt();
         if declared {
             seam_arrival_check(gamma, arm, start_ang, tol)?;
-            self.core.declare_seam();
+            self.core.construct_seam();
         } else {
             junction_check(
                 &Incoming {
@@ -5005,7 +5008,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let arm = leg_arm(carrier, chord);
         if declared {
             seam_arrival_check(end_t, arm, start_ang, tol)?;
-            self.core.declare_seam();
+            self.core.construct_seam();
         } else {
             junction_check(
                 &Incoming {
@@ -5955,7 +5958,7 @@ mod fillet_stored_form {
     use crate::path::verbs::Center;
     use crate::seg::{self, JointClass, Seg, SegIssue, SegKind};
     use crate::sugar::ArcSweep;
-    use crate::{Profile, ProfileLoop, SketchPlane};
+    use crate::{ConstructedProfile, SketchPlane};
     use geom_core::Arc2;
 
     /// The fillet radius every corner below is rounded with.
@@ -5989,7 +5992,7 @@ mod fillet_stored_form {
     /// carrier its fillet arc ends tangent to, and a name for the table.
     struct Corner {
         name: &'static str,
-        build: fn(f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+        build: fn(f64) -> Result<ConstructedLoop<f64>, PathError<f64>>,
         arrival: fn(f64) -> Arrival,
     }
 
@@ -6053,11 +6056,11 @@ mod fillet_stored_form {
     }
 
     /// The stored fillet arc of a door-built loop: the segment whose two
-    /// joints the door both declared tangent.
-    fn fillet_index(lp: &ProfileLoop<f64>) -> Option<usize> {
+    /// joints the door both constructed tangent.
+    fn fillet_index(lp: &ConstructedLoop<f64>) -> Option<usize> {
         let vs = lp.vertices();
         let n = vs.len();
-        let declared = lp.tangent_joints();
+        let declared = lp.constructed_joints();
         (0..n).find(|&i| {
             declared.contains(&i)
                 && declared.contains(&((i + 1) % n))
@@ -6068,7 +6071,12 @@ mod fillet_stored_form {
     /// What the door emitted for one turn and what the validator reads
     /// back out of it: one table row, and the door's own tangency
     /// margins at both joints for the assertion above the table.
-    fn row(lp: &ProfileLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
+    fn row(
+        lp: &ConstructedLoop<f64>,
+        arrival: Arrival,
+        theta: f64,
+        tol: Tol,
+    ) -> (String, [f64; 2]) {
         let band = match Band::linear(tol) {
             Ok(b) => b,
             Err(e) => return (format!("| {theta:e} | band: {e} |"), [0.0; 2]),
@@ -6079,7 +6087,7 @@ mod fillet_stored_form {
             return (
                 format!(
                     "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, segments = {:?} |",
-                    lp.tangent_joints(),
+                    lp.constructed_joints(),
                     lp.segments()
                 ),
                 [0.0; 2],
@@ -6096,10 +6104,11 @@ mod fillet_stored_form {
                 )
             })
             .collect();
-        let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
-            Ok(_) => "ok".to_string(),
-            Err(e) => format!("REFUSED: {}", short(&e.to_string())),
-        };
+        let validates =
+            match ConstructedProfile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
+                Ok(_) => "ok".to_string(),
+                Err(e) => format!("REFUSED: {}", short(&e.to_string())),
+            };
         // The stored sweep's quarter tangent: the sagitta's lever, as
         // validation reads it.
         let bulge = match lp.segments()[s] {
@@ -6162,7 +6171,7 @@ mod fillet_stored_form {
     /// The item's line × line bend: the incoming ray runs east from the
     /// origin, the corner sits at (4, 0), the arrival leaves it at
     /// `theta`, anchored three units along.
-    fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    fn line_line(theta: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
         let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
         Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, Tol::witness())?
@@ -6171,7 +6180,7 @@ mod fillet_stored_form {
             .angle(theta, Tol::witness())?
             .line(1.0, Tol::witness())?
             .line_to(Start, Tol::witness())
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
     }
 
     /// The line × arc corner's arrival circle: radius 2, counterclockwise
@@ -6182,7 +6191,7 @@ mod fillet_stored_form {
 
     /// A line × arc corner turning by `theta`: the east ray from the
     /// origin meets that circle at (4, 0) and the fillet closes along it.
-    fn line_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    fn line_arc(theta: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
         let c = line_arc_centre(theta);
         let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
         Open.at(start)
@@ -6197,14 +6206,14 @@ mod fillet_stored_form {
                 },
                 Tol::witness(),
             )
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
     }
 
     /// An arc × arc corner turning by `theta`: two radius-2 circles about
     /// (−θ, 0) and (θ, 0) cross at (0, √(4 − θ²)), where their tangents
     /// are an angle θ apart — the vesica of the arc × arc fixtures, with
     /// its corner opened out to a shallow turn.
-    fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    fn arc_arc(theta: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
         Open.arc_fillet_arc(
             Center {
                 c: Point2::new(-theta, 0.0),
@@ -6220,7 +6229,7 @@ mod fillet_stored_form {
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
     }
 
     fn corners() -> [Corner; 3] {
@@ -6307,16 +6316,14 @@ mod fillet_stored_form {
                             );
                         }
                         // The door's promise: nothing it builds carries
-                        // a declared tangency validation refuses.
-                        if let Err(e) = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol) {
+                        // a constructed tangency validation refuses.
+                        if let Err(e) =
+                            ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol)
+                        {
                             assert!(
-                                !matches!(
-                                    e,
-                                    crate::ProfileError::TangencyContradicted { .. }
-                                        | crate::ProfileError::UndeclaredTangency { .. }
-                                ),
+                                !matches!(e, crate::ProfileError::TangencyContradicted { .. }),
                                 "{}, turn {theta:e}: the door built a loop validation refuses \
-                                 for its declared tangency: {e}",
+                                 for its constructed tangency: {e}",
                                 corner.name
                             );
                         }

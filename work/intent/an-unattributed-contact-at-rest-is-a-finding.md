@@ -5,7 +5,7 @@ title: D10 stage 4 PR J: A5's hard error on an unattributed contact becomes an u
 status: parked
 priority: P0
 cost: M
-blocked_on: [coincidences-are-recorded-at-one-door, carriers-compare-in-canonical-form]
+blocked_on: [carriers-compare-in-canonical-form]
 opened: 2026-10-09
 ---
 

@@ -84,7 +84,7 @@ fn mismatched_radius_continuation() {
     );
     // … and the mismatched-r continuation departs the anchor on the
     // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
-    // a declared joint at the anchor.
+    // a constructed joint at the anchor.
     let next = lp.vertices()[anchor_idx + 1];
     let (dep_c, dep_r) = circle_from_bulge(
         Point2::new(8.5, 0.0),
@@ -98,8 +98,8 @@ fn mismatched_radius_continuation() {
         dep_c.y
     );
     assert!(
-        lp.tangent_joints().contains(&anchor_idx),
-        "the constructed tangency at the anchor is declared"
+        lp.constructed_joints().contains(&anchor_idx),
+        "the tangency at the anchor is constructed"
     );
     // The defect class is gone structurally: the loop validates.
     Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
@@ -137,7 +137,7 @@ fn sharp_after_arc_arrival() {
         .expect("the sharp continuation closes");
     let lp = &closed.loop_;
     // The authored anchor is a VERTEX (the hard-anchor rule) and its
-    // joint is SHARP: not in the declared-tangency set.
+    // joint is SHARP: not in the constructed set.
     let anchor_idx = lp
         .vertices()
         .iter()
@@ -146,7 +146,7 @@ fn sharp_after_arc_arrival() {
     // The declared set is POPULATED on this same chain — the opening
     // fillet declares its own two joints — so the absence below is a
     // statement about a working datum rather than about an empty one.
-    let declared = lp.tangent_joints();
+    let declared = lp.constructed_joints();
     assert_eq!(
         declared.len(),
         2,
@@ -154,7 +154,7 @@ fn sharp_after_arc_arrival() {
     );
     assert!(
         !declared.contains(&anchor_idx),
-        "the sharp junction at the anchor is not declared tangent, among {declared:?}"
+        "the sharp junction at the anchor is not constructed tangent, among {declared:?}"
     );
     // And the continuation is the sharp one that was authored: the leg
     // leaves the anchor on the authored heading of 2.6 rad, where the

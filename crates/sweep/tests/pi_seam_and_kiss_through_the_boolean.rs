@@ -34,8 +34,9 @@
 //!   its boundary, and passes the crossing layer the same way; the union
 //!   stops in the join. A same-radius stacked cylinder
 //!   stops there on its own rim, whose parent shares the partner's
-//!   carrier. A cone frustum is refused earlier, at the operand gate,
-//!   on its kind.
+//!   carrier. A cone frustum stops one layer earlier, at the crossing
+//!   layer, on its base rim — a parallel lying on the cone and on the
+//!   tube's wall at once (`CurvedPierceUnsupported`), declared or not.
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
 //! - **The stadium** (slab ∪ cylinder whose wall the slab's top and
@@ -1063,17 +1064,24 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
     }
     let cone = frustum_on_the_cap();
     let cap_c = planes_at_z(&cone, H);
+    // The frustum's base circle is the tube's rim: a parallel lying ON
+    // the cone and on the tube's wall at once, which the circle × cone
+    // lane reads as its coaxial Zero, the door. An abutment is a
+    // contact, so it stays a refusal; the refused edge is that circle.
     for class in [None, Some(BooleanCoincidence::REST)] {
-        for e in union_both_orders(&tube, &cone, &cap_t, &cap_c, class) {
+        let [ab, ba] = union_both_orders(&tube, &cone, &cap_t, &cap_c, class);
+        for (order, e, (a, b)) in [(0, ab, (&tube, &cone)), (1, ba, (&cone, &tube))] {
+            let BooleanError::CurvedPierceUnsupported { edge, operand, .. } = e else {
+                panic!("frustum, discs {class:?}, order {order}: the crossing layer: {e:?}");
+            };
+            let owner = match operand {
+                topo::Operand::A => a,
+                topo::Operand::B => b,
+            };
             assert!(
-                matches!(
-                    e,
-                    BooleanError::CurvedPairUnsupported {
-                        kind: SurfaceKind::Cone,
-                        ..
-                    }
-                ),
-                "frustum, discs {class:?}: the operand gate's refusal: {e:?}"
+                matches!(carrier_of(owner, edge), geom::Curve3::Circle { .. }),
+                "frustum, discs {class:?}, order {order}: the rim circle: {:?}",
+                carrier_of(owner, edge)
             );
         }
     }
@@ -1978,12 +1986,11 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
 /// **A G1 joint authored inside one profile needs no declaration**: it
 /// is the structural form of the seam. The capsule revolved from one
 /// profile — the tube's side, then a quarter arc tangent to it, the
-/// joint authored in the profile's `tangent_joints` — builds with its
+/// profile deciding the joint tangent from its carriers — builds with its
 /// joint minted `TangentIntersection`, and it is the declared seam's
 /// union: the same census and the same volume.
 #[test]
 fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
-    use profile::RawLoop;
     let tol = Tol::witness();
     let bulge = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let lp = profile::test_support::bulge_loop(vec![
@@ -1991,8 +1998,7 @@ fn a_g1_joint_authored_inside_one_profile_needs_no_declaration() {
         (Point2::new(R, 0.0), 0.0),
         (Point2::new(R, H), bulge),
         (Point2::new(0.0, H + R), 0.0),
-    ])
-    .with_tangent_joints(vec![2]);
+    ]);
     let pr = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol)
         .unwrap();

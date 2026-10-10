@@ -478,9 +478,7 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
                 node: extrude,
                 slot: SlotId::Operand(OperandSlot::Profile),
                 value: Operand::Node(profile).into(),
-                fresh: vec![editor_core::VarDecl::Free(
-                    editor_core::FreeVar::continuous(Dimension::Length, 1.0)
-                )],
+                fresh: vec![editor_core::FreeVar::continuous(Dimension::Length, 1.0).into()],
             },
         ),
         EditError::FreshUnread { index: 0 }

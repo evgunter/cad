@@ -83,6 +83,7 @@ pub mod theme;
 pub mod tools;
 pub mod tree;
 mod vocab;
+pub mod world;
 
 // Test fixtures, one home for the unit-test modules and `tests/`: the
 // gate is this crate's `test-support` feature, which only its own

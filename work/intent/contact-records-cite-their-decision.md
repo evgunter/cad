@@ -2,7 +2,7 @@
 id: contact-records-cite-their-decision
 kind: issue
 title: D10 stage 4 B2: every ContactRecords row cites the Coincidence that backs it, so a touch without a decision cannot be built
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: H

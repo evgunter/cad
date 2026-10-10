@@ -16,7 +16,7 @@
 use crate::common::operands::{plate6 as plate, plate6_cyl};
 use crate::common::outcomes::outcome;
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -181,13 +181,10 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
-    let profile = Profile::new(
-        lying_plane(),
-        vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
-    )
-    .validate(Tol::witness())
-    .unwrap();
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
+    let profile = Profile::new(lying_plane(), vec![bulge_loop(vertices)])
+        .validate(Tol::witness())
+        .unwrap();
     let body = extrude(
         &profile,
         Extrusion::Distance {
@@ -206,15 +203,12 @@ fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) 
 /// (cylinder axis (2, ·, 0)); y ∈ [0, 4].
 fn quarter_round_below() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 2.0), b90),
-            (Point2::new(0.0, 3.0), 0.0),
-        ],
-        vec![2],
-    )
+    lying_extrude(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 2.0), b90),
+        (Point2::new(0.0, 3.0), 0.0),
+    ])
 }
 
 /// Body B: slab x ∈ [0.5, 3], z ∈ [1, 3], its bottom-right profile
@@ -222,16 +216,13 @@ fn quarter_round_below() -> AtRestBody<f64> {
 /// (cylinder axis (2, ·, 2)); rests on A's top face; y ∈ [0, 4].
 fn quarter_round_above() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(1.0, 0.5), 0.0),
-            (Point2::new(1.0, 2.0), -b90),
-            (Point2::new(2.0, 3.0), 0.0),
-            (Point2::new(3.0, 3.0), 0.0),
-            (Point2::new(3.0, 0.5), 0.0),
-        ],
-        vec![1, 2],
-    )
+    lying_extrude(vec![
+        (Point2::new(1.0, 0.5), 0.0),
+        (Point2::new(1.0, 2.0), -b90),
+        (Point2::new(2.0, 3.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(3.0, 0.5), 0.0),
+    ])
 }
 
 fn cyl_face(body: &Body<f64>) -> topo::FaceKey {

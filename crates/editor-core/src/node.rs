@@ -49,6 +49,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Sweep { .. }
             | $crate::node::Node::Split { .. }
             | $crate::node::Node::Transform { .. }
+            | $crate::node::Node::PlaceInWorld { .. }
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
@@ -1394,6 +1395,7 @@ macro_rules! expr_table {
             | Node::Boolean { .. }
             | Node::Union { .. }
             | Node::Transform { .. }
+            | Node::PlaceInWorld { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
@@ -2535,6 +2537,21 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// ([`crate::Placement`]; slots per step, [`SlotId::rigid`]).
         placement: crate::placement::Placement<S>,
     },
+    /// **A world placement** (D10, A10): one copy of a body in the
+    /// world. The product is every copy a placement defines, in the
+    /// placements' document order, and nothing else places.
+    ///
+    /// It reads one `Body` and defines its copy, the body at `pose`, as
+    /// one `Body` output. Two placements of one body are two copies.
+    /// The copy's names are the body's, each qualified by the copy
+    /// ([`crate::names::RoleSeg::Placed`]).
+    PlaceInWorld {
+        /// The body placed.
+        body: S::Read,
+        /// Where the copy sits: a rigid chain, as [`Node::Transform`]
+        /// holds; the identity when empty.
+        pose: crate::placement::Placement<S>,
+    },
     /// **A pattern of an upstream value** with a STRUCTURAL
     /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
     /// will index it): the input is the MASTER, placed WHOLE at every
@@ -3059,6 +3076,10 @@ macro_rules! node_rows {
                 input: _,
                 placement,
             }
+            | Node::PlaceInWorld {
+                body: _,
+                pose: placement,
+            }
             | Node::Gauge {
                 parent: _,
                 placement,
@@ -3537,6 +3558,7 @@ impl<P> Node<P> {
                 input,
                 placement: _,
             } => vec![(O::Input, *input)],
+            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, *body)],
             Node::Part { of, select: _ } => vec![(O::Of, *of)],
             Node::Pattern {
                 input,
@@ -3690,6 +3712,7 @@ impl<P> Node<P> {
                 input,
                 placement: _,
             } => vec![(O::Input, input)],
+            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, body)],
             Node::Part { of, select: _ } => vec![(O::Of, of)],
             Node::Pattern {
                 input,
@@ -3921,6 +3944,7 @@ impl<P> Node<P> {
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Transform { .. }
+            | Node::PlaceInWorld { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
@@ -4134,9 +4158,11 @@ impl<P> Node<P> {
     ) -> Option<(crate::placement::FrameSite, crate::placement::FrameFault)> {
         let step = |(index, fault)| (crate::placement::FrameSite::Step { index }, fault);
         match self {
-            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
-                placement.frame_fault(tol).map(step)
+            Node::Transform { placement, .. }
+            | Node::PlaceInWorld {
+                pose: placement, ..
             }
+            | Node::Gauge { placement, .. } => placement.frame_fault(tol).map(step),
             Node::InstantiatePart { offset, .. } => offset.as_ref()?.frame_fault(tol).map(step),
             Node::Mate { alignment, .. } => [
                 (crate::mate::MateSide::A, &alignment.a),
@@ -4425,6 +4451,7 @@ impl<P, S: Slot> Node<P, S> {
                 name: "body",
                 kind: PortKind::Placed,
             }],
+            Self::PlaceInWorld { .. } => vec![OutputPort::of("copy", VarKind::Body)],
             Self::Measure { expr, .. } => {
                 vec![OutputPort::of("value", VarKind::from(expr.dim()))]
             }
@@ -4583,6 +4610,10 @@ impl<P, S: Slot> Node<P, S> {
             Node::Transform { input, placement } => Node::Transform {
                 input: read(O::Input, input)?,
                 placement: placement.try_map_slots(f)?,
+            },
+            Node::PlaceInWorld { body, pose } => Node::PlaceInWorld {
+                body: read(O::Body, body)?,
+                pose: pose.try_map_slots(f)?,
             },
             Node::Pattern { input, count, kind } => Node::Pattern {
                 input: read(O::Input, input)?,
@@ -4863,6 +4894,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Boolean { .. }
             | Node::Union { .. }
             | Node::Transform { .. }
+            | Node::PlaceInWorld { .. }
             | Node::Part { .. }
             | Node::InstantiatePart { .. }
             | Node::Gauge { .. }
@@ -5130,6 +5162,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Transform { .. }
+            | Node::PlaceInWorld { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
@@ -5238,6 +5271,18 @@ impl<P, S: Slot> Node<P, S> {
         Node::Transform {
             input: input.into(),
             placement: placement.into(),
+        }
+    }
+
+    /// Builds a [`Node::PlaceInWorld`] of `body` at `pose`: one copy of
+    /// the body in the world.
+    pub fn place_in_world(
+        body: impl Into<S::Read>,
+        pose: impl Into<crate::placement::Placement<S>>,
+    ) -> Self {
+        Node::PlaceInWorld {
+            body: body.into(),
+            pose: pose.into(),
         }
     }
 
@@ -5366,6 +5411,7 @@ where
         // mate's alignment datum compare here, by bits.
         match (self, other) {
             (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. })
+            | (Node::PlaceInWorld { pose: a, .. }, Node::PlaceInWorld { pose: b, .. })
             | (Node::Gauge { placement: a, .. }, Node::Gauge { placement: b, .. })
             | (
                 Node::InstantiatePart {
