@@ -165,7 +165,7 @@ fn u_period<T: Real>(surface: &Surface<T>) -> T {
     match surface.spline_chart() {
         Some(payload) => {
             let (u0, u1) = payload.knots_u().domain();
-            T::from_f64(u1 - u0)
+            T::from_f64(u1) - T::from_f64(u0)
         }
         None => T::tau(),
     }

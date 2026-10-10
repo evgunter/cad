@@ -76,6 +76,13 @@ identity-pass-testing = []
 # one thread-local flag read. The NAME ends in `-testing` so `test-features-dev-only.sh`
 # proves it reachable through dev-dependency edges only.
 sym-profile-testing = []
+# **THE RE-VALUATION INSTRUMENT** (`sym::revalue`): every decision a
+# `Sym` lane takes, recorded with its margin's node, and that node's DAG
+# evaluated at another parameter point — the guard that a computed value
+# never re-entered the symbolic lane as a constant (FORK-S4F). Test-only
+# for the reason the profile above is: with it off, the hook in
+# `Sym::sign_within` does not exist.
+sym-revalue-testing = []
 
 [dependencies]
 # Optional: `test-support` above.

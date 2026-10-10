@@ -474,6 +474,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::from_f64(x))
     }
 
+    /// A constant embed of `T`'s own computed value.
+    fn from_computed(x: f64) -> Self {
+        Self::constant(T::from_computed(x))
+    }
+
     /// `(0, 0)`.
     fn zero() -> Self {
         Self::constant(T::zero())

@@ -1071,6 +1071,10 @@ mod rational;
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
+/// The re-valuation instrument: a decision's DAG evaluated at another
+/// parameter point, against the build there (test-only).
+#[cfg(feature = "sym-revalue-testing")]
+pub mod revalue;
 /// Rule G: the canonical square root — the one door every `Sqrt` atom
 /// is minted through, and the `D ≥ 0` side condition its quotient
 /// split rests on.
@@ -5032,6 +5036,10 @@ impl<T: Real> Real for Sym<T> {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
     }
 
+    fn from_computed(x: f64) -> Self {
+        Self::opaque(T::from_computed(x))
+    }
+
     fn zero() -> Self {
         // The same node a `from_f64(0.0)` mints, so the two spellings
         // of the additive identity share one id.
@@ -5262,6 +5270,8 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
+        #[cfg(feature = "sym-revalue-testing")]
+        revalue::note(self.node, self.value);
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]

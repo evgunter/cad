@@ -1,0 +1,199 @@
+# The from_f64 sites of scripts/gates/from-f64-allowlist.sh: one row per
+# (file, argument), tab-separated: file, count, class, argument, reason.
+# The classes and what each one means are in the gate's header.
+crates/geom-brep/src/certify.rs	1	constant	f	a sample schedule's fraction
+crates/geom-brep/src/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d1 - d0	a NURBS carrier's knot-domain length, subtracted in f64
+crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
+crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	<fn>	an f64 fitted image's control net, lifted
+crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	foot.x	a chart foot the fit's projection measured
+crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	foot.y	a chart foot the fit's projection measured
+crates/geom-brep/src/edge_nurbs.rs	1	launders(geom-brep-keeps-computed-values-in-t)	t	a sample on the edge's f64 parameter span
+crates/geom-brep/src/extent.rs	1	constant	f64::from(k)	a sample index
+crates/geom-brep/src/extent.rs	1	constant	parts.len() as f64	a count
+crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
+crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
+crates/geom-brep/src/nurbs_iso.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	end	a fitted surface's knot domain
+crates/geom-brep/src/nurbs_iso.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	end.1	a fitted surface's knot domain
+crates/geom-brep/src/nurbs_iso.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	omega[base + r]	a fitted surface's stored weight
+crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(INCIDENCE_SAMPLES)	a sample count
+crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i)	an incidence sample's index
+crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
+crates/geom-brep/src/pcurve_cache.rs	1	constant	k as f64	a chart-hat span index
+crates/geom-brep/src/pcurve_cache.rs	1	constant	span.saturating_sub(degree) as f64	a span index
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	(hi / lo).powi(2)	the stored weights' ratio
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	a - b	a knot vector's deviation from the uniform one, in f64
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	b.domain().0	an image row's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	c.domain().1	a carrier's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	cu0f	a spline chart's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	cu1f	a spline chart's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	cv0f	a spline chart's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	cv1f	a spline chart's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d1 - d0	a NURBS carrier's knot domain length, subtracted in f64
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	half_w	an arc rim's stored interior weight
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	r0	an image row's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	r1	an image row's knot domain
+crates/geom-brep/src/pcurve_cache.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	xi	a Greville abscissa of the stored knots
+crates/geom-brep/src/pcurve_cache.rs	2	constant	f64::from(k)	a decided whole-period count
+crates/geom-brep/src/pcurve_cache.rs	2	constant	spans as f64	a span count
+crates/geom-brep/src/pcurve_cache.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	cu0	a spline chart's knot domain
+crates/geom-brep/src/pcurve_cache.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	cu1	a spline chart's knot domain
+crates/geom-brep/src/pcurve_cache.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	p as f64 / denom	the derivative net's factor over stored knots
+crates/geom-brep/src/pcurve_cache.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d0	a NURBS knot domain
+crates/geom-brep/src/pcurve_cache.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d1	a NURBS knot domain
+crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
+crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a cone nappe's sign, ±1
+crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	piece.tube_lo	a hull bound the f64 hull walk computed from the carrier
+crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	piece.x_lo	a hull bound the f64 hull walk computed from the carrier
+crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.f_sup	a certified span bound computed from the carrier
+crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.rho_lo	a certified span bound computed from the carrier
+crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.0	a certified span bound computed from the carrier
+crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.1	a certified span bound computed from the carrier
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (d0 + d1)	a projected net's knot-domain midpoint
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	if r <= p - m	a piece breakpoint on the stored knots (the reader cuts the argument at its brace)
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j + 1 + i - r]	a projected net's stored knot
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j - p + i]	a projected net's stored knot
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	net.weights()[i]	a projected net's stored weight
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	s0	a partition piece's breakpoint, on the stored knots
+crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	s1	a partition piece's breakpoint, on the stored knots
+crates/geom-brep/src/pcurve_cache/projected.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	a	a partition piece's breakpoint, on the stored knots
+crates/geom-brep/src/pcurve_cache/projected.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	b	a partition piece's breakpoint, on the stored knots
+crates/geom-brep/src/props/curved.rs	1	constant	fraction	a fixed sample fraction
+crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
+crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
+crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index + 1]	a stored knot
+crates/geom-brep/src/props/loop_area.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	kv.knots()[index]	a stored knot
+crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	<fn>	the tube's bounds the certification computed
+crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	clearance	a tube clearance the certification computed
+crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	hull.sup	a hull bound the interval certification computed
+crates/geom-brep/src/ssi/certify.rs	1	launders(geom-brep-keeps-computed-values-in-t)	sup	a hull bound the interval certification computed
+crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (a + b)	a window's midpoint on the traced carrier's knots
+crates/geom-brep/src/ssi/certify.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	w.mid	a window's midpoint on the traced carrier's knots
+crates/geom-brep/src/ssi/certify.rs	4	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	t	a sample on the traced carrier's knot domain (a fitted NURBS)
+crates/geom-brep/src/ssi/enclose.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	um	a window's midpoint on the stored knots
+crates/geom-brep/src/ssi/enclose.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	vm	a window's midpoint on the stored knots
+crates/geom-brep/src/ssi/one_arc.rs	1	launders(geom-brep-keeps-computed-values-in-t)	t	a pcurve parameter the f64 arc walk chose
+crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLES - 1)	a sample count
+crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/geom/src/curves/nurbs.rs	1	constant	active.len() as f64	a count of active basis functions
+crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	l	a knot-insertion plan's blend ratio, from the stored knots
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	w_max	the stored weights' maximum
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	w_min	the stored weights' minimum
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	wi	the curve's stored weight
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	wj	the curve's stored weight
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	wp_hi	a bound on the stored weights' derivative
+crates/geom/src/curves/nurbs.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	wp_lo	a bound on the stored weights' derivative
+crates/geom/src/curves/nurbs.rs	2	constant	p as f64	the degree
+crates/geom/src/curves/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	du	a knot span's length, in f64
+crates/geom/src/curves/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.curve.weights[i]	the curve's stored weight
+crates/geom/src/curves/projection.rs	1	launders(geom-keeps-computed-values-in-t)	tn	a Newton iterate of the curve projection
+crates/geom/src/curves/projection.rs	2	launders(geom-keeps-computed-values-in-t)	t	a seed on the stored knots and a Newton iterate of the curve projection
+crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	1.0 / w_min	the stored weights' minimum
+crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	bw	the stored weights' deviation under a re-fit
+crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	orig_weights[i]	a NURBS net's stored weight
+crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	rw	a re-fit net's stored weight
+crates/geom/src/surfaces/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	l	a knot-insertion plan's blend ratio, from the stored knots
+crates/geom/src/surfaces/nurbs.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.surface.weights[idx]	the surface's stored weight
+crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	un	a Newton iterate of the surface projection
+crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	un - u	a Newton step of the surface projection
+crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	vn	a Newton iterate of the surface projection
+crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	vn - v	a Newton step of the surface projection
+crates/geom/src/surfaces/projection.rs	2	launders(geom-keeps-computed-values-in-t)	u	a Newton iterate of the surface projection
+crates/geom/src/surfaces/projection.rs	2	launders(geom-keeps-computed-values-in-t)	v	a Newton iterate of the surface projection
+crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
+crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
+crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[0]	a reach cell's corner, f64 box arithmetic over the faces
+crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[1]	a reach cell's corner, f64 box arithmetic over the faces
+crates/sweep/src/blend/reach.rs	1	launders(sweep-keeps-computed-values-in-t)	v[2]	a reach cell's corner, f64 box arithmetic over the faces
+crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
+crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	hi[k]	a box corner, f64 box arithmetic
+crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	if i >> k & 1 == 0	a box corner, f64 box arithmetic (the reader cuts the argument at its brace)
+crates/sweep/src/blend/surgery.rs	1	launders(sweep-keeps-computed-values-in-t)	lo[k]	a box corner, f64 box arithmetic
+crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
+crates/sweep/src/loft.rs	1	launders(sweep-keeps-computed-values-in-t)	<fn>	a section wire built in f64, lifted
+crates/sweep/src/loft.rs	5	launders(sweep-keeps-computed-values-in-t)	<fn>	a section placement composed in f64, lifted
+crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
+crates/sweep/src/test_support.rs	2	fixture	<fn>	a fixture's f64 points lifted into T
+crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
+crates/topo/src/boolean/boxes.rs	3	constant	k as f64	a sample index
+crates/topo/src/boolean/carrier_touch.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(POLE_CANDIDATES)	a candidate count
+crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(n)	a subdivision count
+crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(top)	a subdivision count
+crates/topo/src/boolean/circle_roots.rs	2	constant	share	a fixed split fraction (SPLITS)
+crates/topo/src/boolean/circle_roots.rs	3	constant	f64::from(k)	a subdivision index
+crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/topo/src/boolean/ops.rs	1	launders(topo-keeps-computed-values-in-t)	(hi - lo).norm() * 0.5	a section reach box's radius, f64 box arithmetic
+crates/topo/src/boolean/ops.rs	1	launders(topo-keeps-computed-values-in-t)	<fn>	a section reach box's centre, f64 box arithmetic
+crates/topo/src/boolean/ops.rs	1	launders(topo-keeps-computed-values-in-t)	margin.lo()	a decided margin's lower bound, read out and re-entered
+crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
+crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
+crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
+crates/topo/src/boolean/sectors.rs	1	constant	2.0 * other.len() as f64	a count
+crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
+crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
+crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
+crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	0.5 * (rect.u_min + rect.u_max)	a query cell's centre: the driver subdivides the window in f64, so whether a cell is a constant of the query or a function of the window is the unit's to settle
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	0.5 * (rect.v_min + rect.v_max)	a query cell's centre (as above)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	cu	a query cell's corner (as above)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	cv	a query cell's corner (as above)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	rect.u_max	a query cell's corner (as above)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	rect.u_min	a query cell's corner (as above)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	rect.v_max	a query cell's corner (as above)
+crates/topo/src/chart_bound.rs	1	launders(topo-keeps-computed-values-in-t)	rect.v_min	a query cell's corner (as above)
+crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/chart_region.rs	1	constant	n as f64	a count
+crates/topo/src/chart_region.rs	1	launders(topo-keeps-computed-values-in-t)	x	a witness point the f64 decomposition of the two trims chose
+crates/topo/src/chart_region.rs	1	launders(topo-keeps-computed-values-in-t)	y	a witness point the f64 decomposition of the two trims chose
+crates/topo/src/joint.rs	1	constant	f64::from(self.u)	the element's integer period count
+crates/topo/src/joint.rs	1	constant	f64::from(self.v)	the element's integer polar-branch count
+crates/topo/src/joint.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u0	a spline chart's knot domain (the element's period)
+crates/topo/src/joint.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u1	a spline chart's knot domain (the element's period)
+crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
+crates/topo/src/pcurves.rs	1	constant	f64::from(k)	a whole-period count
+crates/topo/src/pcurves.rs	1	constant	f64::from(m)	a decided step count
+crates/topo/src/pcurves.rs	1	launders(topo-keeps-computed-values-in-t)	foot.x	a chart foot the projection measured (derive_chart_foot)
+crates/topo/src/pcurves.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	a	a spline chart's knot domain
+crates/topo/src/pcurves.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	b	a spline chart's knot domain
+crates/topo/src/pcurves.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	c	a spline chart's knot domain
+crates/topo/src/pcurves.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	d	a spline chart's knot domain
+crates/topo/src/pcurves.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	u1 - u0	a spline chart's knot-domain length, subtracted in f64
+crates/topo/src/pcurves.rs	2	launders(topo-keeps-computed-values-in-t)	f0.x	a chart foot the projection measured (derive_chart_foot)
+crates/topo/src/pcurves.rs	2	launders(topo-keeps-computed-values-in-t)	f0.y	a chart foot the projection measured (derive_chart_foot)
+crates/topo/src/pcurves.rs	2	launders(topo-keeps-computed-values-in-t)	f1.x	a chart foot the projection measured (derive_chart_foot)
+crates/topo/src/props.rs	1	launders(topo-keeps-computed-values-in-t)	ac	a quadrature enclosure's midpoint
+crates/topo/src/props.rs	1	launders(topo-keeps-computed-values-in-t)	fc	a quadrature enclosure's midpoint
+crates/topo/src/props.rs	2	launders(topo-keeps-computed-values-in-t)	self.volume_pad	the quadrature's rounding pad, computed alongside the volume
+crates/topo/src/replace_face.rs	1	constant	tol.eps()	the run's tolerance
+crates/topo/src/replace_face.rs	1	launders(topo-keeps-computed-values-in-t)	f.t	a carrier foot the spline lane's projection measured
+crates/topo/src/replace_face.rs	1	launders(topo-keeps-computed-values-in-t)	foot.t	a carrier foot the spline lane's projection measured
+crates/topo/src/replace_face.rs	1	launders(topo-keeps-computed-values-in-t)	t	a root the spline lane's solve measured
+crates/topo/src/replace_face.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	(u0 + u1) * 0.5	a NURBS surface's knot-domain midpoint
+crates/topo/src/replace_face.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	(v0 + v1) * 0.5	a NURBS surface's knot-domain midpoint
+crates/topo/src/replace_face.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	end	the carrier's knot-domain end a short root stopped at
+crates/topo/src/replace_face.rs	2	launders(topo-keeps-computed-values-in-t)	near_gap	a gap the spline lane's solve measured
+crates/topo/src/replace_face.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	hi	a NURBS carrier's knot domain
+crates/topo/src/replace_face.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	lo	a NURBS carrier's knot domain
+crates/topo/src/shell.rs	1	constant	2.0 * band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/shell.rs	1	constant	n as f64	a count
+crates/topo/src/shell.rs	1	constant	points.len() as f64	a point count
+crates/topo/src/shell.rs	1	constant	us.len() as f64	a sample count
+crates/topo/src/shell.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	k	the degree over a stored knot span
+crates/topo/src/shell.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	least	the stored weights' minimum
+crates/topo/src/shell.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	weight_rate	a bound on the stored weights' rate
+crates/topo/src/shell.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	weights[i + 1]	a NURBS carrier's stored weight
+crates/topo/src/shell.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	weights[i]	a NURBS carrier's stored weight
+crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
+crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surface's radius
+crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
+crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
+crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
+crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
