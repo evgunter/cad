@@ -2,9 +2,10 @@
 id: w1-and-c6-read-a-fold-and-a-certified-refinement
 kind: ruling
 title: "W1's 'number of restrictions' and C6's certified refinement: two clarifications fork3's designers found"
-status: open
+status: closed
 opened: 2026-10-10
-needs_ev: true
+closed: 2026-10-10
+pr: 4539
 ---
 
 
@@ -21,3 +22,7 @@ Both designers found two places where ratified text reads less clearly than the 
    - Designer A holds that the decision follows from C6 as written and the sentence only states it.
 
 Fork record: `docs/DESIGN-FORK-LOG.md` row 107.
+
+## Closed
+
+Ev adopted both edits as written ("sounds good", PR 4539, 2026-10-10). W1's scale bullet now names inherited width multiplied per step as the defect, with rounding added once per step as the floor. C6 says a refinement inside a certificate is held only as homogeneous enclosures, and that the projective knot algebra has no meaning at the certification scalar.
