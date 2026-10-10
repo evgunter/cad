@@ -142,3 +142,15 @@ Both rows `needs_ev`. Their shared side finding (an operand's records
 cross a boolean only via declarations, and F deletes that channel with no
 replacement) went as seam notes to INTENT's and WIRE's logs.
 — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — tube-rim measured; the census backstop claimed
+
+The tube-rim lane found the union's record right (a cited `VfContact`)
+and the refusal in `census::sweep_cross_solid_backstop` arm 1, which
+clears a curved pair only along world axes. That is a filed P1 defect
+held twice: RESTREAD's `census-backstop-separates-curved-pairs-only-along-world-axes`
+and ORBIT's twin, neither with an orchestrator. I claimed the RESTREAD row
+(moved by `git mv`), closed ORBIT's as a duplicate, and made the
+tube-rim row its riding witness. Notes are on both logs and both plans
+are updated. A lane follows once this is on main.
+— (CONTACTHOLD orchestrator)
