@@ -845,3 +845,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - the meridian wants a zero-side ceiling on rule 2.
   `[ev]` PR 4567 is open (design-fork row 108, A/B only; the mapping is on `analysis/design-fork/germ-klint-rounding-margins`) and subscribed. Ev's answer arrives as PR comments. Disclosure in the PR: one designer read the item's option section.
 - 2026-10-10 18:50 — Ev ruled on PR 4567 after two clarifying questions: rule 2's zero-arm flags are tallied and printed, not gate failures, and there is no kernel bound door ("i don't think i see the benefit … not sure why it's semantically correct"). The ruling is recorded in the item and in design-fork row 110 (match: no, since both designers recommended the door). The `[ev]` PR is merged and unsubscribed. The implementation unit is dispatched as cloud session `session_01GZEXEiMX6LdLPtsE5b1gSz`, branch `germ/klint-zero-arm-tally`, in the k-lint tool (an E-cost lint change; single review). Lesson for the framing: lead the `[ev]` body with the plain-language "what changes and why", since Ev's first question was "what does this entail, more concretely?".
+- 2026-10-10 19:40 — PR 4530 (radial hole) merged as **DR-147**, after a renumber past main's DR-146.
+  - Before writing the row I merged main twice: the nextest slow set kept both sides' rows, and main's from_f64 audit arrived. I then checked the merged tree: every touched row at all three ε (topo `section_cert` 101/101, sweep germ rows 30/30, slow set included), every `scripts/gates/*.sh`, clippy on topo and sweep, and fmt.
+  - **The readout-4 plan is void.** Another program's DR-144 (NURBS) was the twentieth M-tier unit, and Ev ruled on readout 4 (PR 4555): the count restarts after DR-144.
+  - DR-147 is the first M-tier miss since then, so it owes only a **short readout**:
+    - [ev] PR 4576 from `analysis/dual-review/short-readout-dr147`, which I wrote myself as an FYI naming the miss, with no options and no other dual in flight;
+    - the item `the-m-tier-miss-at-dr-147-owes-a-short-readout` (`needs_ev`), merged via 4577;
+    - subscribed to 4576.
+  - The foot now reads: tally 37, fair pairs with a MAJOR 61, toward the next full readout 2, and one miss after DR-144.
