@@ -355,12 +355,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      read from the two cells' geometry by the census (CONTACT-DESIGN
      C3), whose rungs back a subordinate vertex event. An operation's
      own working vocabulary (the boolean's operand-tagged cells) stays
-     inside it and is dropped at its carry. Edge-on-face and coincident-edge *segments* are
-     certified by reconstruction from their bounding vertex records
+     inside it and is dropped at its carry. Every pair whose interiors
+     meet is recorded, an edge lying in a face or along an edge
+     included; only how the census confirms a record depends on its
+     geometry. A straight edge in a plane, or two collinear lines, is
+     confirmed by reconstruction from its bounding vertex records
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
-     inferred); a crossing of two edge interiors has no bound, and its
-     edge-edge record backs it. An op that replaces a cell rewrites
+     inferred), a curved one as a curve touch; a crossing of two edge
+     interiors has no bound, and its edge-edge record backs it. An op that replaces a cell rewrites
      every record naming it onto the replacement, by substitution; an
      edge split moves a `(vertex, edge)` record onto the piece the
      vertex rests on, and an `(edge, edge)` record onto every pair of
