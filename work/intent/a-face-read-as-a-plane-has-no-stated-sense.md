@@ -15,3 +15,5 @@ Found off-question by the FORK-VTX designers. D10's "A face reads as a plane" (F
 - `gap` reads the outward normal (`Carrier::Plane.outward`; `fn gap`), and so does DM1a's `FaceFrame`.
 
 The stage 3 spec's `Plane { face }` reads "its carrier's plane with its outward normal" (`docs/INTENT-STAGE3-SPEC.md` §1), so an oriented `Plane` pose picks the outward sense, while a measure reading the face directly keeps the chart normal for `angle`. Whether the face-as-plane projection should state its sense in D10, and whether `angle` should then read the outward normal, is open. Stage 3 A (`poses-are-variables`) is where the projection is built.
+
+The pose half is settled as outward in INTENT stage 3 A: `Plane { face }` reads the face's outward normal (its material side), and the other sense is `Flip`. The measure's `angle` stays as it is; this row stays open for it.

@@ -25,3 +25,7 @@ Closes `a-clocking-rider-is-levered-unreduced`, `a-face-frame-cannot-turn-its-ro
 C ends B's migration interim, in which a placement's constraints are today's mate payload with its numbers.
 
 Waits on A (`poses-are-variables`) and B (`a-placement-is-the-bundle-of-mates`, the placement that owns values).
+
+## Owed by stage 3 A: the pose families' representatives
+
+Stage 3 A put `Spherical` (a point's), `Parallel` (a direction's), `Translation` and `PlaneTranslation` into the one `Subgroup` lattice (`crates/editor-core/src/mate/coset.rs`), with their table rows, membership and properties, but no representative construction: `intersect` refuses a pair involving one of them `FoldStop::NoRepresentative { held, added }`, naming the two families, and the mate solve asserts no mate reaches it. This row owns those representative arms: the first mate that folds a point or a direction builds them, retires `SubgroupFamily::folded_by_mates`, and turns the solve's `unreachable!` into the ordinary arm. The refusal is pinned by `intent_s3_a_poses::a_fold_reaching_a_pose_family_refuses_naming_the_pair`.

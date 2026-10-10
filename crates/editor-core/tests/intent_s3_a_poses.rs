@@ -436,3 +436,126 @@ fn a_pose_moved_by_a_measured_length_is_observed() {
         "{refused:?}"
     );
 }
+
+/// A ring of three boxes about the line two in-frame planes meet in:
+/// `a` through `a_origin` with normal `a_normal`, `b` the world plane
+/// `y = 0`. The pattern is the `Meet`'s reader.
+fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
+    let (doc, p) = fixture::on_frame(
+        ProfileDoc::empty_derived("s3a_meet", Tol::witness()),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(2.0, 0.5), (3.0, 0.5), (3.0, 1.5), (2.0, 1.5)]],
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, world) = fixture::insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let plane = |origin: [f64; 3], normal: [f64; 3]| {
+        pose(PoseDef::InFrame {
+            frame: Operand::output(world, 0),
+            coords: editor_core::pose::PoseCoords::Plane {
+                origin: origin.map(len),
+                normal: normal.map(scl),
+            },
+        })
+    };
+    let (doc, ring) = fixture::insert(
+        doc,
+        Node::Pattern {
+            input: block.into(),
+            count: Formula::count(3),
+            kind: editor_core::PatternKind::Circular {
+                axis: pose(PoseDef::Meet {
+                    a: plane(a_origin, a_normal),
+                    b: plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+                }),
+                step: ang(std::f64::consts::FRAC_PI_2),
+            },
+        },
+    );
+    fixture::built_bits(&eval(&doc), ring)
+}
+
+/// **A `Meet`'s origin is a representative no reader sees** (the
+/// orchestrator's condition on the constructed poses): its point is
+/// "nearest `a`'s origin", and `a`'s origin is itself a plane's
+/// representative, so moving it within its plane moves the axis's
+/// point along the line and must move no outcome. A ring about the
+/// line builds bit-identically whichever representative `a` holds.
+#[test]
+fn a_meets_representative_point_moves_no_reader() {
+    // Planes x = 0 and y = 0 meet in the z axis; `a`'s origin slides
+    // along the plane x = 0, so the axis's point slides along z.
+    let at_origin = ring_about_a_meet([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    for moved in [[0.0, 4.0, 8.0], [0.0, -0.75, 3.0], [0.0, 0.1, 0.3]] {
+        assert_eq!(
+            ring_about_a_meet(moved, [1.0, 0.0, 0.0]),
+            at_origin,
+            "a's origin at {moved:?}"
+        );
+    }
+    // Tilted: `a` is the plane through the z axis with normal (3, 4, 0)/5.
+    let tilted = ring_about_a_meet([0.0, 0.0, 0.0], [0.6, 0.8, 0.0]);
+    for moved in [[-0.8, 0.6, 2.0], [4.0, -3.0, -1.5], [0.08, -0.06, 0.7]] {
+        assert_eq!(
+            ring_about_a_meet(moved, [0.6, 0.8, 0.0]),
+            tilted,
+            "tilted, a's origin at {moved:?}"
+        );
+    }
+}
+
+/// **The four pose subgroup families have no representative yet**, and
+/// the coset door says so typed, naming the pair, rather than building
+/// one: a point's (`Spherical`), a direction's (`Parallel`) and the
+/// pure translations meet every mate family in the table, but no mate
+/// folds them until INTENT stage 3 C, which owns these arms
+/// (`work/intent/a-mate-relates-two-poses.md`).
+#[test]
+fn a_fold_reaching_a_pose_family_refuses_naming_the_pair() {
+    use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, SubgroupFamily, intersect};
+    use geom_core::linalg::{Affine3, Point3, Vec3};
+    let band = geom_core::predicate::Band::linear(Tol::witness()).expect("a band");
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).unwrap();
+    let z = unit(Vec3::new(0.0, 0.0, 1.0));
+    let coset = |subgroup| Coset {
+        subgroup,
+        representative: Affine3::identity(),
+    };
+    let pose_families = [
+        (Subgroup::Spherical { point: Point3::origin() }, SubgroupFamily::Spherical),
+        (Subgroup::Parallel { direction: z }, SubgroupFamily::Parallel),
+        (Subgroup::Translation, SubgroupFamily::Translation),
+        (Subgroup::PlaneTranslation { normal: z }, SubgroupFamily::PlaneTranslation),
+    ];
+    let mate = (
+        Subgroup::Cylindrical {
+            point: Point3::origin(),
+            direction: z,
+        },
+        SubgroupFamily::Cylindrical,
+    );
+    let arm = Arm::of(0.0, 1.0).expect("a metre is in range");
+    for (pose, family) in pose_families {
+        for ((held, h), (added, a)) in [((pose, family), mate), (mate, (pose, family))] {
+            let refused = intersect(coset(held), coset(added), band, arm);
+            assert!(
+                matches!(
+                    refused,
+                    Err(FoldStop::NoRepresentative { held, added }) if held == h && added == a
+                ),
+                "{h:?} against {a:?}: {refused:?}"
+            );
+        }
+    }
+}
