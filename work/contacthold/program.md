@@ -2,7 +2,7 @@
 id: contacthold
 kind: program
 title: CONTACTHOLD — CONTACT's parked rows: the D10 hold on declared contacts, the coincidence door and the declared-pair retirement
-status: ready
+status: active
 opened: 2026-10-09
 area: kernel
 prefix: contacthold/
@@ -13,13 +13,11 @@ keep_out: [opened 2026-10-09 by CONTACT's closing cut on its priority seam (Ev i
 priority: P0
 ---
 
-**Nothing here is dispatchable, and nobody holds the track.** Every
-row waits on a named trigger (`work/README.md`: a blocked track never
-has an orchestrator). All 21 are parked on the D10 hold
-(`work/intent/plan.md`), through INTENT's stage-4 units:
-`coincidences-are-recorded-at-one-door`, `booleans-glue-on-zero` and
-`declared-pairs-retire`, or the stage-4 umbrella
-`intent-stage4-is-built`. Each depends on how intent is said:
+An orchestrator holds the track (since 2026-10-10). Every row but one
+waits on a named trigger in INTENT's stage 4 — the D10 hold
+(`work/intent/plan.md`): `contact-records-cite-their-decision` (B2),
+`booleans-glue-on-zero` (E), `declared-pairs-retire` (F), or the
+umbrella `intent-stage4-is-built`. Each depends on how intent is said:
 declared contacts, their records and their verification. One row waits
 on the plane × torus cone arms (`c5-plane-torus-cone-cylinder-arms`).
 

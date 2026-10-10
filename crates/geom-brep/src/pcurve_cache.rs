@@ -1948,10 +1948,10 @@ impl PcurveCertifyError {
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
             // The fitted lane's SSI certificate is an approximation's, as
-            // the plane × NURBS lane's residual limbs are
-            // (`CertCheck::PlaneNurbsOnLocus`, `CertCheck::PlaneNurbsHull`).
+            // the plane × NURBS lane's on-locus limb is
+            // (`CertCheck::PlaneNurbsOnLocus`).
             Self::FittedEscalated { cause } => {
-                return Some(Unsized::LastResort.recourse(RefusedArm::Undecided(cause), reading));
+                return Some(Unsized::Fit.recourse(RefusedArm::Undecided(cause), reading));
             }
             Self::UnsupportedChart { .. }
             | Self::UnsupportedCarrier { .. }
@@ -1993,7 +1993,7 @@ impl PcurveCheck {
             // bounds on a fitted image as well as an exact one, and the
             // routing reads the check alone.
             Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) => {
-                Unsized::LastResort.recourse(arm, reading)
+                Unsized::Fit.recourse(arm, reading)
             }
         }
     }
