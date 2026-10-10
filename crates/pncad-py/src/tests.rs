@@ -5040,7 +5040,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "coincidence_rung_tag",
-        values: &["same_construction", "carrier_verdict", "margin_identity"],
+        values: &["carrier_verdict", "margin_identity", "same_construction"],
         delegates: &[],
     },
     TagEntry {

@@ -460,8 +460,9 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     a block, unioned under the declared `Rest` the flush detector
     offers. The declaration is verified from values, so the union
     records one coincidence, and the door does not prove it: the two
-    caps are two constructions. The report's rows are the evaluation's
-    unproven rows, word for word."""
+    caps are two constructions, and the block's top and the plate's
+    floor are two variables typed to one value. The report's rows are
+    the evaluation's unproven rows, word for word."""
 
     def test_a_declared_rest_is_one_unproven_coincidence(self):
         doc = Doc()
@@ -477,7 +478,11 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         (row,) = rows
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
         self.assertIsNone(row.rung)
-        self.assertEqual(row.residual, "the two cells are two constructions")
+        self.assertEqual(
+            row.residual,
+            "the two cells are two constructions; with every variable a symbol, "
+            "neither the carriers' verdict nor the deciding margin is identically zero",
+        )
         self.assertEqual([node for node, _ in row.cells], [lower, upper])
         self.assertTrue(all(name is not None for _, name in row.cells))
 

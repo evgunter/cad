@@ -607,6 +607,7 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `root` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
