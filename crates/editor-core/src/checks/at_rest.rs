@@ -336,6 +336,19 @@ fn unlocalized_at_lane<T: Decide>(
     }]
 }
 
+#[cfg(feature = "probe")]
+impl LocalizeLane for geom_core::Probe {
+    fn localize(
+        product: &Product<Self>,
+        a: usize,
+        b: usize,
+        evidence: Vec<ValidationError>,
+        _: Tol,
+    ) -> Vec<InterferenceFinding> {
+        unlocalized_at_lane(product, a, b, evidence)
+    }
+}
+
 impl LocalizeLane for geom_core::Interval {
     fn localize(
         product: &Product<Self>,
