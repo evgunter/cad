@@ -160,11 +160,11 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
             ..
         } = e
         {
-            records.push(topo::Cited::new(
+            records.extend([topo::Cited::new(
                 topo::Contact::new(&body, topo::Cell::Vertex(*vertex), topo::Cell::Face(*face))
                     .unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
     let residue = validate_pseudomanifold(&body, &records, Tol::witness());

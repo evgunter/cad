@@ -1000,7 +1000,7 @@ fn resolve_declarations(
                 };
                 let k = u32::try_from(rows.len()).unwrap_or(u32::MAX);
                 rows.push(row);
-                records.push(topo::Cited::new(pair, topo::Cites::decided(k)));
+                records.extend([topo::Cited::new(pair, topo::Cites::decided(k))]);
             }
         }
     }

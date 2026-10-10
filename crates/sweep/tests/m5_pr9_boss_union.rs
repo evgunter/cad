@@ -151,11 +151,11 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         let on_rim = (p.z - 1.0).abs() < 1e-9
             && ((p.x - 2.0).powi(2) + (p.y - 2.0).powi(2) - 0.25).abs() < 1e-9;
         if on_rim {
-            records.push(topo::Cited::new(
+            records.extend([topo::Cited::new(
                 topo::Contact::new(&body, topo::Cell::Vertex(vk), topo::Cell::Face(top_face))
                     .unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
     assert_eq!(records.vertex_face().count(), 3, "the three arc joints");
@@ -285,10 +285,10 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let bite = faces[0];
     let pin_wall = *faces.last().unwrap();
     let mut records = topo::ContactRecords::default();
-    records.push(topo::Cited::new(
+    records.extend([topo::Cited::new(
         topo::Contact::new(&body, topo::Cell::Face(bite), topo::Cell::Face(pin_wall)).unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     let errs = topo::validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the undeclared curved proximities still refuse");
     let names =

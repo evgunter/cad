@@ -1518,7 +1518,7 @@ impl AtRestRows {
                     )
                 };
                 self.contacts
-                    .push(topo::Cited::new(contact, topo::Cites::decided(k)));
+                    .extend([topo::Cited::new(contact, topo::Cites::decided(k))]);
             }
             Err(finding) => self.refused.push(finding),
         }

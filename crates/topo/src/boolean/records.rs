@@ -189,7 +189,7 @@ impl ContactRecords {
 
     /// Adds `record`, or where a record of the same pair is already
     /// here, adds `record`'s citations to it.
-    pub fn push(&mut self, record: Cited<Contact>) {
+    pub(crate) fn push(&mut self, record: Cited<Contact>) {
         match self.rows.iter_mut().find(|r| r.record == record.record) {
             Some(r) => r.cites = r.cites.union(&record.cites),
             None => self.rows.push(record),

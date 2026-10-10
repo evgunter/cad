@@ -353,10 +353,10 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let mut declared = topo::ContactRecords::default();
     for &pw in &plate_walls {
         for &bw in &boss_walls {
-            declared.push(topo::Cited::new(
+            declared.extend([topo::Cited::new(
                 topo::Contact::new(&body, topo::Cell::Face(pw), topo::Cell::Face(bw)).unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
     let with_decl = count_undecidable(&declared);

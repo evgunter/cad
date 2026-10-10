@@ -121,10 +121,10 @@ fn stacked() -> (Body<f64>, ContactRecords) {
         let [va, vb] = hits[..] else {
             panic!("exactly two corners at ({x}, {y}, 1)");
         };
-        records.push(topo::Cited::new(
+        records.extend([topo::Cited::new(
             topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
             topo::Cites::decided(0),
-        ));
+        )]);
     };
     at(0.0, 0.0);
     at(1.0, 0.0);
@@ -440,10 +440,10 @@ fn r1_delta_probe_bridged_nested_pair_stays_loud() {
     let va = body.vertices().next().unwrap().0;
     let vb = body.vertices().last().unwrap().0;
     let mut records = ContactRecords::default();
-    records.push(topo::Cited::new(
+    records.extend([topo::Cited::new(
         topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     let errs = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the bridge must not silence the nested pair");
     assert!(

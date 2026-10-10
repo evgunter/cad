@@ -878,7 +878,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
     )
     .unwrap();
     let mut stale = joined.contacts.clone();
-    stale.push(topo::Cited::new(apart, topo::Cites::decided(0)));
+    stale.extend([topo::Cited::new(apart, topo::Cites::decided(0))]);
     let topo::ContactKind::EdgeEdge(apart_a, apart_b) = apart.kind() else {
         unreachable!("two edges")
     };

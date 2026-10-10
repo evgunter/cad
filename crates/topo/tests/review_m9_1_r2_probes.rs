@@ -232,10 +232,10 @@ fn probe_replay_partial_eq_bites_on_mutation() {
     assert_eq!(mutated, x.contacts, "clone is bit-identical");
     let mut faces = x.body.faces().map(|(k, _)| k);
     let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
-    mutated.push(topo::Cited::new(
+    mutated.extend([topo::Cited::new(
         topo::Contact::new(&x.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     assert_ne!(mutated, x.contacts, "an added row must show");
 }
 

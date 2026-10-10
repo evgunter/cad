@@ -326,10 +326,10 @@ fn r2_flush_stack_full_overlap() {
             ..
         } = e
         {
-            contacts.push(topo::Cited::new(
+            contacts.extend([topo::Cited::new(
                 topo::Contact::new(&body, topo::Cell::Vertex(*a), topo::Cell::Vertex(*b)).unwrap(),
                 topo::Cites::decided(0),
-            ));
+            )]);
         }
     }
     assert_eq!(
