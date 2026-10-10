@@ -79,7 +79,7 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
             &EvalOptions::default(),
             tol,
         );
-        let tip = *part.roots().first().expect("the part has a root");
+        let tip = *part.placements().first().expect("the part places its body");
         pncad::select::face_frame(&ev, tip, local).expect("the cap has a frame")
     };
     let post = oracle(&bench.post, &bench.post_top);
@@ -162,7 +162,10 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &up, &view)
         .expect("the pick answers")
         .expect("something hangs under the shelf");
-    assert_eq!(under.node, bench.post_b, "the post seated under the shelf");
+    assert_eq!(
+        under.node, bench.post_b_copy,
+        "the post seated under the shelf"
+    );
     assert!(
         (under.point.z - (-asm::POST_HEIGHT)).abs() < 1e-9,
         "its bottom cap sits one post-height below the shelf's \
@@ -175,7 +178,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
         .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
         .expect("the pick answers")
         .expect("the shelf is still there");
-    assert_eq!(over.node, bench.shelf_i);
+    assert_eq!(over.node, bench.shelf_copy);
     assert!(
         (over.point.z - asm::SHELF_THICKNESS).abs() < 1e-9,
         "the shelf's top face is untouched: z = {}",
@@ -230,7 +233,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
         .pick_for(eval, &asm::down_at(0.11, 0.07), &view)
         .expect("the pick answers")
         .expect("the rotated probe is under the drawn-position ray");
-    assert_eq!(hit.node, bench.post_b);
+    assert_eq!(hit.node, bench.post_b_copy);
     assert!(
         (hit.point.x - 0.11).abs() < 1e-9
             && (hit.point.y - 0.07).abs() < 1e-9
@@ -261,7 +264,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         &session,
         &common::along_x(-1.0, asm::POST_B_AT[1] + asm::POST_SECTION / 2.0, 0.025),
     );
-    assert_eq!(side.node, bench.post_b, "the side ray hit post_b");
+    assert_eq!(side.node, bench.post_b_copy, "the side ray hit post_b");
     assert_ne!(side.name, top.name, "two different faces");
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
@@ -271,7 +274,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
         matches!(
             tool.proposal(doc, eval, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
-                if head.id() == bench.post_b
+                if head.id() == bench.post_b_copy
         ),
         "a mate needs a PAIR of instances"
     );
@@ -493,7 +496,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     // upward ray finds the SHELF's underside, not the seated post.
     let under = asm::shelf_underside(&session);
     assert_eq!(
-        under.node, bench.shelf_i,
+        under.node, bench.shelf_copy,
         "the seated post stays hidden at its new placement"
     );
 }
@@ -528,7 +531,7 @@ fn save_as_rebinds_the_resolver_and_a_fresh_open_enforces_the_rule() {
     let outcome = fresh.perform(SessionOp::Open(moved));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     fresh.pump();
-    for row in fresh.tree_rows() {
+    for row in asm::instance_rows(&fresh) {
         assert!(
             matches!(row.status, RowStatus::Failed { .. }),
             "the moved document must not resolve against the old \
@@ -561,7 +564,7 @@ fn the_threaded_seam_resolves_the_assembly_too() {
     }
     assert!(!session.busy(), "the threaded run lands");
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 6, "three instances and their placements");
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -640,8 +643,7 @@ fn save_as_into_the_store_recovers_a_failed_resolution() {
     session.perform(SessionOp::Open(moved));
     session.pump();
     assert!(
-        session
-            .tree_rows()
+        asm::instance_rows(&session)
             .iter()
             .all(|row| matches!(row.status, RowStatus::Failed { .. })),
         "opened beside no parts: every instance refuses"

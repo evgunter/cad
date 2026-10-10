@@ -7,7 +7,6 @@ id: a8d79f40ddb79de569d778f1c0b832f9
       "log": []
     },
     "nodes": {},
-    "roots": [],
     "vars": {},
     "epsilon": 1e-9,
     "witnesses": {},
@@ -4894,8 +4893,17 @@ id: a8d79f40ddb79de569d778f1c0b832f9
       }
     },
     {
-      "DeleteNode": {
-        "id": "31:f710f35f1512d04d"
+      "InsertNode": {
+        "node": {
+          "PlaceInWorld": {
+            "body": {
+              "Node": "261:534bf94e3918d20d"
+            },
+            "pose": {
+              "steps": []
+            }
+          }
+        }
       }
     }
   ]

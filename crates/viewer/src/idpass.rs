@@ -314,9 +314,8 @@ impl Disagreement {
 ///
 /// # Why names and not ids
 ///
-/// One stable name can be drawn under several ids — two `Transform`
-/// roots over one extrude carry the same names on both copies — so
-/// comparing raw ids reports a disagreement whenever the two paths
+/// One stable name can be drawn under several ids, so comparing raw
+/// ids reports a disagreement whenever the two paths
 /// name the same face on different drawn copies. The property the two
 /// lanes are supposed to share is "the same face is under the cursor",
 /// and a face is a name.

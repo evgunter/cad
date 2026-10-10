@@ -11,10 +11,11 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use crate::fixture::split_world as split;
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SnapshotError, SplitError,
-    content_pin, evaluate, inline, load, save, split,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, content_pin, evaluate,
+    inline, load, save,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -281,6 +282,7 @@ fn split_and_inline_carry_labels_and_the_new_instance_has_none() {
     let doc = set_label(doc, kept, Some("base"));
     let doc = set_label(doc, profile, Some("pin sketch"));
     let doc = set_label(doc, extrude, Some("pin"));
+    let doc = crate::fixture::place_all(doc, &[kept, extrude]);
 
     let cut = BTreeSet::from([frame, profile, extrude]);
     let out = split(&doc, &cut, DocumentId::derive("node-labels-pin"), tol, None)
@@ -505,46 +507,6 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     );
 }
 
-/// **A root refusal at the edit door speaks both roots with their
-/// labels**, and its recourse names the one to drop the same way.
-#[test]
-fn a_root_refusal_speaks_the_labelled_roots_and_its_recourse_does_too() {
-    let doc = ProfileDoc::empty_derived("node-labels-roots", Tol::witness());
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
-    let doc = set_label(doc, profile, Some("sketch"));
-    let doc = set_label(doc, extrude, Some("base plate"));
-    let refused = refusal(
-        &doc,
-        DocEdit::SetRoots {
-            roots: vec![profile, extrude],
-        },
-    );
-    let EditError::Roots(RootFault::Ancestor {
-        ancestor,
-        descendant,
-    }) = &refused
-    else {
-        panic!("an ancestor pair refuses, got {refused:?}");
-    };
-    assert_eq!(
-        (ancestor, descendant),
-        (&doc.spoken(profile), &doc.spoken(extrude))
-    );
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
-    let text = refused.to_string();
-    assert!(
-        text.starts_with(&format!(
-            "product root Profile \"sketch\" ({p}) is an ancestor of product root Extrude \
-             \"base plate\" ({e})"
-        )),
-        "{text}"
-    );
-    assert!(
-        text.contains(&format!("drop Profile \"sketch\" ({p}) from the root list")),
-        "{text}"
-    );
-}
-
 /// **A name an edit refusal forwards speaks its minting node** as the
 /// document holds it.
 #[test]
@@ -571,50 +533,6 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
             "the side wall over loop 0 step 1 of Extrude \"base plate\" ({})",
             tag(extrude.0.digest())
         )),
-        "{refused}"
-    );
-}
-
-/// **The load door speaks the node it refuses with its label.** The
-/// validator judges a deserialized document whose labels have already
-/// passed `Label::new` and the live-key rule, so a root refusal there
-/// speaks from it like the edit door's does. The craft drops one of
-/// two tips from the root list, stranding that tip's whole chain.
-#[test]
-fn a_load_root_refusal_speaks_the_labelled_node_from_the_file() {
-    let tol = Tol::witness();
-    let doc = ProfileDoc::empty_derived("node-labels-load-roots", tol);
-    let (doc, [_, _, kept]) = block(doc, 0.0);
-    let (doc, lost) = block(doc, 5.0);
-    let doc = lost
-        .iter()
-        .fold(doc, |doc, &id| set_label(doc, id, Some("stranded")));
-    let text = save(&doc, &[], tol).expect("the honest document saves");
-    let honest = format!(
-        "\"roots\": [\n      \"{}\",\n      \"{}\"\n    ]",
-        kept.0, lost[2].0
-    );
-    assert!(
-        text.contains(&honest),
-        "the save's root list is the two tips"
-    );
-    let crafted = text.replace(
-        &honest,
-        &format!("\"roots\": [\n      \"{}\"\n    ]", kept.0),
-    );
-    let refused = match load(&crafted, tol) {
-        Err(PersistError::Snapshot(SnapshotError::Roots(fault))) => fault,
-        other => panic!("a crafted uncovered document refuses, got {other:?}"),
-    };
-    let RootFault::Uncovered { node } = &refused else {
-        panic!("the stranded chain is uncovered, got {refused:?}");
-    };
-    assert!(lost.contains(&node.id()), "{node}");
-    assert_eq!(node.label(), Some(&label("stranded")), "{node}");
-    assert!(
-        refused
-            .to_string()
-            .contains(&format!("\"stranded\" ({})", tag(node.id().0.digest()))),
         "{refused}"
     );
 }
@@ -762,16 +680,23 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
 }
 
 /// **An inline refusal speaks each node from the document that holds
-/// it**: the instance and its consumer from the host, the part's root
+/// it**: the instance's reader from the host, the part's placement
 /// from the part, each with the label that document gives it.
 #[test]
 fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_part() {
     let tol = Tol::witness();
     let part_doc = ProfileDoc::empty_derived("node-labels-inline-part", tol);
     let (part_doc, [_, _, body]) = block(part_doc, 0.0);
+    let (part_doc, body) = crate::fixture::place(part_doc, body);
     let part_doc = set_label(part_doc, body, Some("bracket"));
+    // A second part whose world is two bodies.
+    let pair = ProfileDoc::empty_derived("node-labels-inline-pair", tol);
+    let (pair, [_, _, a]) = block(pair, 0.0);
+    let (pair, [_, _, b]) = block(pair, 5.0);
+    let pair = crate::fixture::place_all(pair, &[a, b]);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part_doc, tol);
+    let pair_ref = store.insert(pair, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
@@ -794,18 +719,21 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     assert_eq!(
         (root.id(), root.label()),
         (body, Some(&label("bracket"))),
-        "the root is the part's, spoken from the part"
+        "the placement is the part's, spoken from the part"
     );
     assert!(
         refused.to_string().contains(&format!(
-            "part root Extrude \"bracket\" ({})",
+            "part placement PlaceInWorld \"bracket\" ({})",
             tag(body.0.digest())
         )),
         "{refused}"
     );
 
+    let pair_host = ProfileDoc::empty_derived("node-labels-inline-pair-host", tol);
+    let (pair_host, inst) = insert(pair_host, Node::instantiate_part(pair_ref));
+    let pair_host = set_label(pair_host, inst, Some("left bracket"));
     let (consumed, by) = insert(
-        host,
+        pair_host,
         Node::transform(
             inst,
             editor_core::Step::Rigid {
@@ -816,17 +744,15 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         ),
     );
     let consumed = set_label(consumed, by, Some("offset"));
-    let refused = inline(&consumed, inst, &resolver, tol).expect_err("a consumed instance");
-    assert_eq!(
-        refused.to_string(),
-        format!(
-            "inline: InstantiatePart \"left bracket\" ({i}) is consumed by Transform \"offset\" \
-             ({b}), and the recipe cannot rewire a consumer onto a spliced product. Recourse: \
-             delete Transform \"offset\" ({b}), or re-author it without InstantiatePart \
-             \"left bracket\" ({i}), then inline",
-            i = tag(inst.0.digest()),
+    let refused = inline(&consumed, inst, &resolver, tol)
+        .expect_err("a reader of a two-body world has no one body to read");
+    assert!(
+        refused.to_string().starts_with(&format!(
+            "inline: Transform \"offset\" ({b}) reads the instance, and the referenced \
+             document places 2 bodies",
             b = tag(by.0.digest())
-        )
+        )),
+        "{refused}"
     );
 }
 
@@ -1007,8 +933,8 @@ fn a_report_rendered_from_another_document_fails_loud() {
 }
 
 /// **A checks report holds ids and speaks them from the document the
-/// checks ran over**: a separation finding names both roots, and the
-/// refusal `enforce_checks` raises names its root, each as the
+/// checks ran over**: a separation finding names both placements, and
+/// the refusal `enforce_checks` raises names its placement, each as the
 /// document holds it, while the report's own `Display` (no document at
 /// hand) says each by its tag.
 #[test]
@@ -1018,6 +944,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
     let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
     let (doc, [_, _, base]) = block(doc, 0.0);
     let (doc, [_, _, boss]) = block(doc, 0.5);
+    let (doc, base) = crate::fixture::place(doc, base);
+    let (doc, boss) = crate::fixture::place(doc, boss);
     let doc = set_label(doc, base, Some("base"));
     let doc = set_label(doc, boss, Some("boss"));
     let ev = evaluate::<f64>(
@@ -1040,38 +968,40 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
             CheckEvidence::NotSeparated { other_root, .. }
                 if finding.subject == editor_core::FindingSubject::Output { root: base, output_ix: 0 } && other_root == boss
         )),
-        "the two overlapping roots are a separation finding: {report}"
+        "the two overlapping placements are a separation finding: {report}"
     );
     let spoken = report.spoken(&doc);
     assert!(
         spoken.contains(&format!(
-            "check separation: Extrude \"base\" ({b}) output 0: not certifiably disjoint \
-             from Extrude \"boss\" ({o}) output 0"
+            "check separation: PlaceInWorld \"base\" ({b}) output 0: not certifiably \
+             disjoint from PlaceInWorld \"boss\" ({o}) output 0"
         )),
-        "the separation finding speaks both roots from the document: {spoken}"
+        "the separation finding speaks both placements from the document: {spoken}"
     );
     assert!(
-        !spoken.contains(&format!("root {b}")) && !spoken.contains(&format!("root {o}")),
-        "no root is left at its bare tag: {spoken}"
+        !spoken.contains(&format!("placement {b}")) && !spoken.contains(&format!("placement {o}")),
+        "no placement is left at its bare tag: {spoken}"
     );
     let bare = report.to_string();
     assert!(
-        bare.contains(&format!("root {b} output 0"))
-            && bare.contains(&format!("root {o} output 0"))
+        bare.contains(&format!("placement {b} output 0"))
+            && bare.contains(&format!("placement {o} output 0"))
             && !bare.contains("\"base\""),
-        "with no document at hand each root is its tag: {bare}"
+        "with no document at hand each placement is its tag: {bare}"
     );
 
     let refusal = enforce_checks(&report, &strict).expect_err("connectedness is at Error");
     let spoken = refusal.spoken(&doc);
     assert!(
         spoken.contains(&format!(
-            "check connectedness: Extrude \"base\" ({b}) output 0:"
+            "check connectedness: PlaceInWorld \"base\" ({b}) output 0:"
         )),
-        "the refusal speaks its root from the document: {spoken}"
+        "the refusal speaks its placement from the document: {spoken}"
     );
     assert!(
-        refusal.to_string().contains(&format!("root {b} output 0")),
+        refusal
+            .to_string()
+            .contains(&format!("placement {b} output 0")),
         "and its own Display says the tag: {refusal}"
     );
 }
@@ -1086,9 +1016,13 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-checks-taken-of", tol);
     let (doc, [_, _, base]) = block(doc, 0.0);
-    let (doc, _) = block(doc, 0.5);
+    let (doc, [_, _, boss]) = block(doc, 0.5);
+    let (doc, base) = crate::fixture::place(doc, base);
+    let doc = crate::fixture::place(doc, boss).0;
     let other = ProfileDoc::empty_derived("node-labels-checks-another", tol);
-    let (other, [_, _, same]) = block(other, 0.0);
+    let (other, [_, _, a]) = block(other, 0.0);
+    let (other, [_, _, _b]) = block(other, 0.5);
+    let (other, same) = crate::fixture::place(other, a);
     assert_eq!(
         base, same,
         "the two documents hold one id as two nodes: the hazard this guards"
@@ -1106,7 +1040,7 @@ fn a_checks_report_spoken_from_another_document_fails_loud() {
             finding.subject,
             editor_core::FindingSubject::Output { root, .. } if root == base
         )),
-        "a finding names the root the other document also holds: {report}"
+        "a finding names the placement the other document also holds: {report}"
     );
     let _ = report.spoken(&other);
 }
@@ -1214,7 +1148,9 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
     assert_eq!(
         ChecksError::Root(failed).spoken(&doc),
-        format!("checks: root {plate} failed, so it has no value — fix the node's own failure")
+        format!(
+            "checks: placement {plate} failed, so it has no value — fix the node's own failure"
+        )
     );
     let changed = Diagnosis::StructuralParam {
         node: extrude,
@@ -1386,12 +1322,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
             fresh: Vec::new(),
         },
     );
-    let roots = refusal(
-        &doc,
-        DocEdit::SetRoots {
-            roots: vec![profile, extrude],
-        },
-    );
     let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
     let rebind = refusal(
         &doc,
@@ -1423,18 +1353,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         (node.kind(), node.label(), input),
         (Some("Union"), None, later.spoken(extrude)),
         "the minted node, which no version holds, by its kind; the input as renamed"
-    );
-    let EditError::Roots(RootFault::Ancestor {
-        ancestor,
-        descendant,
-    }) = roots.respoken(&later)
-    else {
-        panic!("respoken keeps the arm, got {roots:?}");
-    };
-    assert_eq!(
-        (ancestor, descendant),
-        (later.spoken(profile), later.spoken(extrude)),
-        "a root arm says both roots as renamed"
     );
     assert_eq!(
         rebind.respoken(&later),

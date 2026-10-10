@@ -1183,8 +1183,8 @@ fn corpus() -> Vec<Row> {
         // parts were in hand, read where one is not.
         let (doc, ids, opts, body) = instances("msolve10-corpus-lost", 1);
         let mut both = PartStore::new();
-        both.insert(
-            box_part("msolve10-corpus-lost-part", 0.5, 1.0).0,
+        both.insert_part(
+            box_part("msolve10-corpus-lost-part", 0.5, 1.0),
             Tol::witness(),
         );
         let (lost_ref, lost_body) = both.insert_part(

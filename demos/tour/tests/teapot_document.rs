@@ -711,6 +711,15 @@ fn a_split_carries_a_held_slits_band() {
         Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
         tol,
     );
+    // The lid is the document's product; a cut carries what it places.
+    doc = apply(
+        &doc,
+        &DocEdit::place(holder, None),
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the held lid places")
+    .doc;
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
         doc.ids().iter().copied().filter(|&n| n != lead).collect();
