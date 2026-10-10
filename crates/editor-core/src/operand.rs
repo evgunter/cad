@@ -36,6 +36,17 @@ pub enum Operand {
     Var(VarId),
     /// A variable, by name.
     Name(VarName),
+    /// **A selection authored at this seat** (D10): the entities `names`
+    /// names of the body `body` reads. The door mints one anonymous
+    /// selection variable of the seat's kind ([`crate::VarDef::Select`])
+    /// and the seat reads it, so a selection authored at two seats is
+    /// two variables; a seat shares one by reading it by id or name.
+    Select {
+        /// The body read.
+        body: Box<Operand>,
+        /// The entities, by name.
+        names: Vec<crate::names::StableName>,
+    },
 }
 
 impl From<RecipeNodeId> for Operand {
@@ -62,6 +73,15 @@ impl Operand {
     pub fn output(node: RecipeNodeId, port: u8) -> Self {
         Self::Output { node, port }
     }
+
+    /// The selection of `names` in the body `body` reads.
+    #[must_use]
+    pub fn select(body: impl Into<Operand>, names: Vec<crate::names::StableName>) -> Self {
+        Self::Select {
+            body: Box::new(body.into()),
+            names,
+        }
+    }
 }
 
 impl core::fmt::Display for Operand {
@@ -71,6 +91,9 @@ impl core::fmt::Display for Operand {
             Self::Output { node, port } => write!(f, "port {port} of node {node}"),
             Self::Var(var) => write!(f, "{var}"),
             Self::Name(name) => write!(f, "{name}"),
+            Self::Select { body, names } => {
+                write!(f, "the selection of {} names in {body}", names.len())
+            }
         }
     }
 }
@@ -95,8 +118,16 @@ pub enum OperandSlot {
     /// each reads, so one slot (its field is `frame` on a tube and
     /// `plane` on the other two).
     Frame,
-    /// The body a blend, a shell or a split reshapes.
+    /// The body a split cuts.
     Target,
+    /// The edges a fillet or a chamfer blends.
+    Selection,
+    /// The faces a shell opens into rims.
+    Open,
+    /// The face a face frame is read off.
+    Face,
+    /// Reference `i` of a measure, in argument order.
+    Measured(u8),
     /// A split's plane.
     Tool,
     /// A boolean's first operand.
@@ -109,8 +140,6 @@ pub enum OperandSlot {
     Input,
     /// What a part projection picks from.
     Of,
-    /// The body a face frame reads its face out of.
-    At,
     /// The body a world placement places.
     Body,
 }
@@ -126,13 +155,17 @@ impl OperandSlot {
             Self::Axis => "axis".to_owned(),
             Self::Frame => "frame".to_owned(),
             Self::Target => "target".to_owned(),
+            Self::Selection => "selection".to_owned(),
+            Self::Open => "open faces".to_owned(),
+            Self::Face => "face".to_owned(),
+            Self::Measured(i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::A => "first operand".to_owned(),
             Self::B => "second operand".to_owned(),
             Self::Member(i) => format!("member {}", u64::from(i) + 1),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
-            Self::At | Self::Body => "body".to_owned(),
+            Self::Body => "body".to_owned(),
         }
     }
 
@@ -144,9 +177,13 @@ impl OperandSlot {
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
-            Self::Target | Self::A | Self::B | Self::Member(_) | Self::At | Self::Body => {
+            Self::Target | Self::A | Self::B | Self::Member(_) | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }
+            Self::Selection => SlotKind::Is(VarKind::Edges),
+            Self::Open => SlotKind::Is(VarKind::Faces),
+            Self::Face => SlotKind::Is(VarKind::Face),
+            Self::Measured(_) => SlotKind::Measured,
             Self::Input | Self::Of => SlotKind::Placeable,
         }
     }
@@ -165,13 +202,16 @@ impl core::fmt::Display for OperandSlot {
 /// A scalar slot and an operand seat that holds one kind are
 /// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
-/// one body or a list of them).
+/// one body or a list of them), and [`SlotKind::Measured`]
+/// `{Body, Face, Edge}` (a measure reads one entity, or a whole body).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
     Is(VarKind),
     /// `Body` or `Bodies`.
     Placeable,
+    /// `Body`, `Face` or `Edge`.
+    Measured,
 }
 
 impl SlotKind {
@@ -182,6 +222,26 @@ impl SlotKind {
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
+            Self::Measured => matches!(kind, VarKind::Body | VarKind::Face | VarKind::Edge),
+        }
+    }
+
+    /// **The kind a selection authored at this seat is minted at**
+    /// ([`Operand::Select`]), given the entity kind its names name:
+    /// the seat's own selection kind, or at a seat admitting several,
+    /// the singleton of that entity kind. `None` where the seat holds no
+    /// selection of it.
+    #[must_use]
+    pub fn selection_kind(self, entity: crate::names::EntityKind) -> Option<VarKind> {
+        use crate::names::EntityKind as E;
+        match self {
+            Self::Is(kind) => kind.selection().is_some().then_some(kind),
+            Self::Measured => match entity {
+                E::Face => Some(VarKind::Face),
+                E::Edge => Some(VarKind::Edge),
+                E::Body | E::Vertex => None,
+            },
+            Self::Placeable => None,
         }
     }
 }
@@ -191,6 +251,20 @@ impl core::fmt::Display for SlotKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
+            Self::Measured => f.write_str("a body, a face or an edge"),
+        }
+    }
+}
+
+/// A sited reference as a measure seat reads it: a body name read at
+/// `at` is that node's body, any other name the selection of it in
+/// `at`'s body.
+impl From<crate::SitedRef> for Operand {
+    fn from(r: crate::SitedRef) -> Self {
+        if r.name.kind == crate::names::EntityKind::Body {
+            Self::Node(r.at)
+        } else {
+            Self::select(r.at, vec![r.name])
         }
     }
 }

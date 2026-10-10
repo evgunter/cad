@@ -184,6 +184,11 @@ pub(crate) enum Walk {
     /// signature and that port's kind, no port has two rows, and every
     /// live node has a row for each of its ports. Snapshot only.
     OutputSignature,
+    /// [`first_selection_fault`] over the variable table (D10): every
+    /// selection is of a selection kind, holds its names in that kind's
+    /// stored form, and reads a body variable the mint holds, which, when
+    /// live, is a `Body` no world placement defines. Snapshot only.
+    Selection,
     /// [`first_definition_read_fault`] over every defined variable's
     /// definition: it holds no name leaf, and every variable it reads
     /// is one the mint log holds, read at its kind when live — the
@@ -258,12 +263,13 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 14] = [
+    pub(crate) const ORDER: [Walk; 15] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::OutputSignature,
+        Walk::Selection,
         Walk::DefinitionRead,
         Walk::ObservedRead,
         Walk::DefinitionCycle,
@@ -307,6 +313,7 @@ impl Walk {
             Walk::OutputSignature => {
                 first_output_fault(snapshot).map(super::PersistError::Snapshot)
             }
+            Walk::Selection => first_selection_fault(snapshot).map(super::PersistError::Snapshot),
             Walk::DefinitionRead => {
                 first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
@@ -592,6 +599,45 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// the mint log, then the names — each on a live variable, none held
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
+/// The first selection, in id order, no door could have written
+/// ([`Walk::Selection`]).
+fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        let select = var.def().select()?;
+        let spoken = || snapshot.spoken_var(id);
+        if let Some(fault) = crate::var::Selection::fault(var.kind(), &select.names) {
+            return Some(SnapshotError::SelectionShape {
+                var: spoken(),
+                fault,
+            });
+        }
+        let body = match snapshot.var(select.body) {
+            None if snapshot.mint.has_var(select.body) => return None,
+            None => SelectionBodyFault::Unminted { body: select.body },
+            Some(held) => match snapshot.read_fault(
+                held,
+                crate::SlotKind::Is(crate::VarKind::Body),
+                None,
+            )? {
+                crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
+                    body: Box::new(snapshot.spoken_var(select.body)),
+                    found,
+                },
+                crate::doc::ReadFault::WorldCopy { placement } => SelectionBodyFault::WorldCopy {
+                    placement: snapshot.spoken(placement),
+                },
+                crate::doc::ReadFault::OtherHalf { .. } => {
+                    unreachable!("a selection's body read selects no half")
+                }
+            },
+        };
+        Some(SnapshotError::SelectionBody {
+            var: spoken(),
+            fault: body,
+        })
+    })
+}
+
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     // The mint log first, since `has_var` below asks it: its ordinals
     // count up from one, the only log a mint writes. The structural walk asks
@@ -748,16 +794,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                         }
                     },
                 )
-            })
-            .or_else(|| {
-                let placement = node
-                    .measure_sites()
-                    .into_iter()
-                    .find_map(|at| crate::edit::world_copy_site(snapshot, at))?;
-                Some(SnapshotError::MeasuresWorldCopy {
-                    node: snapshot.spoken(id),
-                    placement: snapshot.spoken(placement),
-                })
             })
     })
 }
@@ -1061,6 +1097,29 @@ pub enum OutputFault {
     },
 }
 
+/// **Why a selection's body read is one no door writes**
+/// ([`SnapshotError::SelectionBody`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SelectionBodyFault {
+    /// The mint log never minted it.
+    Unminted {
+        /// The body read.
+        body: VarId,
+    },
+    /// A live variable of another kind than `Body`.
+    Kind {
+        /// The body read.
+        body: Box<SpokenVar>,
+        /// Its kind.
+        found: crate::VarKind,
+    },
+    /// A world placement's copy.
+    WorldCopy {
+        /// The placement.
+        placement: SpokenNode,
+    },
+}
+
 /// A structural invariant violation in a parsed snapshot (load door).
 ///
 /// Every node and name it holds is spoken from the document being
@@ -1140,6 +1199,21 @@ pub enum SnapshotError {
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
     },
+    /// A selection whose names are not in a stored form of its kind —
+    /// the edit doors' [`crate::EditError::SelectionShape`].
+    SelectionShape {
+        /// The selection.
+        var: SpokenVar,
+        /// Why.
+        fault: crate::var::SelectionFault,
+    },
+    /// A selection whose body read no door could have written.
+    SelectionBody {
+        /// The selection.
+        var: SpokenVar,
+        /// Why.
+        fault: SelectionBodyFault,
+    },
     /// An operand reads a world placement's copy — the edit doors'
     /// [`crate::EditError::ReadsWorldCopy`].
     ReadsWorldCopy {
@@ -1148,14 +1222,6 @@ pub enum SnapshotError {
         /// The slot.
         slot: SlotId,
         /// The placement whose copy it reads.
-        placement: SpokenNode,
-    },
-    /// A measure is sited at a world placement — the edit doors'
-    /// [`crate::EditError::MeasuresWorldCopy`].
-    MeasuresWorldCopy {
-        /// The measure.
-        node: SpokenNode,
-        /// The placement it is sited at.
         placement: SpokenNode,
     },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
@@ -1546,18 +1612,33 @@ impl core::fmt::Display for SnapshotError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())
             }
-            Self::MeasuresWorldCopy { node, placement } => write!(
-                f,
-                "{node} is sited at {placement}, whose copy only the product and export read"
-            ),
+            Self::SelectionShape { var, fault } => {
+                write!(f, "{var} is not a selection a door writes: {fault}")
+            }
+            Self::SelectionBody { var, fault } => match fault {
+                SelectionBodyFault::Unminted { body } => write!(
+                    f,
+                    "{var} selects in {body}, which the document's mint log does not hold as a \
+                     variable. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                ),
+                SelectionBodyFault::Kind { body, found } => {
+                    write!(f, "{var} selects in {body}, which is {} {found}, not a body", crate::sentence::article(&found.to_string()))
+                }
+                SelectionBodyFault::WorldCopy { placement } => write!(
+                    f,
+                    "{var} selects in the world copy {placement} makes, which only the product \
+                     and export read"
+                ),
+            },
             Self::ReadsWorldCopy {
                 node,
                 slot,
                 placement,
             } => write!(
                 f,
-                "{node}'s {slot} reads the world copy {placement} makes, and construction never \
-                 reads the world"
+                "{node}'s {slot} reads the world copy {placement} makes, which only the product \
+                 and export read"
             ),
             Self::ReadCycle { at } => write!(
                 f,
@@ -1822,12 +1903,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     }
     for (&id, node) in &doc.nodes {
         check_id(id)?;
-        // A measure's sites are names read at a node, which a delete
-        // strands; what only a file can be wrong about is an id the
-        // document never minted.
-        for at in node.measure_sites() {
-            check_id(at)?;
-        }
         // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
         // an id the mint log does not hold inside an operand is as corrupt as
@@ -2208,7 +2283,8 @@ mod tests {
             OperandUnminted,
             PartHalfPort,
             ReadsWorldCopy,
-            MeasuresWorldCopy,
+            SelectionShape,
+            SelectionBody,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2258,6 +2334,9 @@ mod tests {
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::OutputSignature { .. } => Walk::OutputSignature,
+            SnapshotError::SelectionShape { .. } | SnapshotError::SelectionBody { .. } => {
+                Walk::Selection
+            }
             // An operand's kind is the operand walk's; the expression
             // walks raise the rest, and the slot walk runs first.
             SnapshotError::SlotVarKind {

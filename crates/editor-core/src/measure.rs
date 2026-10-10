@@ -136,6 +136,15 @@ impl<R> MeasurePrimitive<R> {
         })
     }
 
+    /// The same primitive over other references, `f` applied to each in
+    /// argument order.
+    pub fn map<R2>(&self, mut f: impl FnMut(&R) -> R2) -> MeasurePrimitive<R2> {
+        match self.try_map(|r| Ok::<_, core::convert::Infallible>(f(r))) {
+            Ok(mapped) => mapped,
+            Err(never) => match never {},
+        }
+    }
+
     /// The primitive's name, for diagnostics and the wire.
     pub fn verb(&self) -> &'static str {
         match self {

@@ -260,6 +260,13 @@ pub(crate) enum Held {
     Count(i64),
     /// A definition.
     Defined(crate::Expr),
+    /// A selection: the body read and the names, in stored order.
+    Select {
+        /// The body.
+        body: VarId,
+        /// The names.
+        names: Vec<crate::names::StableName>,
+    },
 }
 
 impl Held {
@@ -272,6 +279,10 @@ impl Held {
             }
             WrittenDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
             WrittenDef::Defined(expr) => Self::Defined(expr.clone()),
+            WrittenDef::Select(_, select) => Self::Select {
+                body: select.body,
+                names: select.names.clone(),
+            },
         }
     }
 }

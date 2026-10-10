@@ -10,11 +10,12 @@
 //! ([`operand`]) speaking one vocabulary ([`super::family`],
 //! [`super::phrase`]).
 //!
-//! **The mid-evaluation name ladder** ([`ladder`]). Every door that
-//! resolves an AUTHORED name against the tables THIS run has built so
-//! far asks the same three questions, in the order [`ladder`] gives.
-//! What a resolved name DENOTES is one door too: [`named_entity`] over
-//! [`super::entity_door`].
+//! **The mid-evaluation name ladder** ([`ladder`]). A name a slot reads
+//! is a selection's ([`crate::VarDef::Select`]), and [`select`] is where
+//! it is resolved, against the tables THIS run has built so far, in the
+//! order [`ladder`] gives, and its entity's kind checked through
+//! [`super::entity_door`]. A declared pair's names are the ladder's only
+//! other reader.
 //!
 //! **The declaration routing.** A union's declared face pairs are SITED
 //! at its members and consumed by a fold of pairwise booleans, so
@@ -45,7 +46,6 @@ use geom_core::{
     Affine3, Band, Decide, Mat3, OrthoAxis, OrthoFrame, Point2, Point3, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
 };
-use sweep::blend::BlendKind;
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
@@ -246,7 +246,7 @@ where
     let projected = if per_operand {
         None
     } else {
-        split_ports_projected(node, &reads_of(node), doc, results)?
+        split_ports_projected(node, &reads_of(node, doc), doc, results)?
     };
     let results = projected.as_ref().unwrap_or(results);
     let project_each = |vars: &[crate::VarId]| {
@@ -320,37 +320,30 @@ where
         Node::HollowTube { frame, window, .. } => {
             wire_hollow_tube(id, at(O::Frame, *frame)?, window, results, vals, tol)
         }
-        Node::Fillet {
-            target, selection, ..
-        } => wire_blend(
+        Node::Fillet { selection, .. } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
-            at(O::Target, *target)?,
-            selection,
+            &select(doc, results, O::Selection, *selection)?,
             doc,
             results,
             vals,
             env,
             tol,
         ),
-        Node::Chamfer {
-            target, selection, ..
-        } => wire_blend(
+        Node::Chamfer { selection, .. } => wire_blend(
             &crate::verbs::blend::chamfer(),
             id,
-            at(O::Target, *target)?,
-            selection,
+            &select(doc, results, O::Selection, *selection)?,
             doc,
             results,
             vals,
             env,
             tol,
         ),
-        Node::Shell { target, open, .. } => wire_shell(
+        Node::Shell { open, .. } => wire_shell(
             &crate::verbs::shell::shell(),
             id,
-            at(O::Target, *target)?,
-            open,
+            &select(doc, results, O::Open, *open)?,
             doc,
             results,
             vals,
@@ -1478,20 +1471,16 @@ fn wire_datum<T: Decide>(
         // value through the same `frame_axes` door. Every step is a
         // stored fact copied out or an N5 resolution; nothing here
         // decides a number.
-        Datum::FaceFrame { at, face, .. } => {
-            let at = super::read_at(doc, crate::OperandSlot::At, *at)?;
-            let body = read_body(results, at)?;
-            let table = &value_of(results, at)?.name_table;
-            // The fillet's ladder: rung 1 against the document, rungs
-            // 2 and 3 against the body's own table.
-            let key = named_entity(
-                face,
-                doc,
-                table,
-                |error| NodeErrorKind::FaceFrameResolve { error },
-                names::EntityKey::face,
-                |name, found| NodeErrorKind::FaceFrameKind { name, found },
-            )?;
+        Datum::FaceFrame { face, .. } => {
+            let face = select(doc, results, crate::OperandSlot::Face, *face)?;
+            let body = read_body(results, face.at)?;
+            let Some(key) = face
+                .ents
+                .first()
+                .and_then(|ent| names::EntityKey::face(ent.key))
+            else {
+                unreachable!("a face selection holds one face")
+            };
             // DM1b / DM2: the carrier's KIND is a stored tag; a
             // comparison of tags, not a predicate.
             let carrier = topo::readback::face_carrier_kind(&body, key)
@@ -2088,18 +2077,29 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
-    target: RecipeNodeId,
-    selection: &[names::StableName],
+    selection: &Selected,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
+    let target = selection.at;
+    if selection.ents.is_empty() {
+        return Err(NodeErrorKind::BlendSelectionEmpty {
+            verb: verb.selection_label,
+        });
+    }
     let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
+    // D9 order; the kernel refuses a repeated edge itself.
+    let mut edges: Vec<topo::EdgeKey> = selection
+        .ents
+        .iter()
+        .filter_map(|ent| names::EntityKey::edge(ent.key))
+        .collect();
+    edges.sort_unstable();
     let built = (verb.build)(edges, size);
     // Where the verb's scalar lands (VERB-SEAT-DESIGN V1).
     let flow = built.param_flow();
@@ -2171,18 +2171,24 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
-    target: RecipeNodeId,
-    open: &[names::StableName],
+    open: &Selected,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
+    let target = open.at;
     let body = finished_operand(results, target, tol)?;
     let thickness = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let faces = resolve_open_faces(open, doc, &target_table)?;
+    // Designation order: the first designated face of a chart carries
+    // its rim.
+    let faces: Vec<topo::FaceKey> = open
+        .ents
+        .iter()
+        .filter_map(|ent| names::EntityKey::face(ent.key))
+        .collect();
     let built = (verb.build)(faces, thickness);
     // Where the verb's scalar lands (VERB-SEAT-DESIGN V1).
     let flow = built.param_flow();
@@ -2217,34 +2223,6 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .map_err(NodeErrorKind::ParamSourceAttach)?;
     }
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
-}
-
-/// Resolves a shell's open-face designation against the target's name
-/// table — [`resolve_selection`]'s twin over FACES. An empty list is
-/// legal (the sealed hollow), and the keys come back in DESIGNATION
-/// ORDER: D9's arena-order rule is for DERIVED lists, and here the
-/// order is authored data the kernel reads (the first designated face
-/// of a chart carries its rim).
-///
-/// A repeated designation cannot arrive here (`Node::input_fault`
-/// refuses it); if one did, the kernel would refuse `OpenFaceRepeated`.
-fn resolve_open_faces(
-    open: &[names::StableName],
-    doc: &crate::doc::Doc<ProfileProgram>,
-    target: &NameTable,
-) -> Result<Vec<topo::FaceKey>, NodeErrorKind> {
-    let mut keys = Vec::with_capacity(open.len());
-    for (reference, name) in open.iter().enumerate() {
-        keys.push(named_entity(
-            name,
-            doc,
-            target,
-            |error| NodeErrorKind::ShellOpenResolve { error, reference },
-            names::EntityKey::face,
-            |name, found| NodeErrorKind::ShellOpenKind { name, found },
-        )?);
-    }
-    Ok(keys)
 }
 
 /// The mid-evaluation N5 refusal ladder, shared by every door that
@@ -2381,72 +2359,67 @@ mod ladder {
     }
 }
 
-/// **The entity-kind question asked of an authored NAME** — the
-/// designation road, for every door that reads a name out of the
-/// recipe: resolve it through the [`ladder`] first, then hand the key
-/// to [`super::entity_door::entity`].
-///
-/// Every refusal names the offending designation, so the author knows
-/// which of a list failed. `unresolved` is the road's N5 vocabulary and
-/// `refuse` its kind refusal: a name that stopped resolving is not a
-/// name of the wrong kind.
-///
-/// The KIND word is not this door's to supply:
-/// [`super::entity_door::Found`] is mintable only inside that module,
-/// so `refuse` receives it and passes it on. The KEY is this door's
-/// own: it comes off `ladder::resolve_in` and nowhere else, the
-/// property `entity_door`'s module docs say the type system does not
-/// carry.
+/// **A selection, evaluated** ([`select`]): the operation whose value
+/// its body read holds, and the entities its names denote there, in the
+/// selection's stored order.
+pub(super) struct Selected {
+    /// The operation the body read is an output of.
+    pub(super) at: RecipeNodeId,
+    /// The entities, one per name.
+    pub(super) ents: Vec<names::EntityRef>,
+}
+
+/// **The selection `var` the node reads at `slot`, evaluated** (D10): its
+/// body read resolved to the operation whose value holds it, then each
+/// name through that value's table under the [`ladder`], then the
+/// entity's kind against the selection's. This is the one place a name
+/// a slot reads is resolved; a declared pair's names are the ladder's
+/// other caller.
 ///
 /// # Errors
 ///
-/// The [`ladder`]'s closed N5 trio through `unresolved`, and `refuse`'s
-/// own refusal when `read` finds the name denotes another kind.
-fn named_entity<R>(
-    name: &names::StableName,
+/// [`NodeErrorKind::UnresolvedRead`] for a body read no live operation
+/// defines, [`NodeErrorKind::SelectResolve`] for a name the ladder
+/// refuses, [`NodeErrorKind::SelectKind`] for an entity of another kind.
+fn select<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
-    table: &NameTable,
-    unresolved: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
-    read: fn(names::EntityKey) -> Option<R>,
-    refuse: impl FnOnce(Box<names::StableName>, super::entity_door::Found) -> NodeErrorKind,
-) -> Result<R, NodeErrorKind> {
-    let ent = ladder::resolve_in(name, doc, table, unresolved)?;
-    super::entity_door::entity(ent.key, read, |found| refuse(Box::new(name.clone()), found))
-}
-
-/// Resolves a blend's edge selection against the target's name table,
-/// through the [`ladder`] and [`named_entity`].
-///
-/// The returned keys are in TARGET-ARENA order (D9), not selection
-/// order.
-fn resolve_selection(
-    verb: BlendKind,
-    selection: &[names::StableName],
-    doc: &crate::doc::Doc<ProfileProgram>,
-    target: &NameTable,
-) -> Result<Vec<topo::EdgeKey>, NodeErrorKind> {
-    if selection.is_empty() {
-        return Err(NodeErrorKind::BlendSelectionEmpty { verb });
+    results: &Results<T>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+) -> Result<Selected, NodeErrorKind> {
+    let (Some(selection), Some((entity, _))) = (
+        doc.selection(var),
+        doc.var(var).and_then(|held| held.kind().selection()),
+    ) else {
+        return Err(NodeErrorKind::UnresolvedRead { slot, var });
+    };
+    let at = super::read_at(doc, slot, selection.body)?;
+    let table = &value_of(results, at)?.name_table;
+    let mut ents = Vec::with_capacity(selection.names.len());
+    for (reference, name) in selection.names.iter().enumerate() {
+        let ent = ladder::resolve_in(name, doc, table, |error| NodeErrorKind::SelectResolve {
+            slot,
+            var,
+            reference,
+            error,
+        })?;
+        let read: fn(names::EntityKey) -> Option<()> = match entity {
+            names::EntityKind::Face => |key| names::EntityKey::face(key).map(|_| ()),
+            names::EntityKind::Edge => |key| names::EntityKey::edge(key).map(|_| ()),
+            names::EntityKind::Body | names::EntityKind::Vertex => {
+                unreachable!("a selection names faces or edges")
+            }
+        };
+        super::entity_door::entity(ent.key, read, |found| NodeErrorKind::SelectKind {
+            slot,
+            var,
+            name: Box::new(name.clone()),
+            expected: entity,
+            found,
+        })?;
+        ents.push(ent);
     }
-    let mut keys = Vec::with_capacity(selection.len());
-    for (reference, name) in selection.iter().enumerate() {
-        keys.push(named_entity(
-            name,
-            doc,
-            target,
-            |error| NodeErrorKind::BlendSelectionResolve {
-                verb,
-                error,
-                reference,
-            },
-            names::EntityKey::edge,
-            |name, found| NodeErrorKind::BlendSelectionKind { verb, name, found },
-        )?);
-    }
-    // D9 order; the kernel refuses a repeated edge itself, so a
-    // duplicate that survived canonicalization still fails loudly.
-    keys.sort_unstable();
-    Ok(keys)
+    Ok(Selected { at, ents })
 }
 
 /// One resolved measure reference, as a SELECTION rather than as a
@@ -2456,7 +2429,7 @@ fn resolve_selection(
 /// [`super::measure::Carrier`] is the closed forms' view of the same
 /// resolution; `min_clearance` needs this one (a body and a face
 /// scope). Both come off one ladder walk in [`wire_measure`].
-struct Selected<'v, T: Decide> {
+struct Measured<'v, T: Decide> {
     at: RecipeNodeId,
     index: u32,
     body: &'v topo::Body<T>,
@@ -2466,7 +2439,7 @@ struct Selected<'v, T: Decide> {
 /// What a measure reference is allowed to scope over — the whole body,
 /// or one face of it.
 ///
-/// It exists so [`Selected::faces`]'s projection can be a `fn`: the
+/// It exists so [`Measured::faces`]'s projection can be a `fn`: the
 /// entity door takes a `fn` so no `read` can answer from a captured
 /// key, so the body work happens after the door.
 enum Scope {
@@ -2486,7 +2459,7 @@ fn scope_of(key: names::EntityKey) -> Option<Scope> {
     }
 }
 
-impl<'v, T: Decide> Selected<'v, T> {
+impl<'v, T: Decide> Measured<'v, T> {
     /// This selection as one side of a `min_clearance`.
     fn clearance_operand(
         &self,
@@ -2521,46 +2494,57 @@ impl<'v, T: Decide> Selected<'v, T> {
     }
 }
 
-/// **A measurement** (E3): resolve the primitive's two references,
-/// read the carriers they sit on, run the closed form, hand back a typed
-/// F1 quantity. No body in, no body out.
+/// **A measurement** (E3): read the primitive's two references, read
+/// the carriers they sit on, run the closed form, hand back a typed F1
+/// quantity. No body in, no body out.
 ///
-/// # Where a reference resolves
+/// # What a reference reads
 ///
-/// At the node the reference NAMES AS ITS READING SITE
-/// ([`crate::SitedRef::at`]), which makes the answer the PLACED carrier
-/// rather than the authored one: the minting node's value still holds
-/// the unmoved geometry. `at` is a dependency ([`crate::Doc::upstream`]),
-/// so it has evaluated by the time this runs. Resolution takes the
-/// mid-evaluation [`ladder`].
+/// A `Body` read is that whole body; a `Face` or `Edge` read is a
+/// selection, evaluated by [`select`] in the body it states. The body
+/// read is what makes the answer the placed carrier: a selection of a
+/// transform's output names the moved geometry.
 fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
-    primitive: &crate::measure::MeasurePrimitive,
+    primitive: &crate::measure::MeasurePrimitive<crate::VarId>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let dim = primitive.dim();
     let mut sides = Vec::with_capacity(2);
-    for (index, r) in primitive.refs().into_iter().enumerate() {
-        let name = &r.name;
-        let value = value_of(results, r.at)?;
-        let ent = ladder::resolve_in(name, doc, &value.name_table, |error| {
-            NodeErrorKind::MeasureRefResolve {
-                error,
-                reference: index,
-            }
-        })?;
+    for (index, &var) in primitive.refs().into_iter().enumerate() {
+        let slot = crate::OperandSlot::Measured(
+            u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
+        );
+        let (at, ent) = if doc.selection(var).is_some() {
+            let selected = select(doc, results, slot, var)?;
+            let [ent] = selected.ents.as_slice() else {
+                unreachable!("a face or edge selection holds one entity")
+            };
+            (selected.at, *ent)
+        } else {
+            let at = super::read_at(doc, slot, var)?;
+            (
+                at,
+                names::EntityRef {
+                    body: 0,
+                    key: names::EntityKey::Body,
+                },
+            )
+        };
+        let value = value_of(results, at)?;
         let body =
             crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
                 NodeErrorKind::MeasureRefUnreadable {
-                    name: Box::new(name.clone()),
+                    slot,
+                    var,
                     error,
                 }
             })?;
         let carrier = super::measure::carrier_of(body, ent);
         sides.push((
-            Selected {
-                at: r.at,
+            Measured {
+                at,
                 index: ent.body,
                 body,
                 key: ent.key,
@@ -2829,11 +2813,12 @@ fn split_side<T: Decide>(
     }
 }
 
-/// The variables `node`'s operands read, in field order.
-fn reads_of(node: &Node<ProfileProgram>) -> Vec<crate::VarId> {
+/// The body variables `node`'s operands read, in field order: a
+/// selection read as the body it states.
+fn reads_of(node: &Node<ProfileProgram>, doc: &crate::doc::Doc<ProfileProgram>) -> Vec<crate::VarId> {
     node.operand_rows()
         .into_iter()
-        .map(|(_, var)| var)
+        .map(|(_, var)| doc.selection(var).map_or(var, |select| select.body))
         .collect()
 }
 
