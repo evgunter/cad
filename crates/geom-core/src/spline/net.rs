@@ -746,6 +746,28 @@ mod tests {
         assert!(n.derivative_u().is_none() && n.derivative_v().is_none());
     }
 
+    /// REVIEW PROBE (PR 4485): `TensorCoeffs::refine` relates its plans
+    /// to the pair's vector by count alone. A plan built from ANOTHER
+    /// vector of the same count (`[0,0,0,2,2,2]`) refines the net of
+    /// `f(u) = u` on `[0,1]` with that vector's ratios and pairs the
+    /// result with that vector's refined knots: a certified pair whose
+    /// vector is not the one its net is a proof about. RED at 94a8eee822.
+    #[test]
+    fn review_probe_refine_with_a_foreign_plan_must_not_mint_a_pair() {
+        let k_a = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let k_b = KnotVector::clamped(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let plans = crate::spline::algebra::refine_plan_homogeneous(&k_b, &[0.5]).unwrap();
+        let lin = TensorCoeffs::from_fn(&k_a, &k_a, |i, _| pt(i as f64 * 0.5));
+        let r = lin.refine(&plans, &[]);
+        let certified = (0..r.net().nu()).all(|i| r.net().get(i, 0).is_certified());
+        assert!(
+            !(certified && r.knots_u().domain() != k_a.domain()),
+            "refine minted a certified pair on domain {:?} from a net on {:?}",
+            r.knots_u().domain(),
+            k_a.domain()
+        );
+    }
+
     /// The derivative pair holds the derived vector beside the
     /// differenced net, and differencing it again is the second
     /// partial: the quadratic Bézier with coefficients `[0, 0, 4]`
