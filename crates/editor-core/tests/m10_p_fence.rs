@@ -318,11 +318,9 @@
 //!   `0cf7de91f6a41015, eb2817baa67d6be1` — the committed constants
 //!   of the tree it landed on, and all three rows came back GREEN
 //!   against them, the probe row executed. That removal is also the
-//!   receipt for two changes the unit made on the path every other
+//!   receipt for a change the unit made on the path every other
 //!   document walks: `wire_split` stamping both halves in one source
-//!   index space, and the same-source debug assertions reading a
-//!   channel-less scalar as no evidence — neither moved a coordinate
-//!   of any pre-existing document. `lib_g16_corpus_name_digests`
+//!   index space moved no coordinate of any pre-existing document. `lib_g16_corpus_name_digests`
 //!   agrees the finer way — every pre-existing per-document row
 //!   unchanged, one row added.
 //!

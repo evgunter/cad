@@ -345,13 +345,10 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
 ///
 /// **Description-level equality is the CEILING here**, and the
 /// comparison says so: it sorts the two bodies' descriptions and
-/// compares those, rather than asking for bit identity. Two bodies
-/// minted by two different nodes cannot be bit-identical — every
-/// minted description carries its own `GeomSource.node` (D1), which is
-/// the union's in one and the boolean's in the other — so a `bit_eq`
-/// between them would be measuring the node ids and failing on them.
-/// What is comparable is what the two verbs computed, and that is what
-/// is compared.
+/// compares those, rather than asking for bit identity: a `bit_eq`
+/// between bodies two different nodes built would also measure the
+/// order each built its arenas in. What is comparable is what the two
+/// verbs computed, and that is what is compared.
 #[test]
 fn a_declared_union_is_the_pair_booleans_body() {
     let doc = ProfileDoc::empty_derived("docm7_pair_eq", Tol::witness());

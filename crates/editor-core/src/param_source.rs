@@ -125,6 +125,7 @@ fn unary(tag: u8, a: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
 }
 
 /// The bytes [`feed_content_key`] writes for a slot reading `var`.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn var_spelling(defs: Definitions<'_, '_>, var: VarId) -> Vec<u8> {
     let mut bytes = Vec::new();
     encode(&slot_reader(var), defs, &mut bytes);

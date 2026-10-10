@@ -1,20 +1,11 @@
-//! The corner-aligned table — CAPABILITY PINS (M4 PR 5).
+//! The corner-aligned table — capability pins.
 //!
-//! History: PR #82 planted two tripwires in `demo_tripwires.rs`
-//! (Ev's #71 question — "is the corner-aligned table possible
-//! yet?"). M4 PR 5's Declare + GeomSource opened the class exactly as
-//! predicted and the PRIMARY tripwire FIRED: with the flush contacts
-//! DECLARED, the full four-leg corner-aligned table builds
-//! tier-2-exactly (the declared rung glues each leg's flush faces
-//! into the top's sides, so every later union sees maximal operands).
-//! Per the tripwire's baked instructions the demo (tour stop 8) ships
-//! true corner-aligned legs and the straddle narration is retired;
-//! these tests pin the capability at the kernel level.
-//!
-//! Post-retirement posture (the M4 PR 5 narrowing, ladder rung (b)):
-//! the SAME unions WITHOUT declarations now refuse loudly
-//! (`UndeclaredCoincidence`) — value-equality never glues; the
-//! refusal is pinned below too.
+//! With the flush contacts DECLARED, the full four-leg corner-aligned
+//! table builds tier-2-exactly: the declared rung glues each leg's
+//! flush faces into the top's sides, so every later union sees maximal
+//! operands. The same union UNDECLARED builds the same body (D10): the
+//! flush carriers decide one by margin, and the pair glues as a
+//! declared one would.
 //!
 //! Dyadic dimensions throughout (exact volume oracles): top
 //! [0,4]×[0,3]×[1,1.25]; legs 0.5×0.5, z ∈ [0,1.125].

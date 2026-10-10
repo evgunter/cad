@@ -3404,8 +3404,8 @@ pub(in crate::boolean) mod tests {
 
     /// A unit prism whose top face is split along its diagonal, one half
     /// re-described on the plane `plane` gives from the diagonal's first
-    /// end, its unit direction and its length. The new surface has no
-    /// shared source with its neighbour.
+    /// end, its unit direction and its length. The new surface is its
+    /// own key, not its neighbour's.
     pub(in crate::boolean) fn top_split_redescribed(
         plane: impl FnOnce(Point3<f64>, Vec3<f64>, f64) -> crate::Surface<f64>,
     ) -> crate::body::Body<f64> {

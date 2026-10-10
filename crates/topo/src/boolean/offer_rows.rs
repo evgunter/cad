@@ -338,14 +338,9 @@ cases! {
         pierced_torus(1.0, D);
     horn_torus_at_the_band: "Torus(Ring)", D, NORMAL_SITE, Valued =>
         pierced_torus(1.0, 1.0 - D);
-    // No door reaches this guard today: the join's dispatch hands
-    // `cs_pair_frame` `CoaxialEvidence::None` for every cylinder × sphere
-    // pair (`join::germ_frame`), so the declared-coaxial arm this raise
-    // takes runs only here. It stays because that arm is the frame the
-    // coaxial declaration is read into once a door passes one
-    // (`boolean-coincidence-route-still-holds-join-and-self-check-decisions`,
-    // the `Radius` fork), and its offer is executed against the guard
-    // it would meet then.
+    // The join reaches this guard through `cs_germ_frame` on a
+    // cylinder × sphere germ pair whose axis offset decides Zero: the
+    // section asks its radius guard on the coaxial arm only.
     coaxial_thin_cylinder: "Radius(Cylinder)", D, FRAME_SITE, Valued =>
         coaxial_frame(D, 1.0);
     // The cylinder's guard asks first, so a sphere radius in band beside
@@ -456,8 +451,8 @@ const NORMAL_SITE: Door = Door::Site(
      directly",
 );
 const FRAME_SITE: Door = Door::Site(
-    "the radius guards run on the declared-coaxial cylinder and sphere frame, which no public \
-     door passes",
+    "the radius guards run on the coaxial cylinder and sphere frame, whose radii are set \
+     directly",
 );
 const TRANSVERSE_FRAME_SITE: Door = Door::Site(
     "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
@@ -1014,7 +1009,7 @@ fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
         .map_err(|refusal| BooleanError::of_pierced_normal(refusal, Operand::B, st.face))
 }
 
-/// The declared-coaxial frame of a cylinder of radius `cyl` and a
+/// The coaxial frame of a cylinder of radius `cyl` and a
 /// sphere of radius `sph` on one axis.
 fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     use super::super::join::{cs_pair_frame, frame_refusal};

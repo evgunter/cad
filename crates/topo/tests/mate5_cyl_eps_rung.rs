@@ -111,19 +111,10 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 // Red-first: the class's own shape (issue 943's cylinder residue)
 // ---------------------------------------------------------------------
 
-/// INVARIANT (red-first, the MATE-5 closure): a declared
-/// cylinder×cylinder pair whose two descriptions genuinely diverge —
-/// distinct `GeomSource`s, different `u_ref`/origin/axis sign —
-/// certifies its overlapping seat through the certified-ε enclosure
-/// once Door 1 has verified the carrier.
-///
-/// On main (pre-MATE-5) this exact call refuses
-/// `ChartDivergence { detail: "distinct GeomSources —
-/// equal-but-independent descriptions do not glue" }` — six rows of
-/// this suite were red there with that same fingerprint, quoted in
-/// the PR body as the measured refusal chain (→
-/// `CensusUnsupported{FacePair}` → `Declined` → `Uncertified` at the
-/// census, per the spec's situation paragraph).
+/// INVARIANT: a declared cylinder×cylinder pair whose two
+/// descriptions genuinely diverge — distinct surface keys, different
+/// `u_ref`/origin/axis sign — certifies its overlapping seat through
+/// the certified-ε enclosure once Door 1 has verified the carrier.
 #[test]
 fn a_declared_cylinder_pair_with_divergent_descriptions_certifies() {
     // Overlapping arc seat: A holds azimuth [0.2, 1.6] × z [0.0, 1.0],

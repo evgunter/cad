@@ -1236,8 +1236,7 @@ pub(crate) struct VerifiedDeclarations {
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
-    /// ([`crate::coincidence`]). A pair the same-source rung settled is
-    /// structure and has none.
+    /// ([`crate::coincidence`]).
     pub(crate) coincidences: Vec<crate::Coincidence>,
 }
 
@@ -1779,11 +1778,10 @@ pub struct BooleanReduction<T: Real> {
     /// the containment fallback's extent scans exempt, read rather than
     /// re-verified.
     pub(crate) rest_contacts: Vec<(FaceKey, FaceKey)>,
-    /// Every cross-operand face pair the coincidence ladder settled ONE
-    /// carrier on the operands at rest, by shared recipe source (rung 1)
-    /// or a verified declaration (rung 2), sorted and deduplicated. No
-    /// pair here was inferred from values. The whole-shell `On` verdict
-    /// reads these (`shell_witness::on_verdict`).
+    /// Every cross-operand face pair the declaration door verified ONE
+    /// carrier on the operands at rest (rung 2), sorted and
+    /// deduplicated. The whole-shell `On` verdict reads these
+    /// (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
     /// Every edge split the reduction made, both clones, split order.
     pub(crate) edge_splits: Vec<EdgeSplit>,
@@ -2552,7 +2550,7 @@ pub enum BooleanError {
     ///   exact CIRCLES and needs no fitted chord at all, so it gives
     ///   the window nothing to read. What would retire the sentence is
     ///   the window itself, for the TRANSVERSAL poses that march (the
-    ///   DECLARED-coaxial classification, `geom_brep::cylinder_sphere_section`,
+    ///   coaxial classification, `geom_brep::cylinder_sphere_section`,
     ///   and its germ-frame arm exist and do not change this).
     /// - **NURBS**: no edge×NURBS-face crossing layer at all
     ///   (deviation 5), and the fallback's extent test is unwritable
@@ -3638,10 +3636,9 @@ impl core::fmt::Display for BooleanError {
                     geom_brep::OutsideConic::Hyperbola => "a hyperbola",
                 },
             ),
-            // True for BOTH radius cases: the raise site refuses on the
-            // axis relation alone when no radius evidence exists, so the
-            // walls may have equal radii (the section crosses itself) or
-            // not (a space quartic).
+            // One sentence for BOTH radius cases: the walls may have
+            // equal radii (the section crosses itself) or not (a space
+            // quartic), and `equal_radii` carries which.
             Self::GermFrameCylinderPinch { .. } => write!(
                 f,
                 "two cylinder walls whose axes cross meet here, and the Boolean cannot \
@@ -6380,8 +6377,7 @@ mod tests {
     /// **[`BooleanOp::ALL`] holds each operation once, and an
     /// operation added to the enum cannot reach a release without
     /// someone reading this row** — the idiom `VerbKind::ALL`
-    /// (`crates/verbs/src/verb.rs`) and `SurfaceField::ALL`
-    /// (`crates/topo/src/param_source.rs`) are held to.
+    /// (`crates/verbs/src/verb.rs`) is held to.
     ///
     /// **What is forced**: the match below is exhaustive with no
     /// wildcard, so an operation added to the enum fails this file

@@ -144,8 +144,8 @@ pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
 /// A deep, order-sensitive snapshot of a body, and the crate's one
 /// "body unchanged" observation: one line per row of every table on
 /// [`Body`] (the ten arenas, the seven D5 provenance maps, the pcurve
-/// caches, the null-face records, the three geometry origin maps, and
-/// the field and axis source channels), each in slot-index order,
+/// caches and joint elements, and the null-face records), each in
+/// slot-index order,
 /// carrying the row's key and its full payload through `Debug` (which
 /// prints every field). Two snapshots compare equal iff the bodies
 /// are row-for-row and field-for-field identical and every arena would

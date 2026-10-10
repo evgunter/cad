@@ -7666,14 +7666,11 @@ mod tests {
 
     // ============ MATE-5: the cross-description cylinder rows ==========
     //
-    // Issue 943's residue at the CENSUS door: the same wall-sheet
-    // fixtures, but the second sheet authored in a DIVERGENT
-    // description of the same cylinder locus (origin a quarter up the
-    // axis, axis direction opposed, seam rotated 0.7 rad, its own
-    // `GeomSource`) — the cross-instance class's fingerprint, which
-    // used to dead-end `ChartDivergence` → `CensusUnsupported{FacePair}`
-    // → `Declined` → `Uncertified` and now flows through the
-    // certified-ε enclosure arm.
+    // The same wall-sheet fixtures at the CENSUS door, but the second
+    // sheet authored in a DIVERGENT description of the same cylinder
+    // locus (origin a quarter up the axis, axis direction opposed,
+    // seam rotated 0.7 rad, its own surface key): the pair flows
+    // through the certified-ε enclosure arm.
 
     /// A wall sheet over the DIVERGENT description of the unit
     /// cylinder: `θ_world = 0.7 − u_B`, `z_world = 0.25 − v_B`. Takes

@@ -2739,7 +2739,7 @@ fn cs_germ_frame<T: Decide>(
 ///   radial about it.
 /// * **Two loops** (Positive): each is the graph `±h(θ)` over the whole
 ///   circle, so it turns monotonically about the cylinder's own axis.
-///   Both share that axis, the declared-coaxial frame's argument.
+///   Both share that axis, the coaxial frame's argument.
 /// * **A tangency** (Zero: the walls touch at `θ = π`, the loop's
 ///   figure-eight node) has no frame and keeps [`FrameError::NoArm`].
 ///
@@ -5112,7 +5112,7 @@ mod frame_dispatch_tests {
             let got = cs_pair_frame(&cyl, &sph, band());
             let Ok(Some((c, axis))) = got else {
                 panic!(
-                    "{label}: the declared coaxial pose must name a frame, got {}",
+                    "{label}: the coaxial pose must name a frame, got {}",
                     outcome(&got)
                 );
             };
@@ -5216,7 +5216,7 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// An ill-conditioned declared pair escalates through this door
+    /// An ill-conditioned coaxial pair escalates through this door
     /// rather than picking a branch — the same plumbing the sphere
     /// arms use, on this arm.
     #[test]

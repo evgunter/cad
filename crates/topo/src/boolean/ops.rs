@@ -1441,9 +1441,7 @@ pub(crate) enum Exempt<'r> {
     /// a point of both interiors: the pair hides no overlap from the
     /// vertex probe, whatever its section's component count. A
     /// continuation puts both materials on one side and is not such a
-    /// pair; nor is a pair settled by a shared recipe source alone,
-    /// which the crossing layer's one-sided cover does not read, so no
-    /// such curved pair reaches this path.
+    /// pair.
     Rest(&'r [(FaceKey, FaceKey)]),
 }
 

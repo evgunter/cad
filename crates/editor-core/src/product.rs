@@ -38,9 +38,8 @@
 //! instantiated sub-assembly) arrives as several solids of the product
 //! in its own solid order: that door is the N-solid one. Nothing is
 //! fused and no seam is implied; provenance rides through
-//! verbatim, so a pattern instance's `GeomSource::placed(node, i)`
-//! survives into the product, and the `Instance(i)` names the pattern
-//! minted keep addressing it through the evaluation's own name tables
+//! verbatim, and the `Instance(i)` names a pattern minted keep
+//! addressing its instances through the evaluation's own name tables
 //! (the gather writes no table of the evaluation's — it builds one
 //! aggregate table of its own, and the per-node tables it reads are
 //! untouched).
@@ -802,9 +801,8 @@ thread_local! {
 /// call, refusals included, since a refused gather is still a gather
 /// paid for.
 ///
-/// `cfg(debug_assertions)`-gated, the shape `topo::source`'s bit
-/// witnesses use. **That is not the same as "absent from a release
-/// build" here**: this workspace's `[profile.release]` sets
+/// `cfg(debug_assertions)`-gated. **That is not the same as "absent
+/// from a release build" here**: this workspace's `[profile.release]` sets
 /// `debug-assertions = true` deliberately (and says so, and says it
 /// comes out before publish), so every build this repo produces today
 /// carries the counter and the increment. What the gate buys is that

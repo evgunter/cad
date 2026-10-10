@@ -101,8 +101,8 @@ pub(crate) enum RimRouting {
 /// separation. What differs is the subject. `carrier_eq` is a ladder
 /// over SURFACE carriers — its inventory is plane, sphere, cylinder,
 /// torus, its verdict is a material-side relation (`SameOriented` /
-/// `SameOpposite` / `Distinct`), and its rungs consult recipe sources
-/// and declared intent. A rim is a CURVE, it has no material side, and
+/// `SameOpposite` / `Distinct`), and its rungs consult declared
+/// intent. A rim is a CURVE, it has no material side, and
 /// no declaration is being verified here: the question is only "are
 /// these two boundary edges the same circle". Consuming the ladder
 /// would mean giving it a curve-carrier variant with no orientation and

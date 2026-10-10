@@ -2864,9 +2864,9 @@ fn boundary_meets_circle_only_at<T: Decide>(
 }
 
 /// Whether the carrier ladder decides EVERY surface of a face the edge
-/// bounds definitely distinct from `face`'s carrier. Undeclared: a
-/// same-source pair, an undeclared coincidence, an escalation or a kind
-/// outside the ladder's inventory is not a decision, and answers false.
+/// bounds definitely distinct from `face`'s carrier, read undeclared.
+/// One carrier, a refusal (an offset in band) or a kind outside the
+/// ladder's inventory answers false.
 fn parents_distinct_from<T: Decide>(
     x: &Body<T>,
     edge: &crate::entity::Edge,

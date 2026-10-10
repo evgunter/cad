@@ -29,7 +29,7 @@
 use pncad::document::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError};
+use pncad::topo::{AtRestBody, Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_intersect, try_intersect_declared};
 use crate::scalar::Scalar;

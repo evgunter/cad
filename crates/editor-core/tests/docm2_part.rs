@@ -1,9 +1,8 @@
 //! **DOCM-2 — `Node::Part` at f64**
 //! (`crates/editor-core/REFERENCES.md` DM3):
 //! acceptance rows A1–A6, the split-stamping row the stop clause's
-//! amendment asks for, and the `Dual64` pin of the relaxed
-//! same-source assertions on the exact corpus document. The
-//! Interval-lane rows (A7) are `docm2_part_interval`.
+//! amendment asks for, and the `Dual64` pin of the exact corpus
+//! document. The Interval-lane rows (A7) are `docm2_part_interval`.
 //!
 //! The oracle for "the half IS the half" is the kernel's own door fed
 //! the body read straight off the split's or the pattern's value: a
@@ -775,8 +774,8 @@ fn the_two_section_planes_of_one_split_face_away_from_each_other() {
 }
 
 /// **The `Dual64` pin** (the amendment, item 2): the exact corpus
-/// document — whose union rejoins two pieces carrying one pass-through
-/// source — evaluates green at a scalar with no bit channel. The value
+/// document — whose union rejoins the two halves of one split —
+/// evaluates green at a scalar with no bit channel. The value
 /// channel equalling f64's is `m10_di_dual_corpus`'s row; this one
 /// names the document.
 #[test]

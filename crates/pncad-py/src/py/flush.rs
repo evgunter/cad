@@ -72,7 +72,6 @@ pub(crate) enum BooleanCoincidence {
     reason = "each variant mirrors the documented `editor_core::FlushRung` variant of the same name"
 )]
 pub(crate) enum FlushRung {
-    SharedSource,
     DecidedCoincident,
 }
 
@@ -95,8 +94,8 @@ pub(crate) enum FlushRung {
 /// material sides; `SameOriented` = flush walls, a continuation);
 /// `class_` names what a declaration would assert (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
-/// which ladder rung decided (`SharedSource` = syntactic recipe
-/// identity, `DecidedCoincident` = the geometric trilean).
+/// which ladder rung decided (`DecidedCoincident` = the geometric
+/// trilean).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct FlushFinding(pub(crate) s::FlushFinding);
@@ -199,7 +198,6 @@ pub(crate) fn boolean_coincidence(
 /// build here.
 pub(crate) fn flush_rung(rung: s::FlushRung) -> FlushRung {
     match rung {
-        s::FlushRung::SharedSource => FlushRung::SharedSource,
         s::FlushRung::DecidedCoincident => FlushRung::DecidedCoincident,
     }
 }

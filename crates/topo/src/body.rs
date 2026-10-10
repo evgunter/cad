@@ -6,10 +6,8 @@
 //! each with its own key type, and three geometry kinds — and the side
 //! tables parallel to them: one D5 provenance `SecondaryMap` per
 //! topology kind (**uniform across all seven** — half-edges carry
-//! provenance like everything else); one [`crate::GeomOrigin`] row per
-//! geometric description, total over live keys; the per-field
-//! `ParamSource` rows beside the surfaces; the half-edges' fitted
-//! pcurves; and the null-face pairs.
+//! provenance like everything else); the half-edges' fitted pcurves
+//! and joint elements; and the null-face pairs.
 //!
 //! # Determinism (D9)
 //!

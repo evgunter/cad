@@ -487,4 +487,3 @@ fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
         }
     }
 }
-

@@ -64,8 +64,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach,
-    SlotId, ValuePayload, apply, evaluate, parse_formula,
+    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
+    ValuePayload, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -124,13 +124,9 @@ struct Recipe {
     /// The `PlacedUnion` over the fin — the fin count's structural
     /// slot, and what `SetStructuralParam` edits.
     group: RecipeNodeId,
-    /// The `Boolean(Union)` that folds the fin group into the base.
-    union: RecipeNodeId,
     /// The `Fillet` that rounds the plate's edges on the unioned part:
     /// the document's final body.
     solid: RecipeNodeId,
-    /// The node the union takes as its base operand.
-    base: RecipeNodeId,
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
@@ -306,13 +302,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     );
     assert_eq!(edges.len(), 12, "the plate's edges: {edges:#?}");
     let solid = insert(&mut doc, Node::fillet(union, pe(RADIUS), edges), tol);
-    Recipe {
-        doc,
-        group,
-        union,
-        solid,
-        base,
-    }
+    Recipe { doc, group, solid }
 }
 
 /// The document's OWN final body, read back, gated on the exact
@@ -509,8 +499,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 note: Some(format!(
                     "{recompute_story}; fins sunk 1/16 into a base rounded at r = 1/32 \
                      after the union (volume {} = the rounded plate's closed form + {n} fins, \
-                     gated 1e-9); flush fins build, but a count edit outruns their declared \
-                     contacts",
+                     gated 1e-9); flush fins build too, and a count edit's new feet glue \
+                     undeclared on their decided zero",
                     volume(n)
                 )),
                 view: View {

@@ -345,14 +345,9 @@ pub enum MergeCoplanarError {
     /// ([`MergeKind`]), so the run is neither a planar run nor a
     /// curved one and there is no regime to give it.
     ///
-    /// The hard rungs glue on *source* identity, not on kind, and a
-    /// source can join descriptions nothing compared — the graft copies
-    /// origin rows verbatim, and [`Body::set_surface_source`] checks
-    /// agreement only where debug assertions are compiled in — so a
-    /// body can declare a plane and a cylinder to be one recipe
-    /// surface, or a plane and a placeholder that describes nothing
-    /// yet. Deciding the group's kind off one member would let arena
-    /// order pick its contract; this refuses instead. The two members
+    /// The one-key rung glues on identity, not on kind, so no one pair
+    /// settles the group's kind. Deciding it off one member would let
+    /// arena order pick its contract; this refuses instead. The two members
     /// are named in [`MergeKind`] order, so the same pair reads the
     /// same way whichever face seeded the group.
     GroupKindSplit {
@@ -914,7 +909,7 @@ impl core::fmt::Display for MergeCoplanarError {
                     f,
                     "merge_coplanar_faces: group members {face:?} ({}) and {other:?} ({}) are \
                      one group but not one surface kind — the run is neither planar nor \
-                     curved; re-check the shared surface source that joined them",
+                     curved; re-check the shared surface key that joined them",
                     kind.name(),
                     other_kind.name()
                 )?;
@@ -1628,16 +1623,11 @@ impl<T: Decide> Body<T> {
     /// neither a planar run nor a curved one: the door names every
     /// such face in [`MergeCoplanarOutcome::placeholders`], a run of
     /// them on one key is SET ASIDE — no surgery, no group, no skip —
-    /// and a group that joins one to a described face through a
-    /// shared surface source refuses [`MergeCoplanarError::GroupKindSplit`]
-    /// like any other straddle. That is the only rung that can join
-    /// them: the structural rung reads one key as one surface, so a
-    /// placeholder shares a key only with placeholders, and a declared
-    /// pair must name planes. A refusal rather than a quiet set-aside
-    /// because the source stamp is the CALLER's claim that the two
-    /// are one recipe surface, and a placeholder cannot be one with a
-    /// described face; setting it aside would have the door pick
-    /// which half of that contradiction to believe.
+    /// and a group that joins one to a described face refuses
+    /// [`MergeCoplanarError::GroupKindSplit`] like any other straddle.
+    /// No rung joins them: the one-key rung reads one key as one
+    /// surface, so a placeholder shares a key only with placeholders,
+    /// and a placeholder is outside both ladders' inventory.
     ///
     /// The census is taken before the adjacency scan, so the record is
     /// complete whether or not anything merges. A POISONED net is not
@@ -2112,9 +2102,9 @@ impl<T: Decide> Body<T> {
     /// is the caller's refusal, never a record. A placeholder run is
     /// set aside ([`GroupContract::SetAside`]).
     ///
-    /// **The kind question is asked of EVERY member.** The hard rungs
-    /// glue on surface-key or surface-SOURCE identity, and neither
-    /// tests the surface's kind, so a group can straddle two kinds;
+    /// **The kind question is asked of EVERY member.** The one-key
+    /// rung glues on surface-key identity and does not test the
+    /// surface's kind, so no one pair settles the group's kind;
     /// answering off one member would let arena order decide which
     /// contract the group is handed. A straddling group refuses
     /// ([`MergeCoplanarError::GroupKindSplit`]), a placeholder among
@@ -4435,7 +4425,7 @@ mod tests {
         assert!(
             with_placeholder.contains("(planar)")
                 && with_placeholder.contains("(placeholder)")
-                && with_placeholder.contains("re-check the shared surface source")
+                && with_placeholder.contains("re-check the shared surface key")
                 && with_placeholder.contains("describes no locus"),
             "a split on a placeholder names both kinds and the placeholder's recourse: \
              {with_placeholder}"
@@ -4443,7 +4433,7 @@ mod tests {
         let two_described = split(MergeKind::Curved);
         assert!(
             two_described.contains("(curved)")
-                && two_described.contains("re-check the shared surface source")
+                && two_described.contains("re-check the shared surface key")
                 && !two_described.contains("describes no locus"),
             "a split between two described kinds carries no placeholder recourse: \
              {two_described}"

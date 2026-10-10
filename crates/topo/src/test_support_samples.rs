@@ -155,8 +155,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
-        detail: "same GeomSource with non-bit-identical descriptions — the same-source \
-                 theorem violated (forged or corrupted source attachment)",
+        detail: "two descriptions that do not read bit-identical — no one chart holds both",
     });
     v.extend(diags().into_iter().map(ChartRegionError::Escalated));
     v

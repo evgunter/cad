@@ -5044,10 +5044,8 @@ class BooleanCoincidence:
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
-    `SharedSource` = syntactic recipe identity (zero numerics),
     `DecidedCoincident` = the geometric trilean's coincident arm."""
 
-    SharedSource: Final[FlushRung]
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:

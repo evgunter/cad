@@ -92,8 +92,8 @@ fn pair(slab: &Body<f64>, plate: &Body<f64>) -> (FaceKey, FaceKey) {
 // ---------------------------------------------------------------------
 
 /// INVARIANT: two independently authored coincident planar faces share
-/// no `SurfaceKey` and no `GeomSource`, and the world-carrier arm
-/// answers them anyway — with definite area, not a guess. This is the
+/// no `SurfaceKey` and do not read bit-identical, and the world-carrier
+/// arm answers them anyway — with definite area, not a guess. This is the
 /// gap #1063 names, closed.
 #[test]
 fn a_declared_planar_pair_with_no_structural_chart_certifies_on_the_world_carrier() {

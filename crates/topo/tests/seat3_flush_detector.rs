@@ -25,7 +25,7 @@ use topo::{
 };
 
 /// A flush stack: two bricks meeting on z = 1, independently authored
-/// (so no shared source — the geometric rung decides).
+/// (so no shared surface key — the geometric rung decides).
 fn stacked() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
     let tol = Tol::witness();
     (
