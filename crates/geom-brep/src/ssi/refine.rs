@@ -647,6 +647,34 @@ mod tests {
         }
     }
 
+    /// **A residual still falling meets the step budget as the branch's
+    /// size.** The stand-in's bound halves as the samples double, so no
+    /// two rounds show it stalled: limb 3 is never asked, and the wall's
+    /// trend is `Falling`.
+    #[test]
+    fn a_falling_residual_stops_at_the_step_budget_as_falling() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let ctx = unit_ctx(band);
+        #[allow(clippy::cast_precision_loss)]
+        let r: Result<(), _> =
+            refine_by_certificate(&sys, axis_states(), &ctx, band, |s, limbs| match limbs {
+                Limbs::Tube => panic!("limb 3 asked of a residual still falling"),
+                Limbs::All => Err(refusal(-0.8, 0.8, 1.0e-6 / s.len() as f64)),
+            });
+        match r {
+            Err(SsiError::RefinementExhausted {
+                stop: RefineStop::StepBudget { trend, .. },
+                samples,
+                ..
+            }) => {
+                assert_eq!(trend, ResidualTrend::Falling, "the halving residual fell");
+                assert_eq!(samples, 65, "the doubling the wall stopped: 128 steps next");
+            }
+            other => panic!("expected refinement exhausted at the step budget, got {other:?}"),
+        }
+    }
+
     /// **The refused residual stops falling only where two rounds show
     /// it**: both in the band, or both definite with the later bound no
     /// smaller. A fall, a single round, or a change of arm does not.
