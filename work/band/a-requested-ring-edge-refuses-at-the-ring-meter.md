@@ -42,3 +42,22 @@ cycle — each other edge of the ring against the strip's bounding
 region between its stations — and leave arm (a)'s unbounded trimline
 for rings that carry none; then turn the witness row into a build at
 its closed form.
+
+## Findings (implementer)
+
+Measured on `origin/main` before the change: the witness refused
+`RingClearance` at arm (a), both verbs, as stated. After it the tab's
+tip builds at the prism closed form (`verb.section() × 1`), tier 3,
+naming totality, both verbs
+(`band_planar_cut_off_meters::a_requested_ring_edge_builds_at_its_strip`).
+
+The reach meter (`blend/reach.rs`) agrees: it passes the clear tab
+and the clear spike. With arm (d)'s ring walk switched off, the
+crossed spike reaches the reach meter's `screened` premise check and
+fails loud there (`SurgeryInvariant`, "a support's vertex inside the
+strip its band replaces"), so arm (d) is what keeps that premise for
+a ring between the screen's samples; its doc now says so.
+
+Sibling filed: `a-requested-ruled-ring-edge-refuses-at-the-ring-meter`
+(a RULED link keeps arm (a) on every ring, since arm (d) meters planar
+strips alone).

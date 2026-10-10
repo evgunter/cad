@@ -799,11 +799,12 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 }
 
 /// **The premise [`Reach::replaces`] stands on**: the battery's support
-/// screen refuses any boundary feature of a support within the band's
-/// setbacks, so the strip of `face` a link's band replaces holds no
-/// vertex of `face` but the request's own (`ends`). A vertex strictly
-/// inside it is that screen's broken promise, and nothing could be
-/// excused there.
+/// screen, and behind it the surgery's closed-form strip meter for a
+/// feature between the screen's samples, refuse any boundary feature of
+/// a support within the band's setbacks, so the strip of `face` a
+/// link's band replaces holds no vertex of `face` but the request's own
+/// (`ends`). A vertex strictly inside it is those meters' broken
+/// promise, and nothing could be excused there.
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
     ends: &[VertexKey],
