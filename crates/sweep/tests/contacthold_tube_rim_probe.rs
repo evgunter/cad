@@ -18,7 +18,11 @@ const SIDE: f64 = 10.0;
 fn cube_beyond(v: [f64; 3], m: [f64; 3]) -> Body<f64> {
     // m lies in the xy plane here, so u = z and w = m × u.
     let u = [0.0, 0.0, 1.0];
-    let w = [m[1] * u[2] - m[2] * u[1], m[2] * u[0] - m[0] * u[2], m[0] * u[1] - m[1] * u[0]];
+    let w = [
+        m[1] * u[2] - m[2] * u[1],
+        m[2] * u[0] - m[0] * u[2],
+        m[0] * u[1] - m[1] * u[0],
+    ];
     mapped_cube::<f64>(
         move |x, y, z| {
             let (a, b, c) = (SIDE * (x - 0.5), SIDE * (y - 0.5), SIDE * z);
@@ -50,7 +54,12 @@ fn tube() -> Body<f64> {
 fn tube_rim_union_payload() {
     let d = BooleanDeclarations::default();
     let t = AtRestBody::validate(tube(), tol()).unwrap();
-    for (rim, yv, k) in [("top", 1.0, 0usize), ("top", 1.0, 3), ("bot", 0.0, 18), ("bot", 0.0, 21)] {
+    for (rim, yv, k) in [
+        ("top", 1.0, 0usize),
+        ("top", 1.0, 3),
+        ("bot", 0.0, 18),
+        ("bot", 0.0, 21),
+    ] {
         let th = (k as f64 + 0.37) * std::f64::consts::TAU / 24.0;
         let m = [th.cos(), th.sin(), 0.0];
         let c = AtRestBody::validate(cube_beyond([1.0, yv, 0.0], m), tol()).unwrap();
