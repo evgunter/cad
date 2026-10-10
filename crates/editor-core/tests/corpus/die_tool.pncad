@@ -3,7 +3,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "mint": {
-      "chain": "2dda6dda81ab598362eec4ea957f71ce5fc53633d59b483ef258f2651e698879",
+      "chain": "79368d69cdfb7dcbdce6ab24c6569addc5ff1c8bd1e0349b72c7cb03b5408a3f",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -192,16 +192,16 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "var": "62:4cfbc25c35f2b5ae"
         },
         {
-          "node": "63:610b17e5643cf9ba"
+          "node": "63:a243f2ecfa85ed34"
         },
         {
-          "var": "64:c7036032b008dd5f"
+          "var": "64:37375879f1b18979"
         },
         {
-          "node": "65:409df88c286d50b9"
+          "node": "65:3306bf97deeda5fc"
         },
         {
-          "var": "66:2dda6dda81ab5983"
+          "var": "66:79368d69cdfb7dcb"
         }
       ]
     },
@@ -524,17 +524,16 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "63:610b17e5643cf9ba": {
-        "Boolean": {
-          "op": "Subtract",
-          "a": "29:9117322ce802f579",
-          "b": "62:4cfbc25c35f2b5ae",
+      "63:a243f2ecfa85ed34": {
+        "Subtract": {
+          "from": "29:9117322ce802f579",
+          "tool": "62:4cfbc25c35f2b5ae",
           "declare": []
         }
       },
-      "65:409df88c286d50b9": {
+      "65:3306bf97deeda5fc": {
         "PlaceInWorld": {
-          "body": "64:c7036032b008dd5f",
+          "body": "64:37375879f1b18979",
           "pose": {
             "steps": []
           }
@@ -1067,20 +1066,20 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "64:c7036032b008dd5f": {
+      "64:37375879f1b18979": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "63:610b17e5643cf9ba",
+            "node": "63:a243f2ecfa85ed34",
             "port": 0
           }
         }
       },
-      "66:2dda6dda81ab5983": {
+      "66:79368d69cdfb7dcb": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "65:409df88c286d50b9",
+            "node": "65:3306bf97deeda5fc",
             "port": 0
           }
         }
