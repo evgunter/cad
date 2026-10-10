@@ -875,3 +875,14 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Still open in `work/germ/`:
     - the P1 `c5-plane-torus-cone-cylinder-arms` (H; the GermFrame Plane×Torus door, with TANG's measurement), not yet scoped;
     - several items with no priority, to triage.
+- 2026-10-10 20:56 — Check-in. The pn-apex-line lane reports 85 rows green at all ε and the fuzz at 0, and is pushing.
+  - **Triage (PR 4593, merged):** five unbanded GERM rows got bands and costs:
+    - meters P2/M, ladder P2/M and conic-past-band P2/M;
+    - plane-torus "corrupt" P3/E and WrongLane ending P4/E.
+  - **Dispatched a measure-first lane on the shared half-angle core** (`circle_roots.rs`). The ladder row's own note says merged PR 3805 resolved it but never closed it, and the meters row's `Err(_) => {}` is still at :419.
+    - Arm byte 31, mod 3 = 1: **SEQUENTIAL**.
+    - Cloud session `session_01RD1ZFdQgKoP2X7R7KyWHur`, branch `germ/half-angle-meters`.
+    - It runs alongside pn-apex-line (`intersect.rs`), on disjoint files.
+  - Not yet scoped:
+    - the P1 c5 (Plane×Torus germ frame);
+    - the P2 conic-past-band, which waits on pn-apex-line because it is in the same file.
