@@ -805,3 +805,434 @@ mod tests {
         assert!(va[1].contains(0.0) && va[2].contains(0.0), "{va:?}");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::many_single_char_names)]
+mod review_probe {
+    use super::*;
+
+    // Independent f64 references: composite Gauss–Legendre 5-point on
+    // many pieces, of the DEFINITIONS (carrier point, numeric derivative
+    // for P′ and u′), nothing from this module's algebra.
+    fn gl<F: Fn(f64) -> f64>(a: f64, b: f64, n: usize, g: F) -> f64 {
+        let x = [
+            0.0,
+            0.538_469_310_105_683_1,
+            -0.538_469_310_105_683_1,
+            0.906_179_845_938_664,
+            -0.906_179_845_938_664,
+        ];
+        let w = [
+            0.568_888_888_888_888_9,
+            0.478_628_670_499_366_5,
+            0.478_628_670_499_366_5,
+            0.236_926_885_056_189_1,
+            0.236_926_885_056_189_1,
+        ];
+        let h = (b - a) / n as f64;
+        let mut s = 0.0;
+        for i in 0..n {
+            let m = a + h * (i as f64 + 0.5);
+            for k in 0..5 {
+                s += w[k] * g(m + 0.5 * h * x[k]);
+            }
+        }
+        s * 0.5 * h
+    }
+    fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    }
+    fn norm(a: [f64; 3]) -> [f64; 3] {
+        let l = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+        a.map(|x| x / l)
+    }
+    fn rv(a: [f64; 3]) -> RVec3 {
+        a.map(pt)
+    }
+
+    /// Claim 2: ½∫(P − ref) × P′ for an arbitrary frame, both orientations,
+    /// both signs of d, asymmetric spans, against a direct quadrature of
+    /// the carrier's own point formula.
+    #[test]
+    fn probe_vector_area_matches_direct_quadrature() {
+        let a = norm([0.3, -0.4, 0.86]);
+        let n = norm(cross(a, [1.0, 0.2, -0.1]));
+        let m = cross(a, n);
+        let c = [0.7, -1.1, 0.4];
+        let refp = [0.1, 0.2, -0.3];
+        for &(big, r, d, t0, t1) in &[
+            (1.2, 0.225, 0.05, 0.3, 2.1),
+            (1.2, 0.225, -0.6, -1.0, 2.5),
+            (1.0, 0.3, 0.69, -0.4, 0.9),
+            (1.0, 0.4, 0.8, -1.2, 1.1), // |d| > R − r: an arc of the outer oval
+            (2.0, 0.5, -1.3, 2.0, 4.0),
+        ] {
+            let p = |t: f64| {
+                let f = ((big + r * t.cos()).powi(2) - d * d).sqrt();
+                [0, 1, 2].map(|k| c[k] + n[k] * d + m[k] * f + a[k] * r * t.sin() - refp[k])
+            };
+            let dp = |t: f64| {
+                let h = 1e-6;
+                let (u, v) = (p(t + h), p(t - h));
+                [0, 1, 2].map(|k| (u[k] - v[k]) / (2.0 * h))
+            };
+            for fwd in [true, false] {
+                let want: [f64; 3] = [0, 1, 2].map(|k| {
+                    0.5 * gl(t0, t1, 4000, |t| cross(p(t), dp(t))[k]) * if fwd { 1.0 } else { -1.0 }
+                });
+                let e = SpiricEdgeQ {
+                    centre: rv([0, 1, 2].map(|k| c[k] - refp[k])),
+                    axis: rv(a),
+                    normal: rv(n),
+                    major: pt(big),
+                    minor: pt(r),
+                    offset: pt(d),
+                    t0: pt(t0),
+                    t1: pt(t1),
+                    forward: fwd,
+                    wall: None,
+                };
+                let got = spiric_vector_area(&e, 256);
+                for k in 0..3 {
+                    let g = got[k];
+                    assert!(g.is_certified(), "{big} {r} {d}: refused {g:?}");
+                    let slack = 1e-8;
+                    assert!(
+                        g.lo() - slack <= want[k] && want[k] <= g.hi() + slack,
+                        "R={big} r={r} d={d} [{t0},{t1}] fwd={fwd} k={k}: got [{}, {}] want {}",
+                        g.lo(),
+                        g.hi(),
+                        want[k]
+                    );
+                }
+            }
+        }
+    }
+
+    /// Wall terms against the definitions with u differentiated numerically,
+    /// both σ, d beyond R − r, v0 = ±τ.
+    #[test]
+    fn probe_wall_terms_match_definitions() {
+        let tau = 2.0 * core::f64::consts::PI;
+        for &(big, r, d, t0, t1) in &[
+            (1.2, 0.225, 0.05, 0.3, 2.1),
+            (1.0, 0.4, 0.8, -1.2, 1.1),
+            (1.0, 0.4, -0.8, -0.7, 1.2),
+            (2.0, 0.5, -1.3, 2.0, 4.0),
+        ] {
+            for sigma in [1.0, -1.0] {
+                for v0 in [0.0, tau, -tau] {
+                    let f = |t: f64| ((big + r * t.cos()).powi(2) - d * d).sqrt();
+                    let u = |t: f64| sigma * f(t).atan2(d);
+                    let du = |t: f64| (u(t + 1e-6) - u(t - 1e-6)) / 2e-6;
+                    let vv = |t: f64| v0 + sigma * t;
+                    let ff = |v: f64| {
+                        r * ((big * big + r * r) * v.sin()
+                            + big * r * v
+                            + big * r * 0.5 * (v + v.sin() * v.cos()))
+                    };
+                    let gg = |v: f64| r * (big * v + r * v.sin());
+                    let want = [
+                        -gl(t0, t1, 4000, |t| ff(vv(t)) * du(t)),
+                        -gl(t0, t1, 4000, |t| gg(vv(t)) * du(t)),
+                        u(t1) - u(t0),
+                    ];
+                    let e = SpiricEdgeQ {
+                        centre: rv([0.0; 3]),
+                        axis: rv([0.0, 0.0, 1.0]),
+                        normal: rv([1.0, 0.0, 0.0]),
+                        major: pt(big),
+                        minor: pt(r),
+                        offset: pt(d),
+                        t0: pt(t0),
+                        t1: pt(t1),
+                        forward: true,
+                        wall: None,
+                    };
+                    let w = WallImageQ {
+                        sense: sigma,
+                        v0: pt(v0),
+                        env: Interval::zero(),
+                    };
+                    let chart = WallChartQ {
+                        major: pt(big),
+                        minor: pt(r),
+                        rims: vec![],
+                        meridians: vec![],
+                    };
+                    let got = spiric_wall_terms(&e, &w, &chart, 256);
+                    for k in 0..3 {
+                        assert!(
+                            got[k].lo() - 1e-8 <= want[k] && want[k] <= got[k].hi() + 1e-8,
+                            "R={big} r={r} d={d} σ={sigma} v0={v0} k={k}: got {:?} want {}",
+                            got[k],
+                            want[k]
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Near-tangent containment at the coarsest resolution, and the width.
+    #[test]
+    fn probe_near_tangent() {
+        for &fmin2 in &[1e-4, 1e-6, 1e-8, 1e-10] {
+            let (big, r) = (1.0, 0.5);
+            let d = (0.25f64 - fmin2).sqrt();
+            let f = |t: f64| ((big + r * t.cos()).powi(2) - d * d).max(0.0).sqrt();
+            let want = gl(-1.0, 4.0, 400_000, |t| f(t) * t.cos());
+            for pieces in [16, 128, 1024, 8192] {
+                let e = SpiricEdgeQ {
+                    centre: rv([0.0; 3]),
+                    axis: rv([0.0, 0.0, 1.0]),
+                    normal: rv([1.0, 0.0, 0.0]),
+                    major: pt(big),
+                    minor: pt(r),
+                    offset: pt(d),
+                    t0: pt(-1.0),
+                    t1: pt(4.0),
+                    forward: true,
+                    wall: None,
+                };
+                let j = cos_moment(&e, pieces);
+                eprintln!(
+                    "fmin²={fmin2:e} pieces={pieces}: J={j:?} cert={} want={want}",
+                    j.is_certified()
+                );
+                if j.is_certified() {
+                    assert!(j.lo() - 1e-9 <= want && want <= j.hi() + 1e-9, "unsound");
+                }
+            }
+        }
+    }
+
+    /// Non-thin endpoint brackets: the true integral for any endpoint pair
+    /// in the brackets is enclosed.
+    #[test]
+    fn probe_endpoint_brackets() {
+        let (big, r, d) = (1.2, 0.225, 0.05);
+        let f = |t: f64| ((big + r * t.cos()).powi(2) - d * d).sqrt();
+        let (b0, b1) = (
+            Interval::from_bounds(0.29, 0.31),
+            Interval::from_bounds(2.05, 2.15),
+        );
+        let e = SpiricEdgeQ {
+            centre: rv([0.0; 3]),
+            axis: rv([0.0, 0.0, 1.0]),
+            normal: rv([1.0, 0.0, 0.0]),
+            major: pt(big),
+            minor: pt(r),
+            offset: pt(d),
+            t0: b0,
+            t1: b1,
+            forward: true,
+            wall: None,
+        };
+        let j = cos_moment(&e, 64);
+        let va = spiric_vector_area(&e, 64);
+        for &(x0, x1) in &[
+            (0.29, 2.05),
+            (0.31, 2.15),
+            (0.29, 2.15),
+            (0.31, 2.05),
+            (0.3, 2.1),
+        ] {
+            let want = gl(x0, x1, 2000, |t| f(t) * t.cos());
+            assert!(j.contains(want), "J {j:?} misses {want}");
+            let e2 = SpiricEdgeQ {
+                t0: pt(x0),
+                t1: pt(x1),
+                ..e
+            };
+            let thin = spiric_vector_area(&e2, 256);
+            for k in 0..3 {
+                assert!(
+                    va[k].lo() <= thin[k].lo() && thin[k].hi() <= va[k].hi(),
+                    "va {k}: {:?} vs {:?}",
+                    va[k],
+                    thin[k]
+                );
+            }
+        }
+        let w = WallImageQ {
+            sense: -1.0,
+            v0: pt(0.0),
+            env: Interval::zero(),
+        };
+        let chart = WallChartQ {
+            major: pt(big),
+            minor: pt(r),
+            rims: vec![],
+            meridians: vec![],
+        };
+        let wb = spiric_wall_terms(&SpiricEdgeQ { wall: Some(w), ..e }, &w, &chart, 64);
+        for &(x0, x1) in &[(0.29, 2.05), (0.31, 2.15), (0.29, 2.15), (0.31, 2.05)] {
+            let e2 = SpiricEdgeQ {
+                t0: pt(x0),
+                t1: pt(x1),
+                wall: Some(w),
+                ..e
+            };
+            let thin = spiric_wall_terms(&e2, &w, &chart, 256);
+            for k in 0..3 {
+                assert!(
+                    wb[k].lo() <= thin[k].lo() && thin[k].hi() <= wb[k].hi(),
+                    "wall {k}: {:?} vs {:?}",
+                    wb[k],
+                    thin[k]
+                );
+            }
+        }
+    }
+
+    /// The map-residual pad on a wall whose spiric has |d| > R − r.
+    #[test]
+    fn probe_pad_beyond_the_hole() {
+        let (big, r, d) = (1.0, 0.4, 0.8);
+        let w = WallImageQ {
+            sense: 1.0,
+            v0: pt(0.0),
+            env: pt(1e-3),
+        };
+        let e = SpiricEdgeQ {
+            centre: rv([0.0; 3]),
+            axis: rv([0.0, 0.0, 1.0]),
+            normal: rv([1.0, 0.0, 0.0]),
+            major: pt(big),
+            minor: pt(r),
+            offset: pt(d),
+            t0: pt(-1.2),
+            t1: pt(1.1),
+            forward: true,
+            wall: Some(w),
+        };
+        let chart = WallChartQ {
+            major: pt(big),
+            minor: pt(r),
+            rims: vec![],
+            meridians: vec![],
+        };
+        let face = SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics: vec![e],
+            lever: rv([0.0; 3]),
+            perimeter: 1.0,
+            wall: Some(chart.clone()),
+        };
+        let with_env = wall_chart(&face, &chart, 256);
+        let w0 = WallImageQ {
+            env: Interval::zero(),
+            ..w
+        };
+        let face0 = SpiricFaceQ {
+            spirics: vec![SpiricEdgeQ {
+                wall: Some(w0),
+                ..e
+            }],
+            ..face.clone()
+        };
+        let without = wall_chart(&face0, &chart, 256);
+        eprintln!("env=1e-3: {with_env:?}\nenv=0: {without:?}");
+        if let (Ok(a), Ok(b)) = (&with_env, &without) {
+            assert!(
+                !a[0].is_certified() || a[0].width() > b[0].width() + 1e-6,
+                "env 1e-3 adds no pad beyond the hole: {:?} vs {:?}",
+                a[0],
+                b[0]
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_probe_chart {
+    use super::*;
+
+    /// A whole closed wall loop through `wall_chart`: spiric, rim, meridian,
+    /// rim; area and flux against a direct 2-D integral of the chart
+    /// densities over the region (u_m ≤ u ≤ u(v)).
+    #[test]
+    fn probe_closed_wall_loop_area_and_flux() {
+        let (big, r, d, t0, t1, um) = (1.2_f64, 0.225_f64, 0.05_f64, 0.3_f64, 2.1_f64, -0.5_f64);
+        for sigma in [1.0_f64, -1.0] {
+            let f = |t: f64| ((big + r * t.cos()).powi(2) - d * d).sqrt();
+            let u = |t: f64| sigma * f(t).atan2(d);
+            // v = σ t; the region in v between σt0 and σt1; integrate in t.
+            let n = 200_000;
+            let h = (t1 - t0) / n as f64;
+            let (mut area, mut flux) = (0.0, 0.0);
+            for i in 0..n {
+                let t = t0 + h * (i as f64 + 0.5);
+                let v = sigma * t;
+                let rho = big + r * v.cos();
+                let w = u(t) - um; // ∫ du from um to u(v)
+                area += r * rho * w * h;
+                flux += r * rho * (big * v.cos() + r) * w * h;
+            }
+            let e = SpiricEdgeQ {
+                centre: [pt(0.0); 3],
+                axis: [pt(0.0), pt(0.0), pt(1.0)],
+                normal: [pt(1.0), pt(0.0), pt(0.0)],
+                major: pt(big),
+                minor: pt(r),
+                offset: pt(d),
+                t0: pt(t0),
+                t1: pt(t1),
+                forward: true,
+                wall: Some(WallImageQ {
+                    sense: sigma,
+                    v0: pt(0.0),
+                    env: Interval::zero(),
+                }),
+            };
+            let chart = WallChartQ {
+                major: pt(big),
+                minor: pt(r),
+                rims: vec![
+                    RimQ {
+                        v: pt(sigma * t1),
+                        du: pt(um) - pt(u(t1)),
+                        env: Interval::zero(),
+                    },
+                    RimQ {
+                        v: pt(sigma * t0),
+                        du: pt(u(t0)) - pt(um),
+                        env: Interval::zero(),
+                    },
+                ],
+                meridians: vec![MeridianQ {
+                    dv: pt(sigma * (t0 - t1)),
+                    env: Interval::zero(),
+                }],
+            };
+            let face = SpiricFaceQ {
+                closed_va: [Interval::zero(); 3],
+                spirics: vec![e],
+                lever: [pt(0.0); 3],
+                perimeter: 1.0,
+                wall: Some(chart.clone()),
+            };
+            let got = wall_chart(&face, &chart, 512).unwrap();
+            eprintln!(
+                "σ={sigma}: flux {:?} want {flux}; area {:?} want {area}; du {:?} dv {:?}",
+                got[0], got[1], got[2], got[3]
+            );
+            // σ = −1 mirrors v, so the loop's chart orientation flips: compare |·|.
+            let s = if sigma > 0.0 { 1.0 } else { -1.0 };
+            assert!(
+                (got[1].lo() - 1e-9..=got[1].hi() + 1e-9).contains(&(s * area)),
+                "area"
+            );
+            assert!(
+                (got[0].lo() - 1e-9..=got[0].hi() + 1e-9).contains(&(s * flux)),
+                "flux"
+            );
+        }
+    }
+}
