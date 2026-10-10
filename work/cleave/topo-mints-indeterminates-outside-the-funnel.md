@@ -2,11 +2,12 @@
 id: topo-mints-indeterminates-outside-the-funnel
 kind: issue
 title: topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites
-status: open
+status: dispatched
 opened: 2026-09-20
 priority: P0
 cost: M
 design: true
+branch: cleave/mints-steps-3-5-scope
 ---
 
 

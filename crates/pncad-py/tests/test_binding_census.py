@@ -2787,6 +2787,14 @@ NOT_BOUND = {
     # `CheckEvidence.variant`.
     "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
+    # What a contact record cites (D1 (ii)): its `ContactRecords`
+    # carrier is interior, so the citation rides behind the same door.
+    # `CitedInput` names the inputs a `NodeValue`'s and a `Product`'s
+    # records cite, both interior.
+    "Backing": INTERIOR,
+    "Cited": INTERIOR,
+    "Cites": INTERIOR,
+    "CitedInput": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
     # measured one rung DOWN from where its carrier now crosses: it is
@@ -3116,6 +3124,9 @@ NOT_BOUND = {
     # Python reads the verdict (`AssemblyError` with `variant ==
     # "own_space"`), never the spaces themselves.
     "OwnSpace": INTERIOR,
+    # One of a product's at-rest decisions, interior with its `Product`:
+    # Python reads them as the unproven-coincidence lint's findings.
+    "AtRestRow": INTERIOR,
     "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,

@@ -18,10 +18,13 @@ use topo::{CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError
 
 fn declared(pair: (FaceKey, FaceKey)) -> ContactRecords {
     ContactRecords {
-        patches: vec![PatchContact {
-            face_a: pair.0,
-            face_b: pair.1,
-        }],
+        patches: vec![topo::Cited::new(
+            PatchContact {
+                face_a: pair.0,
+                face_b: pair.1,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     }
 }

@@ -625,6 +625,12 @@ pub struct NodeValue<T: Decide> {
     /// the verdicts are, so no content key reads it; it rides the value
     /// with the names it is spelled in.
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// **What each input its contact records cite is**: a record's
+    /// [`topo::Backing::Carried`] names an input by position, and this
+    /// is that position's input, by read ([`crate::coincide::CitedInput`]).
+    /// A [`topo::Backing::Decided`] names a row of
+    /// [`Self::coincidences`].
+    pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// How many parts each of this value's output bodies is
     /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
     /// product is its roots, so an instantiation's bodies are as many
@@ -1907,6 +1913,21 @@ pub enum NodeErrorKind {
         /// side here without having a single entity.
         cross_operand: bool,
     },
+    /// A declared pair of two entities of ONE operand is a contact that
+    /// operand carries in, and no record this node can cite backs it
+    /// (D1 (ii), D10): the operand records no contact between the two,
+    /// so nothing decided the touch it states, or the pair is declared
+    /// at a union, whose fold steps' records are not cited from the
+    /// union, so every such pair refuses there whatever its member
+    /// records.
+    DeclaredContactUnbacked {
+        /// Which of the node's references is the pair's first side: its
+        /// place among [`crate::Node::payload_names`].
+        reference: usize,
+        /// Whether the pair is declared at a union, where no member's
+        /// record is cited.
+        at_union_step: bool,
+    },
     /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
     /// passed through (the fail-loud voice: no op silently returns its
@@ -2573,6 +2594,26 @@ impl crate::spoken::Say for NodeErrorKind {
                 "declare pair ({}, {}) is outside the v1 threading vocabulary",
                 kinds.0.noun(),
                 kinds.1.noun()
+            ),
+            Self::DeclaredContactUnbacked {
+                reference,
+                at_union_step: false,
+            } => write!(
+                f,
+                "the pair declared at reference {reference} names two entities of one operand \
+                 that the operand records no contact between, so nothing decided the touch it \
+                 states — remove the declaration, or build the operand so its own operation \
+                 records the contact"
+            ),
+            Self::DeclaredContactUnbacked {
+                reference,
+                at_union_step: true,
+            } => write!(
+                f,
+                "the pair declared at reference {reference} names two entities of one member of \
+                 a union, and a union cites no member's contact records, so nothing it holds \
+                 backs the touch the pair states — remove the declaration, or declare it on a \
+                 two-operand boolean whose operand records the contact"
             ),
             Self::BlendSelectionEmpty { verb } => write!(
                 f,
@@ -4511,6 +4552,7 @@ where
                 contacts: out.contacts,
                 carried: out.carried,
                 coincidences: out.coincidences,
+                cited_inputs: out.cited_inputs,
                 parts: out.parts,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
