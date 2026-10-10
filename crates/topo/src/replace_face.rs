@@ -2908,17 +2908,23 @@ fn derive_edge<T: Decide>(
         }
         _ => None,
     };
-    let section = match plane_wall {
-        Some((plane, wall)) => {
-            let lane = section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
-                edge,
-                scalar: T::NAME,
-            })?;
-            lane.section(plane, wall, old, (t0, t1), extent, band)
-                .map_err(esc)?
-                .map(|c| Curve3::Nurbs(Arc::new(c)))
-        }
-        None => crate::offset_derive::section_closed(
+    let spline_pair = new_surface.spline_chart().zip(neighbour.spline_chart());
+    let lane = || {
+        section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+            edge,
+            scalar: T::NAME,
+        })
+    };
+    let section = match (plane_wall, spline_pair) {
+        (Some((plane, wall)), _) => lane()?
+            .section(plane, wall, old, (t0, t1), extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(Arc::new(c))),
+        (None, Some((a, b))) => lane()?
+            .pair(a, b, old, (t0, t1), extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(Arc::new(c))),
+        (None, None) => crate::offset_derive::section_closed(
             new_surface,
             neighbour,
             old,

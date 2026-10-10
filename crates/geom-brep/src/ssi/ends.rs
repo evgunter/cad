@@ -56,12 +56,71 @@ pub(crate) struct Ends<'a> {
     pub sys: &'a ParametricPairR4<'a>,
     /// The march's context, the caller's feature extent among it.
     pub ctx: MarchContext<4>,
-    /// The plane operand.
-    pub plane: &'a Surface<f64>,
-    /// The wall operand.
-    pub wall: &'a SsiOperand<'a, f64>,
+    /// The rectangles the march is bounded by.
+    pub exit: RectExit,
+    /// The operands the certificate reads.
+    pub operands: Operands<'a>,
     /// The run band.
     pub band: Band,
+}
+
+/// The operand pair a branch between known ends is certified against.
+#[derive(Clone, Copy)]
+pub(crate) enum Operands<'a> {
+    /// A plane and a NURBS wall: the wall's pcurve carries the chart
+    /// tube.
+    Plane {
+        /// The plane operand.
+        plane: &'a Surface<f64>,
+        /// The wall operand.
+        wall: &'a SsiOperand<'a, f64>,
+    },
+    /// Two NURBS charts: both pcurves carry the two-chart tube.
+    Pair {
+        /// The first chart.
+        a: super::ChartedNurbs<'a, f64>,
+        /// The second chart.
+        b: super::ChartedNurbs<'a, f64>,
+    },
+}
+
+impl<'a> Operands<'a> {
+    /// The certificate's lane for a fitted triple's pcurves.
+    fn lane<'b>(
+        self,
+        pa: Option<&'b NurbsCurve2<f64>>,
+        pb: Option<&'b NurbsCurve2<f64>>,
+    ) -> Result<certify::Lane<'b, f64>, SsiError>
+    where
+        'a: 'b,
+    {
+        let need = || SsiError::UnsupportedCertificate {
+            what: certify::NURBS_LIMBS_NEED_PCURVE,
+        };
+        match self {
+            Self::Plane { plane, wall } => {
+                let (SsiOperand::Nurbs(wall), Some(pcurve)) = (wall, pb) else {
+                    return Err(need());
+                };
+                Ok(certify::Lane::Chart {
+                    plane,
+                    wall: *wall,
+                    pcurve,
+                })
+            }
+            Self::Pair { a, b } => {
+                let (Some(pcurve_a), Some(pcurve_b)) = (pa, pb) else {
+                    return Err(need());
+                };
+                Ok(certify::Lane::Pair {
+                    a,
+                    b,
+                    pcurve_a,
+                    pcurve_b,
+                })
+            }
+        }
+    }
 }
 
 /// The fitted triple of a state polyline, on one shared parameter.
@@ -184,11 +243,11 @@ fn distance<const M: usize, const N: usize, S: LocalSystem<M, N>>(
     (sys.point(a) - sys.point(b)).norm()
 }
 
-/// How far the tangent `d` at state `x` points into the wall's
-/// rectangle: the sum of its chart components across every side `x`
+/// How far the tangent `d` at state `x` points into the bounded
+/// rectangles: the sum of its chart components across every side `x`
 /// sits on.
-fn inwardness(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>) -> f64 {
-    (2..4)
+fn inwardness(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>, exit: RectExit) -> f64 {
+    (exit.first..4)
         .map(|i| {
             if x[i] == ctx.domain[i][0] {
                 d[i]
@@ -206,11 +265,11 @@ fn inwardness(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>) -> f64 {
 fn tangent(
     sys: &ParametricPairR4<'_>,
     x: &[f64; 4],
-    ctx: &MarchContext<4>,
+    (ctx, exit): (&MarchContext<4>, RectExit),
     into: bool,
 ) -> [f64; 4] {
     let d = Svd::<3, 4>::new(sys.jacobian(x)).null_direction();
-    if (inwardness(x, &d, ctx) >= 0.0) == into {
+    if (inwardness(x, &d, ctx, exit) >= 0.0) == into {
         d
     } else {
         d.map(|v| -v)
@@ -229,8 +288,24 @@ impl<'a> Ends<'a> {
         Self {
             sys,
             ctx,
-            plane,
-            wall,
+            exit: RectExit::WALL,
+            operands: Operands::Plane { plane, wall },
+            band,
+        }
+    }
+
+    /// The ends' reader for one NURBS × NURBS call.
+    pub(crate) fn pair(
+        sys: &'a ParametricPairR4<'a>,
+        ctx: MarchContext<4>,
+        (a, b): (super::ChartedNurbs<'a, f64>, super::ChartedNurbs<'a, f64>),
+        band: Band,
+    ) -> Self {
+        Self {
+            sys,
+            ctx,
+            exit: RectExit::PAIR,
+            operands: Operands::Pair { a, b },
             band,
         }
     }
@@ -306,14 +381,14 @@ impl<'a> Ends<'a> {
         used: &[bool],
     ) -> Result<(usize, Vec<[f64; 4]>), SsiError> {
         let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
-        let direction = if inwardness(&a.state, &d, &self.ctx) >= 0.0 {
+        let direction = if inwardness(&a.state, &d, &self.ctx, self.exit) >= 0.0 {
             1.0
         } else {
             -1.0
         };
         let trace = march(
             self.sys,
-            &RectExit,
+            &self.exit,
             a.state,
             self.ctx,
             StepperMode::Realized,
@@ -345,7 +420,7 @@ impl<'a> Ends<'a> {
         let dom = &self.ctx.domain;
         // The sides the step crossed, as (coordinate, end value).
         let mut crossed: Vec<(usize, f64)> = Vec::new();
-        for i in 2..4 {
+        for i in self.exit.first..4 {
             if outside[i] < dom[i][0] {
                 crossed.push((i, dom[i][0]));
             } else if outside[i] > dom[i][1] {
@@ -402,7 +477,7 @@ impl<'a> Ends<'a> {
         let run = |direction, ctx| {
             march(
                 self.sys,
-                &RectExit,
+                &self.exit,
                 seed,
                 ctx,
                 StepperMode::Realized,
@@ -459,23 +534,9 @@ impl<'a> Ends<'a> {
             self.band,
             |states, limbs| {
                 let (carrier, pa, pb) = fit_states(self.sys, states)?;
-                let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
-                    return Err(SsiError::UnsupportedCertificate {
-                        what: certify::NURBS_LIMBS_NEED_PCURVE,
-                    }
-                    .into());
-                };
-                let cert = certify::certify_located(
-                    &carrier,
-                    certify::Lane::Chart {
-                        plane: self.plane,
-                        wall: *wall,
-                        pcurve,
-                    },
-                    self.ctx.extent,
-                    self.band,
-                    limbs,
-                )?;
+                let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
+                let cert =
+                    certify::certify_located(&carrier, lane, self.ctx.extent, self.band, limbs)?;
                 Ok((carrier, pa, pb, cert))
             },
         )?;
@@ -491,18 +552,10 @@ impl<'a> Ends<'a> {
         end: BranchEnd,
         march_tol: f64,
     ) -> Result<SsiBranch, SsiError> {
-        let (SsiOperand::Nurbs(wall), Some(pcurve)) = (self.wall, pb.as_ref()) else {
-            return Err(SsiError::UnsupportedCertificate {
-                what: certify::NURBS_LIMBS_NEED_PCURVE,
-            });
-        };
+        let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
         let cert = certify::certify_branch(
             &carrier,
-            certify::Lane::Chart {
-                plane: self.plane,
-                wall: *wall,
-                pcurve,
-            },
+            lane,
             self.ctx.extent,
             self.band,
             certify::Limbs::All,
@@ -538,9 +591,11 @@ impl<'a> Ends<'a> {
 
     /// **The Hermite candidate**: the cubic from `a` to `b`
     /// through their tangents, each scaled to the ends' distance, as one
-    /// cubic Bézier per chart on a shared parameter. The plane's chart
-    /// is affine, so the carrier is that chart's image of its own
-    /// Bézier, exactly.
+    /// cubic Bézier per chart on a shared parameter, and the carrier the
+    /// Bézier through the first chart's images of the control states.
+    /// A plane's chart is affine, so against a plane the carrier is that
+    /// chart's image of its own Bézier, exactly; against a NURBS chart it
+    /// is a candidate like the march's, which the certificate decides.
     ///
     /// # Errors
     ///
@@ -554,8 +609,8 @@ impl<'a> Ends<'a> {
             let sigma = Svd::<3, 4>::new(self.sys.jacobian(x)).sigma_min();
             decide_transversality(self.sys, x, sigma, self.ctx.extent, self.band)?;
         }
-        let ta = tangent(self.sys, &a.state, &self.ctx, true);
-        let tb = tangent(self.sys, &b.state, &self.ctx, false);
+        let ta = tangent(self.sys, &a.state, (&self.ctx, self.exit), true);
+        let tb = tangent(self.sys, &b.state, (&self.ctx, self.exit), false);
         let va = ta.map(|v| v * length / self.sys.tangent_speed(&a.state, &ta));
         let vb = tb.map(|v| v * length / self.sys.tangent_speed(&b.state, &tb));
         let ctrl: [[f64; 4]; 4] = [

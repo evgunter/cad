@@ -621,6 +621,107 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
+/// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
+/// for an edge between two spline charts, a described wall or a fit on
+/// either side: the carrier's chart image on EACH chart, from the same
+/// fixed schedule of foot points ([`chart_image`], the one producer of
+/// that image), the normal angle between the two charts at each
+/// interior sample's feet decided definitely transverse, and C2's
+/// certificate against both, its limb 3 the two-chart tube
+/// ([`crate::ssi::SsiTube::TwoChart`]).
+///
+/// The images are re-derived here, as the plane lane's is, so the
+/// limb-2 bound is this lane's own and need not reproduce the section's
+/// certificate bit for bit.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], whose vocabulary this lane shares: a foot that
+/// will not converge, an image that will not fit, a sample whose two
+/// charts are not definitely transverse, and a limb's refusal with its
+/// measured bound.
+pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    a: &NurbsSurface<T>,
+    b: &NurbsSurface<T>,
+    extent: T,
+    band: Band,
+) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
+    if a.is_placeholder() || b.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: geom::PLACEHOLDER_SURFACE,
+        });
+    }
+    let (la, lb) = (localized(a), localized(b));
+    let (op_a, op_b) = (
+        SsiOperand::nurbs(&la).map_err(refusal)?,
+        SsiOperand::nurbs(&lb).map_err(refusal)?,
+    );
+    let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
+    let pcurve_a = chart_image(carrier, a, |_, foot| {
+        feet_a.push(foot);
+        Ok(())
+    })?;
+    let mut min_sin = T::from_f64(f64::MAX);
+    let pcurve_b = chart_image(carrier, b, |i, foot| {
+        // Interior samples only, as the plane lane reads them.
+        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+            return Ok(());
+        }
+        let Some(fa) = feet_a.get(i as usize) else {
+            return Err(PlaneNurbsRefusal::PcurveFit);
+        };
+        let ja = a.ders(T::from_f64(fa.x), T::from_f64(fa.y));
+        let jb = b.ders(T::from_f64(foot.x), T::from_f64(foot.y));
+        let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
+        let kappa = crate::shape_operator::max_principal_curvature(&ja)
+            .max(crate::shape_operator::max_principal_curvature(&jb));
+        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
+        match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse {
+                        sample: i,
+                        lever: PointLever::of(Bounds::lo(reach)),
+                        verdict,
+                    });
+                }
+            }
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
+        }
+        min_sin = min_sin.min(sin_theta);
+        Ok(())
+    })?;
+    let min_sin =
+        geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
+            .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
+    let cert = crate::ssi::certify::certify_branch(
+        carrier,
+        crate::ssi::certify::Lane::AtRest {
+            a: &op_a,
+            b: &op_b,
+            pcurve_a: Some(&pcurve_a),
+            pcurve_b: Some(&pcurve_b),
+        },
+        extent,
+        band,
+        crate::ssi::certify::Limbs::All,
+        &mut crate::ssi::certify::Refused::default(),
+    )
+    .map_err(refusal)?;
+    Ok(PlaneNurbsLimbs {
+        on_locus_max: cert.on_locus_max,
+        hull_sup: cert.hull_sup,
+        tube: cert.tube,
+        tube_transversality: cert.tube_transversality,
+        tube_boxes: cert.tube_boxes,
+        min_sin_theta: min_sin,
+    })
+}
+
 /// Whether `surface` is an analytic operand: one with an implicit form
 /// and a chart frame, which the analytic rung-3 certificate reads
 /// ([`analytic_rung3`]). A spline operand's pair is the plane × NURBS
@@ -703,6 +804,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
+            pcurve_a: None,
             pcurve_b: None,
         },
         // The tube's extent, from the object being certified: the

@@ -274,6 +274,8 @@ mod mesh11r2_base_probes;
 mod mesh11r2_probes;
 #[path = "mesh12_saturated_span.rs"]
 mod mesh12_saturated_span;
+#[path = "nurbs_nurbs_section.rs"]
+mod nurbs_nurbs_section;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 

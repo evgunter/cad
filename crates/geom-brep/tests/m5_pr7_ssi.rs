@@ -187,7 +187,9 @@ fn threaded_cylinder() -> Surface<f64> {
 fn spatial_radius(cert: &geom_brep::SsiCertificate<f64>) -> f64 {
     match cert.tube {
         SsiTube::Spatial { radius } => radius,
-        SsiTube::Chart { .. } => panic!("the ℝ³ arm proved a chart tube: {cert:?}"),
+        SsiTube::Chart { .. } | SsiTube::TwoChart { .. } => {
+            panic!("the ℝ³ arm proved a chart tube: {cert:?}")
+        }
     }
 }
 
@@ -4666,7 +4668,9 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
                     geom_brep::ssi::certify::SSI_TUBE_RADIUS_MAX * dom.extent,
                     "{at}: the tube certified below the widest rung"
                 ),
-                SsiTube::Spatial { .. } => panic!("{at}: the chart arm proved a spatial tube"),
+                SsiTube::Spatial { .. } | SsiTube::TwoChart { .. } => {
+                    panic!("{at}: the chart arm proved another arm's tube")
+                }
             }
         }
     }

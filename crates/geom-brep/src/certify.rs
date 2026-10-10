@@ -1511,6 +1511,15 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    /// [`crate::nurbs_pair_limbs`] at `T`.
+    pair: fn(
+        &geom::NurbsCurve3<T>,
+        &geom::NurbsSurface<T>,
+        &geom::NurbsSurface<T>,
+        T,
+        Band,
+    )
+        -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
     /// [`crate::analytic_rung3`] at `T`.
     analytic_rung3: fn(
         &geom::NurbsCurve3<T>,
@@ -1535,6 +1544,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            pair: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             foot: Self::seeded_foot,
         }
@@ -1563,6 +1573,19 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
+    }
+
+    /// The lane's limbs for a declared carrier between two spline charts
+    /// ([`crate::nurbs_pair_limbs`]).
+    fn pair(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        a: &geom::NurbsSurface<T>,
+        b: &geom::NurbsSurface<T>,
+        extent: T,
+        band: Band,
+    ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
+        (self.pair)(carrier, a, b, extent, band)
     }
 
     /// The between-samples certificate of a rung-3 carrier between two
@@ -2301,6 +2324,14 @@ fn run_checks<T: Decide>(
             witness: Point3<T>,
             lane: NurbsLane<T>,
         },
+        /// `Intersection` of two spline charts, each described or
+        /// fitted: the same lane's NURBS × NURBS limbs.
+        PairNurbs {
+            a: Surface<T>,
+            b: Surface<T>,
+            witness: Point3<T>,
+            lane: NurbsLane<T>,
+        },
     }
     let resolved = match spec.description {
         EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
@@ -2308,18 +2339,24 @@ fn run_checks<T: Decide>(
                 return Err(CertifyError::IntersectionSameSurface { key: s1 });
             }
             // The plane × NURBS lane (M7-8) is tried FIRST, because it
-            // is the only reading under which a described `Nurbs` or a
-            // fitted `Approx` operand certifies at all: `resolve` below
-            // refuses one typed. The pairing must be exactly one PLANE
-            // and one such wall — a NURBS × NURBS `Intersection` has
-            // no certificate (the C5 table's general rung), and its
-            // refusal is `Unimplemented`. The pair with no lane in hand
-            // is refused here, before any other check of the edge.
+            // is one of the two readings under which a described `Nurbs`
+            // or a fitted `Approx` operand certifies at all: `resolve`
+            // below refuses one typed. The other is two such charts, the
+            // same lane's NURBS × NURBS limbs. The pair with no lane in
+            // hand is refused here, before any other check of the edge.
             if let Some((plane, wall)) = plane_nurbs_pair(surfaces(s1), surfaces(s2)) {
                 let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
                 Resolved::PlaneNurbs {
                     plane,
                     wall,
+                    witness,
+                    lane,
+                }
+            } else if let Some((a, b)) = nurbs_pair(surfaces(s1), surfaces(s2)) {
+                let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
+                Resolved::PairNurbs {
+                    a,
+                    b,
                     witness,
                     lane,
                 }
@@ -2528,7 +2565,9 @@ fn run_checks<T: Decide>(
     // in its own order and no chart image is derived from an interval
     // the kernel has not yet accepted.
     let canonical: EdgeDescription<T> = match resolved {
-        Resolved::Intersection { witness, .. } | Resolved::PlaneNurbs { witness, .. } => {
+        Resolved::Intersection { witness, .. }
+        | Resolved::PlaneNurbs { witness, .. }
+        | Resolved::PairNurbs { witness, .. } => {
             let EdgeDescriptionSpec::Intersection { s1, s2, .. } = spec.description else {
                 // Unreachable: exactly one spec arm resolves either
                 // way. Typed rather than assumed (D4 ¶2).
@@ -2924,7 +2963,7 @@ fn run_checks<T: Decide>(
             // than this one, and shared with the certificate's foot
             // points), so it runs once after the loop rather than
             // per-sample here — see the block below check 4.
-            Resolved::PlaneNurbs { .. } => {}
+            Resolved::PlaneNurbs { .. } | Resolved::PairNurbs { .. } => {}
         }
     }
 
@@ -2982,6 +3021,29 @@ fn run_checks<T: Decide>(
         // not decided again.
         let limbs = lane
             .limbs(carrier, plane, wall, extent, band)
+            .map_err(from_plane_nurbs)?;
+        max_residual = max_residual
+            .max(limbs.on_locus_max.abs())
+            .max(limbs.hull_sup.abs());
+    }
+
+    // ---- Intersection, NURBS × NURBS: the same lane's certificate
+    // against both charts, its tube the two-chart one. ----
+    if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {
+        let Curve3::Nurbs(ref carrier) = spec.carrier else {
+            return Err(CertifyError::PlaneNurbs(
+                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
+                    what: "the declared carrier of a NURBS × NURBS Intersection must be a \
+                           spline: the certificate's limbs are hull statements about a \
+                           control net",
+                },
+            ));
+        };
+        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
+            return Err(CertifyError::Unimplemented);
+        };
+        let limbs = lane
+            .pair(carrier, a, b, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
@@ -3053,6 +3115,20 @@ fn run_checks<T: Decide>(
     // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
     // mid-parameter pin is unchanged — the witness contract does not
     // move at this rung.
+    // Two charts: both sides are discharged by the lane's schedule, and
+    // the mid-parameter pin is the same.
+    if let Resolved::PairNurbs { witness, .. } = &resolved {
+        let mid = spec.carrier.mid_point(t0, t1);
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            Margin::of(mid.distance(*witness)),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
     if let Resolved::PlaneNurbs { plane, witness, .. } = &resolved {
         check_residual(
             "witness_on_surface_1",
@@ -3080,6 +3156,21 @@ fn run_checks<T: Decide>(
         },
         canonical,
     ))
+}
+
+/// The NURBS × NURBS pairing: two charts each a described NURBS
+/// surface or a fit ([`Surface::spline_chart`]), the mvfs placeholder
+/// never one.
+fn nurbs_pair<T: Real>(
+    s1: Option<Surface<T>>,
+    s2: Option<Surface<T>>,
+) -> Option<(Surface<T>, Surface<T>)> {
+    let (a, b) = (s1?, s2?);
+    let chart = |s: &Surface<T>| match s {
+        Surface::Nurbs(n) => !n.is_placeholder(),
+        _ => s.spline_chart().is_some(),
+    };
+    (chart(&a) && chart(&b)).then_some((a, b))
 }
 
 /// The plane × NURBS pairing, in either order: exactly one PLANE and
