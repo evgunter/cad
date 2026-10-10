@@ -1,0 +1,125 @@
+import sys
+from fractions import Fraction as F
+import math
+
+def parse(s): return [float(x) for x in s.split(",")] if s else []
+
+def find_span(k, p, n, u):
+    # last i in [p, n-1] with k[i] <= u
+    if u >= k[n]: return n - 1
+    lo = p
+    for i in range(p, n):
+        if k[i] <= u: lo = i
+    return lo
+
+def boehm(k, p, ctl, u):
+    n = len(ctl)
+    s = find_span(k, p, n, u)  # k[s] <= u < k[s+1]
+    new = []
+    for i in range(n + 1):
+        if i <= s - p:
+            new.append(ctl[i])
+        elif i >= s + 1:
+            new.append(ctl[i - 1])
+        else:
+            a = (F(u) - F(k[i])) / (F(k[i + p]) - F(k[i]))
+            new.append(a * ctl[i] + (1 - a) * ctl[i - 1])
+    k2 = k[:s + 1] + [u] + k[s + 1:]
+    return k2, new
+
+def check_apply(line):
+    _, p, k, add, chan, lo, hi = line.split("|")
+    p = int(p); k = parse(k); add = parse(add); chan = [F(x) for x in parse(chan)]
+    lo = parse(lo); hi = parse(hi)
+    for u in add:
+        k, chan = boehm(k, p, chan, u)
+    bad = []
+    if len(chan) != len(lo):
+        return ["len %d vs %d" % (len(chan), len(lo))]
+    worst = 0.0
+    for e, l, h in zip(chan, lo, hi):
+        if math.isnan(l) or math.isnan(h): bad.append("nan"); continue
+        if not (F(l) <= e <= F(h)): bad.append("miss e=%r [%r,%r]" % (float(e), l, h))
+        sc = max(abs(float(e)), 1e-300)
+        worst = max(worst, (h - l) / sc)
+    return bad, worst
+
+def basis_eval(k, p, ctl, t):
+    # de Boor with exact Fractions; ctl list of tuples (homogeneous)
+    n = len(ctl)
+    s = find_span(k, p, n, t)
+    d = [list(ctl[j]) for j in range(s - p, s + 1)]
+    for r in range(1, p + 1):
+        for j in range(p, r - 1, -1):
+            i = j + s - p
+            a = (t - F(k[i])) / (F(k[i + p - r + 1]) - F(k[i]))
+            d[j] = [(1 - a) * x + a * y for x, y in zip(d[j - 1], d[j])]
+    return d[p]
+
+def deriv_hom(k, p, ctl):
+    # derivative control net of a B-spline (homogeneous channels)
+    q = []
+    for i in range(len(ctl) - 1):
+        f = F(p) / (F(k[i + p + 1]) - F(k[i + 1]))
+        q.append([f * (y - x) for x, y in zip(ctl[i], ctl[i + 1])])
+    return k[1:-1], p - 1, q
+
+def speed2(k, p, hom, dk, dp, dq, t):
+    A = basis_eval(k, p, hom, t)
+    if dp == 0:
+        n = len(dq); s = find_span(dk, 0, n, t); D = dq[s]
+    else:
+        D = basis_eval(dk, dp, dq, t)
+    w, dw = A[3], D[3]
+    v = [(D[c] * w - A[c] * dw) / (w * w) for c in range(3)]
+    return sum(x * x for x in v)
+
+def check_speed(line):
+    _, tag, p, k, flat, w, mf, ilo, ihi = line.split("|")
+    p = int(p); k = parse(k); flat = parse(flat); w = parse(w)
+    mf = float(mf); ilo = float(ilo); ihi = float(ihi)
+    n = len(w)
+    hom = [[F(flat[3 * j + c]) * F(w[j]) for c in range(3)] + [F(w[j])] for j in range(n)]
+    dk, dp, dq = deriv_hom(k, p, hom)
+    # float pre-scan
+    ts = [i / 600 for i in range(601)]
+    vals = []
+    for t in ts:
+        vals.append((float(speed2(k, p, hom, dk, dp, dq, F(t))), t))
+    vals.sort()
+    cands = set()
+    for _, t in vals[:3]:
+        for j in range(-40, 41):
+            tt = min(1.0, max(0.0, t + j / 600 / 40))
+            cands.add(tt)
+    best = None
+    for t in cands:
+        s2 = speed2(k, p, hom, dk, dp, dq, F(t))
+        if best is None or s2 < best[0]: best = (s2, t)
+    s2, tmin = best
+    res = []
+    for name, b in (("f64", mf), ("itv_lo", ilo)):
+        if math.isnan(b): res.append((name, "nan")); continue
+        if b > 0 and F(b) * F(b) > s2:
+            res.append((name, "UNSOUND b=%r sampled_min=%r at t=%r" % (b, math.sqrt(float(s2)), tmin)))
+    return res, math.sqrt(float(s2)), mf, ilo
+
+if __name__ == "__main__":
+    na = nbad = 0; worst = 0.0; ns = 0; ratios = []
+    for line in open(sys.argv[1]):
+        line = line.strip()
+        if line.startswith("APPLY"):
+            na += 1
+            bad, wr = check_apply(line)
+            worst = max(worst, wr)
+            if bad: nbad += 1; print("APPLY BAD", bad[:3], line[:200])
+        elif line.startswith("SPEED"):
+            ns += 1
+            res, smin, mf, ilo = check_speed(line)
+            tag = line.split("|")[1]
+            for r in res: print("SPEED", tag, r)
+            if smin > 0 and not math.isnan(ilo): ratios.append((ilo / smin, tag, ilo, smin, mf))
+    print("apply rows", na, "bad", nbad, "worst rel width", worst)
+    ratios.sort()
+    print("speed rows", ns)
+    print("lowest itv/min:", ratios[:3]); print("highest itv/min:", ratios[-3:])
