@@ -41,7 +41,7 @@ flush into it). Oracle: box arithmetic; the gap's volume is
 | standing, ±1.6…2ε | `RestZipUnsupported` | empty | 13.5 | wedge |
 | sunk, +0.3…+1.2ε | 13.5 | builds, −1.74e-12 | builds | empty |
 | sunk, −0.3…−1.2ε | 13.5 | refuses `vol(A ∩ B) ≤ vol(B)` | refuses `vol(A ∖ B) ≥ vol(A) − vol(B)` | empty |
-| sunk, ±1.6…2ε | 13.5 | `JoinDesync` (`work/join/…join-desync`) | `JoinDesync` | empty |
+| sunk, ±1.6…2ε | 13.5 | `JoinDesync` (`work/flush/…join-desync`) | `JoinDesync` | empty |
 
 At ε = 1e-12 the residue scales down to ~1e-15 m³. There the sunk ∩
 still refuses, but the ∪ and A ∖ B crossings (13.5 m³ bodies) fall

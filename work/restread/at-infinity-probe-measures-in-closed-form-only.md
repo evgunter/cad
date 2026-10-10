@@ -120,7 +120,7 @@ the brick. Probed at θ = 30° and 70°, plate ∩ rod.
 ## Another witness (JOIN, the parallel cylinder arm)
 
 Once the join splits two parallel cylinder walls along their rulings
-(`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`), the
+(`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031), the
 row's rods across the tilted drum cut's rim reach this probe. The
 drum's lower part (radius 0.5, cut through `(0, 0, 0.5)` at 0.3 rad)
 against a rod of radius 0.2 about `(0.5, 0)`, `z ∈ [0.2, 0.45]`; of

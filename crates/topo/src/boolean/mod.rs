@@ -2417,7 +2417,7 @@ pub enum BooleanError {
     /// keys, met where the insertion hung runs at a copy of their own
     /// pair's (`insert::hang_at_shared`), and whose keys no seam links, so the
     /// census cannot read the point
-    /// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
+    /// (`work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
     /// Read after the zips off point keys alone
     /// (`zip::refuse_split_hung_points`).
     PinchConesOnSeparateKeys {

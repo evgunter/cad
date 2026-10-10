@@ -172,7 +172,7 @@ fn both_poses_take_the_same_door() {
 /// certifies, and the cylinder × sphere germ pair it mints has the
 /// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
 /// chord lane takes its quartic section
-/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
+/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
 /// poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {

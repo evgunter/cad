@@ -457,7 +457,11 @@ interior to both trims (`contfp`, both faces' rings). Candidates are
 uncertified hints in two stages — the trims' own landmarks, then the cell
 centres of the vertical decomposition of both boundaries
 (`decomposition_witness`) — each certified at use, so the schedule
-affects only what declines, never what certifies.
+affects only what declines, never what certifies. A schedule stopped by
+one of its two caps refuses typed, one face per cap:
+`WitnessSegmentCapExceeded` (over `WITNESS_SEGMENT_CAP`, nothing probed)
+and `WitnessCellCapExceeded` (`WITNESS_CELL_CAP` probes made, cells
+left).
 
 ## Related pages
 
@@ -473,7 +477,6 @@ affects only what declines, never what certifies.
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
 - `ef_bound_backed`'s migration is parked
   (`ef-bound-backed-migrates-to-region-confinement`, D10).
-- `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key

@@ -2,10 +2,11 @@
 id: the-blends-g1-and-coaxiality-verdicts-are-unrecorded-coincidences
 kind: issue
 title: The blend battery's chain-G1 and support-coaxiality Zero verdicts are coincidences decided from values that no stage-4 unit records
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P2
 cost: M
+branch: intent/blend-g1-coaxiality-recorded
 ---
 
 

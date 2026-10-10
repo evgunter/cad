@@ -22,7 +22,7 @@
 //! The 3-way is built `C ∩ (H × T)`. The other operand order refuses
 //! `JoinDesync` on the same declared contacts — a live wall probe in
 //! [`stops`], filed as
-//! `work/join/declared-flush-intersect-refuses-in-one-operand-order.md`.
+//! `work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -215,7 +215,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }
     // The other order, (H x T) x C, builds the same 3-way: intersection
     // is commutative, and the join no longer refuses it
-    // (`work/join/declared-flush-intersect-refuses-in-one-operand-order.md`).
+    // (`work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`).
     expect_seamed(
         "declared (H x T) x C intersect",
         check(try_intersect_declared(&two.body, &c, tol), V_3WAY, tol),
