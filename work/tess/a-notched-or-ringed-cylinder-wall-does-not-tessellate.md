@@ -45,3 +45,17 @@ horizontal, rulings vertical), holes included, inside one branch of the
 azimuth when the face window is under a period; a chart-polygon
 triangulation of that region, lifted through the cylinder, would serve
 both shapes.
+
+## More witnesses: a ring on a cone wall (GERM, `germ/cone-ring-volume`)
+
+A cone wall with a hole now measures too: the cone's closed form reads
+every loop's vector area (`geom_brep::props::cone_face_closed_form`).
+`mesh::tessellate` refuses those bodies with the same
+`RingOnCurvedFace` (`crates/mesh/src/curved.rs`, the ring check at the
+top of the curved patch). Witness: T1's ∪ in both member orders and
+cone ∖ box (`crates/sweep/tests/cone_join_lane.rs`'s
+`each_poses_body_is_its_closed_form_in_every_op`, which allows this
+refusal on exactly those three ops). Each body passes tier 3 and
+measures `OK SOUND`. The ring there is two ellipse arcs, so a chart
+polygon of rims and rulings does not cover it; the cone's chart region
+is bounded by the sections' images.

@@ -20,7 +20,7 @@ use crate::common;
 use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    BooleanError, BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
+    BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
     validate_pseudomanifold,
 };
 
@@ -68,16 +68,19 @@ fn glued() -> topo::BooleanBody<f64> {
     }
 }
 
-/// The narrowing pin, unchanged: UNDECLARED, the mate refuses at the
-/// coincidence door (rung (b) — post-PR 5, value equality never
-/// classifies). The join builds the mate only through the declared
-/// rung; this door must never widen.
+/// Declared and undeclared are one body (D10): UNDECLARED, the mate's
+/// flush pairs decide Zero on their margins and glue, and the union is
+/// the declared one, bit for bit.
 #[test]
-fn undeclared_crosslap_refuses_at_the_coincidence_door() {
+fn undeclared_crosslap_is_the_declared_crosslap() {
     let (a, b) = notched_beams();
-    match union(&a, &b, Tol::witness()) {
-        Err(BooleanError::UndeclaredCoincidence { .. }) => {}
-        other => panic!("expected UndeclaredCoincidence, got {other:?}"),
+    match union(&a, &b, Tol::witness()).expect("the undeclared mate glues on Zero") {
+        BooleanResult::Body(undeclared) => assert_eq!(
+            format!("{:?}", undeclared.body),
+            format!("{:?}", glued().body),
+            "declared and undeclared are one body"
+        ),
+        BooleanResult::Empty => panic!("mated union cannot be empty"),
     }
 }
 

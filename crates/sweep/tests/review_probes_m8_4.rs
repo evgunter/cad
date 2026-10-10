@@ -212,9 +212,9 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
 /// the seam class certifies it.** On the `v`-reversed chart the same
 /// carrier traverses the chart's `v` BACKWARD; the pick returns the
 /// geometrically correct negative-slope image, and the seam class reads
-/// a backward image against the boundary row run back
-/// (`geom_brep::reversed_column`) — its control hull against the row
-/// reversed, its parameter-map slack against `v(t) = a + b − t`. The
+/// a backward image against the boundary row read backwards — its
+/// control hull against the row reversed, its parameter-map slack
+/// against `v(t) = S − t`, `S` the reflection's sum. The
 /// carrier IS the reversed chart's column run back, so the certificate
 /// is exact: zero residual, zero envelope. Red if the backward image
 /// stops certifying, or certifies with slack it does not have.

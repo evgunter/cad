@@ -818,16 +818,16 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                 // structure, like every other read on this path.
                 let (d0, d1) = image.domain();
                 let (r0, r1) = (ring(t0), ring(t1));
-                // NO ROW AND NO KNOWN PRODUCER, stated so a reader
-                // does not take the guard for evidence of the case:
-                // `derive_general_image` mints an image over the
-                // carrier's whole interval, so nothing at rest
-                // stores a sub-range, and nothing in the suites
-                // hand-builds one. It is here because the trimmed
-                // lane subdivides the STORED image whole, and a
-                // future producer that stored a sub-range would get
-                // a certified number for chart the face does not
-                // bound rather than a refusal.
+                // A producer at rest: an offset fitted face cut by
+                // planes (`replace_face`'s derived plane × fit
+                // sections, each spanning the fit's window while its
+                // edge spans part of it) stores a sub-range, pinned by
+                // `encl_curved_loft_shell::a_moved_fitted_cap_stands_its_corners_on_the_held_sides`
+                // and filed as
+                // `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`.
+                // The trimmed lane subdivides the STORED image whole,
+                // so a sub-range would get a certified number for
+                // chart the face does not bound; it refuses instead.
                 // The refusal first, for the reason the
                 // `exact` closure above gives.
                 if !r0.is_certified()

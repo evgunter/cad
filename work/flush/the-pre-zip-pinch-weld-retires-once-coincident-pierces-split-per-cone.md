@@ -2,12 +2,11 @@
 id: the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone
 kind: issue
 title: The pre-zip pinch weld (finish::weld_pinches) stays as the repair of an operand's coincident pierces; it retires once those split per cone (D10 ground)
-status: parked
+status: open
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [4139, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -83,3 +82,7 @@ minting itself is taken up undeclared by
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the weld cannot retire until the declared union_flush_onto_edge_contact rows' contact records name both copies, which stage 4 rewrites at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not reach this. `finish::weld_pinches` and `pinch_site` stand (`crates/topo/src/boolean/finish.rs:523`, `:738`). The contact records of `union_flush_onto_edge_contact`'s rows still reach the pierce copies only through the weld rows, because E records face-pair coincidences only (`crates/topo/src/boolean/glue.rs:40`). The shape to give stands: mint the coincident pierces on one point key per cone, and record the copies' v-v contact.

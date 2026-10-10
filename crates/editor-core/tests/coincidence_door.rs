@@ -100,7 +100,7 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         "the declared reading's own margin, never a synthetic one"
     );
     let Proof::Unproven { residual, .. } = coincide::prove(&doc, row) else {
-        panic!("the same-source rung proves a declared glue of two extrudes")
+        panic!("the same-construction rung proves a declared glue of two extrudes")
     };
     assert!(
         matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
@@ -163,11 +163,9 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
 /// the walk sees the transform although it adds no name segment — and
 /// stays unproven.
 ///
-/// The kernel settles a same-source pair like these walls by its own
-/// structural rung before any margin (stage 4 spec §14 Q1), so no
-/// production row reaches the door over them, and the row is built
-/// here over the scene's real cells. The production row that does is
-/// the section caps' ([`a_reunited_splits_section_caps_are_one_construction`]).
+/// The row is built here over the scene's real cells; the production
+/// rows over a split's walls and caps are the reunion's
+/// ([`a_reunited_splits_section_caps_are_one_construction`]).
 #[test]
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
@@ -662,14 +660,15 @@ fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId,
     (doc, ev, node, n)
 }
 
-/// **The containment fallback carries the declaration door's rows.**
-/// Two blocks apart, their flush faces declared: the union's boundaries
-/// never cross, so it is the fallback's assembly, and the subtraction's
-/// is operand A whole (the single-operand finish). Each records one row
-/// per declared pair all the same: the declaration door decided them
-/// before the fallback was chosen.
+/// **A declared pair whose faces never meet records no row, through
+/// the containment fallback too.** Two blocks apart, their flush faces
+/// declared: the union's boundaries never cross, so it is the
+/// fallback's assembly, and the subtraction's is operand A whole (the
+/// single-operand finish). The declaration door verified each pair one
+/// carrier, but no face of one block meets a face of the other, so the
+/// glue took no effect and the result records no row (D1).
 #[test]
-fn the_fallbacks_carry_the_declared_rows() {
+fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     for (op, id) in [
         (BooleanOp::Union, "coincide-apart-union"),
         (BooleanOp::Subtract, "coincide-apart-subtract"),
@@ -677,14 +676,8 @@ fn the_fallbacks_carry_the_declared_rows() {
         let (doc, ev, node, n) = apart(op, id);
         assert!(n > 0, "the premise: flush faces to declare");
         let got = rows(&ev, node);
-        assert_eq!(got.len(), n, "{op:?}: one row per declared pair: {got:?}");
-        assert!(
-            got.iter().all(
-                |r| r.relation == Relation::SameOriented && r.site == DecisionSite::PlaneLadder
-            ),
-            "{op:?}: {got:?}"
-        );
-        assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
+        assert!(got.is_empty(), "{op:?}: no row for faces apart: {got:?}");
+        assert!(unproven(&doc, &ev).is_empty(), "{op:?}");
     }
 }
 
@@ -826,4 +819,175 @@ fn a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row() {
             && said.contains("a profile junction no constructor made"),
         "{said}"
     );
+}
+
+/// The names of `node`'s edges with both ends at height `z`.
+fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName> {
+    let body = match &ev.value(node).expect("the node evaluated").payload {
+        ValuePayload::Body(b) => b.clone(),
+        other => panic!("expected a body, got {other:?}"),
+    };
+    let height = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
+    let mut rim: Vec<StableName> = table(ev, node)
+        .iter()
+        .filter_map(|(n, entry)| match entry {
+            Entry::Unique(r) => match r.key {
+                EntityKey::Edge(e) => {
+                    let he = body.get_edge(e).unwrap().he_plus;
+                    let ends = [
+                        body.get_half_edge(he).unwrap().start,
+                        body.half_edge_end(he).unwrap(),
+                    ];
+                    ends.iter()
+                        .all(|&v| (height(v) - z).abs() < 1e-12)
+                        .then(|| n.clone())
+                }
+                _ => None,
+            },
+            Entry::Tied(_) => None,
+        })
+        .collect();
+    rim.sort();
+    rim
+}
+
+/// **A blend's tangent joints and coaxial supports leave the battery**.
+/// A disc (a circle profile extruded) filleted along its top rim: the
+/// fillet holds one `Coaxial` row per rim link, decided at
+/// `BatterySupportAxis` over the cap and the wall, and one
+/// `Tangent { aligned: true }` row per junction, decided at
+/// `BatteryJoint` over the two rim edges meeting there, each named by
+/// the disc's own names. The cap and the wall are two constructions,
+/// so each coaxiality is unproven.
+///
+/// Red if either decision stops being recorded, or is not carried to
+/// the fillet's value.
+#[test]
+fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
+    let doc = ProfileDoc::empty_derived("coincide-disc", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Circle {
+            centre: len2([0.0, 0.0]),
+            radius: len(1.0),
+        },
+    );
+    let (doc, disc) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let ev = run(&doc);
+    let rim = rim_named(&ev, disc, 1.0);
+    let (doc, fillet) = insert(doc, Node::fillet(disc, len(0.1), rim.clone()));
+    let ev = run(&doc);
+    let got = rows(&ev, fillet);
+    assert_eq!(rim.len(), 2, "the circle's rim is two arcs");
+    assert_eq!(got.len(), 4, "two supports, two joints: {got:?}");
+    let (axes, joints) = got.split_at(2);
+    for row in axes {
+        assert_eq!(
+            (row.relation, row.site),
+            (Relation::Coaxial, DecisionSite::BatterySupportAxis)
+        );
+        let kinds = row.cells.each_ref().map(|cell| match cell {
+            NamedCell::Entity { input, name } if *input == disc => name.kind,
+            cell => panic!("a support is a face of the disc: {cell:?}"),
+        });
+        assert_eq!(kinds, [EntityKind::Face; 2], "{row:?}");
+    }
+    for row in joints {
+        assert_eq!(
+            (row.relation, row.site),
+            (
+                Relation::Tangent { aligned: true },
+                DecisionSite::BatteryJoint
+            )
+        );
+        let names = row.cells.each_ref().map(|cell| match cell {
+            NamedCell::Entity { input, name } if *input == disc => name,
+            cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
+        });
+        assert!(
+            names[0] != names[1] && names.iter().all(|n| rim.contains(n)),
+            "a joint names the disc's two rim edges: {row:?}"
+        );
+    }
+    assert!(
+        got.iter()
+            .all(|row| matches!(coincide::prove(&doc, row), Proof::Unproven { .. }))
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 4, "{findings:?}");
+    let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
+    assert!(
+        said.iter().any(|s| s.contains("shares an axis with")),
+        "{said:?}"
+    );
+    assert!(
+        said.iter()
+            .any(|s| s.contains("a blend chain's joint read as tangent")),
+        "{said:?}"
+    );
+}
+
+/// **A union records a vertex touch once, as its pair boolean does.**
+/// Two blocks kissing at a corner: the pair boolean holds one
+/// `VertexFusion` row, cited by its one record. Built as a `Union` node,
+/// the pairwise judgement decides the same touch, but its records are
+/// not the union's, so only the fold step's row, which the union's
+/// record cites, is published: the union's rows and findings are the
+/// pair's, the vertex touch once.
+#[test]
+fn a_union_records_a_vertex_touch_once() {
+    let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: a.into(),
+            b: b.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, union) = crate::docm7_union_declare::declared_union(doc, &[a, b], Vec::new());
+    let ev = run(&doc);
+    let mut all = Vec::new();
+    for (what, node) in [("pair", pair), ("union", union)] {
+        let got = rows(&ev, node);
+        let fusions = got
+            .iter()
+            .filter(|r| r.site == DecisionSite::VertexFusion)
+            .count();
+        assert_eq!(
+            fusions, 1,
+            "{what}: one vertex row for the one kiss: {got:#?}"
+        );
+        let value = ev.value(node).expect("evaluated");
+        let ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. }) =
+            &value.payload
+        else {
+            panic!("{what}: a boolean body")
+        };
+        assert_eq!(
+            contacts.rows().count(),
+            1,
+            "{what}: one record: {contacts:?}"
+        );
+        all.push(got.len());
+    }
+    assert_eq!(all[0], all[1], "the union's rows are the pair's");
+    let findings = unproven(&doc, &ev);
+    let at = |node| {
+        findings
+            .iter()
+            .filter(|f| matches!(f.subject, FindingSubject::Node(n) if n == node))
+            .count()
+    };
+    assert_eq!(at(pair), at(union), "{findings:#?}");
 }

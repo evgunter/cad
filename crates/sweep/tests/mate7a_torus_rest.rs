@@ -37,6 +37,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 
@@ -335,37 +336,41 @@ fn a_contradicted_torus_rest_declaration_refuses_loudly() {
 // 2. The operand gate's covered-pair rung.
 // -------------------------------------------------------------------
 
-/// **Undeclared, a torus pair passes the gate and still refuses
-/// typed.** The KIND roster has a torus, so the gate has nothing to say
-/// about the socket and the peg; what refuses is the crossing layer,
-/// where the peg's circle edges ride the socket bore's carrier and no
-/// declared cover licenses the endpoint posture. Admitting the kind
-/// loosened nothing an undeclared operand reaches: it is refused at the
-/// circle rung's frontier, or escalated where the run's band puts the
-/// sampled margin in its ambiguity window — never a body.
+/// **Undeclared, a torus pair passes the gate and glues as the declared
+/// `Rest` it is.** The KIND roster has a torus, so the gate has nothing
+/// to say about the socket and the peg; the peg's walls lie on the
+/// socket bore's carrier by margin, so the boolean declares the pair
+/// itself, and the union with only the flush end caps declared, or
+/// nothing, is the union with the walls declared `Rest` bit for bit
+/// (D10), which builds ([`peg_in_socket_union_holds`]).
 #[test]
-fn an_undeclared_torus_pair_passes_the_gate_and_still_refuses() {
+fn an_undeclared_torus_pair_passes_the_gate_and_is_the_declared_rest() {
     let (s, p) = (socket(), segment_a());
-    // The flush end caps are continuations, declared; the torus pair is
-    // not.
-    let flush = crate::mate2_common::continuations(&s, &p);
-    let err = topo::union_with(&s, &p, &flush, Tol::witness())
-        .expect_err("an undeclared torus pair must still refuse");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+    let walls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
+    peg_in_socket_union_holds(&s, &p, &walls);
+    let want = outcome(&topo::union_with(&s, &p, &walls, Tol::witness()));
+    for (posture, d) in [
+        (
+            "the end caps declared",
+            crate::mate2_common::continuations(&s, &p),
         ),
-        "the undeclared refusal is the crossing layer's, typed: {err:?}"
-    );
+        ("undeclared", BooleanDeclarations::none()),
+    ] {
+        assert_eq!(
+            outcome(&topo::union_with(&s, &p, &d, Tol::witness())),
+            want,
+            "{posture}: the declared union"
+        );
+    }
 }
 
 /// **Fully covered, nothing refuses at the gate or at the circle
 /// rung.** A full torus carries NOTHING but its two wall faces, so
 /// declaring every cross pair covers every pair — and the operation
 /// reaches the classification layer, which is the depth the roster and
-/// the carrier-identity rung buy together. Undeclared, the same pair
-/// refuses at the crossing layer.
+/// the carrier-identity rung buy together. Undeclared, the boolean
+/// declares the same continuation itself, and refuses where the
+/// declared union does (D10).
 ///
 /// The two operands are the SAME torus, which is what makes the
 /// declaration true rather than convenient: one carrier, one material
@@ -380,21 +385,13 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
         "a full torus must carry nothing but wall faces, or the covering below is partial"
     );
     let decls = wall_declarations(&a, &b, TUBE, topo::BooleanCoincidence::Continuation);
-    let undeclared = topo::union(&a, &b, Tol::witness())
-        .expect_err("undeclared, the coincident pair has no crossing verdict");
-    assert!(
-        matches!(
-            undeclared,
-            BooleanError::UndeclaredCoincidence {
-                relation: topo::PlaneRelation::SameOriented,
-                ..
-            }
-        ),
-        "the undeclared refusal names the aligned coincident pair at the reduction: \
-         {undeclared:?}"
+    let declared = topo::union_with(&a, &b, &decls, Tol::witness());
+    assert_eq!(
+        outcome(&topo::union(&a, &b, Tol::witness())),
+        outcome(&declared),
+        "undeclared: the declared refusal"
     );
-    let declared = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("the lane still stops downstream of the gate");
+    let declared = declared.expect_err("the lane still stops downstream of the gate");
     assert!(
         !matches!(declared, BooleanError::CurvedPairUnsupported { .. }),
         "every offending pair is covered, so the gate must not be what refuses: {declared:?}"
@@ -651,10 +648,11 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 ///   (R-tan);
 /// - the declared chain routes to the seam, the declared kissing pair
 ///   to the unbuilt cusp family;
-/// - undeclared, a pair with a continuation in it refuses that
-///   continuation at the reduction, and the others refuse at the
-///   crossing layer (escalated where the run's band puts the sampled
-///   margin in its window).
+/// - undeclared, the socket and peg and the coincident pair are their
+///   declared outcomes bit for bit (D10: their pairs are one carrier by
+///   margin, and the boolean declares them itself), and the chain and
+///   the kissing pair refuse at the crossing layer (escalated where the
+///   run's band puts the sampled margin in its window).
 #[test]
 fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     let tangency = |what: &str, err: &BooleanError| {
@@ -744,34 +742,41 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             "the kissing pair, {op}: {err:?}"
         );
     }
-    // Undeclared, a pair with a continuation in it (the socket's flush
-    // end caps, the coincident tori) refuses that continuation at the
-    // reduction; the others refuse at the crossing layer.
-    for (name, (a, b), continuation) in [
-        ("socket and peg", (socket(), segment_a()), true),
+    // Undeclared, the socket and peg are the declared `Rest` and the
+    // coincident tori the declared continuation; the others refuse at
+    // the crossing layer.
+    for (name, (a, b), declared) in [
+        (
+            "socket and peg",
+            (socket(), segment_a()),
+            Some(topo::BooleanCoincidence::REST),
+        ),
         (
             "coincident pair",
             (full_torus(RING), full_torus(RING)),
-            true,
+            Some(topo::BooleanCoincidence::Continuation),
         ),
-        ("chain", (segment_a(), segment_b()), false),
-        ("kissing pair", kissing_pair(), false),
+        ("chain", (segment_a(), segment_b()), None),
+        ("kissing pair", kissing_pair(), None),
     ] {
+        if let Some(class) = declared {
+            let twin =
+                subtract_both_orders_and_intersect(&a, &b, &wall_declarations(&a, &b, TUBE, class));
+            for ((op, r), (_, want)) in
+                subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none())
+                    .into_iter()
+                    .zip(twin)
+            {
+                assert_eq!(
+                    outcome(&r),
+                    outcome(&want),
+                    "{name} undeclared, {op}: the declared outcome"
+                );
+            }
+            continue;
+        }
         for (op, r) in subtract_both_orders_and_intersect(&a, &b, &BooleanDeclarations::none()) {
             let err = r.expect_err(op);
-            if continuation {
-                assert!(
-                    matches!(
-                        err,
-                        BooleanError::UndeclaredCoincidence {
-                            relation: topo::PlaneRelation::SameOriented,
-                            ..
-                        }
-                    ),
-                    "{name} undeclared, {op}: the undeclared continuation: {err:?}"
-                );
-                continue;
-            }
             // The escalation is the circle rung's sampled clearance
             // landing in the band's window (the `1e-6` row); at the
             // finer rows the same edge refuses at the pierce door.

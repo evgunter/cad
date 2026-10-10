@@ -127,8 +127,8 @@
 use geom_brep::recourse::{
     LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
-use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::k_stats::{Magnitude, decide_magnitude, decide_magnitude_reported};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
@@ -798,14 +798,15 @@ pub(crate) enum ConicArcError {
 }
 
 /// Where a point sits against one conic edge.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum ConicHit {
     /// Definitely off the conic.
     Off,
     /// On the conic, definitely off the arc and clear of both its ends.
     Carrier,
-    /// On the arc, definitely clear of both ends.
-    On,
+    /// On the arc, definitely clear of both ends, by the margin that
+    /// decided the point on the conic.
+    On(MarginDiag),
     /// On the conic within the band of one of the arc's ends.
     End,
 }
@@ -995,9 +996,9 @@ impl<T: Decide> ConicArc<T> {
         if self.kind == ConicKind::Circle {
             let rho = (x.powi(2) + y.powi(2)).sqrt();
             let miss = circle_miss(q, self.center, self.axis, self.lever);
-            match decide_magnitude(rows.on, Margin::of(miss), band) {
-                Ok(Magnitude::Positive) => return Ok(ConicHit::Off),
-                Ok(Magnitude::Zero) => {}
+            let on = match decide_magnitude_reported(rows.on, Margin::of(miss), band) {
+                Ok((Magnitude::Positive, _)) => return Ok(ConicHit::Off),
+                Ok((Magnitude::Zero, on)) => on,
                 // In band of the circle — which is the distance to the ARC
                 // only where the foot is on it. Past its ends the arc's
                 // nearest point is the nearer end, so a foot definitely
@@ -1009,7 +1010,7 @@ impl<T: Decide> ConicArc<T> {
                         Err(diag.into())
                     };
                 }
-            }
+            };
             let trim = ArcTrimRows {
                 end: rows.end,
                 trim: rows.trim,
@@ -1025,7 +1026,7 @@ impl<T: Decide> ConicArc<T> {
                     band,
                 )? {
                     Sign::Zero => ConicHit::End,
-                    Sign::Positive => ConicHit::On,
+                    Sign::Positive => ConicHit::On(on),
                     Sign::Negative => ConicHit::Carrier,
                 },
             );
@@ -1059,24 +1060,30 @@ impl<T: Decide> ConicArc<T> {
         // the band — the two bounds agree to within the band's own ratio
         // there — and is wrong on one that bends tighter
         // (`tests::an_ellipse_tighter_than_the_band_straddles_it`).
-        let undecided = match (decide_magnitude(rows.on, Margin::of(upper), band), far) {
-            (Ok(Magnitude::Zero), _) => None,
-            (_, Err(diag)) | (Err(diag), _) => Some(ReadEscalation::from(diag)),
+        let decided = match (
+            decide_magnitude_reported(rows.on, Margin::of(upper), band),
+            far,
+        ) {
+            (Ok((Magnitude::Zero, on)), _) => Ok(on),
+            (_, Err(diag)) | (Err(diag), _) => Err(ReadEscalation::from(diag)),
             // The lower bound within the zero band, the upper definitely
             // beyond it: the two straddle the whole band, which only an
             // ellipse bending tighter than the band resolves (`b²/a`
             // within a few `ε`) allows.
-            (Ok(Magnitude::Positive), _) => Some(ReadEscalation::straddle(band, rows.straddle)),
+            (Ok((Magnitude::Positive, _)), _) => Err(ReadEscalation::straddle(band, rows.straddle)),
         };
         // Undecided against the conic, as a circle's in-band miss: off
         // the edge only where the foot is definitely past its ends.
-        if let Some(diag) = undecided {
-            return if self.clear_of_arc(q, foot, a.max(b), rows, band) {
-                Ok(ConicHit::Off)
-            } else {
-                Err(diag)
-            };
-        }
+        let on = match decided {
+            Ok(on) => on,
+            Err(diag) => {
+                return if self.clear_of_arc(q, foot, a.max(b), rows, band) {
+                    Ok(ConicHit::Off)
+                } else {
+                    Err(diag)
+                };
+            }
+        };
         let (t0, t1) = self.span;
         let at = [
             decide_magnitude(rows.end, Margin::norm3(q - self.point(t0)), band),
@@ -1098,7 +1105,7 @@ impl<T: Decide> ConicArc<T> {
                 // margin, levered by the larger semi-axis, is at least that
                 // arc length. It reads as on, as a circle's does, should
                 // rounding reach it.
-                Sign::Positive | Sign::Zero => ConicHit::On,
+                Sign::Positive | Sign::Zero => ConicHit::On(on),
                 Sign::Negative => ConicHit::Carrier,
             },
         )
@@ -1290,15 +1297,16 @@ pub(crate) enum LoopEdge<T: geom_core::Real> {
 }
 
 /// Where a point sits against one boundary edge — [`LoopEdge::contact`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum EdgeContact {
     /// Definitely off the edge.
     Off,
     /// On a conic's carrier, definitely off the arc and clear of its
     /// ends — off the edge, and a fact the crossing count needs.
     Carrier,
-    /// On the edge, clear of a conic's ends.
-    On,
+    /// On the edge, clear of a conic's ends, by the margin that decided
+    /// the point on it.
+    On(MarginDiag),
     /// Within the band of one of a curved edge's two carrier ends.
     End,
     /// A spline edge, which has no row: this pass cannot say, and the
@@ -1320,22 +1328,19 @@ impl<T: Decide> LoopEdge<T> {
         band: Band,
     ) -> Result<EdgeContact, ReadEscalation> {
         Ok(match self {
-            Self::Chord => {
-                if ray_walk::on_segment(a, b, q, rows.line, band)? {
-                    EdgeContact::On
-                } else {
-                    EdgeContact::Off
-                }
-            }
+            Self::Chord => match ray_walk::on_segment_margin(a, b, q, rows.line, band)? {
+                Some(on) => EdgeContact::On(on),
+                None => EdgeContact::Off,
+            },
             Self::Conic(k) => match k.hit(q, rows.conic, band)? {
                 ConicHit::Off => EdgeContact::Off,
                 ConicHit::Carrier => EdgeContact::Carrier,
-                ConicHit::On => EdgeContact::On,
+                ConicHit::On(on) => EdgeContact::On(on),
                 ConicHit::End => EdgeContact::End,
             },
             Self::Spiric(k) => match k.contact(q, rows.spiric, band)? {
                 SpiricHit::Off => EdgeContact::Off,
-                SpiricHit::On => EdgeContact::On,
+                SpiricHit::On(on) => EdgeContact::On(on),
                 SpiricHit::End => EdgeContact::End,
                 SpiricHit::Unsettled => EdgeContact::Unread,
             },
@@ -1971,7 +1976,7 @@ fn carrier_walk<T: Decide>(
             }
             EdgeContact::Off | EdgeContact::Unread => {}
             EdgeContact::Carrier => on_carrier[i] = true,
-            EdgeContact::On | EdgeContact::End => match boundary {
+            EdgeContact::On(_) | EdgeContact::End => match boundary {
                 Boundary::Verdict => return Ok(WalkSide::OnBoundary),
                 // The caller's pass ran the same arithmetic and placed `q`
                 // off this edge. The two agree whenever every decision is
@@ -2170,9 +2175,8 @@ mod tests {
             let ask = |q| k.hit(q, WALK_ROWS.conic, band).expect("decided");
             for s in [20.0 * eps, 50.0 * eps, 500.0 * eps, 5000.0 * eps] {
                 let d = s / r;
-                assert_eq!(
-                    ask(at(t1 - d)),
-                    ConicHit::On,
+                assert!(
+                    matches!(ask(at(t1 - d)), ConicHit::On(_)),
                     "w = {t1}: {s} m inside the end"
                 );
                 assert_eq!(
@@ -2180,9 +2184,8 @@ mod tests {
                     ConicHit::Carrier,
                     "w = {t1}: {s} m past the end"
                 );
-                assert_eq!(
-                    ask(at(t0 + d)),
-                    ConicHit::On,
+                assert!(
+                    matches!(ask(at(t0 + d)), ConicHit::On(_)),
                     "w = {t1}: {s} m inside the start"
                 );
                 assert_eq!(
@@ -2244,9 +2247,8 @@ mod tests {
         for s in [11.0, 15.0, 18.0, 40.0] {
             let q = k.point(t0 + s * eps / a);
             let got = k.hit(q, WALK_ROWS.conic, band);
-            assert_eq!(
-                got,
-                Ok(ConicHit::On),
+            assert!(
+                matches!(got, Ok(ConicHit::On(_))),
                 "{s}ε along the arc from its end: on the arc, neither its end nor an escalation"
             );
         }
@@ -2285,25 +2287,30 @@ mod tests {
         };
         let mid_gap = k.hit(k.point(core::f64::consts::FRAC_PI_2), WALK_ROWS.conic, band);
         assert!(
-            !matches!(mid_gap, Ok(ConicHit::On)),
+            !matches!(mid_gap, Ok(ConicHit::On(_))),
             "the gap is not the arc: {mid_gap:?}"
         );
         for s in [5.0, 11.0] {
             // `s·ε` of arc into the gap from the arc's end at `t1`.
             let past = k.hit(k.point(t1 + s * eps / 20.0), WALK_ROWS.conic, band);
             assert!(
-                !matches!(past, Ok(ConicHit::On)),
+                !matches!(past, Ok(ConicHit::On(_))),
                 "{s}ε past the end, in the gap: {past:?}"
             );
         }
-        assert_eq!(k.hit(k.point(1.0), WALK_ROWS.conic, band), Ok(ConicHit::On));
+        assert!(matches!(
+            k.hit(k.point(1.0), WALK_ROWS.conic, band),
+            Ok(ConicHit::On(_))
+        ));
         let Ok(Some(full)) = steep(band, (0.0, core::f64::consts::TAU)) else {
             panic!("the full ellipse is read");
         };
         for t in [0.3, core::f64::consts::FRAC_PI_2, 3.0, 5.0] {
-            assert_eq!(
-                full.hit(full.point(t), WALK_ROWS.conic, band),
-                Ok(ConicHit::On),
+            assert!(
+                matches!(
+                    full.hit(full.point(t), WALK_ROWS.conic, band),
+                    Ok(ConicHit::On(_))
+                ),
                 "a full period is on the arc at {t}"
             );
         }
@@ -2664,8 +2671,8 @@ mod tests {
         let mut spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(Point3::new(0.0, 0.0, 0.0));
         let over = spec.param_end + 0.5 * eps;
         spec.param_end = over;
-        if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            ref mut angle,
+        if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve {
+            source: geom_brep::MappedSource::RevolvedPoint { ref mut angle, .. },
             ..
         }) = spec.description
         {

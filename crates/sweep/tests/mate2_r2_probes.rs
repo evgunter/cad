@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::outcomes::outcome;
 use crate::mate2_common;
 
 use crate::common::three_arc;
@@ -60,26 +61,39 @@ fn never_silent(
 /// ATTACK (claim 2): the declaration names only a PARTIAL cover — one
 /// bore face is left out entirely. The seam endpoints of ITS rim arcs
 /// still land `Elsewhere` on the two covered neighbours; the widened
-/// arm must not let the uncovered pair's incidence vanish. Expect a
-/// typed refusal (the uncovered pair keeps both doors) — and above
-/// all, never a wrong body.
+/// arm must not let the uncovered pair's incidence vanish. The left-out
+/// pairs are one carrier by margin, so the boolean declares them itself
+/// and the partial cover is the full cover's outcome bit for bit (D10)
+/// — and above all, never a wrong body.
 #[test]
-fn r2_partial_cover_one_bore_face_undeclared_is_never_silent() {
+fn r2_partial_cover_one_bore_face_undeclared_is_the_full_cover() {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 0.5, 2.0);
     let bore = walls_at(&c, 0.5);
     let pegw = walls_at(&p, 0.5);
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &bore[..2] {
-        // one bore face dropped
-        for &fb in &pegw {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
+    let cover = |bore: &[topo::FaceKey]| {
+        let mut decls = BooleanDeclarations::none();
+        for &fa in bore {
+            for &fb in &pegw {
+                decls
+                    .coincident_faces
+                    .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
+            }
         }
-    }
-    let e = never_silent("partial cover (2 of 3 bore faces)", &c, &p, &decls);
-    assert!(e.is_some(), "an uncovered live pair must not union");
+        decls
+    };
+    // One bore face dropped.
+    let partial = cover(&bore[..2]);
+    never_silent("partial cover (2 of 3 bore faces)", &c, &p, &partial);
+    let (c, p) = (
+        finished("the collar", c, Tol::witness()),
+        finished("the peg", p, Tol::witness()),
+    );
+    assert_eq!(
+        outcome(&topo::union_with(&c, &p, &partial, Tol::witness())),
+        outcome(&topo::union_with(&c, &p, &cover(&bore), Tol::witness())),
+        "the partial cover is the full cover's union"
+    );
 }
 
 /// ATTACK (claim 2): a "diagonal" declaration — each bore face against

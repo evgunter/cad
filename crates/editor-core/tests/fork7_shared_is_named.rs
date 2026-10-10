@@ -365,7 +365,7 @@ fn the_value_and_the_bound_of_one_assertion_are_two_readers() {
         node: Box::new(Node::Assertion {
             value: Formula::fresh(0, Dimension::Length),
             bound: Formula::fresh(0, Dimension::Length),
-            dir: editor_core::AssertionDir::AtMost,
+            relation: editor_core::AssertionRelation::AtMost,
         }),
         fresh: vec![fresh],
     };

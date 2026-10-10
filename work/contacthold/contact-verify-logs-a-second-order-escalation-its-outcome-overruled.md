@@ -2,11 +2,10 @@
 id: contact-verify-logs-a-second-order-escalation-its-outcome-overruled
 kind: issue
 title: contact_verify's tangency ladder leaves its early second-order escalation on the node log when a definite parallelism defect refuses, or a declaration bridges it
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: M
-blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -70,3 +69,7 @@ definite, then asserts that the log is empty.
 ## Parked on the D10 hold (2026-10-08)
 
 Its bridged-by-declaration arm is declared contact. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+The glue door runs `contact_verify`'s tangency ladder on undeclared pairs as well. A pair it does not verify is left undeclared rather than refused, so an overruled early escalation can now land on the log of an op that builds. The question this row asks still holds.

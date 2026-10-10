@@ -431,11 +431,13 @@ fields named now):
 - `ParamDef.distribution: Option<Distribution>` (E2 forms, offsets
   dimensioned per F1, shortest-round-trip floats as ratified);
 - the `Measure` node (E3) with its StableName references;
-- `Assertion { value, bound, dir: AtLeast | AtMost }`, `value` a
-  scalar variable (a measure's output, or a definition over outputs)
-  — tolerance *requirements* as recorded design intent (the CAD
-  analog of a test suite: "min wall ≥ 0.5 mm" lives in the document,
-  versioned and diffable, not in a script beside it).
+- `Assertion { value, relation: AtLeast | AtMost | Equal, bound }`
+  (D10's `≥`, `≤`, `=`), `value` a scalar variable (a measure's
+  output, or a definition over outputs) and `bound` a scalar
+  variable of the same dimension — tolerance *requirements* as
+  recorded design intent (the CAD analog of a test suite: "min wall
+  ≥ 0.5 mm" lives in the document, versioned and diffable, not in a
+  script beside it).
 
 Unknown-field/version handling per F3 verbatim; the migration chain
 gains one explicit version-to-version step.
@@ -453,8 +455,8 @@ margin-thin fixture (the honesty metric is itself regression-
 tested); (3) k_stats funnel rows for driver + solver predicates
 (the K re-examination evidence, E6/E8).
 
-**Open sub-question**: should a failing Assertion gate `build()`?
-v1 says no — assertions report; a gating mode is additive policy.
+A failing Assertion gates no `build()`: an assertion checks and never
+places (D10), so its verdict is a report.
 
 ## E11 — What the MVP does NOT do (loud)
 

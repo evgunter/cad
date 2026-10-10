@@ -136,12 +136,14 @@ picks.** `CertCheck` carries a `Display` on its declaring row, written
 as an exhaustive match so a check the taxonomy gains has no word until
 someone writes one, and `CertifyError`'s three check-naming arms render
 through it. Each word is the phrase a person would write ("the
-out-of-halfplane component"), not the variant identifier: these rows are
+between-samples sag bound"), not the variant identifier: these rows are
 not doors anyone calls, so the identifier buys a reader nothing that the
 typed field does not already give a program, and every neighbouring arm
 of the same `Display` is English prose. The word also carries the KIND
-of quantity the check meters, because the sentence cannot — five of the
-fifteen checks that reach the definite arm meter no residual. The
+of quantity the check meters, because the sentence cannot: not every
+check that reaches the definite arm meters a residual (a sup bound,
+`CertCheck::bounds_a_miss`; a parallelism defect), and the exhaustive
+match is where each one's kind is written. The
 censuses beside the taxonomy hold the words apart and hold each away
 from its identifier: two checks saying one phrase makes a refusal
 ambiguous about what it refused, and a phrase that IS the identifier is
@@ -187,7 +189,7 @@ midpoint, the state Newton started from: in the band the surfaces are
 near tangent there (`SsiError::TransversalityBand`), undecided the
 decision escalates (`SsiError::Escalated` on `ssi_transversality`), and
 either is the refusal, with the clearer angle's lever; clear of it, the
-gap is one refinement cannot halve. Where the refused margin stops
+gap is one refinement cannot halve. Where the refused residual stops
 falling over two consecutive rounds (two definite margins, the later no
 smaller, or two in the band, whatever their values), limb 3 is asked
 once of the carrier, and its refusal stands: a carrier across two
@@ -203,9 +205,9 @@ further, the certificate's refusal stands, naming where refinement
 stopped (gaps whose half falls in the band, midpoints that did not
 settle, midpoints that settled outside the domain) and the limb and
 margin each earlier round refused (`SsiError::RefinementExhausted`). At
-the wall, a margin that stopped falling over the last two rounds ends
-in the tolerance as the arithmetic's floor; one still falling ends as
-the curvature-held march's does.
+the wall, a refused residual that stopped falling over the last two
+rounds ends in the tolerance as the arithmetic's floor; one still
+falling ends as the curvature-held march's does.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
@@ -486,8 +488,8 @@ Within-pair degeneracies are trileans run before any rung (axis
 parallelism at derived angular thresholds, centre/axis distances against
 radii): definitely generic goes to the arm's rung, exactly degenerate to
 the closed form, in-band to `SectionError::Escalated`. Equal cylinder
-radii are structural or declared (`RadiusEvidence`), never inferred from
-values. Tangential outcomes (`TangentLine`, `TangentPoint`) are
+radii, and a sphere's centre on a cylinder's axis, are decided by their
+margins like every other coincidence (D10). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
@@ -513,7 +515,10 @@ coefficient are `f64` structure (`geom_core::spline`); control points are
 the only generically typed data; the fitting loops (`curves/fit.rs`)
 take `f64` points. The certificate re-evaluates against the pinned
 structure at any `Real`, so the interval lane proves what the f64 lane
-chose. No topology-determining predicate reads knot counts, spans or
+chose. A refinement made inside a certificate chooses nothing: its
+refined weights are generally not `f64`, so it is held only as
+homogeneous enclosures `(w·P, w)`, and the projective knot algebra has
+no meaning at the certification scalar. No topology-determining predicate reads knot counts, spans or
 fitted coefficients except through named certified margins; the name
 table is a function of recipe structure and verdicts only.
 
@@ -625,7 +630,7 @@ weights enforced at construction (the convex-hull property every hull
 bound stands on); evaluation and derivatives generic over `Real` by de
 Boor in fixed order. Algorithms: knot insertion, refinement, removal and
 degree elevation on curves and surfaces (`split_at` is insertion to full
-multiplicity), point projection with certified orthogonality residuals,
+multiplicity), point projection with certified residuals,
 and the fitting stack (interpolation, column-wise collocation for
 skinning, the bounded approximation loop). Lofts and sweeps
 (`crates/sweep`) are *definitional* surfaces: the produced NURBS is the
@@ -788,8 +793,10 @@ thin solids keep their two), and the invariant is closure, not genus
 (one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
 inverted cavity walls at edge re-attachment. A fitted face's edge with a
 plane is their section over the fit (C5), and a row of its fit beside
-an analytic face is extracted from the new fit; its other boundary
-refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
+an analytic face is extracted from the new fit. Its corners are the
+held planes' roots along those edges, a section's sought from its end
+at the corner; the fit itself is not rooted along a held edge. Its
+other boundary refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
 naming `Approx`); by `FittedBoundaryUnsupported`, a row of the fit
 shared with a spline or another fitted face, a curve on the fit that
 does not run along its rows, a scaffold edge, and a seam the face shares

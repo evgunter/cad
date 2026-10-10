@@ -218,6 +218,17 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
+/// The crate's **magnitude door**
+/// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
+/// nonnegative by construction, whose two signs are both verdicts.
+pub(crate) fn decide_magnitude<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Magnitude, Indeterminate> {
+    geom_core::k_stats::decide_magnitude(name, margin, band)
+}
+
 /// The crate's **collapsed-arm gate**, the same wrapper one door over
 /// ([`geom_core::k_stats::decide_positive`]): for a predicate whose
 /// question is only validly posed through a definitely-positive margin
@@ -243,17 +254,6 @@ pub(crate) fn decide_nonzero<T: Decide>(
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
-}
-
-/// The crate's **magnitude door**
-/// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
-/// nonnegative by construction, whose two signs are both verdicts.
-pub(crate) fn decide_magnitude<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Magnitude, Indeterminate> {
-    geom_core::k_stats::decide_magnitude(name, margin, band)
 }
 
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at

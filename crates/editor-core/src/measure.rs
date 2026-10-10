@@ -21,7 +21,8 @@ use crate::node::SitedRef;
 /// Which closed-form measurement a measure computes, over which two
 /// references `R`.
 ///
-/// A [`crate::Node::Measure`] holds one over [`SitedRef`]s; another
+/// A [`crate::Node::Measure`] holds one over its reads (a stored
+/// node's [`crate::VarId`]s, authored as [`SitedRef`]s); another
 /// reference type is the same primitive read elsewhere, through
 /// [`Self::try_map`].
 ///
@@ -136,13 +137,103 @@ impl<R> MeasurePrimitive<R> {
         })
     }
 
+    /// The same primitive over other references, `f` applied to each in
+    /// argument order.
+    pub fn map<R2>(&self, mut f: impl FnMut(&R) -> R2) -> MeasurePrimitive<R2> {
+        match self.try_map(|r| Ok::<_, core::convert::Infallible>(f(r))) {
+            Ok(mapped) => mapped,
+            Err(never) => match never {},
+        }
+    }
+
     /// The primitive's name, for diagnostics and the wire.
     pub fn verb(&self) -> &'static str {
+        self.kind().verb()
+    }
+
+    /// Which primitive this is, without its references.
+    pub fn kind(&self) -> MeasureVerb {
         match self {
-            Self::Distance { .. } => "distance",
-            Self::Angle { .. } => "angle",
-            Self::Gap { .. } => "gap",
-            Self::MinClearance { .. } => "min_clearance",
+            Self::Distance { .. } => MeasureVerb::Distance,
+            Self::Angle { .. } => MeasureVerb::Angle,
+            Self::Gap { .. } => MeasureVerb::Gap,
+            Self::MinClearance { .. } => MeasureVerb::MinClearance,
+        }
+    }
+}
+
+/// **Which primitive a measure is, and what its references admit**
+/// (FORK-VTX): the kinds a reference of each primitive may read, fixed
+/// by the primitive and checked at the edit and load doors as any
+/// operand seat's kind is, since a selection's kind is fixed when it is
+/// minted.
+///
+/// | primitive | a reference reads |
+/// | --- | --- |
+/// | `distance` | a `Face`, an `Edge` or a `Vertex` |
+/// | `angle` | a `Face` or an `Edge` |
+/// | `min_clearance` | a `Body` or a `Face` |
+/// | `gap` | a `Face` |
+///
+/// What stays at evaluation is the carrier CLASS (a cone face in a
+/// `distance`, a pair with no closed form): a surface class is not a
+/// kind ([`MeasureUnsupported`](crate::eval::measure::MeasureUnsupported)).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum MeasureVerb {
+    /// [`MeasurePrimitive::Distance`].
+    Distance,
+    /// [`MeasurePrimitive::Angle`].
+    Angle,
+    /// [`MeasurePrimitive::MinClearance`].
+    MinClearance,
+    /// [`MeasurePrimitive::Gap`].
+    Gap,
+}
+
+impl MeasureVerb {
+    /// The primitive's name, for diagnostics and the wire.
+    #[must_use]
+    pub const fn verb(self) -> &'static str {
+        match self {
+            Self::Distance => "distance",
+            Self::Angle => "angle",
+            Self::Gap => "gap",
+            Self::MinClearance => "min_clearance",
+        }
+    }
+
+    /// Whether a reference of this primitive may read a variable of
+    /// `kind`.
+    #[must_use]
+    pub const fn admits(self, kind: crate::VarKind) -> bool {
+        use crate::VarKind as K;
+        match self {
+            Self::Distance => matches!(kind, K::Face | K::Edge | K::Vertex),
+            Self::Angle => matches!(kind, K::Face | K::Edge),
+            Self::MinClearance => matches!(kind, K::Body | K::Face),
+            Self::Gap => matches!(kind, K::Face),
+        }
+    }
+
+    /// The admitted kinds as a reader says them, read off
+    /// [`Self::admits`]: "a face, an edge or a vertex".
+    #[must_use]
+    pub fn admitted(self) -> String {
+        use crate::VarKind as K;
+        let said: Vec<String> = [K::Body, K::Face, K::Edge, K::Vertex]
+            .into_iter()
+            .filter(|&kind| self.admits(kind))
+            .map(|kind| {
+                let word = kind.to_string();
+                format!("{} {word}", crate::sentence::article(&word))
+            })
+            .collect();
+        match said.as_slice() {
+            [] => String::new(),
+            [one] => one.clone(),
+            [init @ .., last] => format!("{} or {last}", init.join(", ")),
         }
     }
 }
@@ -343,29 +434,33 @@ where
     }
 }
 
-/// Which way an [`Assertion`](crate::Node::Assertion) constrains its
-/// measure (E10).
+/// The relation an [`Assertion`](crate::Node::Assertion) states
+/// between its value and its bound (D10: `≤`, `≥`, `=`).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub enum AssertionDir {
+pub enum AssertionRelation {
     /// The measured quantity must be at least the bound.
     AtLeast,
     /// The measured quantity must be at most the bound.
     AtMost,
+    /// The measured quantity must equal the bound, at the document's
+    /// tolerance (a Zero margin, D4).
+    Equal,
 }
 
-impl AssertionDir {
+impl AssertionRelation {
     /// The relation as it reads in a report.
     pub fn symbol(self) -> &'static str {
         match self {
             Self::AtLeast => ">=",
             Self::AtMost => "<=",
+            Self::Equal => "=",
         }
     }
 }
 
-/// **An assertion's evaluated verdict — REPORT ONLY (E10 v1).**
+/// **An assertion's evaluated verdict — REPORT ONLY (D10, E10).**
 ///
 /// This is the whole of an assertion's product. Nothing downstream
 /// reads it: no gate consults it, no op takes it as an operand, and no
@@ -373,8 +468,8 @@ impl AssertionDir {
 /// rather than promised — an assertion node denotes no body, so the
 /// root gather skips it exactly as it skips a declaration, and its
 /// value payload is not an admissible operand for any op in the
-/// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads,
-/// and a gating mode is additive policy nobody has ratified.
+/// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads:
+/// an assertion checks and never places (D10).
 #[derive(Debug, Clone, PartialEq)]
 pub enum AssertionVerdict<T> {
     /// The measured value satisfies the bound.
@@ -515,12 +610,15 @@ pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs
 /// The endpoints are therefore not interchangeable, and which VERDICT
 /// an assertion may reach depends on which endpoint its arm reads:
 ///
-/// | direction | verdict | endpoint | sound for the faces? |
+/// | relation | verdict | endpoint | sound for the faces? |
 /// | --- | --- | --- | --- |
 /// | `AtLeast c` | `Holds` | `lo` | yes — `M ≥ m ≥ lo ≥ c` |
 /// | `AtLeast c` | `Violated` | `hi` | **no** |
 /// | `AtMost c` | `Violated` | `lo` | yes — `M ≥ m ≥ lo > c` |
 /// | `AtMost c` | `Holds` | `hi` | **no** |
+/// | `Equal c` | `Violated` (above) | `lo` | yes — `M ≥ m ≥ lo > c` |
+/// | `Equal c` | `Violated` (below) | `hi` | **no** |
+/// | `Equal c` | `Holds` | `lo` and `hi` | **no** |
 ///
 /// The two unsound arms refuse [`UnevaluatedReason::WindowSuperset`]
 /// rather than answering; [`WINDOW_TIGHTENING`] narrows the superset
@@ -607,8 +705,10 @@ impl<T> AssertionVerdict<T> {
 /// one `k_stats` funnel under the existing `assert_bound` predicate
 /// name.
 ///
-/// The comparand is `measured − bound` for `AtLeast` and its negation
-/// for `AtMost`, in the MEASURE's own dimension.
+/// The comparand is `measured − bound` for `AtLeast` and `Equal` and
+/// its negation for `AtMost`, in the MEASURE's own dimension. `Equal`
+/// holds on a Zero margin and is violated by either definite sign; the
+/// sliver band is `Unevaluated`, as for the other two.
 ///
 /// # Dimension (audit F16, `docs/predicate-dimension-audit.md`)
 ///
@@ -636,45 +736,50 @@ impl<T> AssertionVerdict<T> {
 pub(crate) fn decide_assertion<T: Decide>(
     measured: T,
     bound: T,
-    dir: AssertionDir,
+    relation: AssertionRelation,
     band: geom_core::Band,
     certified: Certified,
 ) -> AssertionVerdict<T> {
-    let comparand = match dir {
-        AssertionDir::AtLeast => measured - bound,
-        AssertionDir::AtMost => bound - measured,
+    let comparand = match relation {
+        AssertionRelation::AtLeast | AssertionRelation::Equal => measured - bound,
+        AssertionRelation::AtMost => bound - measured,
     };
-    // Which END of the enclosure each arm reads. `AtLeast` decides
-    // `Holds` off the smallest the measure can be and `Violated` off
-    // the largest; `AtMost` is the mirror.
-    let refuse = |upper: bool| AssertionVerdict::Unevaluated {
-        reason: UnevaluatedReason::WindowSuperset {
-            verb: "min_clearance",
-            endpoint: if upper { "upper" } else { "lower" },
-            recourse: WINDOW_TIGHTENING,
-        },
+    let sign = match geom_core::k_stats::decide_flagged(ASSERT_BOUND, comparand, band, "F16") {
+        Ok(sign) => sign,
+        Err(cause) => {
+            return AssertionVerdict::Unevaluated {
+                reason: UnevaluatedReason::Indeterminate { cause },
+            };
+        }
     };
-    match geom_core::k_stats::decide_flagged(ASSERT_BOUND, comparand, band, "F16") {
-        // At the bound exactly, a non-strict relation holds.
-        Ok(geom_core::Sign::Positive | geom_core::Sign::Zero) => {
-            let upper = matches!(dir, AssertionDir::AtMost);
-            if certified.admits(upper) {
-                AssertionVerdict::Holds { measured, bound }
-            } else {
-                refuse(upper)
-            }
-        }
-        Ok(geom_core::Sign::Negative) => {
-            let upper = matches!(dir, AssertionDir::AtLeast);
-            if certified.admits(upper) {
-                AssertionVerdict::Violated { measured, bound }
-            } else {
-                refuse(upper)
-            }
-        }
-        Err(cause) => AssertionVerdict::Unevaluated {
-            reason: UnevaluatedReason::Indeterminate { cause },
-        },
+    // Which ENDS of the enclosure the verdict reads (`true` the upper):
+    // `measured − bound` decided positive reads the smallest the
+    // measure can be, decided negative the largest, and `=` holds only
+    // off both. At the bound exactly, a non-strict relation holds.
+    use AssertionRelation::{AtLeast, AtMost, Equal};
+    use geom_core::Sign::{Negative, Positive, Zero};
+    let (holds, ends): (bool, &[bool]) = match (relation, sign) {
+        (AtLeast, Positive | Zero) => (true, &[false]),
+        (AtMost, Positive | Zero) => (true, &[true]),
+        (AtLeast, Negative) => (false, &[true]),
+        (AtMost, Negative) => (false, &[false]),
+        (Equal, Zero) => (true, &[false, true]),
+        (Equal, Positive) => (false, &[false]),
+        (Equal, Negative) => (false, &[true]),
+    };
+    if let Some(&upper) = ends.iter().find(|&&upper| !certified.admits(upper)) {
+        return AssertionVerdict::Unevaluated {
+            reason: UnevaluatedReason::WindowSuperset {
+                verb: "min_clearance",
+                endpoint: if upper { "upper" } else { "lower" },
+                recourse: WINDOW_TIGHTENING,
+            },
+        };
+    }
+    if holds {
+        AssertionVerdict::Holds { measured, bound }
+    } else {
+        AssertionVerdict::Violated { measured, bound }
     }
 }
 
@@ -698,3 +803,82 @@ pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{AssertionRelation, AssertionVerdict, Certified, UnevaluatedReason};
+    use geom_core::{Band, Interval, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the run's band")
+    }
+
+    fn decide(measured: f64, bound: f64, relation: AssertionRelation) -> &'static str {
+        super::decide_assertion(measured, bound, relation, band(), Certified::Enclosure).label()
+    }
+
+    /// `=` holds on a Zero margin, is violated by either definite sign,
+    /// and leaves the sliver band undecided. Breaks if `Equal` reuses an
+    /// end of `AtLeast` (`10 = 9` holds) or loses the band arm (a margin
+    /// of a few ε is called `Violated`).
+    #[test]
+    fn equal_decides_zero_both_signs_and_the_band() {
+        use AssertionRelation::{AtLeast, AtMost, Equal};
+        let eps = Tol::witness().eps();
+        let ten = 0.010;
+        assert_eq!(decide(ten, ten, Equal), "Holds");
+        assert_eq!(decide(ten, ten + eps / 2.0, Equal), "Holds");
+        // Past the band at every ε row (K·ε is 10ε).
+        let off = 100.0 * eps;
+        assert_eq!(decide(ten, ten + off, Equal), "Violated");
+        assert_eq!(decide(ten, ten - off, Equal), "Violated");
+        assert_eq!(decide(ten, 0.009, Equal), "Violated");
+        assert_eq!(decide(ten, 0.009, AtLeast), "Holds");
+        assert_eq!(decide(ten, 0.009, AtMost), "Violated");
+        let sliver = ten + 3.0 * eps;
+        match super::decide_assertion(ten, sliver, Equal, band(), Certified::Enclosure) {
+            AssertionVerdict::Unevaluated {
+                reason: UnevaluatedReason::Indeterminate { .. },
+            } => {}
+            other => panic!("a margin of 3ε is undecided under `=`, not {other:?}"),
+        }
+    }
+
+    /// Over a window superset (`min_clearance`'s lower end only), `=`
+    /// holds only off both ends, so it never holds, and refuses by the
+    /// end it could not read; above the bound it is violated soundly
+    /// off the lower end, below it refuses the upper.
+    #[test]
+    fn equal_over_a_window_superset_needs_both_ends() {
+        let eps = Tol::witness().eps();
+        let at = |lo: f64, hi: f64, bound: f64, certified| {
+            super::decide_assertion(
+                Interval::from_bounds(lo, hi),
+                Interval::from_bounds(bound, bound),
+                AssertionRelation::Equal,
+                band(),
+                certified,
+            )
+        };
+        let refused = |v: AssertionVerdict<Interval>| match v {
+            AssertionVerdict::Unevaluated {
+                reason: UnevaluatedReason::WindowSuperset { endpoint, .. },
+            } => endpoint,
+            other => panic!("expected a window-superset refusal, got {other:?}"),
+        };
+        let two = 0.002;
+        let lower_only = Certified::LowerBoundOnly;
+        assert!(matches!(
+            at(two, two + eps / 4.0, two, Certified::Enclosure),
+            AssertionVerdict::Holds { .. }
+        ));
+        assert_eq!(refused(at(two, two + eps / 4.0, two, lower_only)), "upper");
+        assert_eq!(refused(at(two, two, two, Certified::Neither)), "lower");
+        assert!(matches!(
+            at(0.003, 0.004, two, lower_only),
+            AssertionVerdict::Violated { .. }
+        ));
+        assert_eq!(refused(at(0.001, 0.0015, two, lower_only)), "upper");
+    }
+}

@@ -378,8 +378,8 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
 /// expression makes an old path resolve to a DIFFERENT subexpression
 /// with no error and no way to detect it (no generation/version on
 /// the slot). D5 only *claims* stability under edits to other
-/// expressions/sibling subtrees, so this is out-of-claim — but PR 5's
-/// GeomSource must not assume same-slot edits are detectable.
+/// expressions/sibling subtrees, so this is out-of-claim, and no
+/// consumer may assume same-slot edits are detectable.
 #[test]
 fn r3_ancestor_replace_silently_repoints_exprpath() {
     use editor_core::{Axis3, ExprPath};

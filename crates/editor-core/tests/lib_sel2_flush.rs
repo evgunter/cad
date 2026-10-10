@@ -5,10 +5,10 @@
 //!
 //! 1. **The detector is the C4 verifier in candidate-generation mode.**
 //!    `find_flush_candidates` reports exactly the pairs the declared
-//!    rung will later verify — so detect → declare → boolean SUCCEEDS
-//!    on the same evaluation where the undeclared boolean REFUSES.
-//!    That round trip is the anti-twin rule as a test: no drift is
-//!    possible because there is no twin.
+//!    rung verifies — so detect → declare → boolean builds the very
+//!    body the undeclared boolean builds, whose margins decide the same
+//!    pairs one carrier. That round trip is the anti-twin rule as a
+//!    test: no drift is possible because there is no twin.
 //! 2. **Findings are definite values.** `Rest` class, the verifier's
 //!    own relation verdict as evidence (`SameOpposite` = resting
 //!    contact, `SameOriented` = flush walls), names never keys.
@@ -28,8 +28,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EditError, EvalOptions,
-    FlushRung, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileDoc, RecipeNodeId,
-    SelectRefusal, ValuePayload, declare, declare_all, evaluate, find_flush_candidates,
+    FlushRung, Node, NodeStanding, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload, declare,
+    declare_all, evaluate, find_flush_candidates,
 };
 use topo::{PlaneRelation, mass_properties};
 
@@ -173,21 +173,18 @@ fn separated_answers_empty_and_a_node_with_no_value_refuses() {
 }
 
 // ------------------------------------------------------------------
-// 2. The round trip: undeclared refuses; detect → declare → verifies.
+// 2. The round trip: detect → declare builds the undeclared body.
 // ------------------------------------------------------------------
 
 /// The protocol end to end, against the SAME geometry: the undeclared
-/// union refuses with the typed MENU (`UndeclaredContact`, R3 — the
-/// declare arm is this module; the move-the-geometry arm is the
-/// recipe's); the same union, declared FROM the findings through the
-/// sugar, succeeds with the exact volume. Detect-then-declare
-/// cannot disagree with verify-at-use because both are the same doors.
+/// union builds with the exact volume; the same union, declared FROM
+/// the findings through the sugar, builds the same body bit for bit.
+/// Detect-then-declare cannot disagree with verify-at-use because both
+/// are the same doors.
 #[test]
-fn detect_declare_boolean_round_trip() {
+fn detect_declare_boolean_round_trip_builds_the_undeclared_body() {
     let (doc, base, top) = stacked();
-
-    // Arm zero: no declaration — the boolean refuses, loudly.
-    let (undeclared, refused) = insert(
+    let (undeclared, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
@@ -197,42 +194,34 @@ fn detect_declare_boolean_round_trip() {
         },
     );
     let ev = eval(&undeclared);
-    let menu = match ev.nodes.get(&refused) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            // R3 (LIB-PYG5): the refusal IS the menu — it carries the
-            // candidate declaration in the detector's own value shape,
-            // built from what the raise site held (no re-detection on
-            // the error path).
-            NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
-                // Exactly-on contact: the verifier's decided zero, its
-                // decided margin riding, on the verify door's own site.
-                assert_eq!(diag.margin.kind(), geom_core::MarginKind::Value, "{diag:?}");
-                assert_eq!(diag.predicate, Some("bool_plane_offset"));
-                (**finding).clone()
-            }
-            other => panic!("undeclared union must refuse with the menu, got {other:?}"),
-        },
-        other => panic!("undeclared union must refuse, got {other:?}"),
-    };
-
-    // The declare arm: findings (values, inspected above) → sugar →
-    // the refused union's own declared pairs.
-    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
-    // Menu/detector parity: the refusal named a pair the detector
-    // also reports, name for name, relation for relation — same
-    // doors underneath, so they cannot disagree.
-    assert!(
-        findings.contains(&menu),
-        "menu payload {menu:?} not among the detector's findings {findings:?}"
-    );
-    let applied = declare_all(&undeclared, refused, &findings, Tol::witness()).unwrap();
-    assert_eq!(applied.record.minted, None, "declaring mints no node");
-    let ev = eval(&applied.doc);
-    match &ev.value(refused).expect("declared union evaluates").payload {
+    let bare = match &ev
+        .value(union)
+        .expect("the undeclared union evaluates")
+        .payload
+    {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             let m = mass_properties(body, Tol::witness()).expect("mass properties");
             // 1³ + 0.5² · 0.5 (dyadic, exact).
             assert_eq!(m.volume, 1.125);
+            format!("{body:?}")
+        }
+        other => panic!("expected a body, got {}", other.kind_name()),
+    };
+
+    // The declare arm: findings (values) → sugar → the union's own
+    // declared pairs.
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
+    assert!(!findings.is_empty(), "the resting top has a finding");
+    let applied = declare_all(&undeclared, union, &findings, Tol::witness()).unwrap();
+    assert_eq!(applied.record.minted, None, "declaring mints no node");
+    let ev = eval(&applied.doc);
+    match &ev.value(union).expect("declared union evaluates").payload {
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            assert_eq!(
+                format!("{body:?}"),
+                bare,
+                "the declared union is the undeclared one's body"
+            );
         }
         other => panic!("expected a body, got {}", other.kind_name()),
     }

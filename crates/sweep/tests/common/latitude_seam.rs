@@ -455,18 +455,19 @@ fn latitude_arc(
     let (he1, he2) = (leaving(body, face, va), leaving(body, face, vb));
     let (sin, cos) = from.sin_cos();
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            point: station,
-            place: geom_core::Affine3::rotation_about_axis(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                from,
-            ),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angle: theta,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: station,
+                place: geom_core::Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    from,
+                ),
+                axis_origin: Point3::new(0.0, 0.0, 0.0),
+                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                angle: theta,
+            },
+        )),
         carrier: Curve3::Circle {
             center: Point3::new(0.0, station.y, 0.0),
             // The rotation's own sense: `+y × +x = −z`, the way a

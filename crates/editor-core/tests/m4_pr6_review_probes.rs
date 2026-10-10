@@ -501,6 +501,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(
         &mut doc,
         DocEdit::Rebind {
+            body: None,
             from: body,
             to: to.clone(),
         },

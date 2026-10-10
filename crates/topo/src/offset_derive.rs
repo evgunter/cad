@@ -101,6 +101,8 @@ pub enum SplineRoot {
     /// lies past the near end — or the far end is, the move having
     /// passed through the whole edge.
     Short {
+        /// The near end's parameter.
+        end: f64,
         /// The near end's distance to the surface, in metres.
         near_gap: f64,
         /// The near end is closer to the surface than the far end.
@@ -656,12 +658,7 @@ fn plane_wall_section(
     Ok(
         match decide("offset_section_sense", Margin::of(cosine), band)? {
             Sign::Positive => Ok(carrier),
-            Sign::Negative => match geom_brep::reversed_column(&carrier) {
-                Ok(c) => Ok(c),
-                Err(_) => Err(SectionVerdict::Unsupported {
-                    what: "the section's knot vector does not mirror",
-                }),
-            },
+            Sign::Negative => Ok(geom_brep::reversed_column(&carrier)),
             Sign::Zero => Err(SectionVerdict::Unsupported {
                 what: "the section crosses the old edge rather than running along it",
             }),
@@ -886,6 +883,7 @@ fn plane_spline_root(
     };
     let phi = |t: f64| (carrier.eval(t) - origin).dot(normal).abs();
     Ok(SplineRoot::Short {
+        end: near_end,
         near_gap: phi(near_end),
         near: phi(near_end) <= phi(far_end),
     })

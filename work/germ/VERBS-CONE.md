@@ -126,7 +126,7 @@ there.
 
 **2026-10-10, closed: U7 lands (PR 4418, DR-128, sequential arm).** `Cone` is on `boolean_arm_exists` and `revert_arm_exists`, so a cone operand reaches every op in production. The single review fuzzed 26,376 bodies against an independent analytic oracle and found none wrong. Still open, as their own items:
 - cone × cylinder and cone × cone in general pose (the spec's optional U5): `cone-pairs-in-general-pose-have-no-section-arm`;
-- rings on a cone face in `face_flux`: `docs/GERM-CONE-SECTOR-SPEC.md` U-S5;
+- rings on a cone face in `face_flux`: `docs/GERM-CONE-SECTOR-SPEC.md` U-S5, closed since by PR 4484 (`an-ellipse-trimmed-ring-on-a-cone-wall-has-no-volume-lane`);
 - the held configurations under D10 (U-H1, U-H2).
 
 `docs/GERM-VERBS-CONE-SPEC.md` is kept rather than deleted at this merge: its U5 is still unbuilt and is cited by the open item above. It goes when U5 lands or at GERM's close.

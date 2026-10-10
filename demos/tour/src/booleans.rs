@@ -60,9 +60,8 @@ pub fn try_intersect<S: Scalar>(
     pncad::topo::intersect(a, b, tol)
 }
 
-/// A ∪* B with the scene's flush contacts DECLARED (M4 PR 5: the
-/// author's coincidence intent, stated — the kernel never infers it
-/// from values).
+/// A ∪* B with the scene's flush contacts DECLARED: the author's
+/// coincidence intent, stated.
 pub fn try_union_declared<S: Scalar>(
     a: &AtRestBody<S>,
     b: &AtRestBody<S>,

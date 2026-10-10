@@ -60,7 +60,6 @@ pub(crate) fn sheet() -> Sheet {
         &mut body,
         CylFrame::canonical(1.0),
         CylKey::Bare,
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         tol,

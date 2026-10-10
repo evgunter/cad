@@ -19,7 +19,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
-| N6 a recorded cell's read and name; the walk from them to the minting node; the kernel's `GeomSource` | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`); `crates/topo/src/source.rs`, consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs`, `crates/topo/src/boolean/carrier_eq.rs` |
+| N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
 | Selectors, geometric filters, detect/declare | `select.rs`, `geompred.rs`, `flush.rs`; design in `docs/SELECT-DESIGN.md`, usage in `docs/guide/selecting.md` |
 
@@ -347,8 +347,8 @@ that face. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
-all of these hold: their members are declared coincident on them, or share a
-recipe source (N6), with the same orientation; the pairwise judgement
+all of these hold: their margins decide them one carrier, declared or not
+(D10), with the same orientation; the pairwise judgement
 certifies the pair (DM4); and that judgement consumed the pair, meaning its
 two-member union merged the faces or held either face's region through the
 other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A certified
@@ -390,8 +390,8 @@ unreferenceable until it does. Ties propagate downstream as tied (`defer.rs`);
 (`SelectRefusal::TiedDisagrees`), with no per-candidate narrowing.
 
 **N3 — Merge policy: names retire into the merge, loudly.** Coplanar-face
-merging (F7) merges only structural or declared-coincident faces, which share a
-recipe source; the merged face is `Merged(sorted, deduped, flat constituents)`,
+merging (F7) merges faces whose margins decide them one carrier, declared or
+not (D10); the merged face is `Merged(sorted, deduped, flat constituents)`,
 and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
@@ -600,32 +600,17 @@ it resolves, rides in the offers for either qualifier kind. `Tombstone` carries
 the last-good entry for ghost rendering; selection tools hold name plus
 tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
-repair is `DocEdit::Rebind { from, to }`, recorded once, no alias table.
+repair is `DocEdit::Rebind { body, from, to }`, recorded once, no alias
+table: with a body it rewrites that body's selections naming `from`, and
+without one the names no selection holds (a declared pair's, a mate head's,
+an appearance key).
 
-**N6 — A recorded cell's construction is read from the document.** A
-recorded cell is named by the read it entered the deciding operation through
-and its name there. The coincidence door walks from that read and name to the
-node that minted the entity, down the name's carry-through segments and the
-reads they name; a pass-through placement adds no name segment (N1), so the
-read, not the name, carries where the cell was placed. Two cells that reach one
-minting role through one chain of placements are one construction read twice
-(D10, Coincidence; `coincide::construction`), and a split's section face is its
-tool plane's. The door reads no stamp the kernel carries.
-
-Inside the kernel, a same-source pair is still settled by recipe-source
-identity: every surface, curve and point description carries
-`GeomSource { node, expr, orient }` beside the arena; a transform composes into
-`expr` (`SourceExpr::Placed`), `revert` flips `orient` (`rev ∘ rev = id`). Same
-source is syntactic identity of the triple. Theorem: same `GeomSource` ⇒
-bit-identical descriptions (D9); the converse is not claimed, so equal bits
-without a shared source stay unglued. The declared coincidence rung is this
-lookup (`source::surface_declaration`, whose source rung
-`source::source_declaration` is also `oriented_plane_eq`'s rung 1); the bit
-comparison survives only in the debug assertions built on
-`crates/topo/src/source.rs`'s bit witnesses (`surface_bits_witness`,
-`data_bits_witness`), and the gate `scripts/gates/bit-identity-consumer.sh`
-keeps the production allowlist empty. Identity holds per evaluation against the
-current document only.
+**N6 — A cell's construction is read from the document.** A recorded
+cell is named by the read it entered the deciding operation through and its
+name there. The door reads its carrier at that name from the symbolic
+evaluation (D10, Coincidence); a pass-through placement adds no name segment
+(N1), so the read, not the name, carries where the cell was placed. The kernel
+carries no recipe provenance of a description.
 
 **N7 — The topology-change sites, exhaustively.** (i) structural parameter
 change, (ii) reified predicate flip, N2 discriminators included, (iii) recipe

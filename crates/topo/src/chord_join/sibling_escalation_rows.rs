@@ -213,7 +213,6 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
             let face = cyl_wall_sheet(
                 &mut body,
                 CylFrame::canonical(1.0),
-                None,
                 (0.2, 1.4),
                 (0.0, 1.0),
                 tol(),

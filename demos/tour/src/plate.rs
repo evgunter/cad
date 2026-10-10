@@ -29,7 +29,7 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
+    AssertionRelation, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarId, VarName, apply, evaluate,
 };
@@ -360,7 +360,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         a: wall(site_a),
         b: wall(site_b),
     };
-    let measure = insert(&mut doc, Node::Measure { primitive }, tol);
+    let measure = insert(&mut doc, Node::measure(&primitive), tol);
     let distance = doc.output(measure, 0).expect("a measure defines its value");
     let web = Formula::sub(
         Formula::var(distance, Dimension::Length),
@@ -372,7 +372,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         Node::Assertion {
             value: web,
             bound: len(bound),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
         tol,
     );

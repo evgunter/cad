@@ -1294,13 +1294,12 @@ impl<'a> Resolver<'a> {
             })
             .collect();
         // **A ring on a curved face (M7-4).** The kernel's mass
-        // properties have no construction for one — its curved patches
-        // are swept UV rectangles, and `topo::mass_properties` says so
-        // by name (`RingOnCurvedFace`), which makes tier-3 validity
-        // refuse with it. This crate promises a body that is
-        // tier-valid at rest, so the honest place to stop is here,
-        // naming the face, rather than at the far end holding a body
-        // whose volume nothing can compute.
+        // properties measure one on a cone wall and on a cylinder or
+        // torus wall bounded by rims and rulings, and name the rest
+        // (`RingOnCurvedFace`), which makes tier-3 validity refuse
+        // with it. This crate adopts a ring on no curved chart yet,
+        // and promises a body that is tier-valid at rest, so it stops
+        // here, naming the face.
         //
         // What can also arrive this way is not a hole: it is Open
         // CASCADE's SEAMLESS periodic face — a cylinder's lateral
@@ -1334,8 +1333,8 @@ impl<'a> Resolver<'a> {
             // promoted PLANES have already left through the
             // plane-guard on this branch, so what refuses is rings on
             // genuinely curved patches — promoted cylinders included
-            // (the kernel has no volume construction for a curved
-            // face with rings) — and rings on NURBS that certified as
+            // (this crate adopts a ring on no curved chart yet) — and
+            // rings on NURBS that certified as
             // no implemented analytic kind. Where the face could ONLY
             // import by promotion and the recognizer's estimator was
             // ill-conditioned at ε_in, the refusal is D7's typed
@@ -1355,8 +1354,8 @@ impl<'a> Resolver<'a> {
                        (a promoted cylinder's, or a NURBS patch's that certified as no \
                        implemented analytic kind at ε_in — stage-1 recognition \
                        promotes certified planes and cylinders, and rings on promoted \
-                       planes import; the kernel has no volume construction for a \
-                       curved face with rings) or a seamless periodic band on a chart \
+                       planes import; this reader adopts a ring on no curved chart \
+                       yet) or a seamless periodic band on a chart \
                        the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere-zone band would take the same \
                        seam-generator re-mint, extended to its chart)",

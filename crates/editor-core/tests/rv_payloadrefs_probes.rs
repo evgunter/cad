@@ -195,7 +195,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             node: Box::new(Node::Assertion {
                 value: leaf,
                 bound: ang(0.0),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },

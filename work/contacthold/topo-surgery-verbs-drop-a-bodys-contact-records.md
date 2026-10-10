@@ -2,12 +2,12 @@
 id: topo-surgery-verbs-drop-a-bodys-contact-records
 kind: issue
 title: No non-boolean topo op carries ContactRecords in or out, so a fillet, shell or replace_face of a touching boolean result loses its declarations and refuses at rest downstream
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
-blocked_on: [contact-records-cite-their-decision]
+
 ---
 
 

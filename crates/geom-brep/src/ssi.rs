@@ -150,7 +150,7 @@ pub use march::{
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
-pub use refine::{RefineStop, RefusedRound, RoundMargin};
+pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
@@ -293,9 +293,7 @@ impl BranchBound {
 /// No `PartialEq`: [`ExhaustLane`] carries a [`SupSpeed`](geom_core::SupSpeed),
 /// which has none by the `Real` surface's rule that a tagged rate is
 /// never compared without `get()`. Deriving one here would have to
-/// compare rates, and the payloads it would compare include a
-/// deliberate `f64::NAN` ([`Self::CertificateLimb`]'s `value`), which
-/// no derived equality can call equal to itself.
+/// compare rates.
 #[derive(Clone, Debug)]
 pub enum SsiError {
     /// The transversality margin `sin θ · arm` landed in the sliver
@@ -446,9 +444,6 @@ pub enum SsiError {
     CertificateLimb {
         /// Which limb.
         limb: SsiLimb,
-        /// The offending value, in meters: the refinement driver's
-        /// round margin ([`RoundMargin::Over`]).
-        value: f64,
         /// What the classifier saw of the miss, for error reporting only
         /// ([`MarginDiag`]): the import door's words on a definite miss
         /// ([`crate::recourse::Unsized::residual_in_file`]).
@@ -911,12 +906,20 @@ impl core::fmt::Display for SsiError {
                  (cos φ = {cos_phi:e} over {arc_length:e} m of arc) — the candidate \
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
-            Self::CertificateLimb { limb, value, .. } => write!(
-                f,
-                "ssi: the fitted carrier failed {} at {value:e} m — the cache is not \
-                 within tolerance of the locus it claims",
-                limb.name()
-            ),
+            Self::CertificateLimb { limb, margin } => match limb {
+                SsiLimb::HullSup => write!(
+                    f,
+                    "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
+                     {margin:e} m, past the tolerance",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
+                     within tolerance of the locus it claims",
+                    limb.name()
+                ),
+            },
             Self::TubeLadderEmpty { extent, floor } => write!(
                 f,
                 "ssi: the uniqueness tube's radius ladder is empty — every rung scaled \
@@ -1109,12 +1112,12 @@ impl core::fmt::Display for SsiError {
                          {off_domain} settling outside the domain): {refusal}",
                         if rounds == 1 { "" } else { "s" }
                     ),
-                    (RefineStop::StepBudget { budget }, 0) => write!(
+                    (RefineStop::StepBudget { budget, .. }, 0) => write!(
                         f,
                         "ssi: refining the branch's {samples} samples would overrun its \
                          {budget}-step budget: {refusal}"
                     ),
-                    (RefineStop::StepBudget { budget }, rounds) => write!(
+                    (RefineStop::StepBudget { budget, .. }, rounds) => write!(
                         f,
                         "ssi: refined over {rounds} round{} to {samples} samples, then the \
                          {budget}-step budget stopped it: {refusal}",
@@ -1252,26 +1255,19 @@ impl SsiError {
                 ..
             } => defect_ending(reading).to_owned(),
             // The march's wall, met by refinement: where the refused
-            // margin was still falling it is the branch's size, whose
-            // levers are the curvature-held march's. A margin that stopped
+            // residual was still falling it is the branch's size, whose
+            // levers are the curvature-held march's. One that stopped
             // falling is no between-sample error, so what the wall met is
             // the arithmetic's floor, and the tolerance alone is left
             // (D4 ¶1 (i)'s last resort).
             Self::RefinementExhausted {
-                stop: RefineStop::StepBudget { .. },
-                refusal,
-                earlier,
+                stop: RefineStop::StepBudget { trend, .. },
                 ..
-            } => {
-                let before = earlier.last().map(|r| r.margin);
-                let last = refine::limb_reading(refusal).map(|(_, m)| m);
-                if refine::stopped_falling(before, last) {
-                    STEP_BUDGET_FLOOR_RECOURSE
-                } else {
-                    step_budget_recourse(StepBound::Curvature, reading)
-                }
-                .to_owned()
+            } => match trend {
+                ResidualTrend::Stalled => STEP_BUDGET_FLOOR_RECOURSE,
+                ResidualTrend::Falling => step_budget_recourse(StepBound::Curvature, reading),
             }
+            .to_owned(),
             // Refinement reached the band where the refusal sits: the
             // certificate's own ending is the one that applies.
             Self::RefinementExhausted {
@@ -1308,7 +1304,7 @@ impl SsiError {
                 | FitError::ParamCountMismatch { .. }
                 | FitError::Structure(_)
                 | FitError::Lsq(_),
-            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading),
+            ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
             Self::BoundaryGraze { side, verdict, .. } => graze_recourse(*side, verdict, reading),
             // The surfaces' tangency along the side: the march's own
@@ -1321,12 +1317,12 @@ impl SsiError {
             // root is there; one that will not settle is the settling's
             // limit.
             Self::EndNotOnLocus { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             // The march is untrusted: a march that loses its branch is the
             // march's limit, whatever it matched.
             Self::CrossingUnmatched { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::ShortBranchUncertified {
                 verdict,
@@ -1342,7 +1338,7 @@ impl SsiError {
             // A candidate generator's limit: the march's samples and
             // every midpoint between them, read as they settled.
             Self::MarchShortOfFit { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
@@ -1368,7 +1364,7 @@ impl SsiError {
             // (`SettlingUnresolvable`), so a step that still will not
             // settle is the march's own limit.
             Self::StepRefinementFailed { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             // `r >= floor` is decided exactly, so the extent alone.
             Self::TubeLadderEmpty { .. } => {
@@ -1873,7 +1869,7 @@ fn step_cap_words(cap: StepCap) -> &'static str {
 
 /// The step budget's ending, by the rungs that held the branch's steps:
 /// [`SsiError::StepBudget`]'s, and a refinement's that met the budget
-/// while its margin was still falling, which the curvature held.
+/// while its refused residual was still falling, which the curvature held.
 fn step_budget_recourse(bound: StepBound, reading: Reading) -> &'static str {
     match bound {
         StepBound::Cap(StepCap::Idealized) | StepBound::Both(StepCap::Idealized) => {
@@ -1885,10 +1881,10 @@ fn step_budget_recourse(bound: StepBound, reading: Reading) -> &'static str {
 }
 
 /// [`SsiError::RefinementExhausted`]'s ending where the step budget
-/// stopped a refinement whose refused margin had stopped falling: the
+/// stopped a refinement whose refused residual had stopped falling: the
 /// arithmetic's floor at this ε and scale, so the tolerance alone.
 const STEP_BUDGET_FLOOR_RECOURSE: &str = concat!(
-    "Recourse: loosen the tolerance; the margin stopped falling, so at this ε and scale ",
+    "Recourse: loosen the tolerance; the refused residual stopped falling, so at this ε and scale ",
     "it is the arithmetic's floor, not the geometry's size, ",
     geom_core::kernel_limit_last_resort!()
 );
@@ -2122,7 +2118,7 @@ impl TraceDecision {
             Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
             Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading),
             Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), reading),
-            Self::ClosureReturn => Unsized::LastResort.recourse(arm, reading),
+            Self::ClosureReturn => Unsized::Fit.recourse(arm, reading),
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
             Self::BoundarySection => defect_ending(reading).to_owned(),
@@ -2998,7 +2994,7 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
         extent,
         band,
         certify::Limbs::All,
-        &mut Vec::new(),
+        &mut certify::Refused::default(),
     )
 }
 
@@ -3047,7 +3043,8 @@ mod ending_tests {
     };
 
     use super::{
-        RefineStop, RefusedRound, RoundMargin, SSI_MAX_STEPS, SsiError, SsiLimb, TraceDecision,
+        RefineStop, RefusedRound, ResidualTrend, RoundMargin, SSI_MAX_STEPS, SsiError, SsiLimb,
+        TraceDecision,
     };
     use crate::recourse::{Classified, Reading, Refused};
 
@@ -3077,7 +3074,6 @@ mod ending_tests {
         let hermite = || {
             Some(Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::OnLocus,
-                value: 3e-9,
                 margin: MarginDiag::value(3e-9),
             }))
         };
@@ -3281,13 +3277,17 @@ mod ending_tests {
     /// **A certificate limb's definite refusal ends by its limb**, as its
     /// undecided sibling does: a fitted residual's at a build is the
     /// last resort, and over stored geometry the defect of the kernel or
-    /// the file. The tube's refusal is held to the concision standard.
+    /// the file; a certified bound's is the last resort at both, since a
+    /// loose bound contradicts nothing stored. The tube's refusal is held
+    /// to the concision standard.
     #[test]
     fn a_definite_limb_refusal_ends_by_its_limb() {
-        for limb in [SsiLimb::OnLocus, SsiLimb::HullSup] {
+        for (limb, at_rest) in [
+            (SsiLimb::OnLocus, KERNEL_OR_FILE_DEFECT_ENDING),
+            (SsiLimb::HullSup, KERNEL_LIMIT_RECOURSE),
+        ] {
             let refusal = SsiError::CertificateLimb {
                 limb,
-                value: 3e-9,
                 margin: MarginDiag::value(3e-9),
             };
             assert_eq!(
@@ -3295,11 +3295,7 @@ mod ending_tests {
                 KERNEL_LIMIT_RECOURSE,
                 "{limb:?}"
             );
-            assert_eq!(
-                refusal.ending(Reading::AtRest),
-                KERNEL_OR_FILE_DEFECT_ENDING,
-                "{limb:?}"
-            );
+            assert_eq!(refusal.ending(Reading::AtRest), at_rest, "{limb:?}");
         }
         let tube = SsiError::TubeStraddles {
             verdict: Refused::Zero(Classified {
@@ -3373,16 +3369,16 @@ mod ending_tests {
             verdict: zero,
         };
         let pair = SsiError::PairTangent { verdict: zero };
-        // The step budget met by refinement: where the refused margin
+        // The step budget met by refinement: where the refused residual
         // stopped falling (rose), and where it was still falling.
-        let wall = |before: f64, last: f64| SsiError::RefinementExhausted {
+        let wall = |trend, before: f64, last: f64| SsiError::RefinementExhausted {
             stop: RefineStop::StepBudget {
                 budget: SSI_MAX_STEPS,
+                trend,
             },
             samples: 10_221,
             refusal: Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
-                value: last,
                 margin: MarginDiag::value(last),
             }),
             earlier: vec![
@@ -3394,12 +3390,12 @@ mod ending_tests {
                 RefusedRound {
                     samples: 7_400,
                     limb: SsiLimb::HullSup,
-                    margin: RoundMargin::Over(before),
+                    margin: RoundMargin::Over(MarginDiag::value(before)),
                 },
             ],
         };
-        let budget = wall(1.0e-14, 1.17e-14);
-        let size = wall(1.30e-10, 2.15e-11);
+        let budget = wall(ResidualTrend::Stalled, 1.0e-14, 1.17e-14);
+        let size = wall(ResidualTrend::Falling, 1.30e-10, 2.15e-11);
         let short = SsiError::Fit(geom::FitError::TooFewPoints { have: 3, need: 4 });
         let single = SsiError::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 });
         let unresolved = SsiError::TraceUnresolved {
@@ -3432,8 +3428,8 @@ mod ending_tests {
             (
                 &budget,
                 format!(
-                    "Recourse: loosen the tolerance; the margin stopped falling, so at this ε \
-                     and scale it is the arithmetic's floor, not the geometry's size, \
+                    "Recourse: loosen the tolerance; the refused residual stopped falling, so at \
+                     this ε and scale it is the arithmetic's floor, not the geometry's size, \
                      {KERNEL_LIMIT_LAST_RESORT}"
                 ),
             ),
@@ -3455,11 +3451,11 @@ mod ending_tests {
         let unrefined = SsiError::RefinementExhausted {
             stop: RefineStop::StepBudget {
                 budget: SSI_MAX_STEPS,
+                trend: ResidualTrend::Falling,
             },
             samples: 18_299,
             refusal: Box::new(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
-                value: 1.17e-14,
                 margin: MarginDiag::value(1.17e-14),
             }),
             earlier: Vec::new(),
@@ -3473,7 +3469,7 @@ mod ending_tests {
         assert_eq!(
             unrefined.ending(Reading::Build),
             super::STEP_BUDGET_CURVATURE_RECOURSE,
-            "one round shows no margin stopping"
+            "one round shows no refused residual stopping"
         );
         let SsiError::RefinementExhausted { stop, refusal, .. } = unrefined else {
             unreachable!()
@@ -3485,7 +3481,7 @@ mod ending_tests {
             earlier: vec![RefusedRound {
                 samples: 18_299,
                 limb: SsiLimb::HullSup,
-                margin: RoundMargin::Over(1.3e-14),
+                margin: RoundMargin::Over(MarginDiag::value(1.3e-14)),
             }],
         };
         assert!(
@@ -3503,14 +3499,13 @@ mod ending_tests {
                 samples: 348,
                 refusal: Box::new(SsiError::CertificateLimb {
                     limb: SsiLimb::HullSup,
-                    value: 2.4e-9,
                     margin: MarginDiag::value(2.4e-9),
                 }),
                 earlier: (0..earlier)
                     .map(|_| RefusedRound {
                         samples: 346,
                         limb: SsiLimb::HullSup,
-                        margin: RoundMargin::Over(3.1e-9),
+                        margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     })
                     .collect(),
             }
@@ -3889,13 +3884,12 @@ mod ending_tests {
                     samples: 348,
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
-                        value: 2.4e-9,
                         margin: MarginDiag::value(2.4e-9),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 346,
                         limb: SsiLimb::HullSup,
-                        margin: RoundMargin::Over(3.1e-9),
+                        margin: RoundMargin::Over(MarginDiag::value(3.1e-9)),
                     }],
                 },
             ),
@@ -3904,17 +3898,17 @@ mod ending_tests {
                 SsiError::RefinementExhausted {
                     stop: RefineStop::StepBudget {
                         budget: SSI_MAX_STEPS,
+                        trend: ResidualTrend::Falling,
                     },
                     samples: 17_375,
                     refusal: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::HullSup,
-                        value: 2.15e-11,
                         margin: MarginDiag::value(2.15e-11),
                     }),
                     earlier: vec![RefusedRound {
                         samples: 10_337,
                         limb: SsiLimb::HullSup,
-                        margin: RoundMargin::Over(1.30e-10),
+                        margin: RoundMargin::Over(MarginDiag::value(1.30e-10)),
                     }],
                 },
             ),
@@ -3925,6 +3919,7 @@ mod ending_tests {
                 SsiError::RefinementExhausted {
                     stop: RefineStop::StepBudget {
                         budget: SSI_MAX_STEPS,
+                        trend: ResidualTrend::Stalled,
                     },
                     samples: 14_965,
                     refusal: Box::new(SsiError::CertificateEscalated {
@@ -3995,7 +3990,6 @@ mod ending_tests {
                 "limb",
                 SsiError::CertificateLimb {
                     limb: SsiLimb::HullSup,
-                    value: 3e-9,
                     margin: MarginDiag::value(3e-9),
                 },
             ),
@@ -4154,7 +4148,6 @@ mod ending_tests {
                     length: 3e-8,
                     limb: Some(Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
-                        value: 3e-9,
                         margin: MarginDiag::value(3e-9),
                     })),
                     verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
@@ -4185,7 +4178,6 @@ mod ending_tests {
                     verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
                     limb: Box::new(SsiError::CertificateLimb {
                         limb: SsiLimb::OnLocus,
-                        value: 3e-9,
                         margin: MarginDiag::value(3e-9),
                     }),
                 },

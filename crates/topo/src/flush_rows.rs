@@ -1,8 +1,7 @@
 //! **A decided zero and a poisoned offset are two outcomes.** Two
 //! bricks meet on `z = 1`; the rows ask [`pair_finding`] about their
 //! two caps, once as built and once with the lower cap's plane datum
-//! poisoned (NaN, or `+∞`), and read what the Boolean's undeclared
-//! coincidence says on each.
+//! poisoned (NaN, or `+∞`), and read what the Boolean says on each.
 //!
 //! The poisoned operand is built through the failure-injection door:
 //! the public re-charting doors refuse a plane no edge of the face
@@ -17,7 +16,7 @@ use crate::body::Body;
 use crate::boolean::{
     BooleanError, BooleanOp, CarrierDesc, CarrierRelation, CoincidenceMeasure, ConsumedExtent,
     Operand, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, boolean_reduce, face_carrier,
-    oriented_plane_eq, undeclared_coincidence,
+    oriented_plane_eq, readable_coincidence,
 };
 use crate::entity::FaceKey;
 use crate::euler::FaceSurface;
@@ -28,7 +27,7 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// The two stacked bricks, independently authored (no shared source).
+/// The two stacked bricks, independently authored.
 fn stacked() -> (Body<f64>, Body<f64>) {
     (
         brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
@@ -109,7 +108,7 @@ fn a_decided_zero_offset_is_a_decided_coincident_finding() {
     assert_eq!(
         evidence.rung,
         FlushRung::DecidedCoincident,
-        "no shared source: the geometric rung decided"
+        "the geometric rung decided"
     );
 }
 
@@ -135,28 +134,40 @@ fn a_poisoned_offset_is_no_finding() {
     );
 }
 
-/// **The Boolean's undeclared coincidence quotes what its measure
-/// read, on a decided zero.** The undeclared union of the stack
-/// refuses on a pair of side walls whose offset decides zero, and
-/// quotes that decided margin.
+/// **The Boolean glues the stack on its decided zero.** The undeclared
+/// union of the stack reads its caps one plane by their offset's margin,
+/// records that rest at the plane ladder on the margin that decided it,
+/// and builds the two bricks' summed volume.
 #[test]
-fn the_boolean_refusal_on_a_decided_zero_quotes_its_margin() {
+fn the_boolean_glues_a_decided_zero() {
     let (a, b) = stacked();
     let (a, b) = (
         crate::test_support::finished("the lower brick", a, Tol::witness()),
         crate::test_support::finished("the upper brick", b, Tol::witness()),
     );
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
-        Err(err) => err,
-        Ok(_) => panic!("an undeclared flush stack does not reduce"),
+    let red = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
+        Ok(red) => red,
+        Err(err) => panic!("an undeclared flush stack glues on its decided zero: {err}"),
     };
-    let BooleanError::UndeclaredCoincidence { diag, .. } = &err else {
-        panic!("the stack meets the coincidence door: {err:?}");
+    let rest = red
+        .coincidences
+        .iter()
+        .find(|c| c.relation == crate::Relation::SameOpposite)
+        .unwrap_or_else(|| panic!("the caps' rest is recorded: {:?}", red.coincidences));
+    assert_eq!(rest.site, crate::DecisionSite::PlaneLadder, "{rest:?}");
+    let geom_core::ErrorTextReading::Value(m) = rest.margin.diagnostic_f64_for_error_text() else {
+        panic!("the rest carries the margin that decided it: {rest:?}");
     };
-    assert_eq!(diag.predicate, Some("bool_plane_offset"), "{err:?}");
-    let text = err.to_string();
-    assert!(text.contains("lies within the zero band"), "{text}");
-    assert!(!text.contains("exactly zero"), "{text}");
+    assert!(m.abs() <= band().zero(), "a decided zero: {m}");
+    let built = crate::boolean::union(&a, &b, Tol::witness()).expect("the stack unions");
+    let body = built.body().expect("the union is a body");
+    let volume = crate::mass_properties(&body.body, Tol::witness())
+        .expect("the union measures")
+        .volume;
+    assert!(
+        (volume - 2.0).abs() < 1e-12,
+        "the two bricks' volume: {volume}"
+    );
 }
 
 /// **An infinite offset is poison too.** The lower cap re-charted to
@@ -202,7 +213,7 @@ fn the_plane_door_reads_an_infinite_offset_as_unreadable() {
     assert!(
         matches!(
             err,
-            Err(PlaneEqError::Undeclared {
+            Err(PlaneEqError::Undecided {
                 coincidence: CoincidenceMeasure::Unreadable(diag),
                 ..
             }) if diag.margin.is_invalid() && diag.predicate == Some("bool_plane_offset")
@@ -218,14 +229,12 @@ fn the_plane_door_reads_an_infinite_offset_as_unreadable() {
 
 /// **A poisoned offset is no coincidence the Boolean offers to
 /// declare.** The plane ladder's public door refuses a NaN offset datum
-/// as unreadable, and the Boolean raises it as every raise site of an
-/// undeclared coincidence does: a datum that is not finite, read at
-/// rest on an operand, ending as the kernel's or the file's defect,
-/// with no declaration offered and never a measure that is exactly
-/// zero. (No Boolean reaches it with a poisoned operand: the stack
-/// above refuses on its side walls first.)
+/// as unreadable, and the Boolean raises it as every door that reads a
+/// coincidence measure does: a datum that is not finite, read at rest
+/// on an operand, ending as the kernel's or the file's defect, with no
+/// declaration offered and never a measure that is exactly zero.
 #[test]
-fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
+fn a_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
     let plane = |x| PlaneDesc {
         origin: Point3::new(x, 0.0, 1.0),
         normal: Vec3::new(0.0, 0.0, 1.0),
@@ -239,19 +248,12 @@ fn an_undeclared_coincidence_on_a_poisoned_offset_says_it_is_poisoned() {
         band(),
     )
     .unwrap_err();
-    let PlaneEqError::Undeclared {
-        coincidence,
-        relation,
-    } = err
-    else {
+    let PlaneEqError::Undecided { coincidence, .. } = err else {
         panic!("a NaN offset reaches the offset rung: {err:?}");
     };
     let face = FaceKey::default();
-    let err = undeclared_coincidence(
-        coincidence,
-        [(Operand::A, face), (Operand::B, face)],
-        relation,
-    );
+    let err = readable_coincidence(coincidence, [(Operand::A, face), (Operand::B, face)])
+        .expect_err("a poisoned offset is no margin");
     assert!(
         matches!(err, BooleanError::PoisonedCarrierDatum { diag, .. }
             if diag.predicate == Some("bool_plane_offset")),

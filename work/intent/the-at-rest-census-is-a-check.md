@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
+blocked_on: [interference-at-rest-is-a-finding, mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row

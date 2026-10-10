@@ -5,10 +5,9 @@
 //! read the lane on its own, over every frame. The plane
 //! split admits a cone face and re-homes through the same
 //! [`super::ChordJoiner`], but nothing it is handed carries a ring on one:
-//! a body at rest cannot (its volume refuses
-//! `MassPropsError::RingOnCurvedFace`), and a plane's section of a cone
-//! goes round the axis, so it reaches the face's seam rather than
-//! landing as a ring. So these rows build the lane's input on a cone
+//! a plane's section of a cone goes round the axis, so it reaches the
+//! face's seam rather than landing as a ring. So these rows build the
+//! lane's input on a cone
 //! sheet: a face of the cone
 //! between two rims and two rulings, a ring of it whose run is an
 //! island's boundary less one edge, and that edge as the closing chord.

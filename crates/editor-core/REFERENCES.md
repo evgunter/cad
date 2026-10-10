@@ -20,24 +20,32 @@ The recipe admits three reference shapes, and every node is built from them:
 - **A frozen `StableName`**: `{ kind, node, path }` (N1, `names/role.rs`),
   stored at authoring and resolved at evaluation through a name table under
   the N5 ladder — `NodeGone`, then `Ambiguous`, then `Vanished` — never
-  silently shrunk (`eval/wire.rs`, `ladder` and `resolve_selection`).
-  Carriers: `Fillet`/`Chamfer` selections, `Shell` open lists, a
-  `Datum::FaceFrame`'s face, a `Union`'s, `Intersect`'s or `Subtract`'s
-  declared pairs, `Mate` heads, `Measure` refs, an `InstantiatePart`'s interface crossings'
-  `outer`s (a crossing's `inner` is not a name of this document; the list's
-  arm says why). The list has two homes, this clause and
+  silently shrunk (`eval/wire.rs`, `ladder` and `select`). Two kinds of
+  carrier hold them. A **selection** is a definition, `Select { body,
+  names }` (`var.rs`, `Select`): its body read is a DAG edge, its names
+  are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
+  (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
+  `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
+  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  selection's evaluation and nowhere else for these. A **payload** is a
+  name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
+  declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
+  `outer`s (a crossing's `inner` is not a name of this document; the
+  list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
   rather than restating it. A name is not a DAG edge, and two doors refuse
-  on one: `InsertNode`'s liveness check, and `split`'s
+  on one: `InsertNode`'s liveness check (the selection's door,
+  `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
-  node carries a name reaching the kept remainder (a declared pair's, a
-  `Mate` head's, an instance's crossing `outer`). A later delete strands a
-  name (N5) and says so (DM7).
+  node carries a name reaching the kept remainder (a selection's, a
+  declared pair's, a `Mate` head's, an instance's crossing `outer`). A
+  later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
-`name` says which entity. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
+`name` says which entity. A selection is the same pairing as a definition,
+its `body` the `at`. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
 the one datum with a DAG input: its meaning comes from another node, which
 does not make the check cheaper but makes the error unrepresentable.
 
@@ -49,12 +57,13 @@ nine `Expr`s and no reference, orthonormalized at evaluation (`node.rs`).
 
 ## DM1 — A derived frame is a datum carrying a face name
 
-`Datum::FaceFrame { at: RecipeNodeId, face: StableName, spin: Expr }` is a
-`Datum::Frame` whose pose is computed at evaluation from a named face. `at`
-is a DAG edge to the body node whose value the face is read out of; `face` is
-a frozen face name resolved through that value's name table under the N5
-ladder; `spin` is the authored rotation of sketch +x about the normal. It is
-the `SitedRef` shape applied to a datum. The frame it yields has its origin
+`Datum::FaceFrame { face: S::Read, spin: S }` is a `Datum::Frame` whose
+pose is computed at evaluation from a named face. `face` reads a `Face`
+selection: its body read is the DAG edge to the body whose value the face is
+read out of, and its one name is a frozen face name resolved through that
+value's name table under the N5 ladder; `spin` is the authored rotation of
+sketch +x about the normal. It is the `SitedRef` shape applied to a datum,
+held as a definition the frame reads. The frame it yields has its origin
 at the carrier's origin projected to the face's plane (the carrier's own
 distinguished point, `readback.rs` rule 2), its normal along the face's
 outward normal (DM1a), and sketch +x along the carrier's u-reference rotated
@@ -66,9 +75,11 @@ by `spin`.
   where it sits. A derived frame is a DAG input: the face's body is upstream,
   the frame moves when the face moves, and it participates in the memo and
   content key like every node.
-- **The failure mode is the fillet's.** A face name that stops resolving
-  fails the frame typed and poisons the sketch above it, exactly as a
-  fillet's selection does (`BlendSelectionResolve`); the repair is `Rebind`.
+- **The failure mode is the fillet's.** The frame reads its face through a
+  `Face` selection, as a fillet reads its edges through an `Edges` one, so a
+  face name that stops resolving fails the frame typed and poisons the
+  sketch above it with the same refusal (`SelectResolve`); the repair is
+  `Rebind` on the selection's body.
   It is the first datum with an N5 failure mode, and that is the honest
   behaviour.
 - **DM1a — the read-back grows a sense, it does not fold one in.**

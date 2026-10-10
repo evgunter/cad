@@ -158,8 +158,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
-        detail: "same GeomSource with non-bit-identical descriptions — the same-source \
-                 theorem violated (forged or corrupted source attachment)",
+        detail: "two descriptions that do not read bit-identical — no one chart holds both",
     });
     v.extend(diags().into_iter().map(ChartRegionError::Escalated));
     v
@@ -341,7 +340,6 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
-            value: 1e-7,
             margin: MarginDiag::value(1e-7),
         },
         PlaneNurbsRefusal::TubeStraddles {
@@ -500,7 +498,6 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
         A::Limb {
             operand: geom::SurfaceKind::Plane,
             limb: geom_brep::SsiLimb::HullSup,
-            value: 7.5e-5,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {

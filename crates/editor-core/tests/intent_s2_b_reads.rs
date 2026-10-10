@@ -112,9 +112,9 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
 }
 
 /// **(B, test 5) A delete leaves a typed reader.** Deleting the extrude
-/// under a fillet is accepted and reports the fillet's `target` read
-/// stranded, beside the strands of the names the extrude minted; the
-/// fillet then refuses `UnresolvedRead` at its target. The stranded
+/// under a fillet is accepted and reports the fillet's selection's body
+/// read stranded, beside the strands of the names the extrude minted;
+/// the fillet then refuses `UnresolvedRead` at its selection. The stranded
 /// document saves and loads as itself, and the stranded reader deletes.
 #[test]
 fn a_delete_leaves_its_reader_unresolved_and_typed() {
@@ -138,18 +138,19 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
         .collect();
     assert_eq!(
         reads,
-        vec![(fillet, OperandSlot::Target, target)],
+        vec![(fillet, OperandSlot::Selection, target)],
         "one stranded read"
     );
     let names: Vec<_> = deleted
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand {
-                node,
+            Maintenance::StrandedSelection {
+                readers,
                 name,
                 took: Took::Node,
-            } => Some((node.id(), name.name().clone())),
+                ..
+            } => Some((readers[0].id(), name.name().clone())),
             _ => None,
         })
         .collect();
@@ -171,7 +172,7 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
     assert!(
         matches!(
             ev.node_error(fillet).map(|e| &e.kind),
-            Some(NodeErrorKind::UnresolvedRead { slot: OperandSlot::Target, var }) if *var == target
+            Some(NodeErrorKind::UnresolvedRead { slot: OperandSlot::Selection, var }) if *var == target
         ),
         "{:?}",
         ev.node_error(fillet)
@@ -288,25 +289,33 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     );
 
     // A name the re-point takes out of reach: a fillet of `a` selecting
-    // one of `a`'s edges, re-pointed at `b`, reports the edge stranded
-    // by reach and is written.
+    // one of `a`'s edges, re-pointed at the selection of that edge in
+    // `b`, reports the edge stranded by reach and is written.
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     let edge = editor_core::all_edges(&ev, a)
         .into_iter()
         .next()
         .expect("a block has edges");
     let (filleted, fillet) = insert(doc.clone(), Node::fillet(a, len(0.1), vec![edge.clone()]));
-    let re_pointed = applied(&filleted, set(fillet, OperandSlot::Target, b.into()));
+    let re_pointed = applied(
+        &filleted,
+        set(
+            fillet,
+            OperandSlot::Selection,
+            editor_core::Operand::select(b, vec![edge.clone()]),
+        ),
+    );
     assert_eq!(
         re_pointed
             .maintenance
             .iter()
             .filter_map(|row| match row {
-                Maintenance::Strand {
-                    node,
+                Maintenance::StrandedSelection {
+                    readers,
                     name,
                     took: Took::Reach,
-                } => Some((node.id(), name.name().clone())),
+                    ..
+                } => Some((readers[0].id(), name.name().clone())),
                 _ => None,
             })
             .collect::<Vec<_>>(),
@@ -729,7 +738,7 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     let assertion = r.insert(Node::Assertion {
         value: Formula::var(web, Dimension::Length),
         bound: len(0.5),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let by_insert = refused(
         &r.doc,
@@ -737,7 +746,7 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
             node: Box::new(Node::Assertion {
                 value: as_angle.clone(),
                 bound: len(0.5),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -954,10 +963,10 @@ fn dm5_is_over_the_variables_read() {
 
 /// **Each of a split's two halves is read as itself, and a pair
 /// declared across them is sided by the half that holds each name.**
-/// Both halves are read at the split's one site. Undeclared, the pair
-/// boolean of them refuses the rest contact across the section; under
-/// a declared rest named in either order it is the whole block, where
-/// one projection per node read one half twice. A side naming what
+/// Both halves are read at the split's one site. Under a declared rest
+/// named in either order the pair boolean of them is the whole block,
+/// where one projection per node read one half twice; undeclared, it
+/// glues the rest the margins decide and is that same block. A side naming what
 /// neither half holds — a wall of the block the cut renamed in both —
 /// refuses as a site no operand's table answers. A union of the two
 /// refuses before any of that: it keys each member by the operation it
@@ -1011,13 +1020,12 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
     let (doc, fused) = insert(doc, union(pair(above.clone(), below)));
     let (doc, stray_boolean) = insert(doc, boolean(pair(above, wall)));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    assert!(
-        matches!(
-            ev.node_error(undeclared).map(|e| &e.kind),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "{:?}",
-        ev.node_error(undeclared)
+    // Undeclared, the two section faces are one plane by margin, so the
+    // pair glues them as the declared `Rest` they are (D10).
+    assert_eq!(
+        format!("{:?}", crate::corpus::body_of(&ev, undeclared)),
+        format!("{:?}", crate::corpus::body_of(&ev, joined)),
+        "the undeclared pair boolean is the declared one"
     );
     for id in [joined, flipped] {
         assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
@@ -1280,13 +1288,13 @@ fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
     );
 }
 
-/// **A measure whose site is deleted refuses typed, and its dead site
-/// is no edge** (review A's MINOR-1): the delete of a block a measure
-/// reads names at is accepted, `Doc::upstream` sets the dead site aside
-/// — so no walk over the relation (the roots, the cascade, the mate
-/// solve's components) meets an id no node is — and evaluation refuses
-/// the measure `UnresolvedSite` at that site rather than a missing
-/// input. The stranded document saves and loads as itself.
+/// **A measure whose body is deleted refuses typed, and its dead read
+/// is no edge**: the delete of a block a measure's selection reads is
+/// accepted, `Doc::upstream` sets the dead read aside — so no walk over
+/// the relation (the cascade, the mate solve's components) meets an id
+/// no node is — and evaluation refuses the measure `UnresolvedRead` at
+/// that reference rather than a missing input. The stranded document
+/// saves and loads as itself.
 #[test]
 fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     let doc = ProfileDoc::empty_derived("s2b-dead-site", Tol::witness());
@@ -1326,7 +1334,10 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     assert!(
         matches!(
             ev.node_error(measure).map(|e| &e.kind),
-            Some(NodeErrorKind::UnresolvedSite { at }) if *at == b
+            Some(NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Measured(_, 1),
+                ..
+            })
         ),
         "{:?}",
         ev.node_error(measure)

@@ -46,7 +46,7 @@ use editor_core::stackup::{
     SensitivityRefusal, StackupRefusal, Unavailable, sensitivities, stackup,
 };
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
+    AssertionRelation, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node,
     NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, ValuePayload, VarId,
     VarName, evaluate,
@@ -298,7 +298,7 @@ fn plate_spaced(
     let assertion = r.insert(Node::Assertion {
         value: web,
         bound: len(MIN_WEB),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     let web = fixture::assertion_value(&r.doc, assertion);
     (r.doc, web, assertion)

@@ -16,7 +16,7 @@ thickness decides where the frame lands (`TestTheFrameIsRead`), the
 body is a DAG INPUT the document refuses to delete out from under it
 (`test_the_body_is_a_dag_input`), and a face name that stops denoting
 fails the frame typed instead of quietly keeping nine stale numbers
-(`face_frame_resolve`). A transcribed frame could do none of those.
+(`select_resolve`). A transcribed frame could do none of those.
 
 NOTHING HERE READS INSIDE A NAME. Every face name is a materializer's
 opaque text handed straight back to the constructor, which is the
@@ -443,7 +443,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         edge = self.ev.all_edges(self.plate)[0]
         node = self.doc.insert(Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad)))
         err = self.kind_of(node)
-        self.assertEqual(err.kind, "face_frame_kind")
+        self.assertEqual(err.kind, "select_kind")
         self.assertEqual(err.node, node)
 
     def test_a_curved_carrier_refuses_face_frame_not_planar(self):
@@ -460,13 +460,13 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         self.assertIn("torus", str(err))
         self.assertIs(ev.face_carrier_kind(torus, face), SurfaceKind.Torus)
 
-    def test_a_name_that_does_not_denote_here_refuses_face_frame_resolve(self):
+    def test_a_name_that_does_not_denote_here_refuses_select_resolve(self):
         """The N5 failure mode, and the evidence that the frame is
         READ: a transcribed frame could not fail this way. The repair
         is a rebind, not an edit of nine numbers."""
         second = plate(self.doc, 0.2 * m)
         node = self.doc.insert(Node.datum_face_frame(second, self.top, Formula.angle_in(0, rad)))
-        self.assertEqual(self.kind_of(node).kind, "face_frame_resolve")
+        self.assertEqual(self.kind_of(node).kind, "select_resolve")
 
     def test_a_failed_frame_poisons_the_sketch_above_it(self):
         """The fillet's failure mode, one node out: a sketch drawn on
@@ -478,7 +478,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         err = self.kind_of(pad)
         self.assertEqual(err.reason, "poisoned")
         self.assertEqual(err.through, frame)
-        self.assertEqual(err.kind, "face_frame_kind")
+        self.assertEqual(err.kind, "select_kind")
 
     def test_text_that_is_no_name_at_all_is_a_boundary_refusal(self):
         with self.assertRaises(ValueError):

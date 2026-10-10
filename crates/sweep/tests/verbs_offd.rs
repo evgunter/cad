@@ -211,8 +211,12 @@ fn the_untouched_walls_declared_meridian_is_re_anchored() {
             let c = body
                 .get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)?;
-            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::PlacedSegment {
-                segment: geom_brep::SketchSegment::Line { a, b },
+            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+                source:
+                    geom_brep::MappedSource::PlacedSegment {
+                        segment: geom_brep::SketchSegment::Line { a, b },
+                        ..
+                    },
                 ..
             }) = c.authority()
             else {

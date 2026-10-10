@@ -492,10 +492,10 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
 /// # Panics
 ///
 /// When an index is past the end of `refs`.
-pub fn sited(
+pub fn sited<R: Clone>(
     p: editor_core::MeasurePrimitive<u32>,
-    refs: &[editor_core::SitedRef],
-) -> editor_core::MeasurePrimitive {
+    refs: &[R],
+) -> editor_core::MeasurePrimitive<R> {
     p.try_map(|&i| refs.get(i as usize).cloned().ok_or(i))
         .unwrap_or_else(|i| panic!("reference {i} of {}", refs.len()))
 }
@@ -503,10 +503,10 @@ pub fn sited(
 /// **Measures, inserted** ([`editor_core::measure`]): one per primitive,
 /// each [`sited`] over `refs`; the document after them, and the
 /// measures with their outputs. A refusal is a loud test failure.
-pub fn measure(
+pub fn measure<R: Clone + Into<editor_core::Operand>>(
     doc: ProfileDoc,
     primitives: &[editor_core::MeasurePrimitive<u32>],
-    refs: &[editor_core::SitedRef],
+    refs: &[R],
 ) -> (ProfileDoc, editor_core::Measured) {
     let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
     let out = editor_core::measure(&doc, &sited, Tol::witness(), &RefusingReach)
@@ -516,10 +516,10 @@ pub fn measure(
 
 /// **One measure inserted**: the document after it, and the measure
 /// node.
-pub fn measure_node(
+pub fn measure_node<R: Clone + Into<editor_core::Operand>>(
     doc: &ProfileDoc,
     primitive: editor_core::MeasurePrimitive<u32>,
-    refs: Vec<editor_core::SitedRef>,
+    refs: Vec<R>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, measured) = measure(doc.clone(), &[primitive], &refs);
     (doc, measured.measures[0])
@@ -757,6 +757,36 @@ pub fn union_over(
     (doc, union)
 }
 
+/// **Every flush finding between each two of `members`, as declared
+/// pairs** — the list a caller following the detector writes, so a row
+/// can set an undeclared document beside its declared twin.
+pub fn findings_declared(
+    ev: &Evaluation<f64>,
+    members: &[RecipeNodeId],
+) -> Vec<editor_core::DeclaredPair> {
+    let mut pairs = Vec::new();
+    for (i, &a) in members.iter().enumerate() {
+        for &b in &members[i + 1..] {
+            let found = editor_core::find_flush_candidates(ev, a, b, tol())
+                .unwrap_or_else(|e| panic!("the detector answers {a:?} × {b:?}: {e:?}"));
+            pairs.extend(editor_core::declared_pairs(&found));
+        }
+    }
+    pairs
+}
+
+/// The `Debug` of the one body `id` built — its bits, for setting two
+/// runs' bodies side by side.
+pub fn built_bits(ev: &Evaluation<f64>, id: RecipeNodeId) -> String {
+    match ev.value(id).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Body(b)) => format!("{b:?}"),
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => format!("{body:?}"),
+        other => panic!("{id:?} built no body: {other:?} / {:?}", ev.nodes.get(&id)),
+    }
+}
+
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
 /// direction, the table's gaps, a face-based side resolved from the
@@ -870,6 +900,7 @@ pub fn insert_mate_with_stranded_head(
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: stand_in,
             to: (*stranded.name).clone(),
         },
@@ -1135,10 +1166,10 @@ impl Recorder {
     /// Inserts measures ([`editor_core::measure`]), one per primitive
     /// [`sited`] over `refs`, recording their edits; returns the measures
     /// and their outputs.
-    pub fn measure(
+    pub fn measure<R: Clone + Into<editor_core::Operand>>(
         &mut self,
         primitives: &[editor_core::MeasurePrimitive<u32>],
-        refs: &[editor_core::SitedRef],
+        refs: &[R],
     ) -> editor_core::Measured {
         let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
         let out = editor_core::measure(&self.doc, &sited, Tol::witness(), &RefusingReach)
@@ -1210,8 +1241,8 @@ impl Recorder {
             .expect("the cube has a vertex at the origin");
         self.insert(Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {
-                a: editor_core::SitedRef::new(cube, vertex.clone()),
-                b: editor_core::SitedRef::new(copy, vertex),
+                a: editor_core::SitedRef::new(cube, vertex.clone()).into(),
+                b: editor_core::SitedRef::new(copy, vertex).into(),
             },
         })
     }
@@ -2175,6 +2206,86 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
             declare: Vec::new(),
         },
     )
+}
+
+/// **The names an authored selection names** ([`editor_core::Operand::Select`]).
+///
+/// # Panics
+///
+/// If `operand` authors no selection.
+pub fn authored_names(operand: &editor_core::Operand) -> Vec<StableName> {
+    match operand {
+        editor_core::Operand::Select { names, .. } => names.clone(),
+        other => panic!("{other} authors no selection"),
+    }
+}
+
+/// **The names the selection `var` holds** in `doc`.
+///
+/// # Panics
+///
+/// If `var` is not a selection `doc` holds.
+pub fn selected(doc: &ProfileDoc, var: editor_core::VarId) -> Vec<StableName> {
+    doc.selection(var)
+        .unwrap_or_else(|| panic!("{var:?} is a selection"))
+        .names
+        .clone()
+}
+
+/// **The body of the one selection of `doc` naming `name`**: what a
+/// `Rebind` of that name is addressed by.
+///
+/// # Panics
+///
+/// If no selection, or more than one, names it.
+pub fn body_selecting(doc: &ProfileDoc, name: &StableName) -> Option<editor_core::VarId> {
+    let bodies: Vec<editor_core::VarId> = doc
+        .vars()
+        .values()
+        .filter_map(|var| var.def().select())
+        .filter(|select| select.names.contains(name))
+        .map(|select| select.body)
+        .collect();
+    let [one] = bodies.as_slice() else {
+        panic!("one selection names {name:?}, not {bodies:?}");
+    };
+    Some(*one)
+}
+
+/// **The one selection `node` reads** in `doc`.
+///
+/// # Panics
+///
+/// If `node` reads no selection, or several.
+pub fn selection_read(doc: &ProfileDoc, node: RecipeNodeId) -> editor_core::VarId {
+    let reads: Vec<editor_core::VarId> = doc
+        .node(node)
+        .map(|n| n.operand_rows())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, var)| var)
+        .filter(|var| doc.selection(*var).is_some())
+        .collect();
+    let [one] = reads.as_slice() else {
+        panic!("node {node:?} reads one selection, not {reads:?}");
+    };
+    *one
+}
+
+/// **A selection's strand row** as the delete or reshaping reports it:
+/// the selection `carrier` reads, said by `carrier`, as `doc` speaks it.
+pub fn selection_strand(
+    doc: &ProfileDoc,
+    carrier: RecipeNodeId,
+    name: editor_core::SpokenName,
+    took: editor_core::Took,
+) -> editor_core::Maintenance {
+    editor_core::Maintenance::StrandedSelection {
+        var: doc.spoken_var(selection_read(doc, carrier)),
+        readers: vec![doc.spoken(carrier)],
+        name,
+        took,
+    }
 }
 
 /// **An edit's maintenance with its anonymous-variable removals left
