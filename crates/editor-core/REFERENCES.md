@@ -157,8 +157,10 @@ A union or an intersect takes one argument of kind `Bodies`, the family of
 (`Union(xs)`), whose members join in index order, or the member reads
 spelled at the slot (`Union([a, b, c])`), which join in the spelled order.
 A list is spelled at the slot (`union([a, b, c])`, the three unrelated
-bodies just made); a list is not a value, so nothing later reads "that
-list", and a reusable collection is a family (D10, Repetition). It is the argument a placement's
+bodies just made). Naming a list so several readers share it, a spelled
+list as a `Bodies` definition, is not built, for lack of immediate need;
+nothing in the design forbids it. A collection that follows an index is a
+family (D10, Repetition). It is the argument a placement's
 shape list takes (S3M). A mix (`[xs, a]`) puts a `Bodies` where a `Body`
 goes and is ill-typed at the door (`SlotVarKind`), so a list beside an
 individual cannot be written. A list of one is its member, and an empty
