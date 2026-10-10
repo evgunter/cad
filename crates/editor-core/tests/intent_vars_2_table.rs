@@ -24,9 +24,9 @@ use editor_core::mc::{McConfig, sample_offsets};
 use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
-    Dimension, Distribution, DocEdit, EditError, Formula, FreeValue, FreeVar, MeasureExpr, Node,
-    ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDecl, VarId,
-    VarKind, VarName, apply, load, save, var_env_over,
+    Dimension, Distribution, DocEdit, EditError, Formula, FreeValue, FreeVar, ParamBox,
+    PersistError, ProfileDoc, ProfileProgram, UnitSym, VarDecl, VarId, VarKind, VarName, apply,
+    load, save, var_env_over,
 };
 use geom_core::Tol;
 use geom_core::predicate::{Band, Margin, Sign};
@@ -67,9 +67,9 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
     doc.var_named(name).expect("declared")
 }
 
-/// The twins and a measure of `w + 2·v`, whose partials (1 and 2) tell
+/// The twins and a value `m := w + 2·v`, whose partials (1 and 2) tell
 /// the two variables apart.
-fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
+fn measured_twins() -> (ProfileDoc, editor_core::VarId) {
     let doc = twins();
     let w = Formula::named(n("w"), Dimension::Length);
     let v = Formula::named(n("v"), Dimension::Length);
@@ -77,15 +77,15 @@ fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
     let sum = Formula::add(w, Formula::mul(two, v).unwrap()).unwrap();
     let applied = apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::measure(MeasureExpr::value(sum), Vec::new()).unwrap()),
-            fresh: Vec::new(),
+        &DocEdit::DeclareVar {
+            name: n("m"),
+            def: editor_core::VarDecl::Defined(sum),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect("the measure inserts");
-    let measure = applied.record.minted.expect("an insert mints");
+    .expect("the definition declares");
+    let measure = applied.doc.var_named("m").expect("declared");
     (applied.doc, measure)
 }
 

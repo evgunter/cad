@@ -128,6 +128,27 @@ value proved interior to one vector's domain, carried without that
 vector — stays crate-private for it, the type being a guard only in
 combination with the privacy of its two consumers, argued at its doc.
 
+## Choosing among spellings of one quantity (W1)
+
+**W1 — a spelling is chosen by what its width and its error scale
+with.** When two spellings of one value disagree at some scalar (a
+point turned about an axis, a point on an arc, a restricted range of a
+description's parameter):
+
+- **Scale.** Width or error proportional to the geometry's own scale (a
+  radius, a chord, the split parameter's own rounding) is the floor.
+  Width proportional to the distance from the world origin, or to the
+  number of restrictions a value has been through, is a defect: it
+  rejects the spelling at every scalar.
+- **Among spellings that pass:**
+  - a difference of a few ulps of the coordinates at f64 decides
+    nothing;
+  - prefer the spelling that is the quantity's definition;
+  - break a remaining tie on Interval width at the input widths real
+    producers hand it, since a width no producer makes is not evidence;
+  - and on f64 error against an exact reference, never against a
+    carrier, whose agreement is not accuracy.
+
 ## Related pages
 
 `docs/DESIGN.md` (D2's addendum on refusal design, D4 poison, D9

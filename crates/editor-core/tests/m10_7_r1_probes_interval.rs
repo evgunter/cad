@@ -16,7 +16,7 @@ use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
+    LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
     ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
     select_where,
 };
@@ -332,11 +332,11 @@ pub(crate) fn bracket_pub(
     half_width: f64,
     literal_plate: bool,
     tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     bracket_with(half_width, literal_plate, tol)
 }
 
-fn bracket(half_width: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn bracket(half_width: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     bracket_with(half_width, false, tol)
 }
 
@@ -346,7 +346,7 @@ fn bracket_with(
     half_width: f64,
     literal_plate: bool,
     tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
@@ -448,17 +448,15 @@ fn bracket_with(
         vec![wall(hole_a), wall(hole_b)]
     };
     // web = distance(axes) − 2·(w/16) = w/2 − w/8 = 3w/8 = 7.5 mm nominal.
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(div(w(), 8.0)),
-    )
-    .unwrap();
-    let measure = r.insert(Node::measure(web, refs).unwrap());
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let web = Formula::sub(r.len_of(measured.outputs[0]), div(w(), 8.0)).unwrap();
+
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: web,
         bound: len(7.0e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });
+    let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }
 
@@ -543,13 +541,6 @@ fn r1_e2e_bracket_nominal_measures_three_eighths_w() {
         &EvalOptions::default(),
         tol,
     );
-    match ev.result(measure) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            editor_core::ValuePayload::Measure { value, .. } => {
-                assert!((value - 7.5e-3).abs() < 1e-9, "web {value}");
-            }
-            other => panic!("{}", other.kind_name()),
-        },
-        _ => panic!("{:?}", ev.node_error(measure).map(|e| e.kind.to_string())),
-    }
+    let value = crate::fixture::reading(&doc, &ev, measure).expect("the web reads");
+    assert!((value - 7.5e-3).abs() < 1e-9, "web {value}");
 }

@@ -1988,17 +1988,18 @@ pub(crate) fn lift<P>(
             origin: _,
             direction: _,
         }) => seat(*plane, Lift::Dropped).into_iter().collect(),
-        Node::Measure { expr: _, refs } => refs
+        Node::Measure { primitive } => primitive
+            .refs()
             .iter()
             .any(|r| r.at == input)
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),
         Node::Assertion {
-            measure,
+            value,
             bound: _,
             dir: _,
-        } => seat(*measure, Lift::Dropped).into_iter().collect(),
+        } => seat(*value, Lift::Dropped).into_iter().collect(),
         Node::Extrude {
             profile,
             distance: _,
