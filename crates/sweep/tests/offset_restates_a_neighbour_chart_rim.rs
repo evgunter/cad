@@ -21,7 +21,7 @@ use crate::common::approx::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_brep::{
     EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
-    Pcurve, SketchSegment,
+    MappedSource, Pcurve, SketchSegment,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -148,14 +148,13 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
 #[test]
 fn a_declared_rim_in_the_caps_chart_keeps_its_declaration_on_the_minted_wall() {
     let (mut body, wall, rim, _) =
-        drum_with_a_rim_in_the_caps_chart(Some(MappedCurve::RevolvedPoint {
+        drum_with_a_rim_in_the_caps_chart(Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(R, H),
             place: Affine3::identity(),
             axis_origin: Point3::new(0.0, 0.0, 0.0),
             axis_dir: Vec3::new(0.0, 1.0, 0.0),
             angle: std::f64::consts::PI,
-            range: geom_brep::SweepRange::whole(),
-        }));
+        })));
     let minted = offset_the_wall(&mut body, wall);
     validate_closed(&body).expect("the offset drum is tier-2 valid");
     let curve = description_of(&body, rim);
@@ -167,7 +166,7 @@ fn a_declared_rim_in_the_caps_chart_keeps_its_declaration_on_the_minted_wall() {
     assert!(
         matches!(
             curve.authority(),
-            EdgeAuthority::Declared(MappedCurve::RevolvedPoint { point, .. })
+            EdgeAuthority::Declared(MappedCurve { source: MappedSource::RevolvedPoint { point, .. }, .. })
                 if (point.x - (R - 1.0 / 64.0)).abs() < 1e-12 && (point.y - H).abs() < 1e-12
         ),
         "the declaration is re-authored at the moved corner: {:?}",
@@ -296,13 +295,13 @@ fn cube_with_the_top_edge_in_the_sides_chart(
     );
     let chart = EdgeDescriptionSpec::chart(side);
     spec.description = if declared {
-        chart.declared_by(MappedCurve::PlacedSegment {
+        chart.declared_by(MappedCurve::whole(MappedSource::PlacedSegment {
             segment: SketchSegment::Line {
                 a: Point2::new(p0.x, p0.y),
                 b: Point2::new(p1.x, p1.y),
             },
             place: Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        })
+        }))
     } else {
         chart
     };
@@ -348,7 +347,7 @@ fn assert_declared_in_the_moved_top(body: &Body<f64>, edge: EdgeKey, minted: Sur
     assert!(
         matches!(
             curve.authority(),
-            EdgeAuthority::Declared(MappedCurve::PlacedSegment { place, .. })
+            EdgeAuthority::Declared(MappedCurve { source: MappedSource::PlacedSegment { place, .. }, .. })
                 if (place.translation - Vec3::new(0.0, 0.0, 1.0 + d)).norm() < 1e-12
         ),
         "the declaration is translated with the top: {:?}",

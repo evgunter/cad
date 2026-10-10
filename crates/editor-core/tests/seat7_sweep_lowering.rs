@@ -326,7 +326,7 @@ fn both_sweeps_evaluate_in_one_document() {
 /// point moved (the id-free fence held).
 ///
 /// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a swept point's description began
-/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// carrying a `geom_brep::SubRange` (`range`) beside its angle or
 /// vector, and a restricted one kept its placement instead of composing
 /// the split's motion into it: the digest feeds each curve's `Debug`,
 /// and these are the documents whose bodies store a swept-point

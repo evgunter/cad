@@ -50,16 +50,14 @@ fn meridian() -> SketchSegment<Interval> {
 }
 
 /// A short arc whose carrier is derived from its own chord: the 0.4 %
-/// window of the meridian from `s = 0.4`, its endpoints cut by
-/// `restrict` (so they carry an evaluation's width), and its carrier
-/// lowered from that short chord and the window's bulge
-/// `tan(atan(1)·0.004)` — how the profile's lift derives a short
-/// authored arc's carrier at `Interval`. (`restrict` itself keeps the
-/// parent's carrier, whose centre here is exact.)
+/// window of the meridian from `s = 0.4`, its endpoints the meridian's
+/// evaluations at the window's ends (so they carry an evaluation's
+/// width), and its carrier lowered from that short chord and the
+/// window's bulge `tan(atan(1)·0.004)` — how the profile's lift derives
+/// a short authored arc's carrier at `Interval`.
 fn short_arc() -> SketchSegment<Interval> {
-    let SketchSegment::Arc { a, b, .. } = meridian().restrict(iv(0.4), iv(0.404)) else {
-        panic!("restriction changed the segment kind");
-    };
+    let meridian = meridian();
+    let (a, b) = (meridian.eval(iv(0.4)), meridian.eval(iv(0.404)));
     lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
 }
 

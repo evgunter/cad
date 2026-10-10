@@ -19,7 +19,7 @@
 use core::f64::consts::TAU;
 
 use crate::shared::interval::iv;
-use geom_brep::{MappedCurve, SweepRange};
+use geom_brep::{MappedCurve, MappedSource, SubRange};
 use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Vec3};
 
 fn width(e: Interval) -> f64 {
@@ -35,14 +35,13 @@ fn point_width(p: Point3<Interval>) -> f64 {
 /// half-width per component.
 fn rim(half: f64) -> MappedCurve<Interval> {
     let w = |c: f64| Interval::from_bounds(c - half, c + half);
-    MappedCurve::RevolvedPoint {
+    MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
         axis_origin: Point3::new(w(1.0), w(2.0), w(3.0)),
         axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
         angle: iv(TAU),
-        range: SweepRange::whole(),
-    }
+    })
 }
 
 /// Where a far fixture sits: a thousand metres out, so a cost charged
@@ -55,26 +54,24 @@ const FAR: [f64; 3] = [1000.0, -700.0, 300.0];
 /// `at + (1, 2, 0)`.
 fn rim_at(at: [f64; 3]) -> MappedCurve<Interval> {
     let [x, y, z] = at;
-    MappedCurve::RevolvedPoint {
+    MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
         axis_origin: Point3::new(iv(1.0 + x), iv(2.0 + y), iv(z)),
         axis_dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
         angle: iv(TAU),
-        range: SweepRange::whole(),
-    }
+    })
 }
 
 /// A strut at `at`: the sketch point `(2, 2)` extruded along
 /// `(0.5, -1.5, 3)`.
 fn strut_at(at: [f64; 3]) -> MappedCurve<Interval> {
     let [x, y, z] = at;
-    MappedCurve::ExtrudedPoint {
+    MappedCurve::whole(MappedSource::ExtrudedPoint {
         point: Point2::new(iv(2.0), iv(2.0)),
         place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
         vec: Vec3::new(iv(0.5), iv(-1.5), iv(3.0)),
-        range: SweepRange::whole(),
-    }
+    })
 }
 
 /// The widest of the samples `s = 0, ½, 1`.
@@ -323,7 +320,7 @@ fn compose((al, at): Pose, (bl, bt): Pose) -> Pose {
 /// `rim_at(at)` restricted by composing each split's start rotation
 /// into the stored placement and scaling the angle — the restriction
 /// this form replaced — spelled out by hand for the `+z` axis, so it
-/// shares no code with `MappedCurve`, `SweepRange` or
+/// shares no code with `MappedCurve`, `SubRange` or
 /// `Affine3::rotation_about_axis`.
 #[derive(Clone, Copy)]
 struct Composed {
@@ -430,7 +427,7 @@ fn restriction_is_no_wider_than_composing_into_the_placement() {
 
 /// **A whole range evaluates as the unrestricted rotation, bit for
 /// bit**, at `f64` and at `Interval`, at every sample and placement:
-/// `SweepRange::whole().at(s)` is `s` itself, so the angle is `s·angle`
+/// `SubRange::whole().at(s)` is `s` itself, so the angle is `s·angle`
 /// as it always was and nothing a body builds unrestricted moves.
 /// Struts likewise read `vec·s`.
 #[test]
@@ -442,22 +439,20 @@ fn a_whole_range_evaluates_as_the_unrestricted_motion_bit_for_bit() {
             let q = Point3::new(at[0] + 1.0, at[1] + 2.0, at[2]);
             let n = Vec3::new(0.3, -0.2, 1.0);
             let pt = Point2::new(2.0, 2.0);
-            let c = MappedCurve::RevolvedPoint {
+            let c = MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: pt,
                 place,
                 axis_origin: q,
                 axis_dir: n,
                 angle,
-                range: SweepRange::whole(),
-            };
-            let ci = MappedCurve::RevolvedPoint {
+            });
+            let ci = MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(iv(2.0), iv(2.0)),
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),
                 axis_origin: Point3::new(iv(q.x), iv(q.y), iv(q.z)),
                 axis_dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
                 angle: iv(angle),
-                range: SweepRange::whole(),
-            };
+            });
             for i in 0..=64 {
                 let s = if i == 7 {
                     1.0 / 3.0
@@ -491,12 +486,11 @@ fn a_whole_range_evaluates_as_the_unrestricted_motion_bit_for_bit() {
                 }
             }
             let v = Vec3::new(0.5, -1.5, angle);
-            let strut = MappedCurve::ExtrudedPoint {
+            let strut = MappedCurve::whole(MappedSource::ExtrudedPoint {
                 point: pt,
                 place,
                 vec: v,
-                range: SweepRange::whole(),
-            };
+            });
             for i in 0..=16 {
                 let s = f64::from(i) / 16.0;
                 let got = strut.eval(s);
@@ -606,20 +600,18 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
         "the strut restricted to t ∈ [½, ⅔] ends off (2⅓, 1, 2): {end:?}"
     );
 
-    let rim64 = MappedCurve::RevolvedPoint {
+    let rim64 = MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(2.0, 2.0),
         place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
         axis_origin: Point3::new(1.0, 2.0, 3.0),
         axis_dir: Vec3::new(0.0, 0.0, 1.0),
         angle: TAU,
-        range: SweepRange::whole(),
-    };
-    let strut64 = MappedCurve::ExtrudedPoint {
+    });
+    let strut64 = MappedCurve::whole(MappedSource::ExtrudedPoint {
         point: Point2::new(2.0, 2.0),
         place: Affine3::translation(Vec3::new(FAR[0], FAR[1], FAR[2])),
         vec: Vec3::new(0.5, -1.5, 3.0),
-        range: SweepRange::whole(),
-    };
+    });
     for (name, c) in [("rim", rim64), ("strut", strut64)] {
         // [0.3, 0.7], then its [0.1, 0.6]: [0.34, 0.54].
         let sub = c.restrict(0.3, 0.7).restrict(0.1, 0.6);

@@ -13,7 +13,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Point2, Point3, Real, Tol, Vec3};
 
 use super::SweptSeg;
@@ -98,14 +98,15 @@ pub(super) fn revolved_strut_spec<T: Real>(
     // `q_to` — see `work/blend/revolve-carriers-state-only-the-rim`.
     crate::swept::register_rim_identity(rim, radius, tol);
     EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-            point,
-            place: frame.place,
-            axis_origin: frame.o3,
-            axis_dir: frame.a3,
-            angle: theta,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::RevolvedPoint {
+                point,
+                place: frame.place,
+                axis_origin: frame.o3,
+                axis_dir: frame.a3,
+                angle: theta,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: axis_c,

@@ -192,7 +192,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// point moved (the id-free fence held).
 ///
 /// RE-BLESSED, `cut_cylinder` only, when a swept point's description began
-/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// carrying a `geom_brep::SubRange` (`range`) beside its angle or
 /// vector, and a restricted one kept its placement instead of composing
 /// the split's motion into it: the digest feeds each curve's `Debug`,
 /// and these are the documents whose bodies store a swept-point
