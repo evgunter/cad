@@ -1216,8 +1216,10 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 ///   plane arm, or at the crossing layer's pierce door where the run's
 ///   band puts the near-perpendicular root there;
 /// - the slab's face-interior oval is a certified interior loop
-///   (R-loop), and two tori meeting in an oval, or a cylinder grazing
-///   the outer equator, have no section classification (R-reach);
+///   (R-loop), and so is the bite a cylinder grazing the outer equator
+///   takes out of the tube (its axis square to the torus's, its trace
+///   sunk `0.05` into the tube circle); two tori meeting in an oval have
+///   no section classification (R-reach);
 /// - the dumbbell's declared waists stop at the section pass on their
 ///   tangency (R-tan), and undeclared at the reduction, as the
 ///   undeclared continuation they are.
@@ -1311,7 +1313,7 @@ fn subtract_and_intersect_refuse_where_union_does() {
             &d,
             &cyl,
             &none,
-            "has no section classification",
+            "a closed loop interior to both faces",
         ),
         (
             "declared dumbbell",
