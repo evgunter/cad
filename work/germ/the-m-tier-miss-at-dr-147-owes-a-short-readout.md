@@ -2,9 +2,9 @@
 id: the-m-tier-miss-at-dr-147-owes-a-short-readout
 kind: ruling
 title: The M-tier miss at DR-147 owes Ev a short readout
-status: open
+status: closed
 opened: 2026-10-10
-needs_ev: true
+closed: 2026-10-10
 pr: 4576
 ---
 
@@ -14,3 +14,7 @@ pr: 4576
 - The FYI is `analysis/dual-review/short-readout-dr147.md`, off-file per rule 10, on the `[ev]` PR 4576, which is not for main.
 - When Ev has seen it, clear `needs_ev`, close PR 4576 unmerged, and close this item. If Ev says anything, record it in the log's rulings list.
 - One more M-tier miss before twenty more M-tier units makes the next full readout due.
+
+## Closed
+
+Ev saw the FYI on PR 4576, 2026-10-10: "thanks for letting me know! glad to hear it wasn't a very serious issue". No ruling was asked or given, so the protocol is unchanged. PR 4576 is closed unmerged, since readouts are off-file. The count toward the next full readout stands at 2 units and one miss after DR-144.
