@@ -1,5 +1,6 @@
 //! **The cone as a boolean operand**: every op on the preview cone of
-//! `docs/GERM-VERBS-CONE-SPEC.md` §0 against its fixtures, through the
+//! the cone admission's spec (its §0,
+//! `docs/doc-ledger/germ-verbs-cone-spec.md`) against its fixtures, through the
 //! public doors.
 //!
 //! The preview cone is the triangle `(0,0) (1,0) (0,1)` revolved fully
@@ -324,6 +325,98 @@ fn the_apex_pin_refuses_every_op_never_a_body() {
     }
 }
 
+/// A solid of revolution about `y` posed by the rigid map
+/// `rotation about z by tilt, then translation by at`.
+fn posed(
+    polygon: &[(f64, f64)],
+    truth: Solid,
+    tilt: f64,
+    at: Vec3<f64>,
+) -> (AtRestBody<f64>, Solid) {
+    let map = Affine3::translation(at)
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), tilt);
+    (moved(&revolved(polygon, None), &map), truth.posed(map))
+}
+
+/// A rod of radius `r` along `y` over `[−h, h]`, posed.
+fn rod(r: f64, h: f64, tilt: f64, at: Vec3<f64>) -> (AtRestBody<f64>, Solid) {
+    let truth = Solid::Revolved {
+        y0: -h,
+        y1: h,
+        r0: r,
+        k: 0.0,
+        window: None,
+    };
+    posed(&[(0.0, -h), (r, -h), (r, h), (0.0, h)], truth, tilt, at)
+}
+
+/// The cone of base radius `r` and height `h` (apex up `y`), posed.
+fn small_cone(r: f64, h: f64, tilt: f64, at: Vec3<f64>) -> (AtRestBody<f64>, Solid) {
+    let truth = Solid::Revolved {
+        y0: 0.0,
+        y1: h,
+        r0: r,
+        k: -r / h,
+        window: None,
+    };
+    posed(&[(0.0, 0.0), (r, 0.0), (0.0, h)], truth, tilt, at)
+}
+
+/// **An oblique rod or a tilted cone, inside the cone or clear of it,
+/// builds.** No crossing joins anything, so the no-crossings path's
+/// section certificate decides every face pair, and the cone's lateral
+/// face against the rod's wall or the small cone's is the general-pose
+/// arm (`section_cert/ruling.rs`): the carriers' section is classified
+/// on both charts and each component cleared — the far loops the
+/// infinite rod's carrier cuts from the cone by their witnesses `Out`.
+/// The rod `r = 0.05`, `h = 0.2`, tilted `1` rad about `z` at
+/// `(0, 0.4, 0)` (volume `0.001π`), and `r = 0.05`, `h = 0.25` tilted
+/// `0.8` rad at `(0.75, 0.55, 0.1)`, clear of the cone with the boxes
+/// overlapping (`0.00125π`); the cone `r = 0.1`, `h = 0.2` (`π/1500`)
+/// tilted `0.7` rad at `(0.05, 0.25, 0.05)`, inside, and tilted `−1.1`
+/// rad at `(0.8, 0.55, 0.2)`, clear.
+#[test]
+fn an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms() {
+    let v_cone = PI / 1500.0;
+    let fixtures = [
+        Builds {
+            what: "a rod inside",
+            a: cone(None),
+            b: rod(0.05, 0.2, 1.0, Vec3::new(0.0, 0.4, 0.0)),
+            volumes: (V, 0.001 * PI, 0.001 * PI),
+            named: vec![p(0.0, 0.4, 0.0), p(0.0, 0.2, 0.5), p(2.0, 0.5, 0.0)],
+            region: (p(-0.3, 0.2, -0.1), p(0.3, 0.6, 0.1)),
+        },
+        Builds {
+            what: "a rod clear",
+            a: cone(None),
+            b: rod(0.05, 0.25, 0.8, Vec3::new(0.75, 0.55, 0.1)),
+            volumes: (V, 0.00125 * PI, 0.0),
+            named: vec![p(0.75, 0.55, 0.1), p(0.0, 0.5, 0.0), p(0.6, 0.3, 0.1)],
+            region: (p(0.4, 0.3, -0.1), p(1.1, 0.8, 0.3)),
+        },
+        Builds {
+            what: "a tilted cone inside",
+            a: cone(None),
+            b: small_cone(0.1, 0.2, 0.7, Vec3::new(0.05, 0.25, 0.05)),
+            volumes: (V, v_cone, v_cone),
+            named: vec![p(0.03, 0.3, 0.05), p(0.0, 0.7, 0.0), p(2.0, 0.5, 0.0)],
+            region: (p(-0.2, 0.1, -0.1), p(0.3, 0.5, 0.2)),
+        },
+        Builds {
+            what: "a tilted cone clear",
+            a: cone(None),
+            b: small_cone(0.1, 0.2, -1.1, Vec3::new(0.8, 0.55, 0.2)),
+            volumes: (V, v_cone, 0.0),
+            named: vec![p(0.85, 0.56, 0.2), p(0.0, 0.5, 0.0), p(0.6, 0.6, 0.2)],
+            region: (p(0.6, 0.3, 0.0), p(1.2, 0.8, 0.4)),
+        },
+    ];
+    for f in &fixtures {
+        f.check();
+    }
+}
+
 /// The preview's bite: a `5π/3` sector of the rod of radius `0.3` along
 /// `x` over `[−2, 2]`, about `(y, z) = (0.45, 0.8)`.
 fn bite() -> AtRestBody<f64> {
@@ -341,8 +434,8 @@ fn bite() -> AtRestBody<f64> {
 /// **A cone against an oblique cylinder has no frame.** P1, the bite,
 /// and P2, the bite with P2a's brick beside it as a second lump: every
 /// op refuses `GermFrameUnsupported` on the cone × cylinder pair
-/// (`cone-pairs-in-general-pose-have-no-section-arm`), in the operands'
-/// order.
+/// (`work/sect/cone-germ-pairs-against-a-curved-face-have-no-section-frame.md`),
+/// in the operands' order.
 #[test]
 fn the_bite_refuses_at_the_germ_frame() {
     let tol = Tol::witness();
