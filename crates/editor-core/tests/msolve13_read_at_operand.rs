@@ -197,10 +197,7 @@ struct Fused {
     m2: RecipeNodeId,
 }
 
-fn fused(
-    s: &Scene,
-    at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> SitedFace,
-) -> Fused {
+fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> SitedFace) -> Fused {
     let (doc, t1) = insert(
         s.doc.clone(),
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
@@ -392,7 +389,10 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
         ),
     );
     let at_t1 = member_of(&doc, &head_at(t1, s.top_cap()));
-    let at_u = member_of(&doc, &head_at(union, member_name(&doc, union, t1, s.top_cap())));
+    let at_u = member_of(
+        &doc,
+        &head_at(union, member_name(&doc, union, t1, s.top_cap())),
+    );
     assert!(at_t1.is_some(), "the t1 spelling is a member");
     assert_eq!(at_t1, at_u, "A2: one placement, one member");
     let poses = solve(&doc, &s.opts, Tol::witness());

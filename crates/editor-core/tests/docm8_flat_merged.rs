@@ -41,7 +41,10 @@ fn permutations(items: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
 
 /// The declared contacts of a CHAIN: every consecutive pair of
 /// `chain` meets flush, all four families, in member space.
-fn chain_pairs(doc: &editor_core::ProfileDoc, chain: &[RecipeNodeId]) -> Vec<(SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>)> {
+fn chain_pairs(
+    doc: &editor_core::ProfileDoc,
+    chain: &[RecipeNodeId],
+) -> Vec<(SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>)> {
     chain
         .windows(2)
         .flat_map(|w| flush_pairs(doc, (w[0], w[0]), (w[1], w[1])))
@@ -301,8 +304,14 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
         (0..4)
             .map(|fam| {
                 (
-                    SitedRef::new(fixture::out(&rec.doc, a), fname(a, family(&rec.doc, a, fam))),
-                    SitedRef::new(fixture::out(&rec.doc, b), fname(b, family(&rec.doc, b, fam))),
+                    SitedRef::new(
+                        fixture::out(&rec.doc, a),
+                        fname(a, family(&rec.doc, a, fam)),
+                    ),
+                    SitedRef::new(
+                        fixture::out(&rec.doc, b),
+                        fname(b, family(&rec.doc, b, fam)),
+                    ),
                 )
             })
             .collect(),
@@ -328,7 +337,10 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
             .map(|fam| {
                 (
                     SitedRef::new(fixture::out(&at, inner), inner_row(fam)),
-                    SitedRef::new(fixture::out(&rec.doc, c), fname(c, family(&rec.doc, c, fam))),
+                    SitedRef::new(
+                        fixture::out(&rec.doc, c),
+                        fname(c, family(&rec.doc, c, fam)),
+                    ),
                 )
             })
             .collect(),
@@ -344,8 +356,16 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
         let row = merged(
             outer,
             vec![
-                from_a(&rec.doc, outer, from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam)))),
-                from_a(&rec.doc, outer, from_b(&rec.doc, inner, fname(b, family(&rec.doc, b, fam)))),
+                from_a(
+                    &rec.doc,
+                    outer,
+                    from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
+                ),
+                from_a(
+                    &rec.doc,
+                    outer,
+                    from_b(&rec.doc, inner, fname(b, family(&rec.doc, b, fam))),
+                ),
                 from_b(&rec.doc, outer, fname(c, family(&rec.doc, c, fam))),
             ],
         );
@@ -475,8 +495,14 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         (0..4)
             .map(|fam| {
                 (
-                    SitedRef::new(fixture::out(&rec.doc, a), fname(a, family(&rec.doc, a, fam))),
-                    SitedRef::new(fixture::out(&rec.doc, b), fname(b, family(&rec.doc, b, fam))),
+                    SitedRef::new(
+                        fixture::out(&rec.doc, a),
+                        fname(a, family(&rec.doc, a, fam)),
+                    ),
+                    SitedRef::new(
+                        fixture::out(&rec.doc, b),
+                        fname(b, family(&rec.doc, b, fam)),
+                    ),
                 )
             })
             .collect(),
@@ -501,7 +527,10 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
             .map(|fam| {
                 (
                     SitedRef::new(fixture::out(&at, inner), inner_row(fam)),
-                    SitedRef::new(fixture::out(&rec.doc, c), fname(c, family(&rec.doc, c, fam))),
+                    SitedRef::new(
+                        fixture::out(&rec.doc, c),
+                        fname(c, family(&rec.doc, c, fam)),
+                    ),
                 )
             })
             .collect(),
@@ -520,8 +549,16 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         let outer_row = merged(
             outer,
             vec![
-                from_a(&rec.doc, outer, from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam)))),
-                from_a(&rec.doc, outer, from_b(&rec.doc, inner, fname(b, family(&rec.doc, b, fam)))),
+                from_a(
+                    &rec.doc,
+                    outer,
+                    from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
+                ),
+                from_a(
+                    &rec.doc,
+                    outer,
+                    from_b(&rec.doc, inner, fname(b, family(&rec.doc, b, fam))),
+                ),
                 from_b(&rec.doc, outer, fname(c, family(&rec.doc, c, fam))),
             ],
         );
@@ -537,7 +574,11 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         }
         // And a flat constituent — a name that was never a row of any
         // table — offers the same row.
-        let constituent = from_a(&rec.doc, outer, from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))));
+        let constituent = from_a(
+            &rec.doc,
+            outer,
+            from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
+        );
         match resolve(ctx, &constituent) {
             Resolution::Failed(f) => assert!(f.offers.contains(&outer_row), "{:?}", f.offers),
             other => panic!("{other:?}"),
@@ -584,7 +625,8 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     );
     let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
     let carried = |fam: usize| {
-        from_b(&doc, 
+        from_b(
+            &doc,
             mid,
             merged(
                 inner,
@@ -619,13 +661,23 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         let want = merged(
             outer,
             vec![
-                from_a(&doc, 
+                from_a(
+                    &doc,
                     outer,
-                    from_b(&doc, mid, from_a(&doc, inner, fname(a, family(&doc, a, fam)))),
+                    from_b(
+                        &doc,
+                        mid,
+                        from_a(&doc, inner, fname(a, family(&doc, a, fam))),
+                    ),
                 ),
-                from_a(&doc, 
+                from_a(
+                    &doc,
                     outer,
-                    from_b(&doc, mid, from_b(&doc, inner, fname(b, family(&doc, b, fam)))),
+                    from_b(
+                        &doc,
+                        mid,
+                        from_b(&doc, inner, fname(b, family(&doc, b, fam))),
+                    ),
                 ),
                 from_b(&doc, outer, fname(c, family(&doc, c, fam))),
             ],
@@ -680,7 +732,11 @@ fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
 /// y-walls, so folding `s` in fragments that cap.
 pub(crate) fn split_fixture(
     doc: ProfileDoc,
-) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>)>) {
+) -> (
+    ProfileDoc,
+    [RecipeNodeId; 3],
+    Vec<(SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>)>,
+) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
@@ -708,7 +764,13 @@ pub(crate) fn split_fixture(
 fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
     let doc = ProfileDoc::empty_derived("docm8_split_order", Tol::witness());
     let (doc, [a, c, s], pairs) = split_fixture(doc);
-    let a_end = |u| member_face(u, fixture::out(&doc, a), fname(a, RoleSeg::Cap(CapEnd::End)));
+    let a_end = |u| {
+        member_face(
+            u,
+            fixture::out(&doc, a),
+            fname(a, RoleSeg::Cap(CapEnd::End)),
+        )
+    };
     enum Want {
         Fused,
         Split,
@@ -782,7 +844,11 @@ fn a_split_face_contained_in_every_piece_is_satisfied_and_one_with_a_piece_left_
     assert_eq!(
         outcome(&run(&docx), union),
         Outcome::Consumed(
-            member_face(union, fixture::out(&docx, a), fname(a, RoleSeg::Cap(CapEnd::End))),
+            member_face(
+                union,
+                fixture::out(&docx, a),
+                fname(a, RoleSeg::Cap(CapEnd::End))
+            ),
             FoldConsumption::Split
         )
     );
@@ -842,7 +908,11 @@ fn every_cap_order(
     for order in permutations(&members) {
         let (docx, union) = declared_union(doc.clone(), &order, pairs.to_vec());
         let ev = run(&docx);
-        let cap = member_face(union, fixture::out(&docx, capped), fname(capped, RoleSeg::Cap(CapEnd::End)));
+        let cap = member_face(
+            union,
+            fixture::out(&docx, capped),
+            fname(capped, RoleSeg::Cap(CapEnd::End)),
+        );
         let got = outcome(&ev, union);
         assert_eq!(
             got,
@@ -964,11 +1034,18 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     // The pair is spelled lower id first.
     let (cap, bottom) = (
         SitedRef::new(fixture::out(&docx, a), fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(fixture::out(&docx, d), fname(d, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(
+            fixture::out(&docx, d),
+            fname(d, RoleSeg::Cap(CapEnd::Start)),
+        ),
     );
     assert_eq!(
         finding.pair,
-        if fixture::out(&docx, a) < fixture::out(&docx, d) { (cap, bottom) } else { (bottom, cap) }
+        if fixture::out(&docx, a) < fixture::out(&docx, d) {
+            (cap, bottom)
+        } else {
+            (bottom, cap)
+        }
     );
     assert!(merged.0.is_empty() && merged.1.is_empty(), "{merged:?}");
     assert_eq!(
@@ -981,7 +1058,11 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     assert_eq!(
         outcome(&run(&docx), union),
         Outcome::Consumed(
-            member_face(union, fixture::out(&docx, a), fname(a, RoleSeg::Cap(CapEnd::End))),
+            member_face(
+                union,
+                fixture::out(&docx, a),
+                fname(a, RoleSeg::Cap(CapEnd::End))
+            ),
             FoldConsumption::Split
         )
     );

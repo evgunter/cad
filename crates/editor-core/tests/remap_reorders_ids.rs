@@ -95,10 +95,7 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
                 declare: Vec::new(),
             },
             Op::Pair(BooleanOp::Union, a, b) => Node::Union {
-                members: editor_core::Bodies::Spelled(vec![
-                    r(a, &out).into(),
-                    r(b, &out).into(),
-                ]),
+                members: editor_core::Bodies::Spelled(vec![r(a, &out).into(), r(b, &out).into()]),
                 declare: Vec::new(),
             },
             Op::Pair(BooleanOp::Subtract, a, b) => Node::Subtract {

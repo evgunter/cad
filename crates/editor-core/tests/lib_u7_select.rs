@@ -291,7 +291,6 @@ fn the_selector_materializes_exactly_the_authored_die_composed_selection() {
 #[test]
 fn the_stored_selection_is_the_materialized_set() {
     let doc = die_composed::document();
-    let ev = eval(&doc.doc);
     let (cube, ball, pipped) = composed_ids(&doc.doc);
     let stored = match doc.doc.node(doc.result.expect("a result node")) {
         Some(Node::Fillet { selection, .. }) => selection.clone(),
@@ -303,8 +302,9 @@ fn the_stored_selection_is_the_materialized_set() {
 }
 
 /// **The exclusion is now a consequence, not an omission.** The two
-/// co-surface cavity meridians are `FromB(Meridian(..))` names, and no
-/// alternative of the selector admits a `FromB` segment — so the
+/// co-surface cavity meridians are `From(Meridian(..))` names, carried
+/// from the tool's read, and no alternative of the selector admits a
+/// `From` over a meridian — so the
 /// refusal `die_composed` exists to document stays excluded BY
 /// DESCRIPTION. Nobody has to remember to leave them out.
 #[test]

@@ -112,20 +112,8 @@ fn the_surviving_operand_names_the_corners_in_every_order() {
     let doc = ProfileDoc::empty_derived("emit_vertex_keys_nested", Tol::witness());
     let (doc, big, small) = nested(doc);
     let cases = [
-        (
-            Op::Union,
-            small,
-            big,
-            big,
-            BooleanResultKind::OperandB,
-        ),
-        (
-            Op::Union,
-            big,
-            small,
-            big,
-            BooleanResultKind::OperandA,
-        ),
+        (Op::Union, small, big, big, BooleanResultKind::OperandB),
+        (Op::Union, big, small, big, BooleanResultKind::OperandA),
         (
             Op::Intersect,
             big,
@@ -287,9 +275,7 @@ fn assert_whole(ev: &Evaluation<f64>, id: RecipeNodeId, head: RoleSeg) {
     let minted: Vec<_> = t
         .iter()
         .filter(|(n, _)| n.kind == EntityKind::Vertex)
-        .filter(|(n, _)| {
-            !matches!(n.path.first(), Some(RoleSeg::From { .. }))
-        })
+        .filter(|(n, _)| !matches!(n.path.first(), Some(RoleSeg::From { .. })))
         .map(|(n, _)| n.clone())
         .collect();
     assert!(minted.is_empty(), "a touch minted vertices: {minted:?}");
@@ -571,11 +557,16 @@ fn a_b_edge_in_a_b_clone_descends_to_its_b_edge() {
     }
 }
 
-/// A name with its node erased. An edge piece's ends are the node's
-/// own vertex names, so they are spelled the same way and put back in
-/// order.
+/// A name with its node erased — wherever it occurs, since a seam's
+/// sides are the node's own face names — so two nodes' names compare.
+/// An edge piece's ends are the node's own vertex names, so they are
+/// spelled the same way and put back in order.
 fn spelled(n: &StableName) -> String {
-    format!("{:?}", respelled(n))
+    let (own, erased) = (
+        format!("{:?}", n.node),
+        format!("{:?}", RecipeNodeId::new(0, 0)),
+    );
+    format!("{:?}", respelled(n)).replace(&own, &erased)
 }
 
 fn respelled(n: &StableName) -> StableName {
@@ -676,10 +667,7 @@ fn swapping_the_operands_changes_no_name() {
             let (doc, xy) = boolean(doc, op, x, y);
             let (doc, yx) = boolean(doc, op, y, x);
             let ev = run(&doc);
-            let (fwd, back) = (
-                named_geometry(&ev, xy),
-                named_geometry(&ev, yx),
-            );
+            let (fwd, back) = (named_geometry(&ev, xy), named_geometry(&ev, yx));
             match (fwd, back) {
                 (None, None) => {}
                 (Some(fwd), Some(back)) => {

@@ -11,7 +11,6 @@
 use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
 use editor_core::ExtrudeSide;
-use topo::BooleanOp;
 
 use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 

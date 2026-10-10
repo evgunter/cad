@@ -141,7 +141,8 @@ fn assert_rim_pieces(
         .filter(|(n, _)| is_rim_piece(n, crate::fixture::out(doc, a), &rim(a)))
         .map(|(n, _)| n.clone())
         .collect();
-    let whole = crate::fixture::member_entity(union, crate::fixture::out(doc, a), rim(a), EntityKind::Edge);
+    let whole =
+        crate::fixture::member_entity(union, crate::fixture::out(doc, a), rim(a), EntityKind::Edge);
     let [piece] = pieces.as_slice() else {
         panic!("{order:?}: a's rim stands alone once: {pieces:?}");
     };

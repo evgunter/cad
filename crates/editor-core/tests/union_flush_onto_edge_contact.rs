@@ -145,20 +145,21 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
                     })
                     .collect::<Vec<_>>()
             };
-            let pair = |doc: ProfileDoc,
-                        x: RecipeNodeId,
-                        y: RecipeNodeId,
-                        pairs: Option<Vec<(SitedRef<VarId>, SitedRef<VarId>)>>| {
-                insert(
-                    doc,
-                    Node::Union {
-                        members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
-                        declare: pairs
-                            .map(editor_core::declare_continuation)
-                            .unwrap_or_default(),
-                    },
-                )
-            };
+            let pair =
+                |doc: ProfileDoc,
+                 x: RecipeNodeId,
+                 y: RecipeNodeId,
+                 pairs: Option<Vec<(SitedRef<VarId>, SitedRef<VarId>)>>| {
+                    insert(
+                        doc,
+                        Node::Union {
+                            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+                            declare: pairs
+                                .map(editor_core::declare_continuation)
+                                .unwrap_or_default(),
+                        },
+                    )
+                };
             let is_ab = |i: usize, j: usize| i != j && i < 2 && j < 2;
             let inner_pairs = is_ab(p, q).then(|| flush(&doc, (None, p), q));
             let (doc, inner) = pair(doc, ids[p], ids[q], inner_pairs);

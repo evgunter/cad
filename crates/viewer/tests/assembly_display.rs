@@ -378,7 +378,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
         let union = common::insert_into(
             &mut doc,
             pncad::document::Node::Union {
-                members: members.clone().into_iter().map(Into::into).collect(),
+                members: Bodies::Spelled(members.clone().into_iter().map(Into::into).collect()),
                 declare: Vec::new(),
             },
             tol,

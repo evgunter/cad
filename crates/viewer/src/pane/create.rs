@@ -1995,9 +1995,11 @@ mod tests {
 
     use super::{
         NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, mate_picks_row,
-        part_selector_rows, profile_plane_row, seats_row,
+        part_selector_rows, profile_plane_row,
     };
     use crate::combine::BooleanTool;
+    use crate::frame::Tone;
+    use pncad::topo::BooleanOp;
     use crate::forms::PartSelectChoice;
     use crate::matetool::MateToolState;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
@@ -2043,26 +2045,39 @@ mod tests {
         );
     }
 
-    /// **A seated panel's picks, painted in its tool's role order**:
-    /// the boolean's first pick is the operand a subtraction KEEPS,
-    /// and the line says so before the second is picked.
+    /// **The boolean panel's picks, painted**: a union's members in
+    /// pick order, any number of them; a subtraction's two seats by
+    /// role, the body KEPT named before the second is picked.
     #[test]
-    fn the_boolean_panel_says_which_operand_each_pick_is() {
+    fn the_boolean_panel_lists_members_and_names_subtracts_seats() {
         let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
+        let node = |n| RecipeNodeId::new(0, test_utils::refusal::tagged(n));
         let mut tool = BooleanTool::new();
         let painted = |tool: &BooleanTool| {
-            painted_text(|ui| seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT))
+            painted_text(|ui| {
+                crate::widgets::message_toned(ui, tool.line(&doc), &Theme::DEFAULT, Tone::Advisory);
+            })
         };
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(3)));
+        for n in [3, 5, 7] {
+            tool.pick(&doc, node(n));
+        }
         assert_eq!(
             painted(&tool),
-            "first operand: node 000000000003; second operand: —"
+            "member 1: node 000000000003; member 2: node 000000000005; \
+             member 3: node 000000000007"
         );
-        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(5)));
+        let mut subtract = BooleanTool::new();
+        subtract.set_operation(BooleanOp::Subtract);
+        subtract.pick(&doc, node(3));
         assert_eq!(
-            painted(&tool),
-            "first operand: node 000000000003; second operand: node 000000000005"
+            painted(&subtract),
+            "body kept: node 000000000003; body removed: —"
+        );
+        subtract.pick(&doc, node(5));
+        assert_eq!(
+            painted(&subtract),
+            "body kept: node 000000000003; body removed: node 000000000005"
         );
     }
 
@@ -2770,9 +2785,10 @@ mod declared_union {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{BooleanOp, Node, RecipeNodeId};
+    use pncad::document::{Bodies, Node, RecipeNodeId};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, RoleSeg};
+    use pncad::topo::BooleanOp;
     use pncad::select::{BooleanCoincidence, ContactClass};
 
     use super::declare_offer_rows;
@@ -2805,7 +2821,7 @@ mod declared_union {
     /// The union the tool holds, performed: its refusal and the offer
     /// the frame loop reads off it.
     fn refused_union(session: &mut DocSession, tool: &BooleanTool) -> (Refusal, DeclareOffer) {
-        let op = tool.op(BooleanOp::Union).expect("both operands are picked");
+        let op = tool.op().expect("both operands are picked");
         let refusal = session.perform(op).refusal.expect("the union refuses");
         let offer = frame::declare_offer(Some(&refusal))
             .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"));
@@ -2813,12 +2829,12 @@ mod declared_union {
     }
 
     /// **The panel over `offer`** at the session's generation, with
-    /// the tool open on `op`, after clicking `click` if one is given:
-    /// what it painted, the offer it leaves held, and the ops it queued.
+    /// `tool` open, after clicking `click` if one is given: what it
+    /// painted, the offer it leaves held, and the ops it queued.
     fn panel(
         session: &DocSession,
         offer: DeclareOffer,
-        (op, tool): (BooleanOp, &BooleanTool),
+        tool: &BooleanTool,
         click: Option<&str>,
     ) -> (String, Option<DeclareOffer>, Vec<SessionOp>) {
         let mut held = Some(offer);
@@ -2827,7 +2843,7 @@ mod declared_union {
             declare_offer_rows(
                 ui,
                 &mut held,
-                (session.generation(), op, tool.clone()),
+                (session.generation(), tool),
                 session.doc(),
                 &mut ops,
                 &Theme::DEFAULT,
@@ -2878,9 +2894,9 @@ mod declared_union {
             panic!("one refusal reports one pair: {:?}", offer.findings());
         };
         assert_eq!(
-            (finding.pair.0.at, finding.pair.1.at),
-            (block, boss),
-            "each side is sited at the operand that holds it"
+            (Some(finding.pair.0.at), Some(finding.pair.1.at)),
+            (before.output(block, 0), before.output(boss, 0)),
+            "each side is sited at the read of the operand that holds it"
         );
         assert_eq!(
             (&finding.pair.0.name.path, &finding.pair.1.name.path),
@@ -2892,8 +2908,7 @@ mod declared_union {
         );
         assert_eq!(finding.class, BooleanCoincidence::REST);
 
-        let op = (BooleanOp::Union, &tool);
-        let (painted, _, _) = panel(&session, offer.clone(), op, None);
+        let (painted, _, _) = panel(&session, offer.clone(), &tool, None);
         assert_eq!(
             painted,
             format!(
@@ -2909,7 +2924,7 @@ mod declared_union {
         let (_, held, ops) = panel(
             &session,
             offer.clone(),
-            op,
+            &tool,
             Some(DeclareOffer::ACCEPT_LABEL),
         );
         assert_eq!(
@@ -2928,10 +2943,11 @@ mod declared_union {
         assert!(matches!(
             doc.node(union),
             Some(Node::Union {
-                members: Bodies::Spelled(vec![a, b]),
+                members: Bodies::Spelled(members),
                 declare,
             })
-                if (Some(*a), Some(*b)) == (doc.output(block, 0), doc.output(boss, 0))
+                if members.iter().map(|m| Some(*m)).collect::<Vec<_>>()
+                    == [doc.output(block, 0), doc.output(boss, 0)]
                     && declare[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
         ));
         session.pump();
@@ -2961,7 +2977,7 @@ mod declared_union {
         let (_, held, ops) = panel(
             &session,
             offer,
-            (BooleanOp::Union, &tool),
+            &tool,
             Some(DeclareOffer::DECLINE_LABEL),
         );
         assert_eq!(held, None, "the offer is dropped");
@@ -2979,16 +2995,21 @@ mod declared_union {
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
         let (_, offer) = refused_union(&mut session, &tool);
-        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, &tool), None);
+        let (painted, held, _) = panel(&session, offer.clone(), &tool, None);
         assert!(!painted.is_empty(), "the premise: a live offer is drawn");
         assert!(held.is_some(), "and kept");
 
         let swapped = holding(&session, boss, block);
-        for (what, op) in [
-            ("other picks", (BooleanOp::Union, &swapped)),
-            ("another operation", (BooleanOp::Subtract, &tool)),
+        let mut another = tool.clone();
+        another.set_operation(BooleanOp::Intersect);
+        let mut more = tool.clone();
+        more.pick(session.committed_doc(), block);
+        for (what, other) in [
+            ("other picks", &swapped),
+            ("another operation", &another),
+            ("a further member", &more),
         ] {
-            let (painted, held, _) = panel(&session, offer.clone(), op, None);
+            let (painted, held, _) = panel(&session, offer.clone(), other, None);
             assert_eq!(painted, "", "{what}: nothing is drawn");
             assert_eq!(held, None, "{what}: the offer is dropped");
         }
@@ -2997,7 +3018,7 @@ mod declared_union {
             datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
         });
         assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
-        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, &tool), None);
+        let (painted, held, _) = panel(&session, offer, &tool, None);
         assert_eq!(painted, "", "an edit since: nothing is drawn");
         assert_eq!(held, None, "an edit since: the offer is dropped");
     }

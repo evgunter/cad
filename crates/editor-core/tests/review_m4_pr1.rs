@@ -526,15 +526,16 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // pairs are written (D10: a pair names what its node reads).
     let (doc, target) = body(doc);
     // Each side is read at an operand; the name is `node`'s.
-    let pairs = |node, second| {
+    let read = |node: RecipeNodeId| doc.output(node, 0).expect("a body defines its output");
+    let pairs = |node, second: RecipeNodeId| {
         let name = StableName {
             kind: EntityKind::Face,
             node,
             path: vec![],
         };
         editor_core::declare_rest(vec![(
-            SitedRef::new(crate::fixture::out(&doc, a), name.clone()),
-            SitedRef::new(crate::fixture::out(&doc, second), name),
+            SitedRef::new(read(a), name.clone()),
+            SitedRef::new(read(second), name),
         )])
     };
     let boolean = |node, second: RecipeNodeId| Edit::InsertNode {

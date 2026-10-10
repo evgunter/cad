@@ -614,12 +614,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     };
     let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
     let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate], Vec::new());
-    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
-        insert(
-            doc,
-            pair_node(op, a, b),
-        )
-    };
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, pair_node(op, a, b));
     let (doc, plate_first) = pair(doc, BooleanOp::Union, plate, blocks);
     let (doc, blocks_first) = pair(doc, BooleanOp::Union, blocks, plate);
     let (doc, notched) = pair(doc, BooleanOp::Subtract, plate, blocks);
@@ -700,12 +695,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let (doc, p1) = block(doc, (1.0, 1.5), (-2.0, 1.0), 0.3, 2.0);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 4.0), 0.27, 1.73);
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
-        insert(
-            doc,
-            pair_node(op, a, b),
-        )
-    };
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, pair_node(op, a, b));
     // One cut: cutting the blocks one at a time sets the second block's
     // wall flush with the first's hole wall, an undeclared continuation.
     let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());

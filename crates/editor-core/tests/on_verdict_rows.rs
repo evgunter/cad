@@ -207,13 +207,14 @@ fn the_kept_copy_is_named_from_the_a_seat() {
     };
     let seat = faces(p);
     assert_eq!(seat.len(), 6, "the half has six faces: {seat:?}");
+    let p_read = crate::fixture::out(&r.doc, p);
     let mut want: Vec<StableName> = seat
         .into_iter()
         .map(|n| StableName {
             kind: EntityKind::Face,
             node: joined,
             path: vec![RoleSeg::From {
-                read: FOLD_A,
+                read: p_read,
                 of: n.into(),
             }],
         })

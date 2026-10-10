@@ -97,7 +97,10 @@ fn fillet_and_target(
 }
 
 /// The read a fillet node's target comes through.
-fn target_read(doc: &editor_core::ProfileDoc, fillet: editor_core::RecipeNodeId) -> editor_core::VarId {
+fn target_read(
+    doc: &editor_core::ProfileDoc,
+    fillet: editor_core::RecipeNodeId,
+) -> editor_core::VarId {
     match doc.node(fillet) {
         Some(Node::Fillet { target, .. }) => *target,
         other => panic!("{fillet} is a fillet, got {other:?}"),
@@ -106,7 +109,10 @@ fn target_read(doc: &editor_core::ProfileDoc, fillet: editor_core::RecipeNodeId)
 
 /// The read a subtract node's tool comes through — the side the
 /// cavity's names arrive by.
-fn tool_read(doc: &editor_core::ProfileDoc, subtract: editor_core::RecipeNodeId) -> editor_core::VarId {
+fn tool_read(
+    doc: &editor_core::ProfileDoc,
+    subtract: editor_core::RecipeNodeId,
+) -> editor_core::VarId {
     match doc.node(subtract) {
         Some(Node::Subtract { tool, .. }) => *tool,
         other => panic!("{subtract} is a subtract, got {other:?}"),
@@ -270,9 +276,7 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
                 matches!(
                     c.path.first(),
                     Some(
-                        RoleSeg::BandTrim { .. }
-                            | RoleSeg::TrimEdge { .. }
-                            | RoleSeg::From { .. }
+                        RoleSeg::BandTrim { .. } | RoleSeg::TrimEdge { .. } | RoleSeg::From { .. }
                     )
                 ) && c.path.first().is_none_or(|seg| match seg {
                     RoleSeg::From { read, .. } => *read == survivor_read,

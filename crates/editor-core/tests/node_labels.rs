@@ -472,10 +472,9 @@ fn a_set_declare_refusal_names_the_labelled_union_it_rewrites() {
         "the rewritten union keeps its label"
     );
     assert!(
-        stray.to_string().contains(&format!(
-            "Extrude \"left\" ({})",
-            tag(left.0.digest())
-        )),
+        stray
+            .to_string()
+            .contains(&format!("Extrude \"left\" ({})", tag(left.0.digest()))),
         "{stray}"
     );
 }

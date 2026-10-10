@@ -158,7 +158,7 @@ fn an_every_edge_fillet_emits_a_full_name_table() {
             | RoleSeg::TrimEdge { .. }
             | RoleSeg::FootVertex { .. }
             | RoleSeg::EndArc { .. } => {}
-RoleSeg::From { read, .. } if *read == target_read => supports += 1,
+            RoleSeg::From { read, .. } if *read == target_read => supports += 1,
             other => panic!("a non-fillet role in a fillet table: {other:?}"),
         }
     }
@@ -245,7 +245,7 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
     for (name, _) in table.iter() {
         let role = match name.path.first().expect("a role path") {
             RoleSeg::OutputBody => "body",
-RoleSeg::From { read, .. } if *read == target_read => "support",
+            RoleSeg::From { read, .. } if *read == target_read => "support",
             RoleSeg::BlendFace(_) => "blend",
             RoleSeg::CornerFace(_) => "octant",
             RoleSeg::TrimEdge { .. } => "trim",

@@ -5164,7 +5164,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "definition_var_kind",
             "delete_anonymous_var",
             "dimension",
-            "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
@@ -5181,6 +5180,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
+            "loft_sections_spelled",
             "mate_refused",
             "measure_malformed",
             "meta_non_finite",
@@ -5231,7 +5231,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_var_kind",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
-            "too_few_members",
             "unknown_node",
             "unknown_slot",
             "unknown_var",
@@ -5432,6 +5431,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_carries_metadata",
             "part_dead_gauge",
             "stranded_part_name",
+            "stranded_part_read",
             "unknown_node",
             "unplaceable_frame",
             "unplaced",
@@ -5656,7 +5656,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_ref_unreadable",
             "measure_selection_kind",
             "measure_unsupported",
-            "members_share_an_operation",
             "missing_input",
             "missing_slot",
             "naming",
@@ -5789,8 +5788,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "at", "axis", "b", "frame", "input", "measure", "member", "of", "path", "profile",
-            "section", "target", "tool",
+            "at", "axis", "cut", "frame", "from", "input", "measure", "member", "members", "of",
+            "path", "profile", "section", "target", "tool",
         ],
         delegates: &[],
     },
@@ -6240,7 +6239,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "definition_reads_unminted_var",
             "definition_too_large",
             "definition_var_kind",
-            "duplicate_input",
             "epsilon_invalid",
             "gauge_cycle",
             "input_list",
@@ -6693,9 +6691,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // them different is what made the three-door divergence in
     // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
-    // One fact at two doors: `Node::input_fault`'s `Duplicate`, named
-    // by the edit door and the load door alike.
-    ("duplicate_input", 2),
     ("edge", 2),
     // One fact, as `circle_circle`.
     ("edge_along_edge", 2),
@@ -7942,8 +7937,8 @@ fn read_tag_table(source: &str) -> TagTable {
 ///
 /// **What it does NOT prove, which is the more interesting half.** An
 /// inventory pins the VOCABULARY, not the MAPPING. Swap two arms'
-/// literals — `WouldCycle` returns `"duplicate_input"` and
-/// `DuplicateInput` returns `"would_cycle"` — and this test is
+/// literals — `WouldCycle` returns `"unknown_node"` and
+/// `UnknownNode` returns `"would_cycle"` — and this test is
 /// perfectly green: the set of words the file speaks did not change,
 /// only which refusal says which. That failure is caught by the
 /// CONSTRUCTION pins (`readback_refusal_tags_are_stable` and its
@@ -10515,9 +10510,6 @@ fn the_errors_mint_reader_refuses_an_attribute_on_an_item_it_cannot_name() {
 /// reds by name.
 const NODE_KIND_ROSTER: &[&str] = &[
     "assertion",
-    "boolean_intersect",
-    "boolean_subtract",
-    "boolean_union",
     "chamfer",
     "datum",
     "extrude",
@@ -10525,6 +10517,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "gauge",
     "hollow_tube",
     "instantiate_part",
+    "intersect",
     "loft",
     "mate",
     "measure",
@@ -10535,6 +10528,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "revolve",
     "shell",
     "split",
+    "subtract",
     "sweep",
     "transform",
     "tube",

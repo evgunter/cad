@@ -230,7 +230,10 @@ fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
     let Some(RoleSeg::From { read, of: line }) = halves[0].path.first() else {
         panic!("a half is a piece of an operand edge's line");
     };
-    assert_eq!(*read, from_read, "a half is carried through the cut's `from`");
+    assert_eq!(
+        *read, from_read,
+        "a half is carried through the cut's `from`"
+    );
     let survivors: Vec<StableName> = t2
         .iter()
         .filter(|(name, _)| {

@@ -299,10 +299,12 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         4,
         "each band crosses both wall seams: {crossed:?}"
     );
+    let tool_read = fixture::out(&doc, notched);
     let cited_pieces = table(&ev, holed)
         .iter()
         .filter(|(n, _)| {
-            matches!(n.path.as_slice(), [RoleSeg::From { read: FOLD_B, of: inner }] if holds_a_piece_qualifier(inner))
+            matches!(n.path.as_slice(), [RoleSeg::From { read, of: inner }]
+                if *read == tool_read && holds_a_piece_qualifier(inner))
         })
         .count();
     assert!(

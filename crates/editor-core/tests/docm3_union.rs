@@ -324,7 +324,11 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
         };
         members
             .reads()
-            .map(|&m| loaded.operation_of(m).expect("a member reads a live output"))
+            .map(|&m| {
+                loaded
+                    .operation_of(m)
+                    .expect("a member reads a live output")
+            })
             .collect()
     };
     // A repeated member in the union's list.
@@ -701,7 +705,9 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .apply(
                 &DocEdit::SetMembers {
                     node: union,
-                    members: editor_core::Bodies::Spelled(kept.into_iter().map(Into::into).collect()),
+                    members: editor_core::Bodies::Spelled(
+                        kept.into_iter().map(Into::into).collect(),
+                    ),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1239,7 +1245,9 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
 /// The list a node carries, as the reads it holds — a union's or an
 /// intersect's members, or a loft's sections — or `None` for a node
 /// with no list. The test-side twin of the retired `Node::list_input`.
-fn list_input(node: &editor_core::Node<editor_core::ProfileProgram>) -> Option<editor_core::Bodies<editor_core::Operand>> {
+fn list_input(
+    node: &editor_core::Node<editor_core::ProfileProgram>,
+) -> Option<editor_core::Bodies<editor_core::Operand>> {
     match node {
         Node::Union { members, .. } | Node::Intersect { members, .. } => Some(
             members
@@ -1247,7 +1255,10 @@ fn list_input(node: &editor_core::Node<editor_core::ProfileProgram>) -> Option<e
                 .unwrap_or_else(|never| match never {}),
         ),
         Node::Loft { profiles, .. } => Some(editor_core::Bodies::Spelled(
-            profiles.iter().map(|&m| editor_core::Operand::from(m)).collect(),
+            profiles
+                .iter()
+                .map(|&m| editor_core::Operand::from(m))
+                .collect(),
         )),
         _ => None,
     }

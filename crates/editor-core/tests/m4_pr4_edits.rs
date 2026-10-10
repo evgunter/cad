@@ -11,8 +11,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
     CapEnd, Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
-    ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, WitnessAge,
-    VarId, WitnessBifurcation, WitnessDatum, evaluate, resolve,
+    ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, VarId, WitnessAge,
+    WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;

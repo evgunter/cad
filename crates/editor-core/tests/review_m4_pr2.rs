@@ -107,8 +107,14 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     // The flush start caps are declared; sides resolve per operand,
     // so one pair serves both operand orders.
     let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(fixture::out(&doc, a), fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
-        SitedRef::new(fixture::out(&doc, b), fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(
+            fixture::out(&doc, a),
+            fixture::fname(a, RoleSeg::Cap(CapEnd::Start)),
+        ),
+        SitedRef::new(
+            fixture::out(&doc, b),
+            fixture::fname(b, RoleSeg::Cap(CapEnd::Start)),
+        ),
     )]);
     let (doc, s) = insert(
         doc,
@@ -743,8 +749,14 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         // declared (the rotational variant maps the SAME names). The
         // B side is read at the TRANSFORM, the subtract's operand.
         let decl = editor_core::declare_continuation(vec![(
-            SitedRef::new(fixture::out(&doc, cube), fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(fixture::out(&doc, tr), fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
+            SitedRef::new(
+                fixture::out(&doc, cube),
+                fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            ),
+            SitedRef::new(
+                fixture::out(&doc, tr),
+                fixture::fname(pip, RoleSeg::Cap(CapEnd::Start)),
+            ),
         )]);
         let (doc, sub) = insert(
             doc,

@@ -6,7 +6,6 @@
 
 use crate::fixture::{ang, len, scl};
 use editor_core::{Dimension, DimensionError, EvalError, Formula, VarEnv, eval, eval_count};
-use topo::BooleanOp;
 
 fn env() -> VarEnv<f64> {
     VarEnv::default()

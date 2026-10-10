@@ -301,13 +301,17 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // names what its node reads). The re-point to `other` then reports
     // the names out of reach and never refuses them, so the delete
     // strands them without taking an operand.
+    let (body_read, victim_read) = (
+        crate::fixture::out(&doc, body),
+        crate::fixture::out(&doc, victim),
+    );
     let (doc, boolean) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![body.into(), victim.into()]),
             declare: editor_core::declare_rest(vec![(
-                SitedRef::new(crate::fixture::out(&doc, body), f1.clone()),
-                SitedRef::new(crate::fixture::out(&doc, victim), f2.clone()),
+                SitedRef::new(body_read, f1.clone()),
+                SitedRef::new(victim_read, f2.clone()),
             )]),
         },
     );

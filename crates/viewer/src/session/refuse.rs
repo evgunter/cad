@@ -1430,8 +1430,8 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
 
 /// **What a boolean's contact refusal offers, judged on the kernel's own
 /// refusal** — the two cases no scene through the session door reaches:
-/// a pair the attempt already declares, and a pair between two faces of
-/// one operand. Each starts from the boss scene's plain union, the real
+/// a pair the attempt already declares, and a pair between two faces
+/// read through one operand read. Each starts from the boss scene's plain union, the real
 /// refusal, and changes the one thing its case is about.
 #[cfg(test)]
 mod refused_boolean {
@@ -1439,18 +1439,19 @@ mod refused_boolean {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{BooleanOp, Doc, Node, NodeErrorKind, ProfileProgram, RecipeNodeId};
+    use pncad::document::{Bodies, Doc, Node, NodeErrorKind, ProfileProgram};
     use pncad::geom_core::{KERNEL_DEFECT_ENDING, Tol};
 
     use super::RefusedBoolean;
     use crate::generation::Generation;
+    use crate::session::BooleanSpec;
     use crate::test_support::{boss_on_block, inserted_and_evaluated};
 
     /// The boss scene's union refusal as the kernel raised it, handed
     /// to `with` beside the document the union was evaluated in — its
     /// evaluation lives only as long as this call.
     fn with_refusal<R>(
-        with: impl FnOnce(&Doc<ProfileProgram>, &NodeErrorKind, [RecipeNodeId; 2]) -> R,
+        with: impl FnOnce(&Doc<ProfileProgram>, &NodeErrorKind, BooleanSpec) -> R,
     ) -> R {
         let tol = Tol::witness();
         let (doc, block, boss) = boss_on_block("refused-boolean", tol);
@@ -1465,7 +1466,7 @@ mod refused_boolean {
         let kind = &crate::tree::own_error(union, &eval)
             .expect("the plain union fails on its own")
             .kind;
-        with(&judged, kind, [block, boss])
+        with(&judged, kind, BooleanSpec::Union(vec![block, boss]))
     }
 
     /// **A pair the attempt already declares is not offered again**: the
@@ -1478,7 +1479,7 @@ mod refused_boolean {
             let first = RefusedBoolean::of(
                 doc,
                 kind,
-                (BooleanOp::Union, operands),
+                operands.clone(),
                 Vec::new(),
                 Generation::FIRST,
             )
@@ -1487,7 +1488,7 @@ mod refused_boolean {
             let again = RefusedBoolean::of(
                 doc,
                 kind,
-                (BooleanOp::Union, operands),
+                operands,
                 vec![first.finding().clone()],
                 Generation::FIRST,
             )
@@ -1500,9 +1501,10 @@ mod refused_boolean {
         });
     }
 
-    /// **A contact between two faces of one operand is not offered**: the
-    /// pair boolean resolves a declared pair only across its operands, so
-    /// the refusal stays the node's own. Red if it is offered.
+    /// **A contact between two faces read through one operand read is
+    /// not offered**: the node judges a declared pair only between two
+    /// different reads, so the refusal stays the node's own. Red if it
+    /// is offered.
     #[test]
     fn a_same_operand_pair_is_not_offered() {
         with_refusal(|doc, kind, operands| {
@@ -1525,7 +1527,7 @@ mod refused_boolean {
                 RefusedBoolean::of(
                     doc,
                     &one_operand,
-                    (BooleanOp::Union, operands),
+                    operands,
                     Vec::new(),
                     Generation::FIRST
                 )

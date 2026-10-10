@@ -1144,13 +1144,14 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             side: ExtrudeSide::Along,
         },
     );
+    let kept_read = crate::fixture::out(&doc, kept_e);
     let (doc, _) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![kept_e.into(), kept_twin.into()]),
             declare: editor_core::declare_rest(vec![(
-                SitedRef::new(crate::fixture::out(&doc, kept_e), straddler.clone()),
-                SitedRef::new(crate::fixture::out(&doc, kept_e), partner),
+                SitedRef::new(kept_read, straddler.clone()),
+                SitedRef::new(kept_read, partner),
             )]),
         },
     );
@@ -1245,8 +1246,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         .map(|(n, _)| n.clone())
         .find(|n| {
             n.kind == EntityKind::Face
-                && n
-                    .path
+                && n.path
                     .first()
                     .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
@@ -1338,8 +1338,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         .map(|(n, _)| n.clone())
         .find(|n| {
             n.kind == EntityKind::Face
-                && n
-                    .path
+                && n.path
                     .first()
                     .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
@@ -1490,7 +1489,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         kind: EntityKind::Face,
         node: kept_e,
         path: vec![RoleSeg::From {
-            read: FOLD_A,
+            read: crate::fixture::out(&host, inst),
             of: wrap(
                 inst,
                 &StableName {
@@ -1624,20 +1623,17 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 side: ExtrudeSide::Along,
             },
         );
+        let anchor_read = crate::fixture::out(&part_doc, anchor.node);
         let (part_doc, union) = insert(
             part_doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![
-                    body.into(),
-                    twin.into(),
-                    extra.into(),
-                ]),
+                members: editor_core::Bodies::Spelled(vec![body.into(), twin.into(), extra.into()]),
                 // Both sides are READ at the surviving body; the
                 // stranded side's NAME derives from the extra node,
                 // which is what the delete below strands.
                 declare: editor_core::declare_rest(vec![(
-                    SitedRef::new(crate::fixture::out(&part_doc, anchor.node), stranded.clone()),
-                    SitedRef::new(crate::fixture::out(&part_doc, anchor.node), anchor),
+                    SitedRef::new(anchor_read, stranded.clone()),
+                    SitedRef::new(anchor_read, anchor),
                 )]),
             },
         );

@@ -82,7 +82,8 @@ fn declared_pairs_preserves_the_findings_class() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let detected = find_flush_candidates(&ev, &doc, a, b, Tol::witness()).expect("the detector runs");
+    let detected =
+        find_flush_candidates(&ev, &doc, a, b, Tol::witness()).expect("the detector runs");
     assert!(!detected.is_empty(), "the stack has a flush cap to find");
 
     // A finding the detector cannot mint today, carrying a class the
@@ -226,7 +227,8 @@ fn the_detectors_class_is_the_kernels_enum() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let findings = find_flush_candidates(&ev, &doc, a, b, Tol::witness()).expect("the detector runs");
+    let findings =
+        find_flush_candidates(&ev, &doc, a, b, Tol::witness()).expect("the detector runs");
     for f in &findings {
         assert_eq!(f.class, BooleanCoincidence::REST);
         // Same type, spelled through the kernel path: this would not

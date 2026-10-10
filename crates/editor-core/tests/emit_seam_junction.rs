@@ -97,7 +97,10 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
 /// same (DM4).
 fn declared(
     f: &Fixture,
-) -> Vec<((SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>), BooleanCoincidence)> {
+) -> Vec<(
+    (SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>),
+    BooleanCoincidence,
+)> {
     let mut pairs: Vec<_> = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b))
         .into_iter()
         .map(|p| (p, BooleanCoincidence::Continuation))
@@ -148,8 +151,17 @@ fn crossing(
     } else {
         Sense::Leaves
     };
-    let rim = member_entity(union, crate::fixture::out(doc, a), rim_of_a, EntityKind::Edge);
-    let g_x0 = member_face(union, crate::fixture::out(doc, g), fname(g, wall(doc, g, 3)));
+    let rim = member_entity(
+        union,
+        crate::fixture::out(doc, a),
+        rim_of_a,
+        EntityKind::Edge,
+    );
+    let g_x0 = member_face(
+        union,
+        crate::fixture::out(doc, g),
+        fname(g, wall(doc, g, 3)),
+    );
     StableName {
         kind: EntityKind::Vertex,
         node: union,

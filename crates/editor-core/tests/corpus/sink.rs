@@ -150,7 +150,7 @@ pub fn document() -> CorpusDoc {
     let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![block_a.into(), block_b.into()]),
-        declare: declare,
+        declare,
     });
 
     // Split the union with a plane tool.

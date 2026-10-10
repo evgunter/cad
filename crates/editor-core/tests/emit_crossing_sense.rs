@@ -103,16 +103,21 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
         };
         let p = point(body, v);
         let at = [p.x, p.y];
-        assert_eq!(
-            *a_sense,
-            sense_against(&ev, a, ea, at, plan_b),
-            "a's edge against b at {p:?}: {name:?}"
-        );
-        assert_eq!(
-            *b_sense,
-            sense_against(&ev, b, eb, at, plan_a),
-            "b's edge against a at {p:?}: {name:?}"
-        );
+        // Each side names a member's edge in the union's space,
+        // `From` the member's read: read against the OTHER block.
+        let member = |edge: &StableName| match edge.path.as_slice() {
+            [RoleSeg::From { read, of }] if *read == ar => (a, (**of).clone(), plan_b),
+            [RoleSeg::From { read, of }] if *read == br => (b, (**of).clone(), plan_a),
+            _ => panic!("a crossing's side is a member's edge: {edge:?}"),
+        };
+        for (edge, sense) in [(ea, a_sense), (eb, b_sense)] {
+            let (node, of, other) = member(edge);
+            assert_eq!(
+                *sense,
+                sense_against(&ev, node, &of, at, other),
+                "{edge:?} against the other block at {p:?}: {name:?}"
+            );
+        }
         seen += 1;
     }
     assert_eq!(
