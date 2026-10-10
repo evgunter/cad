@@ -949,7 +949,7 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
     let proved = proofs(&doc, fillet, &got);
     assert_eq!(
         proved[..2],
-        [Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero)); 2],
+        [const { Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero)) }; 2],
         "each support's departure from the shared axis is the zero polynomial"
     );
     for proof in &proved[2..] {
@@ -1225,4 +1225,51 @@ fn a_ratio_evaluates_exactly_at_sym() {
         })
     });
     assert_eq!(theorems, [Some(geom_core::Theorem::SymbolicZero); 3]);
+}
+
+/// **What the door proves on the corpus**: every document's rows, by
+/// the rung that proved each or why none did, and the door's time. A
+/// census for the PR that changes a rung, not a gate.
+#[test]
+#[ignore = "a census: run in release with --nocapture"]
+fn census_the_door_over_the_corpus() {
+    for cd in crate::corpus::documents() {
+        let ev = run(&cd.doc);
+        let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
+            .order
+            .iter()
+            .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
+            .filter(|(_, rows)| !rows.is_empty())
+            .collect();
+        let t = std::time::Instant::now();
+        let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness());
+        let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+        for ((_, rows), proofs) in nodes.iter().zip(&proofs) {
+            for (row, proof) in rows.iter().zip(proofs) {
+                let how = match proof {
+                    Proof::Structural(rung) => format!("{rung:?}"),
+                    Proof::Unproven { residual, .. } => format!("unproven/{:?}", residual.replay),
+                };
+                *tally.entry(format!("{:?} {how}", row.site)).or_default() += 1;
+            }
+        }
+        eprintln!("CENSUS {} {:?} {tally:?}", cd.name, t.elapsed());
+    }
+}
+
+#[test]
+#[ignore = "a measurement: CORPUS=<name>, release, --nocapture"]
+fn measure_a_corpus_document_at_sym() {
+    let name = std::env::var("CORPUS").expect("CORPUS names a corpus document");
+    let cd = crate::corpus::documents()
+        .into_iter()
+        .find(|cd| cd.name == name)
+        .expect("a corpus document");
+    let ev = run(&cd.doc);
+    for &node in &ev.order {
+        if ev.value(node).is_some_and(|v| !v.coincidences.is_empty()) {
+            eprintln!("NODE {node:?}");
+            measure_rows(&cd.doc, node);
+        }
+    }
 }
