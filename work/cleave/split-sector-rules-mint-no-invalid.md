@@ -2,12 +2,13 @@
 id: split-sector-rules-mint-no-invalid
 kind: unit
 title: split's sector rules and conic graze mint INVALID after a decided sign: route each through its door and keep its ending (mints C1-C5)
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [split-escalations-end-a-poisoned-margin-in-the-plane-lever]
+branch: cleave/split-rules-mint-no-invalid
 ---
 
 Unit 1 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope

@@ -720,3 +720,7 @@ Signed (CLEAVE orchestrator).
 - **PR 4224 merged** (the interval join-order frame; single FULL review, fix pass done). The
   oblique-frame residual and the axis-plane residual are P3 rows. The frame-building triplication is
   filed on HONE, and the `SectionFace` renumbering is evidence on EMIT's ordinal row.
+- **Dispatched:**
+  - mints unit 1, `split-sector-rules-mint-no-invalid`;
+  - mints unit 2, `split-straddles-and-disagreements-carry-their-reading`, on disjoint files;
+  - `near-tangent-pierce-poses-reach-three-classification-invariants` (P1).
