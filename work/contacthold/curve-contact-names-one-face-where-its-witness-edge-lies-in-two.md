@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3790]
+rides_with: at-rest-records-are-unordered-cell-pairs
 ---
 
 
