@@ -2,16 +2,16 @@
 id: a-vertex-is-a-selection
 kind: issue
 title: Stage 2 FORK-VTX: a vertex is a selection; a measure reads it, a pose reader reads its point (D10)
-status: open
+status: dispatched
 opened: 2026-10-10
-needs_ev: true
 priority: P0
 cost: E
 refs: [select-defines-face-and-edge-variables, a-selection-is-a-definition-of-a-body-s-faces-or-edges]
+branch: intent/s2-e-select
 ---
 
 
-Raised as FORK-VTX by stage 2 E (`select-defines-face-and-edge-variables`). Measure references resolve to vertices today (`eval/measure.rs` `carrier_of`'s `Carrier::Point`, and `distance`'s point–point and point–plane arms), but D10's kinds sentence listed only `Face`, `Edge`, `Faces` and `Edges`. A designer pair converged in one round; the question and both reports' substance are in the `[ev]` PR titled "a vertex is a selection; a point is read off it". Ev's answer closes this row.
+Raised as FORK-VTX by stage 2 E (`select-defines-face-and-edge-variables`). Measure references resolve to vertices today (`eval/measure.rs` `carrier_of`'s `Carrier::Point`, and `distance`'s point–point and point–plane arms), but D10's kinds sentence listed only `Face`, `Edge`, `Faces` and `Edges`. A designer pair converged in one round; the question and both reports' substance are in the `[ev]` PR titled "a vertex is a selection; a point is read off it". Ev approved it (PR 4505); stage 2 E builds it on `intent/s2-e-select` and closes this item.
 
 **What is decided.**
 
