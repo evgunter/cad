@@ -41,7 +41,6 @@ import pncad
 from pncad import (
     Advisory,
     ArcSweep,
-    BooleanOp,
     Center,
     CheckId,
     CheckKind,
@@ -88,7 +87,7 @@ def disjoint_union():
     doc = Doc("checks-disjoint")
     a = slab(doc, 0.0, 1.0)
     b = slab(doc, 3.0, 4.0)
-    root = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+    root = doc.insert(Node.union([a, b]))
     return doc, root, a
 
 
@@ -140,7 +139,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         doc = Doc("checks-voided")
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
         inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0)
-        doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        doc.insert(Node.subtract(outer, inner))
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_a_stated_expectation_is_the_acknowledgment(self):
@@ -350,7 +349,7 @@ class TestSubjectBody(unittest.TestCase):
         touching = Doc("checks-touching-subject")
         a = slab(touching, 0.0, 1.0)
         b = slab(touching, 1.0, 2.0)
-        failed = touching.insert(Node.boolean(BooleanOp.Union, a, b))
+        failed = touching.insert(Node.union([a, b]))
         self.assertIsNone(subject_body(evaluate(touching), failed, 0))
 
 
@@ -440,7 +439,7 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         doc = Doc("checks-touching")
         a = slab(doc, 0.0, 1.0)
         b = slab(doc, 1.0, 2.0)
-        root = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        root = doc.insert(Node.union([a, b]))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
@@ -463,7 +462,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         glued = doc.insert(
-            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+            Node.union([lower, upper], declare=findings)
         )
         ev = evaluate(doc)
         rows = ev.coincidences(glued)

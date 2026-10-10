@@ -125,8 +125,8 @@ What `BOUND_AS` claims: a Python caller can do the thing the curated
 Rust name does, at that spelling. What it does NOT claim: the same
 signature, the same receiver, or the same layer. Python's surface is
 document-layer-first, so the kernel's direct body operations arrive as
-recipe-node constructors (`union` and its two siblings are one
-`Node.boolean` taking a `BooleanOp`), and a mapping is a pointer to the
+recipe-node constructors (`union`, `intersect` and `subtract` are
+`Node.union`, `Node.intersect` and `Node.subtract`), and a mapping is a pointer to the
 door, not an assertion that the two are interchangeable. Semantics are
 not checked at all: nothing here verifies that Python's `Frame` is the
 `Frame` the façade curates. That is `ty`'s and the corpus tests' job.
@@ -553,9 +553,8 @@ def audit_gap_ids():
 #:   Python speaks the document layer (the stub says so in its first
 #:   paragraph), so `extrude`, `revolve`, `loft_body`, `fillet_edges`
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
-#:   verbs plus their `_with` siblings arrive as ONE `Node.boolean`
-#:   taking a `BooleanOp` — the arm split moved from the verb to an
-#:   argument.
+#:   verbs plus their `_with` siblings arrive as `Node.union`,
+#:   `Node.intersect` and `Node.subtract`.
 #: - **A type became the door that reads it.** `DatumValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
@@ -1313,7 +1312,8 @@ BOUND_AS = {
     # `InputFault` (DM5) is the same shape one door further: the rule
     # is stated once on the node and rendered by three doors, and the
     # two a Python caller can reach are edit doors, so it crosses as
-    # `EditError.variant` — `duplicate_input` and `too_few_members`.
+    # `EditError.variant` — `repeated_designation` and
+    # `selection_not_canonical`.
     # The third renderer is the load validator's `SnapshotError`, which
     # this façade does not carry at all.
     # The edit door's PAYLOAD, projected at LIB-DOORS-1. `SlotId` is
@@ -1372,15 +1372,15 @@ BOUND_AS = {
     "declare_all": "Doc.declare_all",
     # A finding's pair and class become a declared pair at the
     # `declare=` seat; the list is the argument, not a value of its own.
-    "declared_pairs": "Node.boolean",
+    "declared_pairs": "Node.union",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
     "tube_along_arc": "Node.tube",
     "tube_along_arc_hollow": "Node.hollow_tube",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
-    "intersect": "Node.boolean",
-    "intersect_with": "Node.boolean",
+    "intersect": "Node.intersect",
+    "intersect_with": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
     # The façade's lattice-backed loop door and the document layer's
@@ -1397,12 +1397,12 @@ BOUND_AS = {
     "select": "Evaluation.select",
     "select_where": "Evaluation.select_where",
     "step_string": "Evaluation.step_string",
-    "subtract": "Node.boolean",
+    "subtract": "Node.subtract",
     "tessellate": "Body.tessellate",
-    "subtract_with": "Node.boolean",
+    "subtract_with": "Node.subtract",
     "transform_rigid": "Node.transform",
-    "union": "Node.boolean",
-    "union_with": "Node.boolean",
+    "union": "Node.union",
+    "union_with": "Node.union",
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",

@@ -47,7 +47,6 @@ with other opaque texts and never parsed.
 import unittest
 
 from pncad import (
-    BooleanOp,
     CancelToken,
     Doc,
     DocEdit,
@@ -378,7 +377,7 @@ def blank(radius):
             Formula.literal(1.0),
         ), Formula.angle_in(0, deg))
     )
-    fused = doc.insert(Node.boolean(BooleanOp.Union, blended, lifted))
+    fused = doc.insert(Node.union([blended, lifted]))
     doc.apply(DocEdit.set_param(blended, "radius", Formula.length_in(radius, m)))
     return doc, blended, fused
 

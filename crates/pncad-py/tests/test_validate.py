@@ -39,7 +39,7 @@ construction (`bench_scene.py` is the one definition of it).
 ONE THING MEASURED AND NOT PINNED
 ---------------------------------
 A DECLARED glue — two slabs resting face to face, unioned through
-`Node.boolean(declare=...)` — comes out with an EMPTY record set: the
+`Node.union(declare=...)` — comes out with an EMPTY record set: the
 union welds the declared faces, so no coincidence survives into the
 result for a record to back. Its 3′ pass is therefore the empty-record
 case, not the certified-seam case, and this file does not pretend
@@ -55,7 +55,6 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Doc,
     DocEdit,
     Formula,
@@ -168,7 +167,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, base, post))
+        fused = doc.insert(Node.union([base, post]))
         evaluate(doc).value(fused).body().validate_pseudomanifold()
 
     def test_a_declared_glue_passes_the_fourth_rung(self):
@@ -183,7 +182,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
         glued = doc.insert(
-            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
+            Node.union([lower, upper], declare=findings)
         )
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
@@ -528,7 +527,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc, lower, upper = two_slabs_resting()
         findings = evaluate(doc).find_flush_candidates(lower, upper)
         self.assertEqual(len(findings), 1)
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+        glued = doc.insert(Node.union([lower, upper]))
         doc.declare(glued, findings[0])
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()  # raises if a record went stale

@@ -32,7 +32,6 @@ from pncad import (
     Bulge,
     ClosedLoop,
     BooleanCoincidence,
-    BooleanOp,
     CancelToken,
     CapEnd,
     Center,
@@ -196,7 +195,7 @@ disc = circle((0 * mm, 0 * mm), 10 * mm)
 doc = Doc()
 plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
 hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=Formula.length_in(-1, mm)))), Formula.length_in(10, mm)))
-lightened = doc.insert(Node.boolean(BooleanOp.Subtract, plate, hole))
+lightened = doc.insert(Node.subtract(plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
 # The plane vocabulary: a named cyclic frame, and the general rigid
@@ -497,7 +496,7 @@ first_rung: FlushRung = findings[0].rung
 opaque_a: str = findings[0].a
 opaque_b: str = findings[0].b
 glued: NodeId = doc.insert(
-    Node.boolean(BooleanOp.Union, plate, lightened, declare=findings)
+    Node.union([plate, lightened], declare=findings)
 )
 fused_declared: Node = Node.union([plate, lightened], declare=findings)
 declared_one: None = doc.declare(glued, findings[0])
@@ -545,6 +544,12 @@ count_bound: DocEdit = DocEdit.bind_count_param(fin_group, VarName("fins"))
 family: NodeId = doc.insert(Node.pattern(plate, Formula.count(5), stepped))
 by_index: PartSelect = PartSelect.instance(Formula.count(2))
 one_copy: NodeId = doc.insert(Node.part(family, by_index))
+# A union or an intersect takes a list of operands or ONE family read
+# whole; a subtract names its two operands, `from_` (`from` is a
+# keyword) and `tool`.
+whole_family: Node = Node.union(family)
+common: Node = Node.intersect([plate, one_copy], declare=[])
+named_cut: Node = Node.subtract(from_=plate, tool=hole)
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
 by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
 upper_half: NodeId = doc.insert(Node.part(cut, by_half))
@@ -1080,7 +1085,9 @@ minted_half: str = band_pi(_revolved, _pieces[0][0])
 minted_rim: str = band_rim(_revolved, _second)
 minted_rim_half: str = band_rim_pi(_revolved, _second)
 minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, _second)
-minted_survivor: str = carried(_revolved, minted_band)
+_revolved_read = _names_doc.output(_revolved, 0)
+assert _revolved_read is not None
+minted_survivor: str = carried(_revolved, _revolved_read, minted_band)
 _blended: NodeId = _names_doc.insert(
     Node.fillet(_revolved, Formula.length_in(0.1, m), [minted_rim])
 )

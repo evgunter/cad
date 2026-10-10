@@ -117,7 +117,6 @@ from bench_scene import (
 from pncad import (
     Alignment,
     AxisSense,
-    BooleanOp,
     CapEnd,
     ContactClass,
     Doc,
@@ -529,7 +528,7 @@ class TestBenchStand(BenchWorkspace):
         # is now EMPTY, not the clear still standing from before.
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+        glued = doc.insert(Node.union([lower, upper]))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate records no frame, so it reports
         # nothing. Put post_b back at an offset and re-mate it through

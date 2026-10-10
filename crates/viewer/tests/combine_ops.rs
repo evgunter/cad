@@ -1025,8 +1025,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
 
     // The SEAT refusals record nothing either — a wrong-kind pick at
-    // any of the four doors, and the boolean's two-operands-are-one
-    // arm.
+    // any of the doors, a union member and a subtraction's tool among
+    // them.
     for op in [
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![plane, body]),
@@ -1035,7 +1035,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: body,
-                tool: body,
+                tool: plane,
             },
             declare: Vec::new(),
         },

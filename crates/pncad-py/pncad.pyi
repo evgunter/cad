@@ -3994,14 +3994,9 @@ class Doc:
 
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
-        `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
-        `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
-        `placed_union`, `instantiate_part`, `mate`, `gauge`,
-        `measure`, `assertion`. A Boolean answers a word per
-        OPERATION, because union, intersect and subtract are three
-        kernel operations sharing one payload shape; the unprefixed
-        `union` is the different node, the n-ary one that folds a
-        member list.
+        `chamfer`, `shell`, `split`, `union`, `intersect`, `subtract`,
+        `transform`, `pattern`, `part`, `placed_union`,
+        `instantiate_part`, `mate`, `gauge`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         transform and a placed union all evaluate to a value whose
@@ -4055,16 +4050,16 @@ class Doc:
 
     def declare(self, node: NodeId, finding: FlushFinding) -> None:
         """ADD one inspected finding's pair to the declared pairs of the
-        live boolean or union `node`, keeping every pair it declares
-        already (the detect/declare protocol's declare arm, and the
+        live union, intersect or subtract `node`, keeping every pair it
+        declares already (the detect/declare protocol's declare arm, and the
         door an `undeclared_coincidence` refusal's recourse names:
         following each refusal with its `finding` converges). A pair on
         the same two sides as one already declared replaces it. Raises
         EditError, typed: `set_declare_on_non_declaring` on a node
-        that is neither a boolean nor a union, `unknown_node`,
+        that is none of the three, `unknown_node`,
         `declared_site_not_an_operand` for a finding inspected between
-        other operands than `node`'s, and the name checks an insert
-        runs."""
+        other operand reads than `node`'s, and the name checks an
+        insert runs."""
 
     def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
         """Set `node`'s whole declared-pair list to a SET of findings —
@@ -4426,6 +4421,7 @@ class SegTag:
     op-minted role, grouped by the op that mints it."""
 
     OutputBody: Final[SegTag]
+    From: Final[SegTag]
     Cap: Final[SegTag]
     Lateral: Final[SegTag]
     RimEdge: Final[SegTag]
@@ -4442,9 +4438,6 @@ class SegTag:
     RevolveCap: Final[SegTag]
     Pole: Final[SegTag]
     AxisEdge: Final[SegTag]
-    FromA: Final[SegTag]
-    FromB: Final[SegTag]
-    FromMember: Final[SegTag]
     Seam: Final[SegTag]
     Crossing: Final[SegTag]
     EdgeCrossing: Final[SegTag]
@@ -4456,7 +4449,6 @@ class SegTag:
     SplitFragment: Final[SegTag]
     CrossingVertex: Final[SegTag]
     OnToolVertex: Final[SegTag]
-    FromTarget: Final[SegTag]
     BlendFace: Final[SegTag]
     CornerFace: Final[SegTag]
     TrimEdge: Final[SegTag]
@@ -4479,11 +4471,12 @@ class SegTag:
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
 
-    `Shell` groups the hollowing verb's cavity twins and rims (`Inner`,
-    `Rim`, `HoleRim`). A shell's OUTER walls are carried through and
-    speak as `FromTarget`, which groups under `Fillet` — the tag names
-    the shape (an entity carried through one op), and which op carried
-    it is the minting node's business.
+    `Shared` groups `OutputBody` and `From`, an entity carried in
+    through a read: a union's, intersect's or subtract's operand
+    entities, a blend's surviving supports, a shell's outer walls. The
+    tag names the shape, and which op carried it is the minting node's
+    business. `Shell` groups the hollowing verb's cavity twins and rims
+    (`Inner`, `Rim`, `HoleRim`).
     """
 
     Shared: Final[OpGroup]
@@ -4695,10 +4688,12 @@ def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
     vertex (`MeridianEnd.Seam`) on a full one. A vertex."""
 
-def carried(node: NodeId, inner: str) -> str:
+def carried(node: NodeId, read: Var, inner: str) -> str:
     """The name a survivor of `node` takes: the name `inner` it had in
-    the target's table, wrapped — the single-operand pass-through a
-    blend's shrunk support or a shell's outer wall wears one op later.
+    the table of `read` — the target read `node` takes its body in
+    through, `Doc.output(target, 0)` — wrapped: the single-operand
+    pass-through a blend's shrunk support or a shell's outer wall wears
+    one op later.
 
     `inner` is a name text like any other, and the kind is its own: a
     survivor is the same entity carried through one op, so the wrapper
@@ -5043,9 +5038,10 @@ class Verdict:
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
-# `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
-# inspected findings on a boolean or union as its declared pairs. The
+# caller inspects, and `Node.union` / `Node.intersect` /
+# `Node.subtract`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
+# `DocEdit.set_declare` put inspected findings on one of those nodes as
+# its declared pairs. The
 # same value rides the
 # boolean's refusal menu (`EvaluationError.finding`). Detection and
 # declaration are separate doors ON PURPOSE: no fused
@@ -6992,10 +6988,11 @@ class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are `(node, name)` pairs: the input node whose table names
-    the cell, and the name there (the opaque text the materializers
-    answer with); the plane a split cuts with is `(node, None)`, and a
-    profile's own piece is `(profile, piece)`. `relation` is
+    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    deciding node took it in through, whose table names it, and the
+    name there (the opaque text the materializers answer with); the
+    plane a split cuts with is `(read, None)`; and a profile's own piece
+    is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
     `tangent` or `cusp`; `site` is `plane_ladder`, `carrier_ladder`,
     `split_on`, `battery_turn` or `profile_junction`. A `profile_junction`
@@ -7005,7 +7002,7 @@ class Coincidence:
     what separates the two constructions."""
 
     @property
-    def cells(self) -> list[tuple[NodeId, Optional[str]]]: ...
+    def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
     @property
     def relation(self) -> str: ...
     @property

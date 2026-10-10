@@ -1,32 +1,31 @@
-"""The n-ary union node and the edit that rewrites its members.
+"""The union, the intersect and the subtract, and the edit that
+rewrites a member list.
 
-`Node.union` is the fold over a member LIST — the third union door
-beside `Node.boolean`, which is the BINARY operation over two named
-operand slots, and `Node.placed_union`, whose members are one
-prototype under a placement rule. This is the one whose membership is
-DATA, and `DocEdit.set_members` is what makes that mean something: the
-list is rewritten on the live node rather than by re-authoring a chain
-of booleans.
+`Node.union` and `Node.intersect` fold a member argument — a list of
+reads, or one read of a whole family — and `Node.subtract` is the one
+pair node, `from_` cut by `tool`. The member list is DATA, and
+`DocEdit.set_members` is what makes that mean something: the list is
+rewritten on the live node rather than by re-authoring a chain.
 
 The Python side of `crates/editor-core/tests/docm3_union.rs`. The
-load-bearing rows are the same: the fold equals the boolean chain over
-the same members in the same order, and the list-input door's three
-refusals — `set_members_on_non_list`, `too_few_members`,
-`duplicate_input` — arrive typed with the ids and counts that provoked
-them.
+load-bearing rows are the same: the fold equals the chain over the same
+members in the same order; any count is a fold (one member is that
+body, none the typed empty body); a read listed twice glues, so
+`[a, a]` is `a` and `a - a` is empty; and a node with no list refuses
+`set_members_on_non_list`, typed with the id that provoked it.
 """
 
 import json
+import math
 import unittest
 
 from pncad import (
-    BooleanOp,
     Doc,
     DocEdit,
     EditError,
     Formula,
     Node,
-    PersistError,
+    PatternKind,
     evaluate,
     load,
     m,
@@ -46,6 +45,11 @@ ABC_VOLUME = 16.40625
 # The same sum for the two-member list `set_members` rewrites to:
 # 8 + 8 - 2.625.
 AB_VOLUME = 13.375
+# One box alone, and the overlap of A and B, which A minus B leaves the
+# rest of: 8 - 2.625.
+BOX_VOLUME = 8.0
+AB_COMMON = 2.625
+A_MINUS_B = BOX_VOLUME - AB_COMMON
 
 
 def slab(doc, box):
@@ -73,91 +77,139 @@ def measured(doc, node):
     return body.mass_properties()
 
 
-class TestTheNaryUnion(unittest.TestCase):
+def assert_volume(case, props, expected):
+    """Mass properties are ENCLOSURES, so a closed form is required to
+    lie inside the certified pad rather than to match a float."""
+    case.assertLessEqual(abs(props.volume - expected), props.volume_pad + 1e-9)
+
+
+def assert_empty(case, doc, node):
+    """The typed empty body: a boolean value that denotes no body."""
+    value = evaluate(doc).value(node)
+    case.assertEqual(value.kind, "boolean")
+    case.assertEqual(value.bodies(), [])
+
+
+class TestTheUnion(unittest.TestCase):
     def members(self, doc):
         return [slab(doc, box) for box in (A, B, C)]
 
-    def test_the_fold_is_the_boolean_chain_over_the_same_members(self):
+    def test_the_fold_is_the_chain_over_the_same_members(self):
         """One node against the chain it replaces: `union([a, b, c])`
         folds left in the LIST's order, so the body it produces is the
-        one `boolean(boolean(a, b), c)` produces — and both are the
+        one `union([union([a, b]), c])` produces — and both are the
         closed form the three boxes' inclusion-exclusion gives."""
         doc = Doc()
         a, b, c = self.members(doc)
         folded = doc.insert(Node.union([a, b, c]))
-        chained = doc.insert(
-            Node.boolean(
-                BooleanOp.Union,
-                doc.insert(Node.boolean(BooleanOp.Union, a, b)),
-                c,
-            )
-        )
+        chained = doc.insert(Node.union([doc.insert(Node.union([a, b])), c]))
         self.assertEqual(doc.node_kind(folded), "union")
 
         fold = measured(doc, folded)
         chain = measured(doc, chained)
-        # Mass properties are ENCLOSURES, so the closed form is
-        # required to lie inside the certified pad rather than to
-        # match a float.
-        self.assertLessEqual(abs(fold.volume - ABC_VOLUME), fold.volume_pad + 1e-9)
-        self.assertLessEqual(abs(chain.volume - ABC_VOLUME), chain.volume_pad + 1e-9)
+        assert_volume(self, fold, ABC_VOLUME)
+        assert_volume(self, chain, ABC_VOLUME)
         self.assertLess(fold.volume_pad, 1e-9)
         self.assertAlmostEqual(fold.volume, chain.volume, delta=1e-12)
 
-    def test_a_list_of_one_is_not_a_union(self):
-        """The floor is the node's own, held at the edit door: a
-        one-member list refuses at `insert` and says how many it
-        found, which is the number a caller would otherwise have to
-        count for itself."""
+    def test_a_list_of_one_is_that_body(self):
+        """Any count is a union: one member builds that member's body,
+        accepted at `insert` and evaluated without a boolean."""
         doc = Doc()
         a, _b, _c = self.members(doc)
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.union([a]))
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "too_few_members")
-        self.assertEqual(refusal.count, 1)
-        self.assertIsNone(refusal.input)
-        self.assertIsNone(refusal.slot)
+        alone = doc.insert(Node.union([a]))
+        self.assertEqual(doc.node_kind(alone), "union")
+        assert_volume(self, measured(doc, alone), BOX_VOLUME)
 
-    def test_a_member_repeated_is_refused_and_named(self):
-        """Members are pairwise DISTINCT, and the refusal carries the
-        repeat rather than the whole list: the caller is told which id
-        to drop."""
+    def test_an_empty_list_is_the_typed_empty_body(self):
+        """No members is the typed empty body, for a union and an
+        intersect alike — not a refusal."""
+        doc = Doc()
+        nothing = doc.insert(Node.union([]))
+        common = doc.insert(Node.intersect([]))
+        assert_empty(self, doc, nothing)
+        assert_empty(self, doc, common)
+
+    def test_a_member_repeated_glues(self):
+        """A read listed twice is the same material twice: `[a, b, a]`
+        is `[a, b]`, and `[a, a]` is `a`."""
         doc = Doc()
         a, b, _c = self.members(doc)
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.union([a, b, a]))
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "duplicate_input")
-        self.assertEqual(refusal.input, a)
-        self.assertIsNone(refusal.count)
+        repeated = doc.insert(Node.union([a, b, a]))
+        twice = doc.insert(Node.union([a, a]))
+        assert_volume(self, measured(doc, repeated), AB_VOLUME)
+        assert_volume(self, measured(doc, twice), BOX_VOLUME)
 
-    def test_a_file_repeating_a_member_refuses_with_the_same_word(self):
-        """The load door names a repeated member in the edit door's
-        word: a file whose union lists one member twice refuses as
-        `duplicate_input` under the snapshot stage."""
+    def test_a_file_repeating_a_member_loads_and_glues(self):
+        """The load door holds a repeated member to the same rule as
+        the edit door: a file whose union lists one member twice loads,
+        and the union is the union of the distinct members."""
         doc = Doc()
         a, b, _c = self.members(doc)
-        doc.insert(Node.union([a, b]))
+        union = doc.insert(Node.union([a, b]))
         header, body = doc.save().split("\n", 1)
         wire = json.loads(body)
         (members,) = [
-            node["Union"]["members"]
+            node["Union"]["members"]["Spelled"]
             for node in wire["snapshot"]["nodes"].values()
             if "Union" in node
         ]
         members.append(members[0])
-        with self.assertRaises(PersistError) as caught:
-            load(f"{header}\n{json.dumps(wire)}")
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "snapshot")
-        self.assertEqual(refusal.inner_variant, "duplicate_input")
-        self.assertIn("is taken as an input twice", str(refusal))
+        loaded = load(f"{header}\n{json.dumps(wire)}").doc
+        assert_volume(self, measured(loaded, union), AB_VOLUME)
+
+    def test_one_read_of_a_family_is_its_members(self):
+        """A single operand, not a list, reads a family whole: a
+        pattern's two copies of `A`, stepped by B's offset, union to
+        the same body as `[a, b]`. A family read beside a single read
+        in one list is the kernel's kind refusal at `insert`."""
+        doc = Doc()
+        a, _b, _c = self.members(doc)
+        family = doc.insert(
+            Node.pattern(
+                a,
+                Formula.count(2),
+                PatternKind.linear(
+                    (Formula.literal(1.0), Formula.literal(0.5), Formula.literal(0.25)),
+                    Formula.length_in(math.sqrt(1.3125), m),
+                ),
+            )
+        )
+        folded = doc.insert(Node.union(family))
+        self.assertAlmostEqual(measured(doc, folded).volume, AB_VOLUME, delta=1e-9)
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.union([family, a]))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
+
+
+class TestIntersectAndSubtract(unittest.TestCase):
+    def test_the_intersect_keeps_the_common_material(self):
+        """`intersect([a, b])` is the overlap; `[a, a]` is `a`."""
+        doc = Doc()
+        a, b = slab(doc, A), slab(doc, B)
+        common = doc.insert(Node.intersect([a, b]))
+        twice = doc.insert(Node.intersect([a, a]))
+        self.assertEqual(doc.node_kind(common), "intersect")
+        assert_volume(self, measured(doc, common), AB_COMMON)
+        assert_volume(self, measured(doc, twice), BOX_VOLUME)
+
+    def test_the_subtract_cuts_tool_from_from_(self):
+        """`subtract(a, b)` is `a` less the overlap — the operand order
+        is the meaning — and `subtract(a, a)` is the typed empty body."""
+        doc = Doc()
+        a, b = slab(doc, A), slab(doc, B)
+        cut = doc.insert(Node.subtract(a, b))
+        spelled = doc.insert(Node.subtract(from_=a, tool=b))
+        itself = doc.insert(Node.subtract(a, a))
+        self.assertEqual(doc.node_kind(cut), "subtract")
+        assert_volume(self, measured(doc, cut), A_MINUS_B)
+        assert_volume(self, measured(doc, spelled), A_MINUS_B)
+        assert_empty(self, doc, itself)
 
 
 class TestSetMembers(unittest.TestCase):
     """`DocEdit.set_members` — the one edit that changes a live node's
-    inputs, and the three refusals it carries."""
+    inputs."""
 
     def build(self):
         doc = Doc()
@@ -169,21 +221,17 @@ class TestSetMembers(unittest.TestCase):
         no positional spelling, no per-entry arm — and the node's
         value follows immediately."""
         doc, a, b, _c, union = self.build()
-        self.assertLessEqual(
-            abs(measured(doc, union).volume - ABC_VOLUME),
-            measured(doc, union).volume_pad + 1e-9,
-        )
+        assert_volume(self, measured(doc, union), ABC_VOLUME)
 
         doc.apply(DocEdit.set_members(union, [a, b]))
-        props = measured(doc, union)
-        self.assertLessEqual(abs(props.volume - AB_VOLUME), props.volume_pad + 1e-9)
+        assert_volume(self, measured(doc, union), AB_VOLUME)
         self.assertEqual(doc.node_kind(union), "union")
 
     def test_a_node_with_no_list_refuses(self):
-        """A boolean's operands are two NAMED slots, not a list, so
+        """A subtract's operands are two NAMED slots, not a list, so
         there is nothing here for this edit to replace."""
         doc, a, b, _c, _union = self.build()
-        pair = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        pair = doc.insert(Node.subtract(a, b))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.set_members(pair, [a, b]))
         refusal = caught.exception
@@ -192,28 +240,20 @@ class TestSetMembers(unittest.TestCase):
         self.assertIsNone(refusal.input)
         self.assertIsNone(refusal.count)
 
-    def test_a_list_under_the_floor_refuses(self):
-        """The floor `insert` holds is re-held of the REWRITTEN node,
-        so the edit cannot leave a union with one member."""
+    def test_a_list_of_one_is_accepted(self):
+        """The rewritten node is held to the rules `insert` holds, and
+        one member is a union: the edit is accepted and the node is
+        that member's body."""
         doc, a, _b, _c, union = self.build()
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_members(union, [a]))
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "too_few_members")
-        self.assertEqual(refusal.node, union)
-        self.assertEqual(refusal.count, 1)
+        doc.apply(DocEdit.set_members(union, [a]))
+        assert_volume(self, measured(doc, union), BOX_VOLUME)
 
-    def test_a_repeated_member_refuses(self):
-        """Pairwise distinctness, re-checked the same way and naming
-        the same repeat."""
+    def test_a_repeated_member_is_accepted_and_glues(self):
+        """A repeat is re-held the same way and glues: `[a, b, a]` is
+        the union of `a` and `b`."""
         doc, a, b, _c, union = self.build()
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_members(union, [a, b, a]))
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "duplicate_input")
-        self.assertEqual(refusal.node, union)
-        self.assertEqual(refusal.input, a)
-        self.assertIsNone(refusal.count)
+        doc.apply(DocEdit.set_members(union, [a, b, a]))
+        assert_volume(self, measured(doc, union), AB_VOLUME)
 
 
 if __name__ == "__main__":

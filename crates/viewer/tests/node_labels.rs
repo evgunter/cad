@@ -588,34 +588,51 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
 /// **An edit the kernel door refuses speaks its node on the line as the
 /// document the batch leaves holds it** (`EditError::respoken`): the
 /// door spoke the node at the refusal, and a rename later in the same
-/// batch is the label the line says. Red if the line says the label
-/// from before the rename.
+/// batch is the label the line says. The refusal is a declaration
+/// naming the block's face at the block's read on a union whose only
+/// member is the boss — a read that is no operand of it, which the edit
+/// door refuses. Red if the line says the label from before the
+/// rename.
 #[test]
 fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     let tol = Tol::witness();
-    let (doc, extrude) = extruded("viewer-node-labels-edit-refusal", tol);
-    let doc = relabelled(&doc, extrude, "plate", tol);
+    let (doc, block, boss) =
+        viewer::test_support::boss_on_block("viewer-node-labels-edit-refusal", tol);
+    let doc = relabelled(&doc, block, "plate", tol);
     let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    // The flush union's refusal hands back the real pair, block side
+    // first.
+    let refusal = session
+        .perform(SessionOp::AddBoolean {
+            spec: BooleanSpec::Union(vec![block, boss]),
+            declare: Vec::new(),
+        })
+        .refusal
+        .expect("the flush union refuses");
+    let offer = viewer::frame::declare_offer(Some(&refusal))
+        .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"));
     let line = batch_line(
         &mut session,
         &[
             SessionOp::AddBoolean {
-                spec: BooleanSpec::Union(vec![extrude, extrude]),
-                declare: Vec::new(),
+                spec: BooleanSpec::Union(vec![boss]),
+                declare: offer.findings().to_vec(),
             },
             SessionOp::SetLabel {
-                node: extrude,
+                node: block,
                 label: Some(label("slab")),
             },
         ],
     );
     let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
     assert!(
-        said.contains(&format!(
-            "Extrude \"slab\" ({}) is taken as an input twice",
-            tag(extrude.0.digest())
-        )),
+        said.contains(&format!("Extrude \"slab\" ({})", tag(block.0.digest()))),
         "{said}"
+    );
+    assert!(
+        !said.contains("plate"),
+        "and not the label from before the rename: {said}"
     );
 }
 

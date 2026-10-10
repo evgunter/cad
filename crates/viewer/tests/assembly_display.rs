@@ -456,7 +456,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     assert_eq!(
         fault.to_string(),
         format!(
-            "InstantiatePart {}'s geometry is fused into Boolean {} together with InstantiatePart \
+            "InstantiatePart {}'s geometry is fused into Union {} together with InstantiatePart \
              {} — a display operation cannot address it separately",
             test_utils::refusal::tag(a.0.digest()),
             test_utils::refusal::tag(weld.0.digest()),

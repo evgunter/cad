@@ -101,7 +101,7 @@ Three things to expect, all treated at length in the guide:
   touch are not silently welded; a boolean over an undeclared
   coincidence fails loudly — and the refusal carries its own recourse:
   the candidate declaration rides the exception as a typed `finding`
-  (`Evaluation.find_flush_candidates` → `Node.boolean(..., declare=)`
+  (`Evaluation.find_flush_candidates` → `Node.union(..., declare=)`
   or `Doc.declare_all`). Refusals are
   exceptions carrying attributes, never prose to parse — all of them
   subclass `PncadError`. A refusal's discriminant is one word on one
