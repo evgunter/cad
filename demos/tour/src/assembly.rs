@@ -1564,11 +1564,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
 
     // (3) OUTSIDE v1's VOCABULARY. `Tangent` solves — a tangency pins
     // a coset like any other primitive — and then has nowhere to go
-    // at rest: its kernel record is a `CurveContact` keyed by the
-    // witness EDGE along which the two surfaces touch, and an assembly
-    // at rest has no such edge, because nothing zipped the instances
-    // together. The mint door refuses typed and says so in the class's
-    // own terms.
+    // at rest: its kernel record is a face–face pair on two carriers,
+    // and the census at rest decides nothing along their locus for the
+    // record to cite. The mint door refuses typed and says so in the
+    // class's own terms.
     let mut tangent = stand_doc(
         post,
         shelf,

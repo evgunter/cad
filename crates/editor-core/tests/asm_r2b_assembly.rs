@@ -328,8 +328,8 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 /// type, no adapter (A3).
 ///
 /// Asserted POSITIVELY, on the record set itself: the uncertified arm
-/// hands back what the gate was given, so the `PatchContact` claim is
-/// pinned by the type of the thing in `patches`, not inferred from a
+/// hands back what the gate was given, so the face–face claim is
+/// pinned by the kind of the record itself, not inferred from a
 /// refusal's shape.
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {

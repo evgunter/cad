@@ -287,7 +287,7 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     );
 }
 
-/// CLAIM 6 — nothing certifies a PatchContact: a body carrying a patch
+/// CLAIM 6 — nothing certifies a false patch: a body carrying a patch
 /// record is refused typed at rest (CensusUnsupported), never blessed.
 #[test]
 fn probe_patch_contact_is_never_certified_at_rest() {
