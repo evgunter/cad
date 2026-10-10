@@ -802,20 +802,14 @@ fn a_lens_of_two_domes_builds_with_its_discs_declared_rest() {
 }
 
 /// **A rim lying inside the partner's face** passes the crossing layer:
-/// a tube ending on a ball of radius `√2` (its rim on the sphere, 45° to
-/// the wall), and a tube standing on a torus's 45° latitude. Each union
-/// stops in the join, on a frontier that is not the crossing layer's
-/// (`work/join/a-tube-ending-on-a-ball-refuses-section-loop-mixed.md`;
-/// the torus × plane germ frame, `work/germ/c5-plane-torus-cone-cylinder-arms.md`).
+/// a tube standing on a torus's 45° latitude stops in the join, on the
+/// torus × plane germ frame (`work/germ/c5-plane-torus-cone-cylinder-arms.md`),
+/// a frontier that is not the crossing layer's. A tube ending on a ball
+/// builds (`a_tube_ending_on_a_ball.rs`).
 #[test]
 fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
-    let ball = finished(
-        "the ball",
-        ball_poled_z(2.0_f64.sqrt(), Vec3::new(0.0, 0.0, 0.0), tol),
-        tol,
-    );
     let at0 = revolved_about_y(
         vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(3.0, 0.0), 1.0)],
         Revolution::Full,
@@ -826,29 +820,19 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     torus.merge_coplanar_faces(tol).unwrap();
     let torus = finished("the torus", torus, tol);
     let s = core::f64::consts::FRAC_1_SQRT_2;
-    for (label, tube, partner) in [
-        ("tube on a ball", rod_z(R, 1.0, 2.0), &ball),
-        ("tube on a torus", rod_z(2.0 + s, s, 2.0), &torus),
-    ] {
-        for (order, r) in [
-            topo::union_with(&tube, partner, &none, tol),
-            topo::union_with(partner, &tube, &none, tol),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            assert!(
-                matches!(
-                    r,
-                    Err(
-                        BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                            | BooleanError::GermFrameUnsupported { .. }
-                    )
-                ),
-                "{label}, order {order}: past the crossing layer, the join's refusal: {:?}",
-                r.err()
-            );
-        }
+    let tube = rod_z(2.0 + s, s, 2.0);
+    for (order, r) in [
+        topo::union_with(&tube, &torus, &none, tol),
+        topo::union_with(&torus, &tube, &none, tol),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(
+            matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
+            "order {order}: past the crossing layer, the join's refusal: {:?}",
+            r.err()
+        );
     }
 }
 

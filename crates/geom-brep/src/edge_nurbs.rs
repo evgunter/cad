@@ -77,7 +77,7 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::algebra::{GridSkip, domain_grid_points};
+use geom_core::spline::algebra::domain_grid_points;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
@@ -1165,7 +1165,7 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        domain_grid_points(kv, PXN_WALL_SPANS, GridSkip::BitEqual)
+        domain_grid_points(kv, PXN_WALL_SPANS)
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());
@@ -1475,21 +1475,25 @@ mod tests {
         (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
     }
 
-    /// `localized` inserts each direction's DOMAIN sixteenths, skipping
-    /// a grid point only where a knot sits on it bit for bit (`0.5`;
-    /// a knot one ulp above `1/16` does NOT suppress `1/16`), and
-    /// leaves a direction with `PXN_WALL_SPANS + degree` control points
-    /// alone while one with a control point fewer takes the grid.
+    /// `localized` inserts each direction's DOMAIN sixteenths, a grid
+    /// point skipped up to and including `GRID_CLEARANCE` of the
+    /// spacing (`2⁻¹²`) from a knot (`0.5`, and `1/16` beside a knot
+    /// exactly `2⁻¹²` above it; a knot one ulp further than that above
+    /// `3/8` leaves `3/8` standing), and leaves a direction with
+    /// `PXN_WALL_SPANS + degree` control points alone while one with a
+    /// control point fewer takes the grid.
     #[test]
-    fn localized_inserts_the_domain_grid_per_direction_with_its_cut_off() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+    fn localized_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, PXN_WALL_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
         let at = deg2(&odd64(15));
         assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
-        let out = localized(&wall(deg2(&[near, 0.5]), at.clone()));
+        let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));
         assert_eq!(
             out.knots_u().knots(),
             [
-                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
                 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
             ]
         );
@@ -1498,6 +1502,56 @@ mod tests {
         assert_eq!(below.control_count(), 17);
         let out = localized(&wall(deg2(&[0.5]), below));
         assert_eq!(out.knots_v().control_count(), 17 + 15);
+    }
+
+    /// `localized`'s wall has no cliff at any distance of a stated knot
+    /// from a grid point: a degree-1 ruled wall bent at every offset of
+    /// [`crate::grid_offsets::knot_offsets`] from the first point of the
+    /// [`PXN_WALL_SPANS`] grid keeps every
+    /// span's `u` difference quotient within `1e-9` of the slope of the
+    /// leg it lies on. That quotient is the derivative net each cell of
+    /// the tube's chart readings is built from. It is read directly
+    /// because `NurbsBoxes::speed_sup` takes the largest cell and so
+    /// hides a hairline whose rounding happened to land low. A grid
+    /// point inserted at a gap `g` beside the bend divides the inserted
+    /// point's rounding by `g`.
+    #[test]
+    fn the_wall_grid_derivative_net_has_no_cliff_at_any_knot_offset() {
+        let (_, offsets) = crate::grid_offsets::knot_offsets(PXN_WALL_SPANS, 1);
+        let rows: Vec<(String, f64)> = offsets
+            .into_iter()
+            .map(|(label, k)| {
+                let ku = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+                let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+                let control = [0.0, 0.9, 1.0]
+                    .into_iter()
+                    .flat_map(|x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)])
+                    .collect();
+                let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+                let fine = localized(&wall);
+                let (knots, nv) = (fine.knots_u().knots(), fine.knots_v().control_count());
+                let x: Vec<f64> = fine.control().iter().step_by(nv).map(|p| p.x).collect();
+                // Degree 1: control `i` sits at knot `i + 1`.
+                let worst = (0..x.len() - 1)
+                    .map(|i| {
+                        let (a, b) = (knots[i + 1], knots[i + 2]);
+                        let slope = if b <= k { 0.9 / k } else { 0.1 / (1.0 - k) };
+                        ((x[i + 1] - x[i]) / (b - a) - slope).abs()
+                    })
+                    .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
+                (label, worst)
+            })
+            .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, worst)| format!("\n  {label:>26}: slope error {worst:.4e}"))
+            .collect();
+        for (label, worst) in &rows {
+            assert!(
+                *worst < 1e-9,
+                "knot {label}: a span left its leg's slope{table}"
+            );
+        }
     }
 
     /// An exact rational: `n / d`, `d > 0`, for the oracle below.

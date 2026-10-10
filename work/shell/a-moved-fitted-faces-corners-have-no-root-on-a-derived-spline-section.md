@@ -2,10 +2,11 @@
 id: a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section
 kind: issue
 title: A moved fitted face's corner has no root unless one of the fit's own rows meets it: solve_corners skips rooting on a spline surface and a derived spline section seeks no corner
-status: open
+status: dispatched
 opened: 2026-10-09
 priority: P2
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap]
+branch: shell/fitted-corners
 ---
 
 Found by the unit that routed plane × `Approx` over the fit
