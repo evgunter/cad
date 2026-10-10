@@ -649,9 +649,10 @@ fn props_errors() -> Vec<PropsError> {
         },
         PropsError::NappeSpanning,
         PropsError::SphereLoop {
-            what: "props_sphere_loop_closed",
+            what: "props_loop_closed",
         },
         PropsError::SenseContradicted,
+        PropsError::SenseInverted,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",

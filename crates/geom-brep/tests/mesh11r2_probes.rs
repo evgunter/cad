@@ -194,13 +194,14 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
 }
 
 /// **A SATURATED span (`dt > 2π`) refuses at the parse, at every δ,
-/// under one name** (issue 1601). A `2π + 2δ` span whose north pole
+/// on one bound** (issue 1601). A `2π + 2δ` span whose north pole
 /// sits `δ` inside it contains that pole twice, and the direction
 /// antipodal to the span's midpoint is an INTERIOR point of the span:
 /// no membership sign formed on such a span is a datum the fold or
 /// the branch door may read. Both consumers refuse the span before
-/// the pole arithmetic runs — `props_meridian_span_winding`,
-/// certification's own bound re-decided inside the pole helper. One
+/// the pole arithmetic runs — certification's own bound, re-decided
+/// inside the pole helper as `props_meridian_span_winding` and on every
+/// arc of the flux lane's loop as `props_sphere_arc_span_winding`. One
 /// arc per `δ`; the rimless pair closes with the complementary
 /// `2π − 2δ` arc so `curved_face` can be asked.
 #[test]
@@ -227,7 +228,12 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
         if !matches!(&door, Err(PropsError::NotIsoRectangle { what }) if refused(what)) {
             door_wrong.push((delta, verdict(&door)));
         }
-        if !matches!(&fc, Err(PropsError::NotIsoRectangle { what }) if refused(what)) {
+        if !matches!(
+            &fc,
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
+            })
+        ) {
             fold_wrong.push((delta, format!("{fc:?}")));
         }
         if k <= 3 {
@@ -342,8 +348,8 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let area = curved_face(&sphere(), &pair, true, bd).map(|f| f.area);
         if !matches!(
             area,
-            Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_span_winding"
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
             })
         ) {
             answered += 1;

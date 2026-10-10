@@ -175,7 +175,7 @@ fn the_seamed_cap_measures_the_spherical_cap() {
 fn a_rim_that_does_not_close_bounds_nothing() {
     let v0 = 0.5_f64;
     let open = Err(PropsError::SphereLoop {
-        what: "props_sphere_loop_closed",
+        what: "props_loop_closed",
     });
     for (name, edges) in [
         ("half a rim only", vec![rim(v0, 0.0, PI, 0, 1)]),
@@ -239,7 +239,7 @@ fn arcs_that_total_a_turn_without_tiling_do_not_close() {
         assert_eq!(
             curved_face(&sphere(), &edges, true, band()).map(|_| ()),
             Err(PropsError::SphereLoop {
-                what: "props_sphere_loop_closed"
+                what: "props_loop_closed"
             }),
             "{name}"
         );
@@ -446,12 +446,12 @@ fn the_recorded_verdicts_are_a_face_fact_under_re_anchoring() {
 fn the_rim_only_cap_records_two_opposite_pole_readings() {
     let got = verdict_multiset(&[rim(0.5, 0.0, TAU, 0, 0)]);
     let want: Vec<(String, usize)> = [
-        ("props_meridian_span_forward Positive", 1),
-        ("props_meridian_span_winding Zero", 1),
+        ("props_loop_closed Zero", 1),
+        ("props_sphere_arc_span_forward Positive", 1),
+        ("props_sphere_arc_span_winding Zero", 1),
         ("props_sphere_circle_fit Zero", 1),
         ("props_sphere_circle_on Zero", 1),
         ("props_sphere_loop_area Positive", 1),
-        ("props_sphere_loop_closed Zero", 1),
         ("props_sphere_loop_cusp Positive", 1),
         ("props_sphere_pole_arc_full Zero", 2),
         ("props_sphere_pole_plane Negative", 1),
@@ -580,4 +580,106 @@ mod interval_lane {
             }
         }
     }
+}
+
+/// The northern half of the cap of angular radius `th` about `+y`, cut
+/// by the great circle `z = 0`, under a chart whose axis is `+y` turned
+/// `off` radians toward `−z` — off the face, past its equator edge —
+/// with its antipode far outside. The loop: the equator from `x > 0` to
+/// `x < 0` about `+z`, then the cap's rim back over the north about
+/// `+y`; the face is left of both.
+fn half_cap_with_a_pole_off_its_equator(th: f64, off: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>) {
+    let axis = v3(0.0, off.cos(), -off.sin());
+    let s = Surface::Sphere {
+        center: p3(0.0, 0.0, 0.0),
+        radius: RS,
+        axis,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let equator = LoopEdge::hand_built(
+        Curve3::Circle {
+            center: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: RS,
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        HALF - th,
+        HALF + th,
+        true,
+        0,
+        1,
+    );
+    let rim = LoopEdge::hand_built(
+        Curve3::Circle {
+            center: p3(0.0, RS * th.cos(), 0.0),
+            axis: v3(0.0, 1.0, 0.0),
+            radius: RS * th.sin(),
+            u_ref: v3(1.0, 0.0, 0.0),
+        },
+        PI,
+        TAU,
+        true,
+        1,
+        0,
+    );
+    (s, vec![equator, rim])
+}
+
+/// **A pole in the band of a great carrier's plane leaves the loop
+/// unread** (review of PR 4573, R1 N2) — the residual
+/// `MaterialSign::Unencoded` documents beside its two faces. A pole
+/// whose offset from a great (or near-great) carrier's plane lands in
+/// the ambiguity band escalates `props_sphere_pole_plane`, and the
+/// other pole, its antipode, is the same distance from that plane on
+/// the other side, so it escalates too: neither pole is read, and the
+/// loop answers `Unencoded` though the face holds neither. The face
+/// then measures under its bit alone, the wrong bit included.
+#[test]
+fn a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread() {
+    let b = band();
+    let th = 0.5_f64;
+    let off = (b.zero() * b.escalate()).sqrt() / RS;
+    let (s, edges) = half_cap_with_a_pole_off_its_equator(th, off);
+    assert_eq!(
+        boundary_material_sign(&s, &edges, b),
+        Ok(MaterialSign::Unencoded)
+    );
+    let face = RS * RS * PI * (1.0 - th.cos());
+    let complement = 4.0 * PI * RS * RS - face;
+    for (sense, want) in [(true, face), (false, complement)] {
+        let fc = curved_face(&s, &edges, sense, b).expect("measured under its bit");
+        assert!(
+            (fc.area - want).abs() < 1e-9 * want,
+            "sense {sense}: area {} != {want}",
+            fc.area
+        );
+    }
+}
+
+/// **A pole near the loop, but past the band, encodes the side.** The
+/// same half-cap with its chart pole ten times the escalation band off
+/// its equator edge: the pole reads right of the loop, its antipode
+/// too, so the face is the left side, measured under that bit and
+/// refused under the other.
+#[test]
+fn a_pole_near_but_off_the_loop_encodes_the_side() {
+    let b = band();
+    let th = 0.5_f64;
+    let off = 10.0 * b.escalate() / RS;
+    let (s, edges) = half_cap_with_a_pole_off_its_equator(th, off);
+    assert_eq!(
+        boundary_material_sign(&s, &edges, b),
+        Ok(MaterialSign::Encoded(Sign::Positive))
+    );
+    let face = RS * RS * PI * (1.0 - th.cos());
+    let fc = curved_face(&s, &edges, true, b).expect("the half-cap");
+    assert!(
+        (fc.area - face).abs() < 1e-9 * face,
+        "area {} != {face}",
+        fc.area
+    );
+    assert_eq!(
+        curved_face(&s, &edges, false, b).map(|c| c.area),
+        Err(PropsError::SenseContradicted)
+    );
 }

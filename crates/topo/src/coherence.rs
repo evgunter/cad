@@ -45,7 +45,7 @@
 //!   an ambiguity band apart: the shape door and the flux lane both
 //!   ESCALATE it — "which extreme is this rim at" and "do these arcs
 //!   meet" are one undecidable gap, asked a predicate apart
-//!   (`props_rim_side`, `props_sphere_loop_closed`) —
+//!   (`props_rim_side`, `props_loop_closed`) —
 //!   and `mesh::tessellate` refuses it typed either way: on the shape
 //!   door's escalation while the gap is in the band, and as
 //!   `MeridianFreeCurvedFace` (the loop has no meridian) at zero gap.

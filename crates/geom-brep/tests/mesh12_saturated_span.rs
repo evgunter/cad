@@ -8,7 +8,12 @@
 //! answer, so the sphere parse re-decides the bound per meridian arc
 //! as `props_meridian_span_winding` — the same margin, the same band,
 //! the same lever as certification — and refuses typed, on every
-//! consumer, under one name.
+//! consumer. The doors (the shape and branch doors) refuse under that
+//! name as `NotIsoRectangle`; the flux lane and the material sign, which
+//! read the sphere's loops and ask the bound of every arc at the arc's
+//! own radius, refuse under `props_sphere_arc_span_winding` as
+//! `SphereLoop` — a meridian's radius is the sphere's, so the margin is
+//! the same number under either name.
 //!
 //! Every offset below is derived from the run's own `Band`, never from
 //! an ε literal: this file is on CI's `eps ∈ {default, 1e-6, 1e-12}`
@@ -29,10 +34,14 @@ const PI: f64 = core::f64::consts::PI;
 const TAU: f64 = core::f64::consts::TAU;
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
-/// The winding decide every consumer refuses under.
+/// The winding decide the doors refuse under.
 const NAME: &str = "props_meridian_span_winding";
-/// The forward decide every consumer refuses under.
+/// The forward decide the doors refuse under.
 const FORWARD: &str = "props_meridian_span_forward";
+/// The winding decide the flux lane and the material sign refuse under.
+const ARC_NAME: &str = "props_sphere_arc_span_winding";
+/// The forward decide the flux lane and the material sign refuse under.
+const ARC_FORWARD: &str = "props_sphere_arc_span_forward";
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -92,19 +101,22 @@ fn saturated<T: Real>(delta: f64) -> Vec<LoopEdge<T>> {
 }
 fn is_winding_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == NAME)
+        || matches!(r, Err(PropsError::SphereLoop { what }) if *what == ARC_NAME)
 }
 fn is_forward_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == FORWARD)
+        || matches!(r, Err(PropsError::SphereLoop { what }) if *what == ARC_FORWARD)
 }
 fn is_winding_escalation<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(
         r,
-        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME)
+        Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(NAME) || cause.predicate == Some(ARC_NAME)
     )
 }
 
 // ---------------------------------------------------------------------
-// One name, every consumer
+// One bound, every consumer
 // ---------------------------------------------------------------------
 
 /// **The flux lane.** CERT-1's `3π + π` pair used to measure `2πR²`
@@ -330,8 +342,13 @@ enum Disp {
 fn disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
     match r {
         Ok(_) => Disp::Admit,
-        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME) => Disp::Escalate,
+        Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(NAME) || cause.predicate == Some(ARC_NAME) =>
+        {
+            Disp::Escalate
+        }
         Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
+        Err(PropsError::SphereLoop { what }) if *what == ARC_NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }
 }

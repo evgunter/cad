@@ -231,8 +231,9 @@ roster alone** (K-REPORT's framing; it reproduces here). A code scan
 misses names not written at a funnel site — the 36 carried ones, 15% of
 the roster. A corpus column misses names the corpus never exercises —
 **83** of the 248 do not appear in the committed M7 baseline at all
-(`props_rim_interior_side`, `props_rim_only_extent` and
-`props_rim_only_closed` are new here and post-date it;
+(`props_rim_interior_side`, since retired with the sphere's iso flux
+arm, `props_rim_only_extent` and `props_rim_only_closed` are new here
+and post-date it;
 `props_rim_dir_group`, which it does carry, is retired),
 and that baseline in turn still carries six spellings the tree has
 retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
@@ -402,9 +403,10 @@ which is what actually moves the number.
 | props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_meridian_orient | lengths / cos×minor | m | OK |
-| props/curved.rs (`sphere_loop`) | props_sphere_circle_on / props_sphere_circle_fit / props_sphere_loop_closed | `‖(C − c) × n_c‖`; `√(‖C − c‖² + ρ²) − R`; the gap between one arc's end and the next's start (m) | m | OK |
-| props/curved.rs (`require_cusp_free`, `sphere_face`) | props_sphere_loop_cusp / props_sphere_loop_area / props_sphere_hole_area | the chord between a departing and a reversed arriving unit tangent, levered by R; the smaller of the outer region's and its complement's solid angle (sr), and the smaller of a hole's and the outer region less it (sr), levered by R | m | OK |
-| props/curved.rs (`side_of_sphere_loops`) | props_sphere_area_side | the face's Gauss–Bonnet solid angle under the chart normal (sr), levered by R | m | OK (a face with holes: positive under its true side, `≤ −Area` under the other) |
+| props/curved.rs (`sphere_loop`) | props_sphere_circle_on / props_sphere_circle_fit / props_loop_closed | `‖(C − c) × n_c‖`; `√(‖C − c‖² + ρ²) − R`; the gap between one arc's end and the next's start (m) | m | OK (`props_loop_closed` is the cylinder's and cone's closure decide on the same gap; the sphere refuses it as `SphereLoop`) |
+| props/curved.rs (`require_span_within_period`, run by `sphere_loop` on every arc) | props_sphere_arc_span_forward / props_sphere_arc_span_winding | `Δt·ρ` / `(τ − Δt)·ρ` — the arc's stored span and its headroom to one period, levered at the arc's own circle radius: certification's `interval_span_forward` / `interval_span_winding` re-decided at the flux lane | m | OK (the doors' `props_meridian_span_*` pair, two rows down, under the flux lane's names and lever, since Gauss–Bonnet integrates every arc's span and the lever is the arc's; refused as `SphereLoop`) |
+| props/curved.rs (`require_cusp_free`, `sphere_face`) | props_sphere_loop_cusp / props_sphere_loop_area / props_sphere_hole_area | the chord between a departing and a reversed arriving unit tangent, levered by R; the smaller of the outer region's and its complement's solid angle (sr); a hole's solid angle (sr); both levered by R | m | OK (solid angles from `solid_angle`: Gauss–Bonnet, corrected by a fan of triangles inside the region where the two agree, so a small region keeps its digits) |
+| props/curved.rs (`side_of_sphere_loops`) | props_sphere_face_area | a face with holes: its solid angle under each reading of its loops (sr), levered by R | m | OK (the one home of "the face's area is positive": at most one reading is, `4π(1 − r)` less the other; neither is when holes overlap, refused as `SphereLoop`) |
 | props/curved.rs (`pole_side`) | props_sphere_pole_plane / props_sphere_pole_on_arc | a pole's offset from an arc's carrier plane, bare (m); the chord from the pole to the arc's nearer span end, membership-signed, levered by the circle radius | m | OK (`arc_point_margin` is `sphere_meridian_pole_margins`' direction arithmetic on any circle) |
 | props/curved.rs (`pole_side`) | props_sphere_pole_arc_full / props_sphere_pole_winding | `τ − Δt` (rad) levered by the circle radius; the stereographic image's total turning (rad, ±2π up to rounding) levered by R | m | OK (the turning's two values sit 4π apart, so its sign is decided far from the band) |
 | props/curved.rs (`torus_meridian_orient`: `UnitVec3::levered`, then `OrthoFrame::from_aim_and_reference`) | props_torus_axis / props_meridian_radial | the torus axis's norm (a unit-at-rest carrier field, a pure number) levered by the anchor meridian's reach from the torus centre, `\|c − centre\| + r` / `Margin::norm3` of the anchor meridian centre's offset from the axis (m) | m / m | FIXED (was the axis's bare norm against the length band, which reads differently at every model scale) |
@@ -706,7 +708,7 @@ the section is empty when the two counts above meet at 248.
 | `geom-brep/certify.rs` | `carrier_in_seam_halfplane`, `carrier_on_iso_curve`, `plane_nurbs_on_locus`, `plane_nurbs_hull_sup` |
 | `geom-brep/edge_nurbs.rs` | `plane_nurbs_transversality` |
 | `geom-brep/pcurve_cache.rs` | `pcurve_chart_polar_affine`, `pcurve_chart_polar_winding` (the polar twins of the azimuth pair one row up) |
-| `geom-brep/props/curved.rs` | `props_band_coplanar` |
+| `geom-brep/props/curved.rs` | `props_band_coplanar` (retired since, with the sphere's iso flux arm: the name reaches no funnel site) |
 | `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` |
 | `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
 | `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
@@ -1161,13 +1163,10 @@ Notes (verified honest, kept for the design conversation):
   `props_circle_axis_class`. **RETIRED**: the traversal direction has
   one representation now (`Rim::d_u_sign`, a discrete `Sign`) and
   `du_of_rims` compares it as a sign, so no margin is formed and the
-  name reaches no funnel site. What the note guarded against is the
-  live shape at `props_rim_interior_side`, one row up, and it is
-  guarded differently: σ there is a product of two DISCRETE signs and
-  never becomes a comparand — the margin it points is
-  `props_rim_side`'s own `lo + hi − 2v`, at `props_rim_side`'s lever,
-  so the structural sign steers a length rather than being banded as
-  one.
+  name reaches no funnel site. What the note guarded against was live
+  at `props_rim_interior_side` until the sphere's iso flux arm retired
+  that name, and was guarded differently there: σ was a product of two
+  DISCRETE signs and never became a comparand.
 - **N9** `props_rim_only_extent` and `props_face_extent` are ONE
   comparand under two names on the sphere —
   `sphere_extent_margin(lo, hi, R)`, from one helper both call — asked
@@ -1186,13 +1185,13 @@ Notes (verified honest, kept for the design conversation):
   |v|·sinα (bounded below ≳ K·ε by the same axis-class guard). The
   `T::one()` fallback is REACHED — both callers compute the arm before
   they know whether there is a rim — but **never metered against**:
-  every route from it to a margin refuses on the empty rim list first,
-  by `du_of_rims`' opening `is_empty` on the flux lane and by
-  `linear_rim_side`'s `rims.first()` at the material-side gate. "The
-  empty-rims refusal precedes" named one of those two routes and was
-  false at the other (S112(d)); the invariant is what both establish,
-  and `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the
-  row.
+  the one route from it to a margin refuses on the empty rim list
+  first, by `du_of_rims`' opening `is_empty` on the flux lane. The
+  material-side gate no longer reads rims at all
+  (`props_cone_area_side`, the cone's vector area against its axis),
+  and refuses an open loop on its closure decide (`props_loop_closed`);
+  `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the
+  row for both.
 - **N4** `tangent_normal_parallel`'s arm 1/κ_rel is the ratified D4 ¶1
   tangency lever ("normal-parallel within θ ⟺ within ε of the locus");
   unbounded only in the refusing direction, and the second-order gate

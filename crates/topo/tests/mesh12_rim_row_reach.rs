@@ -31,7 +31,7 @@
 //! face whose one loop is two rim arcs and no meridian. With the gap
 //! inside the band, the shape door and the flux lane answer on the same
 //! undecidable gap (the shape door on `props_rim_side`, the flux lane
-//! on its loop's closure, `props_sphere_loop_closed`); at `Δv = 0` the
+//! on its loop's closure, `props_loop_closed`); at `Δv = 0` the
 //! door admits the face and the flux lane measures it under its bit —
 //! the two caps sum to the sphere's closed forms. `mesh::tessellate`
 //! refuses it typed either way: in the
@@ -269,7 +269,7 @@ fn the_remint_admits_the_gaps_the_examination_reports() {
 ///   **Both** the shape door and the flux lane say so: the door's
 ///   rim-side unanimity asks which extreme each rim sits at and
 ///   escalates `props_rim_side` typed, and the flux lane escalates its
-///   closure decide `props_sphere_loop_closed` typed.
+///   closure decide `props_loop_closed` typed.
 ///
 /// What `mesh::tessellate` answers for the same two bodies is the next
 /// row.
@@ -300,7 +300,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                     matches!(
                         &flux,
                         Err(PropsError::Escalated { cause, .. })
-                            if cause.predicate == Some("props_sphere_loop_closed")
+                            if cause.predicate == Some("props_loop_closed")
                     ),
                     "{flux:?}"
                 );

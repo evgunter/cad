@@ -201,7 +201,7 @@ fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lan
     assert_eq!(
         curved_face(&sphere(), &open, true, band()).map(|_| ()),
         Err(PropsError::SphereLoop {
-            what: "props_sphere_loop_closed",
+            what: "props_loop_closed",
         })
     );
 }

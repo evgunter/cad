@@ -1,11 +1,11 @@
 //! **Is a hairline lune reachable from a certified door?** (review
 //! probe for the rim-free wedge, issue 542.)
 //!
-//! The sphere arm decides a lune's pole junction against a cusp at the
-//! SPHERE's radius `R`, on `R·|sin δ|` for meridians `δ` apart (once
-//! `props_band_coplanar`, which took `Δu = π` on a `Zero`). `revolve`
-//! gates its angle on
-//! `r_max·|θ|` and `r_max·(τ − |θ|)`, where `r_max` is the whole
+//! The sphere arm decides a lune's pole junction against a cusp
+//! (`props_sphere_loop_cusp`): the chord `2·sin(δ/2)` between one
+//! meridian's tangent at the pole and the other's reversed, for
+//! meridians `δ` apart, levered by the SPHERE's radius `R`. `revolve`
+//! gates its angle on `r_max·|θ|` and `r_max·(τ − |θ|)`, where `r_max` is the whole
 //! PROFILE's radial extent. The two levers are the same number only
 //! for the bare ball; a profile carrying anything at ten times the
 //! sphere's radius opens a window of angles that `revolve` calls
@@ -15,8 +15,7 @@
 //! with a hemispherical dimple of radius `r` on its axis (the
 //! rectangle minus the half-disc), so `r_max = L` and the dimple's
 //! wall is a rimless sphere band. The window row refuses the
-//! coincident pair typed as the cusp it is (`props_sphere_loop_cusp`),
-//! where the coplanar branch once measured it at `π`.
+//! coincident pair typed as the cusp it is.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

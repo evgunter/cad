@@ -668,7 +668,10 @@ tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
 (`sphere_loop_side`). A loop with a pole off it on each side encodes no
 side: under either sense its face holds a pole, which is validity's to
-refuse. A face with holes reads its side off the sign of its own
+refuse. Nor does a loop whose poles both read undecided: a pole within
+the ambiguity band of a great or near-great carrier's plane has its
+antipode there too, so a face whose loop passes that close to a pole
+is measured under its bit alone. A face with holes reads its side off the sign of its own
 Gauss–Bonnet area. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`

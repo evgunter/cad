@@ -73,6 +73,8 @@ mod a_ring_on_a_sphere_face;
 mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "a_thin_cap_keeps_its_digits.rs"]
+mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]

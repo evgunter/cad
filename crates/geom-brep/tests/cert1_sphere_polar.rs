@@ -156,9 +156,10 @@ fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
 /// world produces (certification bounds `0 < Δt ≤ τ` per edge; the
 /// import door normalises into `(0, τ]`), and answering it exactly
 /// would be a closed form over an uncertified premise. The parse
-/// therefore re-decides certification's bound per meridian arc
-/// (`props_meridian_span_winding`, the same margin at the same band
-/// and lever) and refuses under that name — the disposition the torus
+/// therefore re-decides certification's bound per arc
+/// (`props_sphere_arc_span_winding`, the same margin at the same band,
+/// levered by the arc's radius, which a meridian's is the sphere's) and
+/// refuses under that name — the disposition the torus
 /// fold already takes for a span it reconstructs across pieces. The
 /// other three rows of this issue's block still ride the fold: their
 /// arcs contain a pole and stay within one period.
@@ -173,8 +174,8 @@ fn a_multi_wrap_span_is_refused_at_the_parse() {
     assert!(
         matches!(
             curved_face(&sphere(), &pair, true, band),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_span_winding"
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_winding"
             })
         ),
         "a 3π meridian span is past the per-edge winding bound and refuses by its name"

@@ -1332,10 +1332,16 @@ pub enum ValidationError {
     /// **What is exempt, in full**:
     ///
     /// * a one-loop sphere face with **both chart poles on its loop**
-    ///   (a lune, a hemisphere split at its poles) — its boundary
-    ///   encodes no side, the documented residual; such faces meet
-    ///   their seam siblings tangentially, where check 4 reads a flip
-    ///   as a lamina;
+    ///   (a lune, a hemisphere split at its poles), or within the band
+    ///   of it (a near-great carrier passing within the band of one
+    ///   pole passes within it of the other) — its boundary encodes no
+    ///   side, the documented residual. Such a face meets its seam
+    ///   sibling tangentially, where check 4 reads a flip of ONE of
+    ///   the two as a lamina; a flip of BOTH keeps the seam consistent,
+    ///   and where their other edges meet their neighbours
+    ///   transversally nothing in tier 3 sees it, and the volume is
+    ///   measured wrong
+    ///   (`work/flux/a-pair-of-seam-siblings-flipped-together-is-silent.md`);
     /// * a one-loop sphere face with a chart pole off its loop on EACH
     ///   side — a rim-only cap, a tilted cap or a blend corner patch
     ///   holding a pole. Under either sense it holds a pole, which
@@ -3039,6 +3045,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::SenseContradicted => reading(
                 "a sphere face is inside-out against its own boundary, or holds a pole of \
                  its sphere inside it",
+                DEFECT.into(),
+                true,
+            ),
+            P::SenseInverted => reading(
+                "a sphere face with holes is inside-out against its own boundary",
                 DEFECT.into(),
                 true,
             ),
@@ -6921,9 +6932,10 @@ pub(crate) fn tier3_local_checks_marked<
     // `geom_brep::props::boundary_material_sign_loops` reads every
     // loop, per kind: the chart Green form's sign on a cylinder or
     // torus (`props_chart_area_side`), the axial vector area's on a
-    // cone (`props_cone_area_side`), and on a sphere the Gauss–Bonnet
-    // area's sign with holes (`props_sphere_area_side`) or the loop's
-    // pole-free side without (`props_sphere_pole_winding`). None rests
+    // cone (`props_cone_area_side`), and on a sphere the side of its
+    // loops with positive area with holes (`props_sphere_face_area`) or
+    // the loop's pole-free side without (`props_sphere_pole_winding`).
+    // None rests
     // on an iso-rectangle premise. The final comparison is two exact
     // ±1s, genuinely combinatorial.
     //

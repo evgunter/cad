@@ -1624,10 +1624,11 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 ///
 /// The trim reads the window off the boundary, and the boundary of a
 /// rectangle is also the boundary of its complement. The rectangle is
-/// therefore taken only when the side the boundary traversal encodes
-/// (`boundary_material_sign`, the iso-rectangle reading tier 3's curved
-/// sense check runs) agrees with the face's `sense`, which places the
-/// face on the rectangle's side of its boundary. The trim's class then
+/// therefore taken only when the side the outer loop encodes
+/// (`boundary_material_sign`: the side of the loop that holds no chart
+/// pole, the reading tier 3's curved sense check runs) agrees with the
+/// face's `sense`, which places the face on the rectangle's side of its
+/// boundary. The trim's class then
 /// holds no pole inside the face, so the face lies in the rectangle its
 /// boundary spans. A face whose side is unencoded, refused, or in
 /// disagreement, one whose outer loop is a lone vertex or carries null
@@ -6224,8 +6225,8 @@ mod sphere_rect_rows {
     /// is, is `senses`' and the boundary's to say.
     ///
     /// `zone` closes the strut's tip with a second rim at `hc`: the
-    /// seed face is then the zone `[h0, hc]` on its seam, sensed as its
-    /// loop encodes, and a third face caps the tip's rim.
+    /// seed face is then the zone `[h0, hc]` on its seam, sensed from its
+    /// base rim's stored traversal, and a third face caps the tip's rim.
     fn strut_cap(
         c: Point3<f64>,
         r: f64,
@@ -6348,17 +6349,18 @@ mod sphere_rect_rows {
                 }
                 Err(e) => panic!("the tip's rim: {e:?}"),
             }
+            // The zone lies on the side of the base rim toward the tip,
+            // which is left of the rim's traversal under the chart normal
+            // exactly when the rim runs about `+ẑ` and the tip is above
+            // it, or about `−ẑ` and below: set from the stored traversal,
+            // not from the side reader these rows test.
             let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
-            let band = Band::linear(tol).unwrap();
-            let side =
-                geom_brep::props::boundary_material_sign(&body.surfaces[sphere], &outer, band);
-            body.set_face_sense(
-                north,
-                side == Ok(geom_brep::props::MaterialSign::Encoded(
-                    geom_core::Sign::Positive,
-                )),
-            )
-            .unwrap();
+            let base = outer
+                .iter()
+                .find(|e| matches!(e.carrier, Curve3::Circle { axis, .. } if axis.dot(z) > 0.5))
+                .expect("the base rim runs about +ẑ");
+            body.set_face_sense(north, base.forward == (hc > h0))
+                .unwrap();
         }
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
         (body, north, south)
@@ -6376,33 +6378,37 @@ mod sphere_rect_rows {
     #[test]
     fn a_caps_strut_does_not_bound_its_latitude_window() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let mut floors = Vec::new();
         for hc in [0.3, 1.0] {
             for senses in [(true, true), (true, false), (false, true), (false, false)] {
                 let (body, north, _) = strut_cap_ball(-0.5, hc, senses);
-                let (_, reach) = sphere_reach(&body, north, band, &BoxFrame::World);
+                let (lo, hi) = sphere_reach(&body, north, band, &BoxFrame::World);
                 let boxed = face_box(&body, north, 0.0, band).unwrap();
-                let (_, census) = crate::census::face_reach(&body, north, band).unwrap();
-                for (lane, top) in [
-                    ("sphere_reach", reach.z),
-                    ("face_box", boxed.max_z),
-                    ("census::face_reach", census.z),
+                let (clo, chi) = crate::census::face_reach(&body, north, band).unwrap();
+                // Every extreme is the ball's: a window read off either
+                // side of the rim `z = −0.5` stops short of one pole,
+                // and a seam's azimuth window short of `x = −1` or of
+                // `y = ±1`.
+                for (lane, lo, hi) in [
+                    ("sphere_reach", [lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]),
+                    (
+                        "face_box",
+                        [boxed.min_x, boxed.min_y, boxed.min_z],
+                        [boxed.max_x, boxed.max_y, boxed.max_z],
+                    ),
+                    (
+                        "census::face_reach",
+                        [clo.x, clo.y, clo.z],
+                        [chi.x, chi.y, chi.z],
+                    ),
                 ] {
                     assert!(
-                        top >= 1.0,
-                        "strut tip z = {hc}, senses {senses:?}: {lane}'s top {top} stops \
-                         short of the pole the cap reaches"
+                        lo.iter().all(|&l| l <= -1.0) && hi.iter().all(|&h| h >= 1.0),
+                        "strut tip z = {hc}, senses {senses:?}: {lane}'s box {lo:?}..{hi:?} \
+                         is not the ball's"
                     );
-                }
-                if hc == 1.0 {
-                    floors.push(boxed.min_z);
                 }
             }
         }
-        assert!(
-            floors.iter().all(|&z| z <= -1.0),
-            "a strutted cap reads no window; the floors were {floors:?}"
-        );
     }
 
     /// The right-handed orthonormal frame whose `ẑ` is `axis`: `x̂` is

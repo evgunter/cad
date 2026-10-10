@@ -57,8 +57,10 @@ without the bit — or the reason none exists, recorded where
 `sphere_loop_side` reads a one-loop face as the side of its loop that
 holds no chart pole, by each pole's stereographic turning number, and a
 face with holes by the sign of its Gauss–Bonnet area. What remains
-`Unencoded`: faces with both poles on the loop (seam siblings meeting
-tangentially, where check 4 reads a flip as a lamina), and faces with a
+`Unencoded`: faces with both poles on the loop, or within the band of
+it (seam siblings meeting tangentially, where check 4 reads a flip of
+one sibling as a lamina but sees nothing when both are flipped:
+`a-pair-of-seam-siblings-flipped-together-is-silent`), and faces with a
 pole off the loop on each side, which hold a pole under either sense and
 are validity's to refuse
 (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).

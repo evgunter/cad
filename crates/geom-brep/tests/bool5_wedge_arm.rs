@@ -353,7 +353,7 @@ fn leaned_meridian(theta: f64, lean: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// **A leaned meridian's slack is a measured, bounded slack.** A
 /// carrier leaned by `0.5·zero/R` departs from a point `lean·R` off the
 /// south pole and arrives `lean·R` off the north one, so the loop
-/// closes within the coincidence band (`props_sphere_loop_closed`) and
+/// closes within the coincidence band (`props_loop_closed`) and
 /// the face measures: the lean rotates the arc about its equatorial
 /// point, ANTISYMMETRICALLY — the sliver it adds north of the equator
 /// it removes south of it — so the true area differs from the lune's
@@ -387,7 +387,7 @@ fn a_meridian_carrier_within_the_closure_slack_measures_and_past_it_escalates() 
     match curved_face(&sphere::<f64>(), &edges, true, band) {
         Err(PropsError::Escalated { cause, .. }) => assert_eq!(
             cause.predicate,
-            Some("props_sphere_loop_closed"),
+            Some("props_loop_closed"),
             "the lean escalates at the loop's closure"
         ),
         other => panic!("a lean of 2·zero/R must escalate at the closure, got {other:?}"),

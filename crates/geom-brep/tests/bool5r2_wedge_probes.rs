@@ -292,7 +292,7 @@ fn a_hairline_wedge_and_a_slit_refuse_as_cusps() {
 
 /// **Two meridian arcs that stop short of both poles do not close.**
 /// Tagged as a closed loop, they leave a gap at each end, and the arm
-/// refuses them on its own closure decide (`props_sphere_loop_closed`)
+/// refuses them on its own closure decide (`props_loop_closed`)
 /// rather than trusting the tags.
 #[test]
 fn meridian_arcs_that_never_reach_the_poles_refuse_as_an_open_loop() {
@@ -303,7 +303,7 @@ fn meridian_arcs_that_never_reach_the_poles_refuse_as_an_open_loop() {
     assert_eq!(
         curved_face(&sphere(), &edges, true, band()).map(|_| ()),
         Err(PropsError::SphereLoop {
-            what: "props_sphere_loop_closed"
+            what: "props_loop_closed"
         })
     );
 }

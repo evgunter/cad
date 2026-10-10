@@ -120,7 +120,7 @@
 //! traversed endpoints (`props_loop_closed`, and
 //! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
 //! the sphere's Gauss–Bonnet on every junction
-//! (`props_sphere_loop_closed`), and a ringed cone face's loops
+//! (`props_loop_closed`), and a ringed cone face's loops
 //! (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
@@ -347,14 +347,19 @@ pub enum PropsError {
         /// Which premise failed (the predicate's name).
         what: &'static str,
     },
-    /// A sphere face's sense bit contradicts the side its boundary
-    /// encodes (`curved::sphere_loop_side`), so its radial flux term —
-    /// read off the bit — would measure the complement of the face.
+    /// A one-loop sphere face's sense bit contradicts the side its
+    /// boundary encodes (`curved::sphere_loop_side`), so its radial
+    /// flux term — read off the bit — would measure the complement of
+    /// the face.
     /// Two causes, which the boundary cannot tell apart: the bit is
     /// inverted, or the face holds in its interior the one chart pole
     /// off its loop, which import must normalise into a vertex of the
     /// face.
     SenseContradicted,
+    /// A sphere face WITH HOLES whose sense bit contradicts the side
+    /// its boundary encodes — the side of its loops with positive
+    /// area, which no chart pole enters — so the bit is inverted.
+    SenseInverted,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -627,6 +632,12 @@ impl core::fmt::Display for PropsError {
                 "a sphere face's orientation sense contradicts the side its boundary encodes: \
                  either the face is inside-out, or it holds a pole of its sphere in its \
                  interior, which import must make a vertex of the face. \
+                 {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SenseInverted => write!(
+                f,
+                "a sphere face with holes is inside-out: its orientation sense contradicts \
+                 the side of its boundary that has positive area. \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
@@ -927,6 +938,7 @@ mod tests {
                 what: "props_sphere_loop_cusp",
             },
             PropsError::SenseContradicted,
+            PropsError::SenseInverted,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -951,7 +963,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 11, "an arm was added without a row here");
+        assert_eq!(arms.len(), 12, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(
