@@ -31,6 +31,11 @@
 //! or not, so "zero rule-1 flags" is a reported number rather than an
 //! inference from a green.
 //!
+//! Rule (2)'s zero arm gates under neither setting: it is a tally
+//! (`k_lint::zero_arm_usage`), printed per file and per predicate with
+//! the largest `|m| / band_zero` and its row, and counted in the TOTAL
+//! line.
+//!
 //! Thresholds + baseline provenance: `lib.rs` module docs.
 
 use k_lint::{Reason, lint_csv};
@@ -137,6 +142,7 @@ fn main() {
     let mut total_symbolic = 0usize;
     let mut total_gated = 0usize;
     let mut total_registered = 0usize;
+    let mut total_zero_arm = 0usize;
     for path in &paths {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
@@ -156,6 +162,8 @@ fn main() {
             }
         };
         let (scanned, flags) = (scan.scanned, scan.flags);
+        let zero_arm: usize = scan.zero_arm.iter().map(|t| t.count).sum();
+        total_zero_arm += zero_arm;
         // The per-file tally, by rule and then by reason. A FLAG can
         // carry several reasons; each is counted, so the reason counts
         // sum to at least the flag count and the two are labelled
@@ -182,7 +190,8 @@ fn main() {
         say(format_args!(
             "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} sign_gated, {} registered, \
              {} classified), {} flagged — rule 1 (undecided/invalid): {}, rule 2 (near a \
-             threshold): {}, rule 3 (below a floor): {}",
+             threshold): {}, rule 3 (below a floor): {}; rule 2 zero arm (tallied, not \
+             gating): {zero_arm}",
             scan.symbolic,
             scan.sign_gated,
             scan.registered,
@@ -196,6 +205,27 @@ fn main() {
             if c > 0 {
                 say(format_args!("    rule {} — {r}: {c}", r.rule()));
             }
+        }
+        if zero_arm > 0 {
+            say(format_args!(
+                "  rule 2 zero arm (tallied, not gating): {zero_arm} zero-classified \
+                 margin(s) above band_zero/10^2"
+            ));
+        }
+        for t in &scan.zero_arm {
+            let w = &t.worst;
+            say(format_args!(
+                "    {}: {}, largest |m|/band_zero = {:.3e} — the margin uses {:.0}% of eps \
+                 here ({} line {}, |m|={:e}, band_zero={:e})",
+                t.predicate,
+                t.count,
+                w.usage,
+                w.usage * 100.0,
+                w.shape,
+                w.line,
+                w.margin.abs(),
+                w.band_zero
+            ));
         }
         // Never a silent exemption: say it whenever rule (2)'s definite
         // arm ran capped at the baseline floor (lib.rs, "Rule (2)'s
@@ -259,7 +289,7 @@ fn main() {
         "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
          symbolic_zero, {total_gated} sign_gated, {total_registered} registered, {} \
          classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
-         (below a floor) {}",
+         (below a floor) {}, rule 2 zero arm (tallied, not gating) {total_zero_arm}",
         paths.len(),
         total_scanned - total_symbolic - total_gated - total_registered,
         per_rule[1],
@@ -313,6 +343,13 @@ fn main() {
         return;
     }
     if !unruled_total.is_empty() {
+        return;
+    }
+    if total_zero_arm > 0 {
+        say(format_args!(
+            "k-lint: clean on every gating rule — {total_zero_arm} zero-arm margin(s) \
+             tallied above, which do not gate"
+        ));
         return;
     }
     say(format_args!(
