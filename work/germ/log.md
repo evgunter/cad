@@ -831,3 +831,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - written BLIND by a separate agent from the log rows, the protocol and readouts 1–3, on branch `analysis/dual-review/readout-4`, as an `[ev]` PR that is never merged;
   - a `needs_ev` item, `work/germ/the-dual-review-streams-fourth-readout-is-owed`;
   - disclosures: arm bytes drawn at dispatch, before the PRs existed; 4530's tally dedup was a close call (two test faults counted as one defect).
+- 2026-10-10 16:50 — Dispatched the last P2, `circle-torus-root-slack-crowds-the-zero-band-at-1e-12`, as a measure-first lane (cloud session `session_01Vp3HWPpt7YZBohswg37BRB`, branch `germ/circle-torus-slack-klint`). Reason: PR 4357 replaced that slack with a `RootSlack` meter, so the k-lint flags may be gone. Outcomes:
+  - gone → close the item;
+  - a real defect → fix it (the review arm, byte 150, is HOLDOUT if it becomes a code unit);
+  - a k-lint rule question → `needs_ev` and the designer route, with no lint change by the lane.
+  PR 4530's fix pass is still running.
