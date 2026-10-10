@@ -1784,7 +1784,7 @@ mod display_tests {
                     }),
                 },
                 vec![
-                    "member #0:0000000000250000",
+                    "member read 000000000025",
                     "of node 000000000025)",
                     "a tie stands",
                 ],
