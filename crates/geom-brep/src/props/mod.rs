@@ -127,6 +127,7 @@
 mod curved;
 mod loop_area;
 pub mod quad;
+pub mod spiric;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -285,10 +286,11 @@ pub enum PropsError {
     /// and never will in this lane: the `Nurbs` placeholder, and a
     /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
     /// elliptic integral) or on a cylinder, cone or sphere (a spiric
-    /// lies on none). The spiric's frontier is the props quadrature
-    /// lane for a spiric-bounded face — the spiric unit's props PR;
-    /// the variant carries no `what`, so the frontier is named here
-    /// and at each raising site.
+    /// lies on none). A spiric-bounded face is measured by the
+    /// quadrature lane instead ([`spiric`]), which `topo`'s face walk
+    /// routes it to by carrier kind; this lane's refusal is what a walk
+    /// holding no quadrature lane reads. The variant carries no `what`,
+    /// so the frontier is named here and at each raising site.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual of an inventory premise is

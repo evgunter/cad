@@ -1420,8 +1420,7 @@ fn chord_spec<T: Decide>(
             let witness = carrier.mid_point(s1, s2);
             return Ok(Some(EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                    s1: wall_key,
-                    s2: plane_key,
+                    pair: geom_brep::SurfacePair::new(wall_key, plane_key),
                     witness,
                 },
                 carrier,
@@ -1457,8 +1456,7 @@ fn chord_spec<T: Decide>(
     let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: wall_key,
-            s2: plane_key,
+            pair: geom_brep::SurfacePair::new(wall_key, plane_key),
             witness,
         },
         carrier,
@@ -1684,8 +1682,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: plane_key,
-            s2: wall_aux,
+            pair: geom_brep::SurfacePair::new(plane_key, wall_aux),
             witness,
         },
         carrier,
@@ -4002,8 +3999,7 @@ mod tests {
                 carrier.eval(t1),
                 EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1: cyl,
-                        s2: plane,
+                        pair: geom_brep::SurfacePair::new(cyl, plane),
                         witness: carrier.mid_point(t0, t1),
                     },
                     carrier,
@@ -4507,8 +4503,7 @@ mod tests {
             carrier.eval(quarter),
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: rim_plane,
+                    pair: geom_brep::SurfacePair::new(cyl, rim_plane),
                     witness: carrier.mid_point(0.0, quarter),
                 },
                 carrier,

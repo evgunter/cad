@@ -373,6 +373,7 @@ fn reporting_hook<T: Decide>(
     &Body<T>,
     &Surface<T>,
     &[LoopEdge<T>],
+    &[Vec<LoopEdge<T>>],
     &[HalfEdgeKey],
     Band,
     Tol,
@@ -380,10 +381,19 @@ fn reporting_hook<T: Decide>(
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync {
     let rounds = round_hook(quad);
-    move |body, surface, outer, hes, band, tol, _window| {
-        rounds(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?
-            .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
-            .transpose()
+    move |body, surface, outer, rings, hes, band, tol, _window| {
+        rounds(
+            body,
+            surface,
+            outer,
+            rings,
+            hes,
+            band,
+            tol,
+            RoundWindow::SCHEDULE,
+        )?
+        .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+        .transpose()
     }
 }
 
@@ -405,6 +415,7 @@ fn round_hook<T: Decide>(
     &Body<T>,
     &Surface<T>,
     &[LoopEdge<T>],
+    &[Vec<LoopEdge<T>>],
     &[HalfEdgeKey],
     Band,
     Tol,
@@ -412,9 +423,10 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, outer, hes, band, tol, window| match quad {
+    move |body, surface, outer, rings, hes, band, tol, window| match quad {
         Some(lane) => {
-            (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window, None).map(Some)
+            (lane.cut_face_rounds)(body, surface, outer, rings, hes, band, tol, window, None)
+                .map(Some)
         }
         None => Ok(None),
     }
@@ -1183,6 +1195,7 @@ fn rederive_about<T: Decide>(
                         body,
                         surface,
                         &outer,
+                        &loops[1..],
                         &hes,
                         band,
                         tol,
@@ -1918,7 +1931,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -1929,6 +1942,7 @@ type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
         &[LoopEdge<T>],
+        &[Vec<LoopEdge<T>>],
         &[HalfEdgeKey],
         Band,
         Tol,
@@ -2540,16 +2554,30 @@ fn face_flux<T: Decide>(
     let mut open_at = None;
     let mut converged_at = None;
     let mut refusal = None;
-    let contribution: FaceContribution<T> = match *surface {
-        Surface::Plane { .. } => {
-            closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
+    // A plane bounded by a spiric anywhere on its boundary has no closed
+    // form (its vector area is an elliptic integral) and takes the
+    // quadrature lane, whatever loop the spiric is on.
+    let plane_loops = match surface {
+        Surface::Plane { .. } => Some(face_loops(body, face)?),
+        _ => None,
+    };
+    let spiric_plane = plane_loops.as_ref().is_some_and(|loops| {
+        loops
+            .iter()
+            .flatten()
+            .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }))
+    });
+    let contribution: FaceContribution<T> = match plane_loops {
+        Some(loops) if !spiric_plane => {
+            closed_form_of(surface, &loops, face.sense, band).map_err(wrap)?
         }
         _ => {
             // A cone face's closed form reads every loop of lines and
             // conics, a cylinder or torus face's every loop of rims and
             // rulings, and a sphere face's every loop of circles
-            // (`geom_brep::props::curved_face_loops`); no spline kind,
-            // and no quadrature lane, reads a ring.
+            // (`geom_brep::props::curved_face_loops`), and the spiric
+            // lane every loop of a spiric-bounded plane; nothing else
+            // reads a ring.
             let mut rings = Vec::with_capacity(face.rings.len());
             for &lk in &face.rings {
                 rings.push(loop_edges(body, lk)?.0);
@@ -2564,7 +2592,9 @@ fn face_flux<T: Decide>(
                 })
             };
             let reads_rings = match surface {
-                Surface::Cone { .. } => true,
+                // A plane reaches this arm only bounded by a spiric, and
+                // the spiric lane reads every loop of its face.
+                Surface::Cone { .. } | Surface::Plane { .. } => true,
                 Surface::Cylinder { .. } | Surface::Torus { .. } | Surface::Sphere { .. } => {
                     untrimmed(&outer) && rings.iter().all(|r| untrimmed(r))
                 }
@@ -2593,16 +2623,12 @@ fn face_flux<T: Decide>(
                             | geom::Curve3::Nurbs(_)
                     )
                 });
-            // A described NURBS face ALWAYS takes the quadrature
-            // lane (M6-3): its flux has no closed form regardless
-            // of what bounds it, and the patch engine reads the
-            // stored iso pcurves rather than the carriers.
             // A described SPLINE face always takes the quadrature lane
             // (M6-3): its flux has no closed form regardless of what
             // bounds it. An approximating face is one — the flux of
             // its fit, which is the geometry the face actually carries.
-            let quad_out = if is_trimmed || surface.spline_chart().is_some() {
-                quad(body, surface, &outer, &hes, band, tol, window).map_err(wrap)?
+            let quad_out = if is_trimmed || spiric_plane || surface.spline_chart().is_some() {
+                quad(body, surface, &outer, &rings, &hes, band, tol, window).map_err(wrap)?
             } else {
                 None
             };
@@ -3391,6 +3417,7 @@ pub struct QuadLane<T: Decide> {
         &Body<T>,
         &Surface<T>,
         &[LoopEdge<T>],
+        &[Vec<LoopEdge<T>>],
         &[HalfEdgeKey],
         Band,
         Tol,
@@ -3533,7 +3560,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }
@@ -3779,7 +3806,7 @@ pub trait AtRestPolicy: Decide {
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's section lane, or `None` where it is not
-    /// derived here** — the per-chart offset door's plane × spline-wall
+    /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
     /// ([`crate::offset_derive::SectionLane`]). Its march is written at
     /// `f64` alone, so that arm answers `Some`; an offset whose edge or
