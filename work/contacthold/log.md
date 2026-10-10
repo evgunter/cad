@@ -129,3 +129,16 @@ Held for designers once the tangent lane lands:
 `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (same
 function as the tangent lane) and `declared-faces-has-no-cross-solid-check`.
 — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — the at-rest record fork goes to Ev (PR 4547)
+
+The designer pair converged on first reports: the at-rest record is an
+unordered pair of the body's cells plus its citations, in one list, with
+no operand labels, stored granularity or witness. The one difference
+(whether a straight edge in a plane gets a stored row) goes to Ev as a
+sub-question. C3 and D1 change, so this is `[ev]` PR 4547 (fork log row
+108; blinding on `analysis/design-fork/contacthold-at-rest-record`).
+Both rows `needs_ev`. Their shared side finding (an operand's records
+cross a boolean only via declarations, and F deletes that channel with no
+replacement) went as seam notes to INTENT's and WIRE's logs.
+— (CONTACTHOLD orchestrator)
