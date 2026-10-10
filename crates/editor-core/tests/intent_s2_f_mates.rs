@@ -578,3 +578,52 @@ fn a_selection_crossing_a_posed_placement_refuses() {
         "{err:?}"
     );
 }
+
+/// **A face-based side whose name stops resolving refuses in the
+/// selection's words** (review R2, m1), as an authored-frame side does:
+/// the solve's `FaceUnresolved` is the same fact, and the selection
+/// says it at the side's slot.
+#[test]
+fn a_face_based_side_that_vanishes_refuses_in_the_selections_words() {
+    let (doc, [a, b], store, body) = pair("f-face-vanish");
+    let doc = fixture::place_all(doc, &[a, b]);
+    let opts = with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
+    let (doc, mate) = fixture::step_with(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Mate {
+                a: fixture::head(in_part(a, body, CapEnd::End)).into(),
+                b: fixture::head(in_part(b, body, CapEnd::Start)).into(),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: MateFrame::from_face(),
+                    b: MateFrame::from_face(),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
+            }),
+            fresh: Vec::new(),
+        },
+        &reach,
+    );
+    let mate = mate.expect("the mate mints");
+    assert!(
+        run(&doc, &opts).node_error(mate).is_none(),
+        "the mate holds"
+    );
+    let doc = ghost_side(doc, mate, b);
+    let ev = run(&doc, &opts);
+    assert!(
+        matches!(
+            ev.node_error(mate).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::SelectResolve {
+                slot: OperandSlot::Side(editor_core::MateSide::B),
+                ..
+            })
+        ),
+        "{:?}",
+        ev.node_error(mate).map(|e| &e.kind)
+    );
+}

@@ -4212,12 +4212,15 @@ where
     // mate, and the instances' is the same fault seen from the group,
     // so poisoning the mate through them would lose the one sentence
     // that names it.
-    // A side whose selection resolves nothing is the selection's
-    // refusal first, as the wire arm asks it first.
+    // A face the solve could not find is the side's selection's to
+    // refuse, where the selection resolves nothing (D10); every other
+    // solve fault names more than the selection could.
     if let crate::node::Node::Mate { a, b, .. } = node
         && let Some(fault) = op_env.poses.fault(id)
     {
-        let kind = wire::side_refusal(doc, results, (*a, *b))
+        let kind = matches!(fault, crate::mate::MateFault::FaceUnresolved { .. })
+            .then(|| wire::side_refusal(doc, results, (*a, *b)))
+            .flatten()
             .unwrap_or_else(|| NodeErrorKind::Mate(Box::new(fault.clone())));
         return fail(bracket, kind);
     }
