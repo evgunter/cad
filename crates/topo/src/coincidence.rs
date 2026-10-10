@@ -80,7 +80,7 @@ pub enum Relation {
         /// than reversing it.
         aligned: bool,
     },
-    /// The two cells' carriers share one axis of revolution.
+    /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
     /// The two cells' carriers are ruled along one direction, so one
     /// cross-section plane sections both into curves that do not vary
