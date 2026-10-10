@@ -19,7 +19,7 @@
 use core::f64::consts::TAU;
 
 use crate::shared::interval::iv;
-use geom_brep::{MappedCurve, MappedSource, SubRange};
+use geom_brep::{MappedCurve, MappedSource};
 use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Vec3};
 
 fn width(e: Interval) -> f64 {
