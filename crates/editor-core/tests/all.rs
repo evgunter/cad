@@ -208,8 +208,6 @@ mod refusal_concision_at_rest;
 mod refusal_concision_chains;
 #[path = "refusal_concision_refactor.rs"]
 mod refusal_concision_refactor;
-#[path = "revalue_corpus.rs"]
-mod revalue_corpus;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
 #[path = "resolve_cited_line.rs"]
@@ -220,6 +218,8 @@ mod resolve_group_membership;
 mod resolve_piece_ladder;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
+#[path = "revalue_corpus.rs"]
+mod revalue_corpus;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 

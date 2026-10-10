@@ -1058,10 +1058,6 @@ mod manifest;
 pub mod memo;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
-/// The re-valuation instrument: a decision's DAG evaluated at another
-/// parameter point, against the build there (test-only).
-#[cfg(feature = "sym-revalue-testing")]
-pub mod revalue;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -1075,6 +1071,10 @@ mod rational;
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
+/// The re-valuation instrument: a decision's DAG evaluated at another
+/// parameter point, against the build there (test-only).
+#[cfg(feature = "sym-revalue-testing")]
+pub mod revalue;
 /// Rule G: the canonical square root — the one door every `Sqrt` atom
 /// is minted through, and the `D ≥ 0` side condition its quotient
 /// split rests on.

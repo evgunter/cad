@@ -104,7 +104,8 @@ fn session<R>(f: impl FnOnce() -> R) -> R {
 
 fn build(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<Decision> {
     record(|| {
-        let ev: Evaluation<Sym<f64>> = evaluate(doc, None, &CancelToken::new(), opts, Tol::witness());
+        let ev: Evaluation<Sym<f64>> =
+            evaluate(doc, None, &CancelToken::new(), opts, Tol::witness());
         ev.order.len()
     })
     .1

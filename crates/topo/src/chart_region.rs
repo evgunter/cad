@@ -1696,7 +1696,11 @@ fn wrap_band<T: Decide + Bounds>(
     let extreme = |key: fn(&(f64, f64)) -> f64, pick_hi: bool| -> usize {
         (1..4).fold(0, |best, i| {
             let (k, b) = (key(&pts[i]), key(&pts[best]));
-            if (pick_hi && k > b) || (!pick_hi && k < b) { i } else { best }
+            if (pick_hi && k > b) || (!pick_hi && k < b) {
+                i
+            } else {
+                best
+            }
         })
     };
     let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
