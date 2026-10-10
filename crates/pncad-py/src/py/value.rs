@@ -929,13 +929,13 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
-    /// The value's OWN declared-contact channel (ASM-R2b D-1): what
+    /// The value's OWN contact-record channel (ASM-R2b D-1): what
     /// `instantiate` carried in from a part. A boolean's records ride
     /// its payload instead, and the two homes reconcile at
     /// [`Value::declared_body`] — deliberately the same reconciliation
     /// `editor_core::product::sources_of` makes, because a Python
     /// caller reading a body off a value and the gather reading the
-    /// same body must not disagree about what was declared over it.
+    /// same body must not disagree about the contacts it carries.
     contacts: Arc<topo::ContactRecords>,
     node: NodeId,
 }

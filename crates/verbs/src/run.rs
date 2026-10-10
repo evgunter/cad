@@ -79,8 +79,9 @@ pub enum VerbRecord<T: Real> {
     Boolean {
         /// How the result body came to be.
         kind: BooleanResultKind,
-        /// Declared contacts surviving into the result, result keys —
-        /// the tier-3′ currency the consuming layer carries onward.
+        /// Contact records surviving into the result, result keys, each
+        /// citing the coincidence that backs it — the tier-3′ currency
+        /// the consuming layer carries onward.
         contacts: ContactRecords,
         /// Mint-time naming facts the naming layer consumes.
         naming: BooleanNaming,

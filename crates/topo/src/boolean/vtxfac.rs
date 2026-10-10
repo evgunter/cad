@@ -49,7 +49,7 @@
 //! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
 //! fans representable, but a boolean tangential contact is a *legal 3′
 //! touching* (edge-on-face, both flanking faces the same side) already
-//! carried by the declared contact records — TOG Table II rows 5/9
+//! carried by the contact records — TOG Table II rows 5/9
 //! (`(In,In)`/`(Out,Out)` ⇒ no intersection) confirm no crossing is
 //! recorded. Mixed keeps the In side (both witnesses' choice for the
 //! split analogue).

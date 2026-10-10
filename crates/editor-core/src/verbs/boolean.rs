@@ -17,7 +17,7 @@
 //!   silent drop). Name resolution is the document's semantics, so it
 //!   runs upstairs; what this correspondence's `build` receives is the
 //!   already-lowered arena-key form.
-//! - **The declared-contact carry**: the surviving contacts come back
+//! - **The contact-record carry**: the surviving contacts come back
 //!   in the verb's record channel and the lowering carries them into
 //!   the boolean VALUE (`BooleanValue::Body { contacts, .. }`), the
 //!   tier-3′ currency downstream ops re-enter.
