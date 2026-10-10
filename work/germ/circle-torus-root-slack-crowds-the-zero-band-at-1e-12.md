@@ -239,8 +239,16 @@ predicate with the largest `|m| / band_zero` and its row, and the CLI
 prints that per file and counts it in the TOTAL line. It fails nothing.
 Rule 2's definite arm and rules 1, 3 and 4 are unchanged, and no kernel
 decision moved. On the real dumps at ε 1e-6, 1e-9 and 1e-12 the ten
-former flags print as tallied notes and the zero arm leaves the exit
-status at 0 (the PR body carries the before and after output).
+former flags print as tallied notes, and a run over the dumps' zero
+rows alone exits 2 before and 0 after (the PR body carries the
+output). The full dumps still exit 2 on findings this change does not
+touch: `chart_bound_outer_span`'s rule-1 poison
+(`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`),
+`bool_pair_gap`'s ε-coupled margins
+(`work/cleave/bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint.md`,
+filed by this unit), `props_quad_*` on the cutaway and the lily
+(`work/quad/`) and `demo/table`'s `volume_backstop`
+(`work/tally/table-union-backstop-margin-sits-under-the-k-lint-floor.md`).
 
 The nightly `k-lint (dev-probe)` row still does not reach the lint:
 the sweep's pre-pass is red on
