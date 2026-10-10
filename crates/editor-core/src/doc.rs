@@ -1793,9 +1793,9 @@ impl<P> Doc<P> {
     /// `expected`** (D10), if anything: a kind the seat does not admit
     /// ([`crate::SlotKind::admits`]); for a part projection that
     /// selects `half` of a split, the split's other half; or, for a
-    /// reader that constructs, a world placement's copy (D10:
-    /// construction never reads the world; a measure observes a copy's
-    /// placed geometry). Asked of a live read by every door that writes
+    /// reader that constructs, a world placement's copy, read directly
+    /// or through a selection of it (D10: construction never reads the
+    /// world; a measure observes a copy's placed geometry). Asked of a live read by every door that writes
     /// or loads one — the edit doors' lowering and the load door's
     /// operand walk — so the rule is stated once; liveness is each
     /// door's own question, asked before.
@@ -1808,6 +1808,13 @@ impl<P> Doc<P> {
     ) -> Option<ReadFault> {
         if !expected.admits(held) {
             return Some(ReadFault::Kind { found: held.kind() });
+        }
+        // A selection reads its body: constructing from a face of a copy
+        // reads the copy, whichever seat minted the selection.
+        if let (Reader::Constructs, Some(select)) = (reader, held.def().select()) {
+            let (body, _) = self.var(select.body)?.def().output()?;
+            return matches!(self.node(body), Some(Node::PlaceInWorld { .. }))
+                .then_some(ReadFault::WorldCopy { placement: body });
         }
         let (from, port) = held.def().output()?;
         match (half, self.node(from)) {
@@ -2899,8 +2906,21 @@ mod tests {
 pub(crate) enum Reader {
     /// A construction seat.
     Constructs,
-    /// A measure's reference seat.
+    /// A measure's reference seat, or a selection's own body read: a
+    /// selection names faces and builds nothing, so what reads it
+    /// decides.
     Observes,
+}
+
+impl Reader {
+    /// How a seat of `kind` reads: a measure's observes, every other
+    /// constructs.
+    pub(crate) fn of(kind: crate::SlotKind) -> Self {
+        match kind {
+            crate::SlotKind::Measured(_) => Self::Observes,
+            _ => Self::Constructs,
+        }
+    }
 }
 
 /// [`Doc::read_fault`]'s answer, rendered by each door in its own

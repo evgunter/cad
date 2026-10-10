@@ -664,7 +664,12 @@ impl FaceSite {
     }
 
     fn __repr__(&self) -> String {
-        format!("FaceSite(member={}, face={})", self.member, self.face)
+        format!(
+            "FaceSite(copy=Var({}), member={}, face={})",
+            self.copy.0.full(),
+            self.member,
+            self.face
+        )
     }
 }
 
@@ -747,7 +752,7 @@ impl InterferenceFinding {
     }
 
     /// Why the overlap has no site — `refused`, `invalid`, `empty`,
-    /// `unnamed` or `containment` — or `None` when `faces` names it. An
+    /// `unnamed`, `containment` or `lane` — or `None` when `faces` names it. An
     /// unlocalized overlap is loud and nothing quiets it.
     #[getter]
     fn unlocalized(&self) -> Option<&'static str> {

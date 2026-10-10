@@ -1214,12 +1214,19 @@ fn lower_operand<P: crate::ProfilePayload>(
     half: Option<crate::SplitHalf>,
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
-    lower_read(doc, spoken, slot, read, half, expected, Reader::Constructs)
+    lower_read(
+        doc,
+        spoken,
+        slot,
+        read,
+        half,
+        expected,
+        Reader::of(expected),
+    )
 }
 
-/// [`lower_operand`] for a reader that `observes` its read
-/// ([`Reader::Observes`]: a measure's selection, which may read a
-/// world copy) or constructs from it.
+/// [`lower_operand`] read as `reader` reads: the seat's own reader,
+/// or, for a selection's body, [`Reader::Observes`].
 fn lower_read<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1296,12 +1303,9 @@ fn mint_selection<P: crate::ProfilePayload>(
     names: &[StableName],
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
-    // A measure observes the copy's placed geometry, so its selection
-    // may read a world copy; every construction seat may not.
-    let reader = match expected {
-        crate::SlotKind::Measured(_) => Reader::Observes,
-        _ => Reader::Constructs,
-    };
+    // The selection's body read observes, and may name a world copy:
+    // every seat reading the selection is then asked whether it may
+    // read that copy (`Doc::read_fault`).
     let body = lower_read(
         doc,
         spoken,
@@ -1309,7 +1313,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         body,
         None,
         crate::SlotKind::Is(VarKind::Body),
-        reader,
+        Reader::Observes,
     )?;
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),

@@ -305,14 +305,25 @@ fn interference_solids<T: Decide>(
 /// run at report a decided overlap as [`Unlocalized::Lane`], loud.
 pub trait LocalizeLane: Decide + AtRestPolicy {
     /// The findings of the copies `a` and `b` of `product`, which the
-    /// census decided interfere ([`partition`]).
+    /// census decided interfere ([`partition`]): by default one
+    /// [`Unlocalized::Lane`] finding, the scalar having no lane.
     fn localize(
         product: &Product<Self>,
         a: usize,
         b: usize,
         evidence: Vec<ValidationError>,
-        tol: Tol,
-    ) -> Vec<InterferenceFinding>;
+        _: Tol,
+    ) -> Vec<InterferenceFinding> {
+        unlocalized_at_lane(product, a, b, evidence)
+    }
+}
+
+/// The copy `i` of `product`, as a finding names it.
+fn copy_ref<T: Decide>(product: &Product<T>, i: usize) -> CopyRef {
+    CopyRef {
+        var: product.copies[i].var,
+        member: product.copies[i].output,
+    }
 }
 
 /// The finding a scalar with no localizing lane reports for a pair:
@@ -323,13 +334,9 @@ fn unlocalized_at_lane<T: Decide>(
     b: usize,
     evidence: Vec<ValidationError>,
 ) -> Vec<InterferenceFinding> {
-    let copy_ref = |i: usize| CopyRef {
-        var: product.copies[i].var,
-        member: product.copies[i].output,
-    };
     vec![InterferenceFinding {
-        a: copy_ref(a),
-        b: copy_ref(b),
+        a: copy_ref(product, a),
+        b: copy_ref(product, b),
         evidence,
         overlap: Overlap::Unlocalized(Unlocalized::Lane),
         quiet: None,
@@ -337,41 +344,11 @@ fn unlocalized_at_lane<T: Decide>(
 }
 
 #[cfg(feature = "probe")]
-impl LocalizeLane for geom_core::Probe {
-    fn localize(
-        product: &Product<Self>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
-        _: Tol,
-    ) -> Vec<InterferenceFinding> {
-        unlocalized_at_lane(product, a, b, evidence)
-    }
-}
+impl LocalizeLane for geom_core::Probe {}
 
-impl LocalizeLane for geom_core::Interval {
-    fn localize(
-        product: &Product<Self>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
-        _: Tol,
-    ) -> Vec<InterferenceFinding> {
-        unlocalized_at_lane(product, a, b, evidence)
-    }
-}
+impl LocalizeLane for geom_core::Interval {}
 
-impl LocalizeLane for geom_core::Dual<f64> {
-    fn localize(
-        product: &Product<Self>,
-        a: usize,
-        b: usize,
-        evidence: Vec<ValidationError>,
-        _: Tol,
-    ) -> Vec<InterferenceFinding> {
-        unlocalized_at_lane(product, a, b, evidence)
-    }
-}
+impl LocalizeLane for geom_core::Dual<f64> {}
 
 impl LocalizeLane for f64 {
     fn localize(
@@ -497,10 +474,7 @@ fn localize(
     evidence: Vec<ValidationError>,
     tol: Tol,
 ) -> Vec<InterferenceFinding> {
-    let copy_ref = |i: usize| CopyRef {
-        var: product.copies[i].var,
-        member: product.copies[i].output,
-    };
+    let copy_ref = |i: usize| copy_ref(product, i);
     let finding = |overlap, quiet| InterferenceFinding {
         a: copy_ref(a),
         b: copy_ref(b),

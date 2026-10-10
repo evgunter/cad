@@ -406,7 +406,10 @@ that refuses leaves the finding `Unlocalized`. A quiet finding carries
 no verdict nothing checked: every `CensusUndecidable` on the pair must
 be a face pair bounding the quieted overlap. Every other overlap is
 loud. Between two solids of one copy an overlap stays the kernel's
-typed error.
+typed error. The partition takes interference verdicts only: a press
+fit whose pin is flush with its plate also touches at the coplanar
+caps, an undeclared contact the census refuses, so that document
+refuses before any finding is reported.
 
 ## Mirror
 

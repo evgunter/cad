@@ -345,12 +345,15 @@ refuse by default, with an explicit opt-in subtracting closed-form
 overlap volumes; booleans are unchanged; STEP export drops the
 declaration.
 
-Not implemented: the variant lands with its first consumer. Until then
-the backstop's containment arm decides the nested-instance class by a
+Not implemented: the variant lands with its first consumer. The
+backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
-instance with a vertex inside another's material refuses typed
-(`ValidationError::InstanceInterference`) — and no declaration admits an
-interference. Invariant: inside one body an interference is always a
+instance with a vertex inside another's material is
+`ValidationError::InstanceInterference` — and no declaration admits an
+interference. Between two copies at rest the editor's gate reads that
+verdict, a pierce and a same-side crossing as interference evidence
+(ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
+the overlap, not by a declaration. Invariant: inside one body an interference is always a
 typed error, and at rest between two copies it is always a finding
 (ASSEMBLY A5 *Interference.*), loud unless an assertion at its site
 quiets it; no blanket "disable interference checking" exists.
@@ -492,7 +495,8 @@ left).
 
 ## Open
 
-- The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
+- Inside one body the `EdgeFacePierce` arm (issue 973) refuses typed;
+  no declaration admits it (C6).
 - `ef_bound_backed`'s migration is parked
   (`ef-bound-backed-migrates-to-region-confinement`, D10).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
