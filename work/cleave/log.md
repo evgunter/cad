@@ -779,3 +779,5 @@ Signed (CLEAVE orchestrator).
   - one `k_stats` gate-rejection path, reconciled with 4571's additions;
   - `lift` and `clearance` endings traced.
 - **Dispatched:** mints unit 3, `point-in-solid-mints-outside-its-period-and-nappe-rows`.
+- **PR 4564 merged** (`wedge_classes` On; single FULL review, fix pass done). The coplanarity
+  triplication is filed on HONE.

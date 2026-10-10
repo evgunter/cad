@@ -44,3 +44,27 @@ A design question:
 - read a straddling enclosure again, tighter, before typing it;
 - type "in band or within its rounding of the band" as in band;
 - or leave the window to the kernel's arm and say so in D10's text.
+
+## A single-shell result is never role-read at the gate (CLEAVE, 2026-10-10)
+
+From CLEAVE's `a-built-sliver-is-not-a-legal-operand`, which is parked on
+FLUXTAIL's
+`a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`.
+
+**What happens now.** Check 10 skips a solid with one shell
+(`validate.rs` `shell_winding_errors`). Such a result's sign is decided
+only by check 7, which reads the f64 closed form with `volume_pad = 0`.
+A sphere-pair sliver `2e-6` thick then ships, though its certified
+`V/A` enclosure, about ±9e-6, straddles zero. The next boolean refuses
+it at the at-infinity read, which is the same certified walk.
+
+**Option (B), not built.** The gate could run the certified role read
+on single-shell results too. That would honour "no door ships a body it
+cannot certify", but two things are open:
+- **Its cost.** It adds one sign walk per result. That is unmeasured,
+  as is how many results a later op can still read that it would refuse.
+- **Its typing.** This row's question: an enclosure undecided by the
+  kernel's own arithmetic is neither in band (`Escalated`) nor a
+  definite finding (`ResultInvalid`). The CLEAVE case is the
+  arithmetic's: the true `V/A` is 50 Kε, so `Escalated` would break PR
+  4335's honesty condition.
