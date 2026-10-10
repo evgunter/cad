@@ -213,13 +213,17 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// `Debug`. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
+/// to turn its offset from the axis: 8 of its points moved by at most 2
+/// ulps (`m10_p_fence`'s header has the dump), and no name table did.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
         ("part_select", 0xe46a_3753_51cd_897b),
-        ("kitchen_sink", 0x9a17_85a9_db7c_a173),
+        ("kitchen_sink", 0x584d_4b4e_2841_6b7f),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
