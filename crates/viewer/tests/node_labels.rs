@@ -220,7 +220,8 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
 
 /// **`op`, labelled `text`, as one undo**: the creation commits through
 /// whatever door it takes, the action ends with a `SetLabel` on the
-/// last node it minted, the label is on that node, and ONE undo returns
+/// node it made (`viewer::world::made`: the last it minted that is not
+/// a world placement), the label is on that node, and ONE undo returns
 /// the document to what it was before the action. Answers that node.
 fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
     let before = session.committed_doc().clone();
@@ -231,10 +232,8 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
         label: label(text),
     });
     assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
-    let node = *outcome
-        .minted
-        .last()
-        .unwrap_or_else(|| panic!("{what} minted"));
+    let node = viewer::world::made(session.committed_doc(), &outcome.minted)
+        .unwrap_or_else(|| panic!("{what} made a node"));
     assert!(
         matches!(
             outcome.committed.last(),
@@ -754,21 +753,17 @@ fn the_gathers_refusal_speaks_its_nodes() {
     let (doc, extrude) = extruded("viewer-node-labels-product", tol);
     let doc = relabelled(&doc, extrude, "plate", tol);
     let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0.digest()));
-    let collision = pncad::document::ProductError::Naming {
+    let lineage = pncad::document::ProductError::ContactLineage {
         node: extrude,
-        name: Box::new(pncad::prelude::StableName {
-            kind: pncad::prelude::EntityKind::Face,
-            node: extrude,
-            path: Vec::new(),
-        }),
+        what: "face",
     };
-    let badge = viewer::frame::product_badge(Some(&collision), &doc).expect("a collision badges");
+    let badge = viewer::frame::product_badge(Some(&lineage), &doc).expect("a lineage fault badges");
     assert!(badge.label().contains(&spoken), "{}", badge.label());
 
     let (broken, failed, _) = common::broken_document(tol);
     let broken = relabelled(&broken, failed, "pocket", tol);
     let refused =
-        viewer::scene::product_body(&broken, tol).expect_err("a failed root gathers nothing");
+        viewer::scene::product_body(&broken, tol).expect_err("a failed placement gathers nothing");
     assert!(
         refused
             .to_string()
@@ -777,12 +772,12 @@ fn the_gathers_refusal_speaks_its_nodes() {
     );
 }
 
-/// **The Checks window speaks its roots from the landed document.** The
-/// report is the landed run's, so while a rename has not landed the
-/// window's root button and the finding's sentence both say the label
-/// the run was over, never the committed one's.
+/// **The Checks window speaks from the landed document.** The report
+/// is the landed run's, so while a rename has not landed the window's
+/// body button says the label the run was over, never the committed
+/// one's.
 #[test]
-fn the_checks_window_speaks_its_roots_from_the_landed_document() {
+fn the_checks_window_speaks_from_the_landed_document() {
     let tol = Tol::witness();
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
@@ -814,14 +809,18 @@ fn the_checks_window_speaks_its_roots_from_the_landed_document() {
         .iter()
         .find(|row| row.node == big)
         .expect("the two overlapping boxes are a separation finding about the big one");
-    let (b, s) = (tag(big.0.digest()), tag(small.0.digest()));
+    let b = tag(big.0.digest());
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
+    // The finding is about the two copies, and names them by their
+    // placements (A10).
+    let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
         row.sentence.contains(&format!(
-            "Extrude \"big block\" ({b}) output 0: not certifiably disjoint from Extrude {s} \
-             output 0"
+            "PlaceInWorld {} output 0: not certifiably disjoint from PlaceInWorld {} output 0",
+            copy(big),
+            copy(small)
         )),
-        "the finding speaks both roots from the landed document: {}",
+        "the finding speaks both copies from the landed document: {}",
         row.sentence
     );
     assert!(

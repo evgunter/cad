@@ -718,9 +718,9 @@ fn analysis_keeps_its_ids_across_a_rename() {
 
 // -------------------------------------------------------------- row 12
 
-/// A frame, a square and an extrude of depth `depth`, at `cx`: the
-/// three ids.
-fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
+/// A frame, a square and an extrude of depth `depth`, at `cx`, the
+/// extrude placed in the world: the four ids.
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -737,7 +737,16 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
             side: ExtrudeSide::Along,
         },
     );
-    (doc, [frame, profile, extrude])
+    let (doc, placed) = crate::fixture::place(doc, extrude);
+    (doc, [frame, profile, extrude, placed])
+}
+
+/// The one extrude a part carried.
+fn carried_extrude(part: &ProfileDoc) -> RecipeNodeId {
+    part.ids()
+        .into_iter()
+        .rfind(|&id| matches!(part.node(id), Some(Node::Extrude { .. })))
+        .expect("the carried extrude")
 }
 
 /// Row 12: a split declares each variable the cut reads in the part and
@@ -762,7 +771,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("the cut alone reads h");
     let part_h = id(&out.part, "h");
     assert_ne!(part_h, id(&doc, "h"), "the part mints its own id");
-    let extrude = *out.part.ids().last().expect("the carried extrude");
+    let extrude = carried_extrude(&out.part);
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
         Formula::var(part_h, Dimension::Length),
@@ -796,10 +805,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("an anonymous variable crosses a split");
     let carried = out
         .part
-        .slot(
-            *out.part.ids().last().expect("the carried extrude"),
-            SlotId::Distance,
-        )
+        .slot(carried_extrude(&out.part), SlotId::Distance)
         .expect("the carried extrude's depth");
     assert!(out.part.var_name(carried).is_none(), "it stays anonymous");
     assert!(
@@ -869,7 +875,7 @@ fn declare_as(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc 
 /// `doc` split at `cut` into a part, the part published to a store.
 fn split_into_store(
     doc: &ProfileDoc,
-    cut: [RecipeNodeId; 3],
+    cut: [RecipeNodeId; 4],
     seed: &str,
 ) -> (
     editor_core::SplitOutcome,
@@ -1340,7 +1346,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         Tol::witness(),
     );
     let part = declare(&part, "d", 1.0);
-    let (part, [_, _, toleranced]) = block(part, 0.0, len(0.75));
+    let (part, [_, _, toleranced, _]) = block(part, 0.0, len(0.75));
     let Some(Node::Extrude { distance, .. }) = part.node(toleranced) else {
         unreachable!("block's third node is its extrude")
     };
@@ -1353,7 +1359,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         },
     )
     .doc;
-    let (part, [_, _, offset]) = block(
+    let (part, [_, _, offset, _]) = block(
         part,
         4.0,
         Formula::add(named("d"), len(0.25)).expect("lengths add"),
@@ -1602,7 +1608,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         Tol::witness(),
     );
     let doc = declare(&doc, "w", 1.0);
-    let (doc, [_, _, extrude]) = block(doc, 0.0, len(1.0));
+    let (doc, [_, _, extrude, _]) = block(doc, 0.0, len(1.0));
     let w = id(&doc, "w");
     let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
     for var in [w, VarId::new(0, 12_345)] {
@@ -1630,9 +1636,10 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         match try_step(
             &gone,
             DocEdit::InsertNode {
-                node: Box::new(Node::Measure {
-                    expr: editor_core::MeasureExpr::value(Formula::var(var, Dimension::Length)),
-                    refs: Vec::new(),
+                node: Box::new(Node::Assertion {
+                    value: Formula::var(var, Dimension::Length),
+                    bound: len(0.0),
+                    dir: editor_core::AssertionDir::AtLeast,
                 }),
                 fresh: Vec::new(),
             },
@@ -1643,31 +1650,48 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
     }
 }
 
-/// A measure's content key reads which variable a value leaf reads, not
-/// only what it evaluates to: two measures over two variables of one
-/// value are two keys, so a seed or a box on one serves no memo of the
-/// other.
+/// An assertion's content key reads its value as a slot's does, by its
+/// bits at the run's scalar: two assertions over two variables of one
+/// value share a key at `f64`, and a seed on one moves that one's key
+/// alone, so a seeded pass serves no memo of the other.
 #[test]
-fn the_measure_key_reads_the_variable_not_its_value() {
+fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
     let doc = ProfileDoc::empty(
         DocumentId::derive("intent-vars-3-measure-key"),
         Tol::witness(),
     );
     let doc = declare(&declare(&doc, "a", 0.25), "b", 0.25);
-    let measure = |name| Node::Measure {
-        expr: editor_core::MeasureExpr::value(named(name)),
-        refs: Vec::new(),
+    let assertion = |name| Node::Assertion {
+        value: named(name),
+        bound: len(0.0),
+        dir: editor_core::AssertionDir::AtLeast,
     };
-    let (doc, on_a) = insert(doc, measure("a"));
-    let (doc, on_b) = insert(doc, measure("b"));
+    let (doc, on_a) = insert(doc, assertion("a"));
+    let (doc, on_b) = insert(doc, assertion("b"));
     let evaluation = eval_after(&doc, None);
     let key = |node| {
         evaluation
             .value(node)
-            .unwrap_or_else(|| panic!("the measure evaluates: {:?}", evaluation.result(node)))
+            .unwrap_or_else(|| panic!("the assertion evaluates: {:?}", evaluation.result(node)))
             .content_key
     };
-    assert_ne!(key(on_a), key(on_b));
+    assert_eq!(key(on_a), key(on_b), "equal values, equal content");
+    let seeded = editor_core::evaluate::<geom_core::Dual64>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &editor_core::EvalOptions {
+            seed: doc.var_named("a"),
+            ..editor_core::EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    let seeded_key = |node| seeded.value(node).expect("evaluates").content_key;
+    assert_ne!(
+        seeded_key(on_a),
+        seeded_key(on_b),
+        "a seed on `a` moves its reader's key alone"
+    );
 }
 
 /// A refusal naming a variable, spoken again from a later version of

@@ -13,6 +13,7 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::{body_of, failures};
+use crate::fixture::split_world as split;
 use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::persist::SnapshotError;
@@ -20,7 +21,7 @@ use editor_core::{
     CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
     Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, FreshEntry, LoopProgram, Maintenance,
     Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl,
-    VarId, VarName, apply, evaluate, load, save, split,
+    VarId, VarName, apply, evaluate, load, save,
 };
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
@@ -489,6 +490,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
             side: ExtrudeSide::Along,
         },
     );
+    let doc = crate::fixture::place(doc, extrude).0;
     (doc, [frame_id, profile, extrude])
 }
 
@@ -1126,23 +1128,22 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
         Formula::length_in(5.0, quantity::MM).unwrap(),
     )
     .unwrap();
-    let applied = step(
+    let doc = step(
         &doc,
-        DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(editor_core::MeasureExpr::value(sum), Vec::new()).unwrap(),
-            ),
-            fresh: Vec::new(),
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("m"),
+            def: editor_core::VarDecl::Defined(sum),
         },
-    );
-    let (doc, measure) = (applied.doc, applied.record.minted.expect("an insert mints"));
+    )
+    .doc;
+    let measure = doc.var_named("m").expect("declared");
     // Typed lengths at slot roots: anonymous free variables, untoleranced.
     let doc = step(&doc, point([len(0.25), len(0.5), len(0.75)], Vec::new())).doc;
     let w = doc.var_named("w").unwrap();
     assert_eq!(
         crate::fixture::continuous_vars(&doc),
         6,
-        "the premise: w, v, the measure's typed 5 mm and the point's three typed lengths"
+        "the premise: w, v, m's typed 5 mm and the point's three typed lengths"
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(

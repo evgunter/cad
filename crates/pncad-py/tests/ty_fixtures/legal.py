@@ -10,7 +10,8 @@ from pncad import (
     Var,
     MeasurePrimitive,
     Placement,
-    MeasureExpr,
+    Measured,
+    Measurement,
     AssertionDir,
     Advisory,
     AnalysisPolicy,
@@ -597,9 +598,10 @@ on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
 to_world: DocEdit = DocEdit.set_gauge(instance, None)
 promoted: DocEdit = DocEdit.promote(instance)
 folded: DocEdit = DocEdit.fold(stand_on)
-designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-product_roots: list[NodeId] = doc.roots
+placed: NodeId = doc.place(instance, Placement.identity(), label="the post")
+world: list[NodeId] = doc.placements()
+placer: Node = Node.place_in_world(instance)
 offset_read: Placement | None = doc.offset(instance)
 gauge_read: NodeId | None = doc.gauge(instance)
 carried_reference: DocRef | None = doc.reference(instance)
@@ -860,26 +862,24 @@ spun: FreeVar = FreeVar.written_angle(turned)
 symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
-# Authoring a measurement. The verb vocabulary is a value class, the
-# expression is checked as it is built, and the node takes the
-# reference list its primitives index — each entry a node and a name,
-# the pair `Node.mate` already takes each of its two sides as.
-reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
+# Authoring a measurement. The verb vocabulary is a value class over
+# its two references — each a node and a name, the pair `Node.mate`
+# already takes each of its two sides as — and its arithmetic is an
+# ordinary formula over the measures' outputs.
+reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[int, int] = reach.refs
-span: MeasureExpr = MeasureExpr.primitive(reach)
-pad: MeasureExpr = MeasureExpr.value(doc.parse_formula("bore_r"))
-web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
-measured_kind: str = web.dimension
-leaves: list[MeasurePrimitive] = web.primitives
-sink: NodeId = doc.insert(
-    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
-)
-# The bound is an EXPRESSION, because its dimension is the measure's
-# and a slot address cannot fix it.
+which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+measured_kind: str = reach.dimension
+recorded: Measured = doc.measure([reach])
+spans: list[NodeId] = recorded.measures
+spanned: list[Var] = recorded.outputs
+lone: NodeId = doc.insert(Node.measure(reach))
+# The bound is an EXPRESSION, because its dimension is the value's and
+# a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.outputs[0], AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
 )
+read_back: Measurement = evaluate(doc).reading(recorded.outputs[0])
 which_way: str = AssertionDir.AtMost.symbol
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and
@@ -899,11 +899,9 @@ except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
     # ...and the arm's PAYLOAD beside them, every attribute present and
-    # each typed. A delete that would dangle carries the two node
-    # roles; the rest are `None` here, which is a value the stub types
-    # and not a missing attribute.
+    # each typed. An attribute the arm does not carry is `None`, which
+    # is a value the stub types and not a missing attribute.
     dangling: NodeId | None = edit_refusal.node
-    consumer: NodeId | None = edit_refusal.referenced_by
     operand: NodeId | None = edit_refusal.input
     which_slot: str | None = edit_refusal.slot
     which_param: str | None = edit_refusal.param

@@ -2,12 +2,12 @@
 id: a-failed-requirement-refuses-the-whole-product
 kind: issue
 title: A report-only Measure or Assertion root that fails refuses the whole product gather; under D10's explicit product list a check must never gate the product
-status: parked
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: M
-blocked_on: [the-product-is-an-explicit-list]
 refs: [a-measured-part-is-not-a-product-root]
+closed: 2026-10-08
 ---
 
 
@@ -36,3 +36,11 @@ of an assertion: the quieting rule. It reads only the verdict, and a
 failed or poisoned assertion quiets nothing and refuses nothing, so this
 row's acceptance holds through stage 5 (spec test 10). Nothing here moves
 the row's trigger.
+
+## Closed
+
+By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch
+`intent/s2-c-world`): the gather reads only the placements, and a
+measure or an assertion is no placement, so a failing one reports and
+the product builds: `crates/editor-core/tests/intent_s2_c_world.rs`,
+`a_failing_measure_and_its_assertion_gate_no_placement`.

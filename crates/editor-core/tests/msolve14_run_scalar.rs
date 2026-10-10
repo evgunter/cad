@@ -914,10 +914,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// with each id replaced by its document position measured equal on
 /// main and on the branch at all three ε, so no pose, role, fault or
 /// placement moved.
+///
+/// And again for INTENT stage 2 C (all three rows): each part places
+/// its body in its world, so every part's pin — and every instance id
+/// hashing it — moved, and the part's names reach an instance under its
+/// placement's copy. The id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb3ce8c9530ae6ed9),
-    (1e-6, 0x3f5c2db610fb533e),
-    (1e-12, 0x5ad0ed7fe327ddb9),
+    (1e-9, 0xd990_dfd6_ae82_6190),
+    (1e-6, 0xa569_1fea_927b_069a),
+    (1e-12, 0xcc6d_951f_f897_0e1d),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -2094,21 +2099,18 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
 #[test]
 fn a5_sensitivities_cross_a_face_framed_mate() {
     use editor_core::stackup::{SensitivityOutcome, SensitivityRefusal, sensitivities};
-    use editor_core::{MeasureExpr, MeasurePrimitive, SitedRef};
+    use editor_core::{MeasurePrimitive, SitedRef};
     let b = bolted("msolve14-a5-stackup", MateFrame::from_face());
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
     let foot = all_vertices(&ev, b.bolt)[0].clone();
     let corner = all_vertices(&ev, b.slab)[0].clone();
-    let (doc, m) = insert(
-        b.doc.clone(),
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(b.bolt, foot.clone()),
-                SitedRef::new(b.slab, corner.clone()),
-            ],
-        )
-        .expect("both indices address a reference"),
+    let (doc, m) = crate::fixture::measure_node(
+        &b.doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(b.bolt, foot.clone()),
+            SitedRef::new(b.slab, corner.clone()),
+        ],
     );
     // The closed form: the bolt moves by `−2` per unit of spacing along
     // `x` and the slab holds still, so `∂|d|/∂s = d · (−2, 0, 0) / |d|`
@@ -2129,8 +2131,16 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
             distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
         },
     );
-    let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
-        .expect("the driver runs");
+    let entries = sensitivities(
+        &doc,
+        crate::fixture::output(&doc, m),
+        None,
+        None,
+        false,
+        Some(&resolver),
+        Tol::witness(),
+    )
+    .expect("the driver runs");
     assert_eq!(entries.len(), 1, "one entry, the toleranced spacing's");
     let entry = entries
         .iter()
@@ -2150,7 +2160,7 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
         matches!(
             sensitivities(
                 &doc,
-                m,
+                crate::fixture::output(&doc, m),
                 Some(&unresolved),
                 None,
                 false,

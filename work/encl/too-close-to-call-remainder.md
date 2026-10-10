@@ -87,13 +87,3 @@ from `DECISION_PHRASES` with the last one.
   tail "for a designed resting contact; otherwise move them until their
   bounding boxes no longer overlap" is written four times there and
   wants one spelling too.
-- **The poison→note rule has three or four homes.** "A margin that
-  could not be read adds `UNREADABLE_MARGIN_NOTE`" is decided at
-  `geom_brep::recourse::not_yet`, `LeverOnly::recourse`,
-  `topo::validate` `unnamed` and `MarginDiag::sized_recourse`'s
-  `Reading::Invalid` arm. `unnamed` still re-implements `not_yet` from a
-  bare `MarginDiag` (it routes through `geom_core::noted`, but the
-  `is_invalid` test is its own), and `the_not_yet_ending_is_one_spelling`
-  exists only to reconcile the two. Give the rule one home (say a
-  `MarginDiag`-level "note on an unreadable margin" both read) and
-  delete the reconciling test.

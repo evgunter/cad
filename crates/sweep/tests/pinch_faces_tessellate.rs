@@ -161,7 +161,7 @@ fn cylinder(v: V3, m: V3, psi: f64) -> AtRestBody<f64> {
 
 /// The poses whose boolean escalates at ε 1e-6, each on a margin of
 /// its own in band, and the predicate it escalates on
-/// (`work/join/two-pinch-poses-escalate-at-eps-1e-6.md`): the join's
+/// (`work/flush/two-pinch-poses-escalate-at-eps-1e-6.md`): the join's
 /// partner order, read on `main` at `cadf2ed188` as well, and a pierce
 /// sector's curvature side, in `sectors`, which no ray walk reaches.
 const REFUSES_AT_1E6: &[(&str, &str)] = &[

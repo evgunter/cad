@@ -54,13 +54,14 @@ const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
 /// measured sizes (`work/perf/assemble-aggregate-census-is-quadratic-in-solids.md`).
 const FINS: [i64; 3] = [10, 40, 160];
 
-/// The corpus heat sink with its fin count driven to `fins`.
+/// The corpus heat sink with its fin count driven to `fins`, and each
+/// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
     let entry = documents()
         .into_iter()
         .find(|d| d.name == "heat_sink")
         .expect("the corpus carries the heat sink");
-    apply(
+    let driven = apply(
         &entry.doc,
         &DocEdit::SetVarValue {
             var: VarName::from_static("fins").into(),
@@ -70,7 +71,8 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
-    .doc
+    .doc;
+    corpus::place_pattern_to(driven, fins)
 }
 
 /// One document's row: the product's size, `assemble`'s outcome, and

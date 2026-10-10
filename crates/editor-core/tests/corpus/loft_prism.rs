@@ -66,6 +66,8 @@ pub fn document() -> CorpusDoc {
         v_degree: Formula::count(2),
     });
 
+    r.place(loft);
+
     CorpusDoc {
         name: "loft_prism",
         about: "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
