@@ -129,4 +129,4 @@ there.
 - rings on a cone face in `face_flux`: `docs/GERM-CONE-SECTOR-SPEC.md` U-S5, closed since by PR 4484 (`an-ellipse-trimmed-ring-on-a-cone-wall-has-no-volume-lane`);
 - the held configurations under D10 (U-H1, U-H2).
 
-`docs/GERM-VERBS-CONE-SPEC.md` is kept rather than deleted at this merge: its U5 is still unbuilt and is cited by the open item above. It goes when U5 lands or at GERM's close.
+`docs/GERM-VERBS-CONE-SPEC.md` is deleted with U5 (`cone-pairs-in-general-pose-have-no-section-arm`); its ledger note is `docs/doc-ledger/germ-verbs-cone-spec.md`.

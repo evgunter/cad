@@ -4,10 +4,10 @@
 //! ARC-rim residual gate — each extract a described NURBS wall's own
 //! boundary column through `geom_brep::boundary_iso_u` /
 //! `boundary_iso_v`. Those doors are control-net COPIES whose only
-//! refusals are a net that disagrees with the knot vector it is
-//! indexed by and a weight on the extracted column that is not
-//! positive and finite — and `geom::NurbsSurface::new` refuses exactly
-//! those nets at construction. The refusal is therefore
+//! refusal is a weight on the extracted column that is not positive
+//! and finite — and `geom::NurbsSurface::new` refuses such a net at
+//! construction, along with every net whose length disagrees with
+//! the knot vectors the copy indexes it by. The refusal is therefore
 //! unreachable from any body this reader assembles, and it says
 //! nothing about whether the edge is the shape the rung is looking
 //! for.
@@ -143,8 +143,8 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
     let knots_v = kv(4, 3);
     let ok_control = vec![Point3::new(0.0, 0.0, 0.0); 12];
 
-    // One control point short: the doors would answer
-    // ControlCountMismatch before slicing a row — if the wall existed.
+    // One control point short: a copy indexing this net by its knots
+    // would slice past its end — if the wall existed.
     let short = vec![Point3::new(0.0, 0.0, 0.0); 11];
     assert!(
         matches!(
@@ -192,14 +192,14 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
 /// message names WHICH structural invariant the wall broke, so a
 /// kernel-bug report says more than that a kernel bug happened.
 /// Dropping the `{source}` interpolation reddens this immediately. One
-/// exemplar per kind the doors build: a count of the whole net, and a
+/// exemplar per kind the doors build: a non-positive and a non-finite
 /// weight on the extracted column.
 #[test]
 fn the_refusal_names_which_invariant_the_wall_broke() {
     for source in [
-        SplineError::ControlCountMismatch {
-            control: 11,
-            expected: 12,
+        SplineError::NonPositiveWeight {
+            index: 1,
+            weight: -1.0,
         },
         SplineError::NonFiniteWeight {
             index: 3,
