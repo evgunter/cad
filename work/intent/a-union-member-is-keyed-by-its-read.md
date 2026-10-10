@@ -2,11 +2,12 @@
 id: a-union-member-is-keyed-by-its-read
 kind: issue
 title: A union keys a member's names by the operation it reads, so two members read out of one operation (a split's two halves) cannot be named apart
-status: open
+status: dispatched
 opened: 2026-10-09
 priority: P0
 cost: M
 refs: [part-split-half-retires, operands-are-reads, a-name-is-scoped-by-the-variable-holding-its-body]
+branch: intent/dm4-names-keyed-by-read
 ---
 
 **The finding.** DM4 keyed a union member's names by the operation it
