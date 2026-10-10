@@ -270,21 +270,18 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
                 let face = piece.face_of_half_edge(he).unwrap();
                 piece.get_face(face).unwrap().surface
             };
-            let mut pair = [face_surface(e.he_plus), face_surface(e.he_minus)];
+            let faces =
+                geom_brep::SurfacePair::new(face_surface(e.he_plus), face_surface(e.he_minus));
             let description = piece
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
                 .expect("the seam is described")
                 .description();
-            let geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } = *description
-            else {
+            let geom_brep::EdgeDescription::TangentIntersection { pair, .. } = *description else {
                 panic!("{side}: the seam stores {description:?}, not its intrinsic tangency");
             };
-            let mut cited = [s1, s2];
-            pair.sort();
-            cited.sort();
             assert_eq!(
-                cited, pair,
+                pair, faces,
                 "{side}: the seam's tangency names its two faces"
             );
             seams += 1;

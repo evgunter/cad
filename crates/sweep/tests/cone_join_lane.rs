@@ -172,12 +172,14 @@ fn conic_chords(body: &Body<f64>) -> Vec<Chord> {
             if !matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. }) {
                 return None;
             }
-            let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
+            let EdgeDescription::Intersection { pair, .. } = c.description() else {
                 return None;
             };
             Some(Chord {
                 carrier: c.carrier().clone(),
-                surfaces: [*s1, *s2].map(|s| body.get_surface(s).expect("a surface").clone()),
+                surfaces: pair
+                    .keys()
+                    .map(|s| body.get_surface(s).expect("a surface").clone()),
             })
         })
         .collect()
@@ -467,13 +469,13 @@ fn lune_loops(
                     break;
                 };
                 let carrier = c.carrier();
-                let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
+                let EdgeDescription::Intersection { pair, .. } = c.description() else {
                     all_lune = false;
                     break;
                 };
                 let chord = Chord {
                     carrier: carrier.clone(),
-                    surfaces: [*s1, *s2].map(|s| body.get_surface(s).unwrap().clone()),
+                    surfaces: pair.keys().map(|s| body.get_surface(s).unwrap().clone()),
                 };
                 if !matches!(carrier, Curve3::Ellipse { .. })
                     || !planes.iter().any(|&pl| cut_by_plane(&chord, cone, pl))

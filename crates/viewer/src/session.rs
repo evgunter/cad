@@ -757,10 +757,15 @@ impl core::fmt::Debug for LandedRun {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
     /// The gate certified the assembled product; how many declarations
-    /// its mates minted.
+    /// its mates minted, and how many overlaps between copies it
+    /// reported, loud and quiet.
     Certified {
         /// The minted declaration count.
         minted: usize,
+        /// The interference findings no assertion quiets.
+        loud: usize,
+        /// The interference findings an assertion quiets.
+        quiet: usize,
     },
     /// The gate's own refusal of the product it judged, in its own
     /// rendering, never a sentence composed here.
@@ -3529,6 +3534,12 @@ fn badge(
         Ok(assembly) => (
             AtRestBadge::Certified {
                 minted: assembly.minted.len(),
+                loud: assembly.interference.iter().filter(|f| f.is_loud()).count(),
+                quiet: assembly
+                    .interference
+                    .iter()
+                    .filter(|f| !f.is_loud())
+                    .count(),
             },
             Some(Arc::new(assembly.body)),
         ),

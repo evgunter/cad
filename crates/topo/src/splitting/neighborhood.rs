@@ -57,7 +57,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::rules;
-use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
+use super::{PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
@@ -266,14 +266,18 @@ pub fn classify_neighborhood<T: Decide>(
                             return Err(SplitReduceError::SliverSector {
                                 vertex,
                                 face,
-                                diag: escalation.diag(),
+                                reading: SectorReading::Escalated(escalation.diag()),
                             });
                         }
                     }
                 }
                 Err(diag) => {
                     let (face, _, _) = sector_face(body, vertex, he)?;
-                    return Err(SplitReduceError::SliverSector { vertex, face, diag });
+                    return Err(SplitReduceError::SliverSector {
+                        vertex,
+                        face,
+                        reading: SectorReading::Escalated(diag),
+                    });
                 }
             }
         } else {
@@ -301,7 +305,11 @@ pub fn classify_neighborhood<T: Decide>(
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
-        let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
+        let sliver = |diag| SplitReduceError::SliverSector {
+            vertex,
+            face,
+            reading: SectorReading::Escalated(diag),
+        };
         let SectorShape {
             arm,
             bisector: wide,
@@ -333,8 +341,8 @@ pub fn classify_neighborhood<T: Decide>(
         }
     }
 
-    let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
+    let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
+    rules::apply_rule_b(body, vertex, &mut entries, &readings, band)?;
     Ok(entries)
 }
 

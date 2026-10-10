@@ -2,11 +2,14 @@
 id: spiric-bounded-face-area-is-unimplemented
 kind: issue
 title: A face bounded by a Curve3::Spiric has no area or volume lane: loop_vector_area and the torus wall's closed-form parse refuse Unimplemented, which is where the hollowed klein elbow and the sectioned torus vessel now stop
-status: open
+status: closed
+pr: 4554
+branch: flux/spiric-area
 priority: P2
 cost: H
 refs: [c5-plane-torus-cone-cylinder-arms]
 opened: 2026-10-01
+closed: 2026-10-10
 ---
 
 Filed by CURVED at its close (2026-10-01).
@@ -52,3 +55,12 @@ carrier ball before this door was reached. The row pins the props
 door's `Unimplemented` and turns to a closed-form volume when this
 lands. The same bowl at `150°`, `t = 0.02` reached this door on main
 before that PR.
+
+## Closed (2026-10-10, PR 4554)
+
+(FLUX orchestrator) Built as a certified fifth-order Taylor quadrature
+lane, `geom_brep::props::spiric`, for spiric-bounded plane caps and torus
+walls, wired by carrier kind in `topo::props`. It went through dual review
+(DR-149) and a fix pass at `d43a02f36a`, and an independent verifier
+confirmed every fix by execution. The rows that pinned `Unimplemented` now
+measure against independent oracles.
