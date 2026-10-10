@@ -190,7 +190,7 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// **The count is over the aggregate's SOLIDS.** Its one caller,
 /// `step_import::import_step`, gates each placed instance, which is one
 /// solid, with tier 3; its aggregate gate is tier 3′, the
-/// declared-contact census, which is where the cross-part structure is
+/// contact-record census, which is where the cross-part structure is
 /// checked. Its instance count IS its solid count, and it says why at
 /// the call. A caller that counts something else owes the reason its
 /// count IS the solid count, at the call.

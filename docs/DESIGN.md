@@ -294,7 +294,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    census must find no coincidence at all. Every door that returns or
    consumes one pays that gate once, at the door that built it.
    The Boolean door's result meets tier 3 without the census: its
-   declared contacts ride beside it (`BooleanBody::contacts`), and the
+   contact records, each citing the coincidence that backs it, ride
+   beside it (`BooleanBody::contacts`), and the
    census over them is parked on CONTACT's cross-solid curved lane
    (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
    Construction state (tier 1, or tier 2 without geometric

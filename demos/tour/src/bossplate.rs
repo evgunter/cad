@@ -82,7 +82,7 @@ fn boss<S: Scalar>(tol: Tol) -> AtRestBody<S> {
 }
 
 /// The union (a seamed boolean body — 3′ validates with its own
-/// declared contacts, like every boolean stop).
+/// contact records, like every boolean stop).
 pub fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
     match pncad::topo::union(&plate::<S>(tol), &boss::<S>(tol), tol)
         .expect("the first transverse curved boolean")

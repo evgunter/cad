@@ -2,7 +2,7 @@
 //! bodies** — ch. 15 §§15.4–15.6 re-derived under our conventions, with
 //! the TOG 1986 second witness supplying the unprinted on-edge
 //! machinery (Tables II/III). Scope is BINDING (M3-PLAN PR item 4):
-//! reduction sweep, the three ON-sets as declared-contact records
+//! reduction sweep, the three ON-sets as contact records
 //! (F1/F2), vertex-vertex sector classification, vertex-on-face
 //! classification with the ring insertion, on-edge machinery, and
 //! paired null-edge insertion with explicit cross-body correspondence
@@ -39,8 +39,8 @@
 //!    pairs are skipped — their edge-edge events are caught when the
 //!    edge meets the face's noncoplanar NEIGHBOR faces (tested).
 //!    Every contact the sweep discovers or creates is emitted as a
-//!    **declared-contact record** ([`ContactRecords`]) — the future
-//!    tier-3′ declarations; nothing is ever scanned-for after the fact.
+//!    **contact record** ([`ContactRecords`]), citing the coincidence
+//!    that decided it; nothing is ever scanned-for after the fact.
 //! 3. **Classification** (`sectors`/`recl`/`tables`/`vtxfac`): v-v
 //!    pairs via the all-pairs sector intersection search (Programs
 //!    15.7–15.9 re-derived), on-sector reclassification (15.10 in
@@ -483,8 +483,8 @@ pub struct EdgePieceClass {
     pub class: SideCode,
 }
 
-/// A coincident vertex pair — one `sonvv` record: declared contact
-/// between vertex `a` of body A and vertex `b` of body B.
+/// A coincident vertex pair — one `sonvv` record: a contact between
+/// vertex `a` of body A and vertex `b` of body B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VvContact {
     /// The A-side vertex (key into the A clone).
@@ -619,9 +619,9 @@ pub struct PatchContact {
     pub face_b: FaceKey,
 }
 
-/// The ON-sets as **declared-contact records** (F1/F2): emitted
-/// by the pipeline as it discovers each contact — these are the future
-/// tier-3′ declarations. Deterministic discovery order, deduplicated.
+/// The ON-sets as **contact records** (F1/F2): emitted by the
+/// pipeline as it discovers each contact, each citing the coincidence
+/// that decided it. Deterministic discovery order, deduplicated.
 ///
 /// `PartialEq` is load-bearing, not a convenience: D9's bit-identical
 /// replay promises that a rerun reproduces the RECORDS bit-identically
@@ -1917,7 +1917,7 @@ impl NullCopies {
 /// The site a corresponding null-edge pair was minted at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PairSite {
-    /// A vertex-vertex classification at this declared contact.
+    /// A vertex-vertex classification at this contact record.
     VertexVertex(VvContact),
     /// A vertex of A piercing a face of B.
     VertexAOnFaceB(VfContact),
@@ -1986,7 +1986,7 @@ pub struct BooleanReduction<T: Real> {
     pub a: Body<T>,
     /// The annotated B clone.
     pub b: Body<T>,
-    /// The declared-contact records (the three ON-sets). Each cites
+    /// The contact records (the three ON-sets). Each cites
     /// the reduction's own decisions (`pending`), which the carry onto
     /// the result renumbers onto the result's coincidences.
     pub contacts: ContactRecords,

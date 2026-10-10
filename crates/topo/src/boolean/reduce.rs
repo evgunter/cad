@@ -44,7 +44,7 @@
 //! - **Edge-on-edge crossings** are discovered as edge-face events
 //!   landing ON an edge of the face: BOTH edges are split at the
 //!   (bitwise-shared) intersection point — the minted vertices are a
-//!   declared v-v contact pair by construction.
+//!   v-v contact record by construction.
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
 //!   order, faces in arena snapshot order, worklist FIFO. Then the
 //!   settle stage ([`settle_deferred`]): the covered touches a direction
