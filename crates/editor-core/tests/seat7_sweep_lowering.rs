@@ -328,6 +328,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `Debug`. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
+/// to turn its offset from the axis: 8 of its points moved by at most 2
+/// ulps (`m10_p_fence`'s header has the dump), and no name table did.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -335,7 +339,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0xdb95_b8fc_06b7_a993),
         ("cut_cylinder", 0x4318_92f9_c696_0fd1),
         ("boss_union", 0x05b4_17a8_c844_6429),
-        ("kitchen_sink", 0x98c0_fba7_09be_e02d),
+        ("kitchen_sink", 0x00a8_c564_60a9_8611),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
