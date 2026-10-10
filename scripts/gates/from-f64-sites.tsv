@@ -107,20 +107,12 @@ crates/geom/src/curves/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-ar
 crates/geom/src/curves/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	lo	a span's stored lower knot, differenced at T
 crates/geom/src/curves/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.curve.weights[i]	the curve's stored weight
 crates/geom/src/curves/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	wj	the curve's stored weight
-crates/geom/src/curves/projection.rs	1	launders(geom-keeps-computed-values-in-t)	tn	a Newton iterate of the curve projection
-crates/geom/src/curves/projection.rs	2	launders(geom-keeps-computed-values-in-t)	t	a seed on the stored knots and a Newton iterate of the curve projection
 crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	1.0 / w_min	the stored weights' minimum
 crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	bw	the stored weights' deviation under a re-fit
 crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	orig_weights[i]	a NURBS net's stored weight
 crates/geom/src/net.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	rw	a re-fit net's stored weight
 crates/geom/src/surfaces/nurbs.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	l	a knot-insertion plan's blend ratio, from the stored knots
 crates/geom/src/surfaces/nurbs.rs	3	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	self.surface.weights[idx]	the surface's stored weight
-crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	un	a Newton iterate of the surface projection
-crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	un - u	a Newton step of the surface projection
-crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	vn	a Newton iterate of the surface projection
-crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	vn - v	a Newton step of the surface projection
-crates/geom/src/surfaces/projection.rs	2	launders(geom-keeps-computed-values-in-t)	u	a Newton iterate of the surface projection
-crates/geom/src/surfaces/projection.rs	2	launders(geom-keeps-computed-values-in-t)	v	a Newton iterate of the surface projection
 crates/pncad/src/authoring.rs	2	constant	z	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/pncad/src/authoring.rs	5	constant	y	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/pncad/src/authoring.rs	6	constant	x	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
