@@ -1311,11 +1311,31 @@ pub(super) fn hull_sector<T: Decide>(
     chart: &ProjectedChart<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?;
+    holds(
+        T::from_computed(piece.x_lo),
+        band,
+        k,
+        SectorChannel::Azimuth,
+    )?;
     if matches!(chart, ProjectedChart::Torus { .. }) {
-        holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;
+        holds(
+            T::from_computed(piece.tube_lo),
+            band,
+            k,
+            SectorChannel::Tube,
+        )?;
     }
     Ok(())
+}
+
+/// `(σz)_min` over a part whose `z` ranges over `z`, on `nappe`: a
+/// bound the hull walk computed, so at `Sym` an unknown.
+fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
+    if nappe == Nappe::Opening {
+        T::from_computed(z.0)
+    } else {
+        T::zero() - T::from_computed(z.1)
+    }
 }
 
 /// The distance of an angle from the nearest point of `shift + τℤ`.
@@ -1404,10 +1424,10 @@ pub(super) fn net_incidence<T: Decide>(
                 "a knot span's radial or axial floor is not certified",
             ));
         }
-        let rho = T::from_f64(span.rho_lo);
+        let rho = T::from_computed(span.rho_lo);
         let floor = (rho - d).max(T::zero());
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
-        let f = T::from_f64(span.f_sup);
+        let f = T::from_computed(span.f_sup);
         let disp = match *twin {
             Surface::Plane { .. } => f,
             Surface::Cylinder { radius, .. } => f / (radius + rho.max(radius - f / radius)),
@@ -1416,11 +1436,7 @@ pub(super) fn net_incidence<T: Decide>(
                 let ProjectedChart::Cone { nappe, .. } = *chart else {
                     unreachable!("the chart kinds match")
                 };
-                let z = if nappe == Nappe::Opening {
-                    T::from_f64(span.z.0)
-                } else {
-                    T::zero() - T::from_f64(span.z.1)
-                };
+                let z: T = axial_floor(span.z, nappe);
                 let (sin, cos) = half_angle.sin_cos();
                 let lever = require_positive(
                     "pcurve_projected_lever",
@@ -1936,4 +1952,84 @@ pub(super) fn run_projected_checks<T: Decide>(
         envelope,
         EnvelopeStatement::MapResidualProjected,
     ))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::sym::revalue::{record, revalue};
+    use geom_core::sym::with_session;
+    use geom_core::{Sym, SymBudget};
+
+    use super::*;
+
+    type S = Sym<f64>;
+
+    /// The hull's bounds are the `f64` hull walk's, so at `Sym` each
+    /// enters as an unknown and what reads it re-values to nothing; a
+    /// constant would re-value to its own bits. Per site: the sector's
+    /// azimuth and tube channels (`x_lo`, `tube_lo`, decided in that
+    /// order), the plane's incidence (`f_sup`) and Lipschitz floor
+    /// (`rho_lo`), and the cone's axial floor on each nappe (`z`).
+    #[test]
+    fn the_hulls_bounds_enter_as_computed_values() {
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let hull = ProjectedHull {
+            pieces: vec![PieceHull {
+                x_lo: 1.0,
+                tube_lo: 1.0,
+            }],
+            spans: vec![SpanHull {
+                range: (0.0, 1.0),
+                f_sup: 1e-3,
+                rho_lo: 1.0,
+                z: (0.5, 2.0),
+            }],
+        };
+        let none = |_| None;
+        let ((sector, incidence, floor, z), _) = with_session(budget, || {
+            let torus = ProjectedChart::Torus {
+                major: S::from_f64(1.2),
+            };
+            let ((), decisions) = record(|| {
+                hull_sector::<S>(&hull.pieces[0], 0, &torus, band).expect("both channels hold")
+            });
+            let sector: Vec<_> = decisions
+                .iter()
+                .filter(|d| d.predicate == "pcurve_projected_sector")
+                .map(|d| revalue(d.node, &none))
+                .collect();
+            let plane = Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }
+            .map_scalar(S::from_f64);
+            let (incidence, floor) = net_incidence(
+                &hull,
+                (S::zero(), S::one()),
+                &ProjectedChart::Plane,
+                &plane,
+                S::from_f64(0.25),
+                band,
+            )
+            .expect("the plane's part is certified");
+            let z = [Nappe::Opening, Nappe::Mirror]
+                .map(|nappe| revalue(axial_floor::<S>((0.5, 2.0), nappe).node(), &none));
+            (
+                sector,
+                revalue(incidence.node(), &none),
+                revalue(floor.node(), &none),
+                z,
+            )
+        });
+        assert_eq!(sector, [None, None], "x_lo, tube_lo: the sector's channels");
+        assert_eq!(incidence, None, "f_sup: the plane's incidence");
+        assert_eq!(floor, None, "rho_lo: the Lipschitz floor");
+        assert_eq!(z, [None, None], "z.0, z.1: the axial floor on each nappe");
+    }
 }
