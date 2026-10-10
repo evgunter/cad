@@ -286,7 +286,11 @@ pub struct BooleanNaming {
     /// of no body in the result on an `Absent` side. The mint-time
     /// crossing correspondences the
     /// naming layer reads even when one side's key was consumed
-    /// (`BooleanBody::contacts` drops such rows by design).
+    /// (`BooleanBody::contacts` drops such rows by design). Its cells
+    /// are the reading: each record's [`crate::Backing::Decided`]
+    /// names a decision of the reduction's own, which the result
+    /// records as a row only where a record citing it survives, so its
+    /// citations index no list a reader holds.
     pub reduction_contacts: ContactRecords,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
@@ -3337,21 +3341,25 @@ fn cite_rows(
     mut records: ContactRecords,
     ledger: &Ledger,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
-    let mut used: Vec<usize> = records
-        .cites()
-        .flat_map(Cites::iter)
-        .filter_map(|b| match b {
-            Backing::Decided(k) => Some(k as usize),
-            Backing::Carried { .. } => None,
-        })
-        .filter(|&k| ledger.pending.get(k).is_some_and(|p| p.margin.is_some()))
+    let decided = records.decided();
+    if decided
+        .last()
+        .is_some_and(|&k| k as usize >= ledger.pending.len())
+    {
+        return Err(BooleanError::JoinDesync {
+            what: "a contact record cites a decision the reduction did not make",
+        });
+    }
+    // A decision with no margin (a transverse pierce's landing) is not
+    // a coincidence, and a record citing only such is refused below.
+    let used: Vec<u32> = decided
+        .into_iter()
+        .filter(|&k| ledger.pending[k as usize].margin.is_some())
         .collect();
-    used.sort_unstable();
-    used.dedup();
     let mut coincidences = ledger.recorded.clone();
     let base = coincidences.len();
     for &k in &used {
-        let row = ledger.pending[k];
+        let row = ledger.pending[k as usize];
         let Some(margin) = row.margin else {
             unreachable!("only a decided row is emitted")
         };
@@ -3363,42 +3371,15 @@ fn cite_rows(
             discharge: crate::Discharge::Numeric,
         });
     }
-    let renumber = |cites: &mut Cites| -> Result<(), BooleanError> {
-        let mapped = cites.try_map(|b| {
-            Ok::<_, BooleanError>(match b {
-                Backing::Decided(k) => used
-                    .binary_search(&(k as usize))
-                    .ok()
-                    .map(|rank| Backing::Decided(super::reduce::index(base + rank))),
-                carried @ Backing::Carried { .. } => Some(carried),
-            })
-        })?;
-        *cites = mapped.ok_or(BooleanError::ClassificationInvariant {
+    records
+        .renumber_decided(|k| {
+            used.binary_search(&k)
+                .ok()
+                .map(|rank| super::reduce::index(base + rank))
+        })
+        .map_err(|_| BooleanError::ClassificationInvariant {
             what: "a contact record surviving into the result cites no decision",
         })?;
-        Ok(())
-    };
-    let ContactRecords {
-        vv,
-        a_on_b,
-        b_on_a,
-        ve,
-        ee,
-        curves,
-        patches,
-    } = &mut records;
-    for cites in vv
-        .iter_mut()
-        .map(|c| &mut c.cites)
-        .chain(a_on_b.iter_mut().map(|c| &mut c.cites))
-        .chain(b_on_a.iter_mut().map(|c| &mut c.cites))
-        .chain(ve.iter_mut().map(|c| &mut c.cites))
-        .chain(ee.iter_mut().map(|c| &mut c.cites))
-        .chain(curves.iter_mut().map(|c| &mut c.cites))
-        .chain(patches.iter_mut().map(|c| &mut c.cites))
-    {
-        renumber(cites)?;
-    }
     Ok((records, coincidences))
 }
 
@@ -3421,6 +3402,9 @@ pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> cra
             .find(|s| s.operand == input && s.vertex == v)
             .map_or(cell, |s| Cell::Edge(root(s.parent))),
         Cell::Edge(e) => Cell::Edge(root(e)),
+        // The sweep splits edges and never a face: every pending row is
+        // written before the insertion mints a face, so a face key in the
+        // clone is the input's.
         Cell::Face(_) => cell,
     };
     crate::RowCell::Input { input, cell }
@@ -3683,7 +3667,9 @@ fn carry_rows<T: Real>(
     }
     // Every group's live cells: its vertex ends with their copies, in
     // end order, then the edges attached to it; each with the nodes it
-    // stands for.
+    // stands for. A result cell is one entry whichever side reaches it
+    // (named by the first), so a pair it joins cites the shortest chain
+    // from any of its nodes rather than each side's own.
     let mut live: Vec<(usize, End, Vec<Node>)> = Vec::new();
     let push = |live: &mut Vec<(usize, End, Vec<Node>)>,
                 g: usize,
@@ -3691,7 +3677,7 @@ fn carry_rows<T: Real>(
                 c: Option<Cell>,
                 node: Node| {
         if let Some(c) = c {
-            match live.iter_mut().find(|(h, e, _)| (*h, *e) == (g, (side, c))) {
+            match live.iter_mut().find(|(h, e, _)| (*h, e.1) == (g, c)) {
                 Some((_, _, nodes)) => {
                     if !nodes.contains(&node) {
                         nodes.push(node);
