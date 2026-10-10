@@ -241,7 +241,7 @@ fn whole_range_mismatches<T: Real>(
                         axis_dir: n,
                         angle,
                     },
-                    Affine3::rotation_about_axis(q, n, s * angle).transform_point(placed(pt)),
+                    Affine3::rotate_point_about_axis(q, n, s * angle, placed(pt)),
                 ),
                 (
                     "strut",
