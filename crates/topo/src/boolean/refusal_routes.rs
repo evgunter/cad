@@ -3461,6 +3461,45 @@ pub(in crate::boolean) mod tests {
         );
     }
 
+    /// **The maximal-faces gate reads a pair at the edge they share,
+    /// wherever the operand stands** (F7): the split top's half tilted
+    /// about the diagonal by an angle whose sweep over the edge's extent
+    /// reads zero is one plane with its neighbour, on the unit prism and
+    /// on the prism moved hundreds of metres across the diagonal, where
+    /// the planes part by many bands at the world origin.
+    #[test]
+    fn the_maximal_faces_gate_reads_a_tilted_neighbour_alike_wherever_it_stands() {
+        let (b, tol) = (band(), Tol::witness());
+        for share in [0.5, 0.9] {
+            let body = top_split_redescribed(|p0, along, diagonal| {
+                let theta = share * b.zero() / diagonal;
+                let up = Vec3::new(0.0, 0.0, 1.0);
+                crate::Surface::Plane {
+                    origin: p0,
+                    normal: up * theta.cos() + along.cross(up) * theta.sin(),
+                    u_ref: along,
+                }
+            });
+            for shift in [
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(600.0, -400.0, 250.0),
+                Vec3::new(-300.0, 0.0, 0.0),
+            ] {
+                let moved = crate::transform::transform_rigid(
+                    &body,
+                    &geom_core::Affine3::translation(shift),
+                    tol,
+                )
+                .expect("a translation is rigid");
+                let read = super::super::reduce::gate_maximal_faces(&moved, Operand::A, b);
+                assert!(
+                    matches!(read, Err(BooleanError::NonMaximalFaces { .. })),
+                    "a {share} band tilt moved by {shift:?}: {read:?}"
+                );
+            }
+        }
+    }
+
     /// A unit prism whose top face is split along its diagonal, one half
     /// re-described on the plane `plane` gives from the diagonal's first
     /// end, its unit direction and its length. The new surface is its

@@ -54,3 +54,35 @@ shared vertex's struts before any fan, and the TOPO row's close says no
 battery reaches the check. If that ordering is a proof, `corner_bound`'s
 refusal is bug-only and belongs in row 4 with the other two. If it is
 not, its comment should name the input that reaches it.
+
+## Evidence: three near-tangent sites (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+`near-tangent-pierce-poses-reach-three-classification-invariants`
+measured three `ClassificationInvariant` sites reachable by valid input
+(JOIN's near-tangent census, 28 800 runs per ε row: 345 at 1e-9, 108 at
+1e-6, 552 at 1e-12). None was a bug-only state; each was an earlier
+decision and a later one reading one question two ways. After that
+branch:
+
+- `boolean/vtxfac.rs` `pierce_germ_dir`, "pierce germ direction not
+  uniquely within its sector": **retired** (row 0). The ray is the
+  transition's own (`OutBound`, from the codes that made the sector a
+  transition), so no reading can return both or neither.
+- `boolean/vtxfac.rs`, "geometrically coplanar sector with
+  definitely-distinct plane": the unglued pair's extent ball was
+  centred at the world origin, so the offset rung read the tilt at the
+  corner's distance from the origin while `bool_sector_coplanar` read
+  it at the arm. Centred at the pierce point, the parallel rung reads
+  that same margin at the same arm, and the offset is `p`'s standing
+  off the two planes it lies on. `Distinct` is now bug-only: a row 4
+  candidate.
+- `boolean/recl.rs` `require_same`, "geometrically-ON sector pair with
+  definitely-distinct carriers": the same origin-centred ball, now
+  centred at the corner. The offset arm is bug-only for the same
+  reason. The parallel arm is NOT shown bug-only: an all-On record says
+  each bound departs within the band at its reach, and a thin sector
+  tilted about its bisector satisfies that while its normals' cross at
+  the arm reads definitely off. `vtxfac`'s coplanar lump has an arm for
+  that state (the bounds' own margin, `bool_sector_coplanar` on the
+  steeper bound); `recl` has none. Unmeasured: no census run reached
+  it after the branch.

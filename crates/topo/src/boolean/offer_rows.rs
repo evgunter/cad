@@ -1169,7 +1169,13 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
     };
-    super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band()).map(|_| ())
+    super::super::vtxfac::pierce_germ_dir(
+        &s,
+        Vec3::new(D.sin(), 0.0, D.cos()),
+        super::super::vtxfac::OutBound::Start,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// `A` a block `[0, 2]² × [0, 1]`, `B` a unit block standing over its

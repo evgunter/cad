@@ -671,8 +671,9 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 /// same surface key, or Same±-oriented planes its margins decide one
 /// ([`super::oriented_plane_eq`]), across any edge ⇒
 /// [`BooleanError::NonMaximalFaces`]; a near-coplanar dihedral surfaces
-/// as the predicate's own typed escalation instead. The ladder is levered at
-/// the shared edge's extent ([`crate::readback::edge_extent`]). It runs
+/// as the predicate's own typed escalation instead. The ladder reads the
+/// shared edge's extent ([`crate::readback::edge_extent`]) about the
+/// edge's start, so the offset is the planes' at the edge. It runs
 /// on an operand [`gate_operand`] passed, so every edge it reads holds
 /// a certified carrier.
 pub(super) fn gate_maximal_faces<T: Decide>(
@@ -718,10 +719,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                  ({absence:?}): the operand gate refuses a null edge as scaffolding"
             )
         });
-        let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
-            geom_core::Point3::origin(),
-            arm,
-        ));
+        let at = body.resolve_vertex_point(
+            crate::live::proven(&body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
+            crate::live::Proven,
+        );
+        let extent =
+            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(at, arm));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
         match super::oriented_plane_eq(&p1, &p2, super::PlaneIdentity::NONE, &extent, band) {

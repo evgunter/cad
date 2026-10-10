@@ -40,6 +40,8 @@ use super::sectors::{BoolSector, Flank, PairRecord, Reach, crossing_flank, side_
 use super::tables::{eq15_3_lump, kept_copy, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
+use crate::entity::EntityId;
+use crate::live::{Proven, proven};
 use crate::validate::decide;
 use geom_core::k_stats::NonzeroSign;
 
@@ -132,12 +134,13 @@ pub(super) fn require_same<T: Decide>(
         declared: declared_one_carrier,
     };
     // A glued pair reads as the door read it at rest, over both faces;
-    // any other at the corner's arm.
+    // any other over the arm about the corner, where the sector
+    // classification read the pair On.
     let extent = if declared_one_carrier {
         declared.consumed(o1, s1.face, o2, s2.face)?
     } else {
         super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
-            geom_core::Point3::origin(),
+            corner_of(body1, s1),
             arm,
         ))
     };
@@ -185,6 +188,18 @@ pub(super) fn require_same<T: Decide>(
             )?,
             diag,
         )),
+    }
+}
+
+/// The point of the vertex a sector of `body` stands at: a line
+/// bound's base, or else its orbit half-edge's start.
+fn corner_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> geom_core::Point3<T> {
+    match (s.start_reach, s.end_reach) {
+        (Reach::Chord { base, .. }, _) | (_, Reach::Chord { base, .. }) => base,
+        _ => body.resolve_vertex_point(
+            proven(&body.half_edges, s.he, EntityId::HalfEdge).start,
+            Proven,
+        ),
     }
 }
 

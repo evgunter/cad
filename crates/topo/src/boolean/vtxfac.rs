@@ -759,14 +759,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             declared: declared_one_carrier,
         };
         // A glued pair reads as the door read it at rest, over both
-        // faces; any other at the sector's arm.
+        // faces; any other over the sector's arm about `p`, where the
+        // tilt above read it coplanar.
         let extent = if declared_one_carrier {
             declared.consumed(piercing, s.face, pierced_op, contact.face)?
         } else {
-            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(
-                geom_core::Point3::origin(),
-                s.arm,
-            ))
+            super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, s.arm))
         };
         let pair = (piercing, s.face, pierced_op, contact.face);
         let rel = match super::carrier_eq::carrier_eq_reading(
@@ -891,7 +889,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // with the ring strut below).
     // Every run's germs are read before any run is minted: a mint moves
     // the orbit the germ loci are read from.
-    let germ_of = |t: usize| -> Result<Germ<T>, BooleanError> {
+    let germ_of = |t: usize, out: OutBound| -> Result<Germ<T>, BooleanError> {
         let s = &sectors[t];
         let own = super::sectors::germ_locus(
             super::sectors::GermSide {
@@ -908,14 +906,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => ((s.face, contact.face), (own, pierced)),
             Operand::B => ((contact.face, s.face), (pierced, own)),
         };
-        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), band)?))
+        Ok((cells, pierce_germ_dir(s, n_pierced.vec(), out, band)?))
     };
     let run_germs = runs
         .iter()
         .map(|run| {
             Ok((
-                germ_of((run.0 + n - 1) % n)?,
-                germ_of((run.0 + run.1 - 1) % n)?,
+                germ_of((run.0 + n - 1) % n, OutBound::Start)?,
+                germ_of((run.0 + run.1 - 1) % n, OutBound::End)?,
             ))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
@@ -1272,9 +1270,21 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 
 /// The germ direction at a pierce-site transition: the unit
 /// intersection direction of the transition sector's face plane with
-/// the pierced face's TANGENT plane at the pierce point, signed to lie
-/// within the sector (grazes count — an on-edge germ IS a bound).
-/// Ambiguity refuses loudly.
+/// the pierced face's TANGENT plane at the pierce point, signed by which
+/// of the sector's bounds the Out run holds ([`OutBound`]).
+///
+/// **The sign is the transition's, not a second reading.** The sector
+/// sweeps CCW about its outward normal `n_s` from `start` to `end`, and
+/// its plane's directions on the pierced normal's side are the half-plane
+/// about `u`, the pierced normal's component in that plane. A quarter
+/// turn CCW carries `u` to `n_s × u = n_s × n_p`, so a sweep starting
+/// above the section line leaves that half-plane along `n_s × n_p`, and
+/// one starting below enters it along `−n_s × n_p`; a sweep under a
+/// full turn crosses the line once more only after passing its end. An
+/// Out start bound (above ≙ Out) and an In end bound give `n_s × n_p`,
+/// the reverse its negation. Where a bound read On folded into the In
+/// run, the line runs along that bound to within the band, and the
+/// ray this picks is the one along it: the germ the fold put there.
 ///
 /// **Why the tangent plane is the exact datum, not an approximation of
 /// one.** A germ direction is the initial direction of the curve along
@@ -1289,14 +1299,14 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 /// same cross product on a curved carrier and gets the section's
 /// tangent rather than a chord.
 ///
-/// Sense-invariant given its sources (S10): the cross product names a
-/// LINE and `within` picks the ray, so neither normal's sign survives
-/// into the answer. Both arrive oriented already — `s.normal` from
+/// Both normals arrive outward already (S10) — `s.normal` from
 /// `sectors::sector_face`, `pierced_normal` from the one door
-/// ([`crate::face_normal`]) — and neither is multiplied again here.
+/// ([`crate::face_normal`]) — and the sign above reads them as such, so
+/// neither is multiplied again here.
 pub(super) fn pierce_germ_dir<T: Decide>(
     s: &super::sectors::BoolSector<T>,
     pierced_normal: geom_core::Vec3<T>,
+    out: OutBound,
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
     let int = s.normal.vec().cross(pierced_normal);
@@ -1329,16 +1339,20 @@ pub(super) fn pierce_germ_dir<T: Decide>(
         }
     }
     let d = int.normalize();
-    let moot = DeclarationRead::Moot;
-    let plus = super::sectors::within(s, d, false, moot, band)?;
-    let minus = super::sectors::within(s, -d, false, moot, band)?;
-    match (plus, minus) {
-        (true, false) => Ok(d),
-        (false, true) => Ok(-d),
-        _ => Err(BooleanError::ClassificationInvariant {
-            what: "pierce germ direction not uniquely within its sector",
-        }),
-    }
+    Ok(match out {
+        OutBound::Start => d,
+        OutBound::End => -d,
+    })
+}
+
+/// Which bound of a pierce transition sector the Out run holds: the
+/// other reads In.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum OutBound {
+    /// The sector's CCW-first bound: the sector precedes the run.
+    Start,
+    /// The sector's CCW-last bound: the sector closes the run.
+    End,
 }
 
 /// A pierce germ as a run reads it: `(A face, B face)` and
@@ -1732,8 +1746,13 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
         };
-        let err =
-            pierce_germ_dir(&s, Vec3::new(mid.sin(), 0.0, mid.cos()), band).expect_err("in band");
+        let err = pierce_germ_dir(
+            &s,
+            Vec3::new(mid.sin(), 0.0, mid.cos()),
+            OutBound::Start,
+            band,
+        )
+        .expect_err("in band");
         assert!(
             matches!(
                 err,
@@ -1752,6 +1771,91 @@ mod tests {
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
         );
+    }
+
+    /// **A pierce germ is the section line's ray its transition names,
+    /// a graze included.** Sectors of several openings on `z = 0`, from
+    /// `x̂` to the bound at `φ`, against pierced planes through a line
+    /// `ℓ` of `z = 0`, each tilted both ways. The bounds' codes are read
+    /// as the pierce reads them (`side_code` at the bound's reach, an On
+    /// folded into the In run), and the germ is `ℓ` in every case: the
+    /// line inside the sector, or the line just outside one bound by an
+    /// in-plane angle beyond the band at the sector's arm, whose bound
+    /// reads On at its reach: there both rays read outside the sector by
+    /// membership. A graze is a transition under one of its two tilts.
+    #[test]
+    fn a_pierce_germ_is_the_ray_its_transition_names() {
+        use super::super::sectors::{BoolSector, NO_CURVATURE, Reach, fold_on_bound, side_code};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.3, -0.2, 0.7);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let graze = 2.0 * band.escalate();
+        let flat = 0.25 * band.zero() / graze;
+        for phi in [20.0_f64, 90.0, 150.0, 178.0].map(f64::to_radians) {
+            let (start, end) = (
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(phi.cos(), phi.sin(), 0.0),
+            );
+            let chord = |d: Vec3<f64>| Reach::Chord {
+                base: o,
+                far: o + d,
+            };
+            let s = BoolSector {
+                he: HalfEdgeKey::default(),
+                start,
+                end,
+                start_reach: chord(start),
+                end_reach: chord(end),
+                face: crate::entity::FaceKey::default(),
+                normal: OutwardNormal::from_chart(z, true),
+                arm: 1.0,
+            };
+            // `(ψ, the tilt's cosine, a graze)`.
+            let lines = [
+                (0.5 * phi, 0.6, false),
+                (0.1 * phi, 0.3, false),
+                (0.9 * phi, 0.95, false),
+                (-graze, flat, true),
+                (phi + graze, flat, true),
+            ];
+            for (psi, cos_tilt, grazes) in lines {
+                let l = Vec3::new(psi.cos(), psi.sin(), 0.0);
+                let across = z.cross(l);
+                let mut transitions = 0;
+                for sense in [1.0, -1.0] {
+                    let n_p = across * (sense * cos_tilt) + z * (1.0 - cos_tilt * cos_tilt).sqrt();
+                    let code = |d| {
+                        let c = side_code(
+                            d,
+                            chord(d),
+                            OutwardNormal::from_chart(n_p, true),
+                            NO_CURVATURE(),
+                            band,
+                        )
+                        .unwrap();
+                        if c == On { fold_on_bound(Out, In) } else { c }
+                    };
+                    let label = format!("φ {phi:.3}, ψ {psi:e}, sense {sense}");
+                    // A graze the fold puts on the In side of an In
+                    // bound is no transition.
+                    let out = match (code(start), code(end)) {
+                        (Out, In) => OutBound::Start,
+                        (In, Out) => OutBound::End,
+                        _ => continue,
+                    };
+                    transitions += 1;
+                    let germ = pierce_germ_dir(&s, n_p, out, band).unwrap();
+                    assert!(
+                        (germ - l).norm() < 1e-12,
+                        "{label}: the germ {germ:?}, not {l:?}"
+                    );
+                }
+                let want = if grazes { 1 } else { 2 };
+                assert_eq!(transitions, want, "φ {phi:.3}, ψ {psi:e}: the transitions");
+            }
+        }
     }
 
     /// A germ on the unit circle of `z = 0` at `deg` clockwise about +z,

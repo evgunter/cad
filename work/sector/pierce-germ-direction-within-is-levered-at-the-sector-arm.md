@@ -49,3 +49,19 @@ or `u`'s far point, at `u`'s own reach. So its lever is
   `Zero` where the bound's own reach decides it. `within` itself, and
   its other callers, are unchanged; the shape above is the same
   per-bound lever.
+
+## Evidence: the pierce reader no longer reads `within` (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+`vtxfac.rs` `pierce_germ_dir` now signs the germ line by the
+transition's own codes (`OutBound`: which of the sector's bounds the Out
+run holds) and reads no membership at all, so its `bool_sector_within`
+escalation is gone, along with the `ClassificationInvariant` both-or-
+neither arm CLEAVE's census reached 534 times over three ε rows. On
+JOIN's near-tangent census that took 735 runs at 1e-9 (393 at 1e-12,
+309 at 1e-6) from a `Coincidence(Sectors)` escalation to sound bodies,
+and 483 more at 1e-6 to bodies within 2.2e-7 m³ of the oracle's volume
+(the census's line calls them BAD at 1e-7). The review's 5·10⁴·ε
+wedge witness above is unmeasured on that branch. `sectors::within`
+and its other callers (`pair_search`, `insert::germ_dir`, the
+polygon-cone reader) are unchanged, so the per-bound lever owed here
+still stands for them.

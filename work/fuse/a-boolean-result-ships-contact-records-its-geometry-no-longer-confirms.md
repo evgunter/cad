@@ -109,3 +109,14 @@ loop to `i = 1`, and print `validate_pseudomanifold`'s error in
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: StaleContactDeclaration comes from the declared-contact records remap_contacts carries; stage 4 retires the declared-contact seats and records found contacts at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Evidence: near-tangent wedge poses (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+JOIN's near-tangent census (`crates/sweep/examples/near_tangent_census_probe.rs`)
+at ε = 1e-12: once `pierce_germ_dir` stopped refusing them, four runs
+build with the closed-form volume and fail tier 3′ definitely. Three
+ship a stale `VertexOnFace` record (`w345 nt e1 a13 d1e-8` and `d1e-9`,
+`pc I`; `w345 nt e1 a14 d1e-8`, `cp I`), and one ships an undeclared
+`VertexOnFace` at the wedge's corner `(2, 0, 1)` (`w345 nt e1 a14
+d1e-8`, `cp S`). The census already counts 6 stale and 596 undeclared
+findings at 1e-12 on main; these add 6 and 3.
