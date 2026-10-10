@@ -952,33 +952,34 @@ fn f_two_rings_same_face_from_one_operand() {
 /// the exact contact set and the epsilon-perturbed neighbors (shift
 /// 1/16, far beyond any band, the transversal chord lane) BOTH produce
 /// exact
-/// oracles — while the UNDECLARED exact contacts still refuse typed,
-/// deterministic, operand-preserving at the coincidence door (the
-/// boundary between the lanes is declared intent + the exact contact
-/// set, never a mask).
+/// oracles — and the UNDECLARED exact contacts glue on their decided
+/// zero to the same body, deterministic and operand-preserving (D10).
 #[test]
-fn g_boundary_on_boundary_refusals_sharp() {
+fn g_boundary_on_boundary_contacts_sharp() {
     // Corner-flush pillar: 2 contact-square edges on A's face edges.
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
-    let undeclared_refusal = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
+    let undeclared_glues = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
         let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-        let e1 = topo::union(a, b, Tol::witness()).map(|_| ()).unwrap_err();
-        let e2 = topo::union(a, b, Tol::witness()).map(|_| ()).unwrap_err();
-        assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
-        assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
-        assert_eq!(format!("{e1:?}"), format!("{e2:?}"), "deterministic");
-        assert!(
-            format!("{e1:?}").contains("UndeclaredCoincidence"),
-            "{e1:?}"
+        let r1 = topo::union(a, b, Tol::witness()).expect("the undeclared contact glues");
+        let r2 = topo::union(a, b, Tol::witness()).expect("the rerun glues");
+        assert_eq!(format!("{a:?}"), a0, "operand A untouched");
+        assert_eq!(format!("{b:?}"), b0, "operand B untouched");
+        let (u1, u2) = (&body_of(&r1).body, &body_of(&r2).body);
+        assert_eq!(format!("{u1:?}"), format!("{u2:?}"), "deterministic");
+        let declared = run(union_with, a, b);
+        assert_eq!(
+            format!("{u1:?}"),
+            format!("{:?}", body_of(&declared).body),
+            "declared and undeclared are one body"
         );
     };
-    undeclared_refusal(&a, &b);
+    undeclared_glues(&a, &b);
     let r = run(union_with, &a, &b);
     assert_eq!(vol(&body_of(&r).body), 8.0 + 0.25, "corner-flush glued");
     // Stacked-full: B's bottom rim = A's top rim, all four on-edge.
     let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
-    undeclared_refusal(&a, &b);
+    undeclared_glues(&a, &b);
     let r = run(union_with, &a, &b);
     assert_eq!(vol(&body_of(&r).body), 8.0 + 4.0, "stacked-full glued");
     // Perturbed corner-flush (pulled 1/16 inside): exact union.

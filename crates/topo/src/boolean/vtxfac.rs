@@ -755,20 +755,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }
             },
         };
-        // Oriented sources (S10): both descriptions carry OUTWARD
-        // material sides, so rung 1's syntactic Same± verdict has to
-        // see the face senses as well as the surfaces' `orient` tags.
-        let (g1, g2) = (
-            super::reduce::face_oriented_source(piercing_body, s.face),
-            super::reduce::face_oriented_source(pierced_body, contact.face),
-        );
         let id = super::PlaneIdentity {
-            s1: g1.as_ref(),
-            s2: g2.as_ref(),
             declared: declared_one_carrier,
         };
-        // A declared pair reads as the door read it at rest, over both
-        // faces; an undeclared one at the sector's arm.
+        // A glued pair reads as the door read it at rest, over both
+        // faces; any other at the sector's arm.
         let extent = if declared_one_carrier {
             declared.consumed(piercing, s.face, pierced_op, contact.face)?
         } else {
@@ -777,42 +768,57 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.arm,
             ))
         };
-        let rel = match super::carrier_eq::carrier_eq(
+        let pair = (piercing, s.face, pierced_op, contact.face);
+        let rel = match super::carrier_eq::carrier_eq_reading(
             &sector_carrier,
             &pierced_carrier,
             id,
             &extent,
             band,
         ) {
-            Ok(super::PlaneRelation::Distinct) => {
+            Ok((super::PlaneRelation::Distinct, ..)) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "geometrically coplanar sector with definitely-distinct plane",
                 });
             }
-            Ok(rel) => rel,
+            Ok((rel, ..)) if declared_one_carrier => rel,
+            // One plane at the sector's arm, for a pair the glue door
+            // did not glue over the faces.
+            Ok((rel, _, margin)) => {
+                return Err(super::unglued_coincidence(
+                    // A reading with no margin is one carrier by structure (one key,
+                    // or bit-identical descriptions), which the glue door glues
+                    // wherever the two faces meet, as they do at this corner.
+                    margin.ok_or(BooleanError::ClassificationInvariant {
+                        what: "a corner pair one carrier by structure the glue door left unglued",
+                    })?,
+                    declared.carriers_read(pair, rel),
+                    band,
+                ));
+            }
             // In band, unreachable here: `bool_sector_coplanar` read
             // this same margin (the two normals' cross, at `s.arm`)
-            // zero above for an undeclared pair, and a declared `Rest`
-            // pair's rung bridges it. The door is `recl`'s, which
-            // reaches it at another arm.
+            // zero above for an unglued pair, and a glued pair's rung
+            // bridges it. The door is `recl`'s, which reaches it at
+            // another arm.
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
                     declared.on_pair_door(
-                        (piercing, s.face, pierced_op, contact.face),
+                        pair,
                         super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
                     ),
                     diag,
                 ));
             }
-            Err(PlaneEqError::Undeclared {
+            Err(PlaneEqError::Undecided {
                 coincidence,
                 relation,
             }) => {
-                return Err(super::undeclared_coincidence(
+                return Err(super::undecided_coincidence(
                     coincidence,
                     [(piercing, s.face), (pierced_op, contact.face)],
-                    relation,
+                    declared.carriers_read(pair, relation),
                 ));
             }
             Err(PlaneEqError::Contradicted { fact, .. }) => {

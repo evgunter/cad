@@ -17,8 +17,7 @@
 //! is the disjoint union of two bodies' contents in one arena. The
 //! transplant itself is `combine`'s, called verbatim — same fresh keys
 //! in deterministic slot order (D9), same forwarded provenance, same
-//! `GeomSource` and pcurve-cache carry, same description surface-key
-//! remap. Two differences, both forced by what a DISJOINT graft is:
+//! pcurve-cache carry, same description surface-key remap. Two differences, both forced by what a DISJOINT graft is:
 //! the destination is an empty solid the graft mints instead of one
 //! already holding shells, and the description bridge carries the
 //! source's certificate with the handles rewritten rather than
@@ -129,8 +128,8 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// (`combine`'s module docs), and N calls mint where this one call
 /// shares. Which source solid a grafted face came
 /// from stays derivable exactly as it was before the graft: from the
-/// solid it now sits under, and from the `GeomSource`/provenance
-/// records the transplant carries.
+/// solid it now sits under, and from the provenance records the
+/// transplant carries.
 ///
 /// Sharing is impossible here for the same reason it is at the single
 /// door: every transplanted entity is re-created under a FRESH key, so

@@ -29,12 +29,8 @@ fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
     topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
 }
 
-fn declared() -> PlaneIdentity<'static> {
-    PlaneIdentity {
-        s1: None,
-        s2: None,
-        declared: true,
-    }
+fn declared() -> PlaneIdentity {
+    PlaneIdentity::DECLARED
 }
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {

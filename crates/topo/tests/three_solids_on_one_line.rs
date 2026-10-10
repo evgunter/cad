@@ -648,11 +648,12 @@ fn escalates(e: &BooleanError) -> bool {
     )
 }
 
-/// **Three prisms over 60° sectors refuse their flush continuation in
+/// **Three prisms over 60° sectors glue their flush continuation in
 /// every member order**: each lateral face lies in the plane of
-/// another's, touching it along the line, and nothing declares it.
+/// another's, touching it along the line, and its margins decide it
+/// (D10), undeclared.
 #[test]
-fn three_prisms_flush_along_one_line_refuse_undeclared_in_every_member_order() {
+fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
     let prisms = [
         Prism::on_line(0.0, 60.0, (0.5, 2.0)),
         Prism::on_line(120.0, 180.0, (0.47, 1.7)),
@@ -662,10 +663,8 @@ fn three_prisms_flush_along_one_line_refuse_undeclared_in_every_member_order() {
     let mut members = vec![finished("the plate", p, t())];
     members.extend(prisms.iter().map(Prism::body));
     for order in orders(members.len()) {
-        match fold(&members, &order) {
-            Err((_, BooleanError::UndeclaredCoincidence { .. })) => {}
-            Err((k, e)) => panic!("60° sectors, member order {order:?}: step {k} refused {e:?}"),
-            Ok(_) => panic!("60° sectors, member order {order:?}: built"),
+        if let Err((k, e)) = fold(&members, &order) {
+            panic!("60° sectors, member order {order:?}: step {k} refused {e:?}");
         }
     }
 }

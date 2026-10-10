@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{body_of, failures};
+use crate::corpus::failures;
 use crate::fixture::{axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square};
 use editor_core::{
     CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,
@@ -17,7 +17,6 @@ use editor_core::{
     VarEnv, VarId, VarName, VarNameReason, apply, eval, evaluate, load, parse_formula, save,
 };
 use geom_core::{Bounds, Interval, Tol};
-use topo::{Body, SurfaceField};
 
 fn n(name: &'static str) -> VarName {
     VarName::from_static(name)
@@ -72,20 +71,10 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     (doc, blend)
 }
 
-/// The radius token a blend's cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face = topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends");
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 /// The variables a slot's defined variable reads, in order.
@@ -133,8 +122,8 @@ fn a_constant_is_its_exact_value() {
     let (doc, c) = filleted(doc, 8.0, times(1, 3));
     let ev = evaluated(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
-    assert_eq!(token(a), token(b), "equal constants lower to one token");
+    let token = |blend| radius_spelling(&doc, blend);
+    assert_eq!(token(a), token(b), "equal constants spell one");
     assert_ne!(token(a), token(c));
 
     let tenth = parse_formula("0.1", &Default::default()).unwrap();
@@ -350,7 +339,7 @@ fn two_typed_values_in_formulas_are_two_variables() {
     let (doc, d) = filleted(doc, 12.0, plus(named("v")));
     let ev = evaluated(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
+    let token = |blend| radius_spelling(&doc, blend);
     assert_ne!(token(a), token(b));
     assert_eq!(
         token(c),
