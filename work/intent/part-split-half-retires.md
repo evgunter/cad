@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P2
 cost: M
+branch: intent/part-split-half-retires
 refs: [operands-are-reads, operations-state-their-outputs]
 ---
 
