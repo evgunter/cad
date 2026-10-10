@@ -2393,7 +2393,7 @@ mod tests {
             let Err(cause) = got else {
                 panic!("{lower:?}, {upper:?}: logged as a straddle");
             };
-            let said = cause.downcast_ref::<String>().cloned().unwrap_or_default();
+            let said = cause.downcast::<String>().map(|s| *s).unwrap_or_default();
             assert!(said.contains("a straddle is two decided bounds"), "{said}");
         }
     }
@@ -2456,7 +2456,7 @@ mod tests {
             let Err(cause) = got else {
                 panic!("{decided:?} under {passes:?}: logged as a rejection");
             };
-            let said = cause.downcast_ref::<String>().cloned().unwrap_or_default();
+            let said = cause.downcast::<String>().map(|s| *s).unwrap_or_default();
             assert!(said.contains("a rejection is of a verdict"), "{said}");
         }
     }
