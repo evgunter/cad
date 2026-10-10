@@ -489,7 +489,8 @@ mod tests {
 
     use geom::Curve3;
     use geom_brep::{
-        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
+        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource,
+        SketchSegment,
     };
     use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
@@ -555,18 +556,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc {
-                    a: Point2::new(1.0, 0.0),
-                    b: Point2::new(0.0, 1.0),
-                    arc: Arc2 {
-                        centre: Point2::new(0.0, 0.0),
-                        radius: 1.0,
-                        sweep: FRAC_PI_2,
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc {
+                        a: Point2::new(1.0, 0.0),
+                        b: Point2::new(0.0, 1.0),
+                        arc: Arc2 {
+                            centre: Point2::new(0.0, 0.0),
+                            radius: 1.0,
+                            sweep: FRAC_PI_2,
+                        },
                     },
+                    place: Affine3::identity(),
                 },
-                place: Affine3::identity(),
-            }),
+            )),
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::unit_z(),
@@ -607,8 +610,11 @@ mod tests {
         // The restricted description is still a placed arc.
         assert!(matches!(
             c2.description(),
-            EdgeDescription::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc { .. },
+            EdgeDescription::Scaffold(MappedCurve {
+                source: MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc { .. },
+                    ..
+                },
                 ..
             })
         ));

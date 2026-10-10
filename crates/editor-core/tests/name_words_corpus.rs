@@ -118,7 +118,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `measured_web` — its placement's tag (`PlaceInWorld 57cd328e4061` is
 /// now `… 1d7dbb564bd2`), said three times. The placement is minted
 /// after the measure, whose preimage D changed. No other word moved.
-const SAID_DIGEST: u64 = 0xdbf7_2688_40eb_cb70;
+///
+/// INTENT stage 5 PR A: the same tag again (`… 1d7dbb564bd2` is now
+/// `… cd9c076ade6a`). The placement is minted after the assertion,
+/// whose stored field `dir` became `relation`.
+const SAID_DIGEST: u64 = 0xc9f2_be65_fbb5_871c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

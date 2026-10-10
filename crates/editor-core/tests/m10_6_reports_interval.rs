@@ -28,7 +28,7 @@ use editor_core::mc::{McConfig, McRefusal, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram,
+    AssertionRelation, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram,
     MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, VarName,
     save,
 };
@@ -125,7 +125,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(1.0),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

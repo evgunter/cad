@@ -46,10 +46,10 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node, NodeErrorKind,
-    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
-    ValuePayload, VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -168,7 +168,7 @@ fn dumbbell() -> Dumbbell {
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(BOUND),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     Dumbbell {
         doc: r.doc,

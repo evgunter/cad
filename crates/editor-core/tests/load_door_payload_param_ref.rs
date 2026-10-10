@@ -96,7 +96,7 @@ fn asserting_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
         Node::Assertion {
             value: Formula::named(name.clone(), Dimension::Length),
             bound: len(-0.0),
-            dir: editor_core::AssertionDir::AtLeast,
+            relation: editor_core::AssertionRelation::AtLeast,
         },
     );
     (doc, name, assertion)
@@ -145,7 +145,7 @@ fn an_assertion_value_reading_an_undeclared_parameter_refuses_to_load() {
             node: Box::new(Node::Assertion {
                 value: Formula::named(missing.clone(), Dimension::Length),
                 bound: len(0.0),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -219,7 +219,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     let bound = |n: &VarName| Node::Assertion {
         value: len(1.0),
         bound: Formula::named(n.clone(), Dimension::Length),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     };
     let (doc, assertion) = insert(doc, bound(&name));
 
@@ -319,7 +319,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         Node::Assertion {
             value: Formula::named(name.clone(), Dimension::Length),
             bound: len(1.0),
-            dir: editor_core::AssertionDir::AtLeast,
+            relation: editor_core::AssertionRelation::AtLeast,
         },
     );
 
@@ -351,7 +351,7 @@ fn an_assertion_value_that_is_a_body_refuses() {
         Node::Assertion {
             value: Formula::named(name.clone(), Dimension::Length),
             bound: len(1.0),
-            dir: editor_core::AssertionDir::AtLeast,
+            relation: editor_core::AssertionRelation::AtLeast,
         },
     );
 
@@ -362,7 +362,7 @@ fn an_assertion_value_that_is_a_body_refuses() {
             node: Box::new(Node::Assertion {
                 value: Formula::var(body, Dimension::Length),
                 bound: len(1.0),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
