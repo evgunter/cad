@@ -283,3 +283,36 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 **PR 4479** is in a delta review. Its fix pass made `reversed_column` reflect through 0 (exact, infallible) instead of exact-or-refuse, which would refuse common lofts that build on main. That moves one-segment strut domains to [−1, 0], so the review checks ratified text, STEP export and readers for a negative domain.
 
 **Q2 build dispatched:** `q + R(p − q)`, citing W1. (NURBS orchestrator)
+
+## 2026-10-10 — PR 4479 merges; PR 4485's delta 2 approves, small fixes applied by the orchestrator
+
+**PR 4479** (one exact reflection rule; `reversed_column` reflects through 0) merged at `1366b92992` with CI green.
+- Fix pass 2 closed the delta review's M1. `RowSpace` admits forward on equal knots and run back only on an exact reflection, which is what the certificate accepts. The reviewer's probe is now a row: red on `8015fdf33`, green here.
+- Filed off this slate:
+  - the 8-section STEP re-import failure, on EXCH (`one-segment-loft-at-eight-sections-fails-step-reimport`), identical on the previous head;
+  - the two reversal policies for a spline net, on KNOT (`two-reversal-policies-for-a-spline-net`).
+
+**PR 4485** delta review 2 of `2ac0994f80`: APPROVE-WITH-FIXES, no MAJOR.
+- Every claim held under execution:
+  - the colliding-split row is red on `c5d1c7ae` and gives `DerivedKnots` / `RefinementFailed` at head, as main does;
+  - degree-1 `Zero` is sound: 40 random interior-knot degree-1 faces all refuse `Degree1Crease`;
+  - patch and face outputs are bit-identical across main, c5 and head on 400 surfaces;
+  - the 1-D ladder moves only at multiplicities p, p−1 and p−2, and 6000 constant-`u` cases show main excluding the truth 1288 times and head 0 times.
+- The orchestrator applied the small findings on the branch rather than spending a lane on them:
+  - the `DerivedKnots` doc and note no longer claim a valid face never reaches it;
+  - the `Second::Zero` comment;
+  - the collision row asserts its variants (Q3);
+  - `whole_net_bound`'s missing second partial panics off degree 1 rather than reading zero (Q4);
+  - the `compose.rs` re-wrap.
+- Left as is:
+  - Q7, A/w shape held by `unreachable!` across two `DNets`;
+  - Q1/Q2, `Loose::Const` read whole-domain in `Level` vs per span in `Dir`.
+
+  These are refactors of a sound structure, worth noting but not blocking.
+- Pre-existing NOTEs carried to the user, not filed yet:
+  - `nurbs_patch_face`'s A2 area-gauge `debug_assert` panics on a caller perimeter below the truth;
+  - `offset_fit` refuses `DerivedKnots` on any degree-1 base direction.
+- Recorded:
+  - DR-140: tally 1, R1's ladder zeroing, which predates the PR;
+  - the row is closed in the PR.
+- Merges when CI is green on `695dc165ce`. (NURBS orchestrator)
