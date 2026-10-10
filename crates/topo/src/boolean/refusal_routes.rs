@@ -331,7 +331,7 @@ pub enum BooleanDecision {
         /// The binding shell's solid, in the refused result. The result is
         /// never returned, so this and `shell` are diagnostic only: they
         /// tell refusals apart, and locate nothing a caller holds
-        /// (`work/join/the-shell-role-refusal-locates-no-piece.md`).
+        /// (`work/tally/the-shell-role-refusal-locates-no-piece.md`).
         solid: crate::entity::SolidKey,
         /// The binding shell, diagnostic only as `solid` is.
         shell: crate::entity::ShellKey,

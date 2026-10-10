@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-02
 closed: 2026-10-04
 pr: 4031
-refs: [parallel-cylinder-germ-pair-has-no-join-arm]
+refs: [4031]
 ---
 
 
@@ -37,7 +37,7 @@ shared height, added to and subtracted from the two cylinders).
 ## Closed
 
 The join's cylinder × cylinder arm (JOIN,
-`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`, PR 4031)
+`parallel-cylinder-germ-pair-has-no-join-arm`, PR 4031)
 splits both walls against the pair's radical plane, which holds both
 rulings, so each side's chord is its own wall's ruling. The rows here
 build at the closed form under ∪, ∩ and both differences:

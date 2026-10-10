@@ -7,7 +7,7 @@ priority: P1
 cost: M
 design: true
 opened: 2026-10-09
-refs: [a-tube-ending-on-a-ball-refuses-section-loop-mixed]
+refs: [4399]
 ---
 
 Found by JOIN's tube-on-a-ball lane (branch `join/tube-ending-on-a-ball`),
