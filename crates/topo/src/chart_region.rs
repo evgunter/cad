@@ -3788,6 +3788,67 @@ mod tests {
         );
     }
 
+    /// REVIEW PROBE (from-f64 U1): the old `wrap_band` read the band
+    /// ends as `f64::min`/`max` folds; the new one picks the first
+    /// corner by strict comparison. With corners whose `v` is `0.0` on
+    /// one and `-0.0` on another (equal under `!=`, so the polygon is
+    /// still axis-aligned) the two may return different BITS.
+    #[test]
+    fn review_wrap_band_signed_zero_matches_the_old_fold() {
+        let old = |pts: &[(f64, f64)]| {
+            let (mut vl, mut vh) = (pts[0].1, pts[0].1);
+            for p in pts {
+                vl = vl.min(p.1);
+                vh = vh.max(p.1);
+            }
+            (vl.to_bits(), vh.to_bits())
+        };
+        let mut diffs = Vec::new();
+        for (a, b, c, d) in [
+            (0.0, -0.0, 1.0, 1.0),
+            (-0.0, 0.0, 1.0, 1.0),
+            (-1.0, -1.0, 0.0, -0.0),
+            (-1.0, -1.0, -0.0, 0.0),
+        ] {
+            let u0 = 0.3;
+            let u1 = u0 + core::f64::consts::TAU;
+            let pts = [(u0, a), (u1, b), (u1, c), (u0, d)];
+            let corners: Vec<Point2<f64>> = pts.iter().map(|&(u, v)| Point2::new(u, v)).collect();
+            let got = wrap_band(&corners, 2.0, band()).unwrap().expect("a band");
+            let new = (got.0.to_bits(), got.1.to_bits());
+            if new != old(&pts) {
+                diffs.push((pts, f64::from_bits(old(&pts).0), f64::from_bits(old(&pts).1), got));
+            }
+        }
+        assert!(diffs.is_empty(), "band bits differ from the old fold: {diffs:?}");
+    }
+
+    /// REVIEW PROBE (from-f64 U1): `revalue`'s `Powi` arm calls the
+    /// INHERENT `f64::powi`, while `Sym<f64>`'s value channel is
+    /// `Real::powi` (`powi_by_squaring`, with `NaN^0 = NaN`).
+    #[test]
+    fn review_revalue_powi_zero_of_nan_matches_the_value_channel() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let w = ParamSymbol::new(9);
+        let budget = SymBudget { max_terms: 64, max_degree: 8 };
+        let (pair, _) = with_session(budget, || {
+            let built_at_p1 = S::param(w, f64::NAN).powi(0);
+            let built_at_p0 = S::param(w, 0.5).powi(0);
+            let r = revalue(built_at_p0.node(), &|s| (s == w).then_some(f64::NAN));
+            (r.map(f64::to_bits), geom_core::Bounds::lo(built_at_p1).to_bits())
+        });
+        assert_eq!(
+            pair.0,
+            Some(pair.1),
+            "re-valued {:?} vs the p1 build's value channel {:?}",
+            pair.0.map(f64::from_bits),
+            f64::from_bits(pair.1)
+        );
+    }
+
     #[test]
     fn mate5_wrap_band_reads_structure_and_meters_the_span() {
         let r = 2.0;
