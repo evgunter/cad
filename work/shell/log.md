@@ -1353,3 +1353,7 @@ Ev said go.
     - (c) the NURBS × NURBS arm, whose scope is set by the ruling;
     - (d) curved clearance as a gate;
     - (e) the saddle fit's reach at the default ε (measure first; no item yet).
+- **Wall-seam fork ruled** (PR 4515, 2026-10-10). Ev chose B: one complete NURBS × NURBS arm, built as a `Section` handle with `branch_at(seed)` and `all()`. `shell` asks only `branch_at`; the boolean asks `all()`.
+  - Before the ruling, Ev asked whether B could avoid computing work it throws away. Both designers answered yes. A's lazy variant always ran the proof.
+  - The ruling is recorded in the item's `## Decided`, and `needs_ev` is cleared.
+  - Unit (c), the arm, is scoped by it. Units (a), the iso-row narrowing, and (b), the general door, are unaffected.

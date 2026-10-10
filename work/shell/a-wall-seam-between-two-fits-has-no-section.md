@@ -7,7 +7,6 @@ opened: 2026-10-08
 priority: P2
 cost: H
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap]
-needs_ev: true
 ---
 
 Filed from the designer pair on `a-fitted-wall-has-no-section-with-a-moved-cap`
@@ -82,18 +81,15 @@ A designer pair weighed this item on 2026-10-10 (fork-log row 106). Both designe
   - the twisted wall's fit at the default ε (`Fit { BudgetExhausted }`, 4.12e-9 achieved), its own gate;
   - the Interval scalar (`NurbsLaneUnsupported`).
 
-## The question
+## Decided
 
-Is a certified single-component section an operation the kernel offers?
+Ev, PR 4515, 2026-10-10 ("ok sweet, B then!"): the NURBS × NURBS arm is one **complete** operation. The section is the full solution set of `S₁ ∩ S₂` over the two domains, and the consumer selects from it. There is no seeded/complete service split in C5. The arm is built so that a consumer pays only for what it uses:
 
-- **A seeded operation.** C5's rows state which operations a pair supports:
-  - *seeded*: the component through a witness;
-  - *complete*: every branch.
-  
-  Each refuses typed where it is not built. The shell seam is the seeded component, traced from the old seam to the corner surfaces' crossings. The boolean asks for complete. C3 gains a sentence naming the seeded operation beside the in-op exhaustiveness of the all-branches door.
-- **One complete arm.** The NURBS × NURBS arm returns every branch over the product of the two knot rectangles:
-  - a boundary pass of each surface against each side of the other;
-  - a two-chart tube;
-  - subdivision with hull exclusion.
-  
-  The offset door keeps the witness's component, and the boolean takes all of them. C3 and C5 change only to list the arm as implemented.
+- **The handle.** `Section::of(s₁, s₂, domain)` runs the boundary pass once: each surface against each side of the other's knot rectangle, giving the crossings and the `Side`/`Corner` regions. It returns a handle holding them, with two methods under one contract:
+  - **`branch_at(seed)`.** It settles the seed onto both surfaces by Newton. If the seed lands in an already-certified tube or a region, that is the answer. Otherwise it traces from the seed to the crossings it reaches, then fits, refines and certifies limbs 1–3 and the two-chart tube. One branch is marched and one certified. The branch returned is the one whose certified one-arc tube contains the settled seed, so the selection is proven, not sampled.
+  - **`all()`.** It traces every open branch between crossings and every closed loop from the subdivision's seeds, then runs the accounting: every cell is excluded or accounted to a tube or region. Exhaustiveness is `all()`'s obligation, which is how C3's "exhaustiveness is an in-op obligation" already reads.
+- **The callers.** The offset door calls `branch_at` with the old seam's midpoint, so `shell` never runs the 4-D subdivision. The boolean calls `all()`.
+- **What C5 and C3 say.** C5 keeps one row with one meaning: `implemented` covers the whole operation. C5 lists NURBS × NURBS as implemented when the arm lands. C3 states the two-chart tube and the surface × side boundary pass at the same time.
+- **The plane × NURBS door.** `offset_derive::plane_wall_section` moves from nearest-sample selection to `branch_at` on the plane × NURBS door. That door gets the same handle, in the arm's unit or the next.
+- **One unproven step.** Newton's convergence from the seed to the near component is not proven. The old seam's `d·cot(φ/2)` proximity makes it benign, and the tube check and `VertexDisagreement` catch it if not.
+- **Before the unit:** grep `intersect::route`'s callers for any that read `implemented`.
