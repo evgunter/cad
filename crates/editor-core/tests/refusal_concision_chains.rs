@@ -4832,7 +4832,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             escalated(MarginDiag::INVALID),
             format!(
                 "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
-                 unreadable margin may indicate a kernel bug worth reporting"
+                 unreadable margin may indicate a kernel or file defect worth reporting"
             ),
         ),
         (
@@ -4876,11 +4876,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     for (name, source, want) in pinned {
         let text = render(source.clone());
         assert_eq!(text, want, "{name}");
-        // The payload's own Display ends in the same one ending.
-        let ending = source.ending().expect("the shell-role decision's refusal");
+        // The finding ends in the shell-role decision's ending read at
+        // rest; the shell door's own Display reads it at a build.
+        let arm = source.arm().expect("the shell-role decision's refusal");
+        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
         assert!(text.ends_with(&ending), "{name}: {text}");
+        let built = source.ending().expect("the shell-role decision's refusal");
         let whole = source.to_string();
-        assert!(whole.ends_with(&format!(". {ending}")), "{name}: {whole}");
+        assert!(whole.ends_with(&format!(". {built}")), "{name}: {whole}");
         assert_eq!(
             test_utils::refusal::recourse_markers(&whole),
             1,
