@@ -754,21 +754,14 @@ fn edge_piece<T: geom_core::spline::SpanLocate>(
     }
     let kv = carrier.knots();
     let p = kv.degree();
-    // The stretch's breaks: its ends and every interior knot strictly
-    // between them.
-    let mut breaks = vec![a];
-    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
-    breaks.push(b);
+    let malformed = || refuse("the carrier's piece over the edge's interval is malformed");
+    let stretches = geom_core::spline::ParamRange::new(a, b)
+        .and_then(|range| crate::pcurve_cache::projected::span_stretches(kv, range))
+        .ok_or_else(malformed)?;
     let mut knots = vec![a; p + 1];
     let mut control: Vec<Point3<T>> = Vec::new();
-    for (i, w) in breaks.windows(2).enumerate() {
-        // The breaks ascend strictly, so each stretch is a range.
-        let Some(stretch) = geom_core::spline::ParamRange::new(w[0], w[1]) else {
-            return Err(refuse(
-                "the carrier's piece over the edge's interval is malformed",
-            ));
-        };
-        let segment = crate::pcurve_cache::projected::piece_controls(carrier, stretch);
+    for (i, stretch) in stretches.iter().enumerate() {
+        let segment = crate::pcurve_cache::projected::piece_controls(carrier, *stretch);
         // Neighbouring segments share their joining control; each
         // segment's own encloses it, and the earlier one is kept.
         let skip = usize::from(i > 0);
@@ -778,16 +771,17 @@ fn edge_piece<T: geom_core::spline::SpanLocate>(
                 .skip(skip)
                 .map(|(v, _)| Point3::origin() + *v),
         );
-        let last = i + 2 == breaks.len();
-        knots.extend(std::iter::repeat_n(w[1], if last { p + 1 } else { p }));
+        let last = i + 1 == stretches.len();
+        knots.extend(std::iter::repeat_n(
+            stretch.end(),
+            if last { p + 1 } else { p },
+        ));
     }
     let n = control.len();
     KnotVector::clamped(knots, p)
         .ok()
         .and_then(|kv| NurbsCurve3::new(kv, control, vec![weights[0]; n]).ok())
-        .ok_or(refuse(
-            "the carrier's piece over the edge's interval is malformed",
-        ))
+        .ok_or_else(malformed)
 }
 
 /// [`analytic_rung3`]'s typed refusal — the analytic pair's own

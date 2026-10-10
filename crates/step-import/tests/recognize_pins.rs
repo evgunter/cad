@@ -232,14 +232,14 @@ fn offset_square_prism() -> topo::Body<f64> {
 /// carrying that number in its payload. Both cells are pinned; neither
 /// is widened.
 ///
-/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
-/// the convex insertion form** (the sup was ~6.2e-12 m, 178x wider):
-/// the sup is assembled over a Bézier decomposition, and the lerp form
-/// multiplied each coefficient's own dust up once per insertion. So the
-/// 1e-12 matrix row now takes the first-class cell where it took the
-/// refusal; the refusal cell is measured at ε_in = 1e-14 and no row the
-/// gate or the nightly runs reaches it, which is filed rather than
-/// absorbed.
+/// **Why the boundary sits at 1e-13**: the sup is assembled over a
+/// Bézier decomposition whose every row is restricted from its own span
+/// window (`CoeffWindow::restrict`), so a coefficient's width is added
+/// once per step and never multiplied per insertion (a step that
+/// multiplies it reads ~6.2e-12 m here, and the boundary at 1e-9). So
+/// the 1e-12 matrix row takes the first-class cell; the refusal cell is
+/// measured at ε_in = 1e-14 and no row the gate or the nightly runs
+/// reaches it, which is filed rather than absorbed.
 #[test]
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
@@ -343,9 +343,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
         // The ε-fine cell, pinned as a REFUSAL with its own number:
         // this seam's certified between-samples sup is ~3.55e-14 m, so
         // below ε_in = 1e-13 the carrier refuses during ADOPTION and
-        // never reaches the pcurve stage. Measured, not widened. (It was
-        // ~6.2e-12 m and refused at 1e-12, before `insert_once_ring`
-        // took the convex insertion form.)
+        // never reaches the pcurve stage. Measured, not widened.
         Err(refusal) => {
             assert!(
                 eps < 1e-13,

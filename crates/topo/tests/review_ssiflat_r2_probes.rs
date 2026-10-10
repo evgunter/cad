@@ -177,16 +177,16 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// singular among its neighbours in both directions, which is a
 /// stronger and more useful statement than a monotone trend would be.
 ///
-/// **This row was re-pointed when `insert_once_ring` took the convex
-/// insertion form, because its previous claim went vacuous.** Under the
-/// lerp form the bound was dominated by the width the ring data carried
-/// rather than by the span, so four spans sat within 1.6x of each other
-/// (1.80e-12, 1.30e-12, 1.14e-12, 1.14e-12) and NONE certified; the row
-/// asserted a strict decrease across them. The convex form took that
-/// floor away, every arc but the quarter turn now certifies, and a
-/// "strictly smaller bound" loop over them compares nothing — every
-/// iteration passes on `None`. A row named for span dependence that
-/// measures no span dependence is the defect, not the re-baseline.
+/// **Why the row is about the quarter turn and not a trend.** A bound
+/// dominated by the width the ring data carries, rather than by the
+/// span, puts four spans within 1.6x of each other (1.80e-12, 1.30e-12,
+/// 1.14e-12, 1.14e-12, under a step that multiplies inherited width per
+/// insertion) and certifies none of them. With each Bézier row
+/// restricted from its own span window (`CoeffWindow::restrict`), width
+/// is added once per step, every arc but the quarter turn certifies, and
+/// a "strictly smaller bound" loop over them would compare nothing —
+/// every iteration passing on `None`. A row named for span dependence
+/// that measures no span dependence would be the defect.
 ///
 /// The full turn is not in the list: over a rung-3 chain carrier its
 /// map residual at the interval scalar reaches the 1e-12 band (sample

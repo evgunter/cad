@@ -346,7 +346,7 @@ impl CurvePlan {
 /// inside the span `[U_j, U_{j+p}]` of the vector they plan against
 /// (`insert_once`'s band), so the quotient never refuses and the true
 /// ratio is in `[0, 1]`, which is the door's precondition.
-fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+pub(super) fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
     let lo_i = Interval::point(lo);
     let ratio = (Interval::point(u) - lo_i) / (Interval::point(hi) - lo_i);
     Interval::between(x, y, ratio)

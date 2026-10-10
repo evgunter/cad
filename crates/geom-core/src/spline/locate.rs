@@ -136,36 +136,47 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// coefficient channel defines on `span`, read from `window`, the
     /// channel's `p + 1` coefficients on that span: coefficient `k` is
     /// the blossom at `a` taken `p − k` times and `b` taken `k` times.
-    /// `[a, b]` lies in the span's closure.
     ///
     /// Per scalar, as the locator is. At `Interval` it is the window's
-    /// certified restriction ([`super::CoeffWindow::restrict`]), so every
-    /// coefficient encloses the true one, and an end outside the span's
-    /// closure refuses the row. At every other scalar it is de Boor's
-    /// recurrence with the ratio `α` formed in the scalar and the fixed
-    /// association `x·(1 − α) + y·α` (D9). A window that is not `p + 1`
-    /// long answers poison coefficients.
+    /// certified restriction ([`super::SpanRow::restrict`]), so every
+    /// coefficient encloses the true one. At every other scalar it is de
+    /// Boor's recurrence with the ratio `α` formed in the scalar and the
+    /// fixed association `x·(1 − α) + y·α` (D9).
+    ///
+    /// **Every scalar refuses the same inputs**: a window that is not
+    /// `p + 1` long, and an end outside the span's closure, answer poison
+    /// coefficients — the piece's polynomial past its span is not the
+    /// curve, and an extension answered at one scalar and refused at
+    /// another hides a caller that crosses a knot. The poison is the
+    /// window's own ([`poison_from`] its first entry), or a bare NaN for
+    /// an empty window, which has no channel to carry.
     fn restrict_window(window: &[Self], span: Span<'_>, (a, b): (f64, f64)) -> Vec<Self> {
         let p = span.degree();
-        let (first, knots) = (span.first_control(), span.knots().knots());
-        let Some(seed) = window.first().copied().filter(|_| window.len() == p + 1) else {
-            return vec![Self::from_f64(f64::NAN); p + 1];
-        };
+        let knots = span.knots().knots();
+        // Indexing justified: `p ≤ index ≤ last_span() = len − p − 2`.
+        let (lo, hi) = (knots[span.index()], knots[span.index() + 1]);
+        let inside = |x: f64| lo <= x && x <= hi;
+        if window.len() != p + 1 || !inside(a) || !inside(b) {
+            let poison = window
+                .first()
+                .map_or_else(|| Self::from_f64(f64::NAN), |&c| poison_from(c));
+            return vec![poison; p + 1];
+        }
+        let first = span.first_control();
         (0..=p)
             .map(|k| {
                 let mut d = window.to_vec();
                 for r in 1..=p {
                     let u = Self::from_f64(if r <= p - k { a } else { b });
                     for i in (r..=p).rev() {
-                        // `first + i ≥ first` and `first + i + p + 1 − r
-                        // ≤ index + p`, inside the vector.
+                        // `first + i + p + 1 − r ≤ index + p`, inside the vector.
                         let lo = Self::from_f64(knots[first + i]);
                         let hi = Self::from_f64(knots[first + i + p + 1 - r]);
                         let alpha = (u - lo) / (hi - lo);
                         d[i] = d[i - 1] * (Self::one() - alpha) + d[i] * alpha;
                     }
                 }
-                d.get(p).copied().unwrap_or_else(|| poison_from(seed))
+                d[p]
             })
             .collect()
     }

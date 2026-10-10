@@ -40,8 +40,8 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
-use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::refine_plan_homogeneous;
+use geom_core::spline::restrict_bernstein;
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
@@ -430,22 +430,12 @@ impl Stretch {
 }
 
 /// The Bernstein coefficients of the polynomial with coefficients `c` on
-/// `[0, 1]`, restricted to `[ra, rb]`: the row's window on its Bézier
-/// vector, restricted ([`geom_core::spline::CoeffWindow::restrict`]).
-/// Every coefficient encloses the exact one for every `ra`, `rb` in the
-/// enclosures given; an end with no point in `[0, 1]` refuses the row.
-/// A constant (one coefficient) is its own restriction.
+/// `[0, 1]`, restricted to `[ra, rb]`
+/// ([`geom_core::spline::restrict_bernstein`]): every coefficient
+/// encloses the exact one for every `ra`, `rb` in the enclosures given;
+/// an empty row or an end with no point in `[0, 1]` refuses the row.
 fn sub_piece(c: &[Interval], ra: Interval, rb: Interval) -> Vec<Interval> {
-    let Some(p) = c.len().checked_sub(1) else {
-        return vec![Interval::refused()];
-    };
-    if p == 0 {
-        return c.to_vec();
-    }
-    KnotVector::bezier(p, (0.0, 1.0))
-        .ok()
-        .and_then(|kv| kv.with_coeffs(c)?.span(p)?.restrict((ra, rb)).ok())
-        .unwrap_or_else(|| vec![Interval::refused(); p + 1])
+    restrict_bernstein(c, (ra, rb)).unwrap_or_else(|_| vec![Interval::refused(); c.len().max(1)])
 }
 
 /// The hull of a coefficient list.
@@ -740,7 +730,7 @@ const SECTION_SETTLE_ITERS: usize = 128;
 mod tests {
     use geom::NurbsCurve3;
     use geom_core::interval::certification::Certification as _;
-    use geom_core::spline::KnotVector;
+    use geom_core::spline::restrict_bernstein;
     use geom_core::{Band, Interval, Point3, SupSpeed, Vec3};
 
     use super::{BoundarySection, SIDE_SIGN_HALVINGS, SignBudget, SsiError, refined_sign};

@@ -29,10 +29,10 @@
 //!   knots[i+1]`, located by exhaustive scan over `first_span
 //!   ..= last_span`) rather than from the retired linear scan, plus the
 //!   two documented clamps, and no span at NaN.
-//! - **The decomposition's pieces**, reconstructed from
-//!   `to_bezier_spans_extra`'s loop, each restricted from its own span's
-//!   window — including with injected extras, at multiplicity
-//!   saturation, and at degree 1.
+//! - **The decomposition itself** (`SplineCoeffs::bernstein_spans`),
+//!   every row held to exact containment of its piece's blossom —
+//!   including with injected extras, at multiplicity saturation, and at
+//!   degree 1.
 //! - **The public door**, driven with extras chosen to break the
 //!   decomposition if anything can: NaN, ±∞, both domain ends, `-0.0`,
 //!   values one ULP inside each end, and duplicates of existing knots.
@@ -47,11 +47,14 @@ test_utils::gated_to![
     "crates/geom-core/src/interval.rs",
 ];
 
+use crate::exact_q::Q;
+use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::CurveCertData;
 use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
+use num_bigint::BigInt;
 use test_utils::fuzz;
 
 // ---------------------------------------------------------------------
@@ -691,69 +694,125 @@ fn interior_knots_and_the_span_search_against_definitional_oracles() {
 }
 
 // ---------------------------------------------------------------------
-// C3 / C7: the decomposition's pieces, and the door they go through
+// C3 / C7: the decomposition, against its definition
 // ---------------------------------------------------------------------
 
-/// `to_bezier_spans_extra`'s loop, reconstructed through the public
-/// doors: the merge of the extras into each knot segment, and every
-/// piece restricted from the window of the span starting at its
-/// segment's lower end. Each piece lies in that span, so the blossom's
-/// typed refusal (an argument wholly outside the span) is one no
-/// schedule of the decomposition reaches, and with point coefficients
-/// every row certifies.
+/// The decomposition itself ([`SplineCoeffs::bernstein_spans`]) on `kv`
+/// with `extra`, checked against its definition: the breaks are the
+/// vector's distinct knots merged with the extras strictly inside the
+/// domain, and every row's coefficient `k` CONTAINS, in exact
+/// arithmetic, the piece's blossom at `a^(p−k), b^k` over the span the
+/// piece lies in — computed here by de Boor's recurrence in unbounded
+/// rationals from the window's own coefficients. Nothing is
+/// reconstructed from the code under test but the definition.
+///
+/// The exact containment is asserted at degree ≤ `EXACT_DEGREE`; above
+/// it every row is held to certification and the breaks only. The
+/// oracle costs `p³` unbounded-rational steps per piece, which runs to
+/// minutes over the enumerated set at degree 17, and the degree-7 deep
+/// fold is held to exact containment in `compose`'s unit rows.
+///
+/// [`SplineCoeffs::bernstein_spans`]: geom_core::spline::SplineCoeffs::bernstein_spans
+/// The highest degree [`simulate_decomposition`] holds to exact
+/// containment.
+const EXACT_DEGREE: usize = 6;
+
 fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
     let p = kv.degree();
     let (lo, hi) = kv.domain();
-    let own: Vec<f64> = kv.interior_knots().map(|(v, _)| v).collect();
-    let mut cuts: Vec<f64> = extra
-        .iter()
-        .copied()
-        .filter(|&v| v > lo && v < hi && !own.contains(&v))
-        .collect();
-    cuts.sort_by(f64::total_cmp);
-    cuts.dedup();
     #[allow(clippy::cast_precision_loss)]
-    let coeffs: Vec<Interval> = (0..kv.control_count())
-        .map(|i| Interval::point(1.0 + i as f64))
+    let coeffs: Vec<f64> = (0..kv.control_count())
+        .map(|i| {
+            if i % 2 == 0 {
+                1.0 + i as f64
+            } else {
+                -(1.0 + i as f64)
+            }
+        })
         .collect();
-    let pair = kv.with_coeffs(&coeffs).expect("the vector's own count");
-    let mut ends = vec![lo];
-    ends.extend(own.iter().copied());
-    ends.push(hi);
-    let mut next = cuts.iter().copied().peekable();
-    for seg in ends.windows(2) {
-        let (s0, s1) = (seg[0], seg[1]);
-        let window = pair
-            .span_at(s0)
-            .unwrap_or_else(|| panic!("{name}: no span starts at the segment end {s0}"));
-        let start = kv.knots()[window.span().index()];
-        let end = kv.knots()[window.span().index() + 1];
-        assert!(
-            start == s0 && end == s1,
-            "{name}: the span at {s0} is [{start}, {end}], not the segment [{s0}, {s1}]"
-        );
-        let mut pieces = Vec::new();
-        let mut from = s0;
-        while let Some(cut) = next.next_if(|&c| c < s1) {
-            pieces.push((from, cut));
-            from = cut;
-        }
-        pieces.push((from, s1));
-        for (a, b) in pieces {
-            let row = window
-                .restrict((Interval::point(a), Interval::point(b)))
-                .unwrap_or_else(|e| panic!("{name}: the piece [{a}, {b}] refused: {e}"));
-            assert_eq!(row.len(), p + 1, "{name}: a degree-{p} row");
+    let lifted: Vec<Interval> = coeffs.iter().map(|&c| Interval::point(c)).collect();
+    let got = kv
+        .with_coeffs(&lifted)
+        .expect("the vector's own count")
+        .bernstein_spans(extra);
+    let mut want: Vec<f64> = kv.knot_runs().map(|(k, _)| k).collect();
+    want.extend(extra.iter().copied().filter(|&v| v > lo && v < hi));
+    want.sort_by(f64::total_cmp);
+    want.dedup_by(|a, b| a == b);
+    assert_eq!(got.breaks(), want.as_slice(), "{name}: the merged breaks");
+    assert_eq!(got.degree(), p, "{name}: the degree");
+    // The blossom's ratios are invariant under an affine change of
+    // parameter, and translating by `lo` then scaling by a power of two
+    // near the domain's width is exact in rationals: it keeps every
+    // knot a short dyadic whatever the domain's magnitude, which is what
+    // keeps the oracle's arithmetic cheap at 1e300 and at subnormals.
+    let width = hi - lo;
+    // A width that overflows (a domain across the whole range) keeps
+    // the unscaled knots: correct, only slower.
+    let e = if width.is_finite() {
+        width.log2().floor()
+    } else {
+        0.0
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let shift = e.abs() as usize;
+    let scale = if e >= 0.0 {
+        Q::new(BigInt::from(1), BigInt::from(1) << shift)
+    } else {
+        Q::new(BigInt::from(1) << shift, BigInt::from(1))
+    };
+    let origin = Q::from_f64(lo);
+    let at = |x: f64| Q::from_f64(x).sub(&origin).mul(&scale);
+    let knots: Vec<Q> = kv.knots().iter().map(|&t| at(t)).collect();
+    let one = Q::from_f64(1.0);
+    for (j, (row, ends)) in got.spans().iter().zip(got.breaks().windows(2)).enumerate() {
+        let (a, b) = (ends[0], ends[1]);
+        if p > EXACT_DEGREE {
             assert!(
-                row.iter().all(|c| c.is_certified()),
-                "{name}: the piece [{a}, {b}] has a refused coefficient"
+                row.len() == p + 1 && row.iter().all(|c| c.is_certified()),
+                "{name}: piece {j} [{a}, {b}] is not a certified degree-{p} row: {row:?}"
+            );
+            continue;
+        }
+        let s = kv
+            .span_at(a)
+            .unwrap_or_else(|| panic!("{name}: piece {j} at {a} locates no span"))
+            .index();
+        assert_eq!(row.len(), p + 1, "{name}: piece {j} is a degree-{p} row");
+        let level = |d: &mut Vec<Q>, r: usize, u: &Q| {
+            for jj in (r..=p).rev() {
+                let i = s - p + jj;
+                let lam = u.sub(&knots[i]).div(&knots[i + p + 1 - r].sub(&knots[i]));
+                d[jj] = one.sub(&lam).mul(&d[jj - 1]).add(&lam.mul(&d[jj]));
+            }
+        };
+        let (qa, qb) = (at(a), at(b));
+        let mut pyramid: Vec<Vec<Q>> = vec![(s - p..=s).map(|i| Q::from_f64(coeffs[i])).collect()];
+        for r in 1..=p {
+            let mut d = pyramid[r - 1].clone();
+            level(&mut d, r, &qa);
+            pyramid.push(d);
+        }
+        for (k, c) in row.iter().enumerate() {
+            let mut d = pyramid[p - k].clone();
+            for r in p - k + 1..=p {
+                level(&mut d, r, &qb);
+            }
+            let truth = &d[p];
+            assert!(
+                c.is_certified()
+                    && truth.cmp_f64(c.lo()) != core::cmp::Ordering::Less
+                    && truth.cmp_f64(c.hi()) != core::cmp::Ordering::Greater,
+                "{name}: piece {j} [{a}, {b}] coefficient {k} {c:?} does not contain the \
+                 exact blossom {:e}",
+                truth.to_f64_report()
             );
         }
     }
 }
 
 #[test]
-fn every_decomposition_piece_restricts_from_its_own_span() {
+fn the_decomposition_contains_every_pieces_exact_blossom() {
     let mut cases: Vec<(String, KnotVector, Vec<f64>)> = Vec::new();
     for (name, kv) in enumerated() {
         let (lo, hi) = kv.domain();

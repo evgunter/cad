@@ -183,9 +183,13 @@ pub trait Certification: sealed::Sealed + Copy {
     /// increases in each of `x` and `y`, so its range over the two
     /// brackets is spanned by the lower ends combined together and the
     /// upper ends combined together. Each corner is a lerp of two POINTS
-    /// from the nearer source — `xl + (yl − xl)·Λ` when `λ ≲ ½`,
-    /// `yl + (xl − yl)·(1 − Λ)` otherwise, so the lever on the ratio is at
-    /// most half the chord — and the step is the hull of the two corners.
+    /// from the nearer source — `xl + (yl − xl)·Λ` when `Λ`'s midpoint is
+    /// at most `½`, `yl + (xl − yl)·(1 − Λ)` otherwise, so for a thin `Λ`
+    /// the lever on the ratio is at most about half the chord (a wide `Λ`,
+    /// `[0.1, 1]` say, levers up to its far end) — and the step is the
+    /// hull of the two corners. The branch reads the midpoint as rounded,
+    /// and either branch is sound for any `Λ`; the choice moves only the
+    /// rounding.
     /// Each source bound is read once, so a fold of steps adds rounding
     /// per step rather than multiplying inherited width; the ratio's
     /// width is levered by the chord `|y − x|` and never by the
@@ -332,14 +336,28 @@ impl Certification for Interval {
         } else {
             (y, x, <Self as Certification>::one() - lambda)
         };
+        // An exact end ratio is the nearer source itself: the corners
+        // and the meet would return it bit for bit, at the weakest
+        // decoration of the three arguments.
+        if t.0.lo() == 0.0 && t.0.hi() == 0.0 {
+            let weakest = [x, y, lambda]
+                .iter()
+                .map(|v| v.0.decoration())
+                .min()
+                .unwrap_or_else(|| from.0.decoration());
+            return Self(from.0.with_dec_capped(weakest));
+        }
         let corner = |a: f64, b: f64| {
             let a = Self::point(a);
             a + (Self::point(b) - a) * t
         };
-        let corners = Self::hull(
-            corner(from.0.lo(), to.0.lo()),
-            corner(from.0.hi(), to.0.hi()),
-        );
+        let low = corner(from.0.lo(), to.0.lo());
+        // Two point sources have one corner.
+        let corners = if from.0.lo() == from.0.hi() && to.0.lo() == to.0.hi() {
+            low
+        } else {
+            Self::hull(low, corner(from.0.hi(), to.0.hi()))
+        };
         corners.meet(Self::hull(x, y))
     }
 

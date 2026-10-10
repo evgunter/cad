@@ -50,7 +50,7 @@ pub mod net;
 pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
-pub use blossom::BlossomError;
+pub use blossom::{BlossomError, SpanRow, restrict_bernstein};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };

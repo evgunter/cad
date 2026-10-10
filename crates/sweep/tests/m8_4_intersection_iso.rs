@@ -197,15 +197,15 @@ fn intrinsic_seam_at(
 /// number and no mint happens at all. `None` IS that cell — pinned as a
 /// refusal whose own number explains it, never widened away.
 ///
-/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
-/// the convex insertion form** (the sup was ~6.22e-12 m, 114x wider):
-/// the sup is a between-samples bound assembled over a Bézier
-/// decomposition, and the lerp form multiplied each coefficient's own
-/// dust up once per insertion. The seam therefore attaches first-class
-/// at ε_in = 1e-12 now, where it refused before. The refusal cell is
-/// still reachable and still measured — at ε_in = 1e-14 — but no eps row
-/// the gate or the nightly runs reaches it any more, which is filed
-/// rather than absorbed.
+/// **Why the boundary sits at 1e-13**: the sup is a between-samples
+/// bound assembled over a Bézier decomposition whose every row is
+/// restricted from its own span window (`CoeffWindow::restrict`), so a
+/// coefficient's width is added once per step and never multiplied per
+/// insertion (a step that multiplies it reads ~6.22e-12 m here, and the
+/// boundary at 1e-9). The seam therefore attaches first-class at
+/// ε_in = 1e-12. The refusal cell is still reachable and still measured
+/// — at ε_in = 1e-14 — but no eps row the gate or the nightly runs
+/// reaches it, which is filed rather than absorbed.
 fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
     let eps = Tol::witness().get().eps;
     match intrinsic_seam(swap) {

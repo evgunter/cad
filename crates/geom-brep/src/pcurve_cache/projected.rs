@@ -433,6 +433,22 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
     }
 }
 
+/// `range` cut at every knot of `kv` strictly inside it: the stretches
+/// each of which lies in one knot span's closure, in order — the pieces
+/// [`piece_controls`] takes. `None` when a cut is not ordered (a NaN end,
+/// or `range` running backwards), which a range a knot vector's breaks
+/// built cannot be, so the caller refuses rather than drops a stretch.
+pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
+    let (a, b) = (range.start(), range.end());
+    let mut breaks = vec![a];
+    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
+    breaks.push(b);
+    breaks
+        .windows(2)
+        .map(|w| ParamRange::new(w[0], w[1]))
+        .collect()
+}
+
 /// The control points and weights of a net's restriction to `piece`
 /// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, of each homogeneous channel
@@ -537,22 +553,18 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 // A part may cross the net's knots (a plane chart's one
                 // piece is the whole net): each span it crosses is
                 // restricted on its own, never extended past its knots.
-                let mut controls = Vec::new();
-                let mut from = part;
-                for k in net
-                    .knots()
-                    .knot_runs()
-                    .map(|(k, _)| k)
-                    .filter(|&k| k > s0 && k < s1)
-                {
-                    if let (Some(stretch), Some(rest)) =
-                        (ParamRange::new(from.start(), k), ParamRange::new(k, s1))
-                    {
-                        controls.extend(piece_controls(net, stretch));
-                        from = rest;
-                    }
-                }
-                controls.extend(piece_controls(net, from));
+                let Some(stretches) = span_stretches(net.knots(), part) else {
+                    let poison = poison_from(t0 + t1);
+                    return FrameBox {
+                        x: (poison, poison),
+                        y: (poison, poison),
+                        z: (poison, poison),
+                    };
+                };
+                let controls: Vec<(Vec3<T>, T)> = stretches
+                    .into_iter()
+                    .flat_map(|stretch| piece_controls(net, stretch))
+                    .collect();
                 let first = controls[0].0;
                 let mut x = (first.x, first.x);
                 let mut y = (first.y, first.y);

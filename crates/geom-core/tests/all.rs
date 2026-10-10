@@ -51,6 +51,7 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod exact_q;
 mod refusal;
 mod span_fixtures;
 

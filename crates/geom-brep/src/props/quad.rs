@@ -156,7 +156,7 @@ use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, KnotVector, Param, ParamRange, SplineCoeffs, SplineCoeffsBuf, TensorChannels,
-    last_at_or_below,
+    last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1335,6 +1335,11 @@ impl Loose {
     /// list `knots`, where no clamped vector spells it: [`Loose::Raw`]
     /// at degree ≥ 1, [`Loose::Const`] at 0. The one place that is
     /// decided.
+    ///
+    /// `knots` is a clamped vector's knot list with an outer pair dropped
+    /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
+    /// that is what [`raw_span`] searches by and what puts
+    /// [`de_boor_on`]'s ratios in `[0, 1]` at a parameter inside the span.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
@@ -4154,26 +4159,14 @@ fn vertex_slack(p: RPt2) -> f64 {
 /// Bisection of a bracketed Bézier control polygon: the two halves at
 /// `λ = ½`, each again a Bézier polygon of the same degree whose first
 /// and last points are the arc's endpoints there and whose hull
-/// contains its half of the arc. Each channel is the polygon's row on
-/// its Bézier vector restricted to `[0, ½]` and `[½, 1]`
-/// ([`CoeffWindow::restrict`]), so both halves are certified enclosures
-/// of the same arc rather than re-approximations of it. A degree-0
-/// polygon is its own halves.
+/// contains its half of the arc. Each channel's row is restricted to
+/// `[0, ½]` and `[½, 1]` ([`restrict_bernstein`]), so both halves are
+/// certified enclosures of the same arc rather than re-approximations
+/// of it.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
-    let Some(p) = block.len().checked_sub(1).filter(|&p| p > 0) else {
-        return (block.to_vec(), block.to_vec());
-    };
-    let refused = vec![Interval::refused(); p + 1];
-    let kv = KnotVector::bezier(p, (0.0, 1.0)).ok();
     let half = |channel: &[Interval], (a, b): (f64, f64)| {
-        kv.as_ref()
-            .and_then(|kv| {
-                kv.with_coeffs(channel)?
-                    .span(p)?
-                    .restrict((pt(a), pt(b)))
-                    .ok()
-            })
-            .unwrap_or_else(|| refused.clone())
+        restrict_bernstein(channel, (pt(a), pt(b)))
+            .unwrap_or_else(|_| vec![Interval::refused(); channel.len()])
     };
     let xs: Vec<Interval> = block.iter().map(|q| q.0).collect();
     let ys: Vec<Interval> = block.iter().map(|q| q.1).collect();

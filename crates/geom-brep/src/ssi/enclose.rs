@@ -1410,35 +1410,21 @@ fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
 
 /// The Bézier coefficients over `[a, b]` of the polynomial piece that
 /// `line` (the `degree + 1` coefficients of `span`'s window) defines on
-/// that span: each channel minted as a coefficient array of `span`'s
-/// vector (refused outside the window, which the span never reads) and
-/// restricted through the window
-/// ([`geom_core::spline::CoeffWindow::restrict`]). `None` when the line
-/// is not one window long or the restriction refuses.
+/// that span, channel by channel: each channel's window restricted to
+/// `[a, b]` ([`geom_core::spline::SpanRow::restrict`]). `None` when the
+/// line is not one window long or the restriction refuses.
 fn bezier_on(
     line: &[[Interval; 4]],
     span: Span<'_>,
     (a, b): (f64, f64),
 ) -> Option<Vec<[Interval; 4]>> {
-    let p = span.degree();
-    if line.len() != p + 1 {
-        return None;
-    }
-    let first = span.first_control();
-    let mut out = vec![[Interval::refused(); 4]; p + 1];
+    let mut out = vec![[Interval::refused(); 4]; line.len()];
     for c in 0..4 {
-        let row = span.knots().with_coeffs_from_fn(
-            |i| {
-                i.checked_sub(first)
-                    .and_then(|k| line.get(k))
-                    .map_or_else(Interval::refused, |l| l[c])
-            },
-            |pair| {
-                pair.span(span.index())?
-                    .restrict((Interval::point(a), Interval::point(b)))
-                    .ok()
-            },
-        )?;
+        let channel: Vec<Interval> = line.iter().map(|l| l[c]).collect();
+        let row = span
+            .with_window(&channel)?
+            .restrict((Interval::point(a), Interval::point(b)))
+            .ok()?;
         for (k, v) in row.into_iter().enumerate() {
             out[k][c] = v;
         }

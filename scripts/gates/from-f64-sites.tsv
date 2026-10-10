@@ -50,9 +50,6 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-comput
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.0	a certified span bound computed from the carrier
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(geom-brep-keeps-computed-values-in-t)	span.z.1	a certified span bound computed from the carrier
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	0.5 * (d0 + d1)	a projected net's knot-domain midpoint
-crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	<block> if r <= p - m	a piece breakpoint on the stored knots (the reader cuts the argument at its brace)
-crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j + 1 + i - r]	a projected net's stored knot
-crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	knots[j - p + i]	a projected net's stored knot
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	net.weights()[i]	a projected net's stored weight
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	s0	a partition piece's breakpoint, on the stored knots
 crates/geom-brep/src/pcurve_cache/projected.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	s1	a partition piece's breakpoint, on the stored knots
