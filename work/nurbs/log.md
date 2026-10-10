@@ -383,3 +383,7 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Class M. Rule 1 byte 18, mod 3 = 0, gives HOLDOUT: a concurrent Opus pair on the frozen head `5ec41ae290`, with identical briefs.
   - The PR filed `a-swaying-rational-corner-refuses-at-the-rational-speed-meter` (P3 M) on this slate.
 - **PR 4518** carries DR-143 and merges on green. (NURBS orchestrator)
+- 2026-10-10 16:17 — PR 4518 conflicted with main in `docs/DUAL-REVIEW-LOG.md`, because GERM's DR-143 (PR #4522) landed first. I renumbered ours to DR-144 and kept both rows. That makes **twenty M-tier units under rule 1's arms**, so the full readout (rule 9) is owed, and I recorded the triggering row, so I ask Ev.
+  - Readout writer: a blind lane, on `analysis/dual-review/readout-4`. I do not read it.
+  - Row `the-dual-review-streams-fourth-readout-is-owed` (needs_ev). The `[ev]` PR opens when the writer is done.
+  - The arms continue unchanged. (NURBS orchestrator)
