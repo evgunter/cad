@@ -2,7 +2,8 @@
 id: validate-material-side-zero-mints-an-indeterminate
 kind: issue
 title: validate's material-side check mints an Indeterminate by hand after a definite Zero
-status: review
+status: closed
+closed: 2026-10-10
 opened: 2026-10-01
 ---
 
@@ -34,3 +35,7 @@ literals.
 ## Review
 
 The repair is in ENCL's `material-pairing-gate-definite-zero-ends-as-unreadable` (branch `encl/material-pairing-zero`). `MaterialStations::after_positive` now reads the cusp side through `decide_nonzero`, so a definite Zero carries its tagged margin and the `Cusp`/`Slit` match has two arms.
+
+## Closed
+
+2026-10-10, by ENCL's PR 4474 (`material-pairing-gate-definite-zero-ends-as-unreadable`). `MaterialStations::after_positive` reads the cusp side through `decide_nonzero`, and its Zero, a contradiction of the positive sagitta decided one step earlier, ends in the defect ending.
