@@ -46,8 +46,8 @@ use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Datum, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf,
-    SplitSide, ValuePayload, persist,
+    Datum, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
+    ValuePayload, persist,
 };
 use fixture::digest::digest;
 use fixture::{len, scl, square, tol};
@@ -381,8 +381,16 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
         panic!("the present half is read: {:?}", ev.nodes.get(&below));
     };
     assert_eq!(
-        (read.faces().count(), read.edges().count(), read.vertices().count()),
-        (side.faces().count(), side.edges().count(), side.vertices().count()),
+        (
+            read.faces().count(),
+            read.edges().count(),
+            read.vertices().count()
+        ),
+        (
+            side.faces().count(),
+            side.edges().count(),
+            side.vertices().count()
+        ),
         "the reader holds the split's own side"
     );
 }

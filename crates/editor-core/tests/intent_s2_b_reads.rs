@@ -483,7 +483,10 @@ fn a_split_port_read_is_its_half() {
     );
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     let volume = volume_of(&ev, by_port);
-    assert!((volume - 1.5).abs() < 1e-12, "the half (0.5) and the block (1): {volume}");
+    assert!(
+        (volume - 1.5).abs() < 1e-12,
+        "the half (0.5) and the block (1): {volume}"
+    );
     let above_rows: Vec<editor_core::StableName> = ev
         .value(split)
         .expect("the split")

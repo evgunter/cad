@@ -59,8 +59,7 @@ use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
-    Axis3, BooleanOp, Datum, DeclaredPair, Node, PatternKind, RecipeNodeId, SitedRef,
-    SlotId,
+    Axis3, BooleanOp, Datum, DeclaredPair, Node, PatternKind, RecipeNodeId, SitedRef, SlotId,
 };
 use crate::program::ProfileProgram;
 use crate::resolve::FoldConsumption;

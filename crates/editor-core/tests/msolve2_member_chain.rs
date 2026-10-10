@@ -29,8 +29,7 @@ use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, RefusedRef, SitedFace, StableName, VarName, groups, member_of,
-    product,
+    RecipeNodeId, RefusedRef, SitedFace, StableName, VarName, groups, member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};

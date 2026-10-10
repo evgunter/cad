@@ -22,8 +22,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, FreeVar, Node,
-    PartSelect, ProfileDoc, RecipeNodeId, SplitSide, UnitSym, ValuePayload, VarName,
-    apply, evaluate,
+    PartSelect, ProfileDoc, RecipeNodeId, SplitSide, UnitSym, ValuePayload, VarName, apply,
+    evaluate,
 };
 use geom_core::{Bounds, Decide, Interval, SymBudget, Tol};
 use topo::Body;

@@ -24,9 +24,8 @@ use crate::fixture::{Recorder, ang, len, scl};
 use editor_core::{
     BooleanOp, CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, Operand,
-    PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
-    StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
+    PartSelect, PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf,
+    SplitSide, StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
 use geom_core::{Affine3, Dual, Mat3, Tol, Vec3};
 use topo::{Body, BooleanResult, mass_properties, transform_rigid};
@@ -678,7 +677,11 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
         corpus::failures(&ev)
     );
     let key = |id| ev.value(id).expect("a value").content_key;
-    assert_ne!(key(above), key(below), "reads of the two halves of one split");
+    assert_ne!(
+        key(above),
+        key(below),
+        "reads of the two halves of one split"
+    );
     assert_ne!(key(p1), key(p2), "two instances of one pattern");
 
     let edited = apply(

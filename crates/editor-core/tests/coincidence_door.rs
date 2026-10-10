@@ -12,9 +12,9 @@ use crate::fixture::{ang, fname, insert, len, len2, on_frame, scl, table};
 use editor_core::{
     Advisory, BooleanCoincidence, BooleanOp, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum,
     EntityKey, EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
-    NamedCoincidence, Node, Operand, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
-    ValuePayload, coincide, spoken_by,
+    NamedCoincidence, Node, Operand, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf,
+    StableName, ValuePayload, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};

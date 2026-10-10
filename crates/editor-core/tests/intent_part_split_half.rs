@@ -53,7 +53,10 @@ fn a_file_holding_a_split_half_part_refuses_unreadable() {
     let mut doctored = 0;
     doctor(&mut body, &mut doctored);
     assert_eq!(doctored, 1, "the one Part's selector, {part:?}");
-    let old = format!("{header}{}", serde_json::to_string_pretty(&body).expect("prints"));
+    let old = format!(
+        "{header}{}",
+        serde_json::to_string_pretty(&body).expect("prints")
+    );
     let refusal = load(&old, Tol::witness()).err();
     assert!(
         matches!(

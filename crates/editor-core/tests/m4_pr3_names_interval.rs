@@ -13,8 +13,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    RecipeNodeId, SplitHalf, evaluate,
+    BooleanOp, CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
+    SplitHalf, evaluate,
 };
 use fixture::{declare_x_offset_flush, insert, len, on_frame, scl, wall};
 use geom_core::Interval;

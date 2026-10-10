@@ -711,24 +711,22 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 // A minted read no live operation defines is a strand the
                 // file keeps (DM7), the reader's refusal at evaluation.
                 let held = snapshot.var(var)?;
-                Some(
-                    match snapshot.read_fault(held, slot.kind())? {
-                        crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
+                Some(match snapshot.read_fault(held, slot.kind())? {
+                    crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
+                        node: snapshot.spoken(id),
+                        slot: SlotId::Operand(slot),
+                        var: Box::new(snapshot.spoken_var(var)),
+                        found,
+                        expected: slot.kind(),
+                    },
+                    crate::doc::ReadFault::WorldCopy { placement } => {
+                        SnapshotError::ReadsWorldCopy {
                             node: snapshot.spoken(id),
                             slot: SlotId::Operand(slot),
-                            var: Box::new(snapshot.spoken_var(var)),
-                            found,
-                            expected: slot.kind(),
-                        },
-                        crate::doc::ReadFault::WorldCopy { placement } => {
-                            SnapshotError::ReadsWorldCopy {
-                                node: snapshot.spoken(id),
-                                slot: SlotId::Operand(slot),
-                                placement: snapshot.spoken(placement),
-                            }
+                            placement: snapshot.spoken(placement),
                         }
-                    },
-                )
+                    }
+                })
             })
             .or_else(|| {
                 let placement = node
