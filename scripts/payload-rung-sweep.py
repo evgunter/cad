@@ -166,7 +166,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
-    "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     # `RefusalReason::MeasureRefused`'s closed class, which replaced a
     # `&'static str`. The carry owes a Python word and a decision about
     # `ClearanceRefusal`, the eleven-arm enum its engine arm holds.
