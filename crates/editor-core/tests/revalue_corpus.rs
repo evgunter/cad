@@ -243,7 +243,7 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
-fn holds(name: &str, floor: usize, owed: &[(&str, &str)]) {
+fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
@@ -256,9 +256,10 @@ fn holds(name: &str, floor: usize, owed: &[(&str, &str)]) {
     );
     assert_eq!(
         found.mode,
-        Some(Move::Apart),
-        "{name}: the row fell back to the in-step move, under which a laundered quantity that \
-         depends only on ratios of the variables does not move ({found:?})"
+        Some(mode),
+        "{name}: the row compared under another move than its pin — under the in-step move a \
+         laundered quantity that depends only on ratios of the variables does not move, so a \
+         row's move is pinned and a change of it is read ({found:?})"
     );
     assert!(
         found.moved >= floor,
@@ -279,27 +280,31 @@ fn holds(name: &str, floor: usize, owed: &[(&str, &str)]) {
 // at `Sym<f64>` in seconds. The others (`die`, `cup`, `tube_ring`, …) run
 // through `revalue_census`; `kiss_carry` changes branch under both moves
 // and is not compared.
-// Each row's floor is half the margins it moved and re-valued when it was
-// pinned, so a change that makes a row opaque or static goes red.
+// Each row's move is pinned, and its floor is half the margins it moved
+// and re-valued when it was pinned, so a change that makes a row opaque or
+// static, or sends it to the weaker move, goes red.
 macro_rules! rows {
-    ($($row:ident: $doc:literal, $floor:literal, [$($owed:expr),*];)*) => {$(
+    ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*];)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, $floor, &[$($owed),*]);
+            holds($doc, Move::$mode, $floor, &[$($owed),*]);
         }
     )*};
 }
 
 rows! {
-    revalue_plate_param: "plate_param", 650, [];
-    revalue_boss_union: "boss_union", 560, [];
-    revalue_cut_cylinder: "cut_cylinder", 290, [];
-    revalue_die_chamfer: "die_chamfer", 740, [];
-    revalue_face_sketch: "face_sketch", 250, [];
-    revalue_heat_sink_fins: "heat_sink_fins", 190, [];
-    revalue_loft_prism: "loft_prism", 3, [];
-    revalue_measured_web: "measured_web", 45, [];
-    revalue_declared_tangency: "declared_tangency", 160, [];
+    revalue_plate_param: "plate_param", Apart, 650, [];
+    revalue_boss_union: "boss_union", Apart, 560, [];
+    // In step: moved apart, its split parts at `split_join_frame_axis`
+    // (an axis the cleave's join frame decides against a datum's), so
+    // only the in-step move compares the whole document.
+    revalue_cut_cylinder: "cut_cylinder", InStep, 220, [];
+    revalue_die_chamfer: "die_chamfer", Apart, 740, [];
+    revalue_face_sketch: "face_sketch", Apart, 250, [];
+    revalue_heat_sink_fins: "heat_sink_fins", Apart, 190, [];
+    revalue_loft_prism: "loft_prism", Apart, 3, [];
+    revalue_measured_web: "measured_web", Apart, 45, [];
+    revalue_declared_tangency: "declared_tangency", Apart, 160, [];
 }
 
 /// The census over the whole corpus, one document per run with
@@ -321,9 +326,14 @@ fn revalue_census() {
             continue;
         }
         let t = std::time::Instant::now();
-        let found = compare_moved(&cd.doc, Move::Apart, false)
-            .or_else(|| compare_moved(&cd.doc, Move::InStep, false))
-            .unwrap_or_else(|| compare_prefix(&cd.doc));
+        // `REVALUE_APART=1`: the apart move only, read to where it parts.
+        let found = if std::env::var_os("REVALUE_APART").is_some() {
+            compare_moved(&cd.doc, Move::Apart, true).expect("a prefix comparison always answers")
+        } else {
+            compare_moved(&cd.doc, Move::Apart, false)
+                .or_else(|| compare_moved(&cd.doc, Move::InStep, false))
+                .unwrap_or_else(|| compare_prefix(&cd.doc))
+        };
         let Found {
             compared,
             moved,
