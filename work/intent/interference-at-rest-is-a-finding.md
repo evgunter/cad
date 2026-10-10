@@ -63,7 +63,7 @@ maps are `a-map-over-a-patterns-bodies-asserts-once-per-member`. This
 unit's quieting rule is per finding, so a mapped assertion quiets
 exactly as the one it expands to would.
 
-Closed by PR 4560 (dual review DR-149). The owed work is on its rows:
+Closed by PR 4560 (dual review DR-150). The owed work is on its rows:
 - `the-at-rest-containment-check-has-no-sphere-lane`;
 - `a-pierce-only-overlap-can-never-be-quieted`;
 - `the-probe-gated-assembly-battery-gathers-an-unplaced-fixture`;
