@@ -2346,7 +2346,7 @@ fn conic_crossings<T: Decide>(
     for t in roots.into_iter().flatten() {
         let q = curve.carrier().eval(t);
         match edge.contact(side.ends, q, EF_CROSS_ROWS, band) {
-            Ok(EdgeContact::On) => out.push((q, CutAt::ConicCrossing)),
+            Ok(EdgeContact::On(_)) => out.push((q, CutAt::ConicCrossing)),
             Ok(EdgeContact::End | EdgeContact::Carrier) => {}
             // A root of the carrier read off it, or an arc read as no
             // conic: the arc is not what its loop says it is.
@@ -6166,13 +6166,13 @@ fn confirm_declarations<T: Decide>(
     }
     confirm_curve_and_patch_records(body, contacts, band, region, errors);
     for c in &contacts.ve {
-        confirm_vertex_on_edge(body, geo, *c, band, errors);
+        confirm_vertex_on_edge(body, geo, **c, band, errors);
     }
     for c in &contacts.ee {
-        confirm_edge_edge(body, geo, *c, band, errors);
+        confirm_edge_edge(body, geo, **c, band, errors);
     }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
-        confirm_vertex_on_face(body, geo, *c, band, errors);
+        confirm_vertex_on_face(body, geo, **c, band, errors);
     }
 }
 
@@ -6942,10 +6942,13 @@ mod tests {
             })
             .expect("a vertex off the rim");
         let records = ContactRecords {
-            ve: vec![crate::boolean::VeContact {
-                vertex: far,
-                edge: rim,
-            }],
+            ve: vec![crate::Cited::new(
+                crate::boolean::VeContact {
+                    vertex: far,
+                    edge: rim,
+                },
+                crate::Cites::decided(0),
+            )],
             ..ContactRecords::default()
         };
         let errors = census_and_certify(&body, &records, band(), Tol::witness(), None);
@@ -7208,10 +7211,13 @@ mod tests {
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7247,10 +7253,13 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w3,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w3,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7343,10 +7352,13 @@ mod tests {
         let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
         let pair = (seat.post_top, seat.shelf_bottom);
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: pair.0,
-            face_b: pair.1,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: pair.0,
+                face_b: pair.1,
+            },
+            crate::Cites::decided(0),
+        ));
         let crossings = |errors: &[ValidationError]| -> Vec<String> {
             errors
                 .iter()
@@ -7512,10 +7524,13 @@ mod tests {
             "an in-band sliver must never DECIDE undeclared: {arm:?}"
         );
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let cert = census_and_certify(
             &body,
             &records,
@@ -7585,10 +7600,13 @@ mod tests {
             "the next-branch authoring must not evade the arm: {arm:?}"
         );
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let cert = census_and_certify(
             &body,
             &records,
@@ -7626,10 +7644,13 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7736,10 +7757,13 @@ mod tests {
     fn a_cross_description_cylinder_patch_record_certifies() {
         let (body, w1, w2) = cross_description_pair(0.5, 1.3, 0.3, 0.7);
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,
@@ -7765,10 +7789,13 @@ mod tests {
     fn a_refuted_cross_description_cylinder_record_is_stale_typed() {
         let (body, w1, w2) = cross_description_pair(0.5, 1.3, 2.0, 2.5);
         let mut records = ContactRecords::default();
-        records.patches.push(PatchContact {
-            face_a: w1,
-            face_b: w2,
-        });
+        records.patches.push(crate::Cited::new(
+            PatchContact {
+                face_a: w1,
+                face_b: w2,
+            },
+            crate::Cites::decided(0),
+        ));
         let errors = census_and_certify(
             &body,
             &records,

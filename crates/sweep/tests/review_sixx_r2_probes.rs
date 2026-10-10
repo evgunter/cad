@@ -581,14 +581,7 @@ fn review_sixx_counter_reads_the_pr_pose() {
 }
 
 fn rest_rows(records: &topo::ContactRecords) -> Vec<topo::CarriedVv> {
-    records
-        .vv
-        .iter()
-        .map(|&pair| topo::CarriedVv {
-            pair,
-            class: topo::ContactClass::Rest,
-        })
-        .collect()
+    records.carried(topo::ContactClass::Rest).vv
 }
 
 /// **The nested plan at a shared vertex.** A pinch: a reflex wedge and a

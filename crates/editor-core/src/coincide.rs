@@ -242,6 +242,9 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
+        topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
+        topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",
     }
 }
 
@@ -438,6 +441,7 @@ pub(crate) fn name_rows(
                 .tool
                 .map(|input| NamedCell::Tool { input })
                 .ok_or_else(unnamed),
+            topo::RowCell::Result { .. } => Err(unnamed()),
             topo::RowCell::Input { input, cell } => {
                 let (node, table) = match input {
                     topo::Operand::A => Some(inputs.a),

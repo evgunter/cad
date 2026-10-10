@@ -122,6 +122,7 @@ use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
 use super::join::bool_connect;
+use super::reduce::PendingRow;
 use super::section_cert::Refusal as SectionRefusal;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
@@ -135,6 +136,7 @@ use super::{
     SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
+use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::live::{BoundaryMember, linked, proven};
@@ -656,15 +658,13 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 interior_loops,
             } => (*red, *connected, interior_loops),
         };
-    let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
-    let coincidences = red.coincidences.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
     let copies = Descendants::null_copies(&red.null_edges);
     let along = connected.along.clone();
-    let carried = split_lineage(&red, decls, band)?;
+    let ledger = ledger(&red, decls, band)?;
     let hung = red.hung.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The hung points in result keys: A's clone is the result's own, B's
@@ -723,10 +723,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         band,
         tol,
     )?;
-    let contacts = carry(
+    let (contacts, coincidences) = carry(
         &body,
-        &contacts,
-        [&carried[0], &carried[1]],
+        &ledger,
         [&KeyView::Direct, &KeyView::Graft(&fin.graft)],
         &desc,
     )?;
@@ -2943,13 +2942,17 @@ impl Descendants {
 /// band of a split vertex, `SelfCheck(CarriedLineage)` where a span
 /// question is; [`BooleanError::JoinDesync`] where a logged key does
 /// not resolve in its clone.
-pub(super) fn split_lineage<T: Decide>(
+pub(super) fn ledger<T: Decide>(
     red: &BooleanReduction<T>,
     decls: &BooleanDeclarations,
     band: Band,
-) -> Result<[Rows; 2], BooleanError> {
+) -> Result<Ledger, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let mut out = [Rows::of(&decls.carried_a), Rows::of(&decls.carried_b)];
+    let mut out = [
+        Rows::of(&decls.carried_a, Operand::A),
+        Rows::of(&decls.carried_b, Operand::B),
+    ];
+    let mut pending = red.pending.clone();
     for ((side, clone), carried) in [(Operand::A, &red.a), (Operand::B, &red.b)]
         .into_iter()
         .zip(&mut out)
@@ -2981,14 +2984,17 @@ pub(super) fn split_lineage<T: Decide>(
                 // split vertex, else on the parent's span from its start
                 // to the split, else past it, on the child.
                 let gap = Margin::norm3(p_vertex - p_split);
-                let apart =
-                    geom_core::k_stats::decide_magnitude("bool_carried_ve_split_vertex", gap, band)
-                        .map_err(|diag| BooleanError::Escalated {
-                            decision: BooleanDecision::VertexOnVertex,
-                            diag,
-                        })?;
+                let (apart, margin) = geom_core::k_stats::decide_magnitude_reported(
+                    "bool_carried_ve_split_vertex",
+                    gap,
+                    band,
+                )
+                .map_err(|diag| BooleanError::Escalated {
+                    decision: BooleanDecision::VertexOnVertex,
+                    diag,
+                })?;
                 if apart == geom_core::k_stats::Magnitude::Zero {
-                    at = Some(split.vertex);
+                    at = Some((split.vertex, margin));
                     break;
                 }
                 let stays = crate::census::on_segment_interior(p_vertex, (p_start, p_split), band)
@@ -3001,15 +3007,84 @@ pub(super) fn split_lineage<T: Decide>(
                 }
             }
             match at {
-                Some(w) => carried.vv.push(VvContact { a: vertex, b: w }),
-                None => carried.ve.push(VeContact { vertex, edge }),
+                // The carried vertex decided one with the vertex the
+                // split minted: a decision of this op's, cited beside the
+                // carried record.
+                Some((w, margin)) => {
+                    let fresh = decide_one(
+                        &mut pending,
+                        (side, Cell::Vertex(vertex)),
+                        (side, Cell::Vertex(w)),
+                        margin,
+                    );
+                    carried.vv.push(Cited::new(
+                        VvContact { a: vertex, b: w },
+                        row.cites.union(&fresh),
+                    ));
+                }
+                None => carried
+                    .ve
+                    .push(Cited::new(VeContact { vertex, edge }, row.cites)),
             }
         }
         for row in core::mem::take(&mut carried.ee) {
-            ee_lineage(clone, side, &red.edge_splits, row, carried, band)?;
+            ee_lineage(
+                clone,
+                side,
+                &red.edge_splits,
+                row,
+                carried,
+                &mut pending,
+                band,
+            )?;
         }
     }
-    Ok(out)
+    Ok(Ledger {
+        discovered: red.contacts.clone(),
+        carried: out,
+        pending,
+        splits: red.edge_splits.clone(),
+        recorded: red.coincidences.clone(),
+    })
+}
+
+/// Records a decision `first` and `second` are one, by `margin`, as a
+/// pending row ([`super::reduce::pend`]), and the citation of it.
+fn decide_one(
+    pending: &mut Vec<PendingRow>,
+    first: End,
+    second: End,
+    margin: geom_core::MarginDiag,
+) -> Cites {
+    let k = super::reduce::pend(pending, PendingRow::on(first, second, Some(margin)));
+    Cites::decided(super::reduce::index(k))
+}
+
+/// Pushes `record` onto `list`, or where a record of the same cells is
+/// already there (`same`), adds `record`'s citations to it.
+fn push_cited<R>(list: &mut Vec<Cited<R>>, record: Cited<R>, same: impl Fn(&R, &R) -> bool) {
+    match list.iter_mut().find(|r| same(&r.record, &record.record)) {
+        Some(r) => r.cites = r.cites.union(&record.cites),
+        None => list.push(record),
+    }
+}
+
+/// **Everything a result's records are carried from**: the reduction's
+/// own records, each operand's carried records through the reduction's
+/// splits ([`ledger`]), and every decision a record may cite, in
+/// decision order.
+pub(super) struct Ledger {
+    /// The reduction's records, citing rows of `pending`.
+    discovered: ContactRecords,
+    /// Each operand's carried records, through the reduction's splits.
+    carried: [Rows; 2],
+    /// The reduction's decisions, then the lineage's.
+    pending: Vec<PendingRow>,
+    /// The reduction's edge splits, which read a vertex it minted back
+    /// to the input edge it was minted on.
+    splits: Vec<super::EdgeSplit>,
+    /// The coincidences the op recorded before its records were carried.
+    recorded: Vec<crate::Coincidence>,
 }
 
 /// One piece of a split edge: its key and its two end vertices.
@@ -3072,8 +3147,9 @@ fn ee_lineage<T: Decide>(
     clone: &Body<T>,
     side: Operand,
     splits: &[super::EdgeSplit],
-    row: EeContact,
+    row: Cited<EeContact>,
     carried: &mut Rows,
+    pending: &mut Vec<PendingRow>,
     band: Band,
 ) -> Result<(), BooleanError> {
     let (a, a_minted) = pieces(clone, side, splits, row.a)?;
@@ -3103,10 +3179,12 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)?
-                && !carried.ee.iter().any(|r| (r.a, r.b) == (pa.0, pb.0))
-            {
-                carried.ee.push(EeContact { a: pa.0, b: pb.0 });
+            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)? {
+                push_cited(
+                    &mut carried.ee,
+                    Cited::new(EeContact { a: pa.0, b: pb.0 }, row.cites.clone()),
+                    |r, c| (r.a, r.b) == (c.a, c.b),
+                );
             }
             // A minted vertex of one piece, against the other piece.
             for (mine, minted, theirs, their_seg) in
@@ -3115,33 +3193,45 @@ fn ee_lineage<T: Decide>(
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
                     if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
-                        if !carried.ve.contains(&VeContact {
-                            vertex: v,
-                            edge: theirs.0,
-                        }) {
-                            carried.ve.push(VeContact {
-                                vertex: v,
-                                edge: theirs.0,
-                            });
-                        }
+                        push_cited(
+                            &mut carried.ve,
+                            Cited::new(
+                                VeContact {
+                                    vertex: v,
+                                    edge: theirs.0,
+                                },
+                                row.cites.clone(),
+                            ),
+                            |r, c| r == c,
+                        );
                         continue;
                     }
                     for w in [theirs.1, theirs.2] {
+                        if w == v {
+                            continue;
+                        }
                         let gap = Margin::norm3(q - point(w)?);
-                        if w != v
-                            && geom_core::k_stats::decide_magnitude(
-                                "bool_carried_ee_split_vertex",
-                                gap,
-                                band,
-                            )
-                            .map_err(coincide)?
-                                == geom_core::k_stats::Magnitude::Zero
-                            && !carried
-                                .vv
-                                .iter()
-                                .any(|r| (r.a, r.b) == (v, w) || (r.a, r.b) == (w, v))
-                        {
-                            carried.vv.push(VvContact { a: v, b: w });
+                        let (apart, margin) = geom_core::k_stats::decide_magnitude_reported(
+                            "bool_carried_ee_split_vertex",
+                            gap,
+                            band,
+                        )
+                        .map_err(coincide)?;
+                        if apart == geom_core::k_stats::Magnitude::Zero {
+                            // The minted vertex decided one with the other
+                            // piece's end: this op's decision, cited
+                            // beside the carried record.
+                            let fresh = decide_one(
+                                pending,
+                                (side, Cell::Vertex(v)),
+                                (side, Cell::Vertex(w)),
+                                margin,
+                            );
+                            push_cited(
+                                &mut carried.vv,
+                                Cited::new(VvContact { a: v, b: w }, row.cites.union(&fresh)),
+                                |r, c| (r.a, r.b) == (c.a, c.b) || (r.a, r.b) == (c.b, c.a),
+                            );
                         }
                     }
                 }
@@ -3152,24 +3242,39 @@ fn ee_lineage<T: Decide>(
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
-/// pairs alone. A carried row's class is the recipe's and stays there;
-/// what an op carries through its cells is the record.
+/// pairs alone, each citing the operand's record it is
+/// ([`Backing::Carried`]). A carried row's class is the recipe's and
+/// stays there; what an op carries through its cells is the record.
 #[derive(Clone, Debug, Default)]
 pub(super) struct Rows {
-    vv: Vec<VvContact>,
-    vf: Vec<VfContact>,
-    ve: Vec<VeContact>,
-    ee: Vec<EeContact>,
+    vv: Vec<Cited<VvContact>>,
+    vf: Vec<Cited<VfContact>>,
+    ve: Vec<Cited<VeContact>>,
+    ee: Vec<Cited<EeContact>>,
 }
 
 impl Rows {
-    pub(super) fn of(carried: &CarriedContacts) -> Self {
+    pub(super) fn of(carried: &CarriedContacts, side: Operand) -> Self {
         let CarriedContacts { vv, vf, ve, ee } = carried;
+        let input = u32::from(side == Operand::B);
+        let cite = |record| Cites::one(Backing::Carried { input, record });
         Self {
-            vv: vv.iter().map(|c| c.pair).collect(),
-            vf: vf.iter().map(|c| c.rest).collect(),
-            ve: ve.clone(),
-            ee: ee.clone(),
+            vv: vv
+                .iter()
+                .map(|c| Cited::new(c.pair, cite(c.record)))
+                .collect(),
+            vf: vf
+                .iter()
+                .map(|c| Cited::new(c.rest, cite(c.record)))
+                .collect(),
+            ve: ve
+                .iter()
+                .map(|c| Cited::new(c.contact, cite(c.record)))
+                .collect(),
+            ee: ee
+                .iter()
+                .map(|c| Cited::new(c.contact, cite(c.record)))
+                .collect(),
         }
     }
 }
@@ -3209,29 +3314,143 @@ type End = (Operand, Cell);
 /// incidence, and it collapses as one, read off the fusion rather than
 /// the face, whose fragment holding the vertex has no lineage.
 ///
+/// **Every record cites the decisions that back it** (D1 (ii)). A
+/// record one input record became cites what that record cited; a pair
+/// a group implies cites every record on every shortest chain of
+/// records joining its two cells in the group, so no chain is picked
+/// over another; a pair of two copies of one vertex cites the records
+/// that put the vertex in its group. Each decision a surviving record
+/// cites is emitted, in decision order, after the op's own
+/// coincidences, and the records are renumbered onto those rows: a
+/// decision no surviving record cites placed topology and is not a
+/// coincidence (D1). A surviving record whose decisions all decided no
+/// margin (a transverse pierce) is a touch without a decision, which
+/// the op refuses rather than ship.
+///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] on a corrupt fusion list or cycling
 /// substitution rows ([`Descendants::live`]), and on a reduction that
-/// handed a `(vertex, edge)` or edge-edge record, which it never mints.
+/// handed a `(vertex, edge)` or edge-edge record, which it never mints;
+/// [`BooleanError::ClassificationInvariant`] on a surviving record no
+/// decision backs.
 pub(super) fn carry<T: Real>(
     body: &Body<T>,
-    discovered: &ContactRecords,
-    carried: [&Rows; 2],
+    ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
-) -> Result<ContactRecords, BooleanError> {
+) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
+    let discovered = &ledger.discovered;
     if !discovered.ve.is_empty() || !discovered.ee.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "a reduction handed a vertex-on-edge or edge-edge record, which it never mints",
         });
     }
-    carry_rows(body, discovered, carried, views, desc, false)
+    let [a, b] = &ledger.carried;
+    let records = carry_rows(body, discovered, [a, b], views, desc, false)?;
+    cite_rows(records, ledger)
+}
+
+/// The records `carry_rows` left, their decisions emitted after the
+/// op's own coincidences and their citations renumbered onto them
+/// ([`carry`]).
+fn cite_rows(
+    mut records: ContactRecords,
+    ledger: &Ledger,
+) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
+    let mut used: Vec<usize> = records
+        .cites()
+        .flat_map(Cites::iter)
+        .filter_map(|b| match b {
+            Backing::Decided(k) => Some(k as usize),
+            Backing::Carried { .. } => None,
+        })
+        .filter(|&k| ledger.pending.get(k).is_some_and(|p| p.margin.is_some()))
+        .collect();
+    used.sort_unstable();
+    used.dedup();
+    let mut coincidences = ledger.recorded.clone();
+    let base = coincidences.len();
+    for &k in &used {
+        let row = ledger.pending[k];
+        let Some(margin) = row.margin else {
+            unreachable!("only a decided row is emitted")
+        };
+        coincidences.push(crate::Coincidence {
+            cells: row.cells.map(|end| input_cell(end, &ledger.splits)),
+            relation: row.relation,
+            site: crate::DecisionSite::VertexFusion,
+            margin,
+            discharge: crate::Discharge::Numeric,
+        });
+    }
+    let renumber = |cites: &mut Cites| -> Result<(), BooleanError> {
+        let mapped = cites.try_map(|b| {
+            Ok::<_, BooleanError>(match b {
+                Backing::Decided(k) => used
+                    .binary_search(&(k as usize))
+                    .ok()
+                    .map(|rank| Backing::Decided(super::reduce::index(base + rank))),
+                carried @ Backing::Carried { .. } => Some(carried),
+            })
+        })?;
+        *cites = mapped.ok_or(BooleanError::ClassificationInvariant {
+            what: "a contact record surviving into the result cites no decision",
+        })?;
+        Ok(())
+    };
+    let ContactRecords {
+        vv,
+        a_on_b,
+        b_on_a,
+        ve,
+        ee,
+        curves,
+        patches,
+    } = &mut records;
+    for cites in vv
+        .iter_mut()
+        .map(|c| &mut c.cites)
+        .chain(a_on_b.iter_mut().map(|c| &mut c.cites))
+        .chain(b_on_a.iter_mut().map(|c| &mut c.cites))
+        .chain(ve.iter_mut().map(|c| &mut c.cites))
+        .chain(ee.iter_mut().map(|c| &mut c.cites))
+        .chain(curves.iter_mut().map(|c| &mut c.cites))
+        .chain(patches.iter_mut().map(|c| &mut c.cites))
+    {
+        renumber(cites)?;
+    }
+    Ok((records, coincidences))
+}
+
+/// A pending row's cell as the deciding op's input holds it: a vertex
+/// the reduction minted by splitting an edge is read as the input edge
+/// it was minted on, through every split of that edge's pieces.
+fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> crate::RowCell {
+    let root = |mut edge: EdgeKey| {
+        while let Some(s) = splits
+            .iter()
+            .find(|s| s.operand == input && s.child == edge)
+        {
+            edge = s.parent;
+        }
+        edge
+    };
+    let cell = match cell {
+        Cell::Vertex(v) => splits
+            .iter()
+            .find(|s| s.operand == input && s.vertex == v)
+            .map_or(cell, |s| Cell::Edge(root(s.parent))),
+        Cell::Edge(e) => Cell::Edge(root(e)),
+        Cell::Face(_) => cell,
+    };
+    crate::RowCell::Input { input, cell }
 }
 
 /// [`carry`] for records already keyed in the body's own arena, through
 /// an op that replaced cells in place (the join): one arena, so two
-/// records naming one vertex on either side are one group.
+/// records naming one vertex on either side are one group. Citations
+/// are carried as given.
 ///
 /// # Errors
 ///
@@ -3253,6 +3472,146 @@ pub(super) fn carry_in_place<T: Real>(
     )
 }
 
+/// A node of a vertex group's graph ([`carry_rows`]): a vertex end, by
+/// its index among the group's ends, or the edge end of a
+/// `(vertex, edge)` row, by the row's index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Node {
+    End(usize),
+    VeEdge(usize),
+}
+
+/// The vertex groups' graph: one link per vertex record (between its two
+/// ends) and per `(vertex, edge)` record (between its vertex end and
+/// its edge end), each with the record's citations.
+struct Chains {
+    links: Vec<(Node, Node, Cites)>,
+}
+
+impl Chains {
+    /// Hops from `from` to every node it reaches.
+    fn hops(&self, from: &[Node]) -> std::collections::BTreeMap<Node, usize> {
+        let mut dist: std::collections::BTreeMap<Node, usize> =
+            from.iter().map(|&n| (n, 0)).collect();
+        let mut frontier: Vec<Node> = from.to_vec();
+        while !frontier.is_empty() {
+            let mut next = Vec::new();
+            for n in frontier {
+                let d = dist[&n] + 1;
+                for &(x, y, _) in &self.links {
+                    let other = if x == n {
+                        y
+                    } else if y == n {
+                        x
+                    } else {
+                        continue;
+                    };
+                    if let std::collections::btree_map::Entry::Vacant(slot) = dist.entry(other) {
+                        slot.insert(d);
+                        next.push(other);
+                    }
+                }
+            }
+            frontier = next;
+        }
+        dist
+    }
+
+    /// What a pair joined from `xs` and `ys` cites: every link on every
+    /// shortest chain between them, or, where they share a node (two
+    /// copies of one vertex), every link at a shared node.
+    fn cites(&self, xs: &[Node], ys: &[Node]) -> Option<Cites> {
+        let shared: Vec<Node> = xs.iter().filter(|n| ys.contains(n)).copied().collect();
+        if !shared.is_empty() {
+            return Cites::of(
+                self.links
+                    .iter()
+                    .filter(|(x, y, _)| shared.contains(x) || shared.contains(y))
+                    .flat_map(|(_, _, c)| c.iter()),
+            );
+        }
+        let (dx, dy) = (self.hops(xs), self.hops(ys));
+        let length = ys.iter().filter_map(|n| dx.get(n)).min()?;
+        let on_chain = |u: &Node, v: &Node| matches!((dx.get(u), dy.get(v)), (Some(a), Some(b)) if a + 1 + b == *length);
+        Cites::of(
+            self.links
+                .iter()
+                .filter(|(x, y, _)| on_chain(x, y) || on_chain(y, x))
+                .flat_map(|(_, _, c)| c.iter()),
+        )
+    }
+}
+
+#[cfg(test)]
+mod chain_rows {
+    use super::{Chains, Node};
+    use crate::{Backing, Cites};
+
+    fn link(x: usize, y: usize, k: u32) -> (Node, Node, Cites) {
+        (Node::End(x), Node::End(y), Cites::decided(k))
+    }
+
+    fn cited(c: Option<Cites>) -> Vec<u32> {
+        c.expect("a chain")
+            .iter()
+            .map(|b| match b {
+                Backing::Decided(k) => k,
+                Backing::Carried { .. } => unreachable!("decided links only"),
+            })
+            .collect()
+    }
+
+    /// Two ends each decided one with a third: the pair the group
+    /// implies cites both decisions, and a longer detour cites nothing.
+    /// Red if one link of the chain is dropped, or the detour is taken.
+    #[test]
+    fn a_pair_two_decisions_imply_cites_both() {
+        let chains = Chains {
+            links: vec![
+                link(0, 2, 0),
+                link(1, 2, 1),
+                link(0, 3, 2),
+                link(3, 4, 3),
+                link(4, 1, 4),
+            ],
+        };
+        assert_eq!(
+            cited(chains.cites(&[Node::End(0)], &[Node::End(1)])),
+            [0, 1]
+        );
+    }
+
+    /// Two shortest chains of one length between the pair: the record
+    /// cites both, whichever was listed first. Red if a tie is broken by
+    /// list order (one chain's links are missing).
+    #[test]
+    fn tied_chains_are_cited_together() {
+        let one = Chains {
+            links: vec![link(0, 2, 0), link(2, 1, 1), link(0, 3, 2), link(3, 1, 3)],
+        };
+        let other = Chains {
+            links: vec![link(0, 3, 2), link(3, 1, 3), link(0, 2, 0), link(2, 1, 1)],
+        };
+        let ends = |c: &Chains| cited(c.cites(&[Node::End(0)], &[Node::End(1)]));
+        assert_eq!(ends(&one), [0, 1, 2, 3]);
+        assert_eq!(
+            ends(&other),
+            ends(&one),
+            "the order of the links is not read"
+        );
+    }
+
+    /// Two copies of one vertex share their node: the pair cites the
+    /// records that put the vertex in its group.
+    #[test]
+    fn copies_of_one_vertex_cite_the_vertexs_records() {
+        let chains = Chains {
+            links: vec![link(0, 1, 5), link(2, 3, 6)],
+        };
+        assert_eq!(cited(chains.cites(&[Node::End(0)], &[Node::End(0)])), [5]);
+    }
+}
+
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
 fn carry_rows<T: Real>(
@@ -3267,37 +3626,45 @@ fn carry_rows<T: Real>(
     let view = |side: Operand| views[usize::from(side == Operand::B)];
     let mut out = ContactRecords::default();
     // The vertex rows and the edge ends attached to them.
-    let mut vv_rows: Vec<[End; 2]> = discovered
+    let mut vv_rows: Vec<([End; 2], &Cites)> = discovered
         .vv
         .iter()
         .map(|c| {
-            [
-                (Operand::A, Cell::Vertex(c.a)),
-                (Operand::B, Cell::Vertex(c.b)),
-            ]
+            (
+                [
+                    (Operand::A, Cell::Vertex(c.a)),
+                    (Operand::B, Cell::Vertex(c.b)),
+                ],
+                &c.cites,
+            )
         })
         .collect();
-    let mut ve_rows: Vec<[End; 2]> = discovered
+    let mut ve_rows: Vec<([End; 2], &Cites)> = discovered
         .ve
         .iter()
         .map(|c| {
-            [
-                (Operand::A, Cell::Vertex(c.vertex)),
-                (Operand::A, Cell::Edge(c.edge)),
-            ]
+            (
+                [
+                    (Operand::A, Cell::Vertex(c.vertex)),
+                    (Operand::A, Cell::Edge(c.edge)),
+                ],
+                &c.cites,
+            )
         })
         .collect();
     for (side, rows) in sides.into_iter().zip(carried) {
-        vv_rows.extend(
-            rows.vv
-                .iter()
-                .map(|c| [(side, Cell::Vertex(c.a)), (side, Cell::Vertex(c.b))]),
-        );
-        ve_rows.extend(
-            rows.ve
-                .iter()
-                .map(|c| [(side, Cell::Vertex(c.vertex)), (side, Cell::Edge(c.edge))]),
-        );
+        vv_rows.extend(rows.vv.iter().map(|c| {
+            (
+                [(side, Cell::Vertex(c.a)), (side, Cell::Vertex(c.b))],
+                &c.cites,
+            )
+        }));
+        ve_rows.extend(rows.ve.iter().map(|c| {
+            (
+                [(side, Cell::Vertex(c.vertex)), (side, Cell::Edge(c.edge))],
+                &c.cites,
+            )
+        }));
     }
     // Groups over vertex ends, closed transitively; `ends` holds each
     // end once, in the order the rows first name it.
@@ -3312,28 +3679,46 @@ fn carry_rows<T: Real>(
             ends.len() - 1
         })
     };
-    for [x, y] in &vv_rows {
+    let mut chains = Chains { links: Vec::new() };
+    for ([x, y], cites) in &vv_rows {
         let (i, j) = (
             slot(*x, &mut ends, &mut group),
             slot(*y, &mut ends, &mut group),
         );
+        chains
+            .links
+            .push((Node::End(i), Node::End(j), (*cites).clone()));
         let (gi, gj) = (group[i], group[j]);
         if gi != gj {
             group.iter_mut().filter(|g| **g == gi).for_each(|g| *g = gj);
         }
     }
     let mut attached: Vec<usize> = Vec::new();
-    for [v, _] in &ve_rows {
-        attached.push(slot(*v, &mut ends, &mut group));
+    for (r, ([v, _], cites)) in ve_rows.iter().enumerate() {
+        let i = slot(*v, &mut ends, &mut group);
+        attached.push(i);
+        chains
+            .links
+            .push((Node::End(i), Node::VeEdge(r), (*cites).clone()));
     }
     // Every group's live cells: its vertex ends with their copies, in
-    // end order, then the edges attached to it.
-    let mut live: Vec<(usize, End)> = Vec::new();
-    let push = |live: &mut Vec<(usize, End)>, g: usize, side: Operand, c: Option<Cell>| {
-        if let Some(c) = c
-            && !live.contains(&(g, (side, c)))
-        {
-            live.push((g, (side, c)));
+    // end order, then the edges attached to it; each with the nodes it
+    // stands for.
+    let mut live: Vec<(usize, End, Vec<Node>)> = Vec::new();
+    let push = |live: &mut Vec<(usize, End, Vec<Node>)>,
+                g: usize,
+                side: Operand,
+                c: Option<Cell>,
+                node: Node| {
+        if let Some(c) = c {
+            match live.iter_mut().find(|(h, e, _)| (*h, *e) == (g, (side, c))) {
+                Some((_, _, nodes)) => {
+                    if !nodes.contains(&node) {
+                        nodes.push(node);
+                    }
+                }
+                None => live.push((g, (side, c), vec![node])),
+            }
         }
     };
     for (i, &(side, cell)) in ends.iter().enumerate() {
@@ -3346,35 +3731,41 @@ fn carry_rows<T: Real>(
                 group[i],
                 side,
                 desc.live(body, side, view(side), Cell::Vertex(k))?,
+                Node::End(i),
             );
         }
     }
-    for (&i, [_, (side, e)]) in attached.iter().zip(&ve_rows) {
+    for (r, (&i, ([_, (side, e)], _))) in attached.iter().zip(&ve_rows).enumerate() {
         let c = desc.live(body, *side, view(*side), *e)?;
-        push(&mut live, group[i], *side, c);
+        push(&mut live, group[i], *side, c, Node::VeEdge(r));
     }
-    for (i, &(g, x)) in live.iter().enumerate() {
-        for &(_, y) in live[i + 1..].iter().filter(|(h, _)| *h == g) {
-            record(body, &mut out, x, y)?;
+    for (i, (g, x, xs)) in live.iter().enumerate() {
+        for (_, y, ys) in live[i + 1..].iter().filter(|(h, _, _)| h == g) {
+            let Some(cites) = chains.cites(xs, ys) else {
+                return Err(BooleanError::JoinDesync {
+                    what: "two cells of one vertex group have no chain of records between them",
+                });
+            };
+            record(body, &mut out, *x, *y, cites)?;
         }
     }
     // Vertex-on-face records: the vertex's own key, the face chased.
     let vf_rows = discovered
         .a_on_b
         .iter()
-        .map(|c| ((Operand::A, c.vertex), (Operand::B, c.face)))
+        .map(|c| ((Operand::A, c.vertex), (Operand::B, c.face), &c.cites))
         .chain(
             discovered
                 .b_on_a
                 .iter()
-                .map(|c| ((Operand::B, c.vertex), (Operand::A, c.face))),
+                .map(|c| ((Operand::B, c.vertex), (Operand::A, c.face), &c.cites)),
         )
         .chain(sides.into_iter().zip(carried).flat_map(|(side, rows)| {
             rows.vf
                 .iter()
-                .map(move |c| ((side, c.vertex), (side, c.face)))
+                .map(move |c| ((side, c.vertex), (side, c.face), &c.cites))
         }));
-    for ((vs, v), (fs, f)) in vf_rows {
+    for ((vs, v), (fs, f), cites) in vf_rows {
         // A vertex a zip fused sits on the seam, on the boundary of the
         // face it rested on: the substituted pair is an incidence.
         if view(vs).vertex(v).is_some_and(|k| desc.fused.contains(&k)) {
@@ -3384,21 +3775,21 @@ fn carry_rows<T: Real>(
             desc.live(body, vs, view(vs), Cell::Vertex(v))?,
             desc.live(body, fs, view(fs), Cell::Face(f))?,
         ) {
-            record(body, &mut out, (vs, x), (fs, y))?;
+            record(body, &mut out, (vs, x), (fs, y), cites.clone())?;
         }
     }
     // Edge-edge records: the joins' (no reduction mints one), then
     // each operand's carried ones, both edges in its own arena.
-    let ee_rows = discovered.ee.iter().map(|c| (Operand::A, *c)).chain(
+    let ee_rows = discovered.ee.iter().map(|c| (Operand::A, c)).chain(
         sides
             .into_iter()
             .zip(carried)
-            .flat_map(|(side, rows)| rows.ee.iter().map(move |c| (side, *c))),
+            .flat_map(|(side, rows)| rows.ee.iter().map(move |c| (side, c))),
     );
     for (side, c) in ee_rows {
         let edge = |e| desc.live(body, side, view(side), Cell::Edge(e));
         if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
-            record(body, &mut out, (side, x), (side, y))?;
+            record(body, &mut out, (side, x), (side, y), c.cites.clone())?;
         }
     }
     // The face-granularity records: the faces chase, and so does the
@@ -3413,24 +3804,29 @@ fn carry_rows<T: Real>(
             face(Operand::B, c.face_b)?,
             desc.live(body, Operand::A, view(Operand::A), Cell::Edge(c.witness))?,
         ) {
-            out.curves.push(CurveContact {
-                face_a,
-                face_b,
-                witness,
-            });
+            out.curves.push(Cited::new(
+                CurveContact {
+                    face_a,
+                    face_b,
+                    witness,
+                },
+                c.cites.clone(),
+            ));
         }
     }
     for c in &discovered.patches {
         if let (Some(Cell::Face(face_a)), Some(Cell::Face(face_b))) =
             (face(Operand::A, c.face_a)?, face(Operand::B, c.face_b)?)
         {
-            out.patches.push(PatchContact { face_a, face_b });
+            out.patches
+                .push(Cited::new(PatchContact { face_a, face_b }, c.cites.clone()));
         }
     }
     Ok(out)
 }
 
-/// Records the cell pair `x`, `y` (result keys) under its kind, once:
+/// Records the cell pair `x`, `y` (result keys) under its kind, once,
+/// backed by `cites` (a second record of the pair adds its citations):
 /// two cells that are one, or one of which bounds the other, are
 /// structure and record nothing, and so does a pair with no stored kind
 /// whose arm says why it is structure (module docs of [`carry`]).
@@ -3445,6 +3841,7 @@ fn record<T: Real>(
     out: &mut ContactRecords,
     x: End,
     y: End,
+    cites: Cites,
 ) -> Result<(), BooleanError> {
     // A conventional vertex has no identity of its own: a record at its
     // point is a record on its closed edge's interior.
@@ -3464,13 +3861,11 @@ fn record<T: Real>(
             } else {
                 (a, b)
             };
-            if !out
-                .vv
-                .iter()
-                .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
-            {
-                out.vv.push(VvContact { a, b });
-            }
+            push_cited(
+                &mut out.vv,
+                Cited::new(VvContact { a, b }, cites),
+                |r, c| (r.a, r.b) == (c.a, c.b) || (r.a, r.b) == (c.b, c.a),
+            );
         }
         (Cell::Vertex(vertex), Cell::Edge(edge)) | (Cell::Edge(edge), Cell::Vertex(vertex)) => {
             // Both cells are live ([`Descendants::live`]); every hop past
@@ -3489,18 +3884,20 @@ fn record<T: Real>(
                     .start
                         == vertex
                 });
-            if !incident && !out.ve.iter().any(|r| (r.vertex, r.edge) == (vertex, edge)) {
-                out.ve.push(VeContact { vertex, edge });
+            if !incident {
+                push_cited(
+                    &mut out.ve,
+                    Cited::new(VeContact { vertex, edge }, cites),
+                    |r, c| r == c,
+                );
             }
         }
         (Cell::Edge(a), Cell::Edge(b)) if a != b => {
-            if !out
-                .ee
-                .iter()
-                .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
-            {
-                out.ee.push(EeContact { a, b });
-            }
+            push_cited(
+                &mut out.ee,
+                Cited::new(EeContact { a, b }, cites),
+                |r, c| (r.a, r.b) == (c.a, c.b) || (r.a, r.b) == (c.b, c.a),
+            );
         }
         (Cell::Vertex(vertex), Cell::Face(face)) | (Cell::Face(face), Cell::Vertex(vertex)) => {
             let vertex_side = if matches!(xc, Cell::Vertex(_)) {
@@ -3509,17 +3906,26 @@ fn record<T: Real>(
                 ys
             };
             let incident = bounds(body, face, vertex);
-            let dup = out
-                .a_on_b
-                .iter()
-                .chain(&out.b_on_a)
-                .any(|r| (r.vertex, r.face) == (vertex, face));
-            if !incident && !dup {
+            let same = |r: &VfContact| (r.vertex, r.face) == (vertex, face);
+            let held = if out.a_on_b.iter().any(|r| same(r)) {
+                Some(&mut out.a_on_b)
+            } else if out.b_on_a.iter().any(|r| same(r)) {
+                Some(&mut out.b_on_a)
+            } else {
+                None
+            };
+            if let Some(list) = held {
+                push_cited(
+                    list,
+                    Cited::new(VfContact { vertex, face }, cites),
+                    |r, c| r == c,
+                );
+            } else if !incident {
                 let list = match vertex_side {
                     Operand::A => &mut out.a_on_b,
                     Operand::B => &mut out.b_on_a,
                 };
-                list.push(VfContact { vertex, face });
+                list.push(Cited::new(VfContact { vertex, face }, cites));
             }
         }
         // One cell (the arms above take two distinct ones): structure.
@@ -5115,11 +5521,10 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 finish_output(&mut body, &mut desc, &declared_pairs, &[], band, tol)?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
-            let carried = split_lineage(red, decls, band)?;
-            let contacts = carry(
+            let ledger = ledger(red, decls, band)?;
+            let (contacts, coincidences) = carry(
                 &body,
-                &red.contacts,
-                [&carried[0], &carried[1]],
+                &ledger,
                 [&KeyView::Direct, &KeyView::Graft(&graft)],
                 &desc,
             )?;
@@ -5146,7 +5551,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
-                coincidences: red.coincidences.clone(),
+                coincidences,
             }))
         }
     }
@@ -5182,14 +5587,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
     };
-    let carried = split_lineage(red, decls, band)?;
-    let contacts = carry(
-        &body,
-        contacts,
-        [&carried[0], &carried[1]],
-        [&a_view, &b_view],
-        &desc,
-    )?;
+    let ledger = ledger(red, decls, band)?;
+    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
@@ -5223,7 +5622,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
-        coincidences: red.coincidences.clone(),
+        coincidences,
     }))
 }
 
@@ -5249,6 +5648,7 @@ mod tests {
                     &mut out,
                     (Operand::A, Cell::Edge(e)),
                     (Operand::B, Cell::Face(f)),
+                    crate::Cites::decided(0),
                 )
                 .unwrap();
             }
@@ -5272,6 +5672,7 @@ mod tests {
                 &mut out,
                 (Operand::A, Cell::Edge(edge)),
                 (Operand::B, Cell::Face(wall)),
+                crate::Cites::decided(0),
             );
             assert!(
                 matches!(r, Err(BooleanError::CurvedRestUnrecorded { edge: e, face }) if e == edge && face == wall),
@@ -5287,7 +5688,7 @@ mod tests {
         desc: &super::Descendants,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         let none = super::Rows::default();
-        super::carry(body, contacts, [&none, &none], views, desc)
+        super::carry_rows(body, contacts, [&none, &none], views, desc, false)
     }
 
     /// The door over carried records alone.
@@ -5297,15 +5698,16 @@ mod tests {
         views: [&super::KeyView<'_>; 2],
         desc: &super::Descendants,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
-        super::carry(
+        super::carry_rows(
             body,
             &crate::boolean::ContactRecords::default(),
             [
-                &super::Rows::of(&decls.carried_a),
-                &super::Rows::of(&decls.carried_b),
+                &super::Rows::of(&decls.carried_a, crate::boolean::Operand::A),
+                &super::Rows::of(&decls.carried_b, crate::boolean::Operand::B),
             ],
             views,
             desc,
+            false,
         )
     }
 
@@ -5975,10 +6377,13 @@ mod tests {
 
         let contacts = ContactRecords {
             vv: vec![],
-            a_on_b: vec![VfContact {
-                vertex: live_vertex,
-                face: dead_face,
-            }],
+            a_on_b: vec![crate::Cited::new(
+                VfContact {
+                    vertex: live_vertex,
+                    face: dead_face,
+                },
+                crate::Cites::decided(0),
+            )],
             b_on_a: vec![],
             ..ContactRecords::default()
         };
@@ -6005,10 +6410,13 @@ mod tests {
         assert_ne!(dead_vertex, live_vertex);
         body.vertices.remove(dead_vertex);
         let contacts = ContactRecords {
-            vv: vec![VvContact {
-                a: dead_vertex,
-                b: live_vertex,
-            }],
+            vv: vec![crate::Cited::new(
+                VvContact {
+                    a: dead_vertex,
+                    b: live_vertex,
+                },
+                crate::Cites::decided(0),
+            )],
             a_on_b: vec![],
             b_on_a: vec![],
             ..ContactRecords::default()
@@ -6042,7 +6450,7 @@ mod tests {
         body.vertices.remove(c);
         let pair = VvContact { a: c, b: partner };
         let contacts = ContactRecords {
-            vv: vec![pair],
+            vv: vec![crate::Cited::new(pair, crate::Cites::decided(0))],
             ..ContactRecords::default()
         };
         let decls = BooleanDeclarations {
@@ -6050,6 +6458,7 @@ mod tests {
                 vv: vec![CarriedVv {
                     pair,
                     class: ContactClass::Rest,
+                    record: 0,
                 }],
                 ..CarriedContacts::default()
             },
@@ -6155,7 +6564,10 @@ mod tests {
         body.faces.remove(d0);
         body.faces.remove(d1);
         let contacts = ContactRecords {
-            a_on_b: vec![VfContact { vertex, face: d0 }],
+            a_on_b: vec![crate::Cited::new(
+                VfContact { vertex, face: d0 },
+                crate::Cites::decided(0),
+            )],
             ..ContactRecords::default()
         };
         let remap = |desc: &Descendants| found(&body, &contacts, [&KeyView::Direct; 2], desc);
@@ -6184,6 +6596,7 @@ mod tests {
                 vf: vec![CarriedVf {
                     rest: VfContact { vertex, face: d0 },
                     class: ContactClass::Rest,
+                    record: 0,
                 }],
                 ..CarriedContacts::default()
             },
@@ -6232,14 +6645,20 @@ mod tests {
         graft.vertices.insert(b_kept, keys[5]);
         let contacts = ContactRecords {
             vv: vec![
-                VvContact {
-                    a: a_live,
-                    b: b_dead,
-                },
-                VvContact {
-                    a: a_dead,
-                    b: b_kept,
-                },
+                crate::Cited::new(
+                    VvContact {
+                        a: a_live,
+                        b: b_dead,
+                    },
+                    crate::Cites::decided(0),
+                ),
+                crate::Cited::new(
+                    VvContact {
+                        a: a_dead,
+                        b: b_kept,
+                    },
+                    crate::Cites::decided(0),
+                ),
             ],
             ..ContactRecords::default()
         };
@@ -6427,10 +6846,13 @@ mod tests {
         assert!(!killed_edges.is_empty(), "the glue killed the seam's edges");
         for &edge in killed_edges {
             let on_edge = ContactRecords {
-                ve: vec![crate::boolean::VeContact {
-                    vertex: survivor,
-                    edge,
-                }],
+                ve: vec![crate::Cited::new(
+                    crate::boolean::VeContact {
+                        vertex: survivor,
+                        edge,
+                    },
+                    crate::Cites::decided(0),
+                )],
                 ..ContactRecords::default()
             };
             assert_eq!(
@@ -6454,9 +6876,18 @@ mod tests {
         );
 
         let records = |v: VertexKey| ContactRecords {
-            vv: vec![VvContact { a: v, b: survivor }],
-            a_on_b: vec![VfContact { vertex: v, face }],
-            b_on_a: vec![VfContact { vertex: v, face }],
+            vv: vec![crate::Cited::new(
+                VvContact { a: v, b: survivor },
+                crate::Cites::decided(0),
+            )],
+            a_on_b: vec![crate::Cited::new(
+                VfContact { vertex: v, face },
+                crate::Cites::decided(0),
+            )],
+            b_on_a: vec![crate::Cited::new(
+                VfContact { vertex: v, face },
+                crate::Cites::decided(0),
+            )],
             ..ContactRecords::default()
         };
         let remap = |c: &ContactRecords| found(&body, c, [&KeyView::Direct; 2], &desc).unwrap();

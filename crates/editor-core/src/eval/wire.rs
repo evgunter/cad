@@ -3815,6 +3815,7 @@ fn resolve_declarations<'n>(
                 carried(&mut out, side.operand()).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
                     class,
+                    record: 0,
                 });
             }
             DeclaredStep::SameVf(side, roles) => {
@@ -3828,6 +3829,7 @@ fn resolve_declarations<'n>(
                 carried(&mut out, side.operand()).vf.push(CarriedVf {
                     rest: VfContact { vertex, face },
                     class,
+                    record: 0,
                 });
             }
         }

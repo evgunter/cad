@@ -794,10 +794,29 @@ pub fn decide_magnitude<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
+    decide_magnitude_reported(name, margin, band).map(|(magnitude, _)| magnitude)
+}
+
+/// [`decide_magnitude`], keeping the reporting margin the classifier
+/// decided on, as [`decide_reported`] keeps it: for a Zero a record
+/// cites.
+///
+/// # Errors
+///
+/// As [`decide_magnitude`].
+///
+/// # Panics
+///
+/// As [`decide_magnitude`].
+pub fn decide_magnitude_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(Magnitude, MarginDiag), Indeterminate> {
     let Decided { sign, margin } = classify(name, margin.value(), band)?;
     match sign {
-        Sign::Zero => Ok(Magnitude::Zero),
-        Sign::Positive => Ok(Magnitude::Positive),
+        Sign::Zero => Ok((Magnitude::Zero, margin)),
+        Sign::Positive => Ok((Magnitude::Positive, margin)),
         Sign::Negative => unreachable!(
             "`{name}` decided a magnitude Negative (margin {margin:e}, band ({:e}, {:e})): the \
              quantity is nonnegative by construction (a norm, a sqrt, a max from zero), so no \

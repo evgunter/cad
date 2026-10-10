@@ -141,6 +141,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
+use crate::coincidence::{Cited, Cites};
 use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
@@ -631,20 +632,20 @@ pub struct PatchContact {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ContactRecords {
     /// Coincident vertex pairs (`sonvv`).
-    pub vv: Vec<VvContact>,
+    pub vv: Vec<Cited<VvContact>>,
     /// Vertices of A on faces of B (`sonva`).
-    pub a_on_b: Vec<VfContact>,
+    pub a_on_b: Vec<Cited<VfContact>>,
     /// Vertices of B on faces of A (`sonvb`).
-    pub b_on_a: Vec<VfContact>,
+    pub b_on_a: Vec<Cited<VfContact>>,
     /// Vertices resting on the other side's edge interiors.
-    pub ve: Vec<VeContact>,
+    pub ve: Vec<Cited<VeContact>>,
     /// Edges whose interiors meet the other side's.
-    pub ee: Vec<EeContact>,
+    pub ee: Vec<Cited<EeContact>>,
     /// Curve-granularity contacts (C3).
-    pub curves: Vec<CurveContact>,
+    pub curves: Vec<Cited<CurveContact>>,
     /// Patch-granularity contacts (C3) — see [`PatchContact`] for the
     /// not-yet-certifiable posture this list ships under.
-    pub patches: Vec<PatchContact>,
+    pub patches: Vec<Cited<PatchContact>>,
 }
 
 impl ContactRecords {
@@ -680,6 +681,85 @@ impl ContactRecords {
         vv.chain(vf).chain(ve).chain(ee).chain(ff)
     }
 
+    /// Every record's citations, in [`Self::cell_pairs`] order: a
+    /// record's position here is its index in this list, the index a
+    /// [`Backing::Carried`] names.
+    pub fn cites(&self) -> impl Iterator<Item = &Cites> + '_ {
+        let Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        } = self;
+        vv.iter()
+            .map(|c| &c.cites)
+            .chain(a_on_b.iter().chain(b_on_a).map(|c| &c.cites))
+            .chain(ve.iter().map(|c| &c.cites))
+            .chain(ee.iter().map(|c| &c.cites))
+            .chain(curves.iter().map(|c| &c.cites))
+            .chain(patches.iter().map(|c| &c.cites))
+    }
+
+    /// Every record as its cell pair and its citations, in list order
+    /// ([`Self::cites`]).
+    pub fn rows(&self) -> impl Iterator<Item = ((Cell, Cell), &Cites)> + '_ {
+        self.cell_pairs().zip(self.cites())
+    }
+
+    /// The index in [`Self::rows`] of the record of `pair`, in either
+    /// order: what a record carried from this list cites
+    /// ([`crate::Backing::Carried`]).
+    #[must_use]
+    pub fn position(&self, (x, y): (Cell, Cell)) -> Option<u32> {
+        self.cell_pairs()
+            .position(|p| p == (x, y) || p == (y, x))
+            .map(|k| u32::try_from(k).unwrap_or(u32::MAX))
+    }
+
+    /// These records carried back into an op as one operand's own, each
+    /// with its index here, the vertex records asserting `class`. A
+    /// face-granularity record has no carried kind and stays here.
+    #[must_use]
+    pub fn carried(&self, class: ContactClass) -> CarriedContacts {
+        let index = |k: usize| u32::try_from(k).unwrap_or(u32::MAX);
+        let mut out = CarriedContacts::default();
+        let mut k = 0;
+        for c in &self.vv {
+            out.vv.push(CarriedVv {
+                pair: c.record,
+                class,
+                record: index(k),
+            });
+            k += 1;
+        }
+        for c in self.a_on_b.iter().chain(&self.b_on_a) {
+            out.vf.push(CarriedVf {
+                rest: c.record,
+                class,
+                record: index(k),
+            });
+            k += 1;
+        }
+        for c in &self.ve {
+            out.ve.push(CarriedRecord {
+                contact: c.record,
+                record: index(k),
+            });
+            k += 1;
+        }
+        for c in &self.ee {
+            out.ee.push(CarriedRecord {
+                contact: c.record,
+                record: index(k),
+            });
+            k += 1;
+        }
+        out
+    }
+
     /// The same records with every cell re-keyed through `key`, a map
     /// that keeps each cell's kind (a graft into another arena). The
     /// first cell `key` cannot map refuses with that cell.
@@ -700,11 +780,14 @@ impl ContactRecords {
             Some(Cell::Face(k)) => Ok(k),
             _ => Err(Cell::Face(f)),
         };
-        let vf = |c: &VfContact| {
-            Ok(VfContact {
-                vertex: vertex(c.vertex)?,
-                face: face(c.face)?,
-            })
+        let vf = |c: &Cited<VfContact>| {
+            Ok(Cited::new(
+                VfContact {
+                    vertex: vertex(c.vertex)?,
+                    face: face(c.face)?,
+                },
+                c.cites.clone(),
+            ))
         };
         let Self {
             vv,
@@ -719,10 +802,13 @@ impl ContactRecords {
             vv: vv
                 .iter()
                 .map(|c| {
-                    Ok(VvContact {
-                        a: vertex(c.a)?,
-                        b: vertex(c.b)?,
-                    })
+                    Ok(Cited::new(
+                        VvContact {
+                            a: vertex(c.a)?,
+                            b: vertex(c.b)?,
+                        },
+                        c.cites.clone(),
+                    ))
                 })
                 .collect::<Result<_, _>>()?,
             a_on_b: a_on_b.iter().map(vf).collect::<Result<_, _>>()?,
@@ -730,38 +816,50 @@ impl ContactRecords {
             ve: ve
                 .iter()
                 .map(|c| {
-                    Ok(VeContact {
-                        vertex: vertex(c.vertex)?,
-                        edge: edge(c.edge)?,
-                    })
+                    Ok(Cited::new(
+                        VeContact {
+                            vertex: vertex(c.vertex)?,
+                            edge: edge(c.edge)?,
+                        },
+                        c.cites.clone(),
+                    ))
                 })
                 .collect::<Result<_, _>>()?,
             ee: ee
                 .iter()
                 .map(|c| {
-                    Ok(EeContact {
-                        a: edge(c.a)?,
-                        b: edge(c.b)?,
-                    })
+                    Ok(Cited::new(
+                        EeContact {
+                            a: edge(c.a)?,
+                            b: edge(c.b)?,
+                        },
+                        c.cites.clone(),
+                    ))
                 })
                 .collect::<Result<_, _>>()?,
             curves: curves
                 .iter()
                 .map(|c| {
-                    Ok(CurveContact {
-                        face_a: face(c.face_a)?,
-                        face_b: face(c.face_b)?,
-                        witness: edge(c.witness)?,
-                    })
+                    Ok(Cited::new(
+                        CurveContact {
+                            face_a: face(c.face_a)?,
+                            face_b: face(c.face_b)?,
+                            witness: edge(c.witness)?,
+                        },
+                        c.cites.clone(),
+                    ))
                 })
                 .collect::<Result<_, _>>()?,
             patches: patches
                 .iter()
                 .map(|c| {
-                    Ok(PatchContact {
-                        face_a: face(c.face_a)?,
-                        face_b: face(c.face_b)?,
-                    })
+                    Ok(Cited::new(
+                        PatchContact {
+                            face_a: face(c.face_a)?,
+                            face_b: face(c.face_b)?,
+                        },
+                        c.cites.clone(),
+                    ))
                 })
                 .collect::<Result<_, _>>()?,
         })
@@ -783,9 +881,20 @@ pub struct CarriedContacts {
     /// Vertex-on-edge records within the operand, carried back in: a
     /// coincidence an op decided and recorded (D10), which asserts no
     /// class.
-    pub ve: Vec<VeContact>,
+    pub ve: Vec<CarriedRecord<VeContact>>,
     /// Edge-edge records within the operand, carried back in, as `ve`.
-    pub ee: Vec<EeContact>,
+    pub ee: Vec<CarriedRecord<EeContact>>,
+}
+
+/// A record of the operand's own list carried back in, and its index
+/// in that list: the record the op's result cites for it
+/// ([`Backing::Carried`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarriedRecord<R> {
+    /// The record's cells.
+    pub contact: R,
+    /// Its index in the operand's records ([`ContactRecords::rows`]).
+    pub record: u32,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -802,6 +911,9 @@ pub struct CarriedVv {
     pub pair: VvContact,
     /// The class the carried declaration asserts.
     pub class: ContactClass,
+    /// The operand's record of the pair, by its index in the operand's
+    /// records ([`ContactRecords::rows`]): what backs it.
+    pub record: u32,
 }
 
 /// A carried vertex-on-face declaration ([`CarriedVv`] for why the
@@ -812,6 +924,8 @@ pub struct CarriedVf {
     pub rest: VfContact,
     /// The class the carried declaration asserts.
     pub class: ContactClass,
+    /// The operand's record of the rest ([`CarriedVv::record`]).
+    pub record: u32,
 }
 
 impl CarriedContacts {
@@ -1744,11 +1858,20 @@ pub(crate) fn one_vertex<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
+    one_vertex_at(p, q, band).map(|at| at.is_some())
+}
+
+/// [`one_vertex`], answering the margin that decided the two points one
+/// (`None` apart).
+pub(crate) fn one_vertex_at<T: Decide>(
+    p: Point3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<MarginDiag>, Indeterminate> {
     let distance = geom_core::Margin::norm3(p - q);
-    Ok(
-        geom_core::k_stats::decide_magnitude("bool_contact_vertex", distance, band)?
-            == geom_core::k_stats::Magnitude::Zero,
-    )
+    let (magnitude, margin) =
+        geom_core::k_stats::decide_magnitude_reported("bool_contact_vertex", distance, band)?;
+    Ok((magnitude == geom_core::k_stats::Magnitude::Zero).then_some(margin))
 }
 
 /// The result of [`boolean_reduce`]: both operands' annotated clones
@@ -1801,6 +1924,11 @@ pub struct BooleanReduction<T: Real> {
     /// The coincidences the declaration door decided from values, in
     /// operand keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+    /// The vertex identities the sweep decided, in decision order: the
+    /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names
+    /// an index here), emitted into the result's coincidences only
+    /// where a record citing them survives ([`reduce::PendingRow`]).
+    pub(crate) pending: Vec<reduce::PendingRow>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -4266,7 +4394,7 @@ fn sweep_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba, acc.finish()))
+    Ok((a, b, ab, ba, acc.finish().0))
 }
 
 /// **The section certificate on the crossings path past the cone
@@ -4451,7 +4579,7 @@ pub fn sweep_records(
         b.vertices().count(),
         b.edges().count(),
     ];
-    Ok((acc.finish(), sizes))
+    Ok((acc.finish().0, sizes))
 }
 
 /// **The boolean pipeline through its join**, undeclared and realized:
@@ -4631,7 +4759,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tol,
     )?;
     let edge_splits = core::mem::take(&mut acc.splits);
-    let contacts = acc.finish();
+    let (contacts, pending) = acc.finish();
 
     let mut null_edges = Vec::new();
     let mut null_pairs = Vec::new();
@@ -4652,7 +4780,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        for &c in pierced {
+        for c in pierced.iter().map(|c| c.record) {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
                 Operand::A => (&mut a, &mut b),
@@ -4712,7 +4840,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // (`insert::reconcile_shared`), so no mint moves a half-edge another
     // pair's plan read.
     let mut classified = Vec::with_capacity(contacts.vv.len());
-    for &c in &contacts.vv {
+    for c in contacts.vv.iter().map(|c| c.record) {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         for (operand, vertex, own, other, partner) in [
@@ -4895,6 +5023,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         edge_classes,
         hung,
         coincidences: declared.verified.coincidences.clone(),
+        pending,
     })
 }
 
@@ -4914,7 +5043,7 @@ pub(crate) struct HungPoint {
 /// clones `bodies`.
 fn hung_points<T: Real>(
     hangs: &[insert::Hang],
-    vv: &[VvContact],
+    vv: &[Cited<VvContact>],
     bodies: [&Body<T>; 2],
 ) -> Result<Vec<HungPoint>, BooleanError> {
     let mut contacts = zip::Roots::new();
@@ -6015,7 +6144,7 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried v-on-f face key does not resolve"));
             }
         }
-        for rest in &c.ve {
+        for CarriedRecord { contact: rest, .. } in &c.ve {
             if body.get_vertex(rest.vertex).is_none() {
                 return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
             }
@@ -6023,7 +6152,7 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
             }
         }
-        for touch in &c.ee {
+        for CarriedRecord { contact: touch, .. } in &c.ee {
             if touch.a == touch.b {
                 return Err(bad(operand, "carried e-e pair names one edge twice"));
             }

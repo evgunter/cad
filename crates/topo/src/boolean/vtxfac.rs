@@ -1424,7 +1424,11 @@ mod tests {
             (
                 "pierced twice by A",
                 ContactRecords {
-                    a_on_b: vec![vf(v, f), vf(w, f), vf(v, g)],
+                    a_on_b: vec![
+                        crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
+                        crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
+                        crate::Cited::new(vf(v, g), crate::Cites::decided(0)),
+                    ],
                     ..Default::default()
                 },
                 Err((
@@ -1436,8 +1440,12 @@ mod tests {
             (
                 "pierced and paired, B",
                 ContactRecords {
-                    b_on_a: vec![vf(w, f)],
-                    vv: vec![vv(x, v), vv(v, w), vv(x, w)],
+                    b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
+                    vv: vec![
+                        crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
+                    ],
                     ..Default::default()
                 },
                 Ok(vec![((Operand::B, w), SectorRead::Pair(v))]),
@@ -1445,7 +1453,11 @@ mod tests {
             (
                 "paired twice",
                 ContactRecords {
-                    vv: vec![vv(v, w), vv(v, x), vv(x, w)],
+                    vv: vec![
+                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
+                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
+                    ],
                     ..Default::default()
                 },
                 Ok(vec![]),
@@ -1453,8 +1465,8 @@ mod tests {
             (
                 "one key on each operand, pierced by A's and paired by B's",
                 ContactRecords {
-                    a_on_b: vec![vf(v, f)],
-                    vv: vec![vv(w, v)],
+                    a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
+                    vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
                     ..Default::default()
                 },
                 Ok(vec![]),

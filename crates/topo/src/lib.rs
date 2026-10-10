@@ -802,16 +802,16 @@ pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
-    Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
-    ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
-    EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys,
-    PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc,
-    PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, SectorRead,
-    SectorRung, SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
-    SphereQuestion, SweepStrategy, SweepTrace, TorusConvention, VeContact, Verdicts, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    CarriedContacts, CarriedRecord, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError,
+    CarrierRelation, Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent,
+    ContactRecords, ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead,
+    DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions,
+    HeldEdge, JoinReading, JoinRefusal, JoinUndecided, LeverArm, NullEdgePairRecord, Operand,
+    OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord,
+    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
+    SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment,
+    SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention, VeContact, Verdicts,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
     boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, intersect_with, is_conventional_vertex, join_covers,
@@ -866,7 +866,9 @@ pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
     examine_chart_coherence, gap_is_noise,
 };
-pub use coincidence::{Coincidence, DecisionSite, Discharge, Relation, RowCell};
+pub use coincidence::{
+    Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
+};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
