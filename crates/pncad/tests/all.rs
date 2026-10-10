@@ -2477,8 +2477,16 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
-    // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, plane) = insert(doc, xy_frame());
+    // A failing Boolean and its downstream: the second box's floor
+    // stands 2 nm off the first's, inside the ambiguity band.
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [len(0.0), len(0.0), len(2e-9)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, second_profile) = insert(doc, square(plane, 1.0));
     let (doc, second_box) = insert(
         doc,
