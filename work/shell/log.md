@@ -1377,3 +1377,4 @@ Ev said go.
   - Unit 17: narrow the iso-row arm. Session `session_01RZJC9khmQTn8f8veyfg6rH`, branch `shell/iso-row-narrow`, M tier; rule-1 byte 37 (mod 3 = 1) puts it in the sequential arm.
   - Unit 18: the general simultaneous door. Session `session_01De5VWXHkEBqhmCXCzNUivh`, branch `shell/general-door`, H tier, dual review.
   - Both specs are in the dispatch prompts, as `## Decided` sections the lanes copy into their items.
+- **Filed** `intent/the-plate-verdict-pin-holds-only-at-the-default-eps` (P4, E), found by unit 17's differential: the tour's plate pin is ε-dependent.
