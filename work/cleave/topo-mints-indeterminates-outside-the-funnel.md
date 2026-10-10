@@ -2,12 +2,10 @@
 id: topo-mints-indeterminates-outside-the-funnel
 kind: issue
 title: topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites
-status: dispatched
+status: open
 opened: 2026-09-20
-priority: P0
+priority: P1
 cost: M
-design: true
-branch: cleave/mints-steps-3-5-scope
 ---
 
 
@@ -409,3 +407,233 @@ Waits on `intent-stage4-is-built`, not on the whole program: held step 2's paylo
 E deletes step 2's user-visible payload sites: `BooleanError::UndeclaredCoincidence`, editor-core's `UndeclaredCoincidence` / `UndeclarableContact`, and `NeighbourOffset`. `CarrierEqError`'s Zero arm is no longer a refusal, because rung 4 glues. `CoincidenceMeasure` stays the ladders' typed payload (`crates/topo/src/boolean/carrier_eq.rs:137`). The pr4 x = 1.0 union's "margin is invalid" sentence has no site left to render it.
 
 Steps 3–5 are untouched. `contact_verify`'s minted `MarginDiag::INVALID` contradictions are all live (`crates/topo/src/boolean/contact_verify.rs:166`, `:180`, `:332`, `:366`, `:380`, `:430`, `:455`), and so are `plane_eq.rs:304` and the class (a)/(c) sites. E adds one shape of class (b): a pair decided one carrier at an arm the glue door did not glue escalates through `unglued_coincidence` (`crates/topo/src/boolean/mod.rs:1007`). That escalation carries the decided margin, or `INVALID` where none was read (`recl.rs:151`, `vtxfac.rs:789`), inside an `Indeterminate`. The row resumes at step 3.
+
+## Re-scoped (2026-10-10)
+
+Read against `origin/main` at `98a3817a1d`. Scope: production code in
+`crates/topo/src` and `crates/sweep/src`.
+
+**Patterns.**
+- Pass 1 looked for `MarginDiag::INVALID`, `invalid_margin::invalid`,
+  `invalid_escalation`, `Indeterminate {` and `invalid(`.
+- Pass 2 looked for every `terminal_sliver:` field. Every struct literal
+  has to set that field, so pass 2 also finds literals that carry an
+  honest margin or have a helper of another name.
+- Test code was dropped from both passes: hits inside a `#[cfg(test)]`
+  item, hits in `*test*` files, and `refusal_routes`' `#[path]`-mounted
+  `offer_rows`.
+
+**Blind spots.**
+- A `use … as` alias for `Indeterminate`, `MarginDiag` or `INVALID`.
+  None exists in either crate.
+- A `..diag` struct update that renames a funnel diagnostic. The only
+  one is `boolean/mod.rs:5765`.
+- A decided verdict thrown away without a mint (`Err(_) =>
+  claim.unsupported()`). That shape is ENCL's, and it is not swept here.
+
+**Outside these crates** there is no production hand mint in `geom-brep`,
+`editor-core`, `pncad-py`, `step-export` or `viewer`. Every hit there is
+a test. The workspace holds 136 test literals and 85 `INVALID` spellings,
+which are what the seal has to migrate.
+
+### Census: 69 arms, by class and owner
+
+Class (d) is a fourth class, not this row's shape. It covers a site that
+read no margin: honest poison, or a structural fault. Those sites still
+matter to the seal, because they hand-build an `Indeterminate`.
+
+| owner | (a) | (b) | (c) | (d) | total |
+|---|---|---|---|---|---|
+| CLEAVE (this row) | 7 | 1 | 13 | 3 | 24 |
+| D10-held (declared-pair / declaration ground) | 3 | 23 | 4 | 5 | 35 |
+| PRED | 3 | — | 1 | — | 4 |
+| CHART | 3 | — | 1 | — | 4 |
+| TOPO | — | — | 1 | — | 1 |
+| RESTFRONT | — | — | 1 | — | 1 |
+| **total** | 16 | 24 | 21 | 8 | 69 |
+
+ENCL holds no live unit. Its umbrella `hand-minted-invalid-gates-in-topo`
+is still open, but both of its units have closed: PR 4474, the
+material-pairing gate, and PR 4497, the poisoned endings. Its remaining
+sites are the PRED, CLEAVE and D10 rows in this table.
+
+**CLEAVE**: 23 topo sites, plus one in sweep.
+`invalid_margin.rs:26` is the helper itself and is not counted.
+
+| # | site | predicate / shape | class |
+|---|---|---|---|
+| C1 | `splitting/rules.rs:197` `apply_rule_a` | `split_sector_extent`: a face extent (a magnitude) decided Zero | a |
+| C2 | `rules.rs:319` `apply_rule_a` | `enters_material` reads `Tangent` after the parallelism gate | c, one fact decided twice |
+| C3 | `rules.rs:488` `wall_graze` | `wall_bend_order2`: `Exits`/`Tangent` after rule (a) read "enters" | c, decided twice |
+| C4 | `rules.rs:500` `wall_graze` | `wall_bend_order2`: the sectors disagree | c, disagreement or straddle (ledger F11) |
+| C5 | `splitting/classify.rs:608` | `split_conic_graze_side` decided Zero (reachable at K ≤ 2) | a |
+| C6 | `splitting/containment.rs:311` `ReadEscalation::straddle` | two bounds straddle the band | a (item 6) |
+| C7 | `containment.rs:1993` | `point_in_arc_loop_boundary_disagreement` | c, disagreement |
+| C8 | `splitting/order.rs:126` `in_plane_frame` | `split_join_frame_arm`: every member decided non-positive | a (the #3686 correction) |
+| C9 | `chord_join.rs:907` `agreed_section` | `pc_parallel_gap_disagreement`, `pc_axis_plane_parallel_disagreement` | c, two independent readings |
+| C10 | `boolean/contain.rs:626` | `bool_contact_arc_end_vertex` (I11) | c, disagreement |
+| C11 | `boolean/sectors.rs:418` `bisector_zero_refusal` | `bool_sector_bisector_side`: an honest `±zero` enclosure, off the log (N19) | c |
+| C12 | `boolean/plane_eq.rs:102` `orientation_zero` | `bool_plane_orient` decided Zero, decided margin, off the log (I17). Caller `:254` is undeclared; caller `carrier_eq.rs:726` is held | a |
+| C13 | `boolean/solid_contain.rs:2760` | `bool_wall_junction`: the pieces' sides disagree | c |
+| C14 | `solid_contain.rs:2766` | `bool_wall_junction`: both ends of a piece are active | c |
+| C15 | `solid_contain.rs:2774` | `bool_wall_trim` decided Zero. It may be a graze (`Ok(None)`), like the sibling Zero arms | a |
+| C16 | `solid_contain.rs:3534` `latitude_extremes` | `bool_sphere_trim_latitude`: no levels | d, structural |
+| C17 | `solid_contain.rs:5405` | `bool_ray_torus_count`, `CountDisagrees` | c, invariant |
+| C18 | `boolean/sphere_region.rs:384` | `bool_sphere_region_roots_count`, `CountDisagrees` | c, invariant |
+| C19 | `census.rs:2583` (RESTREAD ground) | `material_wedge_side`: `Transverse` after the edge screen (I8) | c, decided twice |
+| C20 | `boolean/carrier_eq.rs:168` `CoincidenceMeasure::decide` | an unreadable datum that is not finite | d, honest poison |
+| C21 | `carrier_eq.rs:836` `coincident_as_declared` | the sum decided nonzero where every datum decided zero (N6), honest margin | c, disagreement |
+| C22 | `boolean/mod.rs:1238` `unglued_coincidence` | `carrier_unglued_coincidence`: a decided Zero dressed as an escalation (added by E) | b |
+| C23 | `merge_faces.rs:2901` (FUSE/TOPO ground) | `LoopWinding` decided zero, decided margin, off the log (step 1's list) | a |
+| C24 | `sweep/src/blend/battery.rs:128` `measured` (BAND/CARVE ground) | a NaN reading → `INVALID` | d, honest poison |
+
+C22 no longer reaches `INVALID`. Its two callers (`recl.rs:150` and
+`vtxfac.rs:788`) now raise `ClassificationInvariant` when no margin was
+read.
+
+**D10-held: 35 arms.** Every caller is a declaration verifier, a declared
+seat, or a declared-pair reading. D10 stage 4 deletes these rather than
+types them: `declared-pairs-retire` covers `BooleanCoincidence` (Contact,
+Continuation and Seam), and `mates-declare-no-contact` covers the census
+`ContactClass` path.
+
+- `boolean/contact_verify.rs`:
+  - `:171`, `:337`, `:371`, `:385`, `:435`: class (b), I1 and I3–I6.
+  - `:185`: class (c), I2, an invariant.
+  - `:460`: class (a), I7, on the undeclared detector posture.
+  - These seven are filed on SECTOR's
+    `contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`, which
+    moved there from CONTACT.
+- `carrier_eq.rs` `definite()` (`:646`), used at `:722`
+  (PlanesNotParallel), `:759` (KindsDiffer) and `:798` (the attributed
+  fact): class (b) ×3.
+- `carrier_eq.rs:768` `unsettled`: one arm is class (c) (an impossible
+  Negative) and one is class (a) (a straddle).
+- `boolean/mod.rs`:
+  - `:5297` `sense_contradiction`: class (b) ×3.
+  - `:5643` `verify_tangency_declaration` label: class (b) ×3.
+  - `:5765`, a relabel: class (b).
+  - `:5871` `tangent_rim_refusal` label: class (b) ×7.
+- `vtxfac.rs:549` `bool_sector_coplanar`: class (b).
+- `rim_wedge.rs`:
+  - `:509`: class (d).
+  - `:573`: class (a).
+  - `:1017`: class (d).
+  - `:1045`, `:1079`: class (c).
+- `merge_faces.rs:2344` and `:2381` `merge_pair_extent`: class (d).
+- `flush.rs:315` `EXTENT_UNREAD`: class (d).
+
+**Other programs' rows.**
+- **PRED.** `solid_contain.rs:1289` and `:2987` (`bool_wall_trim_period`,
+  class (a), also INSIDE's `revolved-tube-wall-refuses-bool-wall-trim-period`)
+  sit on `period-headroom-margin-has-no-shared-home`. `:1938` (nappe
+  Negative, class (c)) and `:1943` (side Zero, class (a)) sit on
+  `cone-nappe-is-decided-in-five-places`. ENCL's seam note on PRED's
+  log is dated 2026-10-09.
+- **CHART.** `chart_region.rs:1752`, `:3230` and `:3466` (`definite_diag`,
+  class (a)) are on `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value`.
+  `:1512` (`chart_region_cyl_axis_sense` Zero, class (c)) is on
+  `chart-region-mints-indeterminates-after-a-definite-sign`.
+- **TOPO.** `plane_eq.rs:303` `unreadable_norm` (a norm decided
+  Negative from input) is on `boolean-unreadable-norm-ends-as-a-kernel-defect`.
+- **RESTFRONT.** `validate.rs:5747` `material_arm_error` `Split` is on
+  `ring-contact-and-sliver-split-endings-want-their-decisions`.
+
+**Retired since the 2026-10-03 retake.**
+- **Step 1 (PR 3979):** I9, I10, I13, I23, I26 ×3, I27,
+  `chart_region`'s tilt and `norm_gate`, and `short_arm`.
+- **PR 3974 and stage 4 E:** I18 and N3. `CoincidenceMeasure` now has
+  two arms, `Undecided` and `Unreadable`.
+- **PR 4433 and PR 4474:** I24's validator twin and N20.
+- **Rule (b)'s rework:** N16. `rules.rs` now returns `Ok(None)` on
+  `Tangent`.
+
+### Does step 3 still fit? No. Step 3 is superseded, and main already has the doors it wanted
+
+- **Every class-(b) arm but one is on D10-held ground.** Of the 24
+  class-(b) arms, 23 are D10-held, and stage 4 PR F deletes the variants
+  that carry them: `ContactContradicted`, `ContinuationContradicted`,
+  `SeamContradicted`, `ContactRefusal::Contradicted`, and
+  `CarrierEqError::Contradicted` through `declared_reading`. Typing their
+  evidence now would type variants that are about to go. The one
+  non-held class-(b) arm is C22, a decided Zero rather than a
+  contradiction, and design item 7 covers it. After stage 4, what
+  survives is re-censused (unit 5 below).
+- **`Definite { predicate, sign, margin, band }` would be a third name
+  for a decided reading.** Main already has two:
+  - `geom_core::Decided { sign, margin }`, from `decide_reported` and
+    `decide_magnitude_reported`;
+  - `geom_brep::recourse::Classified { margin, band }`.
+
+  On the ending side, ENCL landed `RefusedArm::SignCertain(Option<MarginDiag>)`,
+  `lever_recourse` and `MarginDiag::unreadable_note`. On the gate side,
+  `MarginDiag::rejected_sign` is item 2's "a gate rejection keeps the
+  decided margin", and `decide_magnitude` is item 5. If a contradiction
+  survives stage 4, its evidence is `(predicate, Decided)` beside the
+  band its error already carries. No new type is needed.
+- **Main also has the door for "how a reading stands".**
+  `splitting::containment::Escalation::{Margin, Straddle, Decided}`
+  carries it, and `RefusedArm::Straddle` ends it. CLEAVE's
+  `split-escalations-end-a-poisoned-margin-in-the-plane-lever` asks for
+  that door to be carried to `SliverSector`, `SplitJoinError` and
+  `SectionError`, which is what units 1 and 2 need.
+- **Main has no door for item 6's straddle enclosure on the log.**
+  There is no `k_stats` door for a straddle, so unit 2 adds one. That is
+  SCALAR's ground, in `geom-core`.
+- **The conflict with ENCL's endings is real, and it constrains every
+  unit.**
+  - Some readers give a contradiction its defect ending because the mint
+    says `INVALID`: `chart_region.rs:433` (`ChartRegionError::Escalated`),
+    `validate.rs:2509` (`own_close`/`too_close`, which C19 reaches), and
+    `geom_brep` `RefusedArm::unreadable`.
+  - A unit that swaps `INVALID` for an honest decided margin on a class-(c)
+    arm therefore flips that arm's ending, silently, to the lever and
+    tighten menu, unless the arm becomes a typed contradiction or a typed
+    `Escalation::Decided`. Each unit pins each moved arm's ending, before
+    and after.
+- **A cost of routing class (a) through the gate doors.** SCALAR's open
+  `a-gate-rejection-of-a-decided-enclosure-bisects-to-budget` says the
+  driver bisects a decided gate rejection until its budget runs out. That
+  is not a blocker, because every existing gate rejection has the same
+  cost, but units 1 and 4 add rejections to it.
+
+### CLEAVE's remaining units
+
+Each unit is one PR, filed as its own row with `parent:` set to this row.
+
+1. `split-sector-rules-mint-no-invalid` (M): C1–C5.
+2. `split-straddles-and-disagreements-carry-their-reading` (M): C6–C9,
+   plus the `k_stats` straddle door.
+3. `point-in-solid-mints-outside-its-period-and-nappe-rows` (M): C13–C18.
+   PRED's four sites stay on PRED.
+4. `boolean-gate-mints-route-through-the-funnel` (M): C10, C11, C12, C19
+   and C23. It touches RESTREAD's and FUSE/TOPO's ground; the PR
+   announces the seam.
+5. `glue-disagreements-and-held-contradictions-after-stage-4` (M,
+   `design: true`): C20–C22 and C24's reading, plus the re-census of
+   the 35 D10-held arms after stage 4. Parked on `intent-stage4-is-built`.
+6. `the-indeterminate-seal` (M): step 5. Parked on units 1–5 and on the
+   other programs' rows. The seal cannot land early, because
+   `#[non_exhaustive]` and a crate-private `INVALID` are crate-wide in
+   `geom-core`: they break every remaining hand mint in every crate at
+   once. It therefore waits on PRED, CHART, TOPO, RESTFRONT and SECTOR's
+   rows as well as on stage 4.
+7. `hand-minted-indeterminate-ratchet-gate` (E, P3): a `scripts/gates/`
+   per-file count of production hand mints that can only go down.
+   - This holds the census until the seal can land.
+   - New mints have appeared since the census was taken: N1 in PR 3513,
+     C22 in E, and `definite_diag` at step 1.
+
+Units 1–6 are P1, not P0: no remaining site is a wrong answer on normal
+geometry, and the user-visible text that drove P0 went with stage 4 E.
+The row's header is left as the orchestrator set it.
+
+## Orchestrator ruling on the re-scope (2026-10-10)
+
+The 2026-10-03 design was a designer pair's, not ratified text. Its step 3 is superseded as the
+re-scope above measures. The contradictions it would type go with D10 stage 4, and main's
+`Decided`/`Classified`/`RefusedArm` vocabulary already carries what `Definite` was for. The units
+above replace steps 3–5. This row is their umbrella and closes when the seal lands. It is at P1 now:
+no remaining site answers wrongly on normal geometry, and the user-visible text that made it P0
+went with stage 4 E. Its open design question moves to the stage-4 unit. Each unit must keep its
+ending by type, and pin it before and after (the re-scope's conflict with ENCL's endings).
