@@ -751,9 +751,11 @@ impl Margin<f64> {
     /// in certified `f64` enclosure arithmetic and lifted so every lane
     /// records identically). Dimension-preserving, **not** a
     /// construction door — the door was chosen when the `Margin<f64>`
-    /// was built.
+    /// was built. The value is a computed one, so it enters through
+    /// [`crate::Real::from_computed`]: at `Sym` it is an unknown, never
+    /// a constant a symbolic `Zero` could be proved over.
     pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
-        Margin(T::from_f64(self.0))
+        Margin(T::from_computed(self.0))
     }
 
     /// Door: [`Margin::over_lever`]'s dimensional argument, for a
