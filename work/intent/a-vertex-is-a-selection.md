@@ -2,12 +2,13 @@
 id: a-vertex-is-a-selection
 kind: issue
 title: Stage 2 FORK-VTX: a vertex is a selection; a measure reads it, a pose reader reads its point (D10)
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P0
 cost: E
 refs: [select-defines-face-and-edge-variables, a-selection-is-a-definition-of-a-body-s-faces-or-edges]
 branch: intent/s2-e-select
+closed: 2026-10-10
 ---
 
 
@@ -28,3 +29,7 @@ Raised as FORK-VTX by stage 2 E (`select-defines-face-and-edge-variables`). Meas
 - `wire_entity_door.rs`'s vertex rows ("resolves to a vertex") become door refusals; `MeasureSelectionKind`'s kind half and `scope_of` as `min_clearance`'s kind check go.
 - The viewer's "picks become select edits" gains a `Vertex` arm (`frame.rs` maps a vertex pick to the node today).
 - Stage 3 A's `Point { of: Face | Edge | Vertex }` is the pose half; nothing in E builds it.
+
+## Closed
+
+By INTENT stage 2 unit E on `intent/s2-e-select`: `VarKind::Vertex` is a selection kind, and a measure's references admit their primitive's kinds at the edit and load doors (`MeasureVerb::admits`, `SlotKind::Measured(verb)`, refused as `SlotVarKind`); `MeasureSelectionKind` retires and `min_clearance`'s scope is a projection. Rows: `intent_s2_e_select.rs`'s `each_primitive_admits_its_kinds_at_the_edit_door` and `a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load`. The viewer has no measure-authoring tool, so no pick authors a `Vertex` select yet.
