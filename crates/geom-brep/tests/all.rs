@@ -214,6 +214,8 @@ mod review_r1_rational_probes;
 mod revolved_point_anchor;
 #[path = "fork2_probe.rs"]
 mod fork2_probe;
+#[path = "fork2_probe2.rs"]
+mod fork2_probe2;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
