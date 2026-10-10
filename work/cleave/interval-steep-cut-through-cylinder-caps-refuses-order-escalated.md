@@ -38,7 +38,12 @@ y (a cap's chord) ties in `u`.
 components exactly zero, `split_join_frame_axis` at the exact band)
 keeps the exact coordinate frame; any other plane takes the first
 OBLIQUE schedule member. All 24 tilted poses of the new row answer at
-`Interval`, enclosing the closed form.
+`Interval`, enclosing the closed form. The oblique frame narrows the
+class rather than removing it: crossings on a face of normal `m` still
+tie where `det(n, m, r) = 0`, and the review measured cylinder poses on
+that circle (`n = (2, 1, ±1)`, `(2, 1, ±2)`, `(2, 1, 1.5)`) that the
+x-axis frame answered and this one refuses — filed as
+`interval-oblique-join-frame-ties-on-its-own-circles`.
 
 **What that exposed.** The new order reddened five `f64` rows
 (seam-ruling splits, `axis_parallel_cuts_left_to_the_book_rule_still_answer`,
@@ -60,3 +65,19 @@ axis-plane residual, filed as
 two `splitting::order` unit rows. The steep row and the oblique unit
 row go red on the old frame; the axis-parallel row goes red on `dfcd7f3504`
 and with ruling pairing disabled.
+
+**Fix pass (review of `576e7aa360`).** `split_join_frame_axis` decides
+the normal's components only until the verdict settles (two nonzero:
+oblique; two zero: axis plane), so a component straddling zero refuses
+only where the verdict turns on it — the cylinder cut with normal
+`([−1e−12, 1e−12], 0.3, 1)` answers again (pinned). Its margin is the
+component levered by the points' spread (`Margin::levered`, as
+`split_join_frame_arm` is), not `Margin::of`. Its refusal, and
+`split_join_frame_arm`'s, now say what was undecided (`OrderEscalated`'s
+sentence reads its predicate). The `SCHEDULE` split the frame reads is
+pinned (the axes first and only them; no two oblique members near one
+line). Stored `SectionFace` indices move on tilted multi-region splits
+(the evidence is on `emit`'s
+`section-face-and-hole-rim-are-ordinals-over-their-group`); the
+frame-building copies are filed on HONE
+(`join-order-frames-are-built-three-ways-from-one-schedule`).

@@ -1154,7 +1154,7 @@ fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
 fn cylinder_section<T: geom_core::Decide + topo::AtRestPolicy>(
     phi: f64,
     origin: Point3<f64>,
-    n: Vec3<f64>,
+    n: Vec3<T>,
 ) -> Result<topo::Section<T>, topo::SectionError<T>> {
     let p2 = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
     let (c, s) = (phi.cos(), phi.sin());
@@ -1169,7 +1169,7 @@ fn cylinder_section<T: geom_core::Decide + topo::AtRestPolicy>(
         tol(),
     );
     let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol());
-    let plane = topo::test_support::split_plane(origin.map(T::from_f64), n.map(T::from_f64), tol());
+    let plane = topo::test_support::split_plane(origin.map(T::from_f64), n, tol());
     topo::plane_section(&cylinder, &plane, tol())
 }
 
@@ -1206,8 +1206,12 @@ fn a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval() {
                     (got - want).abs() < 1e-12,
                     "{what}, f64: the section's area is {got}, want {want}"
                 );
-                let s = cylinder_section::<Interval>(phi, mid, n)
-                    .unwrap_or_else(|e| panic!("{what}, Interval: {e}"));
+                let s = cylinder_section::<Interval>(
+                    phi,
+                    mid,
+                    n.map(<Interval as geom_core::Real>::from_f64),
+                )
+                .unwrap_or_else(|e| panic!("{what}, Interval: {e}"));
                 let [region] = &s.regions[..] else {
                     panic!("{what}, Interval: one region, got {}", s.regions.len());
                 };
@@ -1227,6 +1231,34 @@ fn a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval() {
             }
         }
     }
+}
+
+/// **A plane normal with one component the interval lane cannot call
+/// zero still cuts, where the other two settle the frame.** The unit
+/// cylinder cut through its axis's midpoint with normal
+/// `([−1e−12, 1e−12], 0.3, 1)`: two components are definitely nonzero,
+/// so the plane is not an axis plane whatever the first reads, and the
+/// section is the ellipse of area `π·√1.09`.
+#[test]
+fn a_normal_straddling_zero_in_one_component_still_cuts_at_interval() {
+    use geom_core::{Bounds, Interval, Real};
+    let n = Vec3::new(
+        Interval::from_bounds(-1e-12, 1e-12),
+        Interval::from_f64(0.3),
+        Interval::from_f64(1.0),
+    );
+    let s = cylinder_section::<Interval>(0.0, Point3::new(0.0, 0.0, 0.5), n)
+        .unwrap_or_else(|e| panic!("the cut refused: {e}"));
+    let [region] = &s.regions[..] else {
+        panic!("one region, got {}", s.regions.len());
+    };
+    let (got, want) = (region.area(), core::f64::consts::PI * 1.09_f64.sqrt());
+    assert!(
+        got.lo() - 1e-9 <= want && want <= got.hi() + 1e-9,
+        "[{}, {}] encloses {want}",
+        got.lo(),
+        got.hi()
+    );
 }
 
 /// **A cut along a cylinder's axis keeps the interval lane's refusal,
@@ -1249,8 +1281,12 @@ fn a_cut_along_a_cylinders_axis_refuses_its_rims_tie_at_interval() {
         "f64: the section's area is {}, want {want}",
         region.area()
     );
-    let err = cylinder_section::<geom_core::Interval>(0.0, origin, n)
-        .expect_err("the interval lane refuses the rims' tie");
+    let err = cylinder_section::<geom_core::Interval>(
+        0.0,
+        origin,
+        n.map(<geom_core::Interval as geom_core::Real>::from_f64),
+    )
+    .expect_err("the interval lane refuses the rims' tie");
     let topo::SectionError::Split(SplitError::Join(topo::SplitJoinError::OrderEscalated { diag })) =
         &err
     else {

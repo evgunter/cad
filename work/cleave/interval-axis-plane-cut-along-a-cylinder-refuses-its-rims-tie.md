@@ -26,14 +26,22 @@ The refusal text reads "the order of two section points is too close
 to call", which is true of the order and says nothing of the points
 being far apart.
 
-Why the oblique frame that fixed the tilted cuts
-(`interval-steep-cut-through-cylinder-caps-refuses-order-escalated`)
-is not applied here: on an axis plane the coordinate keys are exact
-for exact data, which is what lets several null edges at one point
-(bit-identical copies) tie Zero at `Interval`. An oblique key
-`w·d` rounds for data that is not dyadic at a few bits, so those
-copies would straddle instead — trading this refusal for that one.
-A fix wants both: keys separating computed crossings that tie in a
-coordinate, and an exact tie for copies of one point (a topological
-identity — the same vertex, or the same point record — rather than a
-bit compare, which the bit-identity channel fence forbids).
+**Measured vs argued.** Measured: the refusal, its payload, the pair it
+straddles on, and (by PR 4224's review) that an oblique frame answers
+this fixture — the plane through `(0.3, 0, 0.5)` with normal
+`(1, 1e−17, 0)` is not an axis plane, takes the oblique frame, and its
+cut answers at `Interval`. Argued, not measured: the cost below of
+giving axis planes the oblique frame.
+
+Why the oblique frame is not applied to axis planes (argued): on an
+axis plane the coordinate keys are exact for exact data, which is what
+lets several null edges at one point (bit-identical copies) tie Zero
+at `Interval`. An oblique key `w·d` rounds for data that is not dyadic
+at a few bits, so those copies would straddle instead. No fixture has
+been run to show that trade; it is the reason to measure before
+moving the frame. A fix wants both: keys separating computed crossings
+that tie in a coordinate, and an exact tie for copies of one point (a
+topological identity — the same vertex, or the same point record —
+rather than a bit compare, which the bit-identity channel fence
+forbids). The oblique frame's own residual is
+`interval-oblique-join-frame-ties-on-its-own-circles`.

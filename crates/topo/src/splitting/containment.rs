@@ -506,8 +506,9 @@ impl PointInLoopError {
 /// skips the near-parallel members), [`crate::splitting::order`]'s
 /// point ordering (whose frame takes the three axes for an axis plane
 /// and the members after them for any other, so the axes stay first),
-/// and [`crate::boolean::solid_contain`]'s
-/// containment sweep (which normalizes the raw triple). They do not
+/// [`crate::boolean::solid_contain`]'s containment sweep (which
+/// normalizes the raw triple), and [`crate::boolean::sphere_region`]'s
+/// ray directions. They do not
 /// sweep the same directions. What each needs is only that its own
 /// schedule is a `const` in a fixed order every run, which holds per
 /// site — so a single definition buys the absence of drift between
@@ -517,8 +518,11 @@ impl PointInLoopError {
 /// incidental.** `tests/review_m3_pr3_pil.rs` hand-copies the fifteen
 /// non-degenerate `+z` in-plane projections of this table (values),
 /// and `splitting::order`'s sort tests pin the iteration order. Both
-/// pin it as a side effect of testing something else; nothing pins it
-/// on purpose.
+/// pin it as a side effect of testing something else. What is pinned
+/// on purpose is the split `splitting::order` reads: the first three
+/// entries are the axes and no later one is
+/// (`the_schedule_opens_with_the_three_axes_and_only_them`), and no two
+/// later ones lie near one line.
 ///
 /// `pub(crate)` is the minimum visibility that reaches `boolean`, a
 /// sibling of `splitting` rather than a descendant. `chart_region`'s

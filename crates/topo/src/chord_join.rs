@@ -168,7 +168,12 @@ impl core::fmt::Display for ConicCrossingsCase {
 /// Typed failure of the joining step.
 #[derive(Debug)]
 pub enum SplitJoinError {
-    /// The exact-order comparator escalated (interval lane only).
+    /// The split's join order escalated (interval lane only): building
+    /// its frame — whether the plane is an axis plane
+    /// (`split_join_frame_axis`), or whether a schedule member projects
+    /// into it (`split_join_frame_arm`) — or comparing two section
+    /// points in it (`split_join_order_u` / `_v`). The sentence names
+    /// which ([`order_decision`]).
     OrderEscalated {
         /// Diagnostics (named predicate inside).
         diag: Indeterminate,
@@ -388,6 +393,20 @@ impl core::fmt::Display for SplitJoinError {
     }
 }
 
+/// What a [`SplitJoinError::OrderEscalated`] could not decide, by its
+/// predicate: the join order's frame, or the order of two points in it.
+fn order_decision(predicate: Option<&str>) -> &'static str {
+    match predicate {
+        Some("split_join_frame_axis") => {
+            "whether the section plane's normal lies along a coordinate axis"
+        }
+        Some("split_join_frame_arm") => {
+            "which direction in the section plane to order points along"
+        }
+        _ => "the order of two section points",
+    }
+}
+
 /// A [`SplitJoinError`] as a Boolean shows it: the Boolean takes
 /// declarations, so its escalations offer the shared
 /// [`geom_core::COINCIDENCE_RECOURSE`] where the join's own `Display`
@@ -409,8 +428,8 @@ impl SplitJoinError {
         match self {
             Self::OrderEscalated { diag } => write!(
                 f,
-                "the order of two section points is too close to call ({}). Recourse: \
-                 {recourse}",
+                "{} is too close to call ({}). Recourse: {recourse}",
+                order_decision(diag.predicate),
                 diag.payload()
             ),
             Self::Escalated { diag, .. } => write!(
