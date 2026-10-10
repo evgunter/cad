@@ -306,6 +306,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
     ),
     (
+        "crates/geom-brep/src/props/spiric.rs",
+        6,
+        5,
+        "the remaining 1 is `spread_cos`'s clamp, safe by construction as `quad.rs`'s \
+         half-angle clamps are: it builds from `pt` of a finite f64 half-width with an \
+         exact nonzero divisor, so no operand can leave a domain. The others sit in \
+         `trig_of`, `composite` and `wall_chart`, which refuse a refused input by name",
+    ),
+    (
         "crates/geom-brep/src/ssi.rs",
         6,
         0,
@@ -390,7 +399,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
+    ("crates/topo/src/props/quad_lane.rs", 6, 6, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.

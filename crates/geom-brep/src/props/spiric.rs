@@ -167,7 +167,7 @@ fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
 /// rotation (exact for a thin bracket).
 fn trig_of(x: Interval) -> (Interval, Interval) {
     let m = mid(x);
-    if !m.is_finite() {
+    if !x.is_certified() || !m.is_finite() {
         return (Interval::refused(), Interval::refused());
     }
     let at = trig_at((Interval::one(), Interval::zero()), m);
@@ -201,7 +201,9 @@ fn composite<const N: usize>(
 ) -> [Interval; N] {
     let (a, b) = (mid(t0), mid(t1));
     let span = b - a;
-    if !(span.is_finite() && span >= 0.0) || pieces == 0 {
+    if !(t0.is_certified() && t1.is_certified() && span.is_finite() && span >= 0.0)
+        || pieces == 0
+    {
         return [Interval::refused(); N];
     }
     let mut total = [Interval::zero(); N];
@@ -465,12 +467,13 @@ fn wall_chart(
         acc[3] = acc[3] + mer.dv;
         defect = defect + pt(mer.dv.mag()) * mer.env;
     }
-    // The chart's smallest metric scale, `min(R − r, r)`, from below.
+    // The chart's smallest metric scale, `min(R − r, r)`, from below — a
+    // refused radius has ordinary endpoints, so it is asked by name.
     let floor = (big - r).lo().min(r.lo());
-    if floor.is_nan() || floor <= 0.0 {
+    if !(big.is_certified() && r.is_certified()) || floor.is_nan() || floor <= 0.0 {
         return Err(PropsError::QuadratureUnsupported {
             what: "a spiric wall on a torus whose metric floor min(R − r, r) is not \
-                   certified positive",
+                   certified positive, or whose radii are refused brackets",
         });
     }
     let uv = (defect / pt(floor)).mag();
