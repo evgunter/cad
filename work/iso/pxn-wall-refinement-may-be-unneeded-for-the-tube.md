@@ -41,3 +41,30 @@ If the tube no longer needs the refinement:
 - Decide whether the hull limb alone justifies it. Limb 2's composite
   is hulled per span, so finer spans tighten it.
 - Restate `PXN_WALL_SPANS` for that reason alone.
+
+## Measured (NURBS, PR 4553, 2026-10-10)
+
+The refinement could not stay: at `Interval` it ran the projective knot
+algebra, which now does not typecheck there
+(`the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice`).
+So PR 4553 measured the wall unrefined for BOTH limbs, at every scalar.
+Every plane × NURBS certificate the `geom-brep` and `topo` suites mint
+was logged against `main`, at ε 1e-6, 1e-9 and 1e-12 (248, 254 and 254
+of them, all at `f64`):
+
+- **Rung**: unchanged on every certificate.
+- **Transversality margin**: unchanged, or larger by up to 8.3 %
+  (`0.844 → 0.914`).
+- **Box count**: unchanged.
+- **Hull limb**: between 0.70× and 1.28× of `main`'s, every reading
+  under 6e-15 m except the r1 1e-12 row, which reads `1.0000704e-12`
+  both ways.
+- **Pads** (chart units) shrink to between 0.55× and 1× along `u` and
+  0.75× and 1× along `v`: the coarser cell's chart-speed sup. The rung,
+  the proved region in metres, does not move.
+- **Verdicts**: none moved.
+
+So neither the tube nor the hull limb needs the refinement on these
+fixtures, and `localized` and `PXN_WALL_SPANS` are deleted. The pads'
+shrink is the one cost: a smaller banked window per span, which no
+fixture here fails on. This row stays ISO's to close.

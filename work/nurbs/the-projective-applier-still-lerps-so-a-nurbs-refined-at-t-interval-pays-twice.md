@@ -2,10 +2,13 @@
 id: the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice
 kind: issue
 title: CurvePlan::apply_points combines in the lerp form, so a NURBS refined at T = Interval pays both the width and an f64 lambda
-status: open
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: M
+branch: nurbs/knot-algebra-off-the-ring
+closed: 2026-10-10
+pr: 4553
 ---
 
 
@@ -122,3 +125,46 @@ and (c) and missed (a); (a) is where `pcurves.rs` was found.
 ## Re-homed from FLUX to NURBS (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. NURBS's charter is the spline doors (knot insertion and the certified Boehm step), and its `certified-blossom-primitive-in-geom-core-spline` waits on the first of these two rows; the second is the same combine in `CurvePlan::apply_points`. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Closed
+
+Fix (a), made a type: `geom_core::spline::ProjectiveScalar`, a sealed
+marker over `SpanLocate` held by `f64`, `Probe`, and `Dual` and `Sym`
+over them, bounds `CurvePlan::apply_points` (which now hands the closure
+`λ` already lifted to that scalar) and every `geom` knot operation on
+`NurbsCurve2/3` and `NurbsSurface` (insert, split, refine, union,
+remove, elevate). A call at `Interval` does not typecheck; the
+`compile_fail` rows on `ProjectiveScalar` and on `NurbsSurface`'s
+knot-algebra block pin it beside their compiling twins.
+
+The row's premise that no shipped path instantiates these at
+`T = Interval` was false. The bound turned four shipped sites into
+compile errors, and each now says what it refines:
+
+- `edge_nurbs::localized` (the plane × NURBS wall, reached from
+  `editor-core`'s `evaluate::<Interval>` replay through
+  `policy_lane::certify` → `NurbsLane::certified` →
+  `plane_nurbs_limbs`) is gone: the lane reads the described wall.
+  Measured at ε 1e-6, 1e-9 and 1e-12 over `geom-brep` and `topo`, no
+  verdict moved and the chart hull bound stayed within 0.70×–1.28×.
+- `ssi/certify::refined` is gone: limb 2 cuts the described carrier at
+  the same grid in the ring (`CurveCertData::with_breaks`), and the box
+  chain refines its homogeneous channels with `apply_certified`.
+  Dropping the refinement outright collapsed box chains (32 → 1) and
+  lost a rational carrier's tube, so it is kept, in the ring.
+- `geom::NurbsCurve*`'s rational speed meter refines its homogeneous
+  channels with the new `CurvePlan::apply_homogeneous` (Boehm ratios
+  taken in the caller's scalar from the knots) and reads the refined
+  weights as `T`.
+- `props/quad.rs`'s `refine_dir` and `bezier_blocks` refine their
+  homogeneous / unit-weight channels with `apply_certified`;
+  `ring_lerp` and `bezier_blocks`' `f64`-λ Lipschitz pad are retired.
+
+Certified degree elevation and removal are not built: no certification
+consumer elevates or removes in the ring. The Interval-vs-`f64`
+containment rows (`nurbs_interval::knot_algebra_interval_contains_f64`,
+`review_m5_pr3_attack_interval`'s F4b interval half and F5b) are
+retired: they asserted an `f64` answer inside an enclosure of a
+neighbour curve, which says nothing about the described one.
+
+What moved, with digits, is PR 4553's body.
