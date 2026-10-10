@@ -99,7 +99,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
         class: ContactClass::Rest,
         alignment,
     };
-    // The world-side lone instance, far off.
+    // The world-side lone instance, far off, and placed.
     let lone = step(
         &mut doc,
         DocEdit::InsertNode {
@@ -116,6 +116,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
             fresh: Vec::new(),
         },
     );
+    step(&mut doc, DocEdit::place(lone, None));
     // Both posts at ONE spot under the shelf: undeclared interference.
     step(
         &mut doc,

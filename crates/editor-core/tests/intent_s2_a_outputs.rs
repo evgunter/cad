@@ -348,6 +348,7 @@ fn the_load_door_holds_the_table_to_every_signature() {
 #[test]
 fn a_split_carries_a_named_output_onto_its_nodes_new_one() {
     let (doc, _, _, extrude) = block("s2a-split");
+    let doc = fixture::place(doc, extrude).0;
     let body = doc.output(extrude, 0).expect("an extrude defines its body");
     let (doc, _) = fixture::step(
         doc,
@@ -408,9 +409,16 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
     let err = up_to_ids::equal_up_to_ids(&dropped, &new).expect_err("a dropped node");
     assert!(err.contains("nodes"), "{err}");
 
+    // The second placement reads the first one's body.
     let mut swapped = old.clone();
-    let roots = swapped["snapshot"]["roots"].as_array_mut().unwrap();
-    roots.swap(0, 1);
+    let mut reads: Vec<&mut serde_json::Value> = swapped["snapshot"]["nodes"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+        .filter_map(|node| node.get_mut("PlaceInWorld"))
+        .map(|placement| &mut placement["body"])
+        .collect();
+    *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
     assert!(err.contains("earlier"), "{err}");
     // A document that is an edit log alone, which the walk compares
@@ -520,6 +528,8 @@ fn every_node_shape_states_its_signature() {
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
+        "PlaceInWorld -> [copy:Body]",
+        "PlaceInWorld -> [copy:Body]",
         "Pattern -> [bodies:Bodies]",
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
@@ -637,16 +647,17 @@ fn instance_named_bracket(
         let body = doc.output(extrude, 0).expect("an extrude defines its body");
         doc = named(doc, body, heir);
     }
+    doc = fixture::place(doc, extrude).0;
     if second_body {
-        doc = insert(
+        let (next, second) = insert(
             doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(2.0),
                 side: editor_core::ExtrudeSide::Along,
             },
-        )
-        .0;
+        );
+        doc = fixture::place(next, second).0;
     }
     let cut: std::collections::BTreeSet<_> = doc.ids().iter().copied().collect();
     let out = editor_core::split(
@@ -700,7 +711,7 @@ fn inline_carries_the_name_on_an_instances_body() {
             assert_eq!(name.as_str(), "bracket");
             assert_eq!(why, editor_core::Uncarried::Bodies { count: 2 });
         }
-        other => panic!("two body roots have no one heir, got {other:?}"),
+        other => panic!("two placed bodies have no one heir, got {other:?}"),
     }
 
     let (host, instance, store, _) =
@@ -726,40 +737,6 @@ fn inline_carries_the_name_on_an_instances_body() {
         }
         other => panic!("a carried name the host holds refuses VarNameConflict, got {other:?}"),
     }
-}
-
-/// **A slot reading a measured value refuses at evaluation saying so**:
-/// the door that refuses it is unit D's (`ConstructionReadsObserved`),
-/// and until then the reader's refusal names the output it read, never
-/// a deleted or undeclared variable.
-#[test]
-fn a_slot_reading_an_output_refuses_naming_it() {
-    let (doc, _, _, extrude) = block("s2a-observed");
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(editor_core::MeasureExpr::value(len(0.5)), Vec::new())
-            .expect("a measured value"),
-    );
-    let gap = doc.output(measure, 0).expect("a measure defines its value");
-    assert_eq!(doc.var(gap).unwrap().kind(), VarKind::Length);
-    let doc = named(doc, gap, "gap");
-    let (doc, _) = fixture::step(
-        doc,
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length)
-                .into(),
-            fresh: Vec::new(),
-        },
-    );
-    let ev = crate::corpus::eval::<f64>(&doc);
-    let Some(editor_core::NodeResult::Failed(error)) = ev.nodes.get(&extrude) else {
-        panic!("the reader refuses: {:?}", ev.nodes.get(&extrude))
-    };
-    let said = error.to_string();
-    assert!(said.contains("an operation's output"), "{said}");
-    assert!(!said.contains("deleted"), "{said}");
 }
 
 /// **A placer whose operand is gone loads, and refuses at evaluation**:

@@ -186,13 +186,13 @@ fn a_field_this_build_does_not_know_refuses_rather_than_being_ignored() {
 #[test]
 fn a_document_predating_a_non_optional_field_refuses_naming_it() {
     let (header, mut v) = split(&small());
-    let removed = v["snapshot"].as_object_mut().unwrap().remove("roots");
-    assert!(removed.is_some(), "the fixture carries `roots`");
+    let removed = v["snapshot"].as_object_mut().unwrap().remove("epsilon");
+    assert!(removed.is_some(), "the fixture carries `epsilon`");
     let text = join(&header, &v);
     match load(&text, Tol::witness()) {
         Err(err @ PersistError::Unreadable { .. }) => {
             let msg = err.to_string();
-            assert!(msg.contains("missing field `roots`"), "{msg}");
+            assert!(msg.contains("missing field `epsilon`"), "{msg}");
             assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
         }
         other => panic!("a missing non-optional field must refuse unreadable, got {other:?}"),

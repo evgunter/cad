@@ -594,9 +594,8 @@ fn own_document(label: &str, value: f64) -> (ProfileDoc, RecipeNodeId) {
 /// legitimate assembly; with equal values, a silent false `Declared`.
 #[test]
 fn two_documents_r_are_two_parameters() {
-    let (part, _) = own_document("seat6-scope-part", R);
     let mut store = PartStore::default();
-    let doc_ref = store.insert(part, Tol::witness());
+    let (doc_ref, _) = store.insert_part(own_document("seat6-scope-part", R), Tol::witness());
     let opts = with_resolver(store);
     let (host, host_blend) = own_document("seat6-scope-host", 2.0 * R);
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
@@ -622,9 +621,8 @@ fn two_documents_r_are_two_parameters() {
 /// table, equal by construction.
 #[test]
 fn two_instances_of_one_part_declare() {
-    let (part, _) = own_document("seat6-scope-twice", R);
     let mut store = PartStore::default();
-    let doc_ref = store.insert(part, Tol::witness());
+    let (doc_ref, _) = store.insert_part(own_document("seat6-scope-twice", R), Tol::witness());
     let opts = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive("seat6-scope-twice-host"), Tol::witness());
     let (host, first) = insert(host, Node::instantiate_part(doc_ref));

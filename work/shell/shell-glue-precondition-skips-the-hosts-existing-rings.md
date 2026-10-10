@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-07
 priority: P3
 cost: E
-refs: [check-9-refuses-only-a-ring-meeting-its-outer-loop]
+refs: [4240]
 ---
 
 
