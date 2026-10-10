@@ -395,3 +395,64 @@ fn a_projected_image_answers_a_poison_dual_parameter_with_poison_in_every_channe
         "chart_box: {b:?}"
     );
 }
+
+/// **A plane chart's box covers every span of its net.** A plane chart
+/// reads the whole net as one piece, so the piece crosses the net's
+/// knots; its box is each span's own restriction, hulled. The fixture is
+/// a two-span polyline `(0,0) → (1,0) → (1,5)`, whose first span
+/// extended past its knot runs along `v = 0`: a box read off that
+/// extension misses the corner `(1, 5)` the curve ends at. At `f64` and
+/// at the certification scalar, where the box must also certify.
+#[test]
+fn a_plane_chart_box_covers_every_span_of_its_net() {
+    fn check<T: geom_core::Decide>(
+        lift: impl Fn(f64) -> T,
+        lo: impl Fn(T) -> f64,
+        hi: impl Fn(T) -> f64,
+        tag: &str,
+    ) {
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+                vec![
+                    Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                    Point3::new(lift(1.0), lift(0.0), lift(0.0)),
+                    Point3::new(lift(1.0), lift(5.0), lift(0.0)),
+                ],
+                vec![1.0, 1.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        let plane = Surface::Plane {
+            origin: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            normal: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        };
+        let image = chart_pcurve(&carrier, &plane, band()).unwrap();
+        let b = image.chart_box(lift(0.0), lift(1.0));
+        let (u, v) = ((lo(b.u_min), hi(b.u_max)), (lo(b.v_min), hi(b.v_max)));
+        assert!(
+            u.0 <= 0.0 && u.1 >= 1.0 && v.0 <= 0.0 && v.1 >= 5.0,
+            "{tag}: the box u {u:?} v {v:?} misses a corner of the polyline [0, 1] x [0, 5]"
+        );
+    }
+    check(|x| x, |x| x, |x| x, "f64");
+    check(
+        Interval::from_f64,
+        |x: Interval| {
+            if x.is_certified() {
+                geom_core::Bounds::lo(x)
+            } else {
+                f64::NAN
+            }
+        },
+        |x: Interval| {
+            if x.is_certified() {
+                geom_core::Bounds::hi(x)
+            } else {
+                f64::NAN
+            }
+        },
+        "Interval",
+    );
+}

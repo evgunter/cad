@@ -29,13 +29,12 @@
 //!   knots[i+1]`, located by exhaustive scan over `first_span
 //!   ..= last_span`) rather than from the retired linear scan, plus the
 //!   two documented clamps, and no span at NaN.
-//! - **The mutation sequence itself**, reconstructed from
-//!   `to_bezier_spans_extra`'s loop, with the raw-slice entitlement
-//!   (`clamped` still accepts the list) and the `unreachable!` guard's
-//!   condition both checked *before every insertion* — including with
-//!   injected extras, at multiplicity saturation, and at degree 1.
-//! - **The public door**, driven with extras chosen to reach the
-//!   `unreachable!` if anything can: NaN, ±∞, both domain ends, `-0.0`,
+//! - **The decomposition's pieces**, reconstructed from
+//!   `to_bezier_spans_extra`'s loop, each restricted from its own span's
+//!   window — including with injected extras, at multiplicity
+//!   saturation, and at degree 1.
+//! - **The public door**, driven with extras chosen to break the
+//!   decomposition if anything can: NaN, ±∞, both domain ends, `-0.0`,
 //!   values one ULP inside each end, and duplicates of existing knots.
 //!
 //! Merged into few tests on purpose (nextest is process-per-test);
@@ -692,87 +691,69 @@ fn interior_knots_and_the_span_search_against_definitional_oracles() {
 }
 
 // ---------------------------------------------------------------------
-// C3 / C7: the mutation sequence, and the guard it runs under
+// C3 / C7: the decomposition's pieces, and the door they go through
 // ---------------------------------------------------------------------
 
-/// `to_bezier_spans_extra`'s loop, reconstructed on knots alone: the
-/// merge, the sort, and one insertion per missing multiplicity. Before
-/// each insertion it asserts the two things the PR moved from "held by
-/// the type" to "held by convention" — the list is still a valid clamped
-/// vector for `p` (the raw-slice entitlement), and `u` still satisfies
-/// the `unreachable!` guard's condition.
+/// `to_bezier_spans_extra`'s loop, reconstructed through the public
+/// doors: the merge of the extras into each knot segment, and every
+/// piece restricted from the window of the span starting at its
+/// segment's lower end. Each piece lies in that span, so the blossom's
+/// typed refusal (an argument wholly outside the span) is one no
+/// schedule of the decomposition reaches, and with point coefficients
+/// every row certifies.
 fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
     let p = kv.degree();
     let (lo, hi) = kv.domain();
-    let mut knots = kv.knots().to_vec();
-    let mut interior: Vec<(f64, usize)> = kv.interior_knots().collect();
-    for &v in extra {
-        if v > lo && v < hi && !interior.iter().any(|(w, _)| *w == v) {
-            interior.push((v, 0));
-        }
-    }
-    interior.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-    let mut inserted = 0usize;
-    for (v, m) in &interior {
-        for step in *m..p {
-            // The entitlement `span_offset_in` now takes on trust.
-            let cur = KnotVector::clamped(knots.clone(), p).unwrap_or_else(|e| {
-                panic!("{name}: before step {step} at {v} the raw list is not clamped: {e}")
-            });
-            // The `unreachable!`'s condition, verbatim.
-            assert!(
-                *v > knots[p] && *v < knots[knots.len() - p - 1],
-                "{name}: step {step} would reach insert_once_ring's unreachable! at {v}"
-            );
-            let k = cur
-                .span_at(*v)
-                .expect("an interior knot is a number")
-                .index();
-            assert_eq!(
-                k,
-                retired_linear_span(&knots, *v),
-                "{name}: step {step} at {v}: the binary search left the linear scan"
-            );
-            // The clamps stay untouched, which is what keeps `knots[p]`
-            // and `knots[len − p − 1]` meaning `lo` and `hi` next round.
-            assert!(
-                k >= p && k < knots.len() - p - 1,
-                "{name}: step {step} at {v} would insert at {} , inside a clamp run",
-                k + 1
-            );
-            knots.insert(k + 1, *v);
-            inserted += 1;
-        }
-    }
-    let final_kv = KnotVector::clamped(knots.clone(), p)
-        .unwrap_or_else(|e| panic!("{name}: the decomposed list is not clamped: {e}"));
-    assert_eq!(
-        knots[p], lo,
-        "{name}: the leading clamp moved during decomposition"
-    );
-    assert_eq!(
-        knots[knots.len() - p - 1],
-        hi,
-        "{name}: the trailing clamp moved during decomposition"
-    );
-    // Every interior value ends at full multiplicity `p`, which is what
-    // makes the span chunks Bézier.
-    for (v, m) in final_kv.interior_knots() {
-        assert_eq!(
-            m, p,
-            "{name}: {v} ended at multiplicity {m}, not the degree {p}"
+    let own: Vec<f64> = kv.interior_knots().map(|(v, _)| v).collect();
+    let mut cuts: Vec<f64> = extra
+        .iter()
+        .copied()
+        .filter(|&v| v > lo && v < hi && !own.contains(&v))
+        .collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    #[allow(clippy::cast_precision_loss)]
+    let coeffs: Vec<Interval> = (0..kv.control_count())
+        .map(|i| Interval::point(1.0 + i as f64))
+        .collect();
+    let pair = kv.with_coeffs(&coeffs).expect("the vector's own count");
+    let mut ends = vec![lo];
+    ends.extend(own.iter().copied());
+    ends.push(hi);
+    let mut next = cuts.iter().copied().peekable();
+    for seg in ends.windows(2) {
+        let (s0, s1) = (seg[0], seg[1]);
+        let window = pair
+            .span_at(s0)
+            .unwrap_or_else(|| panic!("{name}: no span starts at the segment end {s0}"));
+        let start = kv.knots()[window.span().index()];
+        let end = kv.knots()[window.span().index() + 1];
+        assert!(
+            start == s0 && end == s1,
+            "{name}: the span at {s0} is [{start}, {end}], not the segment [{s0}, {s1}]"
         );
+        let mut pieces = Vec::new();
+        let mut from = s0;
+        while let Some(cut) = next.next_if(|&c| c < s1) {
+            pieces.push((from, cut));
+            from = cut;
+        }
+        pieces.push((from, s1));
+        for (a, b) in pieces {
+            let row = window
+                .restrict((Interval::point(a), Interval::point(b)))
+                .unwrap_or_else(|e| panic!("{name}: the piece [{a}, {b}] refused: {e}"));
+            assert_eq!(row.len(), p + 1, "{name}: a degree-{p} row");
+            assert!(
+                row.iter().all(|c| c.is_certified()),
+                "{name}: the piece [{a}, {b}] has a refused coefficient"
+            );
+        }
     }
-    assert_eq!(
-        knots.len(),
-        kv.knots().len() + inserted,
-        "{name}: insertion count does not match the length growth"
-    );
 }
 
 #[test]
-fn the_raw_slice_entitlement_survives_the_whole_mutation_sequence() {
+fn every_decomposition_piece_restricts_from_its_own_span() {
     let mut cases: Vec<(String, KnotVector, Vec<f64>)> = Vec::new();
     for (name, kv) in enumerated() {
         let (lo, hi) = kv.domain();
@@ -831,10 +812,10 @@ fn lift(v: &[f64]) -> Vec<Interval> {
 
 /// Drives the one public entry point that forwards caller-supplied
 /// break parameters into `to_bezier_spans_extra`, with extras chosen to
-/// reach `insert_once_ring`'s `unreachable!` if any input can. A panic
-/// here IS the finding; the residual value is not the subject.
+/// break the decomposition if any input can. A panic here IS the
+/// finding; the residual value is not the subject.
 #[test]
-fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
+fn caller_supplied_break_parameters_cannot_break_the_decomposition() {
     // A bilinear-in-u, quadratic-in-v wall; a cubic pcurve and carrier on
     // one shared domain (the entry point refuses unequal domains).
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();

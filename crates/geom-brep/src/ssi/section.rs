@@ -40,6 +40,7 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
+use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::refine_plan_homogeneous;
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
@@ -429,23 +430,22 @@ impl Stretch {
 }
 
 /// The Bernstein coefficients of the polynomial with coefficients `c` on
-/// `[0, 1]`, restricted to `[ra, rb]`: coefficient `j` is the blossom at
-/// `p − j` copies of `ra` and `j` of `rb`. In interval arithmetic, so
-/// every coefficient encloses the exact one for every `ra`, `rb` in the
-/// enclosures given.
+/// `[0, 1]`, restricted to `[ra, rb]`: the row's window on its Bézier
+/// vector, restricted ([`geom_core::spline::CoeffWindow::restrict`]).
+/// Every coefficient encloses the exact one for every `ra`, `rb` in the
+/// enclosures given; an end with no point in `[0, 1]` refuses the row.
+/// A constant (one coefficient) is its own restriction.
 fn sub_piece(c: &[Interval], ra: Interval, rb: Interval) -> Vec<Interval> {
-    let p = c.len().saturating_sub(1);
-    (0..=p)
-        .map(|j| {
-            let mut level = c.to_vec();
-            for k in 0..p {
-                let t = if k < p - j { ra } else { rb };
-                let s = Interval::point(1.0) - t;
-                level = level.windows(2).map(|w| s * w[0] + t * w[1]).collect();
-            }
-            level.first().copied().unwrap_or_else(Interval::refused)
-        })
-        .collect()
+    let Some(p) = c.len().checked_sub(1) else {
+        return vec![Interval::refused()];
+    };
+    if p == 0 {
+        return c.to_vec();
+    }
+    KnotVector::bezier(p, (0.0, 1.0))
+        .ok()
+        .and_then(|kv| kv.with_coeffs(c)?.span(p)?.restrict((ra, rb)).ok())
+        .unwrap_or_else(|| vec![Interval::refused(); p + 1])
 }
 
 /// The hull of a coefficient list.

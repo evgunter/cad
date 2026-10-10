@@ -881,19 +881,17 @@ impl CellNet {
     /// is the caller's answer either way, and a sound one.
     ///
     /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
-    /// `b`s, run by de Boor's recurrence in certification arithmetic on
-    /// the homogeneous net `(w·(P − c), w)`, and the Cartesian block is
-    /// read back as the quotient. `c` is the block's first point's lower
-    /// bracket end, translating the net so the products are formed on
-    /// differences; the cut block's points are in that frame.
+    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`, and
+    /// the Cartesian block is read back as the quotient. `c` is the
+    /// block's first point's lower bracket end, translating the net so
+    /// the products are formed on differences; the cut block's points are
+    /// in that frame.
     ///
     /// The cut block's boxes are not always narrower than the whole
     /// block's. The recurrence's rounding can outgrow what the cut saves:
-    /// on a net constant along the cut whose `P − c` does not round
-    /// exactly, `d₁ − d₀` of two equal non-point intervals is a
-    /// symmetric interval rather than zero, and on a window a few ulps
-    /// wide the `degree / (b − a)` scale amplifies every such width. So
-    /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
+    /// on a window a few ulps wide the `degree / (b − a)` scale
+    /// amplifies every ulp the blossom adds. So the caller meets the two
+    /// ([`NurbsBoxes::deriv_box`]).
     fn cut<T: CertifiedBounds>(&self, win: SurfaceWindow<'_, T>, w: UvWindow) -> Option<Self> {
         let (cut_u, cut_v) = (inside(win.span_u(), w.u), inside(win.span_v(), w.v));
         if cut_u.is_none() && cut_v.is_none() {
@@ -1412,36 +1410,40 @@ fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
 
 /// The Bézier coefficients over `[a, b]` of the polynomial piece that
 /// `line` (the `degree + 1` coefficients of `span`'s window) defines on
-/// that span: the blossom `f(a^{p−k}, b^k)` for each `k`, by de Boor's
-/// recurrence with the `r`-th level at its own argument. `None` when the
-/// line is not one window long or a knot read leaves the vector.
+/// that span: each channel minted as a coefficient array of `span`'s
+/// vector (refused outside the window, which the span never reads) and
+/// restricted through the window
+/// ([`geom_core::spline::CoeffWindow::restrict`]). `None` when the line
+/// is not one window long or the restriction refuses.
 fn bezier_on(
     line: &[[Interval; 4]],
     span: Span<'_>,
     (a, b): (f64, f64),
 ) -> Option<Vec<[Interval; 4]>> {
-    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
+    let p = span.degree();
     if line.len() != p + 1 {
         return None;
     }
-    (0..=p)
-        .map(|k| {
-            let mut d = line.to_vec();
-            for r in 1..=p {
-                let x = Interval::point(if r <= p - k { a } else { b });
-                for i in (r..=p).rev() {
-                    // `s ≥ p` (the span's invariant), so `s + i − p` and
-                    // `s + i + 1 − r` are in the window's knot range.
-                    let (&lo, &hi) = t.get(s + i - p).zip(t.get(s + i + 1 - r))?;
-                    let lo = Interval::point(lo);
-                    let alpha = (x - lo) / (Interval::point(hi) - lo);
-                    let (d0, d1) = (d[i - 1], d[i]);
-                    d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
-                }
-            }
-            Some(d[p])
-        })
-        .collect()
+    let first = span.first_control();
+    let mut out = vec![[Interval::refused(); 4]; p + 1];
+    for c in 0..4 {
+        let row = span.knots().with_coeffs_from_fn(
+            |i| {
+                i.checked_sub(first)
+                    .and_then(|k| line.get(k))
+                    .map_or_else(Interval::refused, |l| l[c])
+            },
+            |pair| {
+                pair.span(span.index())?
+                    .restrict((Interval::point(a), Interval::point(b)))
+                    .ok()
+            },
+        )?;
+        for (k, v) in row.into_iter().enumerate() {
+            out[k][c] = v;
+        }
+    }
+    Some(out)
 }
 
 /// The box every reading over a window that names no region answers.

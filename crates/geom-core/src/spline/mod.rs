@@ -41,6 +41,7 @@
 
 pub mod algebra;
 pub mod basis;
+pub mod blossom;
 pub mod compose;
 pub mod hull;
 pub mod knots;
@@ -49,6 +50,7 @@ pub mod net;
 pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
+pub use blossom::BlossomError;
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };

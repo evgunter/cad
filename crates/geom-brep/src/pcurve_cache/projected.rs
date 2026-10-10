@@ -435,51 +435,44 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 
 /// The control points and weights of a net's restriction to `piece`
 /// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
-/// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
-/// (de Boor's recursion with the arguments taken in turn). Each control
-/// is a convex combination of the span's, so the weights stay positive.
-/// The recursion's ratios are formed in the scalar, so at an enclosure
-/// scalar the controls enclose the true restriction's.
+/// `B(a^{p−m}, b^m)`, `m = 0…p`, of each homogeneous channel
+/// `(w·P, w)`, by the scalar's own restriction
+/// ([`SpanLocate::restrict_window`]) — at the certification scalar the
+/// window's certified restriction, so the controls enclose the true
+/// restriction's; every control is a combination of the span's with
+/// ratios in `[0, 1]`, so the weights stay positive.
 ///
 /// The span is the one `a` locates in. Inside one knot span's closure
 /// with `a < b` that is the span holding the piece; at `a == b` on a
 /// knot it is the span starting there, whose closure holds the point.
-pub(crate) fn piece_controls<T: Real>(
+pub(crate) fn piece_controls<T: SpanLocate>(
     net: &NurbsCurve3<T>,
     piece: ParamRange,
 ) -> Vec<(Vec3<T>, T)> {
-    let (a, b) = (piece.start(), piece.end());
-    let kv = net.knots();
-    let p = kv.degree();
-    let (span, _) = kv.span_range(piece);
-    let j = span.index();
-    let knots = kv.knots();
-    let base: Vec<(Vec3<T>, T)> = span
+    let ends = (piece.start(), piece.end());
+    let (span, _) = net.knots().span_range(piece);
+    let homogeneous: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
             let w = T::from_f64(net.weights()[i]);
             ((net.control()[i] - Point3::origin()) * w, w)
         })
         .collect();
-    (0..=p)
-        .map(|m| {
-            let mut d = base.clone();
-            for r in 1..=p {
-                let u = T::from_f64(if r <= p - m { a } else { b });
-                for i in (r..=p).rev() {
-                    let lo = T::from_f64(knots[j - p + i]);
-                    let hi = T::from_f64(knots[j + 1 + i - r]);
-                    let alpha = (u - lo) / (hi - lo);
-                    let beta = T::one() - alpha;
-                    d[i] = (
-                        d[i - 1].0 * beta + d[i].0 * alpha,
-                        d[i - 1].1 * beta + d[i].1 * alpha,
-                    );
-                }
-            }
-            let (hp, w) = d[p];
-            (hp / w, w)
-        })
+    let channel = |c: fn(&(Vec3<T>, T)) -> T| -> Vec<T> {
+        let line: Vec<T> = homogeneous.iter().map(c).collect();
+        T::restrict_window(&line, span, ends)
+    };
+    let (x, y, z, w) = (
+        channel(|q| q.0.x),
+        channel(|q| q.0.y),
+        channel(|q| q.0.z),
+        channel(|q| q.1),
+    );
+    x.into_iter()
+        .zip(y)
+        .zip(z)
+        .zip(w)
+        .map(|(((x, y), z), w)| (Vec3::new(x, y, z) / w, w))
         .collect()
 }
 
@@ -541,7 +534,25 @@ impl<T: SpanLocate> ProjectedImage<T> {
         let knots = self.breaks.knots();
         match &self.carrier {
             FramedCarrier::Net(net) => {
-                let controls = piece_controls(net, part);
+                // A part may cross the net's knots (a plane chart's one
+                // piece is the whole net): each span it crosses is
+                // restricted on its own, never extended past its knots.
+                let mut controls = Vec::new();
+                let mut from = part;
+                for k in net
+                    .knots()
+                    .knot_runs()
+                    .map(|(k, _)| k)
+                    .filter(|&k| k > s0 && k < s1)
+                {
+                    if let (Some(stretch), Some(rest)) =
+                        (ParamRange::new(from.start(), k), ParamRange::new(k, s1))
+                    {
+                        controls.extend(piece_controls(net, stretch));
+                        from = rest;
+                    }
+                }
+                controls.extend(piece_controls(net, from));
                 let first = controls[0].0;
                 let mut x = (first.x, first.x);
                 let mut y = (first.y, first.y);

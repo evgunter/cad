@@ -825,6 +825,14 @@ impl crate::spline::SpanLocate for Interval {
         // poison).
         Self(enclosure_hull_of(self.0, other.0))
     }
+
+    fn restrict_window(
+        window: &[Self],
+        span: crate::spline::Span<'_>,
+        piece: (f64, f64),
+    ) -> Vec<Self> {
+        crate::spline::blossom::restrict_window(window, span, piece)
+    }
 }
 
 /// Certified sign classification of an enclosure `[lo, hi]` against a

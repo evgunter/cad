@@ -2,12 +2,14 @@
 id: the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column
 kind: issue
 title: The certified Boehm step's convex form, met with its sources' hull, still reads the plane x NURBS envelope 2.4x looser than the lerp form did at a = 1e-12
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
 design: true
 refs: [3524, 3737]
+closed: 2026-10-10
+branch: nurbs/monotone-step-and-blossom
 ---
 
 
@@ -50,3 +52,28 @@ this row is lerp's. Whatever lands, re-measure the r1 row's ceilings
 ## Re-homed from FLUX to NURBS (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. NURBS's charter is the spline doors (knot insertion and the certified Boehm step), and its `certified-blossom-primitive-in-geom-core-spline` waits on the first of these two rows; the second is the same combine in `CurvePlan::apply_points`. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Closed
+
+The form is decided (fork 3, `[ev]` PR 4539's two designer reports):
+the certified two-point step is `Certification::between`, the monotone
+form — the lower ends combined together and the upper ends together,
+from the nearer source, met with the sources' hull.
+`algebra::convex_step` is gone; `CurvePlan::apply_certified` steps
+through the door, as does every certified two-point step in the spline
+layer (`CoeffWindow::blossom`).
+
+The row's premise had lapsed before the decision: the 2.4× at
+a = 1e-12 was the sequential extra-break insertion PR 4489 removed, and
+on the tree this closes against every form reads the plane × NURBS
+envelope the same to seven digits. Re-measured on head
+(`r1_pxn_probes::the_certified_sup_bounds_the_dense_sampled_true_sup`):
+1.443e-15 at a = 0, 1.00426e-13 against a 1.00142e-13 truth at
+a = 1e-13, and 1.0000704e-12 against 1.0000889e-12 at a = 1e-12. The
+row's ceilings are re-set from those readings (floor 3e-15, ratio
+1.0001), with what each guards in the test's docs.
+
+Against an exact-rational reference the monotone step is no wider than
+the convex one on every row of the designers' battery
+(`compose`'s `the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row`);
+PR 3737's weight guarantee is `a_refined_weight_stays_between_its_sources`.

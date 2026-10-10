@@ -18,15 +18,12 @@
 //!    catastrophically in the coefficients, and an interval bound
 //!    reports that cancellation as width rather than hiding it), plus
 //!    the weight channel `W_i = w_i`.
-//! 2. Bézier-decompose each channel: knot insertion to full interior
-//!    multiplicity, **structure** (positions, counts) read from the
-//!    `f64` knot vector, **coefficients** combined in certification arithmetic in the
-//!    convex form `c_{i−1}·β + c_i·α`, with BOTH barycentric ratios
-//!    formed as ring quotients of knot enclosures (an `f64`-rounded
-//!    ratio would silently drop its rounding error, and the lerp form
-//!    `c_{i−1} + (c_i − c_{i−1})·α` would read `c_{i−1}` twice and
-//!    multiply its dust up once per insertion), met with the hull of
-//!    `c_{i−1}` and `c_i` so a constant channel stays exact.
+//! 2. Bézier-decompose each channel: each span's window restricted to
+//!    each of its pieces ([`super::CoeffWindow::restrict`]), the
+//!    **structure** (breaks, spans) read from the `f64` knot vector and
+//!    the **coefficients** blossomed in certification arithmetic with
+//!    every ratio a ring quotient of knot enclosures (an `f64`-rounded
+//!    ratio would silently drop its rounding error).
 //! 3. Per span, exact Bernstein products: degree `da × db → da + db`
 //!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
 //!    as ring quotients (several are not `f64`-representable).
@@ -54,9 +51,8 @@
 //! axis, degenerate weights) refuses the bound, which fails every
 //! `≤ ε` comparison (D4 ¶2).
 
-use super::algebra::convex_step;
 use super::hull::SplineCoeffs;
-use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
+use super::knots::{KnotVector, SplineError};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
@@ -196,9 +192,8 @@ impl<'a> CurveCertData<'a> {
 
     /// The same data with `extra` break parameters: every channel is
     /// Bézier-decomposed with each `extra` value strictly inside the
-    /// domain cut in as a break, each piece's row read from its Bézier
-    /// segment's in the ring (the convex form,
-    /// [`super::algebra::CurvePlan::apply_certified`]'s docs), so every
+    /// domain cut in as a break, each piece's row its span window
+    /// restricted to it ([`super::CoeffWindow::restrict`]), so every
     /// composite built from it has a break there and its span bounds
     /// read the finer pieces. The represented curve is the same
     /// one: no control point or weight is re-rounded, as a refinement
@@ -290,140 +285,27 @@ impl BernsteinSpans {
 // Bézier decomposition (module docs step 2)
 // ---------------------------------------------------------------------
 
-/// One Boehm insertion of `u` into the raw knot list `knots` (degree
-/// `p`, current multiplicity `s` of `u`), coefficients combined in the
-/// ring in the **convex form** `Q_i = c_{i−1}·β_i + c_i·α_i`, with
-/// `Δ_i = U_{i+p} − U_i` and both barycentric coefficients formed as
-/// **ring quotients** of knot enclosures from the knots they are made
-/// of (module docs step 2):
-///
-/// ```text
-/// α_i = (u − U_i)/Δ_i        β_i = (U_{i+p} − u)/Δ_i
-/// ```
-///
-/// Fixed ascending index order.
-///
-/// **The argument for this form — why `β` comes from the knots and not
-/// from `1 − α`, why the combination still encloses the true refined
-/// coefficient, and why reading each coefficient once is the whole width
-/// saving — has one home in this crate and it is
-/// [`super::algebra::CurvePlan::apply_certified`]'s docs.** Both
-/// combine through the one `algebra::convex_step`, whose docs say why
-/// the step is met with the hull of its two sources. What belongs here
-/// is only what is local:
-///
-/// - `Δ_i > 0` because `U_i < u` (`i ≤ k − s`, below the copy run) and
-///   `U_{i+p} ≥ U_{k+1} > u` (span `k` is nonempty), so neither
-///   quotient refuses.
-/// - Containment through a WHOLE fold of these steps, against exact
-///   rational arithmetic, is
-///   this module's `the_ring_fold_encloses_the_exact_refined_net`; the
-///   width the fold accumulates is
-///   `the_convex_form_does_not_inflate_the_fold`.
-///   (Both are `#[cfg(test)]`, so these are names and not links —
-///   rustdoc does not document a test module.)
-/// - [`to_bezier_spans_extra`] inserts each of the curve's own interior
-///   knots to full multiplicity, so the fold here is `p − m` deep for a
-///   knot of existing multiplicity `m` (`for step in m..p`), one step
-///   for a knot already at `p − 1`; the extra breaks it cuts from each
-///   segment's row are `p` deep too (`sub_segment`). That is the depth
-///   the lerp form multiplied a coefficient's dust up over.
-///
-/// **The Boehm structure is shared with `algebra::insert_once` (private
-/// there, so this is a name and not a link), and so is the coefficient
-/// arithmetic.** Both derive the span through the same search
-/// ([`super::knots::find_span_in`] in both), both
-/// insert one knot at `k + 1`, and both combine in the convex form.
-/// What separates them is the SHAPE of the schedule: this one folds
-/// interval coefficients in place over a RAW knot list, to full
-/// interior multiplicity, deliberately never rebuilding a
-/// [`super::KnotVector`] per step, where `insert_once` builds a
-/// replayable `CurvePlan` of `Step`s and rebuilds a vector per
-/// insertion. There are also no weights at all here — one homogeneous
-/// channel — where `insert_once` forms the projective applier's `λ`
-/// from them. Unifying the two is filed, not argued away
-/// (`insert_once`'s docs name the row).
-fn insert_once_ring(
-    knots: &mut Vec<f64>,
-    p: usize,
-    s: usize,
-    coeffs: &mut Vec<Interval>,
-    u: InteriorKnot,
-) {
-    // Strictly interior by type plus privacy (`InteriorKnot`'s docs):
-    // the span search below would answer an END span for an outside
-    // value, which is why it takes only a proven one.
-    // Span k: knots[k] ≤ u < knots[k+1], the last copy's span, so
-    // 0 < k < len − 1.
-    let k = find_span_in(knots, p, u);
-    let u = u.value();
-    let n_old = coeffs.len();
-    let mut out = Vec::with_capacity(n_old + 1);
-    for i in 0..=n_old {
-        if i + p <= k {
-            // Q_i = c_i (carry below the affected window).
-            out.push(coeffs[i]);
-        } else if i + s <= k {
-            // Window k−p+1 ..= k−s: interval arithmetic combination.
-            out.push(convex_step(
-                coeffs[i - 1],
-                coeffs[i],
-                knots[i],
-                knots[i + p],
-                u,
-            ));
-        } else {
-            // Q_i = c_{i−1} (carry above the window; i ≥ 1 here because
-            // k ≥ s for an interior u with multiplicity s).
-            out.push(coeffs[i - 1]);
-        }
-    }
-    knots.insert(k + 1, u);
-    *coeffs = out;
-}
-
-/// Bézier-decomposes one scalar channel: knot insertion to full
-/// interior multiplicity (structure from the pair's vector,
-/// coefficients in the ring), then the per-span coefficient rows read
-/// off by chunks — with **extra break parameters** injected: each
-/// `extra` value strictly inside the domain and not already a knot
-/// becomes a break, so two channels decomposed with each other's knots
-/// as extras land on one shared break list (the tensor composite's
-/// alignment substrate, and knot insertion is exact in ℝ — the
+/// Bézier-decomposes one scalar channel: every piece's Bernstein row
+/// is its span window restricted to the piece
+/// ([`super::CoeffWindow::restrict`]), with **extra break parameters**
+/// injected: each `extra` value strictly inside the domain and not
+/// already a knot becomes a break, so two channels decomposed with each
+/// other's knots as extras land on one shared break list (the tensor
+/// composite's alignment substrate; restriction is exact in ℝ, so the
 /// represented function is unchanged). Values outside the open domain
 /// or duplicating a knot are structure-filtered, not errors.
 ///
-/// The extras are cut out of the Bézier segment of the pair's vector
-/// they fall in, each sub-segment from that segment's own row
-/// ([`sub_segment`]), not
-/// by inserting them one after another into the whole net: a ring
-/// insertion combines coefficients that already carry the previous
-/// insertions' widths, so a sequential schedule grows a segment's
-/// width with the number of breaks cut into it, while a cut from the
-/// segment's row is `p` combinations deep whatever the count.
+/// Every row is read from the pair's own window, `p` blossom steps
+/// deep whatever the knot multiplicities and however many breaks are
+/// cut into a span — no row inherits another's rounding.
 fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> BernsteinSpans {
     let kv = pair.knots();
     let p = kv.degree();
-    let mut knots = kv.knots().to_vec();
-    let mut c = pair.coeffs().to_vec();
     let (lo, hi) = kv.domain();
-    // `knots` is a valid clamped vector for `p` at every step, which is
-    // what lets the raw span search be called on it: each insertion
-    // places one copy of a strictly interior `v` inside the existing
-    // order (so still non-decreasing, and both clamp runs untouched),
-    // and `step` stops at `p`, so no interior multiplicity exceeds the
-    // degree. Rebuilding a `KnotVector` per step would re-establish
-    // that by validation, at a clone and an O(n) re-check each — the
-    // reason this path is raw at all.
-    let own: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
-    for (v, m) in &own {
-        for step in *m..p {
-            insert_once_ring(&mut knots, p, step, &mut c, *v);
-        }
-    }
+    let own: Vec<f64> = kv.interior_knot_runs().map(|(v, _)| v.value()).collect();
     let mut segment_ends = Vec::with_capacity(own.len() + 2);
     segment_ends.push(lo);
-    segment_ends.extend(own.iter().map(|(v, _)| v.value()));
+    segment_ends.extend(own.iter().copied());
     segment_ends.push(hi);
     // The fresh extras, ascending with exact-`f64` dedup — pure
     // structure (C6's f64 lane). An extra becomes a break only through
@@ -431,25 +313,30 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
     let mut cuts: Vec<f64> = extra
         .iter()
         .copied()
-        .filter(|&v| kv.interior_knot(v).is_some() && !own.iter().any(|(w, _)| w.value() == v))
+        .filter(|&v| kv.interior_knot(v).is_some() && !own.contains(&v))
         .collect();
     cuts.sort_by(f64::total_cmp);
     cuts.dedup();
-    // Full multiplicity at the own knots: segment j owns coefficients
-    // j·p ..= j·p + p.
     let mut breaks = vec![lo];
     let mut spans = Vec::with_capacity(segment_ends.len() + cuts.len() - 1);
     let mut next_cut = cuts.iter().copied().peekable();
-    for (j, ends) in segment_ends.windows(2).enumerate() {
+    for ends in segment_ends.windows(2) {
         let (s0, s1) = (ends[0], ends[1]);
-        let row = &c[j * p..=j * p + p];
+        // The span starting at `s0`, nonempty: the segment ends are the
+        // vector's distinct knot values.
+        let window = pair.span_at(s0);
+        let piece = |a: f64, b: f64| {
+            window
+                .and_then(|w| w.restrict((Interval::point(a), Interval::point(b))).ok())
+                .unwrap_or_else(|| vec![Interval::refused(); p + 1])
+        };
         let mut from = s0;
         while let Some(cut) = next_cut.next_if(|&cut| cut < s1) {
-            spans.push(sub_segment(row, p, (s0, s1), (from, cut)));
+            spans.push(piece(from, cut));
             breaks.push(cut);
             from = cut;
         }
-        spans.push(sub_segment(row, p, (s0, s1), (from, s1)));
+        spans.push(piece(from, s1));
         breaks.push(s1);
     }
     BernsteinSpans {
@@ -457,36 +344,6 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
         breaks,
         spans,
     }
-}
-
-/// The Bernstein row on `[a, b]` of the degree-`p` Bézier segment
-/// `row` on `[s0, s1]`, with `s0 ≤ a < b ≤ s1`. Coefficient `i` is the
-/// segment's blossom at `(a^(p−i), b^i)`, evaluated by de Casteljau
-/// from the segment's own row — `p` levels of [`convex_step`], `p − i`
-/// at `a` and `i` at `b` — so no coefficient is more than `p`
-/// combinations deep, wherever the cut falls and however many cuts the
-/// segment takes. The whole segment comes back as it came.
-fn sub_segment(
-    row: &[Interval],
-    p: usize,
-    (s0, s1): (f64, f64),
-    (a, b): (f64, f64),
-) -> Vec<Interval> {
-    if a == s0 && b == s1 {
-        return row.to_vec();
-    }
-    (0..=p)
-        .map(|i| {
-            let mut r = row.to_vec();
-            for level in 0..p {
-                let t = if level < p - i { a } else { b };
-                for j in 0..p - level {
-                    r[j] = convex_step(r[j], r[j + 1], s0, s1, t);
-                }
-            }
-            r[0]
-        })
-        .collect()
 }
 
 // ---------------------------------------------------------------------
@@ -1253,7 +1110,9 @@ pub fn canonical_composite(
 mod tests {
     use super::*;
     use crate::real::Bounds;
+    use crate::spline::algebra::insert_knot_plan;
     use crate::spline::basis;
+    use crate::spline::knots::{InteriorKnot, find_span_in};
     use num_bigint::BigInt;
     use num_integer::Integer;
     use num_traits::ToPrimitive;
@@ -1352,70 +1211,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    /// The raw insertion path's span derivation, at **every step of a
-    /// real multi-insertion decomposition**, against the linear scan it
-    /// replaced. The integration differential
-    /// (`tests/knot_queries_differential.rs`) covers the two searches on
-    /// static vectors; this one covers the thing that static test
-    /// cannot — that the knot list stays a valid clamped vector as it is
-    /// mutated in place, so the binary search is entitled to run on it.
-    #[test]
-    fn the_raw_span_search_tracks_the_linear_scan_through_every_insertion() {
-        let retired = |knots: &[f64], u: f64| {
-            let mut k = 0;
-            for (i, kn) in knots.iter().enumerate() {
-                if *kn <= u {
-                    k = i;
-                }
-            }
-            k
-        };
-        // Degree 3, three interior values at multiplicities 1, 2, 3 —
-        // so the decomposition inserts at a fresh value, at a partly
-        // filled one, and skips the already-full one.
-        let kv = KnotVector::clamped(
-            vec![
-                0.0, 0.0, 0.0, 0.0, 0.2, 0.5, 0.5, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.0,
-            ],
-            3,
-        )
-        .unwrap();
-        let p = kv.degree();
-        let mut knots = kv.knots().to_vec();
-        let mut coeffs: Vec<Interval> = (0..kv.control_count())
-            .map(|i| Interval::point(i as f64))
-            .collect();
-        let interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
-        assert_eq!(
-            interior
-                .iter()
-                .map(|(k, m)| (k.value(), *m))
-                .collect::<Vec<_>>(),
-            vec![(0.2, 1), (0.5, 2), (0.8, 3)]
-        );
-        for (k, m) in &interior {
-            let v = k.value();
-            for step in *m..p {
-                // Checked BEFORE the insertion, against the list as it
-                // stands at this step — the state a static fixture has
-                // no way to reach.
-                assert_eq!(
-                    find_span_in(&knots, p, *k),
-                    retired(&knots, v),
-                    "step {step} at {v}: the binary search left the linear scan"
-                );
-                assert!(
-                    KnotVector::clamped(knots.clone(), p).is_ok(),
-                    "step {step} at {v}: the raw list stopped being a valid clamped vector"
-                );
-                insert_once_ring(&mut knots, p, step, &mut coeffs, *k);
-            }
-        }
-        // Full multiplicity everywhere: four segments over degree 3.
-        assert_eq!(knots.len(), 2 * (p + 1) + 3 * p);
-        assert_eq!(coeffs.len(), 4 * p + 1);
     }
 
     // -----------------------------------------------------------------
@@ -1547,8 +1342,8 @@ mod tests {
         hi: Q,
     }
 
-    /// The exact shadow of one [`insert_once_ring`] step, over the same
-    /// `f64` knot list the ring fold reads: `λ` is the exact ratio of
+    /// The exact shadow of one Boehm insertion to the refined net, over
+    /// the same `f64` knot list the ring fold reads: `λ` is the exact ratio of
     /// exact knot differences, and nothing here rounds.
     fn insert_once_exact(
         knots: &[f64],
@@ -1580,6 +1375,23 @@ mod tests {
             }
         }
         out
+    }
+
+    /// One certified Boehm insertion of `u` into the raw list `knots`:
+    /// the production applier ([`super::super::CurvePlan::apply_certified`])
+    /// on a plan built against that list, so a ring fold here is the
+    /// schedule the exact shadow folds.
+    fn ring_insert(
+        knots: &mut Vec<f64>,
+        p: usize,
+        ring: &[Interval],
+        u: InteriorKnot,
+    ) -> Vec<Interval> {
+        let kv = KnotVector::clamped(knots.clone(), p).unwrap();
+        let plans = insert_knot_plan(&kv, &vec![1.0; kv.control_count()], u.value(), 1).unwrap();
+        let plan = &plans[0];
+        *knots = plan.knots().knots().to_vec();
+        plan.apply_certified(ring)
     }
 
     /// The fixture families, chosen to BREAK containment rather than to
@@ -1753,8 +1565,9 @@ mod tests {
         out
     }
 
-    /// **The claim this unit exists to establish: the convex form still
-    /// ENCLOSES the true inserted coefficient.**
+    /// **The certified Boehm step ENCLOSES the true inserted
+    /// coefficient**, through a fold of
+    /// [`super::super::CurvePlan::apply_certified`] to full multiplicity.
     ///
     /// The failure mode is a bound that comes out TIGHTER THAN TRUTH,
     /// which reads as an improvement and is an unsound certificate. A
@@ -1779,16 +1592,12 @@ mod tests {
     ///
     /// **What the shadow does NOT test, stated so nobody reads it as
     /// more than it is.** It is an oracle of the ARITHMETIC, not of the
-    /// structure: it calls the same [`find_span_in`] and repeats the
-    /// same `i + p <= k` / `i + s <= k` window predicates as the subject,
-    /// so a wrong span or a mis-placed window boundary is invisible here
-    /// — both folds would make the same wrong choice and agree. Those
-    /// are covered separately, by
-    /// `the_raw_span_search_tracks_the_linear_scan_through_every_insertion`
-    /// (the span, against an independent linear scan, at every step of a
-    /// real decomposition) and by the module's end-to-end soundness
-    /// rows. What the shadow proves is that given the schedule, the
-    /// ring combination encloses the real one.
+    /// structure: it calls the same [`find_span_in`] the plan does, so a
+    /// wrong span is invisible here — both folds would make the same
+    /// wrong choice and agree. The plan's structure is covered by
+    /// `algebra`'s evaluation-invariance rows. What the shadow proves is
+    /// that given the schedule, the ring combination encloses the real
+    /// one.
     ///
     /// **A REFUSAL is sound and is treated as such.** On the overflow
     /// and subnormal families a quotient can legitimately refuse (D4);
@@ -1824,7 +1633,7 @@ mod tests {
             for (v, m) in &interior {
                 for step in *m..p {
                     exact = insert_once_exact(&knots, p, step, &exact, *v);
-                    insert_once_ring(&mut knots, p, step, &mut ring, *v);
+                    ring = ring_insert(&mut knots, p, &ring, *v);
                     assert_eq!(ring.len(), exact.len(), "{name}: the two folds left step");
                     for (i, (r, x)) in ring.iter().zip(exact.iter()).enumerate() {
                         if !r.is_certified() {
@@ -1945,16 +1754,15 @@ mod tests {
     /// therefore stated against the insertion COUNT: a per-step growth
     /// factor blows through it, an additive one does not.
     ///
-    /// [`to_bezier_spans_extra`] inserts each interior knot to full
-    /// multiplicity, `p − m` steps for an existing multiplicity `m`, so
-    /// the deep fold this pins is the one the composite bounds actually
-    /// pay: degree 6, sixteen interior knots already present once, five
-    /// insertions each, 80 in all.
+    /// The deep fold is degree 6, sixteen interior knots already present
+    /// once, five insertions each to full multiplicity, 80 in all,
+    /// through [`super::super::CurvePlan::apply_certified`]: 2.7 ulps of
+    /// the coefficient scale, where the step `β·x + α·y` read 4.7.
     ///
     /// **What this ceiling can and cannot catch, said at the claim
     /// site.** The allowance has a lot of room: 7.0x at `p = 2` over 30
     /// insertions, widening to about 15x at `p = 6` over 200, because
-    /// the convex form's width per insertion FALLS with depth while the
+    /// the step's width per insertion FALLS with depth while the
     /// line's slope is constant. So it cannot catch a regression under
     /// roughly 7x, and the 0.06-ulps-per-insertion and 100x figures the
     /// row prints are evidence for a reader, not gates. Tightening it to
@@ -1966,7 +1774,7 @@ mod tests {
     /// the honest statement of it. The lerp form misses it by 431.7
     /// ulps, which is the size of regression it exists to catch.
     #[test]
-    fn the_convex_form_does_not_inflate_the_fold() {
+    fn the_certified_fold_does_not_inflate() {
         // (degree, interior count). The first is TESS-2's measuring
         // shape — degree 2, thirty insertions; the last is the deep
         // full-multiplicity fold the decomposition actually runs.
@@ -1998,8 +1806,8 @@ mod tests {
             let mut ring: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
             let mut insertions = 0usize;
             for (v, s) in kv.interior_knot_runs().collect::<Vec<_>>() {
-                for step in s..p {
-                    insert_once_ring(&mut knots, p, step, &mut ring, v);
+                for _ in s..p {
+                    ring = ring_insert(&mut knots, p, &ring, v);
                     insertions += 1;
                 }
             }
@@ -2561,10 +2369,12 @@ mod tests {
 
     /// Cutting more breaks into one segment does not widen its rows: a
     /// Bézier segment of each degree 1–5 cut at the 254 interior 255ths
-    /// keeps every coefficient within `2p + 1` ulps of its scale
-    /// (measured: 2.5, 2.75, 6.5, 5.5 and 10.5), where
-    /// inserting the breaks one after another into the whole net folds
-    /// each new coefficient out of the last one's width.
+    /// keeps every coefficient within `p + 1` ulps of its scale
+    /// (measured: 2, 2, 4, 3.5 and 5), where inserting the breaks one
+    /// after another into the whole net folds each new coefficient out
+    /// of the last one's width. The ceiling is the monotone step's: a
+    /// step that rounds its ratio into the value (`β·x + α·y`) reads
+    /// 2.5, 2.75, 6.5, 5.5 and 10.5 here and fails it at four degrees.
     #[test]
     fn a_segment_cut_many_times_keeps_its_rows_ulp_wide() {
         let base = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
@@ -2581,12 +2391,412 @@ mod tests {
                 .map(|c| c.hi() - c.lo())
                 .fold(0.0f64, f64::max);
             #[allow(clippy::cast_precision_loss)]
-            let ceiling = (2.0 * p as f64 + 1.0) * f64::EPSILON;
+            let ceiling = (p as f64 + 1.0) * f64::EPSILON;
             assert!(
                 widest <= ceiling,
                 "degree {p}: the widest coefficient after 254 cuts is {widest:e}, {} ulps of 1",
                 widest / f64::EPSILON
             );
         }
+    }
+
+    // -----------------------------------------------------------------
+    // The step's form: the monotone step against the convex one
+    // -----------------------------------------------------------------
+
+    /// A two-point step over exact `f64` knots `lo ≤ u ≤ hi`.
+    type KnotStep = fn(Interval, Interval, f64, f64, f64) -> Interval;
+
+    /// The convex step the monotone one replaced, kept here as the
+    /// battery's comparison: `β·x + α·y` with both ratios ring quotients
+    /// of the knots, met with the sources' hull.
+    fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+        let (lo, hi, u) = (Interval::point(lo), Interval::point(hi), Interval::point(u));
+        let span = hi - lo;
+        (x * ((hi - u) / span) + y * ((u - lo) / span)).meet(Interval::hull(x, y))
+    }
+
+    /// The shipped step: [`Certification::between`] at the knot ratio.
+    fn monotone_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+        let lo_i = Interval::point(lo);
+        Interval::between(
+            x,
+            y,
+            (Interval::point(u) - lo_i) / (Interval::point(hi) - lo_i),
+        )
+    }
+
+    /// One Boehm insertion of `u` into the raw list `knots` with `step`,
+    /// its exact shadow beside it, and the list updated.
+    fn boehm_insert(
+        knots: &mut Vec<f64>,
+        p: usize,
+        (c, x): (&[Interval], &[QInt]),
+        u: f64,
+        step: KnotStep,
+    ) -> (Vec<Interval>, Vec<QInt>) {
+        let kv = KnotVector::clamped(knots.clone(), p).unwrap();
+        let knot = kv.interior_knot(u).unwrap();
+        let k = find_span_in(knots, p, knot);
+        let s = knots.iter().filter(|&&v| v == u).count();
+        let ring = (0..=c.len())
+            .map(|i| {
+                if i + p <= k {
+                    c[i]
+                } else if i + s <= k {
+                    step(c[i - 1], c[i], knots[i], knots[i + p], u)
+                } else {
+                    c[i - 1]
+                }
+            })
+            .collect();
+        let exact = insert_once_exact(knots, p, s, x, knot);
+        knots.insert(k + 1, u);
+        (ring, exact)
+    }
+
+    /// The widest excess of `ring` over the exact sets `exact`, after
+    /// asserting every slot contains its set.
+    fn widest_excess(ring: &[Interval], exact: &[QInt], tag: &str) -> f64 {
+        ring.iter()
+            .zip(exact)
+            .enumerate()
+            .fold(0.0f64, |worst, (i, (r, x))| {
+                assert!(
+                    r.is_certified()
+                        && x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less
+                        && x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                    "{tag}: slot {i} [{:e}, {:e}] does not enclose the exact [{:e}, {:e}]",
+                    r.lo(),
+                    r.hi(),
+                    x.lo.to_f64_report(),
+                    x.hi.to_f64_report()
+                );
+                let up = Q::from_f64(r.hi()).sub(&x.hi).to_f64_report();
+                let down = x.lo.sub(&Q::from_f64(r.lo())).to_f64_report();
+                worst.max(up + down)
+            })
+    }
+
+    /// The widest excess of each step's fold of `inserts` into `kv` over
+    /// the exact refined net: `(monotone, convex)`.
+    fn fold_excess(kv: &KnotVector, inputs: &[Interval], inserts: &[f64], tag: &str) -> (f64, f64) {
+        let p = kv.degree();
+        let start: Vec<QInt> = inputs
+            .iter()
+            .map(|r| QInt {
+                lo: Q::from_f64(r.lo()),
+                hi: Q::from_f64(r.hi()),
+            })
+            .collect();
+        let run = |step: KnotStep| {
+            let mut knots = kv.knots().to_vec();
+            let (mut ring, mut exact) = (inputs.to_vec(), start.clone());
+            for &u in inserts {
+                (ring, exact) = boehm_insert(&mut knots, p, (&ring, &exact), u, step);
+            }
+            (ring, exact)
+        };
+        let (ring, exact) = run(monotone_step);
+        let (convex, _) = run(convex_step);
+        (
+            widest_excess(&ring, &exact, tag),
+            widest_excess(&convex, &exact, &format!("{tag} (convex)")),
+        )
+    }
+
+    /// The Bernstein row on `[a, b]` of the Bézier `row` on `[0, 1]`
+    /// with `step`: coefficient `i` the blossom at `a` taken `p − i`
+    /// times and `b` taken `i` times, by de Casteljau.
+    fn cut_with(row: &[Interval], (a, b): (f64, f64), step: KnotStep) -> Vec<Interval> {
+        let p = row.len() - 1;
+        (0..=p)
+            .map(|i| {
+                let mut r = row.to_vec();
+                for level in 0..p {
+                    let t = if level < p - i { a } else { b };
+                    for j in 0..p - level {
+                        r[j] = step(r[j], r[j + 1], 0.0, 1.0, t);
+                    }
+                }
+                r[0]
+            })
+            .collect()
+    }
+
+    /// [`cut_with`]'s exact shadow, on point rows.
+    fn cut_exact(row: &[f64], (a, b): (f64, f64)) -> Vec<Q> {
+        let p = row.len() - 1;
+        let one = Q::new(BigInt::from(1), BigInt::from(1));
+        (0..=p)
+            .map(|i| {
+                let mut r: Vec<Q> = row.iter().map(|&c| Q::from_f64(c)).collect();
+                for level in 0..p {
+                    let t = Q::from_f64(if level < p - i { a } else { b });
+                    for j in 0..p - level {
+                        r[j] = one.sub(&t).mul(&r[j]).add(&t.mul(&r[j + 1]));
+                    }
+                }
+                r[0].clone()
+            })
+            .collect()
+    }
+
+    /// **The monotone step is no wider than the convex one on any row of
+    /// the battery, and contains the exact set on every one.** Each row
+    /// is the widest excess over an exact-rational reference — never over
+    /// another carrier — for the shipped step
+    /// ([`Certification::between`] at the knot ratio) and for the convex
+    /// step `β·x + α·y` it replaced:
+    ///
+    /// - one step on point inputs, mean and max, in ulps of the larger
+    ///   source;
+    /// - the degree-6 fold of 80 insertions (sixteen knots to full
+    ///   multiplicity) on points of size O(1), points offset to 1e3,
+    ///   inputs 1e-9 wide, a homogeneous channel `w·(x − c)`, and a
+    ///   near-constant `1 + 1e-9·sin`;
+    /// - the equal-split plan chains of `algebra`'s ring-applier row, in
+    ///   ulps of the coefficient scale;
+    /// - one Bézier segment of each degree 1–5 cut at the 254 interior
+    ///   255ths, in ulps of 1.
+    ///
+    /// The step sample is a fixed seed: the row is a statistic over a
+    /// witness set, not a search, and the figures in the PR are its.
+    #[test]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+    fn the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row() {
+        let mut rows: Vec<(String, f64, f64)> = Vec::new();
+
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let one = Q::new(BigInt::from(1), BigInt::from(1));
+        let n = 4000;
+        let (mut sum, mut max) = ([0.0f64; 2], [0.0f64; 2]);
+        for _ in 0..n {
+            let lo = rnd();
+            let hi = lo + 0.01 + rnd();
+            let u = lo + (hi - lo) * rnd();
+            let x = 2.0 * rnd() - 1.0;
+            let y = x + (2.0 * rnd() - 1.0) * 10f64.powf(-6.0 * rnd());
+            let (ql, qh) = (Q::from_f64(lo), Q::from_f64(hi));
+            let lam = Q::from_f64(u).sub(&ql).div(&qh.sub(&ql));
+            let truth = one
+                .sub(&lam)
+                .mul(&Q::from_f64(x))
+                .add(&lam.mul(&Q::from_f64(y)));
+            let exact = [QInt {
+                lo: truth.clone(),
+                hi: truth,
+            }];
+            let scale = x.abs().max(y.abs()) * f64::EPSILON;
+            for (k, step) in [monotone_step as KnotStep, convex_step]
+                .into_iter()
+                .enumerate()
+            {
+                let r = step(Interval::point(x), Interval::point(y), lo, hi, u);
+                let e = widest_excess(&[r], &exact, "one step") / scale;
+                sum[k] += e;
+                max[k] = max[k].max(e);
+            }
+        }
+        rows.push((
+            "one step, mean ulps".into(),
+            sum[0] / n as f64,
+            sum[1] / n as f64,
+        ));
+        rows.push(("one step, max ulps".into(), max[0], max[1]));
+
+        let p = 6usize;
+        let mut knot_list = vec![0.0; p + 1];
+        for j in 1..=16 {
+            knot_list.push(f64::from(j) / 17.0);
+        }
+        knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+        let kv = KnotVector::clamped(knot_list, p).unwrap();
+        let inserts: Vec<f64> = kv
+            .interior_knots()
+            .flat_map(|(v, s)| core::iter::repeat_n(v, p - s))
+            .collect();
+        assert_eq!(inserts.len(), 80, "the deep fold is 80 insertions");
+        let base: Vec<f64> = (0..kv.control_count())
+            .map(|i| {
+                if i % 2 == 0 {
+                    1.0 + i as f64
+                } else {
+                    -(1.0 + i as f64)
+                }
+            })
+            .collect();
+        let pt = Interval::point;
+        let families: Vec<(&str, Vec<Interval>)> = vec![
+            (
+                "p=6 fold, points O(1)",
+                base.iter().map(|&c| pt(c)).collect(),
+            ),
+            (
+                "p=6 fold, points offset 1e3",
+                base.iter().map(|&c| pt(c + 1e3)).collect(),
+            ),
+            (
+                "p=6 fold, width 1e-9",
+                base.iter()
+                    .map(|&c| Interval::from_bounds(c - 1e-9, c + 1e-9))
+                    .collect(),
+            ),
+            (
+                "p=6 fold, homogeneous w(x-c)",
+                base.iter()
+                    .enumerate()
+                    .map(|(i, &c)| pt(1.0 + 0.1 * (i as f64).sin()) * (pt(c) - pt(0.3)))
+                    .collect(),
+            ),
+            (
+                "p=6 fold, near-constant 1+1e-9 sin",
+                (0..base.len())
+                    .map(|i| pt(1.0 + 1e-9 * (i as f64).sin()))
+                    .collect(),
+            ),
+        ];
+        for (name, inputs) in families {
+            let (m, c) = fold_excess(&kv, &inputs, &inserts, name);
+            rows.push((format!("{name}, abs"), m, c));
+        }
+
+        let chains: &[(usize, &[f64])] = &[
+            (1, &[]),
+            (2, &[1.0]),
+            (2, &[1.0, 2.0]),
+            (3, &[1.0, 1.0, 2.0]),
+            (4, &[1.0, 2.0, 2.0, 3.0]),
+        ];
+        let mut chain_worst = (0.0f64, 0.0f64);
+        for &(p, interior) in chains {
+            let mut knots = vec![0.0; p + 1];
+            knots.extend_from_slice(interior);
+            let top = interior.last().copied().unwrap_or(0.0) + 1.0;
+            knots.extend(core::iter::repeat_n(top, p + 1));
+            let kv = KnotVector::clamped(knots, p).unwrap();
+            let coeffs: Vec<f64> = (0..kv.control_count())
+                .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
+                .collect();
+            let scale = coeffs.iter().fold(1.0f64, |m, c| m.max(c.abs())) * f64::EPSILON;
+            let inputs: Vec<Interval> = coeffs.iter().map(|&c| pt(c)).collect();
+            for splits in [2usize, 3, 8, 16] {
+                let mut points = crate::spline::algebra::equal_split_points(&kv, splits);
+                points.sort_by(f64::total_cmp);
+                let tag = format!("equal split p={p} {interior:?} x{splits}");
+                let (m, c) = fold_excess(&kv, &inputs, &points, &tag);
+                chain_worst = (chain_worst.0.max(m / scale), chain_worst.1.max(c / scale));
+            }
+        }
+        rows.push((
+            "equal-split chains, ulps".into(),
+            chain_worst.0,
+            chain_worst.1,
+        ));
+
+        let row = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
+        let cuts: Vec<f64> = (0..=255).map(|k| f64::from(k) / 255.0).collect();
+        for p in 1..=5usize {
+            let kv = KnotVector::bezier(p, (0.0, 1.0)).unwrap();
+            let points: Vec<Interval> = row[..=p].iter().map(|&c| pt(c)).collect();
+            let shipped = to_bezier_spans_extra(kv.with_coeffs(&points).unwrap(), &cuts);
+            let (mut m, mut c) = (0.0f64, 0.0f64);
+            for (j, piece) in cuts.windows(2).enumerate() {
+                let exact: Vec<QInt> = cut_exact(&row[..=p], (piece[0], piece[1]))
+                    .into_iter()
+                    .map(|q| QInt {
+                        lo: q.clone(),
+                        hi: q,
+                    })
+                    .collect();
+                let tag = format!("254 cuts p={p} piece {j}");
+                m = m.max(widest_excess(&shipped.spans[j], &exact, &tag));
+                let convex = cut_with(&points, (piece[0], piece[1]), convex_step);
+                c = c.max(widest_excess(&convex, &exact, &format!("{tag} (convex)")));
+            }
+            rows.push((
+                format!("254 cuts p={p}, ulps of 1"),
+                m / f64::EPSILON,
+                c / f64::EPSILON,
+            ));
+        }
+
+        for (name, monotone, convex) in &rows {
+            println!("{name:<44} monotone {monotone:>10.4e}   convex {convex:>10.4e}");
+        }
+        for (name, monotone, convex) in &rows {
+            assert!(
+                monotone <= convex,
+                "{name}: the monotone step reads {monotone:e}, wider than the convex step's \
+                 {convex:e}"
+            );
+        }
+    }
+
+    /// **A refined weight never leaves the range of the weights it was
+    /// refined from**, at a subnormal weight beside `1e2` — the weight
+    /// positivity every rational hull stands on. The ratios are points
+    /// within ulps of either end, a coarse sweep, and enclosures as wide
+    /// as a blossom argument spanning a few-ulp span makes them (up to
+    /// `[0, 1]`). On the wide ones the step's corners alone reach past
+    /// the subnormal to zero, which is the probe's power: the step's meet
+    /// with its sources' hull is what holds the guarantee.
+    #[test]
+    fn a_refined_weight_stays_between_its_sources() {
+        let corners_only = |x: f64, y: f64, lam: Interval| {
+            let (from, to, t) = if lam.lo() + lam.hi() <= 1.0 {
+                (x, y, lam)
+            } else {
+                (y, x, Interval::one() - lam)
+            };
+            let (a, b) = (Interval::point(from), Interval::point(to));
+            a + (b - a) * t
+        };
+        let mut ratios: Vec<Interval> = Vec::new();
+        for k in 1..500u32 {
+            let e = f64::from(k) * f64::EPSILON;
+            ratios.push(Interval::point(e));
+            ratios.push(Interval::point(1.0 - e));
+            ratios.push(Interval::point(f64::from(k) / 500.0));
+            ratios.push(Interval::from_bounds(e, 1.0));
+            ratios.push(Interval::from_bounds(0.0, 1.0 - e));
+        }
+        ratios.push(Interval::from_bounds(0.0, 1.0));
+        let (mut escapes_unmet, mut zero_unmet, mut probes) = (0usize, 0usize, 0usize);
+        for &w in &[f64::from_bits(1), 1e-300, 1e-20, 1e-3] {
+            for &lam in &ratios {
+                for (x, y) in [(w, 1e2), (1e2, w)] {
+                    let r = Interval::between(Interval::point(x), Interval::point(y), lam);
+                    assert!(
+                        r.is_certified() && r.lo() >= w && r.hi() <= 1e2,
+                        "weights {x:e}, {y:e} at [{:e}, {:e}]: the step [{:e}, {:e}] left \
+                         [{w:e}, 1e2]",
+                        lam.lo(),
+                        lam.hi(),
+                        r.lo(),
+                        r.hi()
+                    );
+                    let bare = corners_only(x, y, lam);
+                    escapes_unmet += usize::from(bare.lo() < w || bare.hi() > 1e2);
+                    zero_unmet += usize::from(bare.lo() <= 0.0);
+                    probes += 1;
+                }
+            }
+        }
+        assert!(
+            zero_unmet > 0,
+            "no probe of {probes} took the unmet corners to zero, so this row no longer \
+             shows the meet is what keeps a weight positive"
+        );
+        println!(
+            "{escapes_unmet} of {probes} probes leave the sources' range without the meet \
+             ({zero_unmet} reach zero); none with it"
+        );
     }
 }

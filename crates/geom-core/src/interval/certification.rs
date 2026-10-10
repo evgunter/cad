@@ -164,6 +164,45 @@ pub trait Certification: sealed::Sealed + Copy {
     #[must_use]
     fn meet(self, other: Self) -> Self;
 
+    /// The two-point combination `(1 − λ)·x + λ·y` over every `x ∈ x`,
+    /// `y ∈ y` and `λ ∈ lambda` — the one certified step of the spline
+    /// layer (a Boehm insertion, a de Boor or de Casteljau level, a
+    /// blossom).
+    ///
+    /// **Precondition: the true `λ` lies in `[0, 1]`.** The callers'
+    /// ratios are quotients of ordered knots (or of a parameter clamped
+    /// to its span), so the real ratio is in `[0, 1]` even where the
+    /// outward-rounded enclosure pokes past an end. Under it, `lambda`
+    /// is first met with `[0, 1]` (sound, by the precondition; refused
+    /// when that meet is empty, which only a broken precondition makes).
+    /// A `λ` outside `[0, 1]` inside an enclosure that also reaches into
+    /// it is a broken precondition no door can see: the result then
+    /// encloses the clamped combination, not the extrapolation.
+    ///
+    /// **The monotone form.** For a fixed `λ ∈ [0, 1]` the combination
+    /// increases in each of `x` and `y`, so its range over the two
+    /// brackets is spanned by the lower ends combined together and the
+    /// upper ends combined together. Each corner is a lerp of two POINTS
+    /// from the nearer source — `xl + (yl − xl)·Λ` when `λ ≲ ½`,
+    /// `yl + (xl − yl)·(1 − Λ)` otherwise, so the lever on the ratio is at
+    /// most half the chord — and the step is the hull of the two corners.
+    /// Each source bound is read once, so a fold of steps adds rounding
+    /// per step rather than multiplying inherited width; the ratio's
+    /// width is levered by the chord `|y − x|` and never by the
+    /// coordinates' distance from the origin. For `Λ ⊆ [½, 1]` the
+    /// complement `1 − Λ` is exact (Sterbenz).
+    ///
+    /// **Met with `hull(x, y)`**: a combination with `λ ∈ [0, 1]` lies
+    /// between its sources, an enclosure argued without reading `Λ` at
+    /// all, so the meet is sound ([`Certification::meet`]). It keeps a
+    /// constant column its point and a combination of positive weights
+    /// above the smaller of them, wherever the corner rounding falls.
+    ///
+    /// Refused for a refused argument, and for a source with an infinite
+    /// end: its corner is not a real number.
+    #[must_use]
+    fn between(x: Self, y: Self, lambda: Self) -> Self;
+
     /// Whether `x` lies in the enclosure. False for a refusal (nothing is
     /// known to lie in a bracket that may not certify) and for an `x` that
     /// is not a real number — NaN, or `±inf` even on an unbounded side.
@@ -278,6 +317,30 @@ impl Certification for Interval {
             self.0.decoration()
         };
         self.narrowed_to(other.0, weaker)
+    }
+
+    fn between(x: Self, y: Self, lambda: Self) -> Self {
+        if !x.is_certified() || !y.is_certified() {
+            return Self::refused();
+        }
+        let lambda = lambda.clamped_to(0.0, 1.0);
+        if !lambda.is_certified() {
+            return Self::refused();
+        }
+        let (from, to, t) = if lambda.0.lo() + lambda.0.hi() <= 1.0 {
+            (x, y, lambda)
+        } else {
+            (y, x, <Self as Certification>::one() - lambda)
+        };
+        let corner = |a: f64, b: f64| {
+            let a = Self::point(a);
+            a + (Self::point(b) - a) * t
+        };
+        let corners = Self::hull(
+            corner(from.0.lo(), to.0.lo()),
+            corner(from.0.hi(), to.0.hi()),
+        );
+        corners.meet(Self::hull(x, y))
     }
 
     fn contains(self, x: f64) -> bool {

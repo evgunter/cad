@@ -890,13 +890,22 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 /// Interval de Boor on one span: the span's polynomial evaluated at an
 /// enclosed parameter from its `p + 1` active ring-bracketed
 /// coefficients — the thin `f(m)` the composite rule needs on spline
-/// channels. Pure certification arithmetic (knots are `f64` structure;
-/// every knot difference is formed in the ring so its rounding is
-/// outward, matching `deriv_coeff`). Sound for any `t`; outside the
-/// span's closure it is the polynomial extension.
+/// channels. Sound for any `t`; outside the span's closure it is the
+/// polynomial extension, which the composite rule reads where a vertex
+/// pad puts a node past the domain.
+///
+/// A `t` inside the span's closure is the window's blossom on the
+/// diagonal ([`CoeffWindow::blossom`]); any other `t` is
+/// [`de_boor_on`]'s extension.
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
+    let (lo, hi) = (kv.knots()[span.index()], kv.knots()[span.index() + 1]);
+    if within(t, lo, hi) {
+        return win
+            .blossom(&vec![t; span.degree()])
+            .unwrap_or_else(|_| Interval::refused());
+    }
     de_boor_on(
         kv.knots(),
         kv.degree(),
@@ -906,20 +915,37 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
+/// Whether a certified `t` lies in `[lo, hi]` whole.
+fn within(t: Interval, lo: f64, hi: f64) -> bool {
+    t.is_certified() && t.lo() >= lo && t.hi() <= hi
+}
+
 /// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
 /// [`raw_span`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
+///
+/// A `t` inside the span's closure keeps every ratio in `[0, 1]`, and
+/// each step is [`Certification::between`]. Past the closure a ratio
+/// leaves `[0, 1]` — the extension is no combination between its
+/// sources — and the step is the affine `(1 − α)·x + α·y`, sound for
+/// any `α`. A raw list spells no clamped vector, so it has no
+/// [`CoeffWindow`] whose blossom this could call instead.
 fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
+    let inside = within(t, u[first + p], u[first + p + 1]);
     let mut d = active.to_vec();
     for r in 1..=p {
         for j in (r..=p).rev() {
             let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (t - pt(u[i])) / denom;
-            d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
+            d[j] = if inside {
+                Interval::between(d[j - 1], d[j], alpha)
+            } else {
+                (pt(1.0) - alpha) * d[j - 1] + alpha * d[j]
+            };
         }
     }
     d[p]
@@ -4125,27 +4151,37 @@ fn vertex_slack(p: RPt2) -> f64 {
     0.5 * (p.0.width() + p.1.width())
 }
 
-/// De Casteljau bisection of a bracketed Bézier control polygon: the
-/// two halves at `λ = ½`, each again a Bézier polygon of the same
-/// degree whose first and last points are the arc's endpoints there
-/// and whose hull contains its half of the arc.
-///
-/// The rounding lands OUTWARD in every bracket, so both halves are
-/// certified enclosures of the same arc rather than re-approximations
-/// of it — [`ring_lerp`]'s argument, one dimension down.
+/// Bisection of a bracketed Bézier control polygon: the two halves at
+/// `λ = ½`, each again a Bézier polygon of the same degree whose first
+/// and last points are the arc's endpoints there and whose hull
+/// contains its half of the arc. Each channel is the polygon's row on
+/// its Bézier vector restricted to `[0, ½]` and `[½, 1]`
+/// ([`CoeffWindow::restrict`]), so both halves are certified enclosures
+/// of the same arc rather than re-approximations of it. A degree-0
+/// polygon is its own halves.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
-    let half = pt(0.5);
-    let lerp = |x: RPt2, y: RPt2| -> RPt2 { (x.0 + (y.0 - x.0) * half, x.1 + (y.1 - x.1) * half) };
-    let mut level: Vec<RPt2> = block.to_vec();
-    let mut left = vec![level[0]];
-    let mut right = vec![level[level.len() - 1]];
-    while level.len() > 1 {
-        level = level.windows(2).map(|w| lerp(w[0], w[1])).collect();
-        left.push(level[0]);
-        right.push(level[level.len() - 1]);
-    }
-    right.reverse();
-    (left, right)
+    let Some(p) = block.len().checked_sub(1).filter(|&p| p > 0) else {
+        return (block.to_vec(), block.to_vec());
+    };
+    let refused = vec![Interval::refused(); p + 1];
+    let kv = KnotVector::bezier(p, (0.0, 1.0)).ok();
+    let half = |channel: &[Interval], (a, b): (f64, f64)| {
+        kv.as_ref()
+            .and_then(|kv| {
+                kv.with_coeffs(channel)?
+                    .span(p)?
+                    .restrict((pt(a), pt(b)))
+                    .ok()
+            })
+            .unwrap_or_else(|| refused.clone())
+    };
+    let xs: Vec<Interval> = block.iter().map(|q| q.0).collect();
+    let ys: Vec<Interval> = block.iter().map(|q| q.1).collect();
+    let zip = |x: Vec<Interval>, y: Vec<Interval>| x.into_iter().zip(y).collect::<Vec<RPt2>>();
+    (
+        zip(half(&xs, (0.0, 0.5)), half(&ys, (0.0, 0.5))),
+        zip(half(&xs, (0.5, 1.0)), half(&ys, (0.5, 1.0))),
+    )
 }
 
 /// **Bézier extraction of a bracketed image net** at its own knots and

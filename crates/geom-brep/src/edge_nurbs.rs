@@ -734,7 +734,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// since the chain around the piece is a stretch of the whole carrier's
 /// chain, and conservative, since geometry past the edge's ends can
 /// refuse it (`work/pcert/the-tube-reads-a-rational-carriers-whole-net.md`).
-fn edge_piece<T: Real>(
+fn edge_piece<T: geom_core::spline::SpanLocate>(
     carrier: &NurbsCurve3<T>,
     lo: f64,
     hi: f64,
