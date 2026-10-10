@@ -21,7 +21,7 @@ use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
     EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
     MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
     SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate, face_frame,
     load, save, select_where, vertex_position,
 };
@@ -506,10 +506,16 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
 /// means throughout, because none of these fixtures places the
 /// geometry it measures (the one that does builds its refs by hand).
 ///
-/// Adapting these probes to the `SitedRef` shape the fix pass
-/// introduced for MAJ-2; the rows and their oracles are unchanged.
-fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<SitedRef> {
-    names.into_iter().map(SitedRef::at_mint).collect()
+/// Each is the selection of its name in its minting node's body port
+/// (a revolve also defines its axis); the rows and their oracles are
+/// unchanged.
+fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<editor_core::Operand> {
+    names
+        .into_iter()
+        .map(|name| {
+            editor_core::Operand::select(editor_core::Operand::output(name.node, 0), vec![name])
+        })
+        .collect()
 }
 
 fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> StableName {
@@ -1021,11 +1027,30 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude.
-    let target = format!("\"node\": \"{}\",", extrude.0);
-    let n = text.matches(&target).count();
-    assert!(n >= 1, "the measure's refs name the extrude");
-    let corrupt = text.replacen(&target, "\"node\": \"0:000000000000004d\",", 1);
+    // the names the measure's selections hold, minted by the extrude.
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("a JSON body");
+    let selects: Vec<String> = wire["snapshot"]["vars"]
+        .as_object()
+        .expect("a variable table")
+        .iter()
+        .filter(|(_, var)| var["def"].get("Select").is_some())
+        .map(|(id, _)| id.clone())
+        .collect();
+    let Some(select) = selects.first() else {
+        panic!("the measure reads its references through selections")
+    };
+    let name = &mut wire["snapshot"]["vars"][select.as_str()]["def"]["Select"]["names"][0];
+    assert_eq!(
+        name["node"],
+        serde_json::json!(extrude.0.to_string()),
+        "the measure's refs name the extrude"
+    );
+    name["node"] = serde_json::json!("0:000000000000004d");
+    let corrupt = format!(
+        "{header}\n{}",
+        serde_json::to_string(&wire).expect("re-emit")
+    );
     match load(&corrupt, Tol::witness()) {
         // The mint-log check owns this corruption: 77 was never
         // minted, which is a loud load-door refusal, the claim.

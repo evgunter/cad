@@ -720,8 +720,8 @@ fn a_measure_reused_across_an_offset_clear_refuses_across_spaces() {
     );
     let measure = Node::Measure {
         primitive: editor_core::MeasurePrimitive::Distance {
-            a: editor_core::SitedRef::at_mint(p.base_cap(base)),
-            b: editor_core::SitedRef::at_mint(p.top_cap(top)),
+            a: editor_core::SitedRef::at_mint(p.base_cap(base)).into(),
+            b: editor_core::SitedRef::at_mint(p.top_cap(top)).into(),
         },
     };
     let (doc, m) = insert(doc, measure);

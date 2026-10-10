@@ -254,9 +254,8 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
-            target: block.into(),
             radius: len(R),
-            selection,
+            selection: editor_core::Operand::select(block, selection),
         },
     );
     (doc, block, fillet)

@@ -303,8 +303,9 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             }),
             reference: 0,
         },
-        K::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        K::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
             error: Box::new(editor_core::ResolveError::Ambiguous {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
@@ -383,7 +384,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
             K::DeclareResolve { error, .. } => error.to_string(),
-            K::BlendSelectionResolve { error, .. } => error.to_string(),
+            K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),

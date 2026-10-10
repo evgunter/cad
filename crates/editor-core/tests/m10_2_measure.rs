@@ -964,7 +964,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
     let ev = eval(&doc);
     let err = failed_kind(&ev, last(&doc));
     assert!(
-        matches!(err, NodeErrorKind::MeasureRefResolve { .. }),
+        matches!(err, NodeErrorKind::SelectResolve { .. }),
         "got {err:?}"
     );
 }
@@ -989,15 +989,22 @@ fn deleting_a_referenced_node_leaves_the_measure_refusing() {
     let ev = eval(&deleted);
     let err = failed_kind(&ev, measure);
     assert!(
-        matches!(err, NodeErrorKind::UnresolvedSite { at } if *at == holes[0]),
+        matches!(
+            err,
+            NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Measured(_, 0),
+                ..
+            }
+        ),
         "got {err:?}"
     );
 }
 
-/// A reference to a WHOLE BODY has no carrier, and the refusal names
-/// the pair class rather than guessing an arm.
+/// A reference to a WHOLE BODY is no `distance` reference: the
+/// primitive reads a face, an edge or a vertex, and the insert refuses
+/// by the seat's kind (FORK-VTX) rather than evaluation guessing an arm.
 #[test]
-fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
+fn a_whole_body_is_no_distance_reference() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     let (doc, body, _) = plate();
     let ev = eval(&doc);
@@ -1006,17 +1013,26 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
         .map(|name| SitedRef::new(body, name))
         .collect();
     assert_eq!(whole.len(), 1, "one output body");
-    let doc =
-        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 0 }, whole).0;
-    let ev = eval(&doc);
-    match failed_kind(&ev, last(&doc)) {
-        NodeErrorKind::MeasureUnsupported(refusal) => {
-            assert_eq!(refusal.verb, "distance");
-            let msg = refusal.to_string();
-            assert!(msg.contains("whole body"), "{msg}");
-        }
-        other => panic!("got {other:?}"),
-    }
+    let refused = editor_core::measure(
+        &doc,
+        &[MeasurePrimitive::Distance {
+            a: whole[0].clone(),
+            b: whole[0].clone(),
+        }],
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Body,
+                ..
+            })
+        ),
+        "{:?}",
+        refused.map(|_| ())
+    );
 }
 
 /// A measure with an unsupported MIXED pair: a plane face against a
@@ -1045,17 +1061,16 @@ fn a_mixed_carrier_pair_refuses() {
 /// measurement that did not happen would be a verdict about nothing.
 #[test]
 fn an_assertion_over_a_failed_measure_is_poisoned() {
-    use editor_core::{EntityKind, NamePat, Selector, select};
-    let (doc, body, _) = plate();
+    let (doc, body, holes) = plate();
     let ev = eval(&doc);
-    let whole: Vec<SitedRef> = select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
-        .into_iter()
-        .map(|name| SitedRef::new(body, name))
-        .collect();
-    // A whole-body pair has no closed form, so the measure fails and
-    // the assertion must produce no verdict.
+    // A plane against a cylinder has no closed form, so the measure
+    // fails and the assertion must produce no verdict.
+    let refs = vec![
+        faces_of_kind(&ev, body, geom::SurfaceKind::Plane).remove(0),
+        faces_of_kind(&ev, holes[0], geom::SurfaceKind::Cylinder).remove(0),
+    ];
     let (doc, measure) =
-        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 0 }, whole);
+        crate::fixture::measure_node(&doc, MeasurePrimitive::Distance { a: 0, b: 1 }, refs);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {

@@ -600,7 +600,10 @@ it resolves, rides in the offers for either qualifier kind. `Tombstone` carries
 the last-good entry for ghost rendering; selection tools hold name plus
 tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
-repair is `DocEdit::Rebind { from, to }`, recorded once, no alias table.
+repair is `DocEdit::Rebind { body, from, to }`, recorded once, no alias
+table: with a body it rewrites that body's selections naming `from`, and
+without one the names no selection holds (a declared pair's, a mate head's,
+an appearance key).
 
 **N6 — A cell's construction is read from the document.** A recorded
 cell is named by the read it entered the deciding operation through and its

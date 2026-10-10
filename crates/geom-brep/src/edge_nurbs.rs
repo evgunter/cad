@@ -164,10 +164,9 @@ pub enum PlaneNurbsRefusal {
     Limb {
         /// Which limb refused.
         limb: SsiLimb,
-        /// Limb 1's measured miss, or limb 2's bound on it, in meters.
-        value: f64,
-        /// What the classifier saw of the limb's number, for error
-        /// reporting only ([`MarginDiag`]): it rides
+        /// What the classifier saw of limb 1's measured miss, or of limb
+        /// 2's bound on it, in metres, for error reporting only
+        /// ([`MarginDiag`]): it rides
         /// [`PlaneNurbsRefusal::decision`]'s sign-certain arm to the import
         /// door's words on it.
         margin: MarginDiag,
@@ -406,17 +405,17 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
-            Self::Limb { limb, value, .. } => match limb {
+            Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(
                     f,
-                    "{} bounds the declared carrier's distance from both surfaces by {value:e} \
+                    "{} bounds the declared carrier's distance from both surfaces by {margin:e} \
                      m, past the run tolerance — the certificate cannot show the carrier is on \
                      them",
                     limb.name()
                 ),
                 SsiLimb::OnLocus | SsiLimb::Tube => write!(
                     f,
-                    "{} measured {value:e} m against the run tolerance — the declared carrier \
+                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
                      is not on both surfaces",
                     limb.name()
                 ),
@@ -687,7 +686,6 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
                     limb: SsiLimb::HullSup,
-                    value: offset.hi(),
                     margin,
                 });
             }
@@ -713,7 +711,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         crate::pcurve_cache::carrier_diameter(&piece),
         band,
         crate::ssi::certify::Limbs::Tube,
-        &mut Vec::new(),
+        &mut crate::ssi::certify::Refused::default(),
     )
     .map(|_| ())
     .map_err(AnalyticRung3Refusal::of_tube)
@@ -812,9 +810,8 @@ pub enum AnalyticRung3Refusal {
         operand: geom::SurfaceKind,
         /// Which limb refused.
         limb: SsiLimb,
-        /// The certified bound, in metres.
-        value: f64,
-        /// What the classifier saw of the bound, for error reporting only
+        /// What the classifier saw of the certified bound, in metres,
+        /// for error reporting only
         /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
         /// sign-certain arm to the import door's words on a bound.
         margin: MarginDiag,
@@ -947,11 +944,10 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             Self::Limb {
                 operand,
                 limb,
-                value,
-                ..
+                margin,
             } => write!(
                 f,
-                "{} bounds the carrier's distance from the {} by {value:e} m, past the run \
+                "{} bounds the carrier's distance from the {} by {margin:e} m, past the run \
                  tolerance — the certificate cannot show the carrier stays on that surface \
                  between the schedule's samples",
                 limb.name(),
@@ -1236,15 +1232,7 @@ fn on_carrier_domain<T: Real>(
 /// The SSI refusal, in this lane's vocabulary.
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
-        SsiError::CertificateLimb {
-            limb,
-            value,
-            margin,
-        } => PlaneNurbsRefusal::Limb {
-            limb,
-            value,
-            margin,
-        },
+        SsiError::CertificateLimb { limb, margin } => PlaneNurbsRefusal::Limb { limb, margin },
         SsiError::TubeStraddles { verdict, boxes } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }

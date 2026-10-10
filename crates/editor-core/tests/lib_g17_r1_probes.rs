@@ -40,6 +40,7 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
     let out = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(blank, 0),
             from: bottom.clone(),
             to: top.clone(),
         },
@@ -50,12 +51,17 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
     let Some(Node::Shell { open, .. }) = out.doc.node(shell) else {
         panic!("shell gone")
     };
-    assert_eq!(open, &vec![top.clone()], "shrank to the earlier position");
+    assert_eq!(
+        fixture::selected(&out.doc, *open),
+        vec![top.clone()],
+        "shrank to the earlier position"
+    );
 
     // And the other direction: rebind the FIRST onto the SECOND.
     let out2 = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(blank, 0),
             from: top.clone(),
             to: bottom.clone(),
         },
@@ -67,7 +73,11 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
         panic!("shell gone")
     };
     // Both entries become `bottom`; first occurrence kept => position 0.
-    assert_eq!(open, &vec![bottom.clone()], "collapsed at position 0");
+    assert_eq!(
+        fixture::selected(&out2.doc, *open),
+        vec![bottom.clone()],
+        "collapsed at position 0"
+    );
 }
 
 /// A bump of the wall across the topology's edge: at `t < L/2` the
@@ -175,6 +185,7 @@ fn the_rim_follows_a_rebound_designation() {
     let out = apply(
         &d.doc,
         &DocEdit::Rebind {
+            body: d.doc.output(blank, 0),
             from: cup::top(blank),
             to: cup::bottom(blank),
         },

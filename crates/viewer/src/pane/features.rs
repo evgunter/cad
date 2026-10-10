@@ -774,7 +774,7 @@ mod tests {
             SitedRef::new(solid, found[0].clone())
         };
         let measure = |doc: &Doc<_>, primitive: MeasurePrimitive| {
-            inserted(doc, Node::Measure { primitive }, tol)
+            inserted(doc, Node::measure(&primitive), tol)
         };
         let across = || MeasurePrimitive::Distance {
             a: start.clone(),
@@ -788,11 +788,19 @@ mod tests {
                 b: end.clone(),
             },
         );
-        // Read at the profile, which holds no face: the measure fails.
+        // A cap the profile never minted, read at the solid: the name
+        // does not resolve there, and the measure fails.
         let (doc, failed) = measure(
             &doc,
             MeasurePrimitive::Distance {
-                a: SitedRef::new(profile, start.name.clone()),
+                a: SitedRef::new(
+                    solid,
+                    pncad::prelude::StableName {
+                        kind: start.name.kind,
+                        node: profile,
+                        path: start.name.path.clone(),
+                    },
+                ),
                 b: end.clone(),
             },
         );

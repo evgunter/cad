@@ -27,8 +27,8 @@ pub(super) fn unit_vec(rng: &mut Rng) -> Vec3<f64> {
 }
 
 /// An offset from a margin's zero, relative, either sign: half the
-/// draws log-uniform in `[0.03, 0.5]`, half in `[1e-12, 0.5]`, into the
-/// band and through it.
+/// draws log-uniform in `[0.03, 0.5]`, which a trace resolves, half in
+/// `[1e-12, 0.5]`, into the band and through it.
 pub(super) fn offset(rng: &mut Rng) -> f64 {
     let floor = if rng.unit() < 0.5 { 0.03f64 } else { 1e-12 };
     let m = (rng.range(floor.ln(), 0.5f64.ln())).exp();

@@ -32,7 +32,7 @@ survive, without asking whether they still meet.
 | 1 | seamed | `topo` `boolean_covered::a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it` |
 | 1 | seamed | `topo` `boolean_covered::a_held_edge_goes_only_to_the_fragment_it_enters` |
 | 8 | fallback, two-operand arm | `sweep` `reach_wall_chord_rows::a_cube_touching_a_drum_at_a_corner_answers_its_closed_form` |
-| 7 | fallback, two-operand arm | `editor-core` `docm7_union_declare::a_same_member_declared_pair_is_a_carried_record_at_its_step` |
+| 7 | fallback, two-operand arm | `editor-core` `docm7_union_declare::a_same_member_declared_pair_is_a_carried_record_at_its_step` (since stage 4 B2 it refuses `DeclaredContactUnbacked`, as `a_same_member_declared_pair_with_no_record_refuses_at_every_door`, and ships no record) |
 | 8 | seamed | `editor-core` `emit_union_flush_names::a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order` |
 | 2 | seamed | `editor-core` `emit_union_flush_names::a_cut_a_covered_face_meets_is_one_divider_in_every_order` |
 | 2 | seamed | `editor-core` `emit_union_flush_names::a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names` |

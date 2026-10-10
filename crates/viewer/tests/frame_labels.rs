@@ -163,15 +163,15 @@ fn an_oblique_frame_is_not_called_a_world_plane() {
 fn a_face_frame_names_the_node_its_face_is_read_off() {
     let tol = Tol::witness();
     let (doc, _, at) = common::parametric_plate(tol);
-    let node = Node::Datum(Datum::FaceFrame {
-        at: at.into(),
-        face: StableName {
+    let node = Node::Datum(Datum::face_frame(
+        at,
+        StableName {
             kind: EntityKind::Face,
             node: at,
             path: vec![],
         },
-        spin: common::ang(0.0),
-    });
+        common::ang(0.0),
+    ));
     let (shown, id) = label_in(&doc, node);
     assert!(
         shown.starts_with(&format!(

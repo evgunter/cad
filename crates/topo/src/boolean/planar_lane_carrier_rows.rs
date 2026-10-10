@@ -246,7 +246,7 @@ fn sweep_a(
         &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
         Tol::witness(),
     )?;
-    Ok((x, acc.finish()))
+    Ok((x, acc.finish().0))
 }
 
 /// The arc's closed form at `t`.

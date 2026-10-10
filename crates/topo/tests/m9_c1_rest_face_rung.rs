@@ -64,10 +64,13 @@ fn flush_seat() -> (Body<f64>, FaceKey, FaceKey) {
 /// record, said once.
 fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
     ContactRecords {
-        patches: vec![PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
+        patches: vec![topo::Cited::new(
+            PatchContact {
+                face_a: a,
+                face_b: b,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     }
 }

@@ -107,19 +107,30 @@ pub fn stored_reading(
     read: impl Fn(RecipeNodeId, u8) -> crate::VarId,
 ) -> Node<ProfileProgram> {
     use crate::ProfilePayload;
+    fn given(
+        doc: &core::cell::RefCell<&mut ProfileDoc>,
+        slot: crate::OperandSlot,
+        operand: &crate::Operand,
+        read: &impl Fn(RecipeNodeId, u8) -> crate::VarId,
+    ) -> crate::VarId {
+        match operand {
+            crate::Operand::Node(id) => read(*id, 0),
+            crate::Operand::Output { node, port } => read(*node, *port),
+            crate::Operand::Var(var) => *var,
+            crate::Operand::Name(name) => {
+                panic!("an operand read as given has no name: {name}")
+            }
+            crate::Operand::Select { body, names } => {
+                let body = given(doc, slot, body, read);
+                crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
+            }
+        }
+    }
+    let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
         |p, f, r| ProfileProgram::lower(p, f, r),
-        &mut |f| crate::edit::lower_slot_into(doc, f),
-        &mut |_, operand| {
-            Ok(match operand {
-                crate::Operand::Node(id) => read(*id, 0),
-                crate::Operand::Output { node, port } => read(*node, *port),
-                crate::Operand::Var(var) => *var,
-                crate::Operand::Name(name) => {
-                    panic!("an operand read as given has no name: {name}")
-                }
-            })
-        },
+        &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
+        &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )
     .expect("a node the document can answer lowers")
 }

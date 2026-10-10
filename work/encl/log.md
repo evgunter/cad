@@ -1409,3 +1409,5 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-10 — Dispatched `certify-decides-the-plane-nurbs-limbs-twice` (`encl/plane-nurbs-limbs-once`).
 - 2026-10-10 — PR 4520 (PlaneNurbs limbs decided once) merged at `fb2feb09b5` after a full review and a prose fix pass. The second decision was unreachable for f64 and Interval, and could refuse spuriously for Sym. Row closed. Seam notes posted on tier, pcert (new row `fitted-pcurve-envelope-re-decides-the-ssi-hull`) and pred (D46 evidence).
 - 2026-10-10 — Dispatched `limb-refusals-carry-the-margin-twice-as-a-bare-f64` (`encl/limb-margin-once`).
+- 2026-10-10 — PR 4529 (limb margin once) merged at `095e89335c` after a full review, a fix pass (one `LimbRefusal` record, the "refused residual" rename, one test helper, README plumbing trimmed back to [ev] PR 4034's text) and a delta review. Row closed. Seam notes posted on iso, pcert, pctail, ssiarith, ssiedge and ssimarch.
+- 2026-10-10 — Dispatched `hull-bound-refusals-could-refine-the-composite-before-refusing` (`encl/hull-bound-refine`).

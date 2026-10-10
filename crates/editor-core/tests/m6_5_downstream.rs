@@ -416,7 +416,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
     .expect("the bump applies")
     .doc;
     let stored = match bumped.node(blank) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(&bumped, *selection),
         other => panic!("expected a fillet, got {other:?}"),
     };
     assert_eq!(stored, materialized, "the materialized set froze");

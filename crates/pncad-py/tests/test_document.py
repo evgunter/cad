@@ -1759,7 +1759,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
     def test_a_step_the_edit_drops_strands_the_fillets_name(self):
         """The same program with the wall's step left out of `keep`:
         the fillet's name keeps its spelling and is reported as a
-        `strand` on the fillet node. Pushed back through
+        `stranded_selection` read by the fillet node. Pushed back through
         `Evaluation.resolve`, it is a typed `vanished` failure — the new
         step's leg is under an id never minted before, so the name
         never comes to denote it."""
@@ -1769,7 +1769,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
         (row,) = strands(doc)
-        self.assertEqual(row.variant, "strand")
+        self.assertEqual(row.variant, "stranded_selection")
         self.assertEqual(row.node, fillet)
         self.assertEqual(row.name, rim)
         verdict = evaluate(doc).resolve(row.name)

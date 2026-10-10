@@ -2,10 +2,11 @@
 id: value-decided-vertex-fusions-are-recorded-with-the-undeclared-glue
 kind: issue
 title: A boolean's vertex fusions decided by a margin are coincidences D10 records; E records them when undeclared touch glues
-status: open
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
+closed: 2026-10-10
 ---
 
 
@@ -45,3 +46,17 @@ these fusions back cite them through
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
 
 E records the face pairs it glues: ladder-decided `Rest`/continuation rows and witness-verified `Tangent`/`Seam` rows. It does not record vertex fusions. `one_vertex` still answers a `bool`, and the containment arms still keep their margins. Recording them is this row's work, and it is dispatchable.
+
+## Closed (2026-10-10, with `contact-records-cite-their-decision`)
+
+B2 records the reduction's vertex identities. `one_vertex` answers the
+margin it decided (`one_vertex_at`), the containment doors answer the
+margin of a boundary verdict (`contfp_decided`,
+`curved_face_placement_decided`, through `EdgeContact::On`,
+`ConicHit::On` and `SpiricHit::On`), and the planar and curved endpoint
+lanes keep their residual's `Decided`. Each push into the reduction's
+`ContactAcc` carries its pending decision; the result's carry emits a
+`Coincidence { site: VertexFusion, relation: OnCarrier }` for exactly
+the decisions a surviving record cites (D1: a decision whose record
+dies placed topology), cells read back to the input edge a minted
+vertex was split from. Ruled with the orchestrator on B2.

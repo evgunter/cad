@@ -627,7 +627,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [kiss] = gathered.contacts.vv[..] else {
+    let [ref kiss] = gathered.contacts.vv[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts
@@ -910,7 +910,7 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
     let (doc, p) = place(doc, a);
     let (doc, q) = place(doc, b);
     let measure = |sites: [(RecipeNodeId, StableName); 2]| {
-        let [a, b] = sites.map(|(at, name)| SitedRef::new(at, name));
+        let [a, b] = sites.map(|(at, name)| SitedRef::new(at, name).into());
         Node::Measure {
             primitive: MeasurePrimitive::Distance { a, b },
         }
@@ -927,7 +927,7 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(editor_core::EditError::MeasuresWorldCopy { placement }) => {
+        Err(editor_core::EditError::ReadsWorldCopy { placement, .. }) => {
             assert_eq!(placement.id(), p, "the refusal names the first placement");
         }
         Err(other) => panic!("refused otherwise: {other}"),
@@ -942,22 +942,23 @@ fn no_measure_is_sited_at_a_world_placement_at_the_door_or_at_load() {
     );
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let wire = |id| serde_json::to_string(&id).expect("an id serializes");
-    let measure_at = text
-        .find("\"Measure\"")
-        .expect("the measure is on the wire");
-    let site = format!("\"at\": {}", wire(a));
-    let offset = measure_at + text[measure_at..].find(&site).expect("its first site");
+    let body_of = |node| doc.output(node, 0).expect("a body");
+    let select_at = text
+        .find("\"Select\"")
+        .expect("the measure's selection is on the wire");
+    let site = format!("\"body\": {}", wire(body_of(a)));
+    let offset = select_at + text[select_at..].find(&site).expect("its body read");
     let forged = format!(
-        "{}\"at\": {}{}",
+        "{}\"body\": {}{}",
         &text[..offset],
-        wire(p),
+        wire(body_of(p)),
         &text[offset + site.len()..]
     );
     match editor_core::persist::load(&forged, Tol::witness()) {
         Err(error) => {
             let said = error.to_string();
             assert!(
-                said.contains("whose copy only the product and export read"),
+                said.contains("which only the product and export read"),
                 "the load names the site: {said}"
             );
         }

@@ -78,10 +78,13 @@ fn a_spike_overhang_certifies_outright() {
     let found = errors(
         &body,
         &ContactRecords {
-            patches: vec![PatchContact {
-                face_a: post_top,
-                face_b: shelf_bottom,
-            }],
+            patches: vec![topo::Cited::new(
+                PatchContact {
+                    face_a: post_top,
+                    face_b: shelf_bottom,
+                },
+                topo::Cites::decided(0),
+            )],
             ..ContactRecords::default()
         },
     );

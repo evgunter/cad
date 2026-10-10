@@ -365,12 +365,10 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let top = common::asm::in_part(post, &bench.post_top);
     common::insert_into(
         &mut asm,
-        Node::Measure {
-            primitive: MeasurePrimitive::Distance {
-                a: SitedRef::new(post, top.clone()),
-                b: SitedRef::new(post, top),
-            },
-        },
+        Node::measure(&MeasurePrimitive::Distance {
+            a: SitedRef::new(post, top.clone()),
+            b: SitedRef::new(post, top),
+        }),
         tol,
     );
     let path = Workspace::open(&bench.dir)

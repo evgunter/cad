@@ -19,34 +19,39 @@ use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
-    AssertionRelation, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula,
-    FreeVar, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, VarName, apply, load, save,
+    AssertionRelation, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
+    MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    VarName, apply, load, save,
 };
 use geom_core::Tol;
 
-/// Two datum points, so the measure's references name nodes that
-/// EXIST — the insert door checks that, and a wire fixture must pass
-/// the same doors a real document does. Nothing here is evaluated:
-/// these rows are about the wire.
-fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
+/// Two blocks, so the measure's references read bodies that EXIST — the
+/// insert door checks that, and a wire fixture must pass the same doors
+/// a real document does. Nothing here is evaluated: these rows are
+/// about the wire. Answers the document and the two blocks.
+fn two_named_nodes(doc: &ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let mut doc = doc.clone();
-    for x in [0.0, 1.0] {
-        doc = apply(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Box::new(Node::Datum(Datum::Point {
-                    position: [len(x), len(0.0), len(0.0)],
-                })),
-                fresh: Vec::new(),
+    let mut blocks = Vec::new();
+    for x in [0.0, 2.0] {
+        let (d, profile) = crate::fixture::on_frame(
+            doc,
+            [x, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![crate::fixture::square(0.0, 0.0, 0.5)],
+        );
+        let (d, block) = crate::fixture::insert(
+            d,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+                side: editor_core::ExtrudeSide::Along,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("a datum point inserts")
-        .doc;
+        );
+        doc = d;
+        blocks.push(block);
     }
-    doc
+    (doc, [blocks[0], blocks[1]])
 }
 
 fn name(node: RecipeNodeId) -> SitedRef {
@@ -55,7 +60,7 @@ fn name(node: RecipeNodeId) -> SitedRef {
     SitedRef::at_mint(StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::OutputBody],
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
     })
 }
 
@@ -89,8 +94,8 @@ fn every_form() -> ProfileDoc {
     // reason the other three are — this fixture IS the populated wire
     // golden for the primitive table, so a primitive absent from it
     // round-trips under no test at all.
-    doc = two_named_nodes(&doc);
-    let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
+    let (doc, blocks) = two_named_nodes(&doc);
+    let refs = blocks.map(name);
     let (mut doc, measured) = crate::fixture::measure(
         doc,
         &[
@@ -148,7 +153,10 @@ fn every_form() -> ProfileDoc {
 /// last: two datum points come first so the references name live
 /// nodes.
 fn measure(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()[2]
+    doc.ids()
+        .into_iter()
+        .find(|id| matches!(doc.node(*id), Some(Node::Measure { .. })))
+        .expect("a measure")
 }
 
 fn assertion(doc: &ProfileDoc) -> RecipeNodeId {
@@ -159,14 +167,14 @@ fn assertion(doc: &ProfileDoc) -> RecipeNodeId {
 /// measure and therefore takes an `Angle` bound. One document proves
 /// the dimension rides the expression rather than being fixed per node.
 fn angular() -> ProfileDoc {
-    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-angle"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("m10-2-angle"), Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<editor_core::ProfileProgram>| {
         apply(d, e, Tol::witness(), &editor_core::RefusingReach)
             .expect("a valid edit applies")
             .doc
     };
-    doc = two_named_nodes(&doc);
-    let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
+    let (doc, blocks) = two_named_nodes(&doc);
+    let refs = blocks.map(name);
     let (mut doc, measured) =
         crate::fixture::measure(doc, &[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs);
     doc = push(

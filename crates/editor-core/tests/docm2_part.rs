@@ -466,7 +466,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let rounded = r.insert(Node::fillet(p1, len(RADIUS), vec![other_instance]));
     let ev = eval(&r.doc);
     match error_of(&ev, rounded) {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => assert!(
+        NodeErrorKind::SelectResolve { error, .. } => assert!(
             matches!(**error, ResolveError::Vanished { .. }),
             "the N5 arm the situation warrants: {error}"
         ),

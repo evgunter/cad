@@ -9,7 +9,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
-use pncad::document::{Datum, Dimension, DimensionError, Formula, Node, RecipeNodeId};
+use pncad::document::{Datum, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
 use pncad::select::SplitHalf;
@@ -286,8 +286,7 @@ pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
             direction,
         },
         DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame {
-            at: at.into(),
-            face,
+            face: Operand::select(at, vec![face]),
             spin,
         },
     })

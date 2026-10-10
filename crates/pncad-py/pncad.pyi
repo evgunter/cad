@@ -130,17 +130,15 @@ class EditError(PncadError):
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
       attribute carries one.
-    - `first` and `again` are POSITIONS in a node's name designation,
-      and `variant` decides what `first` means. On
-      `repeated_designation` (a shell's ordered `open` list) the two
-      are the entry's first occurrence and the position it is named
-      again. On `selection_not_canonical` (a blend's sorted selection)
-      `first` alone is the entry that does not sort strictly before
-      the one after it, and `again` is `None` — the break is between
-      that entry and its successor, so the second position is the
-      first plus one and is not carried. One position is one
-      attribute: a second int would be a second spelling of the same
-      thing, which the variant already distinguishes.
+    - `first` and `again` are POSITIONS in a selection's names, and
+      the fault (`fault`) decides what `first` means. On `repeated` (a
+      face set names a face twice) the two are the entry's first
+      occurrence and the position it is named again. On
+      `not_canonical` (an edge set out of sorted order) `first` alone
+      is the entry that does not sort strictly before the one after
+      it, and `again` is `None` — the break is between that entry and
+      its successor, so the second position is the first plus one and
+      is not carried.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -2124,13 +2122,17 @@ class MeasurePrimitive:
 
     @staticmethod
     def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
-        """The distance between two referenced entities — a length. A
-        carrier pair the v1 closed forms have no arm for refuses at
-        `evaluate` (`measure_unsupported`), naming the pair."""
+        """The distance between two referenced entities — a length.
+        Each reference names a face, an edge or a vertex (another kind
+        refuses `slot_var_kind` at insert). A carrier pair the v1
+        closed forms have no arm for refuses at `evaluate`
+        (`measure_unsupported`), naming the pair."""
 
     @staticmethod
     def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
-        """The angle between two referenced entities — an angle."""
+        """The angle between two referenced entities — an angle. Each
+        reference names a face or an edge (another kind refuses
+        `slot_var_kind` at insert)."""
 
     @staticmethod
     def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
@@ -2139,8 +2141,8 @@ class MeasurePrimitive:
 
         Each reference's entity kind is its face scope: a body
         reference selects every face of that body, a face reference
-        selects the one. An edge or a vertex refuses at `evaluate`
-        (`measure_selection_kind`).
+        selects the one. An edge or a vertex refuses when the measure is
+        inserted (`slot_var_kind`).
 
         At the `f64` scalar this library evaluates at, the measure has
         NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
@@ -2157,7 +2159,9 @@ class MeasurePrimitive:
         the containing carrier (the socket, the bore, the plane the
         offset is measured from) and `inner` the contained one. C5's
         formulas are asymmetric in exactly that way, so the roles are
-        authored rather than inferred from which radius is larger."""
+        authored rather than inferred from which radius is larger. Each
+        reference names a face (another kind refuses `slot_var_kind` at
+        insert)."""
 
     @property
     def verb(self) -> str:
@@ -2356,8 +2360,8 @@ class Node:
         u-reference, right-handed. There is no default: pass
         `0 * rad` to take the u-reference unturned.
 
-        Refuses typed at `evaluate`, never here — `face_frame_resolve`
-        for a name that stopped denoting, `face_frame_kind` for an
+        Refuses typed at `evaluate`, never here — `select_resolve`
+        for a name that stopped denoting, `select_kind` for an
         edge or vertex name, `face_frame_not_planar` for a curved
         carrier, `face_frame_readback` for unreadable geometry.
         """
@@ -2642,16 +2646,20 @@ class Node:
         they are different questions.
 
         These references ARE recipe edges, unlike a boolean's declared
-        pairs and `Node.mate`'s names: a measure consumes the values it
-        names, so deleting a referenced node is accepted and reported
-        as a `strand` on the measure, like any other reader's.
+        pairs and `Node.mate`'s names: each is a selection of the named
+        node's body (or, for a whole body, a read of it), so deleting a
+        referenced node is accepted and reported on the measure
+        (`stranded_read` and `stranded_selection`), like any other
+        reader's.
 
-        Nothing is pre-checked here: a name that no longer resolves
-        (`measure_ref_resolve`), a carrier pair with no v1 closed form
-        (`measure_unsupported`), a `min_clearance` handed an edge
-        (`measure_selection_kind`) and a non-finite result
-        (`measure_non_finite`) are the kernel's own typed refusals at
-        `evaluate`."""
+        What each primitive reads is checked at insert: `distance` a
+        face, an edge or a vertex, `angle` a face or an edge,
+        `min_clearance` a body or a face, `gap` a face; any other
+        refuses `slot_var_kind`. The rest are the kernel's own typed
+        refusals at `evaluate`: a name that no longer resolves
+        (`select_resolve`), a carrier pair with no v1 closed form
+        (`measure_unsupported`) and a non-finite result
+        (`measure_non_finite`)."""
 
     @staticmethod
     def assertion(value: _SlotArg, relation: AssertionRelation, bound: Formula) -> Node:
@@ -3621,19 +3629,21 @@ class DocEdit:
         program that does not close, replay or validate."""
 
     @staticmethod
-    def rebind(from_name: str, to_name: str) -> DocEdit:
-        """Repair a stored name: rewrite every document site that
-        references `from_name` EXACTLY to reference `to_name`.
+    def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:
+        """Repair a stored name, addressed by body and name: with `body`
+        (`Doc.output(node)`), rewrite every selection of that body that
+        names `from_name` EXACTLY to name `to_name`; with no body, every
+        site no selection holds (a declaration's pairs, a mate's heads,
+        an appearance key).
 
-        THE name repair, and the only one. A selection is stored as a
-        stable name — a fillet's edges, a chamfer's, a shell's open
-        faces, a declaration's pairs — and an upstream edit can leave
-        one denoting something else or nothing at all. This says what
-        it now denotes, ONCE: no alias table persists and nothing
-        follows automatically, so a second name needing the same
-        repair is a second edit. Each rewritten site re-canonicalizes
-        as its own node would — a blend selection is a set, a shell's
-        designation an ordered list that drops a repeat.
+        THE name repair, and the only one. A selection stores stable
+        names — a fillet's edges, a chamfer's, a shell's open faces —
+        and an upstream edit can leave one denoting something else or
+        nothing at all. This says what it now denotes, ONCE: no alias
+        table persists and nothing follows automatically, so a second
+        name needing the same repair is a second edit. Each rewritten
+        selection re-canonicalizes as its kind does — an edge set
+        re-sorts, a face set drops a repeat.
 
         Neither half keeps the kernel's bare word (`from` is a Python
         keyword), so both take the role suffix, as
@@ -6272,6 +6282,11 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    A `stranded_selection` is the same loss in a selection: a selection
+    that survived the edit names `name`, whose referent the edit took.
+    `node` is the selection's first reader, which refuses at evaluation
+    until `DocEdit.rebind` with `body=` the selection's body repairs it.
+
     A `stranded_read` names, on `node`, a node whose operand reads an
     output the delete removed with its operation: the delete is legal,
     and the node refuses `unresolved_read` at evaluation until the
@@ -6285,7 +6300,8 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`offset_cleared`, `strand`, `stranded_read`,
-        `stranded_appearance`, or `label_dropped`."""
+        `stranded_selection`, `stranded_appearance`, or
+        `label_dropped`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
@@ -6950,7 +6966,8 @@ class Coincidence:
     `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    `battery_joint`, `battery_support_axis` or `profile_junction`. A
+    `battery_joint`, `battery_support_axis`, `profile_junction`,
+    `vertex_fusion`, `census_at_rest` or `import_anchor`. A
     `profile_junction` row is `tangent` or `cusp` between two carriers
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
