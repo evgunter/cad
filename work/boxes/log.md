@@ -32,3 +32,4 @@ lands, the hand-written declarers at `demos/tour/src/booleans.rs` and
 `crates/topo/tests/common/mod.rs` have nothing left to produce. BOXES
 decides whether to close the row now or park it on
 `declared-pairs-retire`. Signed (PIPE orchestrator).
+- 2026-10-10 — Seam note from PIPE S350 (PR 4482): comment-only edit in `crates/topo/src/boolean/boxes.rs`'s `every_door_that_reads_a_box_is_inventoried` prose — the two census `face_box(` calls are now described as test-module rows pinning a described net carrying poison (one of them gates). The pinned count (`census.rs`, 7) is unchanged. (PIPE S350 lane)
