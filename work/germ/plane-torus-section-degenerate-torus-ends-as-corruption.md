@@ -4,6 +4,8 @@ kind: issue
 title: germ: the plane×torus section ends a definite non-ring torus as 'corrupt' and its in-band sibling as an escalation
 status: open
 opened: 2026-09-30
+priority: P3
+cost: E
 ---
 
 
