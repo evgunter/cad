@@ -840,3 +840,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Still flagged at 1e-12 only: 8 × `bool_circle_torus_root_slack`, 1 × `_meridian`, 1 × HONE's sphere-region slack. All are pure rounding, identical at every ε. A tighter bound clears only 2 of 8.
   - The k-lint nightly cannot run at all (P1 filed: `tint/probe-sweep-prepass-reds-on-assemble-one-local-battery`).
   - The design fork goes to the designer pair. Problem statement sha256 `318410049819`, with no candidate options (the designers are told to skip the item's Options section). Blinding byte 10, so A = Opus and B = Fable, recorded on `analysis/design-fork/germ-klint-rounding-margins`. Both designers run as local subagents.
+- 2026-10-10 19:00 — The k-lint design fork is in. Both designers agree:
+  - the root-slack rows are bounds, not coincidences, which calls for a kernel bound door with the kind recorded and the lint deriving it;
+  - the meridian wants a zero-side ceiling on rule 2.
+  `[ev]` PR 4567 is open (design-fork row 108, A/B only; the mapping is on `analysis/design-fork/germ-klint-rounding-margins`) and subscribed. Ev's answer arrives as PR comments. Disclosure in the PR: one designer read the item's option section.
