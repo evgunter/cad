@@ -388,16 +388,47 @@ impl CurvePlan {
     /// length. The refusal then flows through every hull the caller
     /// reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
+        self.apply_ratios(old, Interval::refused(), |x, y, r| {
+            convex_step(x, y, r.lo, r.hi, r.inserted)
+        })
+    }
+
+    /// **The same homogeneous schedule at the caller's scalar**, for a
+    /// caller generic over [`Real`] that refines a homogeneous channel
+    /// (`w`, or one coordinate of `w·P`): each step is
+    /// `β·x + α·y` with `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ`
+    /// taken in `T` from the knots, so at `Interval` both ratios are
+    /// outward-rounded enclosures and the result encloses the refined
+    /// channel of the described curve, with no `f64` ratio standing in.
+    /// It has no hull meet, which `Real` cannot spell, so at `Interval`
+    /// it is the looser of the two: a caller that holds `Interval`
+    /// channels uses [`CurvePlan::apply_certified`].
+    ///
+    /// Total: a ratio-less step (elevation, removal), a malformed plan
+    /// or a short channel yields `T`'s poison (`from_f64(NaN)`) in the
+    /// targets it reaches.
+    pub fn apply_homogeneous<T: Real>(&self, old: &[T]) -> Vec<T> {
+        self.apply_ratios(old, T::from_f64(f64::NAN), |x, y, r| {
+            let (lo, hi, u) = (T::from_f64(r.lo), T::from_f64(r.hi), T::from_f64(r.inserted));
+            let span = hi - lo;
+            x * ((hi - u) / span) + y * ((u - lo) / span)
+        })
+    }
+
+    /// The fold both homogeneous appliers are: `Carry` copies, a ratio
+    /// step combines through `step`, and a ratio-less step, a malformed
+    /// plan or a short channel leaves `refused` in its target.
+    fn apply_ratios<P: Copy>(&self, old: &[P], refused: P, step: impl Fn(P, P, Ratio) -> P) -> Vec<P> {
         let n_new = self.knots.control_count();
-        let mut new: Vec<Option<Interval>> = vec![None; n_new];
-        let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
+        let mut new: Vec<Option<P>> = vec![None; n_new];
+        let fetch = |new: &[Option<P>], s: Src| -> Option<P> {
             match s {
                 Src::Old(i) => old.get(i).copied(),
                 Src::New(i) => new.get(i).copied().flatten(),
             }
         };
-        for step in &self.steps {
-            match *step {
+        for plan_step in &self.steps {
+            match *plan_step {
                 Step::Carry { target, from } => {
                     if target < n_new {
                         new[target] = old.get(from).copied();
@@ -412,18 +443,14 @@ impl CurvePlan {
                 } => {
                     if target < n_new {
                         new[target] = match (fetch(&new, x), fetch(&new, y), ratio) {
-                            (Some(cx), Some(cy), Some(r)) => {
-                                Some(convex_step(cx, cy, r.lo, r.hi, r.inserted))
-                            }
+                            (Some(cx), Some(cy), Some(r)) => Some(step(cx, cy, r)),
                             _ => None,
                         };
                     }
                 }
             }
         }
-        new.into_iter()
-            .map(|slot| slot.unwrap_or_else(Interval::refused))
-            .collect()
+        new.into_iter().map(|slot| slot.unwrap_or(refused)).collect()
     }
 }
 
