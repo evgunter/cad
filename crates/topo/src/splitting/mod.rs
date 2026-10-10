@@ -719,7 +719,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 relation: crate::Relation::OnCarrier,
                 site: crate::DecisionSite::SplitOn,
                 margin,
-                discharge: crate::Discharge::Numeric,
+                discharge: crate::Discharge::of(margin),
             });
         }
         insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;

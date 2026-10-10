@@ -46,6 +46,19 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
         .to_vec()
 }
 
+/// The door's proof of each of `node`'s `rows`, given in its decision
+/// order.
+fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Vec<Proof> {
+    coincide::prove(doc, &[(node, rows)], Tol::witness())
+        .pop()
+        .expect("one node asked")
+}
+
+/// The door's proof of `row`, as the first of `node`'s rows at its site.
+fn proof(doc: &ProfileDoc, node: RecipeNodeId, row: &NamedCoincidence) -> Proof {
+    proofs(doc, node, core::slice::from_ref(row)).remove(0)
+}
+
 fn entity(input: RecipeNodeId, name: &StableName) -> NamedCell {
     NamedCell::Entity {
         input,
@@ -99,7 +112,7 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         geom_core::MarginKind::Value,
         "the declared reading's own margin, never a synthetic one"
     );
-    let Proof::Unproven { residual, .. } = coincide::prove(&doc, row) else {
+    let Proof::Unproven { residual, .. } = proof(&doc, union, row) else {
         panic!("the same-construction rung proves a declared glue of two extrudes")
     };
     assert!(
@@ -223,7 +236,7 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
         entity(below, &wall(below, 0.25)),
     ]);
     assert_eq!(
-        coincide::prove(&doc, &halves),
+        proof(&doc, split, &halves),
         Proof::Structural(Rung::SameConstruction),
         "the two pieces of one placed wall"
     );
@@ -233,7 +246,7 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
         entity(above, &wall(above, 0.75)),
     ]);
     assert!(
-        matches!(coincide::prove(&doc, &across), Proof::Unproven { .. }),
+        matches!(proof(&doc, split, &across), Proof::Unproven { .. }),
         "an unplaced wall and its placed copy are two constructions"
     );
 }
@@ -333,7 +346,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         entity(again, &top_at(again, 3.5)),
     ]);
     assert_eq!(
-        coincide::prove(&doc, &one),
+        proof(&doc, again, &one),
         Proof::Structural(Rung::SameConstruction),
         "one instance read twice"
     );
@@ -341,7 +354,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         entity(first, &top_at(first, 3.5)),
         entity(second, &top_at(second, 6.5)),
     ]);
-    let Proof::Unproven { residual, .. } = coincide::prove(&doc, &two) else {
+    let Proof::Unproven { residual, .. } = proof(&doc, second, &two) else {
         panic!("two instances are two placements")
     };
     let [Ok(a), Ok(b)] = &residual.constructions else {
@@ -351,7 +364,9 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     assert_ne!(a.placed, b.placed, "placed by two instances");
     assert_eq!(
         residual.to_string(),
-        "the two cells are one construction placed apart"
+        "the two cells are one construction placed apart; the replay with every variable a \
+         symbol took other decisions there",
+        "a row no node decided matches no row of the replay"
     );
 }
 
@@ -418,8 +433,10 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
                 "{cell:?} is a requested rim edge of the box"
             );
         }
-        assert!(matches!(coincide::prove(&doc, row), Proof::Unproven { .. }));
     }
+    let t = std::time::Instant::now();
+    let got_proofs = proofs(&doc, fillet, &got);
+    eprintln!("MITRE {:?} {got_proofs:#?}", t.elapsed());
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
 
@@ -600,7 +617,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         (Relation::SameOpposite, DecisionSite::PlaneLadder)
     );
     assert_eq!(
-        coincide::prove(&doc, row),
+        proof(&doc, union, row),
         Proof::Structural(Rung::SameConstruction),
         "both caps lie on the one tool plane"
     );
@@ -612,10 +629,10 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     };
     assert_eq!(a.origin, coincide::Origin::Datum(tool));
     assert_eq!(a, b);
-    for row in &got {
+    for proof in proofs(&doc, union, &got) {
         assert!(
-            matches!(coincide::prove(&doc, row), Proof::Structural(_)),
-            "every row of the reunion is one construction: {row:?}"
+            matches!(proof, Proof::Structural(_)),
+            "every row of the reunion is one construction: {proof:?}"
         );
     }
     let report = editor_core::run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
@@ -916,10 +933,10 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
             "a joint names the disc's two rim edges: {row:?}"
         );
     }
-    assert!(
-        got.iter()
-            .all(|row| matches!(coincide::prove(&doc, row), Proof::Unproven { .. }))
-    );
+    assert!(got.iter().zip(proofs(&doc, fillet, &got)).all(|(_, p)| {
+        eprintln!("DISC {p:?}");
+        matches!(p, Proof::Unproven { .. })
+    }));
     let findings = unproven(&doc, &ev);
     assert_eq!(findings.len(), 4, "{findings:?}");
     let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
@@ -990,4 +1007,155 @@ fn a_union_records_a_vertex_touch_once() {
             .count()
     };
     assert_eq!(at(pair), at(union), "{findings:#?}");
+}
+
+#[test]
+#[ignore = "probe"]
+fn probe_mitre_at_sym() {
+    use geom_core::sym::deferred;
+    use geom_core::{Sym, SymBudget, SymRules};
+    let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let ev = run(&doc);
+    let corners = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.5], [0.0, 1.5]];
+    let rim = |z: f64| -> Vec<StableName> {
+        (0..4)
+            .map(|i| {
+                let (p, q) = (corners[i], corners[(i + 1) % 4]);
+                edge_named(&ev, the_box, [p[0], p[1], z], [q[0], q[1], z])
+            })
+            .collect()
+    };
+    let edges: Vec<StableName> = [rim(0.0), rim(1.0)].concat();
+    let (doc, fillet) = insert(doc, Node::fillet(the_box, len(0.1), edges.clone()));
+    let opts = editor_core::EvalOptions {
+        symbols: true,
+        profile_lift: editor_core::ProfileLift::Guided,
+        ..editor_core::EvalOptions::default()
+    };
+    let t = std::time::Instant::now();
+    let ((), counts) = deferred::with_deferred_session(
+        SymBudget {
+            max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+        },
+        SymRules::shipped(),
+        if std::env::var_os("NORETRY").is_some() {
+            geom_core::SymRetry::none()
+        } else {
+            editor_core::drive::DEFAULT_SYM_RETRY
+        },
+        || {
+            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
+                &doc,
+                None,
+                &editor_core::CancelToken::new(),
+                &opts,
+                Tol::witness(),
+            );
+            eprintln!("replay {:?}", t.elapsed());
+            let rows = ev.value(fillet).expect("fillet").coincidences.to_vec();
+            for r in &rows {
+                let t = std::time::Instant::now();
+                let d = deferred::discharge(r.margin);
+                eprintln!(
+                    "{:?} {:?} {:?} {:?}",
+                    r.site,
+                    d,
+                    t.elapsed(),
+                    deferred::dag_size(r.margin)
+                );
+            }
+            for f in deferred::render(rows[0].margin) {
+                eprintln!("FORM {f}");
+            }
+        },
+    );
+    eprintln!("total {:?} {counts:?}", t.elapsed());
+}
+
+/// **The door binds every variable a symbol of its own; the analysis
+/// lane binds an untoleranced one as its value**
+/// (`unproven-coincidence-lint-binds-every-variable-as-a-symbol`). The
+/// declared rest above stands a plate on a block whose height and the
+/// plate's floor are two variables typed to one metre: the lint
+/// reports the row (that test), and here the two environments read
+/// their difference. In the analysis lane's environment both are the
+/// constant 1, so the difference decides Zero as a theorem; in the
+/// door's they are two symbols, so it decides Zero only by value.
+#[test]
+fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbols_to_the_door()
+{
+    use editor_core::analysis::{ParamBox, var_env_over, var_env_symbolic};
+    use editor_core::{FreeVar, ParamValue};
+    use geom_core::{Band, Decide, Sym, SymBudget};
+    let doc = ProfileDoc::empty_derived("coincide-two-metres", Tol::witness());
+    let (doc, _) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
+    let metres: Vec<editor_core::VarId> = doc
+        .free_vars()
+        .filter_map(|(id, free)| match *free {
+            FreeVar::Continuous { value, .. } if value == 1.0 => Some(id),
+            _ => None,
+        })
+        .collect();
+    assert!(metres.len() >= 2, "the block's height and the plate's floor: {metres:?}");
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let difference = |env: &editor_core::VarEnv<Sym<f64>>| {
+        let value = |id| match env.bindings.get(id) {
+            Some(ParamValue::Continuous { value, .. }) => *value,
+            other => panic!("{id:?} binds {other:?}"),
+        };
+        let decided = (value(&metres[0]) - value(&metres[1]))
+            .sign_within(band)
+            .expect("a difference of nothing decides");
+        (decided.sign, decided.margin.theorem())
+    };
+    let budget = SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let ((analysis, door), _) = geom_core::sym::with_session(budget, || {
+        let over = var_env_over::<Sym<f64>, _>(&doc, &ParamBox::from_axes(Default::default()))
+            .expect("the nominal box binds");
+        let symbolic = var_env_symbolic::<Sym<f64>, _>(&doc).expect("every variable binds");
+        (difference(&over), difference(&symbolic))
+    });
+    assert_eq!(
+        analysis,
+        (geom_core::Sign::Zero, Some(geom_core::Theorem::SymbolicZero)),
+        "the analysis lane reads two constants 1 and their difference is the zero polynomial"
+    );
+    assert_eq!(
+        door,
+        (geom_core::Sign::Zero, None),
+        "the door reads two symbols: Zero at the values, no theorem"
+    );
+}
+
+/// **A formula's constant is exact at `Sym`**: `Ratio::eval` embeds
+/// its numerator and denominator and divides, and the symbolic tier
+/// holds the quotient as the rational it is, so `(1/3)·3 − 1` and
+/// `(1/10)·10 − 1` are the zero polynomial, where `f64` rounds both
+/// quotients.
+#[test]
+fn a_ratio_evaluates_exactly_at_sym() {
+    use geom_core::{Band, Decide, Sym, SymBudget};
+    let band = Band::linear(Tol::witness()).expect("a band");
+    let budget = SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (theorems, _) = geom_core::sym::with_session(budget, || {
+        [(1, 3), (1, 10), (-7, 6)].map(|(num, den)| {
+            let ratio = editor_core::Ratio::new(num, den).expect("in range");
+            let whole = editor_core::Ratio::new(num, 1).expect("in range");
+            let back = ratio.eval::<Sym<f64>>() * editor_core::Ratio::new(den as i64, 1)
+                .expect("in range")
+                .eval::<Sym<f64>>()
+                - whole.eval::<Sym<f64>>();
+            back.sign_within(band).expect("decides").margin.theorem()
+        })
+    });
+    assert_eq!(theorems, [Some(geom_core::Theorem::SymbolicZero); 3]);
 }

@@ -1107,7 +1107,7 @@ fn row(
         relation,
         site,
         margin,
-        discharge: topo::Discharge::Numeric,
+        discharge: topo::Discharge::of(margin),
     }
 }
 

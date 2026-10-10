@@ -215,10 +215,21 @@ pub(super) fn plane_ladder<T: Decide>(
 
     // Rung 2: definite-different by geometry. Parallelism first.
     let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
-    match decide("bool_plane_parallel", parallel_margin, band) {
-        Ok(Sign::Positive) => return Ok((PlaneRelation::Distinct, ContactVerdict::Definite, None)),
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Negative) => {
+    // The offset's Zero below decides one plane only with this one, so
+    // the row's margin stands for both.
+    let parallel = match decide_reported("bool_plane_parallel", parallel_margin, band) {
+        Ok(Decided {
+            sign: Sign::Positive,
+            ..
+        }) => return Ok((PlaneRelation::Distinct, ContactVerdict::Definite, None)),
+        Ok(Decided {
+            sign: Sign::Zero,
+            margin,
+        }) => margin,
+        Ok(Decided {
+            sign: Sign::Negative,
+            ..
+        }) => {
             // A norm cannot be definitely negative — poisoned input.
             return Err(unreadable_norm(band));
         }
@@ -228,7 +239,7 @@ pub(super) fn plane_ladder<T: Decide>(
                 diag,
             });
         }
-    }
+    };
     // Parallel (within band): orientation sign from the normal dot
     // (definite by construction when the cross is ~0 and both unit),
     // metered at the caller's lever arm — a unit·unit cosine is
@@ -269,7 +280,11 @@ pub(super) fn plane_ladder<T: Decide>(
         Ok(Decided {
             sign: Sign::Zero,
             margin,
-        }) => Ok((relation, ContactVerdict::Definite, Some(margin))),
+        }) => Ok((
+            relation,
+            ContactVerdict::Definite,
+            Some(margin.jointly(parallel)),
+        )),
         Err(coincidence) => Err(PlaneEqError::Undecided {
             coincidence,
             relation,

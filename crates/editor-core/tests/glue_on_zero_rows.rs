@@ -61,7 +61,10 @@ fn an_undeclared_flush_rest_glues_and_records_one_unproven_row() {
         (Relation::SameOpposite, DecisionSite::PlaneLadder)
     );
     assert!(
-        matches!(coincide::prove(&doc, &rows[0]), Proof::Unproven { .. }),
+        matches!(
+            coincide::prove(&doc, &[(union, &rows[..])], Tol::witness())[0][0],
+            Proof::Unproven { .. }
+        ),
         "two constructions, no proof"
     );
 }

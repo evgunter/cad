@@ -1383,10 +1383,16 @@ impl Evaluation {
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
+        let proofs = d::coincide::prove(
+            &self.doc,
+            &[(node.0, &*value.coincidences)],
+            Tol::witness(),
+        );
         value
             .coincidences
             .iter()
-            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row)))
+            .zip(proofs.into_iter().flatten())
+            .map(|(row, proof)| Coincidence::new(py, row, &proof))
             .collect()
     }
 
@@ -2700,8 +2706,9 @@ impl Coincidence {
         self.site
     }
 
-    /// The door's rung that proved it structural (`same_construction`), or
-    /// `None`: the door does not prove it structural.
+    /// The door's rung that proved it structural (`same_construction`,
+    /// `carrier_verdict` or `margin_identity`), or `None`: the door does
+    /// not prove it structural.
     #[getter]
     fn rung(&self) -> Option<&'static str> {
         self.rung

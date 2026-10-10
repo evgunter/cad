@@ -185,7 +185,7 @@ pub use zip::take_shared_points;
 // arm in one function, shared by verify-at-use and the detector's
 // candidate-generation mode BY CONSTRUCTION.
 pub use carrier_pair::{
-    PairFace, PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+    PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation,
 };
 pub(crate) use contact_verify::rest_pair_reading;
@@ -5356,7 +5356,7 @@ fn tangent_row(
         },
         site: crate::DecisionSite::TangentWitness,
         margin,
-        discharge: crate::Discharge::Numeric,
+        discharge: crate::Discharge::of(margin),
     }
 }
 
@@ -5398,7 +5398,7 @@ fn verify_one_carrier_declaration<T: Decide>(
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
-            discharge: crate::Discharge::Numeric,
+            discharge: crate::Discharge::of(margin),
         }))
     };
     match outcome {

@@ -6972,8 +6972,10 @@ class Coincidence:
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
     opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
-    it structural (`same_construction`), or `None`, and then `residual` says
-    what separates the two constructions."""
+    it structural (`same_construction`, `carrier_verdict` or
+    `margin_identity`), or `None`, and then `residual` says what separates
+    the two constructions and what the replay with every variable a
+    symbol made of the row."""
 
     @property
     def cells(self) -> list[tuple[NodeId, Optional[str]]]: ...

@@ -1018,8 +1018,38 @@ impl<T: crate::real::Real> InfSpeed<T> {
 /// assert_eq!(d.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(5e-10));
 /// assert_eq!(format!("{:e}", d.margin), "5e-10");
 /// ```
+///
+/// **Beside the reading, the symbolic tier's verdict on a Zero**
+/// ([`MarginDiag::theorem`]): where `Sym` decided the margin identically
+/// zero (ERROR-DESIGN E12), the kind of theorem that decided it. It
+/// carries no number, and every other lane leaves it `None`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MarginDiag(Reading);
+pub struct MarginDiag(Reading, Option<Zero>);
+
+/// The symbolic tier's word on a Zero reading: proved, or left on a
+/// deferring session's list ([`crate::sym::deferred`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Zero {
+    Proven(Theorem),
+    Deferred(u32),
+}
+
+/// **How the symbolic tier proved a margin zero** (ERROR-DESIGN E12):
+/// a theorem about the expression the `Sym` lane saw, true at every
+/// value of its symbols where the construction takes the decisions it
+/// took. Ordered strongest first, so a decision several Zeros back
+/// discharges as the weakest of them ([`MarginDiag::jointly`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Theorem {
+    /// The margin's form is the zero polynomial, no value read.
+    SymbolicZero,
+    /// The form is zero through a sign read over the leaf's box (rule
+    /// C's fold): conditional on that sign.
+    SignGated,
+    /// The form is zero because a constructor registered two of its
+    /// nodes as one real, verified at its witness when registered.
+    Registered,
+}
 
 /// The private reading of a [`MarginDiag`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1391,18 +1421,18 @@ pub enum MissSource {
 
 impl MarginDiag {
     /// A poisoned margin.
-    pub const INVALID: Self = Self(Reading::Invalid);
+    pub const INVALID: Self = Self(Reading::Invalid, None);
 
     /// The reading of a point margin, as `f64` classification mints it.
     #[must_use]
     pub const fn value(m: f64) -> Self {
-        Self(Reading::Value(m, None))
+        Self(Reading::Value(m, None), None)
     }
 
     /// The reading of an enclosure, as interval classification mints it.
     #[must_use]
     pub const fn enclosure(lo: f64, hi: f64) -> Self {
-        Self(Reading::Enclosure { lo, hi, tag: None })
+        Self(Reading::Enclosure { lo, hi, tag: None }, None)
     }
 
     /// Which shape this reading has.
@@ -1439,11 +1469,65 @@ impl MarginDiag {
     /// [`MarginDiag::rejected_sign`] reads.
     pub(crate) const fn rejected_by(self, sign: Sign, passes: SizedPass) -> Self {
         let tag = Some(Rejection { sign, passes });
-        Self(match self.0 {
-            Reading::Value(m, _) => Reading::Value(m, tag),
-            Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
-            Reading::Invalid => Reading::Invalid,
-        })
+        Self(
+            match self.0 {
+                Reading::Value(m, _) => Reading::Value(m, tag),
+                Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
+                Reading::Invalid => Reading::Invalid,
+            },
+            self.1,
+        )
+    }
+
+    /// This reading, decided Zero by the symbolic tier as `how`.
+    pub(crate) const fn proven(self, how: Theorem) -> Self {
+        Self(self.0, Some(Zero::Proven(how)))
+    }
+
+    /// This reading, a Zero left at `index` on a deferring session's
+    /// list.
+    pub(crate) const fn deferred_at(self, index: u32) -> Self {
+        Self(self.0, Some(Zero::Deferred(index)))
+    }
+
+    /// **The theorem that decided this margin Zero**, where the symbolic
+    /// tier proved it identically zero as the decision was taken; `None`
+    /// where it was decided numerically, was not decided Zero, or was
+    /// left for a reader to discharge ([`crate::sym::deferred::discharge`]).
+    #[must_use]
+    pub const fn theorem(self) -> Option<Theorem> {
+        match self.1 {
+            Some(Zero::Proven(how)) => Some(how),
+            Some(Zero::Deferred(_)) | None => None,
+        }
+    }
+
+    /// The deferring session's entry this reading stands for.
+    pub(crate) fn pending(self) -> Option<crate::sym::deferred::Pending> {
+        use crate::sym::deferred::{Pending, entry};
+        match self.1? {
+            Zero::Proven(how) => Some(Pending::Proven(how)),
+            Zero::Deferred(index) => entry(index),
+        }
+    }
+
+    /// **This reading, standing for a decision `other` was a Zero of
+    /// too**: the reading is this one's, and it is a theorem only where
+    /// both are, of the weaker kind. A decision several Zeros back (two
+    /// carriers one when each of their data is) is proved only when
+    /// every one of them is.
+    #[must_use]
+    pub fn jointly(self, other: Self) -> Self {
+        let zero = match (self.1, other.1) {
+            (Some(Zero::Proven(a)), Some(Zero::Proven(b))) => Some(Zero::Proven(a.max(b))),
+            (Some(_), Some(_)) => self
+                .pending()
+                .zip(other.pending())
+                .and_then(|(a, b)| crate::sym::deferred::join(a, b))
+                .map(Zero::Deferred),
+            _ => None,
+        };
+        Self(self.0, zero)
     }
 
     /// The sign the classifier decided, where this reading is a gate's

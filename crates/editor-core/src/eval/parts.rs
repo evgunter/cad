@@ -533,6 +533,9 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// RUN, so a referenced document must be elaborated the way its
     /// instantiator is being elaborated.
     profile_lift: super::ProfileLift,
+    /// Whether the run binds every variable a symbol
+    /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
+    symbols: bool,
     entries: Mutex<Rows<T>>,
     /// How many referenced documents this cache's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
@@ -558,9 +561,16 @@ impl<'a, T: Decide> PartCache<'a, T> {
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             profile_lift,
+            symbols: false,
             entries: Mutex::new(reached.0),
             evaluations: AtomicUsize::new(0),
         }
+    }
+
+    /// This cache, its descents binding every variable a symbol where
+    /// `symbols`.
+    pub(crate) fn with_symbols(self, symbols: bool) -> Self {
+        Self { symbols, ..self }
     }
 
     /// How many referenced-document evaluations ran at or below this
@@ -701,6 +711,9 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
             seed: None,
+            // Inherited: it names no variable, and a part's variables
+            // are symbols wherever the instantiating run's are.
+            symbols: self.symbols,
         };
         let evaluation = super::evaluate_nested::<T>(
             doc,

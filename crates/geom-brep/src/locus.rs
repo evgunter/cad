@@ -4,12 +4,12 @@
 //! a named row through `dihedral::decide`.
 
 use geom::Surface;
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
-    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, decide_across_reported,
+    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel_reported, decide_across_reported,
     parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing, plane_cylinder_ruled,
 };
 
@@ -198,16 +198,28 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
-            match cylinder_axes_parallel(reach, (*o1, *a1), (*o2, *a2), band).map_err(escalate)? {
-                Sign::Zero => {}
-                Sign::Positive | Sign::Negative => {
+            // Each tangency below is one only with the axes parallel, so
+            // its margin stands for both.
+            let parallel = match cylinder_axes_parallel_reported(
+                reach,
+                (*o1, *a1),
+                (*o2, *a2),
+                band,
+            )
+            .map_err(escalate)?
+            {
+                Decided {
+                    sign: Sign::Zero,
+                    margin,
+                } => margin,
+                Decided { .. } => {
                     return Err(TangentLocusError::Unsupported {
                         what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
                                axes (the generator line); skew/crossing axes are outside \
                                the lane",
                     });
                 }
-            }
+            };
             let ParallelAxes {
                 foot1,
                 d_vec: w,
@@ -222,7 +234,7 @@ pub fn tangent_locus<T: Decide>(
                     let w_hat = w.normalize();
                     return Ok(TangentLocus::Line {
                         origin: foot1 + w_hat * *r1,
-                        gap,
+                        gap: gap.jointly(parallel),
                         dir: *a1,
                     });
                 }
@@ -285,7 +297,7 @@ pub fn tangent_locus<T: Decide>(
                     };
                     Ok(TangentLocus::Line {
                         origin: foot1 + w_hat * (sign * *r1),
-                        gap,
+                        gap: gap.jointly(parallel),
                         dir: *a1,
                     })
                 }

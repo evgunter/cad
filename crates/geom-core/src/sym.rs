@@ -1038,6 +1038,10 @@ use crate::tolerance::Tol;
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+/// The deferring session: decisions taken numerically, the Zeros a
+/// reader asks about discharged afterwards.
+#[path = "sym/deferred.rs"]
+pub mod deferred;
 /// The seam pins: the discharge vocabulary's spellings held against
 /// one another, one row per seam.
 #[cfg(test)]
@@ -2558,6 +2562,10 @@ struct Session {
     plain_built: Vec<SymId>,
     plain_atoms: Vec<u128>,
     plain_frozen: Vec<SymId>,
+    /// **The Zeros a deferring session left for later**
+    /// ([`with_deferred_session`]): `None` in every other session, which
+    /// discharges each decision as it is taken.
+    deferred: Option<Vec<deferred::Pending>>,
     /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
     /// counted over their closure ([`leaf_need`]). A SET and not a
     /// list: one decision asks for one root many times over a leaf
@@ -2725,6 +2733,7 @@ impl Session {
             plain_built: Vec::new(),
             plain_atoms: Vec::new(),
             plain_frozen: Vec::new(),
+            deferred: None,
             plain_roots: IdSet::default(),
             foreign: IdSet::default(),
             plain_unpublished: IdSet::default(),
@@ -4365,6 +4374,18 @@ enum Discharge {
     Registered,
 }
 
+impl Discharge {
+    /// The kind as the margin it decided carries it
+    /// ([`crate::MarginDiag::theorem`]).
+    const fn theorem(self) -> crate::Theorem {
+        match self {
+            Self::Theorem => crate::Theorem::SymbolicZero,
+            Self::SignGated => crate::Theorem::SignGated,
+            Self::Registered => crate::Theorem::Registered,
+        }
+    }
+}
+
 #[cfg(any(test, feature = "probe"))]
 impl Discharge {
     /// **Every discharge kind, once** — the roster the seam pins
@@ -5277,6 +5298,10 @@ impl<T: Decide> Decide for Sym<T> {
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
+        if let Some(deferred) = deferred::defer(self.node, numeric) {
+            count_decision(None);
+            return deferred;
+        }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
         let definitely_nonzero = matches!(
             &numeric,
@@ -5370,7 +5395,7 @@ impl<T: Decide> Decide for Sym<T> {
             };
             return Ok(Decided {
                 sign: Sign::Zero,
-                margin,
+                margin: margin.proven(how.theorem()),
             });
         }
         // The shape report wants the residual that BLOCKED — rendered
