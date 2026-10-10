@@ -2,11 +2,12 @@
 id: cone-pairs-in-general-pose-have-no-section-arm
 kind: issue
 title: Cone × cylinder and cone × cone in general pose refuse on reach at the section certificate; the ruling reduction makes them tractable
-status: open
+status: review
 opened: 2026-09-28
 priority: P2
 cost: M
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+branch: germ/cone-pairs-general-pose
 ---
 
 ## What
