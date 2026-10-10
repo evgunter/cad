@@ -237,6 +237,10 @@ fn assert_placed(s: &Scene, f: &Fused, what: &str) {
 /// **A union placed over two transforms of a mated instance**: each
 /// mate reads the block's cap at its own transform, which no placement
 /// reads, so neither mints; read at the union instead, both do (A1(c)).
+/// The union's copy rests on both slabs where the mates seated it, and
+/// with nothing declared the at-rest census reports each seat as an
+/// unattributed contact: a mate read below a placed consumer states
+/// nothing about the product.
 #[test]
 fn a1a_mates_read_at_the_transforms_below_a_placed_union_mint_nothing() {
     let s = scene("msolve13-a1a");
@@ -245,6 +249,16 @@ fn a1a_mates_read_at_the_transforms_below_a_placed_union_mint_nothing() {
     let ev = run(&f.doc, &s.opts);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m2);
+    match gate(&f.doc, &ev) {
+        Err(AssemblyError::AtRest { findings }) => assert!(
+            !findings.is_empty()
+                && findings
+                    .iter()
+                    .all(|f| matches!(f.attribution, editor_core::Attribution::Unattributed)),
+            "A1(a): each seat is an unattributed contact: {findings:?}"
+        ),
+        other => panic!("A1(a): the undeclared seats refuse at rest, got {other:?}"),
+    }
 }
 
 // ---- A1 (b): a transform above the operand ----
