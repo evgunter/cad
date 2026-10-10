@@ -2,7 +2,9 @@
 id: spiric-bounded-face-area-is-unimplemented
 kind: issue
 title: A face bounded by a Curve3::Spiric has no area or volume lane: loop_vector_area and the torus wall's closed-form parse refuse Unimplemented, which is where the hollowed klein elbow and the sectioned torus vessel now stop
-status: open
+status: review
+pr: 4554
+branch: flux/spiric-area
 priority: P2
 cost: H
 refs: [c5-plane-torus-cone-cylinder-arms]
