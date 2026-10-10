@@ -1549,14 +1549,12 @@ pub fn drive(
 /// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
 fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
     doc.ids().iter().copied().find(|&id| {
-        let Some(Node::Measure { expr, .. }) = doc.node(id) else {
-            return false;
-        };
-        let mut prims = Vec::new();
-        expr.primitives(&mut prims);
-        prims
-            .iter()
-            .any(|p| matches!(p, crate::measure::MeasurePrimitive::MinClearance { .. }))
+        matches!(
+            doc.node(id),
+            Some(Node::Measure {
+                primitive: crate::measure::MeasurePrimitive::MinClearance { .. }
+            })
+        )
     })
 }
 

@@ -781,12 +781,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
-            "tree.rs",
-            ".usable(",
-            "`asserted` reads the dimension of a measure its assertion's verdict already \
-             compared, so the measure stands `Ok` by construction",
-        ),
-        (
             "features.rs",
             ".usable(",
             "a unit test's premise: reads the measure's payload to name the reason it expects, \

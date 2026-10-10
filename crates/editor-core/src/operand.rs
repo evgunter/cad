@@ -111,8 +111,6 @@ pub enum OperandSlot {
     Input,
     /// What a part projection picks from.
     Of,
-    /// The measure an assertion bounds.
-    Measure,
     /// The body a face frame reads its face out of.
     At,
     /// The body a world placement places.
@@ -137,7 +135,6 @@ impl OperandSlot {
             Self::Members => "members".to_owned(),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
-            Self::Measure => "measure".to_owned(),
             Self::At | Self::Body => "body".to_owned(),
         }
     }
@@ -155,7 +152,6 @@ impl OperandSlot {
             }
             Self::Members => SlotKind::Is(VarKind::Bodies),
             Self::Input | Self::Of => SlotKind::Placeable,
-            Self::Measure => SlotKind::Measured,
         }
     }
 }
@@ -171,33 +167,25 @@ impl core::fmt::Display for OperandSlot {
 /// expression in a scalar slot lowers to a read of.
 ///
 /// A scalar slot and an operand seat that holds one kind are
-/// [`SlotKind::Is`]. Two operand seats admit a set of kinds:
+/// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
-/// one body or a list of them), and [`SlotKind::Measured`] is the
-/// scalar kinds — those with a [`VarKind::dimension`] — of a variable a
-/// measure defines (an operation's output), which is what an assertion
-/// bounds.
+/// one body or a list of them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
     Is(VarKind),
     /// `Body` or `Bodies`.
     Placeable,
-    /// A scalar kind, of a variable an operation defines: a measure's
-    /// value.
-    Measured,
 }
 
 impl SlotKind {
-    /// Whether `var` may sit here: its kind, and for a measured seat
-    /// that an operation defines it.
+    /// Whether `var` may sit here, by its kind.
     #[must_use]
     pub fn admits(self, var: &crate::Var) -> bool {
         let kind = var.kind();
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
-            Self::Measured => kind.dimension().is_some() && var.def().output().is_some(),
         }
     }
 }
@@ -207,7 +195,6 @@ impl core::fmt::Display for SlotKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
-            Self::Measured => f.write_str("a measured value"),
         }
     }
 }

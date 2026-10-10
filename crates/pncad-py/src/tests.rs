@@ -170,9 +170,8 @@ fn var_kind_tags_are_stable() {
     );
 }
 
-/// What an operand slot admits is a kind's own word, or one of two
-/// words of its own: the placers' `placeable` and the assertion's
-/// `measured`.
+/// What an operand slot admits is a kind's own word, or the one word
+/// of its own: the placers' `placeable`.
 #[test]
 fn slot_kind_tags_are_stable() {
     use pncad::document::{SlotKind, VarKind};
@@ -181,8 +180,8 @@ fn slot_kind_tags_are_stable() {
         var_kind_tag(VarKind::Frame)
     );
     assert_eq!(
-        [SlotKind::Placeable, SlotKind::Measured].map(crate::errors::slot_kind_tag),
-        ["placeable", "measured"]
+        crate::errors::slot_kind_tag(SlotKind::Placeable),
+        "placeable"
     );
 }
 
@@ -293,7 +292,6 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Enforce => "CheckRefusal",
             ErrorClass::Distribution => "DistributionFault",
             ErrorClass::Measure => "MeasureUnavailable",
-            ErrorClass::MeasureNode => "MeasureNodeFault",
             ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
@@ -335,7 +333,6 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Enforce,
         ErrorClass::Distribution,
         ErrorClass::Measure,
-        ErrorClass::MeasureNode,
         ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
@@ -481,43 +478,8 @@ fn the_measure_verb_vocabulary_is_stable() {
 
     // A gap's pair is (outer, inner) and NOT re-sorted — C5's formulas
     // are asymmetric in the roles, so the order is authored data.
-    assert_eq!(gap.refs(), [6, 7]);
-    assert_eq!(distance.refs(), [0, 1]);
-}
-
-/// LIB-B-MEASURES: the construction door's refusal, from the door.
-///
-/// `Node::measure` is called with an index past the end of the
-/// reference list, so the fault is the kernel's answer rather than a
-/// named variant — the shape `analysis_refusal_tags_are_stable` uses
-/// one family over.
-#[test]
-fn the_measure_node_fault_tag_is_stable() {
-    use crate::tags::measure_node_fault_tag;
-    use pncad::document::{
-        MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ProfileProgram, RecipeNodeId,
-        SitedRef,
-    };
-    use pncad::prelude::StableName;
-    use pncad::select::{EntityKind, RoleSeg};
-
-    let one_reference = vec![SitedRef::at_mint(StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId::new(0, 0),
-        path: vec![RoleSeg::OutputBody],
-    })];
-    let fault = Node::<ProfileProgram>::measure(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        one_reference,
-    )
-    .expect_err("reference 1 of a one-reference measure names nothing");
-    assert_eq!(measure_node_fault_tag(&fault), "ref_index_out_of_range");
-    let MeasureNodeFault::RefIndexOutOfRange { verb, index, refs } = fault;
-    assert_eq!((verb, index, refs), ("distance", 1, 1));
-    // The message is prose, which is what `typed_err` asserts on every
-    // raise — pinned here so the Python class's human half is checked
-    // on the build path that has no interpreter.
-    assert!(crate::errors::reads_as_prose(&fault.to_string()));
+    assert_eq!(gap.refs(), [&6, &7]);
+    assert_eq!(distance.refs(), [&0, &1]);
 }
 
 /// LIB-B-MEASURES: the two refusals the FOURTH verb adds, and the
@@ -2527,7 +2489,6 @@ fn node_error_tags_are_the_published_words() {
         MeasureNonFinite => "measure_non_finite",
         MeasureNotParallel => "measure_not_parallel",
         MeasureUnsupported => "measure_unsupported",
-        MeasureMalformed => "measure_malformed",
         PayloadExpr => "payload_expr",
         MeasureSelectionKind => "measure_selection_kind",
         MeasureClearanceRefused => "measure_clearance_refused",
@@ -2784,8 +2745,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocumentId,
-        EditError as E, Frame, FreeValue, MeasureNodeFault, MetaVersionError, RecipeNodeId, SlotId,
-        StepId, StepIdFault, VarName,
+        EditError as E, Frame, FreeValue, MetaVersionError, RecipeNodeId, SlotId, StepId,
+        StepIdFault, VarName,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2929,13 +2890,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::UpdateOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
-    carries(
-        &E::AssertionTarget {
-            node: sp(1),
-            measure: sp(2),
-        },
-        &["node", "input"],
-    );
     // ---- operands ----
     use pncad::document::{Operand, OperandSlot, SlotKind, VarKind};
     carries(
@@ -2995,9 +2949,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
-    let twice = E::AssertionTarget {
+    let twice = E::GaugeNotLive {
         node: sp(4),
-        measure: sp(9),
+        gauge: sp(9),
     };
     let payload = edit_payload(&twice);
     assert_eq!(payload.node, Some(id(4)));
@@ -3034,11 +2988,10 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::AssertionDimension {
             node: sp(1),
-            measure: sp(2),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["node", "input", "expected", "found"],
+        &["node", "expected", "found"],
     );
 
     // `expected`/`found` are the slot's kind and the offered DIMENSION,
@@ -3300,17 +3253,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
             )),
-        },
-        &["node"],
-    );
-    carries(
-        &E::MeasureMalformed {
-            node: sp(1),
-            fault: MeasureNodeFault::RefIndexOutOfRange {
-                verb: "distance",
-                index: 5,
-                refs: 0,
-            },
         },
         &["node"],
     );
@@ -5140,7 +5082,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "appearance_not_set",
             "appearance_wrong_kind",
             "assertion_dimension",
-            "assertion_target",
+            "construction_reads_observed",
             "continuous_var_cannot_be_count",
             "declare_names_missing_node",
             "declared_name_not_upstream",
@@ -5171,7 +5113,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "label_unchanged",
             "loft_sections_spelled",
             "mate_refused",
-            "measure_malformed",
             "measures_world_copy",
             "meta_non_finite",
             "meta_not_set",
@@ -5251,7 +5192,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "mate_fault_tag",
-            "measure_node_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
@@ -5524,11 +5464,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
-        function: "measure_node_fault_tag",
-        values: &["ref_index_out_of_range"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "measure_unavailable_at_tag",
         values: &["needs_enclosure"],
         delegates: &[],
@@ -5641,7 +5576,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_under",
             "mate_unleverable",
             "measure_clearance_refused",
-            "measure_malformed",
             "measure_non_finite",
             "measure_not_parallel",
             "measure_ref_resolve",
@@ -5720,7 +5654,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrude_error_tag",
             "interrogate_error_tag",
             "loft_error_tag",
-            "measure_node_fault_tag",
             "naming_error_tag",
             "node_error_tag",
             "param_attach_error_tag",
@@ -5780,8 +5713,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "at", "axis", "body", "cut", "frame", "from", "input", "measure", "member", "members",
-            "of", "path", "profile", "section", "target", "tool",
+            "at", "axis", "body", "cut", "frame", "from", "input", "member", "members", "of",
+            "path", "profile", "section", "target", "tool",
         ],
         delegates: &[],
     },
@@ -6215,7 +6148,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "anonymous_var_unread",
             "assertion_bound",
-            "assertion_target",
             "declared_name_not_upstream",
             "definition_cycle",
             "definition_reads_unminted_var",
@@ -6226,7 +6158,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "input_list",
             "label_on_missing_node",
             "mate_alignment",
-            "measure_refs",
             "measures_world_copy",
             "metadata_unversioned",
             "mint_log_order",
@@ -6234,6 +6165,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
+            "observed_read",
             "operand_unminted",
             "output_signature",
             "part_half_port",
@@ -6635,7 +6567,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("assertion_target", 2),
     ("band", 16),
     ("body", 2),
     ("cap_plane", 3),
@@ -6718,7 +6649,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
-    ("measure_malformed", 2),
     // One fact at the edit and load doors: a measure sited at a world
     // placement.
     ("measures_world_copy", 2),
@@ -8345,7 +8275,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 36,
+        literals: 35,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
             holds: "the 36 class names, against a SECOND exhaustive match, so a new \
@@ -8470,10 +8400,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "slot_kind_tag",
-        literals: 2,
+        literals: 1,
         held_by: &[Holder::Test {
             name: "slot_kind_tags_are_stable",
-            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
+            holds: "its own word, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {

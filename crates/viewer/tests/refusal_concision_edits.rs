@@ -22,8 +22,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
     DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MeasureNodeFault, MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName,
-    SpokenNode, StableName, StepIdFault, VarName,
+    MetaVersionError, NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode, StableName,
+    StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -305,30 +305,19 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "MeasureMalformed",
-            EditError::MeasureMalformed {
-                node: s(5, "Measure"),
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
-                },
-            },
-        ),
-        (
-            "AssertionTarget",
-            EditError::AssertionTarget {
-                node: s(6, "Assertion"),
-                measure: s(5, "Extrude"),
-            },
-        ),
-        (
             "AssertionDimension",
             EditError::AssertionDimension {
                 node: s(6, "Assertion"),
-                measure: s(5, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
+            },
+        ),
+        (
+            "ConstructionReadsObserved",
+            EditError::ConstructionReadsObserved {
+                node: s(5, "Extrude"),
+                slot: SlotId::Distance,
+                var: Box::new(spoken_var()),
             },
         ),
         (
@@ -1118,7 +1107,6 @@ const LABELS: &[(&str, &str)] = &[
         "PlacedUnion \"base plate\"",
     ),
     ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
-    ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",

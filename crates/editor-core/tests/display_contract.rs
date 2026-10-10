@@ -18,12 +18,12 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
     DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeasureNodeFault,
-    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route,
-    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
-    StepSegmentsError, UnnamedEntity, VarName,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeshPickError,
+    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
+    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
+    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -939,14 +939,10 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::AssertionDimension {
             node: held(5, "Assertion"),
-            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &[
-            "bounds Measure 000000000004, which measures a length",
-            "with an angle expression",
-        ],
+        &["bounds a length value", "with an angle expression"],
         &dumps,
     );
     assert_f6(
@@ -1081,20 +1077,22 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &SnapshotError::AssertionBound {
             node: held(5, "Assertion"),
-            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["bounds Measure 000000000004, which measures a length, with an angle expression"],
+        &["bounds a length value with an angle expression"],
         &dumps,
     );
     assert_f6(
-        &SnapshotError::AssertionTarget {
-            node: held(5, "Assertion"),
-            measure: held(4, "Extrude"),
-            bound: Dimension::Count,
+        &SnapshotError::ObservedRead {
+            node: held(5, "Extrude"),
+            slot: editor_core::SlotId::Distance,
+            var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
         },
-        &["carries a count bound", "which is not a measure"],
+        &[
+            "slot distance reads",
+            "a measured value, which only an assertion reads",
+        ],
         &dumps,
     );
 }
@@ -1136,10 +1134,9 @@ test_utils::f6_variants! {
         PlacementNonRigid,
         MateAlignment,
         PlacementRule,
-        MeasureRefs,
         InputList,
-        AssertionTarget,
         AssertionBound,
+        ObservedRead,
         MetadataUnversioned,
         StepIds,
         MintLogOrder,
@@ -1182,8 +1179,8 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`PlacementRuleFault`, `MeasureNodeFault`,
-/// `InputFault`, `MetaVersionError`) rather than restating it, and the
+/// (`PlacementRuleFault`, `InputFault`, `MetaVersionError`) rather
+/// than restating it, and the
 /// two placement-frame arms forward the frame rule's clause — so each
 /// case below asks for the payload's words, which is what proves the
 /// forwarding happened.
@@ -1570,17 +1567,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
-            SnapshotError::MeasureRefs {
-                node: held(5, "Measure"),
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "distance",
-                    index: 3,
-                    refs: 2,
-                },
-            },
-            vec!["Measure 000000000005: ", "reads reference 3"],
-        ),
-        (
             SnapshotError::InputList {
                 node: held(5, "Shell"),
                 fault: ListFault::RepeatedDesignation { first: 0, again: 2 },
@@ -1591,27 +1577,20 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::AssertionTarget {
-                node: held(5, "Assertion"),
-                measure: held(4, "Measure"),
-                bound: Dimension::Count,
-            },
-            vec![
-                "Assertion 000000000005 carries a count bound against Measure 000000000004",
-                "which is not a measure",
-            ],
-        ),
-        (
             SnapshotError::AssertionBound {
                 node: held(5, "Assertion"),
-                measure: held(4, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
-            vec![
-                "Assertion 000000000005 bounds Measure 000000000004, which measures a length,",
-                "with an angle expression",
-            ],
+            vec!["Assertion 000000000005 bounds a length value with an angle expression"],
+        ),
+        (
+            SnapshotError::ObservedRead {
+                node: held(5, "Extrude"),
+                slot: editor_core::SlotId::Distance,
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+            },
+            vec!["Extrude 000000000005's slot distance reads"],
         ),
         (
             SnapshotError::MetadataUnversioned {
@@ -3692,29 +3671,21 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
         (
             EditError::AssertionDimension {
                 node: held(5, "Assertion"),
-                measure: held(4, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
-            vec![held(5, "Assertion"), held(4, "Measure")],
+            vec![held(5, "Assertion")],
         ),
         (
-            EditError::AssertionTarget {
-                node: held(5, "Assertion"),
-                measure: held(4, "Extrude"),
+            EditError::ConstructionReadsObserved {
+                node: held(5, "Extrude"),
+                slot: editor_core::SlotId::Distance,
+                var: Box::new(editor_core::SpokenVar::new(
+                    editor_core::VarId::new(0, 7),
+                    None,
+                )),
             },
-            vec![held(5, "Assertion"), held(4, "Extrude")],
-        ),
-        (
-            EditError::MeasureMalformed {
-                node: held(4, "Measure"),
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
-                },
-            },
-            vec![held(4, "Measure")],
+            vec![held(5, "Extrude")],
         ),
         (
             EditError::PayloadUnknownVarName {

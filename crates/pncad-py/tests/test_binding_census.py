@@ -588,6 +588,16 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The measure builder records one action and answers what it
+    # recorded: Python's `Doc.measure` is the builder and takes the
+    # outcome up in place, answering its `Measured`.
+    "measure": "Doc.measure",
+    "MeasureOutcome": "Doc.measure",
+    # A measured value outside an assertion is read through
+    # `Evaluation.reading`, which raises the refusal and the typed
+    # absence rather than answering them.
+    "Observed": "Evaluation.reading",
+    "ObservedRefusal": "Evaluation.reading",
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
     # door's proof as `rung` (`None` unproven) beside `residual`.
@@ -3287,7 +3297,10 @@ NOT_BOUND = {
     #     `MeasureExpr`, `MeasurePrimitive` and `AssertionDir` as the
     #     authoring vocabulary, and `MeasureNodeFault` and
     #     `MeasureUnavailableAt` as exception classes keeping their
-    #     Rust types' own names.
+    #     Rust types' own names. (INTENT stage 2 PR D retires
+    #     `MeasureExpr` and `MeasureNodeFault`: a measure holds one
+    #     primitive over its own references, and its arithmetic is a
+    #     formula.)
     #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
     #     `MinClearanceRefusal`, each argued at its own entry above.
     #     Neither is a debt any more and neither is reach: one is a
@@ -3667,8 +3680,7 @@ MEMBERS_BOUND_AS = {
     "EditError::NotStructuralSlot": "EditError.variant",
     "EditError::PayloadUnknownVarName": "EditError.variant",
     "EditError::PayloadVarKind": "EditError.variant",
-    "EditError::MeasureMalformed": "EditError.variant",
-    "EditError::AssertionTarget": "EditError.variant",
+    "EditError::ConstructionReadsObserved": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
     "EditError::SlotUnknownVarName": "EditError.variant",
     "EditError::SlotVarKind": "EditError.variant",
@@ -3805,7 +3817,6 @@ MEMBERS_BOUND_AS = {
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::OffsetDisagrees": "MateFault.variant",
     "MateFault::OffsetUnchecked": "MateFault.variant",
-    "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
@@ -4147,6 +4158,8 @@ MEMBERS_BOUND_AS = {
     "Evaluation::document": "Doc.id",
     "Evaluation::prior_refused": "Evaluation.reused",
     "Evaluation::nodes": "Evaluation.value",
+    # The run's variable bindings are what `reading` evaluates over.
+    "Evaluation::env": "Evaluation.reading",
     "Evaluation::outcome": "Evaluation.canceled",
     # The detector's finding: its pair crosses as two NAMES, its class
     # as the word, its evidence as the rung that carried it.

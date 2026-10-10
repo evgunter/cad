@@ -104,6 +104,17 @@
 //! worth making here. It is not a claim of parameter-level bit
 //! identity, and nothing in this file should be read as one.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN A MEASURE BECAME ONE PRIMITIVE**
+//! (INTENT stage 2 PR D), and through one document only.
+//! `measured_web`'s measure used to hold the web's arithmetic; it now
+//! holds the distance alone, and the web is an anonymous definition
+//! the assertion reads. The measure node's mint preimage moved with its
+//! shape (`tests/golden/mint_node_ids.txt`), so its id and the
+//! assertion's moved, and the measure's outcome is now the distance
+//! rather than the web. `lib_g16_corpus_name_digests` moved
+//! `measured_web`'s row and no other, and the id-masked geometry fence
+//! below did not move: no body's point moved anywhere.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -810,7 +821,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xe2fb_2c5c_c73d_31e2, 0xfce9_d09a_83d8_2f0e),
+        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -836,7 +847,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xa899_06fc_cfcb_c242, 0xa4f5_3051_a52c_e216),
+        (0xee4f_5451_968a_f210, 0x5d4d_eba3_ca25_5ccc),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -860,7 +871,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xe2fb_2c5c_c73d_31e2, 0xfce9_d09a_83d8_2f0e),
+        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -33,8 +33,8 @@ use std::time::Instant;
 use crate::corpus::Recorder;
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanCoincidence, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide,
-    MeasureExpr, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole,
+    BooleanCoincidence, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions,
+    ExtrudeSide, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole,
     ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf, StableName,
     StepId, VarId,
 };
@@ -682,16 +682,14 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let mut r = Recorder::new();
     let (block, split) = block_and_split(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(block, cap.clone()),
-                SitedRef::new(split, cap.clone()),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(block, cap.clone()),
+            SitedRef::new(split, cap.clone()),
+        ],
     );
+    let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);
     let said = failure_of(&r, measure);
     assert!(
         said.contains("this measure's reference 1 "),

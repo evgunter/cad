@@ -133,12 +133,11 @@ use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
-    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck,
-    ParseError, PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
-    ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
-    UpdateError,
+    Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
+    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -574,7 +573,6 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Members => "members",
         S::Input => "input",
         S::Of => "of",
-        S::Measure => "measure",
         S::At => "at",
         S::Body => "body",
     }
@@ -624,8 +622,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadVarKind { .. } => "payload_var_kind",
         EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
         EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
-        EditError::MeasureMalformed { .. } => "measure_malformed",
-        EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::ConstructionReadsObserved { .. } => "construction_reads_observed",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
@@ -788,25 +785,6 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
         McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
         McRefusal::NoSamples => "no_samples",
         McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
-    }
-}
-
-/// The stable tag for a measured expression the construction door
-/// refuses.
-///
-/// One arm today, and the tag exists anyway for the reason every tag
-/// here does: `ref_index_out_of_range` is what a caller branches on,
-/// and a second arm added kernel-side breaks this match rather than
-/// arriving in Python untagged.
-///
-/// The SAME fault reaches the edit door as
-/// `EditError::MeasureMalformed`, which carries its own tag
-/// (`measure_malformed`) because what refused there is the EDIT and
-/// the fault is its payload. Two tags for one fault, and they answer
-/// different questions: which door said no, and what was wrong.
-pub fn measure_node_fault_tag(fault: &MeasureNodeFault) -> &'static str {
-    match fault {
-        MeasureNodeFault::RefIndexOutOfRange { .. } => "ref_index_out_of_range",
     }
 }
 
@@ -978,7 +956,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        C::MeasureMalformed => "measure_malformed",
         // Its own tag rather than `measure_unsupported`'s: the
         // recourse is "select a body or a face", not "this carrier
         // pair has no closed form".
@@ -1267,7 +1244,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // kernel mints; neither is an arm of an enum this file can
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
-        NodeErrorKind::MeasureMalformed(inner) => Some(measure_node_fault_tag(inner)),
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
@@ -1286,7 +1262,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
 pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
     match err {
         EditError::ProfileProgramRefused { refusal, .. } => Some(program_refusal_tag(refusal)),
-        EditError::MeasureMalformed { fault, .. } => Some(measure_node_fault_tag(fault)),
         EditError::Dimension(inner) => Some(expr_dimension_error_tag(inner)),
         EditError::InvalidDistribution { fault, .. } => Some(distribution_fault_tag(fault)),
         // The direction door's refusal is a whole `NodeErrorKind`, so
@@ -1327,7 +1302,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SlotUnknownVarName { .. } => None,
         EditError::PayloadUnknownVarName { .. } => None,
         EditError::PayloadVarKind { .. } => None,
-        EditError::AssertionTarget { .. } => None,
+        EditError::ConstructionReadsObserved { .. } => None,
         EditError::AssertionDimension { .. } => None,
         EditError::SlotVarKind { .. } => None,
         EditError::ContinuousVarCannotBeCount { .. } => None,
@@ -2097,9 +2072,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
-        SnapshotError::MeasureRefs { .. } => "measure_refs",
         SnapshotError::InputList { .. } => "input_list",
-        SnapshotError::AssertionTarget { .. } => "assertion_target",
+        SnapshotError::ObservedRead { .. } => "observed_read",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
     }

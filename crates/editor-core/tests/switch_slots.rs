@@ -14,12 +14,12 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionDir, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame,
-    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    Alignment, AssertionDir, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula,
+    Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
+    NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, SplitHalf, Step,
+    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -852,11 +852,13 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
         },
         Node::Measure {
-            expr: MeasureExpr::value(len(1.0)),
-            refs: Vec::new(),
+            primitive: editor_core::MeasurePrimitive::Distance {
+                a: fixture::cap_ref(nid(1), editor_core::CapEnd::Start),
+                b: fixture::cap_ref(nid(1), editor_core::CapEnd::End),
+            },
         },
         Node::Assertion {
-            measure: nid(1).into(),
+            value: len(1.0),
             bound: len(1.0),
             dir: AssertionDir::AtLeast,
         },

@@ -29,8 +29,8 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId,
-    EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive, Node,
+    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit,
+    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasurePrimitive, Node,
     ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{ang, flush_pairs, fname, insert, len, wall};
@@ -285,16 +285,13 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             spin: ang(0.0),
         }),
     );
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(body, f4.clone()),
-                SitedRef::new(fillet, f0.clone()),
-            ],
-        )
-        .expect("both indices address a reference"),
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(body, f4.clone()),
+            SitedRef::new(fillet, f0.clone()),
+        ],
     );
     // Sited at the operands, as every pair must be, and naming the
     // victim's walls while the boolean reads the victim (D10: a pair

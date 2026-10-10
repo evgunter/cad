@@ -191,6 +191,12 @@ pub(crate) enum Walk {
     /// definition reading a deleted variable is legal, as a slot's
     /// reader is (VR7). Snapshot only.
     DefinitionRead,
+    /// [`Doc::observed_read_fault`](crate::Doc) over every construction's
+    /// slots (D10): none reads an observed variable — a measure's
+    /// output, or a definition reading one, directly or through
+    /// another — which only an assertion reads. The edit door's
+    /// `ConstructionReadsObserved`, asked of a file. Snapshot only.
+    ObservedRead,
     /// [`first_definition_cycle`] over the variable table (VR3): no
     /// definition reads its own variable back, and no variable's
     /// expansion outgrows [`crate::edit::DEFINITION_NODE_BOUND`].
@@ -252,13 +258,14 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 13] = [
+    pub(crate) const ORDER: [Walk; 14] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::OutputSignature,
         Walk::DefinitionRead,
+        Walk::ObservedRead,
         Walk::DefinitionCycle,
         Walk::SlotRead,
         Walk::PayloadRead,
@@ -303,6 +310,13 @@ impl Walk {
             Walk::DefinitionRead => {
                 first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
+            Walk::ObservedRead => snapshot.observed_read_fault().map(|(node, slot, var)| {
+                super::PersistError::Snapshot(SnapshotError::ObservedRead {
+                    node: snapshot.spoken(node),
+                    slot,
+                    var: snapshot.spoken_var(var),
+                })
+            }),
             Walk::DefinitionCycle => {
                 first_definition_cycle(snapshot).map(super::PersistError::Snapshot)
             }
@@ -1384,16 +1398,6 @@ pub enum SnapshotError {
         /// bound.
         nodes: usize,
     },
-    /// A measure node whose expression reads a reference the node does
-    /// not carry (E3). The expression indexes the reference list
-    /// positionally, so this is a corrupt file, not a stale reference:
-    /// `Rebind` cannot repair an index.
-    MeasureRefs {
-        /// The offending node.
-        node: SpokenNode,
-        /// What is wrong with it.
-        fault: crate::node::MeasureNodeFault,
-    },
     /// A node whose structural content is invalid (DM5): inputs that
     /// are not pairwise distinct, a LIST input holding fewer than two
     /// entries, or a name designation outside the canonical form its
@@ -1407,33 +1411,28 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::ListFault,
     },
-    /// An assertion whose reference is not a measure at all (E10):
-    /// there is no measured dimension for the bound to agree with. The
-    /// edit door refuses it, so a file carrying one is data the edit
-    /// door would never have produced.
-    AssertionTarget {
-        /// The offending assertion.
-        node: SpokenNode,
-        /// What it references.
-        measure: SpokenNode,
-        /// The bound's dimension.
-        bound: crate::expr::Dimension,
-    },
     /// An assertion whose bound is dimensioned differently from the
-    /// measure it constrains (E10) — the assertion compares two
-    /// different quantities. Its own arm rather than
-    /// [`SnapshotError::AssertionTarget`]: a reader should not have to
-    /// decode an absent dimension to tell a missing measure from a
-    /// mismatched one, and the repairs differ.
+    /// value it bounds (E10) — the assertion compares two different
+    /// quantities.
     AssertionBound {
         /// The offending assertion.
         node: SpokenNode,
-        /// The measure it constrains.
-        measure: SpokenNode,
-        /// What that measure yields.
+        /// The value's dimension.
         measured: crate::expr::Dimension,
         /// The bound's dimension.
         bound: crate::expr::Dimension,
+    },
+    /// A construction whose slot reads an observed variable (D10): a
+    /// measure's output, or a definition reading one. Only an assertion
+    /// reads one, and the edit door refuses the rest
+    /// (`EditError::ConstructionReadsObserved`).
+    ObservedRead {
+        /// The reading node.
+        node: SpokenNode,
+        /// Its slot.
+        slot: crate::node::SlotId,
+        /// The variable the slot reads.
+        var: crate::SpokenVar,
     },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
@@ -1493,7 +1492,7 @@ fn frame_refusal(
 
 // The document layer's prose for a corrupt snapshot: each arm states
 // WHAT is wrong and WHERE, and forwards the payload's own `Display`
-// wherever the payload has one (`RootFault`, `PlacementRuleFault`,
+// wherever the payload has one (`PlacementRuleFault`,
 // `MetaVersionError`) — a site that re-states a payload it holds
 // invents a second vocabulary for a refusal that already has one. A
 // node or a name renders through its spoken `Display` (`SpokenNode`,
@@ -1733,28 +1732,21 @@ impl core::fmt::Display for SnapshotError {
                  declared {declared}",
                 referenced.article()
             ),
-            Self::MeasureRefs { node, fault } => write!(f, "{node}: {fault}"),
             Self::InputList { node, fault } => write!(f, "{node}: {fault}"),
             Self::AssertionBound {
                 node,
-                measure,
                 measured,
                 bound,
             } => write!(
                 f,
-                "{node} bounds {measure}, which measures {} {measured}, with {} {bound} \
-                 expression",
+                "{node} bounds {} {measured} value with {} {bound} expression",
                 measured.article(),
                 bound.article()
             ),
-            Self::AssertionTarget {
-                node,
-                measure,
-                bound,
-            } => write!(
+            Self::ObservedRead { node, slot, var } => write!(
                 f,
-                "{node} carries {} {bound} bound against {measure}, which is not a measure",
-                bound.article(),
+                "{node}'s slot {} reads {var}, a measured value, which only an assertion reads",
+                slot.label()
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
@@ -1889,38 +1881,14 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault: fault.list_fault(),
             });
         }
-        // The measurement vocabulary's two structural re-checks, for
-        // the same reason the placement rule has one: a saved file is
-        // DATA, and both of these are refused at the edit door.
-        if let Some(fault) = node.measure_fault() {
-            return Err(SnapshotError::MeasureRefs {
+        // An assertion's bound against its value (E10), by the same
+        // `Node::assertion_bound_fault` the edit door asks: a saved
+        // file is DATA.
+        if let Some(AssertionBoundFault { measured, bound }) = node.assertion_bound_fault(doc) {
+            return Err(SnapshotError::AssertionBound {
                 node: doc.spoken(id),
-                fault,
-            });
-        }
-        // An assertion's bound against the measure it constrains
-        // (E10), by the same `Node::assertion_bound_fault` the edit
-        // door asks: the predicate needs the DOCUMENT, so it takes one,
-        // and this door only names its two answers.
-        if let Some(fault) = node.assertion_bound_fault(doc) {
-            return Err(match fault {
-                AssertionBoundFault::TargetNotMeasure { measure, bound } => {
-                    SnapshotError::AssertionTarget {
-                        node: doc.spoken(id),
-                        measure: doc.spoken(measure),
-                        bound,
-                    }
-                }
-                AssertionBoundFault::DimensionMismatch {
-                    measure,
-                    measured,
-                    bound,
-                } => SnapshotError::AssertionBound {
-                    node: doc.spoken(id),
-                    measure: doc.spoken(measure),
-                    measured,
-                    bound,
-                },
+                measured,
+                bound,
             });
         }
         // ASM-R2a D-1: a mate's alignment is authored numbers a
@@ -2169,6 +2137,7 @@ mod tests {
             Vars,
             OutputSignature,
             DefinitionRead,
+            ObservedRead,
             DefinitionCycle,
             SlotRead,
             PayloadRead,
@@ -2191,6 +2160,7 @@ mod tests {
             Walk::Vars
             | Walk::OutputSignature
             | Walk::DefinitionRead
+            | Walk::ObservedRead
             | Walk::DefinitionCycle
             | Walk::SlotRead
             | Walk::PayloadRead
@@ -2231,6 +2201,7 @@ mod tests {
             SharedVarNeedsName,
             DefinitionReadsUnmintedVar,
             DefinitionVarKind,
+            ObservedRead,
             DefinitionCycle,
             DefinitionTooLarge,
             EpsilonInvalid,
@@ -2241,9 +2212,7 @@ mod tests {
             PlacementNonRigid,
             MateAlignment,
             PlacementRule,
-            MeasureRefs,
             InputList,
-            AssertionTarget,
             AssertionBound,
             MetadataUnversioned,
         ];
@@ -2283,6 +2252,7 @@ mod tests {
             }
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
+            SnapshotError::ObservedRead { .. } => Walk::ObservedRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
                 Walk::DefinitionCycle
             }
@@ -2303,9 +2273,7 @@ mod tests {
             | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::MateAlignment { .. }
             | SnapshotError::PlacementRule { .. }
-            | SnapshotError::MeasureRefs { .. }
             | SnapshotError::InputList { .. }
-            | SnapshotError::AssertionTarget { .. }
             | SnapshotError::AssertionBound { .. }
             | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
         }
@@ -2486,28 +2454,19 @@ mod tests {
                 node: node(),
                 fault: crate::node::PlacementRuleFault::NoPlacements,
             },
-            SnapshotError::MeasureRefs {
-                node: node(),
-                fault: crate::node::MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "distance",
-                    index: 3,
-                    refs: 2,
-                },
-            },
             SnapshotError::InputList {
                 node: node(),
                 fault: crate::node::ListFault::SelectionNotCanonical { at: 1 },
             },
-            SnapshotError::AssertionTarget {
-                node: node(),
-                measure: at(4),
-                bound: Dimension::Count,
-            },
             SnapshotError::AssertionBound {
                 node: node(),
-                measure: at(4),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
+            },
+            SnapshotError::ObservedRead {
+                node: node(),
+                slot: crate::node::SlotId::Distance,
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
             SnapshotError::MetadataUnversioned {
                 name: crate::SpokenName::absent(face()),

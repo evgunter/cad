@@ -9,7 +9,7 @@
 use crate::fixture::{self, insert, len, on_frame_keeping, scl, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
-    Dimension, DocEdit, EditError, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
+    Dimension, DocEdit, EditError, Formula, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
     PatternKind, ProfileDoc, RecipeNodeId, SlotId, SlotKind, Took, VarKind, apply, load, save,
 };
 use geom_core::Tol;
@@ -713,25 +713,30 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
     println!("the families document: equal up to ids, reads as inputs");
 }
 
-/// **The slot door asks every check the insert door does** (DM6; review
-/// B's M1): an assertion over a length measure, re-pointed at an angle
-/// measure, refuses `AssertionDimension` at the slot door as the insert
-/// door refuses the same node — and so does saving the log that would
-/// carry it, which replays through that door. The two doors call one
-/// function of a written node, so neither admits what the other refuses.
+/// **No door re-points an assertion's value across dimensions** (DM6;
+/// review B's M1): the insert door refuses an assertion whose angle
+/// value meets a length bound `AssertionDimension`. The value is
+/// payload (D), so no slot addresses it, and the definition it reads is
+/// the one way it re-points. That door refuses the same re-point: a
+/// definition's kind is fixed (`VarKindFixed`). The log that would carry
+/// it does not save, because it replays through that door.
 #[test]
-fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
+fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     let mut r = fixture::Recorder::new();
-    let m_len = r.insert(Node::Measure {
-        expr: editor_core::MeasureExpr::value(len(1.0)),
-        refs: Vec::new(),
+    r.push(DocEdit::DeclareVar {
+        name: editor_core::VarName::from_static("x"),
+        def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(Dimension::Length, 0.5)),
     });
-    let m_ang = r.insert(Node::Measure {
-        expr: editor_core::MeasureExpr::value(fixture::ang(0.5)),
-        refs: Vec::new(),
-    });
+    let measure = r.measure_of_translation("x");
+    let out = r
+        .doc
+        .output(measure, 0)
+        .expect("a measure defines its value");
+    let measured = Formula::var(out, Dimension::Length);
+    let as_angle = Formula::atan2(measured.clone(), len(1.0)).unwrap();
+    let web = r.define("web", measured);
     let assertion = r.insert(Node::Assertion {
-        measure: m_len.into(),
+        value: Formula::var(web, Dimension::Length),
         bound: len(0.5),
         dir: editor_core::AssertionDir::AtLeast,
     });
@@ -739,7 +744,7 @@ fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
         &r.doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: m_ang.into(),
+                value: as_angle.clone(),
                 bound: len(0.5),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
@@ -757,24 +762,30 @@ fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
         ),
         "{by_insert:?}"
     );
-    let edit = DocEdit::SetParam {
-        node: assertion,
-        slot: SlotId::Operand(OperandSlot::Measure),
-        value: Operand::Node(m_ang).into(),
+    let edit = DocEdit::DefineVar {
+        var: web.into(),
+        def: editor_core::VarDecl::Defined(as_angle),
         fresh: Vec::new(),
     };
-    let by_slot = refused(&r.doc, edit.clone());
+    let by_definition = refused(&r.doc, edit.clone());
     assert!(
         matches!(
-            &by_slot,
-            EditError::AssertionDimension {
-                node,
-                measured: Dimension::Angle,
-                bound: Dimension::Length,
-                ..
-            } if node.id() == assertion
+            &by_definition,
+            EditError::VarKindFixed {
+                var,
+                kind: VarKind::Length,
+                offered: VarKind::Angle,
+            } if var.id() == web
         ),
-        "the slot door refuses what the insert door refuses: {by_slot:?}"
+        "the definition door refuses the re-point: {by_definition:?}"
+    );
+    assert_eq!(
+        r.doc.node(assertion).and_then(|n| match n {
+            Node::Assertion { value, .. } => Some(*value),
+            _ => None,
+        }),
+        Some(web),
+        "and the assertion still reads the length"
     );
     let mut log = r.edits.clone();
     log.push(edit);
@@ -785,7 +796,7 @@ fn the_slot_door_refuses_an_assertion_re_pointed_across_dimensions() {
             Tol::witness()
         )
         .is_err(),
-        "a log carrying the re-point does not save"
+        "a log carrying the re-definition does not save"
     );
 }
 
@@ -1337,19 +1348,13 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
             .next()
             .expect("a block has faces")
     };
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            vec![
-                editor_core::SitedRef::new(a, face(a)),
-                editor_core::SitedRef::new(b, face(b)),
-            ],
-        )
-        .expect("both indices address a reference"),
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::new(a, face(a)),
+            editor_core::SitedRef::new(b, face(b)),
+        ],
     );
     assert_eq!(
         doc.upstream(measure),

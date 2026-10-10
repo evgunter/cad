@@ -129,6 +129,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// the placements; no name a document held before says another word.
 /// Re-taken merged with main's blend change, whose die names it says.
 ///
+/// INTENT stage 2 PR D, merged over C: three words moved, all in
+/// `measured_web` — its placement's tag (`PlaceInWorld 57cd328e4061` is
+/// now `… 1d7dbb564bd2`), said three times. The placement is minted
+/// after the measure, whose preimage D changed. No other word moved.
+///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
 const SAID_DIGEST: u64 = 0xfa26dd1a1f6cedae;
