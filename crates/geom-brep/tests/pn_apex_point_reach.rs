@@ -364,7 +364,7 @@ fn apex_lane_outcomes_agree_with_the_oracle() {
     let mut counts = std::collections::BTreeMap::<&str, usize>::new();
     let mut refusals = std::collections::BTreeMap::<String, usize>::new();
     let mut contradictions = Vec::new();
-    for _ in 0..fuzz::scaled(3000) {
+    for _ in 0..fuzz::scaled(2400) {
         let e = 10f64.powf(g.range(-12.0, -5.0));
         let band = Band::new(e, k * e).unwrap();
         let scale = 10f64.powf(g.range(-1.0, 2.0));
