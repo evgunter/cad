@@ -483,7 +483,8 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
             },
         },
     );
-    fixture::built_bits(&eval(&doc), ring)
+    let ev = eval(&doc);
+    format!("{:?}", ev.value(ring).expect("the ring builds").payload)
 }
 
 /// **A `Meet`'s origin is a representative no reader sees** (the
@@ -533,10 +534,21 @@ fn a_fold_reaching_a_pose_family_refuses_naming_the_pair() {
         representative: Affine3::identity(),
     };
     let pose_families = [
-        (Subgroup::Spherical { point: Point3::origin() }, SubgroupFamily::Spherical),
-        (Subgroup::Parallel { direction: z }, SubgroupFamily::Parallel),
+        (
+            Subgroup::Spherical {
+                point: Point3::origin(),
+            },
+            SubgroupFamily::Spherical,
+        ),
+        (
+            Subgroup::Parallel { direction: z },
+            SubgroupFamily::Parallel,
+        ),
         (Subgroup::Translation, SubgroupFamily::Translation),
-        (Subgroup::PlaneTranslation { normal: z }, SubgroupFamily::PlaneTranslation),
+        (
+            Subgroup::PlaneTranslation { normal: z },
+            SubgroupFamily::PlaneTranslation,
+        ),
     ];
     let mate = (
         Subgroup::Cylindrical {

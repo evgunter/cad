@@ -128,7 +128,13 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// lists are equal. A blend, shell, face frame or measure now reads a
 /// selection its insert mints, so its id and every id minted after it
 /// in the seven documents that hold one moved.
-const SAID_DIGEST: u64 = 0x163c_215a_961e_d3a1;
+///
+/// INTENT stage 3 PR A: 5760 of 46614 words moved, every one a node
+/// tag — with each tag masked the two word lists are equal. A revolve
+/// writes its axis on itself rather than reading an in-plane axis
+/// datum, so every id minted after that datum in the revolving
+/// documents moved.
+const SAID_DIGEST: u64 = 0xa6c6_970b_5185_9af7;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
