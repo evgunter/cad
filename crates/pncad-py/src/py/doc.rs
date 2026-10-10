@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 26] {
+) -> [(&'static str, Py<PyAny>); 25] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -72,7 +72,6 @@ fn edit_fields(
         ("inner_variant", inner_variant(py, inner)),
         ("node", node(payload.node)),
         ("input", node(payload.input)),
-        ("referenced_by", node(payload.referenced_by)),
         ("slot", word(payload.slot)),
         ("param", word(payload.param.map(|p| p.as_str()))),
         (
@@ -1006,11 +1005,36 @@ impl Doc {
         label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
     ) -> Result<NodeId, d::EditError> {
+        self.minting(label, resolver, |action| action.insert(node))
+    }
+
+    /// `insert_node` for an insert spelled as its [`d::DocEdit`] — the
+    /// kernel's own sugar for one, `DocEdit::place`'s among them.
+    fn insert_edit(
+        &mut self,
+        edit: d::DocEdit<d::ProfileProgram>,
+        label: Option<d::Label>,
+    ) -> Result<NodeId, d::EditError> {
+        self.minting(label, None, |action| {
+            let minted = action.apply(edit)?;
+            Ok(minted.unwrap_or_else(|| unreachable!("an accepted insert mints a node")))
+        })
+    }
+
+    /// The shared tail: `insert` on a fresh action, then the label.
+    fn minting(
+        &mut self,
+        label: Option<d::Label>,
+        resolver: Option<&super::store::Workspace>,
+        insert: impl FnOnce(
+            &mut d::Recording<'_, d::ProfileProgram>,
+        ) -> Result<d::RecipeNodeId, d::EditError>,
+    ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
         let mut action = d::Recording::start(&self.inner, tol, &reach);
-        let id = action.insert(node)?;
+        let id = insert(&mut action)?;
         if let Some(label) = label {
             action.apply(d::DocEdit::SetLabel {
                 node: id,
@@ -1293,16 +1317,16 @@ impl Doc {
             .collect()
     }
 
-    /// The document's ordered **product roots** — what `product` and
-    /// `assemble` gather, in this order.
+    /// **The world placements**, in document order: the nodes whose
+    /// copies are the product — what `product` and `assemble` gather,
+    /// in this order.
     ///
-    /// Set through `DocEdit.set_roots`. Maintained automatically by
-    /// every other edit (inserting a node that consumes a root
-    /// transfers it), so a document always states its product rather
-    /// than leaving it to be inferred.
-    #[getter]
-    fn roots(&self) -> Vec<NodeId> {
-        self.inner.roots().iter().copied().map(NodeId).collect()
+    /// Written through `place` (or an inserted `Node.place_in_world`),
+    /// and through nothing else: no edit places or unplaces as a side
+    /// effect, so a body is in the product exactly when a placement
+    /// reads it.
+    fn placements(&self) -> Vec<NodeId> {
+        self.inner.placements().into_iter().map(NodeId).collect()
     }
 
     /// An instance's **offset** in its gauge (A11 (2)), or `None` when
@@ -1442,6 +1466,44 @@ impl Doc {
             .map_err(|err| edit_err(py, &err))
     }
 
+    /// **Insert measures** (ERROR-DESIGN E3, D10): one `Measure` node
+    /// per primitive, in order, as one action — all land or none does.
+    /// Answers a `Measured`: the measures and their outputs, the
+    /// observed values an assertion reads. Arithmetic over them is an
+    /// ordinary `Formula`: name an output (`DocEdit.rename_var`) and
+    /// write the arithmetic with `Doc.parse_formula`; an assertion reads
+    /// the formula, or `DocEdit.declare_var` names it.
+    ///
+    /// Exactly `insert(Node.measure(p))` per primitive, recorded as one
+    /// action and answered with the outputs, as `sketch_frame` is
+    /// `insert(Node.sketch_frame(...))`.
+    #[pyo3(signature = (primitives, *, resolver=None))]
+    fn measure(
+        &mut self,
+        py: Python<'_>,
+        primitives: Vec<super::measure::MeasurePrimitive>,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Measured> {
+        let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let measured = action
+            .measure(&primitives)
+            .map_err(|err| edit_err(py, &err))?;
+        let done = action.finish().map_err(|err| edit_err(py, &err))?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(Measured {
+            measures: measured.measures.into_iter().map(NodeId).collect(),
+            outputs: measured
+                .outputs
+                .into_iter()
+                .map(|out| Var::of(&self.inner, out))
+                .collect(),
+        })
+    }
+
     /// **Insert a sketch frame and return its id** — the one line a
     /// profile needs before it can name a plane.
     ///
@@ -1469,6 +1531,32 @@ impl Doc {
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
         self.insert(py, &node, label, None)
+    }
+
+    /// **Place one copy of `body` in the world** at `pose`, the
+    /// identity when `None`, and return the placement's id.
+    ///
+    /// The one door that puts a body in the product: nothing places as
+    /// a side effect, so a boolean of two placed bodies leaves both
+    /// placed and the boolean unplaced until it is placed here. The
+    /// edit is the Rust façade's `DocEdit::place`, the insert of
+    /// `Node.place_in_world(body, pose)`. A split's half is placed by
+    /// its output, `place(doc.output(split, 1))`.
+    ///
+    /// Two placements of one body are two copies. `label=` labels the
+    /// placement in the same call, as `insert`'s does.
+    #[pyo3(signature = (body, pose=None, *, label=None))]
+    fn place(
+        &mut self,
+        py: Python<'_>,
+        body: OperandArg,
+        pose: Option<super::place::Placement>,
+        label: Option<&str>,
+    ) -> PyResult<NodeId> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        Node::place_in_world(py, body, pose.clone())?;
+        self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
+            .map_err(|err| edit_err(py, &err))
     }
 
     /// The label a person gave `node`, or `None` when it has none.
@@ -2202,6 +2290,23 @@ fn loops_from_outline(
 #[derive(Clone)]
 pub(crate) struct Node {
     pub(crate) inner: d::AuthoredNode,
+}
+
+impl Node {
+    /// Each expression slot of `node` checked against the slot it
+    /// lands in, so a refusal names that slot.
+    fn check_slots(py: Python<'_>, node: &d::AuthoredNode) -> PyResult<()> {
+        for slot in node.slots() {
+            if let Some(expr) = node.expr(slot) {
+                slot_expr(
+                    py,
+                    slot,
+                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
+                )?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[pymethods]
@@ -2973,15 +3078,29 @@ impl Node {
         placement: &super::place::Placement,
     ) -> PyResult<Self> {
         let inner = d::Node::transform(input.read(), placement.0.clone());
-        for slot in inner.slots() {
-            if let Some(expr) = inner.expr(slot) {
-                slot_expr(
-                    py,
-                    slot,
-                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
-                )?;
-            }
-        }
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
+    }
+
+    /// **One copy of `body` in the world** at `pose`, the identity when
+    /// `None`: the operation whose output is a product copy. Inserting
+    /// it is `Doc.place`.
+    ///
+    /// The pose is a `Placement` chain, `Node.transform_by`'s, and each
+    /// rigid step's components are checked against the slot they land
+    /// in, as there.
+    #[staticmethod]
+    #[pyo3(signature = (body, pose=None))]
+    fn place_in_world(
+        py: Python<'_>,
+        body: OperandArg,
+        pose: Option<super::place::Placement>,
+    ) -> PyResult<Self> {
+        let inner = d::Node::place_in_world(
+            body.read(),
+            pose.map_or(d::Placement::IDENTITY, |pose| pose.0),
+        );
+        Self::check_slots(py, &inner)?;
         Ok(Self { inner })
     }
 
@@ -3228,8 +3347,8 @@ impl Node {
 
     /// A **gauge**: a frame other placements stand on (A11 (2)). It
     /// holds a `Placement` — rigid steps a document parameter can
-    /// drive, literal frames, or both — and denotes no body, so as a
-    /// product root it contributes nothing.
+    /// drive, literal frames, or both — and denotes no body, so
+    /// nothing can place it.
     ///
     /// `parent` is the gauge it sits on, `None` for the world; its
     /// frame is the parent's composed with `placement`. Instances name
@@ -3330,14 +3449,11 @@ impl Node {
             },
         })
     }
-    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
-    /// node that denotes no body and evaluates to a typed quantity.
-    ///
-    /// `expr` is the measured expression — `MeasureExpr`, whose leaves
-    /// are closed-form primitives over `refs` and ordinary document
-    /// expressions. `refs` is the reference list those primitives
-    /// index, IN ORDER, each a `(node, name)` pair: the entity's
-    /// stable name, and the node its carrier is READ AT.
+    /// **One measurement** (ERROR-DESIGN E3): a `Measure` node holds
+    /// one closed-form primitive and defines one observed scalar, its
+    /// output (`Doc.output(node)`), which only an assertion reads,
+    /// directly or through a definition. Arithmetic over measured
+    /// values is an ordinary `Formula` over the outputs.
     ///
     /// **The read site is the half that makes a measure report placed
     /// geometry.** A rigid transform is identity-preserving — the
@@ -3353,56 +3469,43 @@ impl Node {
     /// data dependencies, and deleting one is accepted and reported as
     /// a `strand` on the measure, like any other reader's.
     ///
-    /// Every index is checked HERE, through Rust's `Node::measure` —
-    /// the one construction door — so an expression whose leaf points
-    /// past the end of `refs` raises `MeasureNodeFault` where it is
-    /// written rather than at the `Doc.apply` after it. Nothing else
-    /// is pre-checked: a name that no longer resolves
+    /// Nothing is pre-checked here: a name that no longer resolves
     /// (`measure_ref_resolve`), a carrier pair with no v1 closed form
     /// (`measure_unsupported`), a `min_clearance` handed an edge
     /// (`measure_selection_kind`) and a non-finite result
     /// (`measure_non_finite`) are all the kernel's own typed refusals
     /// at `evaluate`.
     #[staticmethod]
-    fn measure(
-        py: Python<'_>,
-        expr: &super::measure::MeasureExpr,
-        refs: Vec<(NodeId, String)>,
-    ) -> PyResult<Self> {
-        let refs = refs
-            .iter()
-            .map(|(at, name)| Ok(d::SitedRef::new(at.0, name_from_text(name)?)))
-            .collect::<PyResult<Vec<_>>>()?;
-        d::Node::measure(expr.0.clone(), refs)
-            .map(|inner| Self { inner })
-            .map_err(|fault| super::measure::measure_node_fault_err(py, &fault))
+    fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
+        Self {
+            inner: d::Node::Measure {
+                primitive: primitive.0.clone(),
+            },
+        }
     }
 
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data, in the versioned recipe rather than in
     /// a script beside it.
     ///
-    /// `measure` is the `Node.measure` this constrains — an ordinary
-    /// DAG edge, so a failed or poisoned measure poisons the assertion
-    /// rather than producing a verdict about nothing. `dir` is which
-    /// side of `bound` the measurement must fall on, and `bound` is an
-    /// `Formula` from `Doc.parse_formula`.
+    /// `value` is the scalar this bounds: a measure's output
+    /// (`Doc.output(measure)`), `Doc.measure`'s `value`, or any formula
+    /// or variable — a variable at its own kind's dimension, anything
+    /// else at the bound's. A failed or poisoned
+    /// measure under it poisons the assertion rather than producing a
+    /// verdict about nothing. `dir` is which side of `bound` the value
+    /// must fall on, and `bound` is a `Formula` from `Doc.parse_formula`.
     ///
     /// **The bound is an expression and not a quantity, because its
-    /// DIMENSION is the measure's.** Every other node door takes a
-    /// typed `Length` or `Angle` because a slot's address fixes what
-    /// it holds; this one's is fixed by the node it points at, and it
-    /// may be an angle, a count or a plain scalar as readily as a
-    /// length. `Doc.parse_formula("0.5 mm")` is the one spelling, and it
-    /// reaches document parameters (`"min_web"`) in the same call —
-    /// which is what makes an assertion re-decidable by a parameter
-    /// edit.
+    /// DIMENSION is the value's.** It may be an angle, a count or a plain
+    /// scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+    /// the one spelling, and it reaches document parameters
+    /// (`"min_web"`) in the same call — which is what makes an assertion
+    /// re-decidable by a parameter edit.
     ///
-    /// Two things are checked at `Doc.apply` rather than here,
-    /// because both need the document: that `measure` names a measure
-    /// at all (`assertion_target`) and that the bound's dimension is
-    /// the measured one (`assertion_dimension`). A document therefore
-    /// never carries a comparison of radians with metres.
+    /// That the value's dimension is the bound's is checked at
+    /// `Doc.apply` (`assertion_dimension`), so a document never carries
+    /// a comparison of radians with metres.
     ///
     /// **Report-only, structurally.** No op in the vocabulary accepts
     /// a verdict as an operand, the product gather skips an assertion
@@ -3410,17 +3513,27 @@ impl Node {
     /// because one is `Violated`. Read it with `Value.assertion`.
     #[staticmethod]
     fn assertion(
-        measure: OperandArg,
+        py: Python<'_>,
+        value: super::expr::SlotArg,
         dir: super::measure::AssertionDir,
         bound: &super::expr::Formula,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Assertion {
-                measure: measure.read(),
+                // A variable is read at its own kind's dimension, so a
+                // mismatch with the bound is the door's
+                // `assertion_dimension`; anything else at the bound's.
+                value: match &value {
+                    super::expr::SlotArg::Var(Var(id, Some(kind))) => match kind.dimension() {
+                        Some(dim) => d::Formula::var(*id, dim),
+                        None => value.formula(py, bound.0.dim())?,
+                    },
+                    _ => value.formula(py, bound.0.dim())?,
+                },
                 bound: bound.0.clone(),
                 dir: dir.to_kernel(),
             },
-        }
+        })
     }
 }
 
@@ -3517,6 +3630,34 @@ impl Var {
 
     fn __hash__(&self) -> u64 {
         self.0.0.digest()
+    }
+}
+
+/// **What `Doc.measure` inserted**: the measures, one per primitive in
+/// order, and their outputs in the same order.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Measured {
+    measures: Vec<NodeId>,
+    outputs: Vec<Var>,
+}
+
+#[pymethods]
+impl Measured {
+    /// The `Measure` nodes, one per primitive.
+    #[getter]
+    fn measures(&self) -> Vec<NodeId> {
+        self.measures.clone()
+    }
+
+    /// Each measure's output, in the same order.
+    #[getter]
+    fn outputs(&self) -> Vec<Var> {
+        self.outputs.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Measured({} measures)", self.measures.len())
     }
 }
 
@@ -3969,7 +4110,7 @@ impl FreeValue {
 /// The exposed edits are `insert_node`, `delete_node`,
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// variable doors (`declare_var` / `define_var` / `set_var_value`),
-/// `set_roots`, `set_offset`, `set_gauge`, `promote`, `fold`,
+/// `set_offset`, `set_gauge`, `promote`, `fold`,
 /// `update_reference`, `rebind`, and
 /// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
 /// the structural-slot edit narrowed to one named slot and a
@@ -4513,30 +4654,6 @@ impl DocEdit {
         }
     }
 
-    /// Set the document's ordered **product roots** outright.
-    ///
-    /// THE designate/undesignate door: one TOTAL edit rather than
-    /// partial add/remove arms, so the product's solid order is always
-    /// stated rather than inferred from an edit sequence. What the
-    /// roots name is what `product` and `assemble` gather, in this
-    /// order.
-    ///
-    /// Validator-checked like any other apply. The four root
-    /// invariants refuse under their own tags — `root_not_live`,
-    /// `root_duplicate`, `root_ancestor` (one root upstream of
-    /// another would gather its material twice), `root_uncovered` (a
-    /// live node reaching no root is a silently dead subgraph) — on
-    /// `EditError`, because which invariant broke is what a caller
-    /// branches on.
-    #[staticmethod]
-    fn set_roots(roots: Vec<NodeId>) -> Self {
-        Self {
-            inner: d::DocEdit::SetRoots {
-                roots: roots.iter().map(|n| n.0).collect(),
-            },
-        }
-    }
-
     /// Set an instance's **offset** in its gauge (A11 (2)), or clear
     /// it with `None`.
     ///
@@ -4923,6 +5040,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DocEdit>()?;
     m.add_class::<VarName>()?;
     m.add_class::<Var>()?;
+    m.add_class::<Measured>()?;
     m.add_class::<FreeVar>()?;
     m.add_class::<VarDecl>()?;
     // The expansion bound `definition_too_large`'s `count` is measured

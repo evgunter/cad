@@ -21,7 +21,7 @@
 //!
 //! - **Recorders** — every site that turns a [`crate::expr::DimensionError`] into
 //!   `Error::custom` prose: [`crate::persist::wire`]'s `Deserialize` impls for
-//!   `Expr` and `MeasureExpr`, [`crate::expr::UnitSym`]'s, which
+//!   `Expr`, [`crate::expr::UnitSym`]'s, which
 //!   refuses an off-table display-unit symbol at the token, and
 //!   [`crate::persist::nesting`]'s `Child`, which refuses an expression
 //!   nested past the bound before reading into it. Each calls

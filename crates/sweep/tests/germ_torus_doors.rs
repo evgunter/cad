@@ -757,7 +757,7 @@ fn three_face_cylinder() -> AtRestBody<f64> {
 /// a copy of its own semicircle, so neither the torus×plane section
 /// frame nor the face pair the germ was recorded against is read. The
 /// union is the two halves, which only touch: `vol(a) + vol(b)`, sound
-/// at every tier (`work/join/dumbbell-joint-union-leaves-four-loose-ends`).
+/// at every tier (`dumbbell-joint-union-leaves-four-loose-ends`, JOIN, closed by PR 3790).
 #[test]
 fn the_torus_waisted_union_builds_like_the_cylinder_control() {
     for handle in [Handle::Torus, Handle::Cylinder] {

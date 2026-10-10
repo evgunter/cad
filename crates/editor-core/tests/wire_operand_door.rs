@@ -41,8 +41,8 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, SlotKind, SplitHalf, TubeWindow, VarKind,
+    Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,
+    ProfileDoc, RecipeNodeId, SlotKind, SplitHalf, TubeWindow, VarKind,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -277,18 +277,6 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "wire_assertion's measure operand — behind the edit door",
-        Owes::EditDoor(VarKind::Plane, SlotKind::Measured),
-        Node::Assertion {
-            measure: plane.into(),
-            bound: len(1.0),
-            dir: AssertionDir::AtMost,
-        },
-        plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
         "wire_split's tool (a Split tooled by a profile)",
         Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Plane)),
         Node::Split {
@@ -456,7 +444,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     // reached a single phrase, family or kind would pin neither half
     // against a door that answers a constant.
     assert_eq!(phrases.len(), 3, "the document-reachable rows");
-    assert_eq!(doors.len(), 15, "the rows the edit door refuses");
+    assert_eq!(doors.len(), 14, "the rows the edit door refuses");
     phrases.sort_unstable();
     phrases.dedup();
     families.sort_unstable();

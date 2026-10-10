@@ -162,8 +162,8 @@ pub use discard::{DiscardRow, HeldEdge, lineage_root};
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
 pub use edge_join::{
-    EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_edge,
+    EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_edge,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -2164,9 +2164,11 @@ pub enum BooleanError {
         /// The sector's face.
         face: FaceKey,
     },
-    /// A reduction/classification predicate escalated (in-band margin):
-    /// the operand pair is ill-conditioned at this ε — a genuine
-    /// sliver (F6). Never a snap, never a guess.
+    /// A reduction/classification predicate escalated (in-band margin),
+    /// or the finished result holds a shell certified in band
+    /// ([`BooleanDecision::ShellRole`], which definite cuts can compose):
+    /// the operand pair is ill-conditioned at this ε — a genuine sliver
+    /// (F6). Never a snap, never a guess.
     Escalated {
         /// The decision that escalated, which the refusal's ending
         /// follows from.
@@ -2395,7 +2397,7 @@ pub enum BooleanError {
     /// keys, met where the insertion hung runs at a copy of their own
     /// pair's (`insert::hang_at_shared`), and whose keys no seam links, so the
     /// census cannot read the point
-    /// (`work/join/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
+    /// (`work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
     /// Read after the zips off point keys alone
     /// (`zip::refuse_split_hung_points`).
     PinchConesOnSeparateKeys {
@@ -2864,7 +2866,10 @@ pub enum BooleanError {
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
     /// the scaffold fence where the scalar runs none), loudly — no body
-    /// below it is ever returned. Where the scalar runs the at-rest
+    /// below it is ever returned. A result whose every finding is a
+    /// shell certified in band is the operands' instead, refused
+    /// [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`];
+    /// this carries the rest. Where the scalar runs the at-rest
     /// gate, the operands are finished bodies, so no finding is carried
     /// in from an operand: each is either a defect in what the door
     /// built or a wrong verdict of the validator's own (a valid sliver

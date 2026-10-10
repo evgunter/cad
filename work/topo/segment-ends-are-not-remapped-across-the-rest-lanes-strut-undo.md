@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
-refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, the-rest-lane-zips-no-pinch-apex, the-rest-lanes-glue-reads-its-correspondence-unfused, completed-null-faces-are-carried-unremapped-across-later-cuts]
+refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, the-rest-lane-zips-no-pinch-apex, the-rest-lanes-glue-reads-its-correspondence-unfused, 4396]
 pr: 4067
 branch: topo/rest-segment-end-remap
 closed: 2026-10-05
@@ -65,4 +65,4 @@ resting prism), refuses `PinchApex` at the correspondence in either
 order, before the seam is realized, filed as
 `work/zip/the-rest-lane-zips-no-pinch-apex.md`. Residues filed:
 `work/zip/the-rest-lanes-glue-reads-its-correspondence-unfused.md`,
-`work/join/completed-null-faces-are-carried-unremapped-across-later-cuts.md`.
+`completed-null-faces-are-carried-unremapped-across-later-cuts` (JOIN, closed by PR 4396).

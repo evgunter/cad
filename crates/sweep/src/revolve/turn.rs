@@ -70,6 +70,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
             axis_origin: frame.o3,
             axis_dir: frame.a3,
             angle: T::zero() - theta,
+            range: geom_brep::SweepRange::whole(),
         }),
         carrier: Curve3::Circle {
             center,

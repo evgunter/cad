@@ -235,7 +235,7 @@ impl LoopDecision {
             Self::Ray | Self::Plane => LeverOnly {
                 lever: self.lever(),
             }
-            .recourse(arm),
+            .recourse(arm, reading),
         }
     }
 }
