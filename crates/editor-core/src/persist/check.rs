@@ -615,7 +615,14 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             None if snapshot.mint.has_var(select.body) => return None,
             None => SelectionBodyFault::Unminted { body: select.body },
             Some(held) => {
-                match snapshot.read_fault(held, crate::SlotKind::Is(crate::VarKind::Body), None)? {
+                let body = crate::SlotKind::Is(crate::VarKind::Body);
+                let read = |reader| snapshot.read_fault(held, body, None, reader);
+                // Who reads the selection is asked only of a copy, the
+                // one read the answer can admit.
+                match read(crate::doc::Reader::Constructs).and_then(|fault| match fault {
+                    crate::doc::ReadFault::WorldCopy { .. } => read(selection_reader(snapshot, id)),
+                    other => Some(other),
+                })? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
@@ -636,6 +643,33 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             fault: body,
         })
     })
+}
+
+/// How a seat of `kind` reads its variable: a measure's observes it,
+/// every other constructs from it ([`crate::doc::Reader`]).
+fn reader(kind: crate::SlotKind) -> crate::doc::Reader {
+    match kind {
+        crate::SlotKind::Measured(_) => crate::doc::Reader::Observes,
+        _ => crate::doc::Reader::Constructs,
+    }
+}
+
+/// How the selection `var` is read: it observes only when some seat
+/// reads it and every seat that does is a measure's, which is the only
+/// seat the edit door mints a selection of a world copy for.
+fn selection_reader(snapshot: &ProfileDoc, var: crate::VarId) -> crate::doc::Reader {
+    let seats: Vec<_> = snapshot
+        .nodes
+        .values()
+        .flat_map(|node| node.operand_rows())
+        .filter(|&(_, read)| read == var)
+        .map(|(slot, _)| reader(slot.kind()))
+        .collect();
+    if !seats.is_empty() && seats.iter().all(|&r| r == crate::doc::Reader::Observes) {
+        crate::doc::Reader::Observes
+    } else {
+        crate::doc::Reader::Constructs
+    }
 }
 
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
@@ -770,7 +804,12 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
             Some(
-                match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
+                match snapshot.read_fault(
+                    held,
+                    slot.kind(),
+                    node.selected_half(),
+                    reader(slot.kind()),
+                )? {
                     crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
                         node: snapshot.spoken(id),
                         slot: SlotId::Operand(slot),
@@ -1629,8 +1668,8 @@ impl core::fmt::Display for SnapshotError {
                 }
                 SelectionBodyFault::WorldCopy { placement } => write!(
                     f,
-                    "{var} selects in the world copy {placement} makes, which only the product \
-                     and export read"
+                    "{var} selects in the world copy {placement} makes, which no construction \
+                     reads: only the product, export and a measure do"
                 ),
             },
             Self::ReadsWorldCopy {
@@ -1639,8 +1678,8 @@ impl core::fmt::Display for SnapshotError {
                 placement,
             } => write!(
                 f,
-                "{node}'s {slot} reads the world copy {placement} makes, which only the product \
-                 and export read"
+                "{node}'s {slot} reads the world copy {placement} makes, which no construction \
+                 reads: only the product, export and a measure do"
             ),
             Self::ReadCycle { at } => write!(
                 f,

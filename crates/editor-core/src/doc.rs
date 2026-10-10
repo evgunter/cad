@@ -1792,17 +1792,19 @@ impl<P> Doc<P> {
     /// **What is wrong with reading `held` at a seat admitting
     /// `expected`** (D10), if anything: a kind the seat does not admit
     /// ([`crate::SlotKind::admits`]); for a part projection that
-    /// selects `half` of a split, the split's other half; or a world
-    /// placement's copy (D10: construction never reads the world). Asked of a
-    /// live read by every door that writes or loads one — the edit
-    /// doors' lowering and the load door's operand walk — so the rule
-    /// is stated once; liveness is each door's own question, asked
-    /// before.
+    /// selects `half` of a split, the split's other half; or, for a
+    /// reader that constructs, a world placement's copy (D10:
+    /// construction never reads the world; a measure observes a copy's
+    /// placed geometry). Asked of a live read by every door that writes
+    /// or loads one — the edit doors' lowering and the load door's
+    /// operand walk — so the rule is stated once; liveness is each
+    /// door's own question, asked before.
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
         half: Option<crate::SplitHalf>,
+        reader: Reader,
     ) -> Option<ReadFault> {
         if !expected.admits(held) {
             return Some(ReadFault::Kind { found: held.kind() });
@@ -1812,7 +1814,9 @@ impl<P> Doc<P> {
             (Some(half), Some(Node::Split { .. })) if u32::from(port) != half.output_body() => {
                 Some(ReadFault::OtherHalf { half })
             }
-            (_, Some(Node::PlaceInWorld { .. })) => Some(ReadFault::WorldCopy { placement: from }),
+            (_, Some(Node::PlaceInWorld { .. })) if reader == Reader::Constructs => {
+                Some(ReadFault::WorldCopy { placement: from })
+            }
             _ => None,
         }
     }
@@ -2886,6 +2890,17 @@ mod tests {
         assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
     }
+}
+
+/// **How a seat reads its variable** ([`Doc::read_fault`]): a
+/// construction builds from it, a measure's selection observes it, and
+/// only an observer may read a world copy (D10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Reader {
+    /// A construction seat.
+    Constructs,
+    /// A measure's reference seat.
+    Observes,
 }
 
 /// [`Doc::read_fault`]'s answer, rendered by each door in its own
