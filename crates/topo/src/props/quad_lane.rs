@@ -455,10 +455,14 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // widen this quadrature (the same deliberate omission the
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
-        // One loop: the face walk refuses a ring on any curved kind
-        // but the cylinder, cone and torus (`RingOnCurvedFace`).
-        debug_assert_eq!(loops.len(), 1, "a ring reached the spline patch lanes");
-        let (outer, hes) = &loops[0];
+        // The patch lanes read one loop; the face walk refuses a ring on
+        // a spline face before this (`RingOnCurvedFace`), and this
+        // refuses it again rather than drop it.
+        let [(outer, hes)] = loops else {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a ring on a described spline face — the patch lanes read one loop",
+            });
+        };
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
