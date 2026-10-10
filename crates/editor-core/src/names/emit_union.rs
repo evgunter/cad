@@ -3455,4 +3455,31 @@ mod tests {
             "{err:?}"
         );
     }
+
+    /// **A cell the glue left unglued is a refusal, never a silent
+    /// table** (REFERENCES DM5): a read spelled twice glues every cell to
+    /// its twin, and the twins' rows collapse to the one name they share.
+    /// Where a twin pair is left as two cells, the fold table holds both
+    /// sides' rows of one member name, and the collapse refuses them as
+    /// the emitter's `DuplicateName` rather than publishing one name for
+    /// two entities.
+    #[test]
+    fn an_unglued_twin_refuses_as_a_duplicate_name() {
+        let union = RecipeNodeId::new(0, 9);
+        let cell = |i: u64| EntityRef {
+            body: 0,
+            key: EntityKey::Face(topo::FaceKey::from(slotmap::KeyData::from_ffi(i))),
+        };
+        let mut folded = NameTable::new();
+        folded
+            .insert(from_a(union, member_cap(union, 1)), cell(1))
+            .unwrap();
+        folded
+            .insert(from_b(union, member_cap(union, 1)), cell(2))
+            .unwrap();
+        match collapse_table(union, &folded) {
+            Err(NamingError::Duplicate { name }) => assert_eq!(*name, member_cap(union, 1)),
+            other => panic!("two cells under one member name refuse: {other:?}"),
+        }
+    }
 }
