@@ -47,3 +47,15 @@ protocol: 26db1af89e
   - A: completeness is evidence for the body's claims (boolean, clearance), not the edge's. So the arm is seeded and C5 rows state seeded or complete. No D2 change now.
   - B: C5 is one total table whose answer is the section, whoever asks. Completeness is the arm's definition and selection is the consumer's. A per-consumer service axis is the contract-per-consumer shape that "no runtime fallback" forbids. D2 gets the shared-row carve-out.
   - Each read the other's crossed round-1 report and wrongly believed the two now agree.
+- **Round 3.** Each designer was shown the other's real round-2 position and asked to check C5, C3 and D2 against the text.
+  - Both agreed that C5's "no runtime fallback" is about rung dispatch, and that D2 needs no change now.
+  - The split held on exhaustiveness: A leaned seeded (likely), B leaned complete (likely).
+  - It went to Ev as PR 4515.
+
+## Ev
+
+- **Ev's follow-up (2026-10-10):** "i am compelled by B. is the final state it describes compatible with not doing extra computation that we know we will just throw away later?"
+- **Both designers answered yes.**
+  - A (Opus): a lazy complete arm, where the proof always runs and certification happens on demand. A leaned B after this.
+  - B (Fable): a `Section` handle with `branch_at(seed)` and `all()`, where `shell` never runs the subdivision.
+- **Ev's ruling:** "ok sweet, B then!" Recorded in fork-log row 106. Match: B.
