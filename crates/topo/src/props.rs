@@ -373,6 +373,7 @@ fn reporting_hook<T: Decide>(
     &Body<T>,
     &Surface<T>,
     &[LoopEdge<T>],
+    &[Vec<LoopEdge<T>>],
     &[HalfEdgeKey],
     Band,
     Tol,
@@ -380,10 +381,19 @@ fn reporting_hook<T: Decide>(
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync {
     let rounds = round_hook(quad);
-    move |body, surface, outer, hes, band, tol, _window| {
-        rounds(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?
-            .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
-            .transpose()
+    move |body, surface, outer, rings, hes, band, tol, _window| {
+        rounds(
+            body,
+            surface,
+            outer,
+            rings,
+            hes,
+            band,
+            tol,
+            RoundWindow::SCHEDULE,
+        )?
+        .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+        .transpose()
     }
 }
 
@@ -405,6 +415,7 @@ fn round_hook<T: Decide>(
     &Body<T>,
     &Surface<T>,
     &[LoopEdge<T>],
+    &[Vec<LoopEdge<T>>],
     &[HalfEdgeKey],
     Band,
     Tol,
@@ -412,9 +423,10 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, outer, hes, band, tol, window| match quad {
+    move |body, surface, outer, rings, hes, band, tol, window| match quad {
         Some(lane) => {
-            (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window, None).map(Some)
+            (lane.cut_face_rounds)(body, surface, outer, rings, hes, band, tol, window, None)
+                .map(Some)
         }
         None => Ok(None),
     }
@@ -1183,6 +1195,7 @@ fn rederive_about<T: Decide>(
                         body,
                         surface,
                         &outer,
+                        &loops[1..],
                         &hes,
                         band,
                         tol,
@@ -1918,7 +1931,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -1929,6 +1942,7 @@ type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
         &[LoopEdge<T>],
+        &[Vec<LoopEdge<T>>],
         &[HalfEdgeKey],
         Band,
         Tol,
@@ -2614,7 +2628,7 @@ fn face_flux<T: Decide>(
             // bounds it. An approximating face is one — the flux of
             // its fit, which is the geometry the face actually carries.
             let quad_out = if is_trimmed || spiric_plane || surface.spline_chart().is_some() {
-                quad(body, surface, &outer, &hes, band, tol, window).map_err(wrap)?
+                quad(body, surface, &outer, &rings, &hes, band, tol, window).map_err(wrap)?
             } else {
                 None
             };
@@ -3403,6 +3417,7 @@ pub struct QuadLane<T: Decide> {
         &Body<T>,
         &Surface<T>,
         &[LoopEdge<T>],
+        &[Vec<LoopEdge<T>>],
         &[HalfEdgeKey],
         Band,
         Tol,
@@ -3545,7 +3560,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }

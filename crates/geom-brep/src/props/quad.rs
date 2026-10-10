@@ -350,7 +350,7 @@ pub struct TrimEdgeQ {
 // ---------------------------------------------------------------------
 
 /// Shorthand: a point bracket.
-fn pt(x: f64) -> Interval {
+pub(super) fn pt(x: f64) -> Interval {
     Interval::point(x)
 }
 
@@ -471,6 +471,25 @@ fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interva
     rotate(at.0, at.1, ch, sh)
 }
 
+/// `cos δ` over `|δ| ≤ h`: `[1 − h²/2, 1]`, the whole circle past
+/// `h = 1.5`. The `.max` is not the refusal-swallowing shape
+/// `Interval::clamped_to` exists for: `h` is a finite f64 by every
+/// caller's guard and the operands are `pt` of it with an exact
+/// nonzero divisor, so no refusal can arise.
+pub(super) fn spread_cos(h: f64) -> Interval {
+    if h <= 1.5 {
+        Interval::from_bounds((pt(1.0) - pt(h).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
+    } else {
+        Interval::from_bounds(-1.0, 1.0)
+    }
+}
+
+/// `sin δ` over `|δ| ≤ h`: `[−h, h]`, clipped to the unit interval.
+pub(super) fn spread_sin(h: f64) -> Interval {
+    let b = h.min(1.0);
+    Interval::from_bounds(-b, b)
+}
+
 // ---------------------------------------------------------------------
 // Harmonic channels
 // ---------------------------------------------------------------------
@@ -527,16 +546,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     // `trig_over` — the `.max`/`.min` here operate on refusal-free ring
     // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
-    let spread_c = if h2 <= 1.5 {
-        Interval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
-    } else {
-        Interval::from_bounds(-1.0, 1.0)
-    };
-    let spread_s = if h2 <= 1.5 {
-        Interval::from_bounds(-h2.min(1.0), h2.min(1.0))
-    } else {
-        Interval::from_bounds(-1.0, 1.0)
-    };
+    let (spread_c, spread_s) = (spread_cos(h2), spread_sin(h2));
     for i in 0..pieces {
         #[allow(clippy::cast_precision_loss)]
         let p = a + span * (i as f64 / pieces as f64);

@@ -55,7 +55,8 @@ use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::latitude_on_partial_wall;
 use crate::common::poses::torax_pose;
 use crate::common::torus_walls::{
-    assert_hollow_volume, disc_cut_volume, klein_elbow, torus_barrel, torus_belly,
+    assert_hollow_area, assert_hollow_volume, cut_cap_area, disc_cut_volume, disc_cut_wall_area,
+    klein_elbow, torus_barrel, torus_belly,
 };
 use sweep::test_support::finished;
 
@@ -562,6 +563,15 @@ fn torax_the_klein_elbow_hollows_to_its_measured_volume() {
             - disc_cut_volume(theta, 0.05, 2.0, 1.2, r - 0.05),
     );
     let small = r - 0.05;
+    // Outer wall and caps, then the cavity's spiric-bounded wall and caps.
+    assert_hollow_area(
+        "the klein elbow",
+        &hollow,
+        disc_cut_wall_area(theta, 0.0, 0.0, 1.2, r)
+            + 2.0 * cut_cap_area(0.0, 1.2, r)
+            + disc_cut_wall_area(theta, 0.05, 2.0, 1.2, small)
+            + 2.0 * cut_cap_area(0.05, 1.2, small),
+    );
 
     // The section that rim edge needs is not a circle.
     let big = 1.2_f64;
