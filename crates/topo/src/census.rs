@@ -5300,6 +5300,38 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
 /// a recorded interference fit is, and what it may skip, is C6's
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
+/// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
+/// pair `a`, `b` along a direction that turns with the pair: the axis
+/// between the two faces' anchors, or either face's own normal where it
+/// is planar. Each face comes with its world reach, the lever its
+/// normal is read over.
+///
+/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`])
+/// with no pad: both reaches are read in the frame the direction aims
+/// ([`face_reach_in`]), and the pair clears only on a gap decided
+/// definitely positive at this lane's scalar. Each reach encloses its
+/// face's locus along that direction, so the gap proves the loci
+/// disjoint, as a world-axis gap does.
+fn backstop_apart<T: Decide>(
+    body: &Body<T>,
+    (fa, ra): (FaceKey, Option<(Point3<T>, Point3<T>)>),
+    (fb, rb): (FaceKey, Option<(Point3<T>, Point3<T>)>),
+    band: Band,
+) -> bool {
+    use crate::boolean::separating::{Item, apart, planar_axis};
+    let axes: Vec<_> = [(fa, ra), (fb, rb)]
+        .into_iter()
+        .filter_map(|(f, r)| planar_axis(body, f, r?, band))
+        .collect();
+    apart(
+        (body, Item::Face(fa)),
+        (body, Item::Face(fb)),
+        &axes,
+        0.0,
+        band,
+    )
+}
+
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -5596,9 +5628,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // unboxable curve.
             let before = errors.len();
             if let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) {
-                // Definite separation on ANY axis clears the pair: the
-                // margin is the gap between the sound reach boxes — a
-                // metre coordinate difference (audit row).
+                // Definite separation along ANY direction clears the
+                // pair: the margin is the gap between the sound reaches
+                // along it — a metre coordinate difference (audit row).
+                // The world axes are read first; then the directions
+                // that turn with the pair ([`backstop_apart`]).
                 let mut cleared = false;
                 for (alo, ahi, blo, bhi) in [
                     (alo.x, ahi.x, blo.x, bhi.x),
@@ -5614,7 +5648,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         break;
                     }
                 }
-                if !cleared {
+                if !cleared && !backstop_apart(body, (a.face, a.boxed), (b.face, b.boxed), band) {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),

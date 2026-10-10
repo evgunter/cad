@@ -88,12 +88,10 @@ pub(crate) struct Circle<T: Real> {
     pub(crate) radius: T,
 }
 
-/// The outward normal of every planar face of `a` and of `b`, as unit
-/// directions: the candidate axes that turn with the operands. A normal
-/// is a pure number, so it is read as a direction levered by its face's
-/// reach diagonal, the length it is consumed over. One the band cannot
-/// read, or a face with no reach, is left out, which only drops a
-/// candidate. So is one whose `key` is a kept axis's, or its
+/// The outward normal of every planar face of `a` and of `b`
+/// ([`planar_axis`]): the candidate axes that turn with the operands.
+/// One the band cannot read, or a face with no reach, is left out,
+/// which only drops a candidate. So is one whose `key` is a kept axis's, or its
 /// negation's: a gap along `−n` is the gap along `n` (a box's six faces
 /// give three axes).
 fn operand_axes<T: Decide>(
@@ -106,13 +104,9 @@ fn operand_axes<T: Decide>(
     let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
     for body in [a, b] {
         for (face, _) in body.faces() {
-            let Some(n) = crate::face_normal::face_outward_normal(body, face) else {
-                continue;
-            };
-            let Some((lo, hi)) = crate::census::face_reach(body, face, band) else {
-                continue;
-            };
-            let Ok(unit) = UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()) else {
+            let Some(unit) = crate::census::face_reach(body, face, band)
+                .and_then(|reach| planar_axis(body, face, reach, band))
+            else {
                 continue;
             };
             let (plus, minus) = (key(unit.get()), key(-unit.get()));
@@ -124,6 +118,20 @@ fn operand_axes<T: Decide>(
         }
     }
     axes
+}
+
+/// A planar face's outward normal as a unit direction, levered by the
+/// diagonal of its reach `(lo, hi)`, the length it is consumed over.
+/// `None` for a face that is not planar, or a normal the band cannot
+/// read.
+pub(crate) fn planar_axis<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (lo, hi): (Point3<T>, Point3<T>),
+    band: Band,
+) -> Option<UnitVec3<T>> {
+    let n = crate::face_normal::face_outward_normal(body, face)?;
+    UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()).ok()
 }
 
 /// What [`operand_axes`] compares two axes by: two equal keys are one
