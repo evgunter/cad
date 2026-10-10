@@ -8,6 +8,7 @@ priority: P3
 cost: E
 branch: nurbs/netview-reads-the-surface
 closed: 2026-10-10
+pr: 4535
 ---
 
 
@@ -24,7 +25,7 @@ Disposition: read through the surface (or a rational tensor pair, the
 type `work/quad/patch-doors-take-a-control-net-beside-two-vectors.md`
 asks for), deleting the re-check and the test that reaches it.
 
-## Closed
+## Closed (2026-10-10, PR 4535)
 
 The iso doors (`boundary_iso_u`, `boundary_iso_v`, `interior_iso_u`)
 read the surface itself: counts from `NurbsSurface::control_counts`,
