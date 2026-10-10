@@ -2,11 +2,12 @@
 id: pn-apex-line-outcomes-stand-in-for-a-section-off-the-apex
 kind: issue
 title: plane×cone serves the apex line pair or tangent generator on a needle cone whose real section starts an extent-scale distance from the apex
-status: open
+status: review
 opened: 2026-10-10
 priority: P2
 cost: M
 branch: germ/pn-apex-line-outcomes
+pr: 4592
 refs: [pn-apex-point-snap-discards-an-extent-scale-section, a-plane-cone-apex-tangent-reads-a-residue-generator-off-the-tangency]
 ---
 
