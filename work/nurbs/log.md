@@ -422,3 +422,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `offset_fit` elevation (filed today);
     - `apply_homogeneous` is a third certified step at `Interval`.
   - **Next:** the fix pass takes route (b) for the wall too. Per the SEQUENTIAL arm, a second whole-unit Opus review follows. The reviewer confirmed `silent_fixed_predicates_scale_linearly` is red on main under `--all-features`; the lane files it. (NURBS orchestrator)
+- 2026-10-10 19:33 — **PR 4551's H pair** is in. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, so the tally pre-note is 0. Blinded coding is dispatched (byte 104).
+  - **Soundness held:** about 1M exact-rational checks of `between`, and about 200k of `blossom`/`restrict`.
+  - **`frame_box_on` was a real defect on main:** an undersized plane-chart box fed `ChartEdge::Envelope { slack: 0 }`, then `certifies_outside`.
+  - **Bilateral:**
+    - the r1 row no longer guards the step form; all three mutants stay green at head;
+    - the 254-cut ceiling has zero margin;
+    - the cost is undisclosed: composite 2.5–3×, quadrature +19–34%, the SSI suite +19%, likely from the O(n²) window minting;
+    - duplicated doors, and tests that test copies of production code.
+  - The fix pass went to build A. (NURBS orchestrator)
