@@ -2,10 +2,11 @@
 id: a-computed-value-re-enters-as-a-constant
 kind: issue
 title: Computed values re-enter the symbolic lane as constants (from_f64 laundering); unaudited, and it makes a Sym theorem false
-status: review
+status: closed
 opened: 2026-10-08
 branch: intent/from-f64-audit
 pr: 4543
+closed: 2026-10-10
 ---
 
 The symbolic tier's zero verdicts (ERROR-DESIGN E12) are theorems about
@@ -39,3 +40,17 @@ The precedent for a source gate is `scripts/gates/certification-doors.sh`
 (a token scan of `crates/*/src`). A sibling gate could allowlist today's
 `from_f64(` sites with a reason each, and refuse a new one without one.
 
+
+## Closed
+
+Unit 1 landed in PR 4543:
+- `Real::from_computed`;
+- the gate `scripts/gates/from-f64-allowlist.sh` and its census `scripts/gates/from-f64-sites.tsv`, which is the audit: every non-constant `from_f64` site in geom, geom-brep, sweep and topo, classed;
+- the re-valuation instrument `geom_core::sym::revalue` and its rows in `crates/editor-core/tests/revalue_corpus.rs`;
+- `chart_region.rs`'s wrap band kept in `T`, with its pin;
+- `Margin::lift` through `from_computed`.
+
+The owed sites are on their rows:
+- `topo-keeps-computed-values-in-t`, `geom-brep-keeps-computed-values-in-t`, `geom-keeps-computed-values-in-t` and `sweep-keeps-computed-values-in-t` (U2–U5);
+- `nurbs-weights-and-knots-are-the-scalar`;
+- `the-from-f64-gate-reads-every-generic-crate`.

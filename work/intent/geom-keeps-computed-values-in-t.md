@@ -2,11 +2,10 @@
 id: geom-keeps-computed-values-in-t
 kind: unit
 title: from_f64 audit, geom: every listed launders site keeps its value in T or enters it through from_computed
-status: parked
+status: open
 opened: 2026-10-10
 priority: P0
 cost: M
-blocked_on: [a-computed-value-re-enters-as-a-constant]
 refs: [carriers-compare-in-canonical-form]
 ---
 
