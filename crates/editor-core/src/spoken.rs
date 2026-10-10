@@ -1057,10 +1057,13 @@ impl<'a> Speaker<'a> {
     /// else the operation defining it (`Split 1ab2's above` for one of
     /// several outputs), else its id.
     pub(crate) fn read(self, var: crate::var::VarId) -> String {
-        if let Some(name) = self.doc.and_then(|doc| doc.speak_var(var)) {
+        let Some(doc) = self.doc else {
+            return ReadTag(var).to_string();
+        };
+        if let Some(name) = doc.speak_var(var) {
             return name.to_string();
         }
-        match self.doc.and_then(|doc| doc.output_of(var)) {
+        match doc.output_of(var) {
             Some(OutputOf { node, port: None }) => self.node(node).to_string(),
             Some(OutputOf {
                 node,

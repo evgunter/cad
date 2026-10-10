@@ -2946,7 +2946,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
             },
             vec![
                 // By tag a member read is said by its whole id.
-                "member #0:0000000000250000's edge",
+                "member read 000000000025's edge",
                 "a tie stands where one edge is needed",
             ],
         ),
