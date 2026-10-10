@@ -193,7 +193,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let assertion = r.insert(Node::Assertion {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(0.5e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

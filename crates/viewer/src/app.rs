@@ -1273,9 +1273,6 @@ impl ViewerApp {
             self.drafts.new_variable_dimension = None;
             self.drafts.new_variable_offer = Some(name.clone());
         }
-        if let Some(offer) = frame::declare_offer(refusal.as_ref()) {
-            self.drafts.declare_offer = Some(offer);
-        }
         self.apply_status(verdict);
     }
 

@@ -2,11 +2,10 @@
 id: a-torus-seam-graze-needs-the-rim-root-deflated
 kind: issue
 title: A G1 torus chain declared a Seam stops at the graze of an edge leaving the rim: a torus×torus seam certifies no side
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -57,3 +56,7 @@ against the partner's torus wall. Forcing the KIND table's cover for
 torus × torus (`boolean::tangency_certifies_side`, a local experiment)
 changes neither refusal, so the fix this row names, an edge-local
 deflation in the root lane, is still the route.
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E makes the seam a verdict. The glue door declares a pair the witness lane verifies as a seam itself, including two faces ending on one circle (`crates/topo/src/boolean/glue.rs:98`, `tangency`, through `rim_wedge::shared_rim`). The licence the fix names therefore exists undeclared too. The graze is unchanged: `the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer` still pins `CurvedPierceUnsupported` (`crates/sweep/tests/mate7a_torus_rest.rs:940`). The fix stands: an edge-local deflation of the rim root in the circle × torus lane, licensed by the verified seam.

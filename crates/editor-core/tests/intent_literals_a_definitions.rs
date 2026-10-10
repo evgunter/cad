@@ -30,7 +30,6 @@ use editor_core::{
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, FaceKey, SurfaceField};
 
 /// The input's value, metres (dyadic, so `2·w` and `w + w` agree to
 /// the bit).
@@ -118,20 +117,10 @@ fn eval_after(doc: &ProfileDoc, prev: Option<&Evaluation<f64>>) -> Evaluation<f6
     )
 }
 
-/// The radius token a blend's first cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face: FaceKey = topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends");
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, editor_core::SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 /// The doc's snapshot saved, doctored by `edit`, and loaded.
@@ -307,14 +296,14 @@ fn a_reader_of_a_definition_lowers_as_the_definition() {
     let (doc, by_other) = filleted(doc, 8.0, times(3, "w"));
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
+    let token = |blend| radius_spelling(&doc, blend);
     assert_eq!(token(by_h), token(by_formula), "h is its formula");
     assert_ne!(token(by_h), token(by_other));
 }
 
 /// A definition respelled to the same value re-runs a flow-bearing
-/// reader: the content key writes the expansion, so the memo cannot
-/// serve a body whose token names the old formula.
+/// reader, since the content key writes the expansion, and builds the
+/// body a cold run of the new spelling builds.
 #[test]
 fn a_respelled_definition_reruns_its_flow_bearing_reader() {
     let doc = w_and_h("intent-literals-a-key");
@@ -338,16 +327,15 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
     );
     let cold = eval_after(&fresh, None);
     assert_eq!(
-        radius_token(body_of(&again, blend)),
-        radius_token(body_of(&cold, by_sum)),
-        "and carries the new formula's token"
+        format!("{:?}", body_of(&again, blend)),
+        format!("{:?}", body_of(&cold, by_sum)),
+        "and builds the new spelling's body"
     );
 }
 
 /// A profile's carrier radius read through a definition is in the
 /// profile's key the same way: respelled to the same value, the
-/// profile and its sweep re-run, and the swept wall carries the new
-/// formula's token.
+/// profile and its sweep re-run, and build the new spelling's body.
 #[test]
 fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     let disc = |doc: ProfileDoc, radius: Formula| {
@@ -395,8 +383,8 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     );
     let cold = eval_after(&fresh, None);
     assert_eq!(
-        radius_token(body_of(&again, rod)),
-        radius_token(body_of(&cold, by_sum))
+        format!("{:?}", body_of(&again, rod)),
+        format!("{:?}", body_of(&cold, by_sum))
     );
 }
 
@@ -906,8 +894,8 @@ fn the_load_door_reads_liveness_through_definitions() {
 
 // ------------------------------------------------ the review's rows
 
-/// A slot reading `g := h`, `h := 2·w` lowers to the token a slot
-/// spelling `2·w` writes: the expansion goes all the way down, not one
+/// A slot reading `g := h`, `h := 2·w` spells as a slot spelling `2·w`
+/// does: the expansion goes all the way down, not one
 /// definition deep.
 #[test]
 fn a_nested_definition_lowers_as_its_whole_expansion() {
@@ -918,8 +906,8 @@ fn a_nested_definition_lowers_as_its_whole_expansion() {
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_eq!(
-        radius_token(body_of(&ev, by_g)),
-        radius_token(body_of(&ev, by_formula))
+        radius_spelling(&doc, by_g),
+        radius_spelling(&doc, by_formula)
     );
 }
 

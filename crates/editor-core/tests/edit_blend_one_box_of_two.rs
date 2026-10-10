@@ -159,9 +159,8 @@ fn one_box_of_a_disjoint_union_fillets_by_name_and_the_other_keeps_its_names() {
     blend_one_box(
         "one_box_of_two_fillet",
         |target, selection| Node::Fillet {
-            target: target.into(),
             radius: len(R),
-            selection,
+            selection: editor_core::Operand::select(target, selection),
         },
         rounded + 1.0,
     );
@@ -175,9 +174,8 @@ fn one_box_of_a_disjoint_union_chamfers_by_name_and_the_other_keeps_its_names() 
     blend_one_box(
         "one_box_of_two_chamfer",
         |target, selection| Node::Chamfer {
-            target: target.into(),
             distance: len(R),
-            selection,
+            selection: editor_core::Operand::select(target, selection),
         },
         chamfered + 1.0,
     );

@@ -89,7 +89,7 @@ fn assertion(value: editor_core::VarId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
         value: Formula::var(value, Dimension::Length),
         bound,
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     }
 }
 

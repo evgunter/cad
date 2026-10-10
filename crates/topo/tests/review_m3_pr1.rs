@@ -914,113 +914,34 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
     // cannot take the Intersection upgrade - coincident planes have no
     // intersection line).
     assert_eq!(validate_closed(&cube.body), Ok(()));
-    // M4 PR 5 (N6 retirement): the quadrants' "declared" equality is
-    // now a shared GeomSource — stamp every surface bit-equal to the
-    // canonical top plane with ONE source (the numeric center's
-    // different description stays unstamped and unmergeable).
-    stamp_top_sources(&mut cube.body);
     let verts = [e_ap.vertex, e_pq.vertex, e_qr.vertex, e_rs.vertex];
     (cube, center, verts)
 }
 
-/// Stamps one shared [`topo::GeomSource`] onto every surface whose
-/// plane description bit-equals the canonical top plane (f64 lane) —
-/// the test-side stand-in for the recipe layer's post-op stamping.
-fn stamp_top_sources(body: &mut topo::Body<f64>) {
-    let canon = plane(
-        &[
-            Point3::new(0.0, 0.0, 1.0),
-            Point3::new(1.0, 0.0, 1.0),
-            Point3::new(1.0, 1.0, 1.0),
-            Point3::new(0.0, 1.0, 1.0),
-        ],
-        Tol::witness(),
-    );
-    let geom::Surface::Plane {
-        origin: co,
-        normal: cn,
-        u_ref: cu,
-    } = canon
-    else {
-        panic!("canonical top plane is a plane")
-    };
-    let eq = |a: f64, b: f64| a.to_bits() == b.to_bits();
-    let keys: Vec<_> = body
-        .surfaces()
-        .filter_map(|(k, s)| match *s {
-            geom::Surface::Plane {
-                origin: o,
-                normal: n,
-                u_ref: u,
-            } if eq(o.x, co.x)
-                && eq(o.y, co.y)
-                && eq(o.z, co.z)
-                && eq(n.x, cn.x)
-                && eq(n.y, cn.y)
-                && eq(n.z, cn.z)
-                && eq(u.x, cu.x)
-                && eq(u.y, cu.y)
-                && eq(u.z, cu.z) =>
-            {
-                Some(k)
-            }
-            _ => None,
-        })
-        .collect();
-    let src = topo::GeomSource::minted(1001, 0);
-    for k in keys {
-        body.set_surface_source(k, src.clone()).unwrap();
-    }
-}
-
-/// TARGET 6: the annulus merge - four declared-equal quadrants around a
-/// numerically-coplanar-but-differently-described center. The quadrants
-/// merge into ONE annulus face whose hole is a genuine kemr ring on the
-/// center square; the center face must survive unmerged (the round-8
-/// teeth on a harder shape than the shipped diagonal). Geometry is
-/// untouched: tier 3 still holds and the volume is unchanged. Replay is
-/// byte-identical (D9), and the merged (all-plane, ringed) body reverts
-/// with bitwise involution and the exactly-NegativeVolume posture.
+/// TARGET 6: the annulus merge - four bit-equal quadrants around a
+/// value-equal but differently described center. The margins decide
+/// all five one plane (D10), so the whole plateau merges into ONE top
+/// face. Geometry is untouched: the volume is unchanged. Replay is
+/// byte-identical (D9), and the merged body reverts with bitwise
+/// involution and the exactly-NegativeVolume posture.
 #[test]
-fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
+fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let build = || annulus_top_cube();
-    let (mut cube, center, square) = build();
+    let (mut cube, center, _) = build();
     assert_eq!(cube.body.faces().count(), 10); // 5 cube sides + 5 top
     let vol0 = topo::mass_properties(&cube.body, Tol::witness())
         .unwrap()
         .volume;
     let outcome = cube.body.merge_coplanar_faces(Tol::witness()).unwrap();
-    // One group: the four quadrants; the numeric center is spared.
     assert_eq!(outcome.groups.len(), 1, "expected exactly one merged run");
     let g = &outcome.groups[0];
     assert_eq!(g.kept, cube.seed.face);
-    assert_eq!(g.absorbed.len(), 3);
-    assert_eq!(g.killed_edges.len(), 4, "4 radial edges must die");
-    assert_eq!(g.rings_made.len(), 1, "the hole must become a kemr ring");
-    assert_eq!(cube.body.faces().count(), 7); // 6 cube faces + center
+    assert_eq!(g.absorbed.len(), 4);
     assert!(
-        cube.body.get_face(center).is_some(),
-        "numeric center merged!"
+        g.absorbed.contains(&center),
+        "the value-equal center merges"
     );
-    // The ring is the interior square's cycle, on the survivor.
-    let ring = g.rings_made[0];
-    assert_eq!(cube.body.get_face(g.kept).unwrap().rings, vec![ring]);
-    let ring_loop = cube.body.get_loop(ring).unwrap();
-    let topo::LoopBoundary::Cycle { first } = ring_loop.boundary else {
-        panic!("ring must be a cycle");
-    };
-    let ring_verts: std::collections::BTreeSet<_> = cube
-        .body
-        .loop_cycle(first)
-        .unwrap()
-        .into_iter()
-        .map(|he| cube.body.get_half_edge(he).unwrap().start)
-        .collect();
-    assert_eq!(
-        ring_verts,
-        std::collections::BTreeSet::from(square),
-        "ring is not the hole boundary"
-    );
+    assert_eq!(cube.body.faces().count(), 6); // 6 cube faces
     // Geometry-neutral: tier 2 holds (tier 3 is out of reach for
     // chord-line descriptions), volume unchanged (analytically the
     // same solid; allow only summation-order noise).
@@ -1033,7 +954,7 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     let (mut cube2, _, _) = build();
     cube2.body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(dump(&cube.body), dump(&cube2.body));
-    // Revert the merged, ring-carrying, all-plane body: involution,
+    // Revert the merged, all-plane body: involution,
     // tier-2 currency, and the negated exact volume (tier 3 is out of
     // reach for chord-line descriptions - TransverseNotIntrinsic - so
     // the volume sign carries the complement witness here).
@@ -1047,13 +968,12 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     assert_eq!(dump(&reverted.revert()), original);
 }
 
-/// TARGET 6/8: sharper numeric-coincidence teeth than the shipped
-/// test - descriptions that agree on origin AND normal bits and differ
-/// only in u_ref, and descriptions equal up to the sign of a zero
-/// (-0.0 vs 0.0). Both are numerically the same plane; neither may
-/// merge (and the Debug channel must distinguish -0.0 from 0.0).
+/// TARGET 6/8: descriptions that agree on origin AND normal bits and
+/// differ only in u_ref, and descriptions equal up to the sign of a
+/// zero (-0.0 vs 0.0). Both are the same plane by their margins, so
+/// both merge (D10): the merge reads the plane, not the chart.
 #[test]
-fn merge_coplanar_uref_and_signed_zero_teeth() {
+fn merge_coplanar_uref_and_signed_zero_variants_merge() {
     let diagonal_split = |surface: fn(&geom::Surface<f64>) -> geom::Surface<f64>| {
         let mut cube = geometric_cube::<f64>(Tol::witness());
         let top = cube.seed.face;
@@ -1098,8 +1018,8 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             .unwrap();
         cube
     };
-    // Tooth 1: same origin and normal bits, u_ref swapped to another
-    // in-plane direction - only the FRAME differs. Must stay unmerged.
+    // Variant 1: same origin and normal bits, u_ref swapped to another
+    // in-plane direction - only the FRAME differs.
     let mut uref = diagonal_split(|s| {
         let geom::Surface::Plane {
             origin,
@@ -1120,13 +1040,13 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
         uref.body
             .merge_coplanar_faces(Tol::witness())
             .unwrap()
-            .groups,
-        vec![]
+            .groups
+            .len(),
+        1
     );
-    assert_eq!(uref.body.faces().count(), 7, "u_ref-only variant merged");
-    // Tooth 2: identical except normal.x = -0.0 instead of 0.0 -
-    // numerically equal everywhere, one sign bit apart. Must stay
-    // unmerged, proving the Debug channel is bit- (not value-) equality.
+    assert_eq!(uref.body.faces().count(), 6, "u_ref-only variant merges");
+    // Variant 2: identical except normal.x = -0.0 instead of 0.0 -
+    // numerically equal everywhere, one sign bit apart.
     let mut zero = diagonal_split(|s| {
         let geom::Surface::Plane {
             origin,
@@ -1147,10 +1067,11 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
         zero.body
             .merge_coplanar_faces(Tol::witness())
             .unwrap()
-            .groups,
-        vec![]
+            .groups
+            .len(),
+        1
     );
-    assert_eq!(zero.body.faces().count(), 7, "-0.0 variant merged");
+    assert_eq!(zero.body.faces().count(), 6, "-0.0 variant merges");
 }
 
 /// TARGET 8: the f64 Debug channel's injectivity, probed directly.
@@ -1286,9 +1207,6 @@ fn merge_coplanar_full_plateau_atomicity() {
             },
         )
         .unwrap();
-    // Re-stamp: the center's replacement surface joins the shared
-    // source (the M4 PR 5 form of "declared-equal center").
-    stamp_top_sources(&mut cube.body);
     assert_eq!(validate_closed(&cube.body), Ok(()));
     let before = dump(&cube.body);
     match cube.body.merge_coplanar_faces(Tol::witness()) {

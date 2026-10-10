@@ -356,7 +356,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let assertion = r.insert(Node::Assertion {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.25e-3 - 1.0e-4),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }

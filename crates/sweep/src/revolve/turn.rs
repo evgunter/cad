@@ -7,7 +7,7 @@
 //! as well (`full::build_turn_lamina`).
 
 use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Affine3, Decide, Point3, Tol, Vec3};
 use topo::{Body, FaceSurface, LoopKey};
 
@@ -64,14 +64,15 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
     let from_far = ends.far - center;
     swept::register_rim_identity(from_far, radius, tol);
     let strut = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-            point: seg.a,
-            place: ends.place_far,
-            axis_origin: frame.o3,
-            axis_dir: frame.a3,
-            angle: T::zero() - theta,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::RevolvedPoint {
+                point: seg.a,
+                place: ends.place_far,
+                axis_origin: frame.o3,
+                axis_dir: frame.a3,
+                angle: T::zero() - theta,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::zero() - axis_c,

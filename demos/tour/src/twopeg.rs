@@ -36,14 +36,14 @@
 //!   inner ring, so peg wall and bore wall are three faces each and
 //!   [`declarations`]'s 3×3 pairing is a fact about the loop rather
 //!   than a coincidence between two spellings.
-//! - **The mate is DECLARED, never inferred.** The author knows Q is
+//! - **The mate is DECLARED.** The author knows Q is
 //!   located on P — the kernel is told, in the author's own words,
 //!   which face pairs are in contact (each a `Rest`) and which carry
-//!   on across the seam (each a continuation). Value equality never
-//!   glues; a declaration is what unlocks the arm, and verification
-//!   still happens inside the op. Undeclared, the mate refuses before
-//!   its crossing layer runs, naming the first undeclared continuation
-//!   it meets, and the live narration prints that refusal.
+//!   on across the seam (each a continuation), and verification still
+//!   happens inside the op. Undeclared, the union decides the same
+//!   pairs one carrier by margin (D10) and glues them alike, recording
+//!   each as a coincidence row: [`build`] checks the two bodies are
+//!   one.
 //! - **The union is additive, to 4 ULP.** vol(P) + vol(Q) = vol(mated):
 //!   the interiors are disjoint, so the glue discards nothing, and the
 //!   pegs' π-terms cancel the bores'. The claim is asked of
@@ -56,7 +56,7 @@
 //! - **Full engagement deletes the walls.** Each peg fills its bore
 //!   completely, so all four cylindrical contact patches are interior
 //!   in the result and the bore walls are removed rather than merged:
-//!   the finished body carries NO cylindrical face at all. What
+//!   the finished body carries no peg or bore wall at all. What
 //!   survives of each peg is its rim circle, as an inner ring on the
 //!   plate's top face.
 //!
@@ -358,9 +358,8 @@ fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceK
 /// - **The CONTINUATIONS a stack on one profile has** (aligned senses):
 ///   P's outer walls and corner fillets carrying on into Q's, and each
 ///   peg's end flush with Q's top face. These are not contacts, and
-///   they are not optional: an undeclared continuation refuses the
-///   union, since the op has no licence to make the two faces one, and
-///   a declared one merges.
+///   they are what the union merges; undeclared, it decides each one
+///   carrier by margin and merges it the same way.
 ///
 /// Nothing is picked out of the report, and the pin rather than a
 /// comment keeps that honest: `flush_detector_measurements` asserts the
@@ -382,36 +381,22 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclara
 }
 
 /// The cell's boolean work, generic (the K-probe sweep runs the same
-/// ops): both parts, the UNDECLARED refusal, the DECLARED mate, and
-/// the lifted copy for the apart framing. Returns the undeclared
-/// refusal's narration for the f64 captions.
+/// ops): both parts, the DECLARED mate (checked equal to the
+/// undeclared one), and the lifted copy for the apart framing.
 pub(crate) fn build<S: Scalar>(
     tol: Tol,
-) -> (
-    AtRestBody<S>,
-    AtRestBody<S>,
-    BooleanBody<S>,
-    Body<S>,
-    String,
-) {
+) -> (AtRestBody<S>, AtRestBody<S>, BooleanBody<S>, Body<S>) {
     let p = plate_with_pegs::<S>(tol);
     let q = plate_with_holes::<S>(tol);
 
-    // UNDECLARED, the mate refuses before its crossing layer runs: the
-    // two parts' walls carry on across the mating plane, and a
-    // continuation nobody declared is a pair the op has no licence to
-    // make one, so it is named and refused (`UndeclaredCoincidence`,
-    // the same refusal an undeclared resting pair gets), with the
-    // recourse to declare it.
-    let naive = check(try_union(&p, &q, tol), V_MATED, tol);
-    let refusal = crate::booleans::describe(&naive, V_MATED);
-    if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
-        panic!(
-            "the UNDECLARED two-peg mate no longer refuses ({refusal}) — \
-             a declaration must be what unlocks the arm, never a measurement); regression"
-        );
-    }
-    println!("   two-peg mate WITHOUT declarations: {refusal}");
+    // UNDECLARED, the walls that carry on across the mating plane sit
+    // on one carrier by margin, so the union glues them as the declared
+    // continuations would.
+    let undeclared = expect_seamed(
+        "undeclared two-peg mate",
+        check(try_union(&p, &q, tol), V_MATED, tol),
+        V_MATED,
+    );
 
     let decls = declarations(&p, &q, tol);
     let continuations = decls
@@ -432,6 +417,15 @@ pub(crate) fn build<S: Scalar>(
          continuations)",
         check(pncad::topo::union_with(&p, &q, &decls, tol), V_MATED, tol),
         V_MATED,
+    );
+    assert_eq!(
+        format!("{:?}", undeclared.body),
+        format!("{:?}", mated.body),
+        "the undeclared two-peg mate glues the same contacts as the declared one"
+    );
+    println!(
+        "   two-peg mate WITHOUT declarations: glued on the decided zero (D10), \
+         the same body as the declared mate"
     );
     // THE ADDITIVITY CLAIM, ASKED OF THREE KERNEL ANSWERS rather than of
     // one answer against a hand-written constant. That is the claim's
@@ -478,41 +472,46 @@ pub(crate) fn build<S: Scalar>(
     );
     // Full engagement: every peg/bore patch is interior, so those walls
     // are REMOVED rather than merged. The cylinders that survive are the
-    // corner fillets, P's and Q's still two faces each: the merge glues
-    // the declared flat walls and records that it has no curved rung.
+    // corner fillets, P's and Q's merged into one face at each corner
+    // like the flat walls between them.
     assert!(
         peg_walls(&mated.body).is_empty(),
         "full-engagement patch removal deletes every peg and bore wall"
     );
+    assert_eq!(
+        cylinders(&mated.body).len(),
+        4,
+        "each corner fillet continuation merges P's face and Q's into one"
+    );
     println!(
         "   two-peg mate WITH the three contacts and the continuations declared: GLUED \
          — measured volume {v} (vol P + vol Q = {vp} + {vq}), every bore wall interior, \
-         {} corner-fillet faces left unmerged as a recorded curved skip",
-        cylinders(&mated.body).len()
+         the walls and the four corner fillets each merged across the seam"
     );
 
     // The apart framing: Q lifted by a rigid transform (#84 — every
     // moved edge witness is re-minted, and the moved body revalidates).
     let lift = Affine3::translation(v3(0.0, 0.0, 1.6));
     let q_lifted = pncad::topo::transform_rigid(&q, &lift, tol).expect("lift plate Q");
-    (p, q, mated, q_lifted, refusal)
+    (p, q, mated, q_lifted)
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let (p, _q, mated, q_lifted, refusal) = build::<f64>(tol);
+    let (p, _q, mated, q_lifted) = build::<f64>(tol);
     let note = format!(
         "the mate declared in the author's terms — the mating plane, and each peg \
          against its own bore, which the plain-body door can only spell as ONE planar \
          Rest and EIGHTEEN cylindrical ones, three faces a side per fit (#1345); and \
          where the two parts carry on across the seam — the rounded outline's walls \
          and fillets, the peg ends flush with Q's top — a continuation each. \
-         Undeclared the mate refuses ({refusal}); declared, the M9-3 zip GLUES it \
-         and the union merges the flat continuations: the closed-form volume {V_MATED} \
+         Declared, the M9-3 zip GLUES it and the union merges the continuations; \
+         undeclared, the union glues the same contacts on their decided zero (D10) \
+         into the same body. The closed-form volume {V_MATED} \
          (which the body measures to 1e-9), additive to 4 ULP — in closed form \
          vol(P) + vol(Q) = ({V_P}) + ({V_Q}), the pegs' pi-terms \
          cancelling the bores'. Full engagement removes all four peg and bore \
-         patches; the corner fillets stay two faces each, P's and Q's, the merge's \
-         recorded curved skip"
+         patches; the walls and the four corner fillets each merge across the seam \
+         into one face"
     );
     // The apart framing is placed BESIDE the mated one, not in a cell
     // of its own: the two are one statement — these parts, and what
@@ -567,41 +566,41 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }]
 }
 
-/// **The rounded mate builds, and undeclared it names a wall pair.**
-/// [`build`] asserts the volumes and the full-engagement removal
-/// itself; this row runs it outside the render, so the mate is pinned
-/// by the suite, and checks the undeclared refusal names an outer-wall
-/// continuation.
+/// **The rounded mate builds, and undeclared it decides a wall pair.**
+/// [`build`] asserts the volumes, the full-engagement removal and that
+/// the undeclared union is the declared body; this row runs it outside
+/// the render, so the mate is pinned by the suite, and checks the
+/// undeclared union records an outer-wall continuation among the
+/// coincidences it decided.
 #[cfg(test)]
 mod rounded_mate {
     use super::*;
     use pncad::geom_core::Tol;
+    use pncad::topo::{Cell, Operand, Relation, RowCell};
 
     #[test]
-    fn the_rounded_mate_builds_and_undeclared_refuses_on_a_wall_continuation() {
+    fn the_rounded_mate_builds_and_undeclared_decides_a_wall_continuation() {
         let tol = Tol::witness();
-        let (p, q, mated, _, refusal) = build::<f64>(tol);
-        assert!(
-            refusal.contains("UndeclaredCoincidence"),
-            "the undeclared mate refuses as an undeclared coincidence: {refusal}"
-        );
-        let err = pncad::topo::union(&p, &q, tol).expect_err("undeclared");
-        let pncad::topo::BooleanError::UndeclaredCoincidence {
-            pair: [(_, fa), (_, fb)],
-            relation: pncad::topo::CarrierRelation::SameOriented,
-            ..
-        } = err
-        else {
-            panic!("an undeclared continuation: {err:?}");
+        let (p, q, _, _) = build::<f64>(tol);
+        let undeclared = match pncad::topo::union(&p, &q, tol).expect("undeclared mate") {
+            pncad::topo::BooleanResult::Body(b) => b,
+            pncad::topo::BooleanResult::Empty => panic!("the undeclared mate is not empty"),
         };
+        let (pegs_p, pegs_q) = (peg_walls(&p), peg_walls(&q));
+        let wall_continuation = undeclared.coincidences.iter().any(|row| {
+            row.relation == Relation::SameOriented
+                && matches!(
+                    row.cells,
+                    [
+                        RowCell::Input { input: Operand::A, cell: Cell::Face(fa) },
+                        RowCell::Input { input: Operand::B, cell: Cell::Face(fb) },
+                    ] if !pegs_p.contains(&fa) && !pegs_q.contains(&fb)
+                )
+        });
         assert!(
-            peg_walls(&p).iter().all(|&f| f != fa) && peg_walls(&q).iter().all(|&f| f != fb),
-            "the refused pair is an outer wall, not a peg fit: {err:?}"
-        );
-        assert_eq!(
-            cylinders(&mated.body).len(),
-            8,
-            "the four corner fillets, P's and Q's faces each, survive as the recorded skip"
+            wall_continuation,
+            "the undeclared mate decides an outer-wall continuation, not a peg fit: {:?}",
+            undeclared.coincidences
         );
     }
 }

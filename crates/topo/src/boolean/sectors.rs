@@ -1196,7 +1196,10 @@ fn touch<T: Decide>(
 }
 
 /// The recorded contacts of `operand`'s vertices on the partner's faces.
-fn on_faces(contacts: &super::ContactRecords, operand: Operand) -> &[super::VfContact] {
+fn on_faces(
+    contacts: &super::ContactRecords,
+    operand: Operand,
+) -> &[crate::Cited<super::VfContact>] {
     match operand {
         Operand::A => &contacts.a_on_b,
         Operand::B => &contacts.b_on_a,

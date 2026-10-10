@@ -2,10 +2,9 @@
 id: a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys
 kind: issue
 title: A pinch whose keys no seam ties keeps its cones on separate point keys
-status: parked
+status: open
 priority: P2
 cost: M
-blocked_on: [intent-stage4-is-built]
 refs: [4207]
 opened: 2026-10-07
 ---
@@ -125,3 +124,7 @@ direction, one along it, 916 poses past the overlap filter. It is
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: only a declared VertexVertex contact or a coincidence read can link the keys; stage 4 retires the first and moves the second to the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not reach this. Its glue door reads face pairs (`crates/topo/src/boolean/glue.rs:40`). It reads no vertex coincidence and links no point keys, and the touch union's `VertexVertex` contact is still not carried as intent. `PinchConesOnSeparateKeys` still guards the hang (`crates/topo/src/boolean/mod.rs:2416`, raised by `zip::refuse_split_hung_points`, `crates/topo/src/boolean/zip.rs:372`). Under D10 the link is a coincidence read, a vertex pair decided Zero and recorded. That is not built.

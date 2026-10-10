@@ -293,6 +293,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     let (rebound, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: from.clone(),
             to: to.clone(),
         },
@@ -342,6 +343,7 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
     let (rebound, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: elsewhere,
             to: in_part(b, body, CapEnd::Start),
         },
@@ -405,6 +407,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .filter_map(|row| match row {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
+            | Maintenance::StrandedSelection { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
@@ -464,6 +467,7 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
     let (rebound, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: (*inner).clone(),
             to: in_part(collide, body, CapEnd::End),
         },

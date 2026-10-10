@@ -2579,12 +2579,14 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// A mapped description re-authored in its own sketch plane from the
 /// endpoints the corner solves put it between.
 ///
-/// A LINE takes the two points. An ARC takes them, the moved carrier
-/// itself (its centre and radius), and the included angle the points
-/// subtend at that centre — the offset of a meridian arc is concentric,
-/// so the centre is the datum that does not move and the sweep is what
-/// the endpoints say it is, on the turn of the arc it replaces: the
-/// subtended angle is read nearest the old sweep, so a half turn (a
+/// A SEGMENT is written afresh, whole, between the two points: a LINE
+/// takes them, and an ARC takes them, the moved carrier itself (its
+/// centre and radius), and the included angle the points subtend at
+/// that centre — the offset of a meridian arc is concentric, so the
+/// centre is the datum that does not move and the sweep is what the
+/// endpoints say it is, on the turn of the edge it replaces: the
+/// subtended angle is read nearest the turn that edge covers (the
+/// segment's sweep times its range's span), so a half turn (a
 /// pole-to-pole meridian) keeps its side of the atan2 cut. A POINT's
 /// trajectory — extruded along a vector, or revolved about an axis —
 /// is the same trajectory of the moved point: the vector and the axis
@@ -2609,15 +2611,16 @@ fn reauthor<T: Decide>(
 ) -> Result<geom_brep::MappedCurve<T>, ReplaceFaceError<T>> {
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
     let (p_start, p_end) = ends;
-    Ok(match mapped {
-        geom_brep::MappedCurve::PlacedSegment { segment, place } => {
+    let range = mapped.range;
+    Ok(match mapped.source {
+        geom_brep::MappedSource::PlacedSegment { segment, place } => {
             let inv = place.inverse();
             let flat = |p: Point3<T>| {
                 let q = inv.transform_point(p);
                 geom_core::Point2::new(q.x, q.y)
             };
             let (a, b) = (flat(p_start), flat(p_end));
-            geom_brep::MappedCurve::PlacedSegment {
+            geom_brep::MappedCurve::whole(geom_brep::MappedSource::PlacedSegment {
                 segment: match segment {
                     geom_brep::SketchSegment::Line { .. } => {
                         geom_brep::SketchSegment::Line { a, b }
@@ -2630,23 +2633,22 @@ fn reauthor<T: Decide>(
                         };
                         let centre = flat(*center);
                         let (u, v) = (a - centre, b - centre);
+                        let covered = range.span().map_or(was.sweep, |span| was.sweep * span);
                         geom_brep::SketchSegment::Arc {
                             a,
                             b,
                             arc: Arc2 {
                                 centre,
                                 radius: *radius,
-                                sweep: keep_turn(was.sweep, u.perp_dot(v).atan2(u.dot(v))),
+                                sweep: keep_turn(covered, u.perp_dot(v).atan2(u.dot(v))),
                             },
                         }
                     }
                 },
                 place,
-            }
+            })
         }
-        geom_brep::MappedCurve::ExtrudedPoint {
-            place, vec, range, ..
-        } => {
+        geom_brep::MappedSource::ExtrudedPoint { place, vec, .. } => {
             // Each moved end's station `u` along the whole strut, `p =
             // place(point) + vec·u`: its height off the sketch plane
             // over the vector's own. An end still at its station keeps
@@ -2693,19 +2695,20 @@ fn reauthor<T: Decide>(
                 None => p_start,
                 Some(u) => p_start - vec * u,
             });
-            geom_brep::MappedCurve::ExtrudedPoint {
-                point: geom_core::Point2::new(q.x, q.y),
-                place,
-                vec,
+            geom_brep::MappedCurve {
+                source: geom_brep::MappedSource::ExtrudedPoint {
+                    point: geom_core::Point2::new(q.x, q.y),
+                    place,
+                    vec,
+                },
                 range,
             }
         }
-        geom_brep::MappedCurve::RevolvedPoint {
+        geom_brep::MappedSource::RevolvedPoint {
             place,
             axis_origin,
             axis_dir,
             angle,
-            range,
             ..
         } => {
             // The sketch plane turned `theta` about the axis: `place`
@@ -2760,12 +2763,14 @@ fn reauthor<T: Decide>(
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
             }
-            geom_brep::MappedCurve::RevolvedPoint {
-                point: geom_core::Point2::new(q.x, q.y),
-                place,
-                axis_origin,
-                axis_dir,
-                angle,
+            geom_brep::MappedCurve {
+                source: geom_brep::MappedSource::RevolvedPoint {
+                    point: geom_core::Point2::new(q.x, q.y),
+                    place,
+                    axis_origin,
+                    axis_dir,
+                    angle,
+                },
                 range,
             }
         }
@@ -2938,14 +2943,13 @@ mod tests {
     /// — at the scalar `lift` builds.
     fn rim<T: Decide>(at: [f64; 3], lift: impl Fn(f64) -> T) -> geom_brep::MappedCurve<T> {
         let [x, y, z] = at;
-        geom_brep::MappedCurve::RevolvedPoint {
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
             point: geom_core::Point2::new(lift(2.0), lift(2.0)),
             place: Affine3::translation(Vec3::new(lift(x), lift(y), lift(z))),
             axis_origin: Point3::new(lift(1.0 + x), lift(2.0 + y), lift(z)),
             axis_dir: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
             angle: lift(core::f64::consts::TAU),
-            range: geom_brep::SweepRange::whole(),
-        }
+        })
     }
 
     /// A rim on a tilted placement: the sketch plane shifted to `at`
@@ -2959,26 +2963,29 @@ mod tests {
             Vec3::new(lift(0.2), lift(1.0), lift(-0.4)),
             lift(0.7),
         ) * Affine3::translation(Vec3::new(lift(at[0]), lift(at[1]), lift(at[2])));
-        geom_brep::MappedCurve::RevolvedPoint {
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
             point: geom_core::Point2::new(lift(2.0), lift(2.0)),
             place,
             axis_origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
             axis_dir: place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0))),
             angle: lift(1.9),
-            range: geom_brep::SweepRange::whole(),
-        }
+        })
     }
 
     /// An `f64` rim lifted to `Interval` scalar by scalar, so every
     /// input is an exact point and the widths a row reads are the
     /// arithmetic's own.
     fn lifted(mapped: geom_brep::MappedCurve<f64>) -> geom_brep::MappedCurve<Interval> {
-        let geom_brep::MappedCurve::RevolvedPoint {
-            point,
-            place,
-            axis_origin,
-            axis_dir,
-            angle,
+        let geom_brep::MappedCurve {
+            source:
+                geom_brep::MappedSource::RevolvedPoint {
+                    point,
+                    place,
+                    axis_origin,
+                    axis_dir,
+                    angle,
+                    ..
+                },
             ..
         } = mapped
         else {
@@ -2987,7 +2994,7 @@ mod tests {
         let iv = Interval::from_f64;
         let p3 = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
         let v3 = |v: Vec3<f64>| Vec3::new(iv(v.x), iv(v.y), iv(v.z));
-        geom_brep::MappedCurve::RevolvedPoint {
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
             point: geom_core::Point2::new(iv(point.x), iv(point.y)),
             place: Affine3::from_parts(
                 geom_core::Mat3::from_cols(
@@ -3000,8 +3007,7 @@ mod tests {
             axis_origin: p3(axis_origin),
             axis_dir: v3(axis_dir),
             angle: iv(angle),
-            range: geom_brep::SweepRange::whole(),
-        }
+        })
     }
 
     /// The parts of a revolved point, for the rows to rebuild main's
@@ -3015,12 +3021,16 @@ mod tests {
     }
 
     fn parts<T: Decide>(mapped: geom_brep::MappedCurve<T>) -> Rim<T> {
-        let geom_brep::MappedCurve::RevolvedPoint {
-            point,
-            place,
-            axis_origin,
-            axis_dir,
-            angle,
+        let geom_brep::MappedCurve {
+            source:
+                geom_brep::MappedSource::RevolvedPoint {
+                    point,
+                    place,
+                    axis_origin,
+                    axis_dir,
+                    angle,
+                    ..
+                },
             ..
         } = mapped
         else {
@@ -3131,11 +3141,9 @@ mod tests {
             ] {
                 let rim = parts(mapped);
                 let corner = placed(&rim);
-                let geom_brep::MappedCurve::RevolvedPoint {
-                    point,
-                    angle,
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
                     range,
-                    ..
                 } = reauthored(mapped, corner, band())
                 else {
                     panic!("a revolved point re-authors as one");
@@ -3179,11 +3187,9 @@ mod tests {
     fn an_unmoved_revolved_point_reauthors_bit_for_bit_at_f64() {
         for at in [NEAR, FAR] {
             let mapped = rim(at, |x| x);
-            let geom_brep::MappedCurve::RevolvedPoint {
-                point,
-                angle,
+            let geom_brep::MappedCurve {
+                source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
                 range,
-                ..
             } = reauthored(mapped, placed(&parts(mapped)), band())
             else {
                 panic!("a revolved point re-authors as one");
@@ -3259,8 +3265,10 @@ mod tests {
             let rim = parts(mapped);
             for theta in [0.3, 1.7, -1.1, -2.9] {
                 let corner = turned(&rim, iv(theta));
-                let geom_brep::MappedCurve::RevolvedPoint { point, .. } =
-                    reauthored(mapped, corner, wide())
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, .. },
+                    ..
+                } = reauthored(mapped, corner, wide())
                 else {
                     panic!("a revolved point re-authors as one");
                 };
@@ -3274,6 +3282,69 @@ mod tests {
                      composed placement's {main:e}"
                 );
             }
+        }
+    }
+
+    /// **A restricted arc re-authors on the turn its edge covers.** A
+    /// 1.9π sketch arc restricted to `[0.1, 0.35]` covers 0.475π; offset
+    /// concentrically, its moved ends subtend that same 0.475π at the
+    /// centre. The re-authored segment is whole and turns 0.475π, the
+    /// subtended angle read nearest the covered turn. Read nearest the
+    /// whole 1.9π instead, it would turn 2.475π — more than a full turn,
+    /// and off the moved end.
+    #[test]
+    fn a_restricted_arc_re_authors_on_its_covered_turn() {
+        use core::f64::consts::PI;
+        let on = |r: f64, theta: f64| geom_core::Point2::new(r * theta.cos(), r * theta.sin());
+        let sweep = 1.9 * PI;
+        let whole = geom_brep::MappedCurve::whole(geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Arc {
+                a: on(1.0, 0.0),
+                b: on(1.0, sweep),
+                arc: Arc2 {
+                    centre: geom_core::Point2::new(0.0, 0.0),
+                    radius: 1.0,
+                    sweep,
+                },
+            },
+            place: Affine3::identity(),
+        });
+        let edge = whole.restrict(0.1, 0.35);
+        let (t0, t1) = (0.1 * sweep, 0.35 * sweep);
+        let lift = |p: geom_core::Point2<f64>| Point3::new(p.x, p.y, 0.0);
+        let (p_start, p_end) = (lift(on(1.5, t0)), lift(on(1.5, t1)));
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let moved = reauthor(edge, &carrier, (p_start, p_end), EdgeKey::default(), band())
+            .expect("a concentric offset of a sketch arc re-authors");
+        assert!(moved.range.is_whole(), "the re-authored segment is whole");
+        let geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Arc { arc, .. },
+            ..
+        } = moved.source
+        else {
+            panic!("a placed arc re-authors as one");
+        };
+        let covered = 0.25 * sweep;
+        assert!(
+            (arc.sweep - covered).abs() < 1e-12,
+            "the re-authored sweep is {} rad, not the covered {covered} rad",
+            arc.sweep
+        );
+        for (s, want) in [
+            (0.0, p_start),
+            (0.5, lift(on(1.5, 0.5 * (t0 + t1)))),
+            (1.0, p_end),
+        ] {
+            let got = moved.eval(s);
+            assert!(
+                got.distance(want) < 1e-12,
+                "the re-authored arc at s = {s} is {got:?}, off the moved edge's {want:?}"
+            );
         }
     }
 }

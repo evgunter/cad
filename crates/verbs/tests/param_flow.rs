@@ -247,7 +247,7 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     let b = topo::AtRestBody::validate(b, tol()).expect("the shifted cube is a finished body");
     let out = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: BooleanDeclarations::none(),
+        declare: Box::new(BooleanDeclarations::none()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .expect("the crossing union is inside the door");

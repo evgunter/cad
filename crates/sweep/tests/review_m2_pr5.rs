@@ -1108,14 +1108,15 @@ fn survives_near_full_period_rim_span_escalates() {
     let radius = 1.0;
     let span = TAU - 3.0 * eps() / radius;
     let spec = geom_brep::EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            point: Point2::new(1.0, 0.0),
-            place: geom_core::Affine3::identity(),
-            axis_origin: center,
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angle: span,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: Point2::new(1.0, 0.0),
+                place: geom_core::Affine3::identity(),
+                axis_origin: center,
+                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                angle: span,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::new(0.0, 1.0, 0.0),

@@ -13,13 +13,13 @@ keep_out: [opened 2026-10-09 by CONTACT's closing cut on its priority seam (Ev i
 priority: P0
 ---
 
-An orchestrator holds the track (since 2026-10-10). Every row but one
-waits on a named trigger in INTENT's stage 4 — the D10 hold
-(`work/intent/plan.md`): `contact-records-cite-their-decision` (B2),
-`booleans-glue-on-zero` (E), `declared-pairs-retire` (F), or the
-umbrella `intent-stage4-is-built`. Each depends on how intent is said:
-declared contacts, their records and their verification. One row waits
-on the plane × torus cone arms (`c5-plane-torus-cone-cylinder-arms`).
+An orchestrator holds the track (since 2026-10-10). INTENT stage 4 E
+(`booleans-glue-on-zero`, PR 4496) and B2
+(`contact-records-cite-their-decision`, PR 4533) have merged and
+released the rows that waited on them. The rest wait on a named
+trigger: `declared-pairs-retire` (F), the stage-4 umbrella
+`intent-stage4-is-built`, or the plane × torus cone arms
+(`c5-plane-torus-cone-cylinder-arms`).
 
 Slate, order and posture: `work/contacthold/plan.md`; narrative in
 `work/contacthold/log.md`.

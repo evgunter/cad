@@ -2187,7 +2187,7 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
             BlendKind::Fillet,
         )?);
     }
-    let chains =
+    let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
     band_reach(req.body, &chains, req.size, BlendKind::Fillet, band)
 }

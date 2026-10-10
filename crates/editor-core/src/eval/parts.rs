@@ -115,6 +115,17 @@ pub(crate) struct PartValue<T: Decide> {
     /// documents' order: material a world product leaves out (A9),
     /// which the instantiating document must still be able to name.
     pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
+    /// The at-rest census's findings for the mated pairs the document
+    /// refused, its own and those carried up, keyed as `contacts` are
+    /// ([`crate::Product::refused_at_rest`]).
+    pub refused: Arc<Vec<topo::ValidationError>>,
+    /// The at-rest census's rows the product's minted records cite
+    /// ([`crate::Product::coincidences`]), named in the part's
+    /// document.
+    pub coincidences: Arc<Vec<crate::assembly::AtRestRow>>,
+    /// The product's inputs its carried records cite
+    /// ([`crate::Product::cited_inputs`]).
+    pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -131,6 +142,9 @@ impl<T: Decide> Clone for PartValue<T> {
             minted: Arc::clone(&self.minted),
             unminted: Arc::clone(&self.unminted),
             unplaced: Arc::clone(&self.unplaced),
+            refused: Arc::clone(&self.refused),
+            coincidences: Arc::clone(&self.coincidences),
+            cited_inputs: Arc::clone(&self.cited_inputs),
             parts: self.parts,
         }
     }
@@ -549,13 +563,6 @@ impl<'a, T: Decide> PartCache<'a, T> {
         }
     }
 
-    /// The descent chain this evaluation was reached through — empty
-    /// at the top level, ending in this document's own reference
-    /// below it. What `param_source::ParamScope::of` reads.
-    pub(crate) fn chain(&self) -> &'a [DocRef] {
-        self.chain
-    }
-
     /// How many referenced-document evaluations ran at or below this
     /// level.
     pub(crate) fn evaluations(&self) -> usize {
@@ -766,6 +773,9 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
+            refused: Arc::new(product.refused_at_rest),
+            coincidences: Arc::new(product.coincidences),
+            cited_inputs: Arc::new(product.cited_inputs),
             minted: Arc::new(
                 product
                     .minted

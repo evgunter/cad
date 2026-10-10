@@ -5,9 +5,9 @@
 //! f64 row can tell them apart; what separates them is the enclosure
 //! at `T = Interval`. The center-anchored form mentions the center
 //! twice and interval arithmetic cannot cancel it, so the result
-//! carries `2·width(center)`. `restrict` re-derives its endpoints
-//! through `eval`, so an evaluation's width is stored back into the
-//! description and successive splits compound it.
+//! carries `2·width(center)`. A split edge stores no evaluation — it
+//! narrows the description's range and evaluates the authored arc —
+//! so this width is paid once per evaluation, never compounded.
 //!
 //! The row below is the guard: on a short arc whose centre is derived
 //! from its own short chord (so the centre is wide), the
@@ -50,16 +50,14 @@ fn meridian() -> SketchSegment<Interval> {
 }
 
 /// A short arc whose carrier is derived from its own chord: the 0.4 %
-/// window of the meridian from `s = 0.4`, its endpoints cut by
-/// `restrict` (so they carry an evaluation's width), and its carrier
-/// lowered from that short chord and the window's bulge
-/// `tan(atan(1)·0.004)` — how the profile's lift derives a short
-/// authored arc's carrier at `Interval`. (`restrict` itself keeps the
-/// parent's carrier, whose centre here is exact.)
+/// window of the meridian from `s = 0.4`, its endpoints the meridian's
+/// evaluations at the window's ends (so they carry an evaluation's
+/// width), and its carrier lowered from that short chord and the
+/// window's bulge `tan(atan(1)·0.004)` — how the profile's lift derives
+/// a short authored arc's carrier at `Interval`.
 fn short_arc() -> SketchSegment<Interval> {
-    let SketchSegment::Arc { a, b, .. } = meridian().restrict(iv(0.4), iv(0.404)) else {
-        panic!("restriction changed the segment kind");
-    };
+    let meridian = meridian();
+    let (a, b) = (meridian.eval(iv(0.4)), meridian.eval(iv(0.404)));
     lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
 }
 

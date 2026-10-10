@@ -17,7 +17,7 @@
 //!   silent drop). Name resolution is the document's semantics, so it
 //!   runs upstairs; what this correspondence's `build` receives is the
 //!   already-lowered arena-key form.
-//! - **The declared-contact carry**: the surviving contacts come back
+//! - **The contact-record carry**: the surviving contacts come back
 //!   in the verb's record channel and the lowering carries them into
 //!   the boolean VALUE (`BooleanValue::Body { contacts, .. }`), the
 //!   tier-3′ currency downstream ops re-enter.
@@ -81,7 +81,8 @@ pub(crate) struct PairVerb<T: Decide> {
 pub(crate) struct BooleanRecord {
     /// How the result body came to be.
     pub(crate) kind: BooleanResultKind,
-    /// Declared contacts surviving into the result, result keys.
+    /// Contacts, declared or glued on a decided Zero, surviving into the
+    /// result, result keys.
     pub(crate) contacts: ContactRecords,
     /// Mint-time naming facts the naming layer consumes.
     pub(crate) naming: BooleanNaming,
@@ -90,7 +91,10 @@ pub(crate) struct BooleanRecord {
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
 fn build_boolean<T: geom_core::Real>(op: BooleanOp, declare: BooleanDeclarations) -> Verb<T> {
-    Verb::Boolean { op, declare }
+    Verb::Boolean {
+        op,
+        declare: Box::new(declare),
+    }
 }
 
 /// The boolean family's arm of the record channel. Exhaustive with no

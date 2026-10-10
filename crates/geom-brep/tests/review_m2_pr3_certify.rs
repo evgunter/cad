@@ -18,7 +18,7 @@ use geom::Surface;
 use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
+    MappedCurve, MappedSource, NewellError, SketchSegment, classify_dihedral, newell_plane,
 };
 use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
@@ -49,7 +49,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 #[test]
 fn fixed_winding_aliased_arc_interval_refused() {
     // The quarter arc, counterclockwise, on the unit circle.
-    let desc = MappedCurve::PlacedSegment {
+    let desc = MappedCurve::whole(MappedSource::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
@@ -60,7 +60,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
             },
         },
         place: Affine3::identity(),
-    };
+    });
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(desc),
         carrier: Curve3::Circle {
@@ -93,14 +93,15 @@ fn fixed_winding_aliased_full_period_refused() {
     let center = Point3::new(1.0, 2.0, 3.0);
     let p = Point3::new(2.0, 2.0, 3.0);
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-            point: Point2::new(2.0, 2.0),
-            place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-            axis_origin: center,
-            axis_dir: Vec3::unit_z(),
-            angle: TAU,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::RevolvedPoint {
+                point: Point2::new(2.0, 2.0),
+                place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
+                axis_origin: center,
+                axis_dir: Vec3::unit_z(),
+                angle: TAU,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::unit_z(),
@@ -124,7 +125,7 @@ fn fixed_winding_aliased_full_period_refused() {
 /// schedule only aliases at 8k·tau).
 #[test]
 fn survives_wrong_carriers_are_rejected() {
-    let arc = MappedCurve::PlacedSegment {
+    let arc = MappedCurve::whole(MappedSource::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
@@ -135,7 +136,7 @@ fn survives_wrong_carriers_are_rejected() {
             },
         },
         place: Affine3::identity(),
-    };
+    });
     let p0 = Point3::new(1.0, 0.0, 0.0);
     let p1 = Point3::new(0.0, 1.0, 0.0);
     let base = |carrier, t0: f64, t1: f64| EdgeCurveSpec {
@@ -664,12 +665,13 @@ fn fixed_reversed_interval_refused() {
     let p1 = Point3::new(1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         // Description runs p1 -> p0 over s in [0,1].
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p1 - Point3::origin()),
-            vec: p0 - p1,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p1 - Point3::origin()),
+                vec: p0 - p1,
+            },
+        )),
         // Carrier parameterized from p0, walked BACKWARD: t: 1 -> 0.
         carrier: Curve3::Line {
             origin: p0,
@@ -699,12 +701,13 @@ fn fixed_reversed_interval_refused() {
 fn fixed_zero_length_edge_refused() {
     let p = Point3::new(2.0, -1.0, 5.0);
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p - Point3::origin()),
-            vec: Vec3::zero(),
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p - Point3::origin()),
+                vec: Vec3::zero(),
+            },
+        )),
         carrier: Curve3::Line {
             origin: p,
             dir: Vec3::unit_x(),
@@ -897,14 +900,15 @@ mod interval_lane {
         let center = p3(1.0, 2.0, 3.0);
         let p = p3(2.0, 2.0, 3.0);
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-                point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
-                place: Affine3::translation(v3(0.0, 0.0, 3.0)),
-                axis_origin: center,
-                axis_dir: v3(0.0, 0.0, 1.0),
-                angle: Interval::from_f64(core::f64::consts::TAU),
-                range: geom_brep::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::RevolvedPoint {
+                    point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
+                    place: Affine3::translation(v3(0.0, 0.0, 3.0)),
+                    axis_origin: center,
+                    axis_dir: v3(0.0, 0.0, 1.0),
+                    angle: Interval::from_f64(core::f64::consts::TAU),
+                },
+            )),
             carrier: Curve3::Circle {
                 center,
                 axis: v3(0.0, 0.0, 1.0),

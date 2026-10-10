@@ -178,7 +178,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
     let assertion = r.insert(Node::Assertion {
         value: web,
         bound: len(0.0),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)

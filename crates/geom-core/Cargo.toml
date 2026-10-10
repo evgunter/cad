@@ -9,12 +9,14 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# The variant rosters behind `topo`'s sample-coverage row
+# Test-only. Two things ride it: the `test_support` module (the
+# suites' one reading of a reporting margin's upper end), and the
+# variant rosters behind `topo`'s sample-coverage row
 # (`topo::test_support_samples`): with this on, the enums a
 # `topo::ValidationError` renders through derive a companion
 # discriminant enum (`strum::EnumDiscriminants`), so a variant added
 # here is a gap in that row by construction, not by a hand-kept list.
-# Test-only: enabled through `topo`'s `test-support` alone.
+# Enabled by `topo`'s `test-support` and by geom-brep's dev-dependencies.
 test-support = ["dep:strum"]
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body

@@ -28,6 +28,8 @@ pub mod real;
 pub mod running;
 pub mod spline;
 pub mod sym;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub mod tolerance;
 
 pub use arc::Arc2;

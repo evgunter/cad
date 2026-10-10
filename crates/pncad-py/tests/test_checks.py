@@ -350,11 +350,12 @@ class TestSubjectBody(unittest.TestCase):
         self.assertIsNone(subject_body(ev, root, 7))
         self.assertIsNotNone(subject_body(ev, consumed, 0))
 
-        touching = Doc("checks-touching-subject")
-        a = slab(touching, 0.0, 1.0)
-        b = slab(touching, 1.0, 2.0)
-        failed = touching.insert(Node.boolean(BooleanOp.Union, a, b))
-        self.assertIsNone(subject_body(evaluate(touching), failed, 0))
+        sliver = Doc("checks-sliver-subject")
+        a = slab(sliver, 0.0, 1.0)
+        # 2 nm apart: in band, so the union refuses and has no value.
+        b = slab(sliver, 1.0 + 2e-9, 2.0)
+        failed = sliver.insert(Node.boolean(BooleanOp.Union, a, b))
+        self.assertIsNone(subject_body(evaluate(sliver), failed, 0))
 
 
 class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
@@ -441,9 +442,10 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         was checked. `evaluate` is total, so the failure arrives as a
         valueless placement and the registry refuses on it rather than
         reporting over what did evaluate."""
-        doc = Doc("checks-touching")
+        doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        b = slab(doc, 1.0, 2.0)
+        # 2 nm apart: in band, so the union refuses.
+        b = slab(doc, 1.0 + 2e-9, 2.0)
         root = doc.place(doc.insert(Node.boolean(BooleanOp.Union, a, b)))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:

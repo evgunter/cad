@@ -673,16 +673,15 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         // guarantee (its comment carries the argument).
         crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r, tol);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Scaffold(
-                geom_brep::MappedCurve::RevolvedPoint {
+            description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+                geom_brep::MappedSource::RevolvedPoint {
                     point: segs[wseg(i)].a,
                     place: place_pi,
                     axis_origin: frame.o3,
                     axis_dir: frame.a3,
                     angle: half,
-                    range: geom_brep::SweepRange::whole(),
                 },
-            ),
+            )),
             carrier: geom::Curve3::Circle {
                 center,
                 axis: axis_c,

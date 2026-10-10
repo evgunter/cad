@@ -120,10 +120,13 @@ fn shelf_over(post: common::Prism<f64>) -> (Body<f64>, FaceKey, FaceKey) {
 
 fn errors(body: &Body<f64>, a: FaceKey, b: FaceKey) -> Vec<ValidationError> {
     let records = ContactRecords {
-        patches: vec![PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
+        patches: vec![topo::Cited::new(
+            PatchContact {
+                face_a: a,
+                face_b: b,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     match topo::validate_pseudomanifold(body, &records, Tol::witness()) {

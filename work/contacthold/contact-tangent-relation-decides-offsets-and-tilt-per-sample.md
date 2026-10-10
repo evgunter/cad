@@ -2,11 +2,10 @@
 id: contact-tangent-relation-decides-offsets-and-tilt-per-sample
 kind: issue
 title: check whether contact_verify's tangent relation decides the offsets and the tilt one at a time
-status: parked
+status: open
 opened: 2026-10-07
 priority: P3
 cost: M
-blocked_on: [booleans-glue-on-zero]
 ---
 
 ## What
@@ -28,3 +27,7 @@ the band reaches a served tangency; if it does, decide their sum
 ## Parked on the D10 hold (2026-10-08)
 
 The declared-tangency verifier (`tangent_locus_relation`) is rewired to run on verdicts when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+The glue door runs the tangency witness lane (`verify_tangency_declaration`, and through it `tangent_locus_relation`) on every undeclared ruled or rim-sharing pair, so this relation now decides undeclared pairs as well as declared ones. The question this row asks still holds.

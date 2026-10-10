@@ -377,11 +377,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         face_carrier(&block, top).unwrap(),
         face_carrier(&wedge, bottom).unwrap(),
     );
-    let declared = topo::PlaneIdentity {
-        s1: None,
-        s2: None,
-        declared: true,
-    };
+    let declared = topo::PlaneIdentity::DECLARED;
     let metre =
         topo::boolean::carrier_eq::carrier_eq_verdict(&ca, &cb, declared, &metre_ball(1.0), band);
     assert!(
@@ -612,8 +608,8 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 /// not settle: a wedge on the block's CORNER whose 1 mm edge lies in the
 /// top's plane (outside the face) and whose 10 m edge rises `500·ε`
 /// over it. The pair of bottoms agrees at the 1 mm arm, so it goes to
-/// the carrier ladder as a coincidence, and undeclared it refuses,
-/// typed. Read by its bounds instead, the pair is half a crossing, and
+/// the carrier ladder as a coincidence its extent does not decide, and
+/// it refuses, typed. Read by its bounds instead, the pair is half a crossing, and
 /// the vertex's germs came out odd (a kernel invariant). The same pose
 /// under 1 m edges answers. Making the short pose answer is filed:
 /// `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
@@ -639,13 +635,11 @@ fn a_near_coincident_pair_at_a_corner_refuses_typed() {
         ("−", subtract(&short, &block, tol)),
         ("∪", union(&short, &block, tol)),
     ] {
-        // UndeclaredCoincidence; at ε = 1e-6, where the 1 mm edges are
-        // a thousand bands, an edge contact in band escalates first.
+        // The corner reads Zero for a pair the glue door did not glue
+        // (an unglued coincidence); at ε = 1e-6, where the 1 mm edges
+        // are a thousand bands, an edge contact in band escalates first.
         assert!(
-            matches!(
-                r,
-                Err(BooleanError::UndeclaredCoincidence { .. } | BooleanError::Escalated { .. })
-            ),
+            matches!(r, Err(BooleanError::Escalated { .. })),
             "{what}: the near-coincidence refuses typed, got {:?}",
             r.as_ref().err()
         );

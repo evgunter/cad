@@ -33,10 +33,7 @@ use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
 use topo::test_support::JoinedOperands;
-use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, MassPropsError, PointInSolidError, SolidContainment,
-    ValidationError,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, PointInSolidError, SolidContainment};
 
 /// The widening frustum: radius `0.5 → 1` over `y ∈ [0, 1]`, so apex
 /// `(0, −1, 0)`, axis `+y`, `tan α = 1/2`.
@@ -717,16 +714,15 @@ fn front_door(
     }
 }
 
-/// **Each pose's op builds its closed form, or refuses its ring typed.**
-/// The whole op through
+/// **Each pose's op builds its closed form.** The whole op through
 /// its front door ([`front_door`]), in every op and member order: the
 /// body passes tiers 2 and 3′, the at-rest certificate and the
 /// legal-operand check, measures its closed-form volume
 /// (`differential::outcome`), holds each named point by the op's set
 /// algebra, and either meshes into a mesh `check_mesh` passes or refuses
-/// the conic trim the trimmed lanes have no arm for. The one exception is
-/// T1's ∪ and cone ∖ box, which keep the lune as a ring on the cone face:
-/// those refuse at the result's tier 3, the ring's volume unread.
+/// the conic trim the trimmed lanes have no arm for. T1's ∪ and
+/// cone ∖ box keep the lune as a ring on the cone face, which the mesh
+/// refuses typed.
 #[test]
 fn each_poses_body_is_its_closed_form_in_every_op() {
     let tol = Tol::witness();
@@ -748,23 +744,6 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
             let got = front_door(op, a, b, tol);
             let ring_kept = pose.name == "T1"
                 && (op == BooleanOp::Union || (op == BooleanOp::Subtract && cone_first));
-            if ring_kept {
-                assert!(
-                    matches!(
-                        &got,
-                        Err(BooleanError::ResultInvalid { errors }) if errors.iter().all(|e| matches!(
-                            e,
-                            ValidationError::VolumeUncomputable {
-                                source: MassPropsError::RingOnCurvedFace { .. },
-                                ..
-                            }
-                        ))
-                    ),
-                    "{label}: the lune is a ring on the cone face, whose volume the result's \
-                     tier 3 cannot read, got {got:?}"
-                );
-                continue;
-            }
             let body = match &got {
                 Ok(r) => r.body().map(|bb| bb.body.clone()),
                 Err(e) => panic!("{label}: the op refused {e:?}"),
@@ -774,8 +753,10 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
                 Ok(m) => mesh::validate::check_mesh(&m)
                     .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}")),
                 Err(e) => assert!(
-                    matches!(e, mesh::TessellateError::UnsupportedCurve { .. }),
-                    "{label}: the mesh refuses only the conic trim, got {e:?}"
+                    matches!(e, mesh::TessellateError::UnsupportedCurve { .. })
+                        || ring_kept && matches!(e, mesh::TessellateError::RingOnCurvedFace { .. }),
+                    "{label}: the mesh refuses only the conic trim, or the ring on the cone face \
+                     where the result keeps it, got {e:?}"
                 ),
             }
             for (what, p, (in_cone, in_other)) in &pose.points {

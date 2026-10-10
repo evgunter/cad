@@ -321,7 +321,7 @@ fn vf_reading(
     record: topo::VfContact,
 ) -> Result<(), Vec<topo::ValidationError>> {
     let contacts = topo::ContactRecords {
-        b_on_a: vec![record],
+        b_on_a: vec![topo::Cited::new(record, topo::Cites::decided(0))],
         ..topo::ContactRecords::default()
     };
     let errors: Vec<_> = topo::validate_pseudomanifold(body, &contacts, Tol::witness())

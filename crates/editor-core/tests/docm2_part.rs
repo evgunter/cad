@@ -1,9 +1,8 @@
 //! **DOCM-2 — `Node::Part` at f64**
 //! (`crates/editor-core/REFERENCES.md` DM3):
 //! acceptance rows A1–A6, the split-stamping row the stop clause's
-//! amendment asks for, and the `Dual64` pin of the relaxed
-//! same-source assertions on the exact corpus document. The
-//! Interval-lane rows (A7) are `docm2_part_interval`.
+//! amendment asks for, and the `Dual64` pin of the exact corpus
+//! document. The Interval-lane rows (A7) are `docm2_part_interval`.
 //!
 //! The oracle for "the half IS the half" is the kernel's own door fed
 //! the body read straight off the split's or the pattern's value: a
@@ -467,7 +466,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let rounded = r.insert(Node::fillet(p1, len(RADIUS), vec![other_instance]));
     let ev = eval(&r.doc);
     match error_of(&ev, rounded) {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => assert!(
+        NodeErrorKind::SelectResolve { error, .. } => assert!(
             matches!(**error, ResolveError::Vanished { .. }),
             "the N5 arm the situation warrants: {error}"
         ),
@@ -717,13 +716,12 @@ fn a7_the_product_of_a_lone_part_root_is_that_half() {
     assert_eq!(bits(&body), bits(&side));
 }
 
-/// **The split-stamping row** (the stop clause's amendment, item 1):
-/// a boolean of the two halves of one split succeeds at f64, and the
-/// two section planes carry DISTINCT sources — their descriptions are
-/// opposed bit for bit, so one source over both would violate the
-/// same-source theorem and, at rung 1, read two opposed planes as one.
+/// **The two section planes of one split face away from each other**,
+/// and a boolean of the two halves succeeds at f64: their descriptions
+/// are opposed bit for bit, so a reader taking them for one plane would
+/// rejoin the halves along a face that is not there.
 #[test]
-fn the_two_section_planes_of_one_split_carry_distinct_sources() {
+fn the_two_section_planes_of_one_split_face_away_from_each_other() {
     let cd = corpus::part_select::document();
     let ev = eval(&cd.doc);
     assert!(
@@ -737,27 +735,37 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
         .iter()
         .find(|id| matches!(cd.doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
-    let (above, below) = sides(&ev, split);
-    let section = |b: &Body<f64>| {
-        let minted: Vec<_> = b
-            .surfaces()
-            .filter_map(|(k, s)| {
-                b.surface_source(k)
-                    .filter(|src| src.node == split.0.digest())
-                    .map(|src| (src.clone(), s.clone()))
+    // Each half's section face, through the Part that projects it: the
+    // name passes through verbatim and resolves in the half's one body.
+    let section = |side: SplitHalf| {
+        let part = *cd
+            .doc
+            .ids()
+            .iter()
+            .find(|id| {
+                matches!(
+                    cd.doc.node(**id),
+                    Some(Node::Part { select: PartSelect::SplitHalf(h), .. }) if *h == side
+                )
             })
-            .collect();
-        assert_eq!(minted.len(), 1, "one section plane per half");
-        minted.into_iter().next().unwrap()
+            .expect("the document projects both halves");
+        let value = ev.value(part).expect("the Part evaluates");
+        let ValuePayload::Body(body) = &value.payload else {
+            panic!("a Part of a split half is a body");
+        };
+        let name = corpus::part_select::section_face(split, side);
+        let face = match value.name_table.lookup(&name) {
+            Some(Entry::Unique(e)) => match e.key {
+                EntityKey::Face(k) => k,
+                other => panic!("{name} is not a face: {other:?}"),
+            },
+            other => panic!("{name} does not resolve uniquely: {other:?}"),
+        };
+        let surface = body.get_face(face).expect("a live face").surface;
+        body.get_surface(surface).expect("a live carrier").clone()
     };
-    let (src_a, plane_a) = section(&above);
-    let (src_b, plane_b) = section(&below);
-    assert!(
-        !src_a.same_base(&src_b),
-        "distinct sources: {src_a:?} / {src_b:?}"
-    );
     let (topo::Surface::Plane { normal: na, .. }, topo::Surface::Plane { normal: nb, .. }) =
-        (plane_a, plane_b)
+        (section(SplitHalf::Above), section(SplitHalf::Below))
     else {
         panic!("planes")
     };
@@ -769,8 +777,8 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
 }
 
 /// **The `Dual64` pin** (the amendment, item 2): the exact corpus
-/// document — whose union rejoins two pieces carrying one pass-through
-/// source — evaluates green at a scalar with no bit channel. The value
+/// document — whose union rejoins the two halves of one split —
+/// evaluates green at a scalar with no bit channel. The value
 /// channel equalling f64's is `m10_di_dual_corpus`'s row; this one
 /// names the document.
 #[test]

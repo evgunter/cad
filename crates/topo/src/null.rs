@@ -1451,7 +1451,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let frame = CylFrame::canonical(1.0);
-        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let outer = body.get_face(face).unwrap().outer;
         let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("the wall is bounded by a cycle")
@@ -1527,7 +1527,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let frame = CylFrame::canonical(1.0);
-        let wall = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let wall = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let seed = body.faces().map(|(k, _)| k).find(|&k| k != wall).unwrap();
         let cycle = |body: &Body<f64>, face: FaceKey| {
             let outer = body.get_face(face).unwrap().outer;
@@ -1738,7 +1738,6 @@ mod tests {
         let wall = cyl_wall_sheet(
             &mut body,
             CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),
@@ -1952,7 +1951,7 @@ mod tests {
         let tol = Tol::witness();
         let frame = CylFrame::canonical(1.0);
         let mut body = Body::<f64>::new();
-        let wall = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let wall = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let bottom = rim_vertex_on_the_ruling(&mut body, 0.8, 0.0);
         let top = rim_vertex_on_the_ruling(&mut body, 0.8, 1.0);
         let foot = rim_vertex_on_the_ruling(&mut body, 0.5, 0.0);

@@ -27,6 +27,7 @@ use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
 use geom_core::Tol;
+use geom_core::test_support::upper;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{
@@ -552,9 +553,9 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                    value, ..
+                    margin, ..
                 }),
-        } => Some(value),
+        } => Some(upper(margin)),
         _ => None,
     });
     let Some(measured) = measured else {

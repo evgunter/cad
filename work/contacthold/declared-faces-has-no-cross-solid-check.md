@@ -2,12 +2,11 @@
 id: declared-faces-has-no-cross-solid-check
 kind: issue
 title: An intra-solid PATCH record is admitted into the census's backing index with no reading of its own (curve records are the designed cusp channel; patches have no such role)
-status: parked
+status: open
 opened: 2026-09-16
 refs: [750]
 priority: P3
 cost: D
-blocked_on: [booleans-glue-on-zero]
 ---
 
 The adjacent observation from issue 750, filed at BOOL-4's spec time
@@ -56,3 +55,7 @@ question, so the row is costed `D`.
 ## Parked on the D10 hold (2026-10-08)
 
 `Declared::index` reads `ContactRecords`; the census is re-backed when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+E ships one set of `ContactRecords` for a glued pair, declared or not. `Declared::index` reads them unchanged, so the question this row asks still holds.

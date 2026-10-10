@@ -46,3 +46,14 @@ Found in review of PR 3753 (re-review, 2026-10-02).
 - The breaking shape tried was an L-shaped `a`, `b` = [.5,1]×[.5,1]×[0,1], and `H` = [.3,.7]×[.3,.5]×[.5,2]. The kernel refuses it with `ClassificationInvariant` ("edge-edge membership disagreement"), the reflex-wedge limit documented on `resolve_edge_edge`.
 
 **When to revisit.** Before that limit is lifted, or before non-axis-aligned planar covered pairs are admitted, the attach rule should test "borders the stretch", not "touches `at`". The probe source is in the reviewer's notes: `probe_l_vertex.rs`.
+
+## A corpus case reaches it (INTENT stage 4 PR E, 2026-10-10)
+
+PR E glues an undeclared flush contact. With that change, the probe
+corpus's `cross` (`a`, `b` flush, the slab `g`, and the bar
+x −1..2, y 0.9..1.1, z 0.5..3) refuses this `Emission` in
+`[0, 1, 2, 3]`, `[1, 0, 2, 3]`, `[1, 2, 0, 3]` and `[2, 1, 0, 3]` of
+`emit_shared_rim_several::no_order_of_the_probe_corpus_refuses_several_shared_rims`.
+Before PR E, those orders refused `UndeclaredCoincidence`. The test
+admits the refusal by name (`RESIDUES`), so this issue now has a
+corpus fixture to measure against.

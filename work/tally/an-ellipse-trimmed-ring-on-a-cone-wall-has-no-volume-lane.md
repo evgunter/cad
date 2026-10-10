@@ -2,8 +2,11 @@
 id: an-ellipse-trimmed-ring-on-a-cone-wall-has-no-volume-lane
 kind: issue
 title: A cone wall carrying a ring trimmed by ellipse arcs (T1's lune) has no volume lane: RingOnCurvedFace
-status: open
+status: closed
 opened: 2026-10-09
+closed: 2026-10-10
+branch: germ/cone-ring-volume
+pr: 4484
 refs: [an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane]
 ---
 
@@ -35,3 +38,13 @@ A volume lane for a cone face with a ring of ellipse arcs (the chart
 Green form over the ring, as the cylinder twin owes), then the three
 T1 ops re-pinned to `OK SOUND` against `216 + π·1.2²·H/3 − 0.057152625`
 and `π·1.2²·H/3 − 0.057152625`, `H = 1.2/tan(π/6)`.
+
+**2026-10-10, closed by GERM's U-S5 (PR 4484).** The cone's closed form
+(`geom_brep::props::cone_face_closed_form`) sums every loop's vector
+area, with each ring certified as a hole: it closes, it is contractible
+on the nappe, and it is wound against the face. `face_flux` routes a
+ringed cone face there. T1's ∪ in both orders and cone ∖ box are now
+`OK SOUND` at `216 + π·1.2²·H/3 − overlap` and `π·1.2²·H/3 − overlap`
+(`cone_join_lane::each_poses_body_is_its_closed_form_in_every_op`), and
+they bracket those values at `Interval`. The cylinder twin is unchanged:
+its flux has no vector-area form.

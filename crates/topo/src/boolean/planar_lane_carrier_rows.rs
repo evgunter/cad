@@ -246,7 +246,7 @@ fn sweep_a(
         &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
         Tol::witness(),
     )?;
-    Ok((x, acc.finish()))
+    Ok((x, acc.finish().0))
 }
 
 /// The arc's closed form at `t`.
@@ -353,7 +353,6 @@ fn an_arc_crossing_a_cylinder_wall_refuses() {
     cyl_wall_sheet(
         &mut b,
         CylFrame::canonical(1.0),
-        None,
         (0.0, core::f64::consts::PI),
         (-1.0, 1.0),
         Tol::witness(),
@@ -402,7 +401,6 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
     cyl_wall_sheet(
         &mut b,
         CylFrame::canonical(2.5),
-        None,
         (0.0, core::f64::consts::PI),
         (-2.0, 2.0),
         Tol::witness(),

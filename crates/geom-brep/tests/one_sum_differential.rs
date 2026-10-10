@@ -23,8 +23,8 @@ use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{
     ConeCylinderSection, EqualCylinderSection, PlaneConeSection, PlaneCylinderSection,
-    PlaneTorusSection, RadiusEvidence, cone_cylinder_section, cylinder_cylinder_section,
-    plane_cone_section, plane_cylinder_section, plane_torus_section,
+    PlaneTorusSection, cone_cylinder_section, cylinder_cylinder_section, plane_cone_section,
+    plane_cylinder_section, plane_torus_section,
 };
 use geom_brep::{ExtentBall, Reach, SectionError, TangentLocus, tangent_locus};
 use geom_core::{Point3, Vec3};
@@ -338,13 +338,7 @@ fn one_sum_differential() {
                 o1 + y * (r1 * rng.r(0.5, 1.0)) + a1 * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
-            let got = cylinder_cylinder_section(
-                &c1,
-                &c2,
-                RadiusEvidence::Declared,
-                &Reach::Ball(ball),
-                b,
-            );
+            let got = cylinder_cylinder_section(&c1, &c2, &Reach::Ball(ball), b);
             let label = match &got {
                 Ok(v) => head_of(format!("{v:?}")),
                 e => esc(e),
@@ -395,7 +389,7 @@ fn one_sum_differential() {
                 _ => "nan".into(),
             };
             let wtruth = match &w {
-                Ok(TangentLocus::Line { origin, dir }) => {
+                Ok(TangentLocus::Line { origin, dir, .. }) => {
                     let touch = if internal { (r2 - r1).abs() } else { r1 + r2 };
                     format!(
                         "{:.4} {:.4}",

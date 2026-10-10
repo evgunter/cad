@@ -118,7 +118,17 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `measured_web` — its placement's tag (`PlaceInWorld 57cd328e4061` is
 /// now `… 1d7dbb564bd2`), said three times. The placement is minted
 /// after the measure, whose preimage D changed. No other word moved.
-const SAID_DIGEST: u64 = 0xdbf7_2688_40eb_cb70;
+///
+/// INTENT stage 5 PR A: the same tag again (`… 1d7dbb564bd2` is now
+/// `… cd9c076ade6a`). The placement is minted after the assertion,
+/// whose stored field `dir` became `relation`.
+///
+/// INTENT stage 2 PR E, merged over stage 5 A: 6558 of 46614 words
+/// moved, every one a node tag — with each tag masked the two word
+/// lists are equal. A blend, shell, face frame or measure now reads a
+/// selection its insert mints, so its id and every id minted after it
+/// in the seven documents that hold one moved.
+const SAID_DIGEST: u64 = 0x163c_215a_961e_d3a1;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -389,26 +399,34 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
 /// **A node's resolve failure says which slot**: a corpus fillet's
 /// last selected edge of several, stranded, as the tree row says it.
 fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'static str, String)> {
-    let (doc, ev, fillet, at, edge) = docs
+    let (doc, ev, fillet, var, at, edge) = docs
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
             d.doc.ids().iter().find_map(|&id| match d.doc.node(id) {
-                Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
-                    &d.doc,
-                    ev,
-                    id,
-                    selection.len() - 1,
-                    selection.last()?.clone(),
-                )),
+                Some(Node::Fillet { selection, .. }) => {
+                    let names = &d.doc.selection(*selection)?.names;
+                    (names.len() > 1).then(|| {
+                        (
+                            &d.doc,
+                            ev,
+                            id,
+                            *selection,
+                            names.len() - 1,
+                            names.last().cloned(),
+                        )
+                    })
+                }
                 _ => None,
             })
         })
         .expect("the corpus fillets more than one edge");
+    let edge = edge.expect("a last edge");
     let stranded = NodeError {
         node: fillet,
-        kind: NodeErrorKind::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        kind: NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var,
             error: Box::new(ResolveError::NodeGone {
                 name: edge.clone(),
                 edit: RecipeEditRef::NodeDeleted { node: edge.node },
@@ -422,7 +440,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         stranded.contains(&format!("this fillet's edge {at} is stranded: ")),
         "the row says the slot: {stranded}"
     );
-    vec![("NodeErrorKind::BlendSelectionResolve", stranded)]
+    vec![("NodeErrorKind::SelectResolve", stranded)]
 }
 
 /// Every refusal production says that forwards a name, naming `a` (and
