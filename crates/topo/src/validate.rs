@@ -2675,7 +2675,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
         }
         CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
-            if A::check(*limb).bounds_a_miss() {
+            if limb.check().bounds_a_miss() {
                 BOUND
             } else {
                 MISMATCH
@@ -2734,9 +2734,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             certify_undecided(CertCheck::Transversality)
         }
         CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
-        CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => {
-            certify_undecided(A::check(*limb))
-        }
+        CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
@@ -16037,7 +16035,7 @@ mod certify_escalation_rows {
                 says(CertifyError::AnalyticRung3(
                     geom_brep::AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
-                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        limb: geom_brep::Rung3Limb::HullSup,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),

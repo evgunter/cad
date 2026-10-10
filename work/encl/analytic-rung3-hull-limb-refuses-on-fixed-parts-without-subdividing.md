@@ -21,4 +21,4 @@ The third Bernstein control-hull limb is not in that change. `edge_nurbs::analyt
 
 ## Repair shape
 
-Pass the cuts through `projected_hull_lane` and halve the parts whose converted bound does not clear, under the same budget as `ssi::certify::subdivide` (`SSI_HULL_ROUNDS`, `SSI_HULL_CUTS`). Read the canonical composite's value at a break (`CompositeForm::break_values`) as the measured residual, once a lower-bound conversion exists for the kind.
+Pass the cuts through `projected_hull_lane` and halve the parts whose converted bound does not clear, under the same budget as `ssi::certify::subdivide` (`SSI_HULL_WORK`, `SSI_HULL_CUTS`, the two-round stall). Read the canonical composite's value at a break (`CompositeForm::break_values`) as the measured residual, once a lower-bound conversion exists for the kind.

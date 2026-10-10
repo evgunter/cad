@@ -21,19 +21,21 @@ one: what each halves, and how it reads the halves, differ.
   taken from the previous half and its width compounds). It spends a
   halving count (`SIDE_SIGN_HALVINGS`, `:297`, 200 000) and stops in
   band where a piece's halves' hull is no narrower than its own.
-- `geom_brep::ssi::certify::subdivide` (`crates/geom-brep/src/ssi/certify.rs:822`)
+- `geom_brep::ssi::certify::subdivide` (`crates/geom-brep/src/ssi/certify.rs:828`)
   reads a bound and the values at breaks. It halves breadth first, in
   rounds, and rebuilds the whole composite each round from the cut
   parameters (`CurveCertData::with_breaks`, the tensor residual's extra
   breaks), so each piece is cut from its Bézier segment's own row and
-  no cut compounds another. It spends `SSI_HULL_ROUNDS` rounds and
-  `SSI_HULL_CUTS` cuts, takes the worst spans first when a round would
-  pass the cap, and stops where a round narrowed no halved span's bound.
+  no cut compounds another. It spends at most `SSI_HULL_WORK` spans
+  recomputed over its rounds and `SSI_HULL_CUTS` cuts, takes the worst
+  spans first when a round would pass the cut cap, and stops where two
+  rounds in a row leave the lowest bound over the whole carrier where it
+  was.
 
 One driver would need a common notion of a piece, which today is a raw
 row in the first and a span of a rebuilt composite in the second, and a
-common stall rule: one compares a piece's hull width, the other a
-span's bound.
+common stall rule: one compares a piece's hull width, the other the
+whole carrier's bound.
 
 **Two de Casteljau sub-row cuts.**
 

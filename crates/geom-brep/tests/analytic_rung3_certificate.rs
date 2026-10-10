@@ -14,7 +14,7 @@ use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::recourse::Reading;
 use geom_brep::{
     AnalyticRung3Refusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
-    SsiLimb, SurfaceKey, chart_pcurve_over,
+    Rung3Limb, SurfaceKey, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, FileCoincidence, Interval, KERNEL_LIMIT_RECOURSE, Point3, Real, Vec3};
@@ -150,7 +150,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
             e,
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: SsiLimb::HullSup,
+                limb: Rung3Limb::HullSup,
                 margin,
                 ..
             }) if upper(*margin) >= off

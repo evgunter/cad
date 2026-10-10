@@ -97,11 +97,11 @@ Limb 2 now subdivides its composite before refusing, and reads the composite's c
 
 So `|S(P(t)) − C(t)|` is that large at a point of the carrier: the marched carrier and its fitted pcurve disagree by the stated amount, at a break of the composite. That quantity bounds the carrier's miss from the wall from above (C2 limb 1); it is not the miss, and the marched branch lies on both surfaces to ~5e-11 on the tilted prism. What is left is the stored pair itself (the pcurve fit, or the carrier the pcurve is evaluated against). Both rows now refuse as `SsiLimb::HullValueChart` (`CertCheck::PlaneNurbsHullValue`, a bound's ending).
 
-The two exact-pair probes above, re-run on the same branch (debug build, default ε, band zero 1e-9; each wall alike):
+The two exact-pair probes above, re-run on the same branch (debug build, default ε, band zero 1e-9; each wall alike) under its work budget (`SSI_HULL_WORK`, spans recomputed over the rounds):
 
-| carrier | limb 2 before | limb 2 now |
+| carrier | limb 2 before | now |
 |---|---|---|
-| the wall's exact row at v* = 0.975, weights equal along `v` | refused, 3.325e-3 m | refused on the bound, 5.08e-8 m |
-| at rest: the wall's top boundary row | refused, 3.231e-3 m | refused on the bound, 4.94e-8 m |
+| the wall's exact row at v* = 0.975, weights equal along `v` | refused, 3.325e-3 m | **certifies**: limb 2 clears at 7.94e-10 m, and limbs 1 and 3 pass |
+| at rest: the wall's top boundary row | refused, 3.231e-3 m | **certifies**: limb 2 clears at 7.72e-10 m, and limbs 1 and 3 pass |
 
-So the 3.3e-3 m on these pairs was the loose hull, which the "likely cause" above names. Subdividing brings it down about fourfold a round: the 8 rounds are spent on 16 cuts, a peak two spans wide, while the bound still falls. A few more rounds, not more cuts, would clear these rows. No break value reads past ε on either pair.
+So the 3.3e-3 m on these pairs was the loose hull, which the "likely cause" above names. Subdividing brings it down fourfold a round, on two cuts a round around a peak two spans wide: 11 rounds, 22 cuts and 484 spans of work each. What this row still holds is the two shipped rows above, which refuse on a value at a break, not on the hull.

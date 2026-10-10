@@ -751,33 +751,47 @@ impl Halved {
     }
 }
 
-/// How many rounds limb 2 halves its composite's uncleared spans before
-/// it refuses on the bound. A Bernstein hull's excess over the function
-/// falls as the square of the span, so each round cuts it about fourfold
-/// where the residual is smooth. A **structure** choice (C6's f64
-/// lane), not a decision: what it buys is which refusals end on the
-/// bound.
-pub(crate) const SSI_HULL_ROUNDS: usize = 8;
-
-/// The most breaks limb 2's rounds add to its composite in all, so the
-/// work is at most [`SSI_HULL_ROUNDS`] more composites over at most this
-/// many more spans. A round that would pass it halves its worst spans
-/// up to it.
+/// How many spans limb 2's rounds may recompute in all before it
+/// refuses on the bound: each round rebuilds the whole composite, so a
+/// round costs its composite's span count, and this is the sum over the
+/// rounds after the first hull. A Bernstein hull's excess over the
+/// function falls as the square of the span, so each round cuts it
+/// about fourfold where the residual is smooth. A **structure** choice
+/// (C6's f64 lane), not a decision: what it buys is which refusals end
+/// on the bound.
 ///
-/// Measured over the ci profiles of geom-brep, topo, step-import and
-/// sweep (810 limb-2 calls, 792 cleared on the first hull): every
-/// refusal the corpus raises decides within 3 rounds and 348 cuts. The
-/// adversarial wall of `m` C0 spans under each composite span
-/// (`ssi_limb3_one_arc`) clears at about 350 cuts for m = 64 (600 at
-/// its steepest P/N), and needs about 1500 at m = 256 and 6000 at
-/// m = 1024: this budget is three times the corpus's and clears every
-/// m = 64 row, and spends itself on m ≥ 256.
+/// Measured under an unbounded budget over the ci profiles of
+/// geom-brep, topo, step-import and sweep (820 limb-2 calls, 797 cleared
+/// on the first hull, 15 refused on a break's value there): every call
+/// that decided by subdividing spent at most 826 spans. The adversarial
+/// wall of `m` C0 spans under each composite span (`ssi_limb3_one_arc`)
+/// clears at 826 (1964 at its steepest P/N) for m = 64, 3511 (8058) for
+/// m = 256 and 14 188 (32 684) for m = 1024. This budget is twice the
+/// m = 64 rows' and five times the corpus's. A carrier whose first
+/// composite has more spans than this is read on that hull alone; the
+/// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
+/// spans, reads its lowest bound there.
+pub(crate) const SSI_HULL_WORK: usize = 4096;
+
+/// The most breaks limb 2's rounds add to its composite in all. A
+/// round that would pass it halves its worst spans up to it. Under the
+/// unbounded budget of [`SSI_HULL_WORK`]'s measurement the corpus's
+/// calls that decided by subdividing took at most 348 cuts, and the
+/// adversarial wall clears at 348 (600) cuts for m = 64, 1498 (2520)
+/// for m = 256 and 6056 (10 200) for m = 1024: this cap clears every
+/// m = 64 row and spends itself on m ≥ 256, where the work budget alone
+/// would let a few more rounds run.
 pub(crate) const SSI_HULL_CUTS: usize = 1024;
+
+/// How many rounds in a row may leave the lowest bound over the whole
+/// carrier where it was before the subdivision stops on it.
+const SSI_HULL_IDLE_ROUNDS: usize = 2;
 
 /// Where limb 2's subdivision stopped.
 enum Subdivided {
     /// On the bound over the whole carrier: it cleared the band's zero,
-    /// or the budget ran out, or a round did not lower it, first.
+    /// or the budget ran out or the bound stopped falling, first. The
+    /// hull is the round's with the lowest bound.
     Bound(Hull),
     /// On a break whose value is certified past the band's zero.
     Value {
@@ -790,15 +804,17 @@ enum Subdivided {
 }
 
 /// **Limb 2, subdivided until it decides** (C2.2): the composite's
-/// uncleared spans are halved, round by round, until its bound clears
-/// the band's zero, or a break's certified value lies past it, or it
-/// stops: [`SSI_HULL_ROUNDS`] rounds are spent, or [`SSI_HULL_CUTS`]
-/// cuts, or no span is left to halve, or the bound over the whole
-/// carrier is refused or a round did not lower it. A round halves the worst span first,
-/// and a Bernstein row's halves lie inside its own hull, so a bound that
-/// did not fall is the arithmetic's floor at that span, which no
-/// further halving lowers. Every round's hull
-/// is the composite's own, cut from each Bézier segment's row
+/// uncleared spans are halved, worst bound first, round by round, until
+/// its bound clears the band's zero, or a break's certified value lies
+/// past it, or it stops: the next round would pass [`SSI_HULL_WORK`],
+/// or no span is left to halve under [`SSI_HULL_CUTS`], or the bound
+/// over the whole carrier is refused, or [`SSI_HULL_IDLE_ROUNDS`] rounds
+/// in a row leave its lowest value where it was. Every round's bound is
+/// certified, so the limb is read on the lowest. That is a bound which
+/// stopped falling, not a floor: near the arithmetic's floor the
+/// rounding in a rebuilt composite moves it either way, so one round
+/// that does not lower it says nothing, and a later one may. Every round's
+/// hull is the composite's own, cut from each Bézier segment's row
 /// ([`CurveCertData::with_breaks`], the surface residual's extra
 /// breaks), so each piece's coefficients enclose that piece and no cut
 /// compounds another's width.
@@ -814,8 +830,8 @@ fn subdivide(
     band: Band,
 ) -> Result<Subdivided, SsiError> {
     let mut cuts: Vec<f64> = Vec::new();
-    let mut before = f64::INFINITY;
-    let mut rounds = 0;
+    let mut lowest: Option<Hull> = None;
+    let (mut idle, mut work) = (0, 0);
     loop {
         let h = hull(&cuts)?;
         if clears(h.sup, band) {
@@ -829,17 +845,28 @@ fn subdivide(
         if let Some((at, floor)) = h.past(band) {
             return Ok(Subdivided::Value { hull: h, at, floor });
         }
-        // A refused (`NaN`) bound never falls, so it stops at once.
-        let fell = h.sup < before;
         let mut next = h.to_halve(band);
         next.truncate(SSI_HULL_CUTS - cuts.len());
-        if !fell || rounds == SSI_HULL_ROUNDS || next.is_empty() {
-            return Ok(Subdivided::Bound(h));
+        let cost = h.spans.len() + next.len();
+        let refused = h.sup.is_nan();
+        let low = match lowest.take() {
+            Some(low) if h.sup.partial_cmp(&low.sup) != Some(core::cmp::Ordering::Less) => {
+                idle += 1;
+                low
+            }
+            _ => {
+                idle = 0;
+                h
+            }
+        };
+        if refused || idle == SSI_HULL_IDLE_ROUNDS || next.is_empty() || work + cost > SSI_HULL_WORK
+        {
+            return Ok(Subdivided::Bound(low));
         }
+        lowest = Some(low);
         cuts.extend(next.iter().map(|s| s.mid()));
         cuts.sort_by(f64::total_cmp);
-        before = h.sup;
-        rounds += 1;
+        work += cost;
     }
 }
 

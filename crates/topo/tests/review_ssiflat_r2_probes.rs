@@ -121,9 +121,9 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 ///
 /// The escalation is the arithmetic's, not the budget's: limb 2's
 /// subdivided bound on the quarter turn levels off at about 3.9e-13 m
-/// (the same bits at the shipped budget's last round and where a budget
-/// of 40 rounds and 262 144 cuts stopped, at round 9, on the bound not
-/// falling), past the
+/// (3.8963e-13 where the shipped budget's cuts run out, at round 8;
+/// 3.8962e-13 where an unbounded one stops, at round 10, two rounds
+/// after the bound last fell), past the
 /// band's 1e-13 zero, so no budget certifies it, and one round already
 /// brings the first hull's 1.016e-12 under the 1e-12 escalate bound, so
 /// no budget of a round or more refuses it outright.

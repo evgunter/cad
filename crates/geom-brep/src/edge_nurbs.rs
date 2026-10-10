@@ -691,14 +691,14 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             Ok(Decided { margin, .. }) => {
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
-                    limb: SsiLimb::HullSup,
+                    limb: Rung3Limb::HullSup,
                     margin,
                 });
             }
             Err(cause) => {
                 return Err(AnalyticRung3Refusal::Escalated {
                     operand: Some(kind),
-                    limb: SsiLimb::HullSup,
+                    limb: Rung3Limb::HullSup,
                     cause,
                 });
             }
@@ -796,6 +796,45 @@ fn edge_piece<T: Real>(
         ))
 }
 
+/// The limbs the analytic rung-3 certificate decides, so the ones its
+/// refusals can name: limb 2 on [`analytic_rung3`]'s own bound, and
+/// limb 3, which it asks the SSI certificate for alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rung3Limb {
+    /// Limb 2: the carrier's certified distance bound from an operand.
+    HullSup,
+    /// Limb 3: the uniqueness tube.
+    Tube,
+}
+
+impl Rung3Limb {
+    /// The SSI certificate's limb this one is.
+    #[must_use]
+    pub fn ssi(self) -> SsiLimb {
+        match self {
+            Self::HullSup => SsiLimb::HullSup,
+            Self::Tube => SsiLimb::Tube,
+        }
+    }
+
+    /// The limb's name, as [`SsiLimb::name`] gives it.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        self.ssi().name()
+    }
+
+    /// The certification check a refusal of this limb is a refused arm
+    /// of: limb 2 here is the carrier's certified distance bound from an
+    /// analytic operand, not the plane × NURBS lane's.
+    #[must_use]
+    pub fn check(self) -> CertCheck {
+        match self {
+            Self::HullSup => CertCheck::AnalyticHull,
+            Self::Tube => SsiLimb::Tube.check(),
+        }
+    }
+}
+
 /// [`analytic_rung3`]'s typed refusal — the analytic pair's own
 /// vocabulary, closed, and carrying the measured number where one
 /// exists.
@@ -815,7 +854,7 @@ pub enum AnalyticRung3Refusal {
         /// The operand the bound is from.
         operand: geom::SurfaceKind,
         /// Which limb refused.
-        limb: SsiLimb,
+        limb: Rung3Limb,
         /// What the classifier saw of the certified bound, in metres,
         /// for error reporting only
         /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
@@ -827,7 +866,7 @@ pub enum AnalyticRung3Refusal {
         /// The operand whose distance escalated; `None` for the tube.
         operand: Option<geom::SurfaceKind>,
         /// Which limb.
-        limb: SsiLimb,
+        limb: Rung3Limb,
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
@@ -870,7 +909,7 @@ impl AnalyticRung3Refusal {
         match e {
             crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
                 operand: Some(operand),
-                limb: SsiLimb::HullSup,
+                limb: Rung3Limb::HullSup,
                 cause,
             },
             crate::PcurveCertifyError::SectorRefused { channel, .. } => Self::NoOffsetBound {
@@ -889,9 +928,12 @@ impl AnalyticRung3Refusal {
         match e {
             SsiError::TubeStraddles { verdict, boxes } => Self::TubeStraddles { verdict, boxes },
             SsiError::TubeNotOneArc { rungs, cause } => Self::TubeNotOneArc { rungs, cause },
-            SsiError::CertificateEscalated { limb, cause } => Self::Escalated {
+            SsiError::CertificateEscalated {
+                limb: SsiLimb::Tube,
+                cause,
+            } => Self::Escalated {
                 operand: None,
-                limb,
+                limb: Rung3Limb::Tube,
                 cause,
             },
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
@@ -913,38 +955,14 @@ impl AnalyticRung3Refusal {
         self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
-    /// The certification check a refusal of `limb` is a refused arm of in
-    /// this certificate: its limb 2 is the carrier's certified distance
-    /// bound from an analytic operand, not the plane × NURBS lane's.
-    ///
-    /// # Panics
-    ///
-    /// On a limb-2 value at a break: this certificate decides its
-    /// limb 2 on a bound alone ([`analytic_rung3`]) and asks the SSI
-    /// certificate for limb 3 alone, so no refusal of it names one.
-    #[must_use]
-    pub fn check(limb: SsiLimb) -> CertCheck {
-        match limb {
-            SsiLimb::HullSup => CertCheck::AnalyticHull,
-            SsiLimb::OnLocus | SsiLimb::Tube => limb.check(),
-            SsiLimb::HullValue | SsiLimb::HullValueChart => unreachable!(
-                "the analytic rung-3 certificate decides limb 2 on its bound alone and asks the \
-                 SSI certificate for limb 3 alone, so no refusal of it names {}",
-                limb.name()
-            ),
-        }
-    }
-
     /// The decision this refusal is a refused arm of, and which arm.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
             Self::Limb { limb, margin, .. } => {
-                (Self::check(*limb), RefusedArm::SignCertain(Some(*margin)))
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
-            Self::Escalated { limb, cause, .. } => {
-                (Self::check(*limb), RefusedArm::Undecided(cause))
-            }
+            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
