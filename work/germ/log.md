@@ -821,3 +821,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - one quadric spelling.
   PR 4530 (radial hole) is open; its lane is still writing the body.
 - 2026-10-10 12:50 — PR 4530 (radial hole through a tube, M HOLDOUT byte 222): the lane is done, CI is green, and the head is frozen at `102aa89a7`. A concurrent pair, r4530a and r4530b, runs from one brief (sha256 `7362d14bf8fc`). Coding byte 115, odd, so A = R2. The arm is a meridian-plane double cover, so it isolates no roots: every fold and every crossing is a circle meeting a circle or a line.
+- 2026-10-10 15:45 — PR 4530's HOLDOUT pair is in. R1 (r4530a) and R2 (r4530b) both gave APPROVE-WITH-FIXES, with no wrong answer from the arm in about 5k traced poses and 10.6k op runs.
+  - Coded (`scratchpad/dr4530/coding.md`): **1 tallied**. R2's unilateral MAJOR: the new slow-set rows fail at the nightly's 1e-6 and 1e-12 rows (ε-unaware bounds, validated only at the default ε), shown by red runs at named seeds. R1 raised no MAJOR, so this is an **M-tier MISS** (rule 9), the first since DR-104. When the row is recorded at merge it owes Ev a short readout (Ev, 2026-10-08).
+  - The foot's M-tier count toward twenty is 18 on main. If 4522 lands as the 19th, 4530 is the 20th, and the full readout falls due at the same time.
+  - Fix pass on the union: cloud session `session_01KroaaTXrQ4ttVV3v4Y7zZq`.
