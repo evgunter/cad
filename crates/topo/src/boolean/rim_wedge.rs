@@ -1050,9 +1050,8 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     ) {
         geom_brep::SecondOrderWalk::Determinate => true,
         geom_brep::SecondOrderWalk::UnderDetermined => false,
-        geom_brep::SecondOrderWalk::InBand(cause) | geom_brep::SecondOrderWalk::Stopped(cause) => {
-            return Err(cause);
-        }
+        geom_brep::SecondOrderWalk::InBand(cause) => return Err(cause),
+        geom_brep::SecondOrderWalk::Stopped(stop) => return Err(stop.cause),
     };
     match stations.outcome(jet_determinate) {
         MaterialArmOutcome::Wedge(MaterialWedge::Seam) => Ok(RimRouting::Seam),

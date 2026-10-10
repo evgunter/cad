@@ -2,12 +2,13 @@
 id: part-split-half-retires
 kind: issue
 title: A split's port is read as its half, so DM3's Part { SplitHalf } projection retires; retiring it moves roots, so a later unit than B does it
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P2
 cost: M
 branch: intent/part-split-half-retires
 refs: [operands-are-reads, operations-state-their-outputs]
+branch: intent/part-split-half-retires
 ---
 
 FORK-1 (Ev, #4222): "a split defines two bodies; DM3's split-half
