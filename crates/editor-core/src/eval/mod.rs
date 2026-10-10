@@ -7401,11 +7401,11 @@ mod tag_vocabulary_tests {
             seen.push((*seg, tag));
         }
         assert_eq!(seen.len(), SegTag::ALL.len());
-        // The newest words, pinned: the union's member key and the
+        // The newest words, pinned: the carried-in read key and the
         // shell's three roles, read off the source the numbers were
         // committed in.
         for (seg, want) in [
-            (SegTag::FromMember, 41),
+            (SegTag::From, 51),
             (SegTag::Inner, 42),
             (SegTag::Rim, 43),
             (SegTag::HoleRim, 44),

@@ -2823,7 +2823,7 @@ mod tests {
                 .into(),
             )],
         };
-        let carried_wall = carried(RecipeNodeId::new(0, 9), wall(1, 4));
+        let carried_wall = carried(RecipeNodeId::new(0, 9), crate::VarId::new(1, 9), wall(1, 4));
         assert_eq!(
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
             vec![StepId::new(0, 4)]

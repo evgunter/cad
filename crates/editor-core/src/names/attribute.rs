@@ -268,7 +268,7 @@ mod tests {
     /// extrude's, and the walk says so.
     #[test]
     fn a_carried_face_belongs_to_the_operand_it_came_from() {
-        let carried = crate::names::carried(FILLET, cap());
+        let carried = crate::names::carried(FILLET, crate::VarId::new(1, 77), cap());
         let it = attribute(&carried);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, EXTRUDE].as_slice());
@@ -297,7 +297,7 @@ mod tests {
             kind: EntityKind::Face,
             node: CUT,
             path: vec![
-                RoleSeg::FromA(cap().into()),
+                RoleSeg::From { read: crate::names::FOLD_A, of: cap().into() },
                 RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
             ],
         };
@@ -308,8 +308,8 @@ mod tests {
     /// fillet is still the extrude's.
     #[test]
     fn the_walk_descends_as_far_as_the_carry_through_goes() {
-        let cut = at(CUT, RoleSeg::FromA(cap().into()));
-        let filleted = at(FILLET, RoleSeg::FromTarget(cut.into()));
+        let cut = at(CUT, RoleSeg::From { read: crate::names::FOLD_A, of: cap().into() });
+        let filleted = at(FILLET, RoleSeg::From { read: crate::VarId::new(1, 77), of: cut.into() });
         let it = attribute(&filleted);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, CUT, EXTRUDE].as_slice());

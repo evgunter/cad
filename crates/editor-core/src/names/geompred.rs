@@ -652,6 +652,7 @@ mod census {
             NotADatum,
             DatumHasNoValue,
             NodeHasNoValue,
+            NodeHasNoOutput,
             NotALength,
             PairInBand,
             AcrossSpaces,
@@ -706,6 +707,9 @@ mod census {
             SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
                 node: RecipeNodeId::new(0, 9),
             }),
+            SelectRefusal::NodeHasNoOutput {
+                node: RecipeNodeId::new(0, 9),
+            },
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },

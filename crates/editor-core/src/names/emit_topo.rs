@@ -3859,11 +3859,13 @@ mod tests {
         let bool_node = RecipeNodeId::new(0, 9);
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -3930,11 +3932,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4000,11 +4004,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4081,11 +4087,13 @@ mod tests {
         };
         let a = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_A,
             table: &b_table,
             body: &body,
         };
         let b = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_B,
             table: &b_table,
             body: &body,
         };
@@ -4154,11 +4162,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4188,7 +4198,7 @@ mod tests {
     /// different entities, so each is a parent held as one face and the
     /// row is the tie of both, candidates in merge order.
     #[test]
-    fn two_merges_of_tied_faces_publish_one_tied_merged_row() {
+    fn two_merges_of_tied_faces_publish_one_tied_row() {
         let built = unit_cube();
         let ext_node = RecipeNodeId::new(0, 1);
         let own = name_extrude(
@@ -4228,11 +4238,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4245,14 +4257,19 @@ mod tests {
             Tol::witness(),
         )
         .expect("two tied single-face merges name as one tied row");
+        // A single-face merge is a `Merged` of one, which is that face
+        // (N3), so the row is the tied face's own name.
         let merged: Vec<_> = out
             .table
             .iter()
-            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .filter(|(_, e)| matches!(e, Entry::Tied(_)))
             .collect();
-        assert_eq!(merged.len(), 1, "one merged row: {merged:?}");
+        assert_eq!(merged.len(), 1, "one tied row: {merged:?}");
         let (name, entry) = merged[0];
-        assert_eq!(name.path.len(), 1, "the row carries no qualifier: {name:?}");
+        assert!(
+            matches!(name.path.as_slice(), [RoleSeg::From { .. }]),
+            "the row is the face carried in, with no qualifier: {name:?}"
+        );
         let Entry::Tied(es) = entry else {
             panic!("the merged row is not the tie: {entry:?}");
         };
@@ -4324,11 +4341,13 @@ mod tests {
         let bool_node = RecipeNodeId::new(0, 9);
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4339,7 +4358,7 @@ mod tests {
             name1(
                 EntityKind::Face,
                 bool_node,
-                RoleSeg::FromA(inner.clone().into()),
+                RoleSeg::From { read: crate::names::FOLD_A, of: inner.clone().into() },
             )
         };
         let mut want = vec![
@@ -4357,7 +4376,7 @@ mod tests {
         let nested = t.iter().any(|(n, _)| {
             n.path.iter().any(|seg| match seg {
                 RoleSeg::Merged(cs) => cs.iter().any(|c| match c.path.first() {
-                    Some(RoleSeg::FromA(inner)) => {
+                    Some(RoleSeg::From { read: crate::names::FOLD_A, of: inner }) => {
                         matches!(inner.path.first(), Some(RoleSeg::Merged(_)))
                     }
                     _ => false,
@@ -4428,11 +4447,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4470,7 +4491,7 @@ mod split_carries_candidates {
     use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
     use crate::ident::DocumentId;
     use crate::names::table::{EntityRef, Entry, NameTable};
-    use crate::node::{BooleanOp, Datum, Node, RecipeNodeId};
+    use crate::node::{Datum, Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{frame, len, scl};
     use crate::{ProfileDoc, RefusingReach};
@@ -4540,12 +4561,7 @@ mod split_carries_candidates {
         );
         let (doc, sub) = ins(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: a.into(),
-                b: b.into(),
-                declare: Vec::new(),
-            },
+            Node::Subtract { from: a.into(), tool: b.into(), declare: Vec::new() },
         );
         let (doc, tool) = ins(
             doc,
@@ -4756,7 +4772,7 @@ mod crossings_rank_along_the_line {
     use crate::names::defer::TieRows;
     use crate::names::role::{EntityKind, Qualifier, RoleSeg, StableName};
     use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
-    use crate::node::{BooleanOp, Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
     use crate::test_support::{frame, len, scl};
     use crate::{ProfileDoc, RefusingReach};
@@ -4837,12 +4853,7 @@ mod crossings_rank_along_the_line {
         );
         let (doc, notched) = ins(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: disc.into(),
-                b: notch.into(),
-                declare: Vec::new(),
-            },
+            Node::Subtract { from: disc.into(), tool: notch.into(), declare: Vec::new() },
         );
         let ev = evaluate::<f64>(
             &doc,
@@ -5330,7 +5341,7 @@ mod edge_pieces_of_one_line_tie {
     use crate::names::defer::TieRows;
     use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
     use crate::names::table::{Entry, NameTable};
-    use crate::node::{BooleanOp, Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{frame, len};
     use crate::{ProfileDoc, RefusingReach};
@@ -5393,12 +5404,7 @@ mod edge_pieces_of_one_line_tie {
         );
         let (doc, cut) = ins(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: rod.into(),
-                b: top.into(),
-                declare: Vec::new(),
-            },
+            Node::Subtract { from: rod.into(), tool: top.into(), declare: Vec::new() },
         );
         let ev = evaluate::<f64>(
             &doc,
@@ -5454,7 +5460,7 @@ mod edge_pieces_of_one_line_tie {
             StableName {
                 kind: EntityKind::Edge,
                 node: cut,
-                path: vec![RoleSeg::FromA(NameRef::new(p))],
+                path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(p) }],
             }
         };
         let (p1, p2) = (
@@ -5746,11 +5752,13 @@ mod touch_reread_rows {
             };
             let a = OperandCtx {
                 node: an,
+                read: crate::names::FOLD_A,
                 table: at,
                 body: a,
             };
             let b = OperandCtx {
                 node: bn,
+                read: crate::names::FOLD_B,
                 table: bt,
                 body: b,
             };

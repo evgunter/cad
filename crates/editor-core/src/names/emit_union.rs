@@ -2565,19 +2565,18 @@ mod tests {
     fn member_cap(union: RecipeNodeId, m: u64) -> StableName {
         face(
             union,
-            vec![RoleSeg::FromMember {
-                member: RecipeNodeId::new(0, m),
+            vec![RoleSeg::From { read: crate::VarId::new(1, m),
                 of: face(RecipeNodeId::new(0, m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
             }],
         )
     }
 
     fn from_a(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::FromA(inner.into())])
+        face(union, vec![RoleSeg::From { read: crate::names::FOLD_A, of: inner.into() }])
     }
 
     fn from_b(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::FromB(inner.into())])
+        face(union, vec![RoleSeg::From { read: crate::names::FOLD_B, of: inner.into() }])
     }
 
     #[test]
@@ -2724,8 +2723,7 @@ mod tests {
         StableName {
             kind: EntityKind::Edge,
             node: union,
-            path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId::new(0, m),
+            path: vec![RoleSeg::From { read: crate::VarId::new(1, m),
                 of: StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId::new(0, m),
@@ -2746,7 +2744,7 @@ mod tests {
         StableName {
             kind: inner.kind,
             node: inner.node,
-            path: vec![RoleSeg::FromA(inner.into())],
+            path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: inner.into() }],
         }
     }
 
@@ -2869,7 +2867,7 @@ mod tests {
                 kind: EntityKind::Edge,
                 node: union,
                 path: vec![
-                    RoleSeg::FromA(seam_edge(union, swap).into()),
+                    RoleSeg::From { read: crate::names::FOLD_A, of: seam_edge(union, swap).into() },
                     RoleSeg::Fragment(Qualifier::Ends(ends.clone())),
                 ],
             };
@@ -2982,7 +2980,8 @@ mod tests {
                 },
             )],
         };
-        let mut piece = member_name(union, m, &edge);
+        let read = crate::VarId::new(1, 4);
+        let mut piece = member_name(union, read, &edge);
         piece.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
             member_vertex(union, 3),
             member_vertex(union, 4),
@@ -2995,7 +2994,7 @@ mod tests {
             .insert_tied(piece, vec![edge_ref(k0), edge_ref(k1)])
             .unwrap();
         let members = [Member {
-            node: m,
+            read,
             body: &body,
             table: &member_table,
         }];
@@ -3007,7 +3006,7 @@ mod tests {
         let [group] = groups.as_slice() else {
             panic!("one group, got {}", groups.len());
         };
-        assert_eq!(group.base, member_name(union, m, &edge));
+        assert_eq!(group.base, member_name(union, read, &edge));
         assert!(group.from_tie, "the group does not descend from the tie");
         assert_eq!(group.edges, vec![k0, k1]);
     }
@@ -3044,8 +3043,8 @@ mod tests {
                 .edge;
             let mut member_table = NameTable::new();
             let keyed = member_edge(union, 5);
-            let [RoleSeg::FromMember { of, .. }] = keyed.path.as_slice() else {
-                unreachable!("member_edge is one FromMember segment")
+            let [RoleSeg::From { of, .. }] = keyed.path.as_slice() else {
+                unreachable!("member_edge is one From segment")
             };
             member_table.insert((**of).clone(), edge_ref(edge)).unwrap();
             let mut body = topo::Body::<f64>::new();
@@ -3080,7 +3079,7 @@ mod tests {
 
         fn members(&self) -> [Member<'_, f64>; 1] {
             [Member {
-                node: RecipeNodeId::new(0, 5),
+                read: crate::VarId::new(1, 5),
                 body: &self.member_body,
                 table: &self.member_table,
             }]
@@ -3282,8 +3281,8 @@ mod tests {
         };
         let table = |m: u64, edge| {
             let keyed = member_edge(union, m);
-            let [RoleSeg::FromMember { of, .. }] = keyed.path.as_slice() else {
-                unreachable!("member_edge is one FromMember segment")
+            let [RoleSeg::From { of, .. }] = keyed.path.as_slice() else {
+                unreachable!("member_edge is one From segment")
             };
             let mut t = NameTable::new();
             t.insert((**of).clone(), edge_ref(edge)).unwrap();
@@ -3298,7 +3297,7 @@ mod tests {
             .into_iter()
             .zip(&tables)
             .map(|((m, body), table)| Member {
-                node: RecipeNodeId::new(0, m),
+                read: crate::VarId::new(1, m),
                 body,
                 table,
             })

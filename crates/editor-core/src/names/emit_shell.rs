@@ -313,6 +313,13 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    fn carried_in(of: crate::names::NameRef) -> RoleSeg {
+        RoleSeg::From {
+            read: crate::VarId::new(1, 77),
+            of,
+        }
+    }
     use crate::names::role::{
         MeridianEnd, ProfileEdgeRef, ProfileVertexRef, band, meridian_vertex,
     };
@@ -530,7 +537,7 @@ mod tests {
             4,
             "two on the ring, two on its twin"
         );
-        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
+        let t = name_shell(NODE, TARGET, crate::VarId::new(1, 77), &target, &shelled.body, &shelled.naming)
             .expect("the shell is named");
         let names: BTreeSet<_> = shelled
             .body
@@ -539,7 +546,7 @@ mod tests {
             .collect();
         let of = |e: EdgeKey| target.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone();
         for pieces in halves {
-            for role in [RoleSeg::FromTarget, RoleSeg::Inner] {
+            for role in [carried_in, RoleSeg::Inner] {
                 let want = super::super::merged::edge_set(
                     NODE,
                     pieces
@@ -553,7 +560,7 @@ mod tests {
 
     /// **A joined edge's set is flat** (N3): where a covered edge's own
     /// name is already a set (an edge a boolean's join made), the
-    /// shell's set lists that set's edges, read through `FromTarget` and
+    /// shell's set lists that set's edges, read through `From` and
     /// `Inner` as through a boolean's wrappers, never the set itself.
     #[test]
     fn a_joined_edge_over_an_upstream_set_is_one_flat_set() {
@@ -567,7 +574,7 @@ mod tests {
             tol,
         )
         .expect("the split window opens");
-        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
+        let t = name_shell(NODE, TARGET, crate::VarId::new(1, 77), &target, &shelled.body, &shelled.naming)
             .expect("the shell is named");
         let mut sets = 0;
         for (e, _) in shelled.body.edges() {
@@ -609,7 +616,7 @@ mod tests {
             12,
             "three per arc, ring and twin"
         );
-        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
+        let t = name_shell(NODE, TARGET, crate::VarId::new(1, 77), &target, &shelled.body, &shelled.naming)
             .expect("the shell is named");
         let names: BTreeSet<_> = shelled
             .body
@@ -619,7 +626,7 @@ mod tests {
         let of = |e: EdgeKey| target.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone();
         for arc in pieces {
             assert_eq!(arc.len(), 4);
-            for role in [RoleSeg::FromTarget, RoleSeg::Inner] {
+            for role in [carried_in, RoleSeg::Inner] {
                 let want = super::super::merged::edge_set(
                     NODE,
                     arc.iter()

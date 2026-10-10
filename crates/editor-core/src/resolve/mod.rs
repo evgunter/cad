@@ -1340,7 +1340,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 
     fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
-        group_resized(self.ctx.eval, new.eval, name)
+        group_resized(self.ctx.eval, new, name)
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
@@ -1779,7 +1779,7 @@ fn border_delta<T: Decide>(
 /// two table scans; nothing reaches any log.
 fn group_resized<U: Decide, T: Decide>(
     prior: &Evaluation<U>,
-    new: &Evaluation<T>,
+    RunCtx { doc, eval: new }: RunCtx<'_, T>,
     name: &StableName,
 ) -> Option<Diagnosis> {
     let base = fragment_base(name)?;
@@ -1800,6 +1800,10 @@ fn group_resized<U: Decide, T: Decide>(
             &new_value.name_table,
             &base,
             prior_value.fragment_groups.is_folded(),
+            match doc.node(name.node) {
+                Some(crate::node::Node::Subtract { from, .. }) => Some(*from),
+                _ => None,
+            },
             was.parents > 1 || now.parents > 1,
         ),
     })
@@ -1908,9 +1912,10 @@ fn group_cutters(
     new_table: &crate::names::NameTable,
     base: &StableName,
     union: bool,
+    from: Option<crate::VarId>,
     tied: bool,
 ) -> GroupCutters {
-    let Some(parent) = SeamParent::of(base, union) else {
+    let Some(parent) = SeamParent::of(base, union, from) else {
         return GroupCutters::NotSeamBounded;
     };
     if tied {
@@ -1934,16 +1939,18 @@ fn group_cutters(
 /// Where a group's parent sits in the `Seam` rows of its minting node
 /// ([`group_cutters`]).
 enum SeamParent<'a> {
-    /// A subtract's operand entity: one side of every seam on it. A
-    /// side equal to it is the parent; where both are (two placements
-    /// of one body), the other is spelled alike.
-    Pair { parent: &'a StableName },
+    /// A subtract's operand entity: the A side of every seam on it, the
+    /// subtract's `from`, or the B side.
+    Pair {
+        parent: &'a StableName,
+        a_side: bool,
+    },
     /// A union's group: either side, the base or a piece of it.
     Union,
 }
 
 impl<'a> SeamParent<'a> {
-    fn of(base: &'a StableName, union: bool) -> Option<Self> {
+    fn of(base: &'a StableName, union: bool, from: Option<crate::VarId>) -> Option<Self> {
         // A face is divided by seam edges, an edge by seam vertices;
         // nothing divides a vertex or a body.
         if !matches!(base.kind, EntityKind::Face | EntityKind::Edge) {
@@ -1951,8 +1958,11 @@ impl<'a> SeamParent<'a> {
         }
         let head = &base.path[..fragment_tail_start(&base.path)];
         match (union, head) {
-            (false, [RoleSeg::From { of: p, .. }]) if head.len() == base.path.len() => {
-                Some(Self::Pair { parent: p })
+            (false, [RoleSeg::From { read, of: p }]) if head.len() == base.path.len() => {
+                Some(Self::Pair {
+                    parent: p,
+                    a_side: from == Some(*read),
+                })
             }
             (true, [RoleSeg::From { .. } | RoleSeg::Seam { .. } | RoleSeg::Merged(_)]) => {
                 Some(Self::Union)
@@ -1985,9 +1995,11 @@ impl<'a> SeamParent<'a> {
         b: &'n StableName,
     ) -> Option<&'n StableName> {
         match *self {
-            _ if self.holds(base, a) => Some(b),
-            _ if self.holds(base, b) => Some(a),
-            _ => None,
+            Self::Pair { a_side: true, .. } => self.holds(base, a).then_some(b),
+            Self::Pair { a_side: false, .. } => self.holds(base, b).then_some(a),
+            Self::Union if self.holds(base, a) => Some(b),
+            Self::Union if self.holds(base, b) => Some(a),
+            Self::Union => None,
         }
     }
 
@@ -2657,7 +2669,7 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: NODE,
-            path: vec![RoleSeg::FromA(NameRef::new(top()))],
+            path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(top()) }],
         }
     }
 
@@ -2666,8 +2678,7 @@ mod tests {
         StableName {
             kind: inner.kind,
             node: NODE,
-            path: core::iter::once(RoleSeg::FromMember {
-                member: RecipeNodeId::new(0, member),
+            path: core::iter::once(RoleSeg::From { read: crate::VarId::new(1, member),
                 of: NameRef::new(inner),
             })
             .chain(tail.iter().cloned())
@@ -2714,7 +2725,7 @@ mod tests {
 
     /// A pair boolean's reading of `prior` against `now`.
     fn pair(prior: Vec<StableName>, now: Vec<StableName>) -> GroupCutters {
-        group_cutters(&table(prior), &table(now), &base(), false, false)
+        group_cutters(&table(prior), &table(now), &base(), false, Some(crate::names::FOLD_A), false)
     }
 
     fn read(gone: Vec<StableName>, new: Vec<StableName>) -> GroupCutters {
@@ -2795,7 +2806,7 @@ mod tests {
         assert_eq!(group_reading(&tied, &base()).unwrap().parents, 2);
         let rows = || table(vec![seam(EntityKind::Edge, top(), face(5, 1), &[])]);
         assert_eq!(
-            group_cutters(&rows(), &rows(), &base(), false, true),
+            group_cutters(&rows(), &rows(), &base(), false, Some(crate::names::FOLD_A), true),
             GroupCutters::TiedParents
         );
     }
@@ -2824,7 +2835,7 @@ mod tests {
             &[],
         )];
         assert_eq!(
-            group_cutters(&table(prior), &table(now), &base, true, false),
+            group_cutters(&table(prior), &table(now), &base, true, None, false),
             read(vec![member(3, face(5, 3), &[])], vec![])
         );
     }
@@ -2847,7 +2858,7 @@ mod tests {
         let prior = vec![vertex(line.clone(), cutter(0)), vertex(cutter(1), piece)];
         let now = vec![vertex(line.clone(), cutter(0))];
         assert_eq!(
-            group_cutters(&table(prior), &table(now), &line, true, false),
+            group_cutters(&table(prior), &table(now), &line, true, None, false),
             read(vec![cutter(1)], vec![])
         );
     }
@@ -2876,7 +2887,7 @@ mod walk_tests {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, node),
             path: vec![
-                RoleSeg::FromA(NameRef::new(inner)),
+                RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(inner) },
                 RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
             ],
         }

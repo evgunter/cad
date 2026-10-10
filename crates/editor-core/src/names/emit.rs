@@ -1771,7 +1771,7 @@ mod display_tests {
             ),
             (
                 NamingError::MemberEdgeTied {
-                    member: RecipeNodeId::new(0, test_utils::refusal::tagged(37)),
+                    member: crate::VarId::new(0, test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
                         node: RecipeNodeId::new(0, test_utils::refusal::tagged(37)),
@@ -1784,7 +1784,7 @@ mod display_tests {
                     }),
                 },
                 vec![
-                    "member node 000000000025",
+                    "member #0:0000000000250000",
                     "of node 000000000025)",
                     "a tie stands",
                 ],

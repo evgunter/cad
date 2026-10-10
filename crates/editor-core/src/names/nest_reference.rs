@@ -125,10 +125,8 @@ pub(super) enum RoleSeg {
     Pole(ProfileVertexRef),
     AxisEdge(PieceRun),
 
-    FromA(NameRef),
-    FromB(NameRef),
-    FromMember {
-        member: RecipeNodeId,
+    From {
+        read: crate::VarId,
         of: NameRef,
     },
     Seam {
@@ -172,7 +170,6 @@ pub(super) enum RoleSeg {
         of: NameRef,
     },
 
-    FromTarget(NameRef),
     BlendFace(NameRef),
     CornerFace(NameRef),
     TrimEdge {

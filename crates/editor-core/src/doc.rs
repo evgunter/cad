@@ -2445,33 +2445,23 @@ mod tests {
 
         doc.nodes.insert(
             RecipeNodeId::new(0, 0),
-            Node::Boolean {
-                op: crate::BooleanOp::Union,
-                a: crate::VarId::new(0, 98),
-                b: crate::VarId::new(0, 99),
-                declare: vec![(
+            Node::Union { members: crate::Bodies::Spelled(vec![crate::VarId::new(0, 98), crate::VarId::new(0, 99)]), declare: vec![(
                     (
-                        SitedRef::at_mint(first.clone()),
-                        SitedRef::at_mint(second.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), first.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), second.clone()),
                     ),
                     BooleanCoincidence::REST,
-                )],
-            },
+                )] },
         );
         doc.nodes.insert(
             RecipeNodeId::new(0, 1),
-            Node::Boolean {
-                op: crate::BooleanOp::Union,
-                a: crate::VarId::new(0, 98),
-                b: crate::VarId::new(0, 99),
-                declare: vec![(
+            Node::Union { members: crate::Bodies::Spelled(vec![crate::VarId::new(0, 98), crate::VarId::new(0, 99)]), declare: vec![(
                     (
-                        SitedRef::at_mint(third.clone()),
-                        SitedRef::at_mint(third.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), third.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), third.clone()),
                     ),
                     BooleanCoincidence::TANGENT,
-                )],
-            },
+                )] },
         );
         // The third payload shape this walk reaches: an instance's
         // interface record. Its crossing's `outer` is a name in THIS

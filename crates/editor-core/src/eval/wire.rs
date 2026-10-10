@@ -5050,9 +5050,9 @@ mod route_tests {
 
     /// One entity of one member, in the MEMBER's own name space — what
     /// a declaration names, with the member beside it.
-    fn at(member: RecipeNodeId, end: CapEnd) -> SitedRef {
+    fn at(member: RecipeNodeId, end: CapEnd) -> SitedRef<crate::VarId> {
         SitedRef::new(
-            member,
+            read(member),
             StableName {
                 kind: EntityKind::Face,
                 node: member,
@@ -5065,7 +5065,7 @@ mod route_tests {
     /// puts into that member's operand table, which is what the
     /// routing rewrites a sited pair into.
     fn member_face(union: RecipeNodeId, member: RecipeNodeId, end: CapEnd) -> StableName {
-        crate::names::member_name(union, member, &at(member, end).name)
+        crate::names::member_name(union, read(member), &at(member, end).name)
     }
 
     /// The same entity, but MINTED somewhere other than the member it
@@ -5073,9 +5073,9 @@ mod route_tests {
     /// segment, so its table is its input's verbatim). It is the one
     /// shape that tells a routing by SITE from a routing by the name's
     /// minting node.
-    fn at_minted_at(member: RecipeNodeId, mint: RecipeNodeId, end: CapEnd) -> SitedRef {
+    fn at_minted_at(member: RecipeNodeId, mint: RecipeNodeId, end: CapEnd) -> SitedRef<crate::VarId> {
         SitedRef::new(
-            member,
+            read(member),
             StableName {
                 kind: EntityKind::Face,
                 node: mint,
@@ -5084,8 +5084,24 @@ mod route_tests {
         )
     }
 
-    fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), BooleanCoincidence) {
+    fn pair(
+        a: SitedRef<crate::VarId>,
+        b: SitedRef<crate::VarId>,
+    ) -> ((SitedRef<crate::VarId>, SitedRef<crate::VarId>), BooleanCoincidence) {
         ((a, b), BooleanCoincidence::REST)
+    }
+
+    /// The read a member stands for here: the member's own id, which
+    /// the routing compares and never resolves.
+    fn read(member: RecipeNodeId) -> crate::VarId {
+        crate::VarId(member.0)
+    }
+
+    /// The members as the routing takes them: each read, with an empty
+    /// table, so a site is the member its read names.
+    fn own(members: &[RecipeNodeId]) -> Vec<(crate::VarId, &'static NameTable)> {
+        static EMPTY: std::sync::LazyLock<NameTable> = std::sync::LazyLock::new(NameTable::new);
+        members.iter().map(|&m| (read(m), &*EMPTY)).collect()
     }
 
     /// **The routing reads the SITE, not the name's minting node.**
@@ -5100,7 +5116,7 @@ mod route_tests {
             at_minted_at(members[1], proto, CapEnd::Start),
             at_minted_at(members[3], proto, CapEnd::End),
         );
-        let buckets = route_declarations(union, members, std::slice::from_ref(&p), &doc)
+        let buckets = route_declarations(union, &own(members), std::slice::from_ref(&p), &doc)
             .expect("the sites are both members");
         let filled: Vec<usize> = buckets
             .iter()
@@ -5113,17 +5129,13 @@ mod route_tests {
         assert_eq!((*o1, *o2), (Operand::A, Operand::B));
         assert_eq!(
             *n1.name(),
-            crate::names::member_name(
-                union,
-                members[1],
+            crate::names::member_name(union, read(members[1]),
                 &at_minted_at(members[1], proto, CapEnd::Start).name
             )
         );
         assert_eq!(
             *n2.name(),
-            crate::names::member_name(
-                union,
-                members[3],
+            crate::names::member_name(union, read(members[3]),
                 &at_minted_at(members[3], proto, CapEnd::End).name
             )
         );
@@ -5156,7 +5168,7 @@ mod route_tests {
         ];
 
         for (what, p, want) in cases {
-            let buckets = route_declarations(union, &ms, std::slice::from_ref(&p), &doc)
+            let buckets = route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc)
                 .unwrap_or_else(|e| panic!("{what} routed nowhere: {e:?}"));
             let filled: Vec<usize> = buckets
                 .iter()
@@ -5175,7 +5187,7 @@ mod route_tests {
             pair(face(m1), face(m3)),
             pair(face(m2), other(m2)),
         ];
-        let buckets = route_declarations(union, &ms, &all, &doc).expect("all three route");
+        let buckets = route_declarations(union, &own(&ms), &all, &doc).expect("all three route");
         let sizes: Vec<usize> = buckets.iter().map(Vec::len).collect();
         assert_eq!(sizes, vec![1, 1, 1]);
     }
@@ -5193,7 +5205,7 @@ mod route_tests {
         for i in 0..ms.len() {
             for j in 0..ms.len() {
                 let p = pair(at(ms[i], CapEnd::Start), at(ms[j], CapEnd::End));
-                let buckets = route_declarations(union, &ms, std::slice::from_ref(&p), &doc)
+                let buckets = route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc)
                     .unwrap_or_else(|e| panic!("({i}, {j}) routed nowhere: {e:?}"));
                 let filled: Vec<usize> = buckets
                     .iter()
@@ -5217,7 +5229,7 @@ mod route_tests {
         let (doc, union, ms) = doc_with_members(4);
         let sided = |p| {
             let buckets =
-                route_declarations(union, &ms, std::slice::from_ref(&p), &doc).expect("routes");
+                route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc).expect("routes");
             buckets.into_iter().flatten().next().expect("one bucket")
         };
         // An earlier member against a later one: A then B, and each
@@ -5251,7 +5263,7 @@ mod route_tests {
         let outsider = ms[3];
         let members = &ms[..3];
         let p = pair(at(ms[0], CapEnd::Start), at(outsider, CapEnd::End));
-        let refused = route_declarations(union, members, std::slice::from_ref(&p), &doc);
+        let refused = route_declarations(union, &own(members), std::slice::from_ref(&p), &doc);
         assert!(
             matches!(
                 refused,
@@ -5278,7 +5290,7 @@ mod route_tests {
             .expect("the datum plane deletes")
             .doc;
         let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));
-        let refused = route_declarations(union, &ms[..3], std::slice::from_ref(&p), &doc);
+        let refused = route_declarations(union, &own(&ms[..3]), std::slice::from_ref(&p), &doc);
         assert!(
             matches!(
                 refused,
@@ -5746,12 +5758,13 @@ mod route_tests {
                 path: vec![RoleSeg::OutputBody],
             },
         ];
+        let reads: Vec<crate::VarId> = ms.iter().map(|&m| read(m)).collect();
         for row in rows {
-            let keyed = crate::names::member_name(union, member, &row);
-            let back = super::sited_member(union, &ms, &keyed).expect("the row collapses");
+            let keyed = crate::names::member_name(union, read(member), &row);
+            let back = super::sited_member(union, &reads, &keyed).expect("the row collapses");
             assert_eq!(
                 back,
-                super::DeclarationSubject::Member(SitedRef::new(member, row.clone())),
+                super::DeclarationSubject::Member(SitedRef::new(read(member), row.clone())),
                 "{row}"
             );
         }

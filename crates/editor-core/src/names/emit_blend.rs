@@ -438,7 +438,7 @@ mod tie_tests {
         };
         let named = name_blend(
             RecipeNodeId::new(0, 2),
-            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 1), crate::VarId::new(1, 77),
             &table,
             &body,
             &rec,
@@ -478,7 +478,7 @@ mod tie_tests {
         };
         let named = name_blend(
             RecipeNodeId::new(0, 2),
-            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 1), crate::VarId::new(1, 77),
             &table,
             &body,
             &rec,
@@ -494,7 +494,7 @@ mod tie_tests {
             .iter()
             .map(|c| match c.path.as_slice() {
                 [RoleSeg::TrimEdge { .. }] => "trim",
-                [RoleSeg::FromTarget(_)] => "survivor",
+                [RoleSeg::From { .. }] => "survivor",
                 other => panic!("an image of one input edge: {other:?}"),
             })
             .collect();
@@ -562,7 +562,7 @@ mod tie_tests {
 
         let out = name_blend(
             RecipeNodeId::new(0, 2),
-            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 1), crate::VarId::new(1, 77),
             &planted,
             &blended.body,
             rec,
@@ -591,7 +591,7 @@ mod tie_tests {
         // strict `insert`.
         let clean = name_blend(
             RecipeNodeId::new(0, 2),
-            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 1), crate::VarId::new(1, 77),
             &table,
             &blended.body,
             rec,
@@ -618,7 +618,7 @@ mod tie_tests {
             .expect("the surgery keeps records");
         let cout = crate::names::name_chamfer(
             RecipeNodeId::new(0, 3),
-            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 1), crate::VarId::new(1, 77),
             &planted,
             &chamfered.body,
             crec,
@@ -646,7 +646,7 @@ mod tie_tests {
         );
         let cclean = crate::names::name_chamfer(
             RecipeNodeId::new(0, 3),
-            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 1), crate::VarId::new(1, 77),
             &table,
             &chamfered.body,
             crec,
