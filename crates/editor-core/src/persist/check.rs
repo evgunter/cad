@@ -1372,20 +1372,8 @@ pub enum SnapshotError {
     InputList {
         /// The offending node.
         node: SpokenNode,
-        /// What is wrong with it. A repeated input is
-        /// [`SnapshotError::DuplicateInput`], not a list fault.
+        /// What is wrong with it.
         fault: crate::node::ListFault,
-    },
-    /// A node reaching one input twice (DM5) — [`Node::input_fault`]'s
-    /// `Duplicate` answer, named apart from
-    /// [`SnapshotError::InputList`] as the edit door names it
-    /// (`EditError::DuplicateInput`), because the input it repeats is a
-    /// node this door speaks.
-    DuplicateInput {
-        /// The node whose input list repeats.
-        node: SpokenNode,
-        /// The input it reaches twice.
-        input: SpokenNode,
     },
     /// An assertion whose reference is not a measure at all (E10):
     /// there is no measured dimension for the bound to agree with. The
@@ -1520,10 +1508,6 @@ impl core::fmt::Display for SnapshotError {
                 "the nodes' reads close a loop through {at} — no edit writes one. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::DuplicateInput { node, input } => {
-                write!(f, "{node}: ")?;
-                crate::node::duplicate_input(f, input)
-            }
             Self::WitnessSite { node } => {
                 write!(f, "a witness is attached to {node}, which bears no sketch")
             }
@@ -1856,17 +1840,9 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // every door that admits a node, so the question is asked in one
         // place and this door only names the answer.
         if let Some(fault) = node.input_fault() {
-            return Err(match fault.list_fault() {
-                Err(input) => SnapshotError::DuplicateInput {
-                    node: doc.spoken(id),
-                    input: doc
-                        .defined_by(input)
-                        .map_or_else(|| SpokenNode::absent(id), |(at, _)| doc.spoken(at)),
-                },
-                Ok(fault) => SnapshotError::InputList {
-                    node: doc.spoken(id),
-                    fault,
-                },
+            return Err(SnapshotError::InputList {
+                node: doc.spoken(id),
+                fault: fault.list_fault(),
             });
         }
         // The measurement vocabulary's two structural re-checks, for
@@ -2226,7 +2202,6 @@ mod tests {
             PlacementRule,
             MeasureRefs,
             InputList,
-            DuplicateInput,
             AssertionTarget,
             AssertionBound,
             MetadataUnversioned,
@@ -2289,7 +2264,6 @@ mod tests {
             | SnapshotError::PlacementRule { .. }
             | SnapshotError::MeasureRefs { .. }
             | SnapshotError::InputList { .. }
-            | SnapshotError::DuplicateInput { .. }
             | SnapshotError::AssertionTarget { .. }
             | SnapshotError::AssertionBound { .. }
             | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
@@ -2476,11 +2450,7 @@ mod tests {
             },
             SnapshotError::InputList {
                 node: node(),
-                fault: crate::node::ListFault::TooFew { found: 1 },
-            },
-            SnapshotError::DuplicateInput {
-                node: node(),
-                input: at(9),
+                fault: crate::node::ListFault::SelectionNotCanonical { at: 1 },
             },
             SnapshotError::AssertionTarget {
                 node: node(),

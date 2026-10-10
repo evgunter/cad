@@ -988,9 +988,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         }
         Node::Datum(_) => (family::DATUM, false),
         Node::Profile(_) => (family::PROFILE, false),
-        Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } => {
-            (family::BOOLEAN, true)
-        }
+        Node::Subtract { .. } => (family::BOOLEAN, true),
         Node::Split { .. } => (family::SPLIT, false),
         Node::Pattern { .. } => (family::INSTANCES, true),
         Node::Mate { .. } => (family::MATE, false),
@@ -1574,17 +1572,6 @@ pub enum NodeErrorKind {
         /// The empty half.
         half: crate::names::SplitHalf,
     },
-    /// A union read two of its members out of one operation — a
-    /// split's two halves. Its names key each member by the operation
-    /// it reads (DM4), so the two would carry one key; it refuses
-    /// before any fold rather than naming one member's faces as the
-    /// other's.
-    MembersShareAnOperation {
-        /// The operation both members are read out of.
-        operation: RecipeNodeId,
-        /// The two members' positions in the list, earlier first.
-        members: (u32, u32),
-    },
     /// A [`crate::Node::Part`] indexed a pattern's instances outside
     /// `0..count`. A negative index lands here too — the index is
     /// neither wrapped nor clamped, because either would be a body the
@@ -1790,8 +1777,8 @@ pub enum NodeErrorKind {
     /// table that holds the name, so a name neither half holds, or
     /// both, lands on this arm.
     DeclareSiteNotAnOperand {
-        /// The site the pair named.
-        at: crate::node::RecipeNodeId,
+        /// The read the pair named as its site.
+        at: crate::VarId,
     },
     /// A declared pair outside the v1 threading vocabulary, which is
     /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
@@ -1850,7 +1837,10 @@ pub enum NodeErrorKind {
         /// boolean's operands are nodes, so their rows are their own,
         /// and a union's contact against an unmerged member face is
         /// that member's.
-        merged: Box<(Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>)>,
+        merged: Box<(
+            Vec<crate::node::SitedRef<crate::VarId>>,
+            Vec<crate::node::SitedRef<crate::VarId>>,
+        )>,
         /// The refusing predicate's diagnostics, unaltered.
         diag: Indeterminate,
     },
@@ -2239,7 +2229,7 @@ struct UndeclaredCoincidenceFinding<'a> {
     finding: &'a crate::names::FlushFinding,
     /// Each side's merged constituent set, empty where the side is a
     /// row of one node.
-    merged: &'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>),
+    merged: &'a (Vec<crate::node::SitedRef<crate::VarId>>, Vec<crate::node::SitedRef<crate::VarId>>),
     /// The refusing predicate's diagnostics.
     diag: &'a Indeterminate,
 }
@@ -2288,7 +2278,7 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
 /// when neither side is a merged row, and otherwise counting the
 /// constituents the fold retired into it (their names ride the
 /// payload, so the sentence stays one length however many there are).
-struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
+struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef<crate::VarId>>, Vec<crate::node::SitedRef<crate::VarId>>));
 
 impl core::fmt::Display for MergedSides<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -2532,18 +2522,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 },
                 by.node(*input)
             ),
-            Self::MembersShareAnOperation {
-                operation,
-                members: (i, j),
-            } => write!(
-                f,
-                "members {} and {} of this union are both read out of {}, and a union keys \
-                 each member's names by the operation it reads; join the two with a pair \
-                 boolean",
-                u64::from(*i) + 1,
-                u64::from(*j) + 1,
-                by.node(*operation)
-            ),
             Self::InstanceOutOfRange {
                 input,
                 index,
@@ -2736,10 +2714,9 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
                 "a declared entity is sited at {}, and no one operand of this node read \
-                 there holds it — site each side at the member (or the boolean operand) whose \
-                 table holds it; the two halves of one split share their site, so a side \
-                 between them names an entity only one half holds",
-                by.node(*at)
+                 through it holds it — site each side at the read (a member, or the subtract's \
+                 `from` or `tool`) whose table holds it",
+                by.read(*at)
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -4916,6 +4893,12 @@ mod tag {
         presence {
             ABSENT = 0,
             PRESENT = 1,
+        }
+        /// A union's or an intersect's argument form, read before its
+        /// declared pairs: a family read whole, or reads spelled.
+        bodies {
+            FAMILY = 1,
+            SPELLED = 2,
         }
         /// The mate's fault flag, read after its role word: whether the
         /// solve recorded a fault against the node.

@@ -39,9 +39,8 @@
 //!   costs a lookup and it catches a `tag` that answers for a class
 //!   the search cannot then find. That refusal has no test row and can
 //!   have none — in a build whose read table is complete, nothing
-//!   constructs the state it guards — exactly as the sibling
-//!   `boolean_op` module's does; what the suite reaches is the admit
-//!   path, through the schema round trip.
+//!   constructs the state it guards; what the suite reaches is the
+//!   admit path, through the schema round trip.
 
 use crate::node::SitedRef;
 use serde::de::Error as _;

@@ -103,8 +103,6 @@ pub enum NodeErrorClass {
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
-    /// [`NodeErrorKind::MembersShareAnOperation`].
-    MembersShareAnOperation,
     /// [`NodeErrorKind::InstanceOutOfRange`].
     InstanceOutOfRange,
     /// [`NodeErrorKind::DegenerateDirection`].
@@ -340,7 +338,6 @@ impl NodeErrorKind {
             Self::ProductOperand { .. } => C::ProductOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
-            Self::MembersShareAnOperation { .. } => C::MembersShareAnOperation,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
             Self::NonFiniteDirection { .. } => C::NonFiniteDirection,
@@ -567,7 +564,6 @@ mod tests {
         ProductOperand,
         UnfinishedOperand,
         EmptyHalf,
-        MembersShareAnOperation,
         InstanceOutOfRange,
         DegenerateDirection,
         NonFiniteDirection,
@@ -837,10 +833,6 @@ mod tests {
                 input: n(3),
                 half: crate::SplitHalf::Above,
             },
-            C::MembersShareAnOperation => K::MembersShareAnOperation {
-                operation: n(3),
-                members: (0, 1),
-            },
             C::InstanceOutOfRange => K::InstanceOutOfRange {
                 input: n(3),
                 index: 7,
@@ -920,7 +912,9 @@ mod tests {
                 error: resolve_error(),
                 reference: 0,
             },
-            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand { at: n(3) },
+            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand {
+                at: crate::VarId::new(3, 3),
+            },
             C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
@@ -929,11 +923,11 @@ mod tests {
                 finding: Box::new(crate::FlushFinding {
                     pair: (
                         crate::SitedRef {
-                            at: n(2),
+                            at: crate::VarId::new(2, 2),
                             name: name(),
                         },
                         crate::SitedRef {
-                            at: n(3),
+                            at: crate::VarId::new(3, 3),
                             name: name(),
                         },
                     ),

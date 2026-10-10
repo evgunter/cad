@@ -313,18 +313,15 @@ pub(super) fn walk<'r, P>(
             // reference read here and one read at the member it names
             // stand on one member.
             Some(Node::Union { members, .. }) => {
-                let [RoleSeg::FromMember { member, of }] = name.path.as_slice() else {
+                let [RoleSeg::From { read, of }] = name.path.as_slice() else {
                     return Err(at);
                 };
-                if !members
-                    .iter()
-                    .any(|&m| doc.operation_of(m) == Some(*member))
-                {
+                if !members.reads().any(|m| m == read) {
                     return Err(at);
                 }
                 part = None;
                 name = of;
-                at = *member;
+                at = doc.operation_of(*read).ok_or(at)?;
             }
             _ => return Err(at),
         }

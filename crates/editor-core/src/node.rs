@@ -4797,13 +4797,10 @@ impl<P, S: Slot> Node<P, S> {
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
             Node::Mate { a, b, .. } => vec![a.at, b.at],
-            // A declared pair's sites are meant to be the node's own
-            // operands, but a site that is not one is the EVALUATION's
-            // refusal, not the insert door's, so each is checked live
-            // here as a mate's operand is.
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => Vec::new(),
+            // A declared pair's sites are reads, which the doors hold to
+            // the node's own operands; a site a later edit strands is the
+            // EVALUATION's refusal.
+            Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } => Vec::new(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
             // is classified here or does not compile — the promise
             // the twins above already keep. Three groups: the

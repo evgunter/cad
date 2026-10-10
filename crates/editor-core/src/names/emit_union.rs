@@ -161,6 +161,33 @@ pub(crate) fn member_view(
     Ok(view)
 }
 
+/// **The table of a union or an intersect of one member** (DM4): the
+/// member's rows keyed by its read, as [`member_view`] keys them, and the
+/// body named by the node itself. No boolean runs, so this is the whole
+/// naming.
+pub(crate) fn name_lone_member(
+    union: RecipeNodeId,
+    member: VarId,
+    table: &NameTable,
+) -> Result<NameTable, NamingError> {
+    table.seal_order();
+    let mut out = NameTable::new();
+    out.insert(
+        StableName {
+            kind: EntityKind::Body,
+            node: union,
+            path: vec![RoleSeg::OutputBody],
+        },
+        ent(0, EntityKey::Body),
+    )?;
+    for (name, entry) in table.iter_refs() {
+        if name.kind != EntityKind::Body {
+            put_entry(&mut out, keyed(union, member, name.clone(), name.kind), entry)?;
+        }
+    }
+    Ok(out)
+}
+
 /// **One entity of one member, in the union's own name space** — the
 /// row [`member_view`] puts into that member's operand table, for a
 /// caller that has the name rather than the table.

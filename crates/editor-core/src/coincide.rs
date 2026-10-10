@@ -272,7 +272,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 /// **The door**: whether `row`, a coincidence a node of `doc` decided,
 /// holds structurally. The rungs are tried in order (module docs).
 #[must_use]
-pub fn prove<P: crate::ProfilePayload>(doc: &crate::doc::Doc<P>, row: &NamedCoincidence) -> Proof {
+pub fn prove<P>(doc: &crate::doc::Doc<P>, row: &NamedCoincidence) -> Proof {
     let constructions = row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
         NamedCell::Tool { input } => doc
@@ -309,7 +309,7 @@ pub fn prove<P: crate::ProfilePayload>(doc: &crate::doc::Doc<P>, row: &NamedCoin
 /// # Errors
 ///
 /// [`Unwalked`], naming the node the walk stopped at.
-pub fn construction<P: crate::ProfilePayload>(
+pub fn construction<P>(
     doc: &crate::doc::Doc<P>,
     read: crate::VarId,
     name: &StableName,
@@ -375,13 +375,13 @@ fn operation<P>(
 }
 
 /// **The read a carried segment at `at` names its entity in**, by the
-/// segment and the node together: a `From`'s own read, which the node
-/// must hold; a placing segment (`Instance`) adds its placement.
+/// segment and the node together: a `From`'s own read; a placing
+/// segment (`Instance`) adds its placement.
 ///
 /// # Errors
 ///
 /// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
-fn carried_read<P: crate::ProfilePayload>(
+fn carried_read<P>(
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
@@ -389,12 +389,7 @@ fn carried_read<P: crate::ProfilePayload>(
 ) -> Result<crate::VarId, Unwalked> {
     let misplaced = Unwalked::Misplaced(at);
     match (seg, node) {
-        (RoleSeg::From { read, .. }, _) => node
-            .operand_rows()
-            .iter()
-            .any(|(_, held)| held == read)
-            .then_some(*read)
-            .ok_or(misplaced),
+        (RoleSeg::From { read, .. }, _) => Ok(*read),
         (
             RoleSeg::Instance { i, .. },
             Node::Pattern { input, .. } | Node::PlacedUnion { input, .. },
