@@ -3050,6 +3050,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::EqualAngles => "equal_angles",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
+        R::Coaxial => "coaxial",
     }
 }
 
@@ -3062,6 +3063,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
+        S::BatteryJoint => "battery_joint",
+        S::BatterySupportAxis => "battery_support_axis",
         S::ProfileJunction => "profile_junction",
     }
 }

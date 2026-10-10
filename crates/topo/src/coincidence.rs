@@ -70,6 +70,9 @@ pub enum Relation {
         /// than reversing it.
         aligned: bool,
     },
+    /// The two cells' carriers share one axis: of revolution, or of the
+    /// translation a ruled pair is swept along.
+    Coaxial,
 }
 
 /// The decision a row was recorded at: a closed set, one per site
@@ -87,6 +90,13 @@ pub enum DecisionSite {
     SplitOn,
     /// The blend battery's isosceles turn (`fillet3_turn_isosceles`).
     BatteryTurn,
+    /// The blend battery's chain junction, its two links decided
+    /// tangent so one band runs through it (`fillet3_chain_g1`).
+    BatteryJoint,
+    /// The blend battery's curved support pair, decided to share the
+    /// axis or ruling its band is minted on
+    /// (`fillet3_support_coaxiality`).
+    BatterySupportAxis,
     /// A profile's junction no constructor made, its carriers' margin
     /// decided Zero (`profile`'s joint pass).
     ProfileJunction,
