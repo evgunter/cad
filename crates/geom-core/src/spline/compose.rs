@@ -385,31 +385,25 @@ fn insert_once_ring(
 /// interior multiplicity (structure from `kv`, coefficients in the
 /// ring), then the per-span coefficient rows read off by chunks — with
 /// **extra break parameters** injected: each
-/// `extra` value strictly inside the domain and not already a knot is
-/// inserted to full multiplicity, so two channels decomposed with each
-/// other's knots as extras land on one shared break list (the tensor
-/// composite's alignment substrate, and knot insertion is exact in ℝ —
-/// the represented function is unchanged). Values outside the open
-/// domain or duplicating a knot are structure-filtered, not errors.
+/// `extra` value strictly inside the domain and not already a knot
+/// becomes a break, so two channels decomposed with each other's knots
+/// as extras land on one shared break list (the tensor composite's
+/// alignment substrate, and knot insertion is exact in ℝ — the
+/// represented function is unchanged). Values outside the open domain
+/// or duplicating a knot are structure-filtered, not errors.
+///
+/// The extras are cut out of the Bézier segment of `kv` they fall in,
+/// each sub-segment from that segment's own row ([`sub_segment`]), not
+/// by inserting them one after another into the whole net: a ring
+/// insertion combines coefficients that already carry the previous
+/// insertions' widths, so a sequential schedule grows a segment's
+/// width with the number of breaks cut into it, while a cut from the
+/// segment's row pays at most `2p` insertions whatever the count.
 fn to_bezier_spans_extra(kv: &KnotVector, coeffs: &[Interval], extra: &[f64]) -> BernsteinSpans {
     let p = kv.degree();
     let mut knots = kv.knots().to_vec();
     let mut c = coeffs.to_vec();
     let (lo, hi) = kv.domain();
-    // Merge the existing interior values (multiplicity from the vector)
-    // with the fresh extras (multiplicity 0), ascending, exact-`f64`
-    // dedup — pure structure (C6's f64 lane). An extra becomes an
-    // insertion point only through `interior_knot`, the one filter to
-    // the open domain.
-    let mut interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
-    for &v in extra {
-        if let Some(k) = kv.interior_knot(v)
-            && !interior.iter().any(|(w, _)| w.value() == v)
-        {
-            interior.push((k, 0));
-        }
-    }
-    interior.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
     // `knots` is a valid clamped vector for `p` at every step, which is
     // what lets the raw span search be called on it: each insertion
     // places one copy of a strictly interior `v` inside the existing
@@ -418,25 +412,82 @@ fn to_bezier_spans_extra(kv: &KnotVector, coeffs: &[Interval], extra: &[f64]) ->
     // degree. Rebuilding a `KnotVector` per step would re-establish
     // that by validation, at a clone and an O(n) re-check each — the
     // reason this path is raw at all.
-    for (v, m) in &interior {
+    let own: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+    for (v, m) in &own {
         for step in *m..p {
             insert_once_ring(&mut knots, p, step, &mut c, *v);
         }
     }
-    // Breaks: domain ends plus the distinct interior values (ascending).
-    let mut breaks = Vec::with_capacity(interior.len() + 2);
-    breaks.push(lo);
-    breaks.extend(interior.iter().map(|(v, _)| v.value()));
-    breaks.push(hi);
-    // Full multiplicity everywhere: control count = nseg·p + 1; span j
-    // owns coefficients j·p ..= j·p + p.
-    let nseg = breaks.len() - 1;
-    let spans = (0..nseg).map(|j| c[j * p..=j * p + p].to_vec()).collect();
+    let mut segment_ends = Vec::with_capacity(own.len() + 2);
+    segment_ends.push(lo);
+    segment_ends.extend(own.iter().map(|(v, _)| v.value()));
+    segment_ends.push(hi);
+    // The fresh extras, ascending with exact-`f64` dedup — pure
+    // structure (C6's f64 lane). An extra becomes a break only through
+    // `interior_knot`, the one filter to the open domain.
+    let mut cuts: Vec<f64> = extra
+        .iter()
+        .copied()
+        .filter(|&v| kv.interior_knot(v).is_some() && !own.iter().any(|(w, _)| w.value() == v))
+        .collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    // Full multiplicity at the own knots: segment j owns coefficients
+    // j·p ..= j·p + p.
+    let mut breaks = vec![lo];
+    let mut spans = Vec::with_capacity(segment_ends.len() + cuts.len() - 1);
+    let mut next_cut = cuts.iter().copied().peekable();
+    for (j, ends) in segment_ends.windows(2).enumerate() {
+        let (s0, s1) = (ends[0], ends[1]);
+        let row = &c[j * p..=j * p + p];
+        let mut from = s0;
+        while let Some(cut) = next_cut.next_if(|&cut| cut < s1) {
+            spans.push(sub_segment(row, p, (s0, s1), (from, cut)));
+            breaks.push(cut);
+            from = cut;
+        }
+        spans.push(sub_segment(row, p, (s0, s1), (from, s1)));
+        breaks.push(s1);
+    }
     BernsteinSpans {
         degree: p,
         breaks,
         spans,
     }
+}
+
+/// The Bernstein row on `[a, b]` of the degree-`p` Bézier segment
+/// `row` on `[s0, s1]`, with `s0 ≤ a < b ≤ s1`: `a` and then `b` are
+/// inserted to full multiplicity into the segment's own clamped vector
+/// (each only when strictly inside it), and the row between them read
+/// off. The whole segment comes back as it came.
+fn sub_segment(
+    row: &[Interval],
+    p: usize,
+    (s0, s1): (f64, f64),
+    (a, b): (f64, f64),
+) -> Vec<Interval> {
+    if p == 0 || (a == s0 && b == s1) {
+        return row.to_vec();
+    }
+    let bezier = KnotVector::clamped(
+        core::iter::repeat_n(s0, p + 1)
+            .chain(core::iter::repeat_n(s1, p + 1))
+            .collect(),
+        p,
+    )
+    .unwrap_or_else(|_| unreachable!("a segment of a clamped vector is a nonempty span"));
+    let mut knots = bezier.knots().to_vec();
+    let mut c = row.to_vec();
+    for end in [a, b] {
+        if let Some(u) = bezier.interior_knot(end) {
+            for step in 0..p {
+                insert_once_ring(&mut knots, p, step, &mut c, u);
+            }
+        }
+    }
+    let first = if a > s0 { p } else { 0 };
+    c[first..=first + p].to_vec()
 }
 
 // ---------------------------------------------------------------------
