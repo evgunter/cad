@@ -636,13 +636,15 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
     let Overlap::Bounded { faces } = &finding.overlap else {
         panic!("bounded: {:?}", finding.overlap)
     };
-    let beside = finding.evidence.iter().filter(|e| match e {
-        ValidationError::CensusUndecidable {
-            a: topo::EntityId::Face(_),
-            b: topo::EntityId::Face(_),
-            ..
-        } => true,
-        _ => false,
+    let beside = finding.evidence.iter().filter(|e| {
+        matches!(
+            e,
+            ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(_),
+                b: topo::EntityId::Face(_),
+                ..
+            }
+        )
     });
     assert!(
         beside.count() > 0,

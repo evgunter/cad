@@ -1364,6 +1364,7 @@ fn mint_selection<P: crate::ProfilePayload>(
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
 /// live, and then [`Doc::read_fault`] — the load door's rule too —
 /// rendered in this module's vocabulary.
+#[allow(clippy::too_many_arguments)] // the read and its seat, whole: one caller
 fn check_read<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     spoken: &impl Fn() -> SpokenNode,

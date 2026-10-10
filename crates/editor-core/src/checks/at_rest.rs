@@ -728,7 +728,7 @@ fn beyond<T: crate::EvalScalar>(
         .map(|steps| profile::replay(steps, tol).map_err(|e| format!("{e:?}")))
         .collect::<Result<Vec<_>, String>>()?;
     let plane = profile::SketchPlane::from_frame(frame);
-    let validated = profile::ConstructedProfile::new(plane.clone(), loops)
+    let validated = profile::ConstructedProfile::new(plane, loops)
         .validate(tol)
         .map_err(|e| e.to_string())?
         .lift_onto(plane.map(T::from_f64));

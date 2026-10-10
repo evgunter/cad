@@ -2690,7 +2690,10 @@ fn ee_crossing_lane<T: Decide>(
             // Same-side is interpenetration evidence, which the at-rest
             // door between two copies reads off this field; undecided
             // is already escalated typed alongside this finding.
-            debug_assert!(verdict != CrossingSideVerdict::OppositeSides, "Backed above");
+            debug_assert!(
+                verdict != CrossingSideVerdict::OppositeSides,
+                "Backed above"
+            );
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,

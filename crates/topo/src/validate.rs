@@ -2154,7 +2154,6 @@ pub enum CrossingSideVerdict {
     Undecided,
 }
 
-
 /// A census-discovered coincidence between **distinct** entities (the
 /// tier-3′ injectivity pass's finding kinds, M3 PR 6a). Interior means
 /// strictly interior (endpoint/boundary coincidences surface through
