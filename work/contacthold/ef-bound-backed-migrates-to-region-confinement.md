@@ -31,11 +31,11 @@ was still on main after E.
 ## Done
 
 The face-pair arms read `Declared::vf_face_backed_confined`: a pair
-backs a bound only where the bound lies in both faces' closed regions
-on their carriers (`pair_holds_point`) and the pair verifies through
-the confirm pass's two doors (`pair_region_verified`). It is the shape
-CONTACT-12 built and dropped under the D10 hold (commit `0bd1071f45`,
-reverted in `ba2a473811` for the hold, not on its merits), re-applied
-to the current rung, read after every record and structural arm. The
-anomaly pin is re-baselined as
+incident to the bound backs it only where it passes Door 1 and Door 2
+reaches `PositiveArea` (`pair_verified`, either frame order).
+Incidence already puts the bound in the closed intersection of the two
+regions, so no point test is run: CONTACT-12's version (commit
+`0bd1071f45`, reverted in `ba2a473811` for the D10 hold, not on its
+merits) also ran `pair_holds_point`, which the review of PR 4559 showed
+is implied at both call sites and only pushed in-band escalations. The anomaly pin is re-baselined as
 `r2_an_unrelated_declared_pair_backs_no_ef_bound`.
