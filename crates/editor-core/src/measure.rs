@@ -369,7 +369,7 @@ impl AssertionRelation {
     }
 }
 
-/// **An assertion's evaluated verdict — REPORT ONLY (E10 v1).**
+/// **An assertion's evaluated verdict — REPORT ONLY (D10, E10).**
 ///
 /// This is the whole of an assertion's product. Nothing downstream
 /// reads it: no gate consults it, no op takes it as an operand, and no
@@ -377,8 +377,8 @@ impl AssertionRelation {
 /// rather than promised — an assertion node denotes no body, so the
 /// root gather skips it exactly as it skips a declaration, and its
 /// value payload is not an admissible operand for any op in the
-/// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads,
-/// and a gating mode is additive policy nobody has ratified.
+/// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads:
+/// an assertion checks and never places (D10).
 #[derive(Debug, Clone, PartialEq)]
 pub enum AssertionVerdict<T> {
     /// The measured value satisfies the bound.
@@ -519,7 +519,7 @@ pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs
 /// The endpoints are therefore not interchangeable, and which VERDICT
 /// an assertion may reach depends on which endpoint its arm reads:
 ///
-/// | direction | verdict | endpoint | sound for the faces? |
+/// | relation | verdict | endpoint | sound for the faces? |
 /// | --- | --- | --- | --- |
 /// | `AtLeast c` | `Holds` | `lo` | yes — `M ≥ m ≥ lo ≥ c` |
 /// | `AtLeast c` | `Violated` | `hi` | **no** |

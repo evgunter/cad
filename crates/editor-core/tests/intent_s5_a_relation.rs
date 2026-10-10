@@ -6,7 +6,7 @@
 use crate::fixture::{self, cap_ref, insert, len};
 use crate::wire::doctored;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::drive::{SymbolicDials, assertion_at};
+use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at, drive};
 use editor_core::{
     AssertionRelation, AssertionVerdict, CapEnd, Dimension, Distribution, DocEdit, Formula,
     FreeVar, MeasurePrimitive, Node, NodeResult, PersistError, ProfileDoc, RecipeNodeId,
@@ -193,46 +193,111 @@ fn over_the_box(
 /// **(A, test 3) `=` over a box is decided pointwise.** `w − w = 0`
 /// (one variable read twice) holds over the box on the symbolic lane,
 /// which proves the margin identically zero, and is undecided on the
-/// numeric lane, where interval dependency widens it. Two toleranced
-/// variables of one nominal, `a − b = 0`, never hold: their difference
-/// is a genuine interval. Breaks if `=` is special-cased to hold on the
-/// nominal (the `a − b` row holds), or the symbolic lane does not reach
-/// the assertion's decision (the `w − w` row is undecided there too).
+/// numeric lane, where interval dependency widens it; the driver
+/// certifies the whole box. Two toleranced variables of one nominal,
+/// `a − b = 0`, never hold: their difference is a genuine interval, so
+/// the leaf is undecided and the driver bisects it to its budget, where
+/// the same document under `a − b ≥ −1 m` certifies. Breaks if `=` is
+/// special-cased to hold on the nominal (the `a − b` row holds, and the
+/// drive refuses nothing), or the symbolic lane does not reach the
+/// assertion's decision (the `w − w` row is undecided there too).
 #[test]
 fn equal_over_a_box_holds_only_on_a_structural_zero() {
-    let w = Formula::named(VarName::from_static("w"), Dimension::Length);
-    let doc = toleranced("s5a-box-w", &[("w", 0.005)]);
-    let (doc, same) = assert_on(
-        doc,
-        Formula::sub(w.clone(), w).expect("Length - Length"),
+    let named = |name| Formula::named(VarName::from_static(name), Dimension::Length);
+    let minus = |a, b| Formula::sub(named(a), named(b)).expect("Length - Length");
+
+    let (structural, same) = assert_on(
+        toleranced("s5a-box-w", &[("w", 0.005)]),
+        minus("w", "w"),
         AssertionRelation::Equal,
         len(0.0),
     );
-    let symbolic = over_the_box(&doc, same, SymbolicDials::default());
+    let symbolic = over_the_box(&structural, same, SymbolicDials::default());
     assert!(
         matches!(symbolic, AssertionVerdict::Holds { .. }),
         "`w − w = 0` is a theorem on the symbolic lane: {symbolic:?}"
     );
-    let numeric = over_the_box(&doc, same, SymbolicDials::off());
+    let numeric = over_the_box(&structural, same, SymbolicDials::off());
     assert!(
         matches!(numeric, AssertionVerdict::Unevaluated { .. }),
         "the numeric lane cannot see the identity: {numeric:?}"
     );
 
-    let doc = toleranced("s5a-box-ab", &[("a", 0.005), ("b", 0.005)]);
-    let (a, b) = (
-        Formula::named(VarName::from_static("a"), Dimension::Length),
-        Formula::named(VarName::from_static("b"), Dimension::Length),
-    );
-    let (doc, twins) = assert_on(
-        doc,
-        Formula::sub(a, b).expect("Length - Length"),
-        AssertionRelation::Equal,
-        len(0.0),
-    );
-    let twins = over_the_box(&doc, twins, SymbolicDials::default());
+    let twins_at = |relation, bound| {
+        assert_on(
+            toleranced("s5a-box-ab", &[("a", 0.005), ("b", 0.005)]),
+            minus("a", "b"),
+            relation,
+            len(bound),
+        )
+    };
+    let (twins, equal) = twins_at(AssertionRelation::Equal, 0.0);
+    let verdict = over_the_box(&twins, equal, SymbolicDials::default());
     assert!(
-        matches!(twins, AssertionVerdict::Unevaluated { .. }),
-        "two toleranced variables equal at the nominal are not equal over the box: {twins:?}"
+        matches!(verdict, AssertionVerdict::Unevaluated { .. }),
+        "two toleranced variables equal at the nominal are not equal over the box: {verdict:?}"
     );
+
+    let driven = |doc: &ProfileDoc| {
+        drive(
+            doc,
+            &analyzed_box(doc, &AnalysisPolicy::default()),
+            &DriveConfig {
+                max_leaves: 16,
+                ..DriveConfig::default()
+            },
+            Tol::witness(),
+        )
+        .expect("the witness builds")
+    };
+    let proven = driven(&structural);
+    assert!(
+        proven.refused().is_empty(),
+        "`w − w = 0` certifies the whole box: {:?}",
+        proven.refused()
+    );
+    let bisected = driven(&twins);
+    assert!(
+        !bisected.refused().is_empty()
+            && bisected
+                .refused()
+                .iter()
+                .all(|leaf| matches!(leaf.reason, RefusalReason::Budget(_))),
+        "an undecided `=` bisects to the budget: {:?}",
+        bisected.refused()
+    );
+    let (loose, _) = twins_at(AssertionRelation::AtLeast, -1.0);
+    let control = driven(&loose);
+    assert!(
+        control.refused().is_empty(),
+        "the same document under `a − b ≥ −1 m` certifies: {:?}",
+        control.refused()
+    );
+}
+
+/// **(A) The relation is in the assertion's content key.** One value
+/// and one bound under `≥`, `≤` and `=` key three ways, so a document
+/// re-related from `≥` to `=` is never served the `≥` verdict from a
+/// memo. Breaks if `Equal` writes another relation's tag.
+#[test]
+fn each_relation_keys_its_assertion_apart() {
+    let (doc, out) = slab("s5a-key");
+    let read = fixture::read_var(&doc, out);
+    let keys: Vec<_> = [
+        AssertionRelation::AtLeast,
+        AssertionRelation::AtMost,
+        AssertionRelation::Equal,
+    ]
+    .into_iter()
+    .map(|relation| {
+        let (doc, id) = assert_on(doc.clone(), read.clone(), relation, len(DEPTH));
+        crate::corpus::eval::<f64>(&doc)
+            .value(id)
+            .expect("the assertion evaluates")
+            .content_key
+    })
+    .collect();
+    assert_ne!(keys[0], keys[2], "`>=` and `=` key apart");
+    assert_ne!(keys[1], keys[2], "`<=` and `=` key apart");
+    assert_ne!(keys[0], keys[1], "`>=` and `<=` key apart");
 }

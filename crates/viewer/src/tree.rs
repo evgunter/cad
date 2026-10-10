@@ -457,13 +457,12 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 /// **An assertion's verdict, as its row says it**: the kernel's
 /// verdict with both numbers carried as the measure's own value is
 /// ([`Computed`], in the measure's dimension, spelled when drawn), the
-/// side of the bound the measure must fall on, and which measure that
-/// is.
+/// relation it states to the bound, and which measure that is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
-    /// Which side of the bound the measure must fall on.
+    /// How the value must relate to the bound.
     pub relation: AssertionRelation,
     /// The measure under the value the assertion bounds — the
     /// `min_clearance` one when there is one, since that is the measure

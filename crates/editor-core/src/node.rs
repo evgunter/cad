@@ -2720,9 +2720,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// accepts a verdict as an operand, so a `Violated` assertion
     /// cannot reach any downstream outcome even by mistake: it denotes
     /// no body, the product gather skips it as it skips a
-    /// declaration, and `build()` never consults it. E10 v1 rules that
-    /// assertions report; a gating mode is additive policy, not a
-    /// default this node quietly implements.
+    /// declaration, and `build()` never consults it: an assertion
+    /// checks and never places (D10).
     Assertion {
         /// The value checked: any scalar variable, typically an observed
         /// one (a measure's output, or a definition over outputs). Not a
@@ -2733,7 +2732,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// document error at every door, never a silent comparison of
         /// radians with metres.
         bound: S,
-        /// Which side of the bound the measure must fall on.
+        /// How the value must relate to the bound: `>=`, `<=` or `=`.
         relation: crate::measure::AssertionRelation,
     },
 }

@@ -217,7 +217,7 @@ impl MeasurePrimitive {
 /// Rust has ONE `AssertionRelation` — the kernel enum the recipe node
 /// carries — and this is its binding. The mirror exists because
 /// `#[pyclass]` cannot be attached to a type from another crate; the
-/// obligation it owes the kernel is that every kernel direction has a
+/// obligation it owes the kernel is that every kernel relation has a
 /// member here, which [`_binds_every_kernel_relation`] enforces.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

@@ -712,14 +712,14 @@ fn report_key_tells_two_budgets_apart() {
 
 /// The unit's neck with the bound / the pairing / the box as arguments.
 fn neck(bound: f64, wall_b: u32, law: Distribution) -> (ProfileDoc, RecipeNodeId) {
-    neck_dir(bound, wall_b, law, AssertionRelation::AtLeast)
+    neck_related(bound, wall_b, law, AssertionRelation::AtLeast)
 }
 
-/// The same, with the assertion's direction chosen — which the fix
+/// The same, with the assertion's relation chosen — which the fix
 /// pass made load-bearing: `min_clearance` reaches `Violated` only
 /// through `AtMost` now (`measure::Certified`), because the `AtLeast`
 /// arm that would read the carrier's upper end refuses instead.
-fn neck_dir(
+fn neck_related(
     bound: f64,
     wall_b: u32,
     law: Distribution,
@@ -791,7 +791,7 @@ fn neck_dir(
 /// planting through it would be planting a refusal.
 #[test]
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
-    let (doc, assertion) = neck_dir(0.3, 9, uniform(), AssertionRelation::AtMost);
+    let (doc, assertion) = neck_related(0.3, 9, uniform(), AssertionRelation::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
@@ -837,7 +837,7 @@ fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
 #[test]
 fn equal_over_min_clearance_answers_only_off_the_faces_end() {
     let at = |bound| {
-        let (doc, assertion) = neck_dir(bound, 9, uniform(), AssertionRelation::Equal);
+        let (doc, assertion) = neck_related(bound, 9, uniform(), AssertionRelation::Equal);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
         let leaf = &verdict.certified()[0];

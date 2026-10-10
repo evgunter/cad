@@ -434,9 +434,10 @@ fields named now):
 - `Assertion { value, relation: AtLeast | AtMost | Equal, bound }`
   (D10's `≥`, `≤`, `=`), `value` a scalar variable (a measure's
   output, or a definition over outputs) and `bound` a scalar
-  variable of the same dimension — tolerance *requirements* as recorded design intent (the CAD
-  analog of a test suite: "min wall ≥ 0.5 mm" lives in the document,
-  versioned and diffable, not in a script beside it).
+  variable of the same dimension — tolerance *requirements* as
+  recorded design intent (the CAD analog of a test suite: "min wall
+  ≥ 0.5 mm" lives in the document, versioned and diffable, not in a
+  script beside it).
 
 Unknown-field/version handling per F3 verbatim; the migration chain
 gains one explicit version-to-version step.
