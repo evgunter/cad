@@ -1,0 +1,108 @@
+────────────
+ Nextest run ID 16f4cc64-95f1-4f69-9711-18bf9c29f539 with nextest profile: default
+       START [         ] (1/9) editor-core::all r2_dm4_probe::r2_a_covered_contact_leaves_the_log
+running 1 test
+thread 'r2_dm4_probe::r2_a_covered_contact_leaves_the_log' (17816) panicked at crates/editor-core/tests/fixture/mod.rs:457:59:
+called `Result::unwrap()` on an `Err` value: DeclaredSiteNotAnOperand { node: SpokenNode { id: RecipeNodeId(MintId { ordinal: 88, digest: 16551624381816083893 }), kind: Some("Union"), label: None }, name: SpokenName(SpokenNameParts { name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 86, digest: 18163739380946314453 }), path: [Cap(Start)] }, minter: SpokenNode { id: RecipeNodeId(MintId { ordinal: 86, digest: 18163739380946314453 }), kind: Some("Extrude"), label: None }, held: HeldNodes { nodes: [], vars: [], facts: [] } }), site: SpokenVar { id: VarId(MintId { ordinal: 87, digest: 669885598460355842 }), name: None } }
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test r2_dm4_probe::r2_a_covered_contact_leaves_the_log ... FAILED
+failures:
+failures:
+    r2_dm4_probe::r2_a_covered_contact_leaves_the_log
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.26s
+        FAIL [   0.281s] (1/9) editor-core::all r2_dm4_probe::r2_a_covered_contact_leaves_the_log
+       START [         ] (2/9) editor-core::all r2_dm4_probe::r2_a_declared_pair_at_a_read_spelled_twice
+running 1 test
+["a", "a", "b"]: builds, volume 2
+["a", "b", "a"]: builds, volume 2
+["b", "a", "a"]: builds, volume 2
+undeclared [a, a, b]: UndeclaredCoincidence { finding: FlushFinding { pair: (SitedRef { at: VarId(MintId { ordinal: 29, digest: 10454880228416353657 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }, SitedRef { at: VarId(MintId { ordinal: 58, digest: 3861314822356949427 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 57, digest: 13594308632299017368 }), path: [Cap(End)] } }), class: Continuation, evidence: FlushEvidence { relation: SameOriented, rung: DecidedCoincident } }, merged: ([], []), diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_plane_offset") } }
+test r2_dm4_probe::r2_a_declared_pair_at_a_read_spelled_twice ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.29s
+        PASS [   0.299s] (2/9) editor-core::all r2_dm4_probe::r2_a_declared_pair_at_a_read_spelled_twice
+       START [         ] (3/9) editor-core::all r2_dm4_probe::r2_a_negative_index_refuses_out_of_range
+running 1 test
+negative index: InstanceOutOfRange { input: RecipeNodeId(MintId { ordinal: 35, digest: 10260012412855992252 }), index: -1, count: 3 }
+test r2_dm4_probe::r2_a_negative_index_refuses_out_of_range ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.01s
+        PASS [   0.025s] (3/9) editor-core::all r2_dm4_probe::r2_a_negative_index_refuses_out_of_range
+       START [         ] (4/9) editor-core::all r2_dm4_probe::r2_a_repeated_indexed_read_glues
+running 1 test
+u: not failed: true i: not failed: true s: not failed: true
+test r2_dm4_probe::r2_a_repeated_indexed_read_glues ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.07s
+        PASS [   0.086s] (4/9) editor-core::all r2_dm4_probe::r2_a_repeated_indexed_read_glues
+       START [         ] (5/9) editor-core::all r2_dm4_probe::r2_a_subtract_of_two_members_of_one_family
+running 1 test
+diag: xs[1] - xs[0]: Naming(SeamVertexParentage { vertex: VertexKey(16v1) })
+diag: xs[1] - cube: builds, volume 0.640082, 45 names
+diag: [xs[1], xs[0]]: builds, volume 1.640082, 63 names
+x: xs[1] - xs[0]: UndeclaredCoincidence { finding: FlushFinding { pair: (SitedRef { at: VarId(MintId { ordinal: 36, digest: 7471585656610975957 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 35, digest: 7143946959899629473 }), path: [Instance { i: 1, of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }] } }, SitedRef { at: VarId(MintId { ordinal: 36, digest: 7471585656610975957 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 35, digest: 7143946959899629473 }), path: [Instance { i: 0, of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }] } }), class: Continuation, evidence: FlushEvidence { relation: SameOriented, rung: DecidedCoincident } }, merged: ([], []), diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_plane_offset") } }
+x: xs[1] - cube: UndeclaredCoincidence { finding: FlushFinding { pair: (SitedRef { at: VarId(MintId { ordinal: 36, digest: 7471585656610975957 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 35, digest: 7143946959899629473 }), path: [Instance { i: 1, of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }] } }, SitedRef { at: VarId(MintId { ordinal: 29, digest: 10454880228416353657 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }), class: Continuation, evidence: FlushEvidence { relation: SameOriented, rung: DecidedCoincident } }, merged: ([], []), diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_plane_offset") } }
+x: [xs[1], xs[0]]: UndeclaredCoincidence { finding: FlushFinding { pair: (SitedRef { at: VarId(MintId { ordinal: 36, digest: 7471585656610975957 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 35, digest: 7143946959899629473 }), path: [Instance { i: 1, of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }] } }, SitedRef { at: VarId(MintId { ordinal: 36, digest: 7471585656610975957 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 35, digest: 7143946959899629473 }), path: [Instance { i: 0, of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 28, digest: 458516756591764323 }), path: [Cap(End)] } }] } }), class: Continuation, evidence: FlushEvidence { relation: SameOriented, rung: DecidedCoincident } }, merged: ([], []), diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_plane_offset") } }
+test r2_dm4_probe::r2_a_subtract_of_two_members_of_one_family ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.12s
+        PASS [   0.134s] (5/9) editor-core::all r2_dm4_probe::r2_a_subtract_of_two_members_of_one_family
+       START [         ] (6/9) editor-core::all r2_dm4_probe::r2_every_carry_is_keyed_by_a_seat_read_of_its_minter
+running 1 test
+die: 62594 carries checked, 0 under a foreign minter
+corner_table: 1381 carries checked, 0 under a foreign minter
+heat_sink: 2530 carries checked, 0 under a foreign minter
+crossing_slots: 402 carries checked, 0 under a foreign minter
+nested_islands_105: 1047 carries checked, 0 under a foreign minter
+nested_islands_106_depth1: 703 carries checked, 0 under a foreign minter
+nested_islands_106_depth2: 1521 carries checked, 0 under a foreign minter
+declared_tangency: 0 carries checked, 0 under a foreign minter
+kitchen_sink: 534 carries checked, 0 under a foreign minter
+cut_cylinder: 0 carries checked, 0 under a foreign minter
+measured_web: 0 carries checked, 0 under a foreign minter
+boss_union: 120 carries checked, 0 under a foreign minter
+die_fillet: 12 carries checked, 0 under a foreign minter
+die_chamfer: 12 carries checked, 0 under a foreign minter
+die_pips: 66 carries checked, 0 under a foreign minter
+heat_sink_fins: 0 carries checked, 0 under a foreign minter
+die_tool: 136 carries checked, 0 under a foreign minter
+face_sketch: 0 carries checked, 0 under a foreign minter
+part_select: 68 carries checked, 0 under a foreign minter
+loft_prism: 0 carries checked, 0 under a foreign minter
+die_composed: 413 carries checked, 0 under a foreign minter
+die_composed_tour: 4515 carries checked, 0 under a foreign minter
+plate_param: 232 carries checked, 0 under a foreign minter
+kiss_carry: 432 carries checked, 0 under a foreign minter
+tube_ring: 0 carries checked, 0 under a foreign minter
+tube_arc: 0 carries checked, 0 under a foreign minter
+hollow_tube_elbow: 0 carries checked, 0 under a foreign minter
+hollow_tube_ring: 0 carries checked, 0 under a foreign minter
+reshaped_rod: 74 carries checked, 0 under a foreign minter
+test r2_dm4_probe::r2_every_carry_is_keyed_by_a_seat_read_of_its_minter ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 7.90s
+        PASS [   7.922s] (6/9) editor-core::all r2_dm4_probe::r2_every_carry_is_keyed_by_a_seat_read_of_its_minter
+       START [         ] (7/9) editor-core::all r2_dm4_probe::r2_no_index_slot_at_a_family_argument
+running 1 test
+index slot at Members: Some(UnknownSlot { id: SpokenNode { id: RecipeNodeId(MintId { ordinal: 37, digest: 17904596981695114541 }), kind: Some("Union"), label: None }, slot: Index { seat: Members, k: 0 } })
+SetMembers indexed family: Some(IndexedRead { node: SpokenNode { id: RecipeNodeId(MintId { ordinal: 37, digest: 17904596981695114541 }), kind: Some("Union"), label: None }, fault: IndexedFamily })
+SetMembers family in member place: Some(SlotVarKind { var: SpokenVar { id: VarId(MintId { ordinal: 36, digest: 2987839740561295559 }), name: None }, node: SpokenNode { id: RecipeNodeId(MintId { ordinal: 37, digest: 17904596981695114541 }), kind: Some("Union"), label: None }, slot: Operand(Member(0)), found: Bodies, expected: Is(Body) })
+test r2_dm4_probe::r2_no_index_slot_at_a_family_argument ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.01s
+        PASS [   0.022s] (7/9) editor-core::all r2_dm4_probe::r2_no_index_slot_at_a_family_argument
+       START [         ] (8/9) editor-core::all r2_dm4_probe::r2_the_load_door_holds_carry_reads_to_the_document
+running 1 test
+unmodified loads: true
+carry read 77777:00000000deadbeef: refused: persist: edit 32 refused on replay: Fillet b19f520419c8's target reads #259:c79e0ce7199d44c1, which is not a variable of this document. Recourse: read an output of a node the document holds, by its node or its port
+carry read 0:0000000000000000: refused: persist: edit 32 refused on replay: Fillet 8e23e684f8a4's target reads #259:c79e0ce7199d44c1, which is not a variable of this document. Recourse: read an output of a node the document holds, by its node or its port
+test r2_dm4_probe::r2_the_load_door_holds_carry_reads_to_the_document ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.28s
+        PASS [   0.310s] (8/9) editor-core::all r2_dm4_probe::r2_the_load_door_holds_carry_reads_to_the_document
+       START [         ] (9/9) editor-core::all r2_dm4_probe::r2_the_load_door_refuses_bad_indices
+running 1 test
+at list first entry: "37:04b1c4f7a35f99d4"
+load rank 2: Some("persist: invalid snapshot: Subtract bc180df9b38d: the read at its from carries 2 indices — a family is indexed by one count")
+load indexed body: Some("persist: invalid snapshot: Subtract bc180df9b38d's from reads #29:9117322ce802f579, which is a body, where it takes a list of bodies")
+load junk at: Some("persist: this build cannot read the document (body line 231 column 25: unknown field `zz`, expected `read` or `at` at line 231 column 25) — regenerate the file from its source recipe with a current build (every saved document replays from source; this kernel is unreleased and writes no old-format files)")
+test r2_dm4_probe::r2_the_load_door_refuses_bad_indices ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2710 filtered out; finished in 0.01s
+        PASS [   0.023s] (9/9) editor-core::all r2_dm4_probe::r2_the_load_door_refuses_bad_indices
+────────────
+     Summary [   9.108s] 9 tests run: 8 passed, 1 failed, 3070 skipped
+        FAIL [   0.281s] (1/9) editor-core::all r2_dm4_probe::r2_a_covered_contact_leaves_the_log
+error: test run failed

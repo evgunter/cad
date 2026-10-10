@@ -1,0 +1,8 @@
+applied M1 crates/editor-core/src/eval/wire.rs
+== M1 filter: test(/m4_pr4|docm3_union|dm4_reads|intent_s2_b/)
+        FAIL [   0.338s] (53/94) editor-core::all m4_pr4_ci::diagnosis_corpus_is_golden
+     Summary [   9.983s] 94 tests run: 93 passed, 1 failed, 2985 skipped
+        FAIL [   0.338s] (53/94) editor-core::all m4_pr4_ci::diagnosis_corpus_is_golden
+error: test run failed
+applied M3 crates/editor-core/src/names/emit_union.rs
+== M3 filter: test(/dm3_indexed|docm3_union|emit_union|emit_nested|lib_g16|placedunion|die_|r2_every/)
