@@ -351,3 +351,26 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - **Not dispatched:**
   - `degree-elevation-recomposition…` (P4), which sits behind fork3's answer on the applier;
   - `tilted-lune-sits-at-the-f64-floor-of-its-band` (P3 E). Q2 left the lune green at all three ε, because its axis passes through the origin. The hosted/local split it records needs PR 4441's old head to reproduce, so it waits for a nightly reading. (NURBS orchestrator)
+
+## 2026-10-10 — Fork3 converges; its build dispatched; two clarifications to Ev
+
+**Fork3** (the certified spline combine) converged in round 2, without crossing over. A is Opus and B is Fable, by byte 154, recorded on `analysis/design-fork/nurbs-fork3-combine`.
+- **Q1, the step's form.** It is the monotone two-point form, met with the sources' hull, as a door `Certification::between`.
+  - A moved from midpoint–radius after running B's rows. Monotone is tighter on every row, by 1.4–4×, and midpoint–radius fails the 254-cut row's 2p+1 ceiling at degree 3.
+  - A also moved to keeping the hull meet. Without it, either form steps outside the sources' hull, below zero at a subnormal weight, which breaks PR 3737's weight-range guarantee.
+- **Row 1's 2.4× is stale.** It was the serial extra-break insertion that PR 4489 removed. Today every form reads the r1 envelope the same to seven digits.
+- **Q2, the projective applier.** The knot algebra becomes unrepresentable at `Interval`. B had said no shipped path reached it, and corrected that: `NurbsLane::<Interval>::certified()` → `plane_nurbs_limbs` → `localized` → `refine_knots_u/v` → `apply_points` with a point-lifted `f64` λ, and `ssi/certify::refined` likewise. Both run from editor-core's `Interval` replay. A certified plane × NURBS claim was therefore about a neighbour of the described wall, at ulp scale; no verdict was shown to flip.
+- **Q3, the primitive.** One blossom, `CoeffWindow::blossom(args)`, with `restrict` as sugar. `insert_once_ring` and `sub_segment` retire.
+- **Asked of Ev,** as `[ev]` PR 4539 with fork row 107: two wording clarifications both designers found.
+  - W1's "number of restrictions" is to read "inherited width multiplied per step".
+  - C6 is to say a refinement inside a certificate is held as homogeneous enclosures.
+
+  Neither changes a decision, so the build does not wait on them.
+- **Build, dispatched 14:59Z on `a80985928917`,** as two lanes:
+  - A: `nurbs/monotone-step-and-blossom` closes `the-convex-boehm-step-…` and `certified-blossom-primitive-…`;
+  - B: `nurbs/knot-algebra-off-the-ring` closes `the-projective-applier-…`. It measures before choosing between dropping `localized`/`refined` at `Interval` and refining homogeneous channels.
+- **Filed** off-question:
+  - `work/ssiarith/ssi-cut-derivative-box-is-wider-than-the-whole-cell`;
+  - `work/encl/offset-fit-composite-elevates-a-rational-direction-at-f64`.
+
+  The quad sites (`ring_lerp`, `bezier_blocks`, `bezier_bisect`, `de_boor_on`) and `sub_piece` are covered by the two build lanes. (NURBS orchestrator)
