@@ -656,6 +656,9 @@ fn a_needle_section_off_the_apex_is_not_its_lines() {
     }
 }
 
+/// A named pose family, built at a gap.
+type PoseAt = Box<dyn Fn(f64) -> Pose>;
+
 /// The family around the item's poses: needles to near-flat cones, the
 /// plane along the axis, leaning to a small or a steep discriminant, and
 /// tangent, both faces, gaps across the zero band. A served line outcome
@@ -677,7 +680,7 @@ fn a_line_outcome_is_served_only_where_its_section_starts_in_the_band() {
         1.4,
         core::f64::consts::FRAC_PI_2 - 1e-3,
     ] {
-        let mut poses: Vec<(String, Box<dyn Fn(f64) -> Pose>)> = vec![
+        let mut poses: Vec<(String, PoseAt)> = vec![
             (
                 "along the axis".into(),
                 Box::new(move |g| along_axis(alpha, g)),
