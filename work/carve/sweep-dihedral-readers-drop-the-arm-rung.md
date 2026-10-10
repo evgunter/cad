@@ -4,6 +4,8 @@ kind: issue
 title: sweep: extrude and revolve upgrade drop classify_dihedral's rung, so an arm, undecided or collapsed, refuses as a sliver wedge
 status: open
 opened: 2026-09-29
+priority: P2
+cost: M
 ---
 
 ## What

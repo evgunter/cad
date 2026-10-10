@@ -15,7 +15,6 @@ against 30 with its six charter rows closed. Nothing dispatched.
 | P1 | `a-torus-near-a-tilted-cut-stops-at-the-extent-scan` | H | A torus near or across a tilted cut's ellipse rim stops at the extent scan or the join's germ frame: its oblique plane and wall pairs have no section arm |
 | P1 | `a-torus-touch-along-a-whole-parallel-refuses-r-tan` | M +design | A torus touching a coaxial or axis-normal partner along a whole parallel refuses R-tan |
 | P1 | `a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan` | M +design | A torus touch that is isolated but not at an elliptic point refuses R-tan |
-| P1 | `census-backstop-clears-a-curved-pair-only-along-world-axes` | M | The census backstop clears a cross-solid pair with a curved side only by a gap along x, y or z, so CurvedWithinReach depends on the pose |
 | P1 | `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut` | H | A closed sphere group's escape is re-charted by rotating the group while a trimmed face's is cut along its meridian: two answers to one escape |
 | P1 | `delete-the-boolean-operand-edge-gate` | M | delete gate_operand_edges once every site behind the sweep refuses a spline or spiric edge typed |
 | P1 | `separation-grants-disjointness-only-along-world-axes` | M | topo::separation grants two placements or solids disjoint only by world-axis box non-overlap, so whether it certifies depends on how they are turned |
@@ -23,10 +22,11 @@ against 30 with its six charter rows closed. Nothing dispatched.
 
 ## Order
 
-The two world-axis rows first (`separation-grants-disjointness-only-along-world-axes`,
-`census-backstop-clears-a-curved-pair-only-along-world-axes`): PR 4122
-built the separating-direction test they need (`boolean::separating`),
-so each is a port of a door that already exists. Then the sphere pair
+The world-axis row first (`separation-grants-disjointness-only-along-world-axes`;
+its census twin is now CONTACTHOLD's
+`census-backstop-separates-curved-pairs-only-along-world-axes`): PR 4122
+built the separating-direction test it needs (`boolean::separating`),
+so it is a port of a door that already exists. Then the sphere pair
 (`sphere-pair-meeting-inside-both-faces-refuses-spheres-meet`) and the
 escape row beside it, which share the meridian cut. The two torus
 touch rows carry `design: true`: designers first

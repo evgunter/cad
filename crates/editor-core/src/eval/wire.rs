@@ -2657,7 +2657,7 @@ fn split_ports_projected<T: Decide>(
 // allowance).
 //
 // The TWO-OPERAND lowering, kept apart from `wire_blend`'s: two operand
-// tables, the declared pairs' N5 resolution, the declared-contact
+// tables, the declared pairs' N5 resolution, the contact-record
 // carry and the typed empty success would otherwise become runtime
 // arity.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
