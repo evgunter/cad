@@ -133,9 +133,14 @@ marker over `SpanLocate` held by `f64`, `Probe`, and `Dual` and `Sym`
 over them, bounds `CurvePlan::apply_points` (which now hands the closure
 `λ` already lifted to that scalar) and every `geom` knot operation on
 `NurbsCurve2/3` and `NurbsSurface` (insert, split, refine, union,
-remove, elevate). A call at `Interval` does not typecheck; the
-`compile_fail` rows on `ProjectiveScalar` and on `NurbsSurface`'s
-knot-algebra block pin it beside their compiling twins.
+remove, elevate). The applier's points are bounded with it
+(`ProjectivePoint`: the scalar itself, and points and arrays over it),
+so ring points with an `f64` `λ` lifted inside the closure, the shape
+`ring_lerp` had, do not typecheck either. A call at `Interval` does not
+typecheck; the `compile_fail` rows on `ProjectiveScalar` and on
+`NurbsSurface`'s knot-algebra block pin both beside their compiling
+twins. What the bound cannot see is a closure that computes in the ring
+and carries the result out through a capture.
 
 The row's premise that no shipped path instantiates these at
 `T = Interval` was false. The bound turned four shipped sites into
@@ -144,18 +149,21 @@ compile errors, and each now says what it refines:
 - `edge_nurbs::localized` (the plane × NURBS wall, reached from
   `editor-core`'s `evaluate::<Interval>` replay through
   `policy_lane::certify` → `NurbsLane::certified` →
-  `plane_nurbs_limbs`) is gone: the lane reads the described wall.
-  Measured at ε 1e-6, 1e-9 and 1e-12 over `geom-brep` and `topo`, no
-  verdict moved and the chart hull bound stayed within 0.70×–1.28×.
+  `plane_nurbs_limbs`) is gone. The tube reads the wall's cells refined
+  at the same schedule in the ring (`wall_grid`), and limb 2 reads the
+  described wall. Dropping the refinement outright collapsed the pads on
+  a wall with weights over decades and lost rulings at `Interval`
+  (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
 - `ssi/certify::refined` is gone: limb 2 cuts the described carrier at
   the same grid in the ring (`CurveCertData::with_breaks`), and the box
   chain refines its homogeneous channels with `apply_certified`.
   Dropping the refinement outright collapsed box chains (32 → 1) and
   lost a rational carrier's tube, so it is kept, in the ring.
 - `geom::NurbsCurve*`'s rational speed meter refines its homogeneous
-  channels with the new `CurvePlan::apply_homogeneous` (Boehm ratios
-  taken in the caller's scalar from the knots) and reads the refined
-  weights as `T`.
+  channels per scalar (`SpanLocate::refine_homogeneous`): through the
+  ring's step at `Interval`, with the new `CurvePlan::apply_homogeneous`
+  (Boehm ratios formed in `T` from the knots) elsewhere. It reads the
+  refined weights as `T`.
 - `props/quad.rs`'s `refine_dir` and `bezier_blocks` refine their
   homogeneous / unit-weight channels with `apply_certified`;
   `ring_lerp` and `bezier_blocks`' `f64`-λ Lipschitz pad are retired.

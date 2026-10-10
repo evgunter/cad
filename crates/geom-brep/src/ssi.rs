@@ -1602,13 +1602,20 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// among them, read off `grid`'s finer cells
     /// ([`enclose::CellGrid`]).
     ///
+    /// The two refusals are read on the surface's own cells first. They
+    /// are facts of the described net: a net constant along an axis
+    /// reads an exact zero there, where the grid's refined entries are
+    /// enclosures whose differences read their widths.
+    ///
     /// # Errors
     ///
-    /// As [`ChartedNurbs::mint`].
+    /// As [`ChartedNurbs::mint`], on the surface's own cells or on the
+    /// grid's.
     pub(crate) fn mint_on(
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
+        NurbsBoxes::new(surface).chart_speeds()?;
         let speeds = NurbsBoxes::on_grid(surface, grid).chart_speeds()?;
         Ok(Self {
             surface,

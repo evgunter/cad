@@ -219,19 +219,26 @@ Bounding the projective knot algebra to the evaluation scalars
 compile error, which reached three of this row's sites and the two it
 names as unclassified:
 
-- **`rational_speed_lower_bound`** refines its homogeneous channels with
-  `CurvePlan::apply_homogeneous` (Boehm ratios in `T`, from the knots)
-  and reads the refined weights as `T`.
+- **`rational_speed_lower_bound`** refines its homogeneous channels per
+  scalar (`SpanLocate::refine_homogeneous`): through the ring's step at
+  `Interval`, with Boehm ratios formed in `T` elsewhere. It reads the
+  refined weights as `T`.
 - **`quad.rs`'s `QUAD2_REFINE_SPANS` net refinement** and **its
   chart-image refinement** run `apply_certified` per channel; `ring_lerp`
   and the image's `f64`-λ pad are gone.
 - **`ssi/certify.rs`'s `SSI_CERT_SPANS` refinement** is the ring:
   limb 2 cuts the described carrier with `CurveCertData::with_breaks`,
   and the box chain refines `(w·P, w)` with `apply_certified`.
-- **`edge_nurbs.rs`'s `PXN_WALL_SPANS` wall refinement** is deleted
-  (measured unneeded: `work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
+- **`edge_nurbs.rs`'s `PXN_WALL_SPANS` wall refinement** is the ring:
+  the tube reads the wall's homogeneous channels refined by
+  `apply_certified` (`wall_grid`), measured necessary
+  (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
 
 Site 1, `crates/mesh/src/chords.rs`'s `rational_carrier_m_bound` and its
 twin, is untouched and this row stays open for it: it refines in `f64`
 (the bound permits that scalar) and then lifts, which a scalar bound
-cannot see.
+cannot see. A row can: `geom_brep`'s `the_wall_grid_encloses_the_exact_refined_net`
+and `refined_net_encloses_the_exact_refined_net` hold a ring refinement
+against the exact refined net by Boehm's insertion in rationals, and
+each one's contrast arm shows a refine-then-lift net missing it. Site 1
+wants the same row once it refines in the ring.

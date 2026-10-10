@@ -242,17 +242,26 @@ fn every_section_ruling_certifies_at_both_scalars() {
     assert!(bad.is_empty(), "rulings refused:\n{}", bad.join("\n"));
 }
 
-/// **The decades sweep certifies all nineteen rulings at both
-/// scalars**, for every weight family: rulings at `u0 = i/20 + 0.003`.
-/// Read off the wall's own cells, `d3` certified 17 of them at 1e-9
-/// and 6 at 1e-12 at `Interval`, every refusal `TubeNotOneArc`.
+/// **The decades sweep certifies its rulings at both scalars**, for
+/// every weight family: rulings at `u0 = i/20 + 0.003`, all nineteen
+/// on `d3` and `d2`. Read off the wall's own cells, `d3` certified 17
+/// of them at 1e-9 and 6 at 1e-12 at `Interval`, every refusal
+/// `TubeNotOneArc`, and both families minted 30× to 1000× the sampled
+/// speed. `d1` and `unit` mint at most 4× it even on the wall's own
+/// cells, so they ride as controls on every fourth ruling.
 #[test]
 fn the_decades_sweep_certifies_every_ruling_at_both_scalars() {
-    let u0s: Vec<f64> = (1..20).map(|i| f64::from(i) / 20.0 + 0.003).collect();
+    let all: Vec<f64> = (1..20).map(|i| f64::from(i) / 20.0 + 0.003).collect();
+    let controls: Vec<f64> = all.iter().copied().step_by(4).collect();
     let mut bad = Vec::new();
     let mut table = String::new();
     for (name, s) in decade_families() {
-        let (b, worst) = run(name, &s, &u0s);
+        let u0s = if matches!(name, "d3" | "d2") {
+            &all
+        } else {
+            &controls
+        };
+        let (b, worst) = run(name, &s, u0s);
         table.push_str(&format!(
             "\n  {name}: minted / sampled speed u {:.3}×, v {:.3}×",
             worst.0, worst.1

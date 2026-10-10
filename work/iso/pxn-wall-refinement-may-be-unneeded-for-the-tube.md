@@ -44,27 +44,42 @@ If the tube no longer needs the refinement:
 
 ## Measured (NURBS, PR 4553, 2026-10-10)
 
-The refinement could not stay: at `Interval` it ran the projective knot
-algebra, which now does not typecheck there
+The refinement could not stay as it was: at `Interval` it ran the
+projective knot algebra, which no longer typechecks there
 (`the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice`).
-So PR 4553 measured the wall unrefined for BOTH limbs, at every scalar.
-Every plane × NURBS certificate the `geom-brep` and `topo` suites mint
-was logged against `main`, at ε 1e-6, 1e-9 and 1e-12 (248, 254 and 254
-of them, all at `f64`):
 
-- **Rung**: unchanged on every certificate.
-- **Transversality margin**: unchanged, or larger by up to 8.3 %
-  (`0.844 → 0.914`).
-- **Box count**: unchanged.
-- **Hull limb**: between 0.70× and 1.28× of `main`'s, every reading
-  under 6e-15 m except the r1 1e-12 row, which reads `1.0000704e-12`
-  both ways.
-- **Pads** (chart units) shrink to between 0.55× and 1× along `u` and
-  0.75× and 1× along `v`: the coarser cell's chart-speed sup. The rung,
-  the proved region in metres, does not move.
-- **Verdicts**: none moved.
+**The tube needs it.** PR 4553 first dropped it, on an `f64`-only
+measurement of the suites' certificates in which no verdict moved. Its
+review measured the `Interval` lane on walls of its own and found
+otherwise. On a rational cubic wall whose weights run 0.03…30, 19 vertical
+rulings certified at `Interval`:
 
-So neither the tube nor the hull limb needs the refinement on these
-fixtures, and `localized` and `PXN_WALL_SPANS` are deleted. The pads'
-shrink is the one cost: a smaller banked window per span, which no
-fixture here fails on. This row stays ISO's to close.
+| ε | `main` | refinement dropped |
+|---|---|---|
+| 1e-9 | 19 | 17 |
+| 1e-12 | 15 | 6 |
+
+Every new refusal was `TubeNotOneArc`. Read off the wall's own cells,
+the minted whole-domain chart speed is 115× (`u`) and 1000× (`v`) the
+sampled one. The pads divide the rung by that speed, so they collapse
+by as much. Over sixteenths the minted speed is 2.8× and 15.8× the
+sampled one.
+
+**So the tube reads the wall refined to `PXN_WALL_SPANS` in the
+certification ring** (`edge_nurbs::wall_grid`, `ssi::enclose::CellGrid`).
+The schedule is `main`'s, but the homogeneous channels `(w·P, w)` are
+refined by `CurvePlan::apply_certified`, so the cells enclose the
+described wall's refined net. `NurbsBoxes` reads its cells, the minted
+speeds among them, off that grid. Limb 2's hull reads the wall itself,
+cut in the ring by its own composite, and no limb-2 reading needed the
+refinement. On the review's walls at all three ε and both scalars, no
+ruling certifies fewer than on `main`. The pads match `main`'s to about
+1e-13 relative. The `Interval` hull is 0.007–0.32× of `main`'s (`main`'s
+was the projective form's width), and at 1e-12 every decades ruling
+certifies, where `main` refuses 4 to 6 per family on `HullSup`.
+`tests/review_4553_pxn_probes.rs` holds the rulings and the speed ratio
+as rows.
+
+This row's question is answered: the cut derivative box localizes
+the tube's windows, but the minted speed is a whole-domain sup over
+cells, and that needs fine cells. It stays ISO's to close.

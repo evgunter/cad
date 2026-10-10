@@ -1277,6 +1277,7 @@ mod tests {
     use geom_core::FileCoincidence;
     use geom_core::spline::KnotVector;
 
+    use crate::exact_q::Q;
     use crate::recourse::Reading;
 
     use super::*;
@@ -1583,8 +1584,6 @@ mod tests {
             );
         }
     }
-
-    use crate::exact_q::Q;
 
     /// **The wall grid encloses the exact refined net** of the described
     /// wall. A rational wall on non-dyadic knots, controls and weights,

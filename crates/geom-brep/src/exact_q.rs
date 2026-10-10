@@ -2,6 +2,7 @@
 //! the four operations, and Boehm's knot insertion over a coefficient
 //! line, so a row can hold a refinement made in the ring against the
 //! exact refined coefficients of the described spline.
+#![allow(clippy::unwrap_used)]
 
 use num_bigint::{BigInt, Sign};
 
