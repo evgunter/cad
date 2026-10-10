@@ -1162,8 +1162,9 @@ fn poses(
         println!("   [pose] {counters}");
         // WHICH nodes re-ran, not only how many: the ones whose content
         // key the edit moved. The turntable reads `swing`, an
-        // instance's key carries its whole gauge chain, and a
-        // placement's carries its body's; a mate's reads no gauge.
+        // instance's key carries its whole gauge chain, a placement's
+        // carries its body's, and a mate's carries the bodies its sides
+        // read (D10), so the three mates re-key with their instances.
         let moved: BTreeSet<RecipeNodeId> = doc
             .ids()
             .iter()
@@ -1184,9 +1185,12 @@ fn poses(
                 placement_reading(&doc, stand.shelf_i),
                 placement_reading(&doc, stand.post_b),
                 placement_reading(&doc, bench.crate_i),
+                stand.mate_1,
+                stand.mate_2,
+                bench.crate_mate,
             ]),
-            "a swing re-keys the turntable, the four instances on its chain and their four \
-             placements, and nothing else"
+            "a swing re-keys the turntable, the four instances on its chain, their four \
+             placements and the three mates reading them, and nothing else"
         );
         assert_eq!(
             (ev.recomputed, ev.reused),
@@ -1597,9 +1601,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         );
         // Each side re-authored as the face it read: the deleted mate's
         // selections went with it.
-        let side = |read| {
-            pncad::document::head_of(&tangent.doc, read).expect("the mate read two faces")
-        };
+        let side =
+            |read| pncad::document::head_of(&tangent.doc, read).expect("the mate read two faces");
         insert_mate(
             &mut swapped,
             Node::Mate {
