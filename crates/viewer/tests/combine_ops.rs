@@ -2794,17 +2794,15 @@ fn the_part_seats_track_the_part_door() {
         ("a transform of the pattern", placed_pattern),
     ];
     for (name, candidate) in candidates {
-        for (wanted, select) in [(
-            NodeKindWanted::Instances,
-            PartSelect::Instance(Formula::count(0)),
-        )] {
+        {
+            let wanted = NodeKindWanted::Instances;
             let admitted = viewer::session::admits(&doc, candidate, wanted);
             let refused = match pncad::document::apply(
                 &doc,
                 &pncad::document::DocEdit::InsertNode {
                     node: Box::new(Node::Part {
                         of: candidate.into(),
-                        select: select.clone(),
+                        select: PartSelect::Instance(Formula::count(0)),
                     }),
                     fresh: Vec::new(),
                 },
