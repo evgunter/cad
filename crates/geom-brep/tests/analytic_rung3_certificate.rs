@@ -21,6 +21,7 @@ use geom_core::{Band, FileCoincidence, Interval, KERNEL_LIMIT_RECOURSE, Point3, 
 use slotmap::SlotMap;
 
 use crate::shared::tol::band;
+use geom_core::test_support::upper;
 
 /// The unit quarter circle in `z = 0`, as `n` rational quadratic
 /// sub-arcs joined at double knots `j/n`, each sub-arc's middle control
@@ -150,9 +151,9 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
                 limb: SsiLimb::HullSup,
-                value,
+                margin,
                 ..
-            }) if *value >= off
+            }) if upper(*margin) >= off
         )
     };
     let at_f64 = certify(&carrier, plane(), cylinder_z(), true).map(|_| ());
@@ -163,11 +164,12 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     // at rest that is the certificate's limit, and the import door names
     // the bound where ε_in holds it and reads the limit where it does not.
     for refused in [&at_f64, &at_iv] {
-        let Err(e @ CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb { value, .. })) =
+        let Err(e @ CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb { margin, .. })) =
             refused
         else {
             panic!("the plane limb refused above: {refused:?}")
         };
+        let value = upper(*margin);
         assert_eq!(
             e.ending(Reading::AtRest).as_deref(),
             Some(KERNEL_LIMIT_RECOURSE),
@@ -386,9 +388,9 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
             past,
             Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                value,
+                margin,
                 ..
-            })) if value >= off
+            })) if upper(margin) >= off
         ),
         "{past:?}"
     );

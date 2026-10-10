@@ -113,9 +113,22 @@ in both directions — as is a span of another vector beside the pair;
 each is a `compile_fail` doctest with a legal twin on the type it
 concerns. No free function in `hull` takes a coefficient array; the one
 door beside the mints that takes one, `KnotVector::difference_coeffs`
-(the knot-differencing step or a one-element poison vector, the one
-home of that answer for the tensor nets and the derivative ladders),
-mints first. Weight positivity stays a per-window check at the rational
+(the knot-differencing step or a one-element poison vector), mints
+first; it is also the line step a tensor pair differences with, so a
+line of the wrong count refuses whole. An array that is a consumer's
+own construction is minted by construction instead —
+`KnotVector::with_coeffs_from_fn` builds it at the vector's count — and
+a derivative that is differenced again travels as a `SplineCoeffsBuf`,
+the owned pair `SplineCoeffs::derivative` answers with the derived
+vector. `TensorNet` stays the unpaired tensor storage; a net held
+beside the clamped vectors it is a proof about is a `TensorCoeffs`
+(one channel, its partial nets as doors) or a `TensorChannels` (the
+channels of one surface over one pair of vectors, refined only by
+chains it builds from those vectors). The `compile_fail` rows on
+`TensorCoeffs` pin two retired spellings — a grid beside two vectors
+at `PatchSpans::decompose`, a struct literal of another extent — and
+not the shape: a new door taking a net beside two vectors would
+compile, and only a sweep finds it. Weight positivity stays a per-window check at the rational
 door: it is a *value* precondition of the claim on exactly the weights a
 window reads, where the count is a *pairing* fact and the mint's
 business. The count relation at `NurbsCurve::new` and

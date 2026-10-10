@@ -919,10 +919,14 @@ fn run_at<T: editor_core::EvalScalar>(
 /// its body in its world, so every part's pin — and every instance id
 /// hashing it — moved, and the part's names reach an instance under its
 /// placement's copy. The id-free rows held.
+///
+/// And again for INTENT stage 4 E (all three rows): the bodies this
+/// digest feeds carry no provenance side tables, and a node error is
+/// the value-decided refusal or the glued build. The id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xd990_dfd6_ae82_6190),
-    (1e-6, 0xa569_1fea_927b_069a),
-    (1e-12, 0xcc6d_951f_f897_0e1d),
+    (1e-9, 0xf9da_f3ab_4ed2_9f5d),
+    (1e-6, 0xa478_da69_176e_4cc2),
+    (1e-12, 0x34bc_8b8f_3e80_4166),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and

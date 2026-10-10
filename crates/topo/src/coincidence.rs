@@ -13,10 +13,12 @@
 //! input's table and the row survives whatever the operation later
 //! does to those cells (a merge, a split into fragments).
 //!
-//! What is recorded is what a ladder decides from a margin. A pair a
-//! ladder settles before any margin (the same key, the same
-//! [`crate::GeomSource`]) is structure and is not recorded, and an ON
-//! verdict that only places topology is not a coincidence (D1).
+//! What is recorded is what a ladder decides from a margin and the
+//! result holds. A pair on one surface key is structure and is not
+//! recorded, and an ON verdict that only places topology is not a
+//! coincidence (D1): a vertex identity is recorded only where a record
+//! citing it survives, and a boolean's face-pair decision only where
+//! the two faces meet, at a point, an edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -37,6 +39,13 @@ pub enum RowCell {
     /// The plane the operation cuts with (a split's tool): a carrier
     /// the operation reads, not a cell of any body.
     Tool,
+    /// A cell of the operation's own result, for an operation that
+    /// reads no body and decides on the one it makes (an import's
+    /// anchor).
+    Result {
+        /// The cell, in the result's keys.
+        cell: Cell,
+    },
 }
 
 impl RowCell {
@@ -76,9 +85,16 @@ pub enum Relation {
     /// first's heading through it (`aligned`, a smooth joint) or
     /// turning back along it (a cusp).
     Tangent {
-        /// Whether the second continues the first's heading rather
-        /// than reversing it.
+        /// Whether the second carries on the first rather than
+        /// reversing it.
         aligned: bool,
+    },
+    /// Two surfaces touch tangentially along a locus: their outward
+    /// sides opposed (a tangent contact) or, `seam`, one surface carried
+    /// on into the other.
+    TangentContact {
+        /// The outward sides agree: a seam.
+        seam: bool,
     },
     /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
@@ -88,15 +104,43 @@ pub enum Relation {
     CoRuled,
 }
 
+impl Relation {
+    /// The class a declaration of a face pair glued under this relation
+    /// asserts: one carrier opposed a `Rest` contact, aligned a
+    /// continuation, a tangency a `Tangent` contact or a seam. `None`
+    /// for a relation that glues no face pair.
+    #[must_use]
+    pub const fn glued_class(self) -> Option<crate::contact::BooleanCoincidence> {
+        use crate::contact::BooleanCoincidence as C;
+        match self {
+            Self::SameOpposite => Some(C::REST),
+            Self::SameOriented => Some(C::Continuation),
+            Self::TangentContact { seam: false } => Some(C::TANGENT),
+            Self::TangentContact { seam: true } => Some(C::Seam),
+            Self::Tangent { .. }
+            | Self::OnCarrier
+            | Self::EqualAngles
+            | Self::Coaxial
+            | Self::CoRuled => None,
+        }
+    }
+}
+
 /// The decision a row was recorded at: a closed set, one per site
 /// that decides a coincidence from values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DecisionSite {
-    /// The plane ladder's declared rung: a declared pair of planes read
-    /// as one displacement over its consumed extent.
+    /// The plane ladder: a pair of planes the operation glued, read as
+    /// one displacement over its consumed extent.
     PlaneLadder,
-    /// The carrier ladder's declared rung, for a curved pair.
+    /// The carrier ladder, for a curved pair.
     CarrierLadder,
+    /// The tangent witness lane: two faces touching tangentially along
+    /// a closed-form locus or a shared rim, verified along it.
+    TangentWitness,
+    /// The cylinder×sphere pair's coaxial classification: the sphere's
+    /// centre on the cylinder's axis.
+    CoaxialSphere,
     /// A split's ON verdict at a vertex whose neighbourhood leaves it
     /// with two or more runs on one side, so pieces of one side touch
     /// there.
@@ -113,6 +157,20 @@ pub enum DecisionSite {
     /// A profile's junction no constructor made, its carriers' margin
     /// decided Zero (`profile`'s joint pass).
     ProfileJunction,
+    /// A boolean's vertex identity: a vertex of one operand decided on
+    /// a vertex, an edge or a face of the other, or a carried record's
+    /// vertex on a vertex the reduction minted, whose touch survives
+    /// into the result.
+    VertexFusion,
+    /// The at-rest census: two faces of placed copies decided one
+    /// carrier, opposed.
+    CensusAtRest,
+    /// An imported file's vertex anchor: two of the body's vertices each
+    /// read within the file's ε_in of the anchor's point. The margin is
+    /// the farther vertex's distance from that point, not the two
+    /// vertices' distance from each other, and it is read against the
+    /// file's ε_in rather than classified against the band.
+    ImportAnchor,
 }
 
 /// **How a row's Zero was discharged.** Every row a lane records today
@@ -139,4 +197,127 @@ pub struct Coincidence {
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: Discharge,
+}
+
+/// **One decision a contact record cites** (D1 (ii)): the coincidence
+/// that backs the touch the record states.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Backing {
+    /// Row `.0` of the coincidences of the operation whose result
+    /// carries the record.
+    Decided(u32),
+    /// Record `record` of input `input`'s own records, in that input's
+    /// list order ([`crate::ContactRecords::rows`]), carried in. That
+    /// record cites its own backing, so a chain of these ends at a
+    /// [`Backing::Decided`].
+    Carried {
+        /// The input, by position among the operation's inputs (a
+        /// boolean's operand A is 0, B is 1).
+        input: u32,
+        /// The record's index in that input's list.
+        record: u32,
+    },
+}
+
+/// **Every decision a contact record cites**: a set that is never
+/// empty, held sorted. A touch one decision made cites that decision;
+/// a touch a chain of decisions implies (two vertices each decided
+/// one with a third) cites every decision on every shortest chain
+/// joining its two cells, so no choice between chains is made.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Cites(Vec<Backing>);
+
+impl Cites {
+    /// The one decision `backing`.
+    #[must_use]
+    pub fn one(backing: Backing) -> Self {
+        Self(vec![backing])
+    }
+
+    /// Row `row` of the operation's own coincidences.
+    #[must_use]
+    pub fn decided(row: u32) -> Self {
+        Self::one(Backing::Decided(row))
+    }
+
+    /// The set of `backings`, or `None` when there is none: a record
+    /// with nothing to cite cannot be built.
+    #[must_use]
+    pub fn of(backings: impl IntoIterator<Item = Backing>) -> Option<Self> {
+        let mut all: Vec<Backing> = backings.into_iter().collect();
+        all.sort_unstable();
+        all.dedup();
+        (!all.is_empty()).then_some(Self(all))
+    }
+
+    /// Both sets.
+    #[must_use]
+    pub fn union(&self, other: &Self) -> Self {
+        Self::of(self.0.iter().chain(&other.0).copied())
+            .unwrap_or_else(|| unreachable!("a union of non-empty sets is non-empty"))
+    }
+
+    /// Each decision, in order.
+    pub fn iter(&self) -> impl Iterator<Item = Backing> + '_ {
+        self.0.iter().copied()
+    }
+
+    /// Each decision mapped through `f`, one or more per decision.
+    ///
+    /// # Errors
+    ///
+    /// The first `f` refuses.
+    pub fn try_map<E, I: IntoIterator<Item = Backing>>(
+        &self,
+        f: impl FnMut(Backing) -> Result<I, E>,
+    ) -> Result<Option<Self>, E> {
+        let mapped = self
+            .0
+            .iter()
+            .copied()
+            .map(f)
+            .collect::<Result<Vec<_>, E>>()?;
+        Ok(Self::of(mapped.into_iter().flatten()))
+    }
+}
+
+/// **A contact record and the decisions that back it.** The record's
+/// cells read through it, so a reader of cells needs no unwrapping; a
+/// record cannot be built without its [`Cites`], which is never empty.
+/// That each citation resolves is the producing operation's to keep,
+/// not the type's: the boolean's carry refuses a citation of a decision
+/// it did not make.
+///
+/// Two `Cited` are equal when their records and their citations are; a
+/// `Cited` against a bare record compares the record alone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Cited<R> {
+    /// The record.
+    pub record: R,
+    /// What backs it.
+    pub cites: Cites,
+}
+
+impl<R> Cited<R> {
+    /// `record`, backed by `cites`.
+    #[must_use]
+    pub const fn new(record: R, cites: Cites) -> Self {
+        Self { record, cites }
+    }
+}
+
+impl<R> core::ops::Deref for Cited<R> {
+    type Target = R;
+
+    fn deref(&self) -> &R {
+        &self.record
+    }
+}
+
+/// A record against its cells alone: whether it records that pair,
+/// whatever backs it.
+impl<R: PartialEq> PartialEq<R> for Cited<R> {
+    fn eq(&self, other: &R) -> bool {
+        self.record == *other
+    }
 }

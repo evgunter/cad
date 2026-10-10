@@ -633,15 +633,8 @@ pub enum SessionOp {
     /// **The findings become the boolean's own declared pairs**: an
     /// empty `declare` authors an undeclared boolean, and a non-empty
     /// one a boolean carrying exactly those findings' pairs — one
-    /// insert, one undo. The door evaluates
-    /// the boolean before recording it, and one that refuses an
-    /// undeclared contact of its own is not committed:
-    /// [`Refusal::Contact`] carries the kernel's finding back, and its
-    /// offer is this op again with that finding added. The door
-    /// declares what it is handed and guesses nothing; that the boolean
-    /// tool hands it only pairs a refusal reported and the author
-    /// accepted is the tool's gesture, not a property of the findings'
-    /// type.
+    /// insert, one undo. The door declares what it is handed and
+    /// guesses nothing.
     AddBoolean {
         /// The operation — the KERNEL's enum, which the recipe node
         /// carries unconverted.
@@ -762,7 +755,7 @@ pub enum SessionOp {
     /// that is the freeze rule rather than an omission. Whether a name
     /// still resolves through the target's table is evaluation's
     /// question, answered typed on the node's own badge
-    /// (`NodeErrorKind::BlendSelectionResolve`, and
+    /// (`NodeErrorKind::SelectResolve`, and
     /// `BlendSelectionEmpty` for an empty set) — a door that
     /// pre-screened it would be a second authority on the same fact,
     /// and would refuse to author the node whose refusal is the honest

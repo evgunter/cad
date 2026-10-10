@@ -431,9 +431,12 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The variable.
         var: VarRef,
     },
-    /// The explicit name repair (N5, spec D3): rewrite every document
-    /// site that references `from` EXACTLY (Declare pairs and
-    /// appearance-store keys in v1) to reference `to`.
+    /// The explicit name repair (N5, spec D3), addressed by body and
+    /// name (D10): rewrite every selection of `body` that names `from`
+    /// EXACTLY to name `to`; with no body, every site no selection holds
+    /// (declared pairs, mate heads, an instance's crossings, appearance
+    /// keys). A name is scoped by the body it is read in (N1), so the
+    /// body says which entity the repair is about.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
     /// menu). Validation mirrors Declare's edit-time carve-out: node
@@ -441,6 +444,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// least have once existed — a never-minted id is a typo);
     /// name-level resolution stays an evaluation-time concern.
     Rebind {
+        /// The body whose selections are repaired, or `None` for the
+        /// sites no selection holds.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        body: Option<VarId>,
         /// The name being repaired (may be stranded — its node may be
         /// deleted; that is the `NodeGone` repair case).
         from: StableName,
@@ -1160,7 +1167,7 @@ fn lower_node<P: crate::ProfilePayload>(
 /// placer re-pointed in place keeps its output's kind: `fixed` is that
 /// kind, which its operand must have.
 fn lower_reads<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
+    doc: &mut Doc<P>,
     node: &Node<P::Authored, Formula>,
     fixed: Option<VarKind>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1199,7 +1206,7 @@ fn lower_reads<P: crate::ProfilePayload>(
 /// its port. A part projection's selected half (`half`) refuses a read
 /// of the split's other half.
 fn lower_operand<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
+    doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     read: &crate::Operand,
@@ -1250,19 +1257,85 @@ fn lower_operand<P: crate::ProfilePayload>(
         }
         crate::Operand::Var(var) => *var,
         crate::Operand::Name(name) => doc.var_named(name.as_str()).ok_or_else(unresolved)?,
+        // Minted at the singleton of its names' kind where the seat
+        // admits several, and then read like any variable: a measure's
+        // primitive that does not admit that kind refuses here.
+        crate::Operand::Select { body, names } => {
+            mint_selection(doc, spoken, slot, body, names, expected)?
+        }
     };
     check_read(doc, spoken, slot, var, half, expected, unresolved)
 }
 
-/// **The world placement a site `at` would read the copy of**, if any:
-/// a measure site there reads the pose, which only the gather and export
-/// read. The edit doors refuse it ([`EditError::MeasuresWorldCopy`]) and
-/// so does the load door.
-pub(crate) fn world_copy_site<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    at: RecipeNodeId,
-) -> Option<RecipeNodeId> {
-    matches!(doc.node(at), Some(Node::PlaceInWorld { .. })).then_some(at)
+/// **A selection authored at a seat, minted** (D10): the body read
+/// lowered as a `Body` operand, the names checked live and in the
+/// stored form of the seat's selection kind, and one anonymous
+/// selection variable minted for the seat to read. A selection authored
+/// at two seats is two variables.
+fn mint_selection<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: SlotId,
+    body: &crate::Operand,
+    names: &[StableName],
+    expected: crate::SlotKind,
+) -> Result<VarId, EditError> {
+    let body = lower_operand(
+        doc,
+        spoken,
+        slot,
+        body,
+        None,
+        crate::SlotKind::Is(VarKind::Body),
+    )?;
+    let shape = |fault| EditError::SelectionShape {
+        node: spoken(),
+        slot,
+        fault,
+    };
+    // A whole body named at a measure seat is a read of that body: the
+    // name must be the body read's, its operation's or upstream of it.
+    if let ([name], crate::SlotKind::Measured(_)) = (names, expected)
+        && name.kind == EntityKind::Body
+    {
+        if !doc.nodes.contains_key(&name.node) {
+            return Err(EditError::DeclareNamesMissingNode {
+                name: doc.spoken_name(name),
+            });
+        }
+        let on_body = doc.read_operation(body).is_some_and(|at| {
+            at == name.node || crate::doc::strict_ancestors(doc, at).contains(&name.node)
+        });
+        if !on_body {
+            return Err(shape(crate::var::SelectionFault::OtherBody));
+        }
+        return Ok(body);
+    }
+    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let kind = expected
+        .selection_kind(entity)
+        .ok_or_else(|| shape(crate::var::SelectionFault::Seat { entity }))?;
+    if let Some(fault) = crate::var::Select::fault(kind, names) {
+        return Err(shape(fault));
+    }
+    for name in names {
+        if !doc.nodes.contains_key(&name.node) {
+            return Err(EditError::DeclareNamesMissingNode {
+                name: doc.spoken_name(name),
+            });
+        }
+        check_name_steps(doc, doc, name)?;
+    }
+    mint_anonymous(
+        doc,
+        WrittenDef::Select(
+            kind,
+            crate::var::Select {
+                body,
+                names: names.to_vec(),
+            },
+        ),
+    )
 }
 
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
@@ -1320,6 +1393,40 @@ pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, 
             ExprSite::Payload,
         )
     })
+}
+
+/// **A selection minted into `doc` as given**, outside any edit: of the
+/// kind a selection of `names` at `slot` is minted at, reading `body`,
+/// with no door around it. The test support's shape rows build their
+/// selections through it.
+///
+/// # Panics
+///
+/// If `slot` reads no selection of the names' entity kind.
+#[doc(hidden)]
+#[track_caller]
+#[allow(clippy::expect_used)]
+pub fn selection_into<P>(
+    doc: &mut Doc<P>,
+    slot: crate::OperandSlot,
+    body: VarId,
+    names: &[StableName],
+) -> VarId {
+    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let kind = slot
+        .kind()
+        .selection_kind(entity)
+        .expect("a seat that reads a selection of these names");
+    let def = WrittenDef::Select(
+        kind,
+        crate::var::Select {
+            body,
+            names: names.to_vec(),
+        },
+    );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
 }
 
 /// **One authored node lowered into `doc`**, outside any edit: what the
@@ -1765,13 +1872,6 @@ pub enum EditError {
         /// The placement whose copy it reads.
         placement: SpokenNode,
     },
-    /// A measure is sited at a world placement, so its value would read
-    /// the placement's pose, which only the gather and export read.
-    /// Measuring between placed copies is stage 3's to design.
-    MeasuresWorldCopy {
-        /// The placement it is sited at.
-        placement: SpokenNode,
-    },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
     /// invariant is CHECKED, not assumed — spec D3).
@@ -1795,33 +1895,22 @@ pub enum EditError {
         /// The input it reaches twice.
         input: SpokenNode,
     },
-    /// The node this edit writes names one face twice in its ORDERED
-    /// designation ([`crate::node::InputFault::RepeatedDesignation`]):
-    /// a hand-built `Node::Shell` that bypassed the construction door,
-    /// which drops a repeat keeping the first occurrence. Refused
-    /// rather than repaired, at this door as at the load door.
-    RepeatedDesignation {
-        /// The node whose designation repeats.
+    /// A selection this edit authors at `slot` is not one the
+    /// document can store ([`crate::var::SelectionFault`]): names of an
+    /// entity kind the seat reads no selection of, a singleton not
+    /// naming one entity, or a set out of its stored order (edges sorted and
+    /// deduplicated, faces each once). The construction doors
+    /// ([`Node::fillet`], [`Node::chamfer`], [`Node::shell`]) write the
+    /// stored order; a selection that arrives without it is refused
+    /// rather than repaired, because a repair would move the content key
+    /// behind the caller's back.
+    SelectionShape {
+        /// The node whose seat the selection is authored at.
         node: SpokenNode,
-        /// The position of the entry's first occurrence.
-        first: usize,
-        /// The position at which it is named again.
-        again: usize,
-    },
-    /// The node this edit writes carries a blend selection that is not
-    /// canonical — sorted and deduplicated
-    /// ([`crate::node::InputFault::SelectionNotCanonical`]): a
-    /// hand-built `Node::Fillet` or `Node::Chamfer` that bypassed
-    /// [`Node::fillet`]/[`Node::chamfer`], which sort and dedup.
-    /// Refused rather than repaired, at this door as at the load door,
-    /// because re-sorting would move the node's content key behind the
-    /// caller's back.
-    SelectionNotCanonical {
-        /// The node whose selection is out of canonical form.
-        node: SpokenNode,
-        /// The position of the entry that does not sort strictly
-        /// before the one after it.
-        at: usize,
+        /// The seat.
+        slot: SlotId,
+        /// Why.
+        fault: crate::var::SelectionFault,
     },
     /// `SetMembers` aimed at a node that has no list input
     /// ([`Node::list_input`]) — a boolean's operands are named slots,
@@ -2937,12 +3026,11 @@ impl EditError {
                 *id = id.respoken(doc);
             }
             Self::ProfileProgramRefused { node, refusal: _ }
-            | Self::RepeatedDesignation {
+            | Self::SelectionShape {
                 node,
-                first: _,
-                again: _,
+                slot: _,
+                fault: _,
             }
-            | Self::SelectionNotCanonical { node, at: _ }
             | Self::SetMembersOnNonList { node }
             | Self::SetDeclareOnNonDeclaring { node }
             | Self::SetProgramOnNonProfile { node }
@@ -3088,7 +3176,6 @@ impl EditError {
                 *node = node.respoken(doc);
                 *placement = placement.respoken(doc);
             }
-            Self::MeasuresWorldCopy { placement } => *placement = placement.respoken(doc),
             Self::AmbiguousOutput {
                 input,
                 slot: _,
@@ -3325,33 +3412,17 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("list two or more entries"))
             }
-            Self::RepeatedDesignation { first, again, .. } => {
+            Self::SelectionShape { slot, fault, .. } => {
                 write!(
                     f,
-                    "the node this edit writes would be invalid: {}",
-                    crate::node::InputFault::RepeatedDesignation {
-                        first: *first,
-                        again: *again,
-                    }
+                    "the selection at {slot} is not one a document stores: {fault}"
                 )?;
                 tail.recourse(
                     f,
                     format_args!(
-                        "build it through `Node::shell`, which keeps the first occurrence"
-                    ),
-                )
-            }
-            Self::SelectionNotCanonical { at, .. } => {
-                write!(
-                    f,
-                    "the node this edit writes would be invalid: {}",
-                    crate::node::InputFault::SelectionNotCanonical { at: *at }
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "build it through `Node::fillet` or `Node::chamfer`, which sort and \
-                         deduplicate"
+                        "author the names in the stored order (an edge set sorted, a face set \
+                         naming each face once), as the fillet, chamfer and shell builders do, \
+                         or name entities of the kind the seat reads"
                     ),
                 )
             }
@@ -3390,21 +3461,10 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "{node}'s {slot} reads the world copy {placement} makes, and construction \
-                     never reads the world"
+                    "{node}'s {slot} reads the world copy {placement} makes, which only the \
+                     product and export read"
                 )?;
                 tail.recourse(f, format_args!("read the body {placement} reads"))
-            }
-            Self::MeasuresWorldCopy { placement } => {
-                write!(
-                    f,
-                    "a measure is sited at {placement}, whose copy only the product and \
-                     export read"
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("site the measure at the body {placement} reads"),
-                )
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;
@@ -4324,6 +4384,22 @@ pub enum Maintenance {
         /// Which of those the edit took.
         took: Took,
     },
+    /// **A selection's name this edit stranded** (DM7): the selection
+    /// `var` survives and names `name`, whose referent the edit removed,
+    /// as [`Self::Strand`] says of a payload name. Every reader of the
+    /// selection refuses at evaluation with the selection's N5
+    /// refusal, and [`DocEdit::Rebind`] is the repair.
+    StrandedSelection {
+        /// The surviving selection that names it.
+        var: SpokenVar,
+        /// The nodes that read it, in document order: an unnamed
+        /// selection has one, and is spoken by it (VR2).
+        readers: Vec<SpokenNode>,
+        /// The name.
+        name: SpokenName,
+        /// What the edit took.
+        took: Took,
+    },
     /// **An appearance attachment this edit stranded** (DM7): the
     /// document's appearance store holds an attribute under `name`,
     /// whose referent the edit removed — the minting node, or the
@@ -4448,8 +4524,7 @@ impl Took {
                     }
                     Took::Reach => write!(
                         f,
-                        "re-pointed a read, so {}, which minted the name, is no longer upstream \
-                         of it",
+                        "re-pointed a read past {}, which minted the name",
                         self.1.minter()
                     ),
                 }
@@ -4490,6 +4565,25 @@ impl core::fmt::Display for Maintenance {
                 "{node}'s {slot} reads {var}, which this edit deleted with its operation, so \
                  {node} refuses until the {slot} reads a live value"
             ),
+            Self::StrandedSelection {
+                var,
+                readers,
+                name,
+                took,
+            } => match (var.name(), readers.as_slice()) {
+                (None, [reader]) => write!(
+                    f,
+                    "{reader} selects {name}; this edit {}, so {reader} refuses until the name \
+                     is rebound",
+                    took.said(name)
+                ),
+                _ => write!(
+                    f,
+                    "{var} selects {name}; this edit {}, so every reader of {var} refuses until \
+                     the name is rebound",
+                    took.said(name)
+                ),
+            },
             Self::StrandedAppearance { name, took } => write!(
                 f,
                 "the appearance store holds an attachment under a name for {}; this edit \
@@ -4570,11 +4664,19 @@ fn stranded_references<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     deleted: RecipeNodeId,
 ) -> Vec<Maintenance> {
+    let goes = selections_going(doc);
     doc.name_carriers()
         .filter(|carrier| carrier.name().node == deleted)
+        .filter(|carrier| !matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(var)))
         .map(|carrier| match carrier {
             NameCarrier::Payload { node, name } => Maintenance::Strand {
                 node: before.spoken(node),
+                name: before.spoken_name(name),
+                took: Took::Node,
+            },
+            NameCarrier::Select { var, name } => Maintenance::StrandedSelection {
+                var: before.spoken_var(var),
+                readers: selection_readers(before, doc, var),
                 name: before.spoken_name(name),
                 took: Took::Node,
             },
@@ -4718,7 +4820,11 @@ fn stranded_steps<P: crate::ProfilePayload>(
     }
     let mut strands = Vec::new();
     let mut keys = Vec::new();
+    let goes = selections_going(doc);
     for carrier in doc.name_carriers() {
+        if matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(&var)) {
+            continue;
+        }
         let pieces = carrier.name().step_pieces();
         let took = if pieces
             .iter()
@@ -4733,6 +4839,12 @@ fn stranded_steps<P: crate::ProfilePayload>(
         match carrier {
             NameCarrier::Payload { node, name } => strands.push(Maintenance::Strand {
                 node: before.spoken(node),
+                name: before.spoken_name(name).steps_respoken(doc),
+                took,
+            }),
+            NameCarrier::Select { var, name } => strands.push(Maintenance::StrandedSelection {
+                var: before.spoken_var(var),
+                readers: selection_readers(before, doc, var),
                 name: before.spoken_name(name).steps_respoken(doc),
                 took,
             }),
@@ -4898,12 +5010,19 @@ impl MaintenanceNet {
                 Maintenance::Strand { node, name, .. } => end
                     .node(node.id())
                     .is_some_and(|carrier| carrier.payload_names().contains(&name.name())),
+                Maintenance::StrandedSelection { var, name, .. } => end
+                    .selection(var.id())
+                    .is_some_and(|select| select.names.contains(name.name())),
                 Maintenance::StrandedAppearance { name, .. } => {
                     end.appearance().contains_key(name.name())
                 }
-                Maintenance::StrandedRead { node, slot, var } => end
-                    .node(node.id())
-                    .is_some_and(|reader| reader.operand_rows().contains(&(*slot, var.id()))),
+                Maintenance::StrandedRead { node, slot, var } => {
+                    end.node(node.id()).is_some_and(|reader| {
+                        reader.operand_rows().into_iter().any(|(at, read)| {
+                            at == *slot && end.selection(read).map_or(read, |s| s.body) == var.id()
+                        })
+                    })
+                }
                 Maintenance::OffsetCleared { instance, .. } => matches!(
                     end.node(instance.id()),
                     Some(Node::InstantiatePart { offset: None, .. })
@@ -5027,18 +5146,16 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// # Errors
     ///
     /// The insert door's refusals.
-    pub fn measure(
+    pub fn measure<R: Clone + Into<crate::Operand>>(
         &mut self,
-        primitives: &[crate::measure::MeasurePrimitive],
+        primitives: &[crate::measure::MeasurePrimitive<R>],
     ) -> Result<Measured, EditError> {
         let mut measured = Measured {
             measures: Vec::with_capacity(primitives.len()),
             outputs: Vec::with_capacity(primitives.len()),
         };
         for primitive in primitives {
-            let id = self.insert(Node::Measure {
-                primitive: primitive.clone(),
-            })?;
+            let id = self.insert(Node::measure(primitive))?;
             let Some(output) = self.doc().output(id, 0) else {
                 unreachable!("an inserted measure defines its value")
             };
@@ -5333,7 +5450,7 @@ fn standing_var<P>(
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
         VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
             .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
-        VarDef::Defined(_) => Err(EditError::NotAFreeVar {
+        VarDef::Defined(_) | VarDef::Select(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
         }),
@@ -5461,16 +5578,6 @@ fn check_node_inputs<P: crate::ProfilePayload>(
             node: subject,
             found,
         },
-        crate::node::InputFault::RepeatedDesignation { first, again } => {
-            EditError::RepeatedDesignation {
-                node: subject,
-                first,
-                again,
-            }
-        }
-        crate::node::InputFault::SelectionNotCanonical { at } => {
-            EditError::SelectionNotCanonical { node: subject, at }
-        }
     })
 }
 
@@ -5504,15 +5611,6 @@ fn check_payload_refs<P: crate::ProfilePayload>(
                 at: SpokenNode::absent(at),
             });
         }
-    }
-    if let Some(placement) = node
-        .measure_sites()
-        .into_iter()
-        .find_map(|at| world_copy_site(new, at))
-    {
-        return Err(EditError::MeasuresWorldCopy {
-            placement: doc.spoken(placement),
-        });
     }
     Ok(())
 }
@@ -5667,7 +5765,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     read: &crate::Operand,
     tol: Tol,
 ) -> Result<EditRecord, EditError> {
-    let Some(current) = new.nodes.get(&node) else {
+    let Some(current) = new.nodes.get(&node).cloned() else {
         return Err(EditError::UnknownNode {
             id: SpokenNode::absent(node),
         });
@@ -5679,13 +5777,13 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
         });
     }
     let half = current.selected_half();
-    let expected = match (current, new.output(node, 0).and_then(|v| new.var(v))) {
+    let expected = match (&current, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
         _ => slot.kind(),
     };
     let spoken = || doc.spoken(node);
     let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, half, expected)?;
-    let mut rewritten = current.clone();
+    let mut rewritten = current;
     for (at, held) in rewritten.operand_rows_mut() {
         if at == slot {
             *held = var;
@@ -5724,16 +5822,28 @@ fn write_reads<P: crate::ProfilePayload>(
     })
 }
 
-/// **The payload names a re-point of `id`'s reads strands**: for `id`
-/// and every node downstream of it in `new`, each name it carries
-/// whose minting node was upstream of it in `before` and is not in
-/// `new`. In document order, and within a node in
-/// [`Node::payload_names`]' order.
+/// **The names a re-point of `id`'s reads strands**: for `id` and every
+/// node downstream of it in `new`, each payload name it carries whose
+/// minting node was upstream of it in `before` and is not in `new`; then
+/// each name of a selection whose body is `id` or downstream of it,
+/// read or not, or which `id` or a node downstream of it reads, that
+/// its body cannot reach in `new` — the body's
+/// operation or upstream of it — where it could in `before`, or, for a
+/// selection the edit authored at `id`, where the read it replaced
+/// there could. Payload rows in document order, within a node in
+/// [`Node::payload_names`]' order; then selection rows.
 fn stranded_by_repoint<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &Doc<P>,
     id: RecipeNodeId,
 ) -> Vec<Maintenance> {
+    let reach = |doc: &Doc<P>, var: VarId| -> Option<std::collections::BTreeSet<RecipeNodeId>> {
+        let at = doc.read_operation(var)?;
+        let mut reach = crate::doc::strict_ancestors(doc, at);
+        reach.insert(at);
+        Some(reach)
+    };
+    let mut selections: Vec<VarId> = Vec::new();
     let mut rows = Vec::new();
     for (&carrier, node) in &new.nodes {
         let names = node.payload_names();
@@ -5749,6 +5859,70 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
             if was.contains(&name.node) && !after.contains(&name.node) {
                 rows.push(Maintenance::Strand {
                     node: before.spoken(carrier),
+                    name: before.spoken_name(name),
+                    took: Took::Reach,
+                });
+            }
+        }
+    }
+    for (&var, held) in new.vars() {
+        if held.def().select().is_none() {
+            continue;
+        }
+        let Some(at) = new.read_operation(var) else {
+            continue;
+        };
+        if at == id || crate::doc::strict_ancestors(new, at).contains(&id) {
+            selections.push(var);
+        }
+    }
+    for (&reader, node) in &new.nodes {
+        if reader != id && !crate::doc::strict_ancestors(new, reader).contains(&id) {
+            continue;
+        }
+        for (_, var) in node.operand_rows() {
+            if new.selection(var).is_some() && !selections.contains(&var) {
+                selections.push(var);
+            }
+        }
+    }
+    for var in selections {
+        let (Some(select), Some(after)) = (new.selection(var), reach(new, var)) else {
+            continue;
+        };
+        // A selection this edit authored at `id` is held to the read
+        // it replaced there: a name that read could reach and this one
+        // cannot is one the edit took. A name no read there ever
+        // reached is evaluation's to refuse, as at the insert door.
+        let replaced = || {
+            let slot = new
+                .nodes
+                .get(&id)?
+                .operand_rows()
+                .into_iter()
+                .find(|(_, v)| *v == var)?
+                .0;
+            let old = before
+                .nodes
+                .get(&id)?
+                .operand_rows()
+                .into_iter()
+                .find(|(at, _)| *at == slot)?
+                .1;
+            reach(before, old)
+        };
+        let was = match before.selection(var) {
+            Some(_) => reach(before, var),
+            None => replaced(),
+        };
+        let Some(was) = was else {
+            continue;
+        };
+        for name in &select.names {
+            if was.contains(&name.node) && !after.contains(&name.node) {
+                rows.push(Maintenance::StrandedSelection {
+                    var: new.spoken_var(var),
+                    readers: selection_readers(before, new, var),
                     name: before.spoken_name(name),
                     took: Took::Reach,
                 });
@@ -5913,9 +6087,9 @@ pub struct MeasureOutcome<P: crate::ProfilePayload> {
 /// # Errors
 ///
 /// The insert door's refusals; the document is untouched.
-pub fn measure<P: Clone + crate::ProfilePayload>(
+pub fn measure<P: Clone + crate::ProfilePayload, R: Clone + Into<crate::Operand>>(
     doc: &Doc<P>,
-    primitives: &[crate::measure::MeasurePrimitive],
+    primitives: &[crate::measure::MeasurePrimitive<R>],
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<MeasureOutcome<P>, EditError> {
@@ -6359,7 +6533,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::SetMembers { node, members } => {
-            let Some(current) = new.nodes.get(node) else {
+            let Some(current) = new.nodes.get(node).cloned() else {
                 return Err(EditError::UnknownNode {
                     id: SpokenNode::absent(*node),
                 });
@@ -6728,6 +6902,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         outputs: Vec::new(),
                     }
                 }
+                WrittenDef::Select(..) => unreachable!("a declaration lowers to no selection"),
             };
             EditRecord {
                 fresh: lowering.finish(new)?,
@@ -6851,7 +7026,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::Rebind { from, to } => {
+        DocEdit::Rebind { body, from, to } => {
             if from == to {
                 return Err(EditError::RebindIdentity {
                     name: doc.spoken_name(from),
@@ -6880,47 +7055,50 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(from),
                 });
             }
-            // One-shot rewrite of every EXACT reference, at every
-            // payload site — `Node::payload_names` is the list and
-            // `Node::rebind_payload_names` is its rewriting twin, so
-            // no carrier can be repaired here and missed there. The
-            // appearance store is the document's OTHER carrier and is
-            // rewritten below, not by this loop. Zero sites across
-            // both = nothing to repair, refused.
+            // A body's selections (`Doc::rewrite_selection_names`), or
+            // else every payload site and the appearance store
+            // (`Node::payload_names` lists the payload sites and
+            // `Node::rebind_payload_names` is its rewriting twin, so no
+            // payload carrier can be repaired here and missed there).
+            // Zero sites = nothing to repair, refused.
             let mut declare_sites = 0usize;
-            let mut redeclared = Vec::new();
-            for (&id, node) in &mut new.nodes {
-                let before = node.declared_pairs().to_vec();
-                declare_sites += node.rebind_payload_names(from, to);
-                if node.declared_pairs() != before.as_slice() {
-                    redeclared.push((id, before));
-                }
-            }
-            // A rewritten declared side is one this door writes, so it
-            // answers the rule every such door asks — of the sides the
-            // rebind moved only, so a strand a union already held, even
-            // the other side of a pair it rewrites, does not block an
-            // unrelated repair.
-            for (id, before) in redeclared {
-                let Some(node) = new.nodes.get(&id) else {
-                    continue;
-                };
-                let moved = crate::node::declared_sides(node.declared_pairs())
-                    .zip(crate::node::declared_sides(&before))
-                    .filter(|(after, was)| after != was)
-                    .map(|(after, _)| after);
-                check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
-            }
-            // Appearance keys are rebind sites (the attribute rides
-            // the name — PR 7's store; also the spec D9 banked
-            // operand→final repair path). A per-kind collision with
-            // an attribute already on `to` is refused loudly: which
-            // value survives would be an auto-pick —
-            // `move_appearance_record` is the one home for that rule.
             let mut appearance_sites = 0usize;
-            if let Some(moved) = new.appearance.remove(from) {
-                appearance_sites += 1;
-                move_appearance_record(doc, &mut new.appearance, moved, to)?;
+            if let Some(body) = body {
+                declare_sites += new
+                    .rewrite_selection_names(*body, &mut |name| (name == from).then(|| to.clone()));
+            } else {
+                let mut redeclared = Vec::new();
+                for (&id, node) in &mut new.nodes {
+                    let before = node.declared_pairs().to_vec();
+                    declare_sites += node.rebind_payload_names(from, to);
+                    if node.declared_pairs() != before.as_slice() {
+                        redeclared.push((id, before));
+                    }
+                }
+                // A rewritten declared side is one this door writes, so
+                // it answers the rule every such door asks — of the
+                // sides the rebind moved only, so a strand a union
+                // already held, even the other side of a pair it
+                // rewrites, does not block an unrelated repair.
+                for (id, before) in redeclared {
+                    let Some(node) = new.nodes.get(&id) else {
+                        continue;
+                    };
+                    let moved = crate::node::declared_sides(node.declared_pairs())
+                        .zip(crate::node::declared_sides(&before))
+                        .filter(|(after, was)| after != was)
+                        .map(|(after, _)| after);
+                    check_declared_sides(doc, new, node, moved, || doc.spoken(id), Some(id))?;
+                }
+                // Appearance keys are rebind sites (the attribute rides
+                // the name). A per-kind collision with an attribute
+                // already on `to` is refused loudly: which value
+                // survives would be an auto-pick —
+                // `move_appearance_record` is the one home for that rule.
+                if let Some(moved) = new.appearance.remove(from) {
+                    appearance_sites += 1;
+                    move_appearance_record(doc, &mut new.appearance, moved, to)?;
+                }
             }
             if declare_sites + appearance_sites == 0 {
                 return Err(EditError::RebindNoReferences {
@@ -7441,9 +7619,42 @@ fn remove_node<P: crate::ProfilePayload>(
     reported
 }
 
-/// **Every operand of `doc` reading one of `removed`**, in document
-/// order and within a node in field order, as the strand rows a
-/// removal reports, spoken from `before`, which still holds them.
+/// The nodes of `doc` that read the selection `var`, in document order,
+/// spoken from `before`.
+fn selection_readers<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    var: VarId,
+) -> Vec<SpokenNode> {
+    doc.ids()
+        .into_iter()
+        .filter(|&id| {
+            doc.node(id)
+                .is_some_and(|node| node.operand_rows().iter().any(|&(_, read)| read == var))
+        })
+        .map(|id| before.spoken(id))
+        .collect()
+}
+
+/// **The selections of `doc` that go with the edit** (VR7): unnamed,
+/// with no reader left. A name one holds is stranded by nothing.
+fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections::BTreeSet<VarId> {
+    let readers = doc.reader_counts();
+    doc.vars()
+        .iter()
+        .filter(|(id, var)| {
+            var.def().select().is_some()
+                && doc.var_name(**id).is_none()
+                && readers.get(id).copied().unwrap_or(0) == 0
+        })
+        .map(|(&id, _)| id)
+        .collect()
+}
+
+/// **Every operand of `doc` reading one of `removed`**, directly or as
+/// a selection's body, in document order and within a node in field
+/// order, as the strand rows a removal reports, spoken from `before`,
+/// which still holds them.
 fn stranded_reads<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
@@ -7454,6 +7665,7 @@ fn stranded_reads<P: crate::ProfilePayload>(
         .flat_map(|(&node, n)| {
             n.operand_rows()
                 .into_iter()
+                .map(|(slot, read)| (slot, doc.selection(read).map_or(read, |s| s.body)))
                 .filter(|(_, read)| removed.contains(read))
                 .map(move |(slot, var)| Maintenance::StrandedRead {
                     node: before.spoken(node),
@@ -7845,6 +8057,7 @@ mod tests {
                 fresh: Vec::new(),
             },
             DocEdit::Rebind {
+                body: None,
                 from: name(id),
                 to: name(crate::node::RecipeNodeId::new(0, 2)),
             },

@@ -209,6 +209,11 @@ Each lane that builds locally costs 1–10 GB. From here, heavy lanes run CI-onl
 
 (NURBS orchestrator)
 
+## 2026-10-09 — PR 4441 delta review: the 1.91× was accepted on a false premise
+
+The first fix pass stored the restricted range in angle units and accepted up to 1.91× main's width on (½,1)-type chains, saying no single stored form keeps both ends flat. The delta review (APPROVE-WITH-FIXES) showed a form that does: keep `(u0, du)` in the original normalized parameter and apply the angle once at eval. Dyadic splits are then exact; it is ≤ main in every measured row and bit-identical on a whole range. My bar was "no worse than main", so the PR takes that form.
+
+The reauthor fix still stores a width from `R(−0)`'s documented subnormal dust at Interval (2.3e-13 far, where main stored 0). Moved starts on tilted far placements are 2.5–3× worse than main at f64 (the tilted_lune class). Both are required fixes, along with independent reference spellings in the width rows (the ratio row's comparison shared production eval and could not see an eval mutant). Second fix pass dispatched. A container restart lost the first delta reviewer; the redo reported. (NURBS orchestrator)
 ## 2026-10-09 — PR 4438 merges: grid points clear knots by a fraction of the spacing
 
 The ruling above, built at all seven grid sites. A delta review of the fix pass approved it with fixes, and those are in. Changes after the review:
@@ -228,4 +233,86 @@ Reauthor: an unmoved start stores main's point (width 0). A turned start reads t
 I accepted this without a third review: it implements the reviewer's own proposal, and every claim is measured against an independent reference.
 
 Friction: two container restarts each killed an in-container lane. Neither lost pushed work. The second-pass lane ran as its own cloud session and survived. Long lanes go to cloud sessions from now on. (NURBS orchestrator)
+
+## 2026-10-10 — next slate dispatched
+
+The previous slate is fully merged (PRs 4438, 4441, 4442). Dispatched, each as its own cloud session (the container restarts of 2026-10-09 killed two in-container lanes):
+
+- **`coefficient-vector-pairing-survivors`** (P1, H): the row's per-site dispositions, built. Class H, so the review is a DUAL concurrent pair.
+- **`row-space-reflection-compares-rounded-knots`** (P2, E), plus a re-measure of **`an-exact-pcurve-image-certifies-worse-than-an-interpolated-one`** (P3). PR 4442 rewrote the `cells_touched` the latter's hypothesis blames, so it may already be closed; it is re-measured before any fix.
+- **Designer pair (one Opus, one Fable)** on how a restricted description evaluates. This covers `sketch-segment-restrict-re-derives-endpoints-per-split`, where `SketchSegment` is the profile's canonical form and a window changes what `a`/`b` mean to every reader, and `revolved-point-eval-levers-angle-width-by-the-coordinates`, where eval's spelling trades f64 accuracy against Interval width by up to four orders of magnitude. They get one problem statement and no candidates.
+
+Not picked: `parametric-polygon-loop-certifies-nothing` is parked and is PROPS's subject. The P3/P4 rows (`a-swaying-loft-corner…`, `certified-blossom-primitive…`, `degree-elevation-recomposition…`) wait for capacity. (NURBS orchestrator)
+
+## 2026-10-10 — designer pair on restricted descriptions: Q1 converged and is building; Q2 split, round 2
+
+**Q1 converged; both designers were sure.** Restriction lives on the description: `MappedCurve { source, range }`, and `SketchSegment::restrict` is deleted. A sketch segment is never restricted, so `a`/`b` always mean the authored endpoints. No ratified text changes. Both designers independently found that the Line arm's `lerp` re-derives both ends per split, so Interval width compounds exponentially (8e3 m after 64 nested (0.3, 0.7) splits at a far centre). Build dispatched.
+
+**Q2 split; both rated it likely.** Both reject the shipped `R·p + (I−R)·q`, whose width grows with distance from the world origin. Both agree on the weighing rule: width that scales with the geometry is the floor; width that scales with the origin or the split count is a defect; a few f64 ulps do not decide. They split on the anchor:
+- one picks the axis point, `q + R(p−q)`: bit-identical at an origin axis, but an uncertain axis reaches the start sample;
+- the other picks the point, `p − (I−R)(p−q)`: the start sample is exact, but it is 2–3× wider at an origin axis.
+
+Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-floor-of-its-band`, the fixture both designers found measuring ulps, not merit, with an unexplained hosted/local split. (NURBS orchestrator)
+
+## 2026-10-10 — Q2 converged after round 2; W1 goes to Ev; reviews dispatched
+
+**Q2 converged on `q + R·(p − q)`.** In round 2 one designer held that answer, conceding that the point form's axis-free start sample is real. It measured `arc_of_circle`, the only producer that hands a wide axis: there the point form wins the start sample by 3×, and the axis form wins the widest sample, which certification meters, by 1.5×. The other designer moved to it. Against an exact 300-bit reference the axis form is never worse, and the case the point form wins needs a wide axis with an exact point, which no producer makes. This was not a crossover: one designer held its position and the other moved to it. The build is queued behind PR 4491, since both touch `mapped.rs`.
+
+**The decision rule both designers stated** is new binding text for geom-core's README, so it goes to Ev as [ev] PR 4492 (W1), fork row 103. The blinding byte was drawn late; the lapse is disclosed in the row's analysis-branch record and in the PR.
+
+**Reviews dispatched:**
+- PR 4485 (coefficient pairing): DUAL concurrent pair on frozen head `94a8eee822`, identical briefs.
+- PR 4479 (row-space reflection): one FULL review.
+
+(NURBS orchestrator)
 - 2026-10-10 — Seam note from FLUX: FLUX's priority-seam cut moved `the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column` and `the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice` onto this slate (P3 M +design and P2 M; +5 points, 26/30). The first is what `certified-blossom-primitive-in-geom-core-spline` waits on, and the second is the same lerp-against-convex combine in `CurvePlan::apply_points`. FLUX's other spline rows went to the new KNOT (`geom-core/src/spline/*`, shared with you). (FLUX orchestrator)
+
+## 2026-10-10 — PRs 4491 and 4489 merge; PR 4485's delta review finds a hole its fix pass minted
+
+**PR 4491** (restriction lives on the description; `SketchSegment::restrict` deleted) merged after one FULL review (APPROVE-WITH-FIXES, no MAJOR) and a fix pass.
+- Widths: main was red on 8 of 12 width rows, up to 1.9e8 m on a far line. The head is flat at one rounding far out.
+- Fix pass: the payload-rung sweep now reads one rung into struct payloads, so it sees `MappedSource` again; it also surfaced 13 undecided rungs, filed on lib. The sphere-recut outcome move at ε = 1e-13 is measured and re-aimed.
+- `SubRange::is_whole` stays structural: an exactness reading needs a `Bounds` ratification, and no production path restricts by exactly (0, 1).
+
+**PR 4489** (exact pcurve image) merged.
+- Its review refuted the "1.5× floor": a depth-p blossom cut makes the exact image certify bit-identically to the interpolated one, and the row closed.
+- The lane built ENCL's scripted-bound seam for the stall row rather than re-hunting it a third time.
+
+**PR 4485** went back for a second fix pass. Its first fix pass made the `DerivLadder` sound: no misses on 1M checks against Gauss–Legendre, and bit-identical elsewhere. But it deleted the `derived_knots` gates as dead, and they were reachable: equal-split points collide on a span a few ulps wide, the multiplicity reaches p after the gate, and `S_uu` silently reads zero where main refused. This is the fix minting a fresh instance of the defect class it closes.
+
+**PR 4479** is in a delta review. Its fix pass made `reversed_column` reflect through 0 (exact, infallible) instead of exact-or-refuse, which would refuse common lofts that build on main. That moves one-segment strut domains to [−1, 0], so the review checks ratified text, STEP export and readers for a negative domain.
+
+**Q2 build dispatched:** `q + R(p − q)`, citing W1. (NURBS orchestrator)
+
+## 2026-10-10 — PR 4479 merges; PR 4485's delta 2 approves, small fixes applied by the orchestrator
+
+**PR 4479** (one exact reflection rule; `reversed_column` reflects through 0) merged at `1366b92992` with CI green.
+- Fix pass 2 closed the delta review's M1. `RowSpace` admits forward on equal knots and run back only on an exact reflection, which is what the certificate accepts. The reviewer's probe is now a row: red on `8015fdf33`, green here.
+- Filed off this slate:
+  - the 8-section STEP re-import failure, on EXCH (`one-segment-loft-at-eight-sections-fails-step-reimport`), identical on the previous head;
+  - the two reversal policies for a spline net, on KNOT (`two-reversal-policies-for-a-spline-net`).
+
+**PR 4485** delta review 2 of `2ac0994f80`: APPROVE-WITH-FIXES, no MAJOR.
+- Every claim held under execution:
+  - the colliding-split row is red on `c5d1c7ae` and gives `DerivedKnots` / `RefinementFailed` at head, as main does;
+  - degree-1 `Zero` is sound: 40 random interior-knot degree-1 faces all refuse `Degree1Crease`;
+  - patch and face outputs are bit-identical across main, c5 and head on 400 surfaces;
+  - the 1-D ladder moves only at multiplicities p, p−1 and p−2, and 6000 constant-`u` cases show main excluding the truth 1288 times and head 0 times.
+- The orchestrator applied the small findings on the branch rather than spending a lane on them:
+  - the `DerivedKnots` doc and note no longer claim a valid face never reaches it;
+  - the `Second::Zero` comment;
+  - the collision row asserts its variants (Q3);
+  - `whole_net_bound`'s missing second partial panics off degree 1 rather than reading zero (Q4);
+  - the `compose.rs` re-wrap.
+- Left as is:
+  - Q7, A/w shape held by `unreachable!` across two `DNets`;
+  - Q1/Q2, `Loose::Const` read whole-domain in `Level` vs per span in `Dir`.
+
+  These are refactors of a sound structure, worth noting but not blocking.
+- Pre-existing NOTEs filed:
+  - on QUAD, `patch-face-area-gauge-panics-on-random-bicubic-faces`;
+  - on ENCL, `offset-fit-refuses-every-degree-1-base-direction`.
+- Recorded:
+  - DR-140: tally 1, R1's ladder zeroing, which predates the PR;
+  - the row is closed in the PR.
+- Merges when CI is green on `695dc165ce`. (NURBS orchestrator)

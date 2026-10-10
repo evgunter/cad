@@ -1193,8 +1193,9 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// inapplicable: `node` and `offset` for an `offset_cleared` — a
 /// member of the mate's first operand's group, now placed on the
 /// second's, and the offset it gave up; `node` and `name` for a
-/// strand, and `name` alone for a `stranded_appearance`, whose carrier is
-/// the appearance store and not a node.
+/// strand, `node` (the selection's first reader) and `name` for a
+/// `stranded_selection`, and `name` alone for a `stranded_appearance`,
+/// whose carrier is the appearance store and not a node.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
@@ -1214,9 +1215,10 @@ impl Maintenance {
 
     /// The node this row is about: the instance whose offset the mate
     /// door cleared, the surviving node whose payload carries a
-    /// stranded name, or the node whose operand reads what a delete
-    /// removed (a `stranded_read`). `None` for a `stranded_appearance`, which has
-    /// no carrying node to name.
+    /// stranded name, the first node that reads a selection naming
+    /// one (a `stranded_selection`), or the node whose operand reads
+    /// what a delete removed (a `stranded_read`). `None` for a
+    /// `stranded_appearance`, which has no carrying node to name.
     ///
     /// The arms answer different questions with one attribute on
     /// purpose: each is the node a reader would go and look at, which
@@ -1230,6 +1232,9 @@ impl Maintenance {
                 Some(NodeId(node.id()))
             }
             d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
+            d::Maintenance::StrandedSelection { readers, .. } => {
+                readers.first().map(|reader| NodeId(reader.id()))
+            }
             d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
@@ -1237,15 +1242,18 @@ impl Maintenance {
 
     /// The name this row is about, in the opaque text every name door
     /// on this surface speaks — the stranded payload name for a
-    /// `strand`, the appearance store's stranded key for a
-    /// `stranded_appearance`. A stranded name is spelled as the
-    /// document holds it — its minting node deleted, or its profile
-    /// piece no longer drawn — and `DocEdit.rebind` from that spelling
-    /// is the repair this surface carries.
+    /// `strand`, the selected name for a `stranded_selection`, the
+    /// appearance store's stranded key for a `stranded_appearance`. A
+    /// stranded name is spelled as the document holds it — its minting
+    /// node deleted, or its profile piece no longer drawn — and
+    /// `DocEdit.rebind` from that spelling is the repair this surface
+    /// carries (with `body=` the selection's body for a
+    /// `stranded_selection`).
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
             d::Maintenance::Strand { name, .. }
+            | d::Maintenance::StrandedSelection { name, .. }
             | d::Maintenance::StrandedAppearance { name, .. } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
@@ -1265,6 +1273,7 @@ impl Maintenance {
             }
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedRead { .. }
+            | d::Maintenance::StrandedSelection { .. }
             | d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::LabelDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,

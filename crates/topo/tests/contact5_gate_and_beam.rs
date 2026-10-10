@@ -359,6 +359,7 @@ fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
                     }),
                     _ => None,
                 })
+                .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
                 .collect(),
             ..ContactRecords::default()
         };
@@ -393,6 +394,7 @@ fn a_declared_rest_with_a_dipping_point_is_probed() {
                 }),
                 _ => None,
             })
+            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
             .collect(),
         ..ContactRecords::default()
     };
@@ -450,14 +452,20 @@ fn a_declared_seat_with_a_keel_is_probed() {
         let under = |i: usize| keys.face(part.side_faces[i]).unwrap();
         let records = ContactRecords {
             patches: vec![
-                PatchContact {
-                    face_a: under(0),
-                    face_b: top,
-                },
-                PatchContact {
-                    face_a: under(if keel { 3 } else { 2 }),
-                    face_b: top,
-                },
+                topo::Cited::new(
+                    PatchContact {
+                        face_a: under(0),
+                        face_b: top,
+                    },
+                    topo::Cites::decided(0),
+                ),
+                topo::Cited::new(
+                    PatchContact {
+                        face_a: under(if keel { 3 } else { 2 }),
+                        face_b: top,
+                    },
+                    topo::Cites::decided(0),
+                ),
             ],
             ..ContactRecords::default()
         };
@@ -574,7 +582,10 @@ fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
 
 fn declared_seats(body: &Body<f64>) -> Result<(), Vec<ValidationError>> {
     let records = ContactRecords {
-        patches: rest_patches(body),
+        patches: rest_patches(body)
+            .into_iter()
+            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
+            .collect(),
         ..ContactRecords::default()
     };
     assert!(!records.patches.is_empty());

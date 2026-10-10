@@ -417,6 +417,25 @@ fn the_tangent_site_keeps_building_pure_contacts() {
     );
 }
 
+/// Each record's cells, with the rows it cites, read through its op's
+/// list: a declaration's own rows come first in a declared op's list,
+/// so two ops recording one decision cite it at different positions.
+fn cited_rows(r: &topo::BooleanBody<f64>) -> Vec<String> {
+    r.contacts
+        .rows()
+        .map(|(cells, cites)| {
+            let rows: Vec<String> = cites
+                .iter()
+                .map(|b| match b {
+                    topo::Backing::Decided(k) => format!("{:?}", r.coincidences[k as usize]),
+                    carried @ topo::Backing::Carried { .. } => format!("{carried:?}"),
+                })
+                .collect();
+            format!("{cells:?} {rows:?}")
+        })
+        .collect()
+}
+
 /// **A line kiss beside the tangent site builds at its closed form and
 /// ships its contact undeclared** (shape 2 of
 /// `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
@@ -425,9 +444,10 @@ fn the_tangent_site_keeps_building_pure_contacts() {
 /// `a` along that edge and at its far vertex. Each union, in both
 /// orders, builds at `vol a + vol b′` and passes tier 2; tier 3′ finds
 /// the kiss's vertex on `a`'s top and its edge along it, and no record
-/// backs either. Today's behaviour, pinned: stage 4 E
-/// (`booleans-glue-on-zero`) glues and records a contact decided Zero,
-/// which turns this row's tier-3′ findings into records.
+/// backs either. The glue records face pairs, and no face pair meets
+/// here, so the union undeclared is the declared one, records and all
+/// (D10); the dropped records are
+/// `work/fuse/a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face.md`.
 #[test]
 fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
     use topo::{CensusContact, ValidationError};
@@ -458,6 +478,14 @@ fn a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared() {
             let v = vol(&bb.body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
             assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
+            let Ok(BooleanResult::Body(bare)) = topo::union(x, y, tol()) else {
+                panic!("{what}: the undeclared union builds");
+            };
+            assert_eq!(
+                (format!("{:?}", bare.body), cited_rows(&bare)),
+                (format!("{:?}", bb.body), cited_rows(&bb)),
+                "{what}: undeclared, the declared body and records"
+            );
             let findings = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
                 .expect_err("tier 3′ finds the kiss undeclared");
             let kind = |want: fn(&CensusContact) -> bool| {

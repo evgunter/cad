@@ -84,8 +84,11 @@ fn the_selection_reaches_the_wire_canonical() {
     .doc;
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    assert!(text.contains("\"selection\""), "the field reaches the wire");
-    let sel = text.find("\"selection\"").expect("the selection block");
+    assert!(
+        text.contains("\"Select\""),
+        "the selection reaches the wire"
+    );
+    let sel = text.find("\"Select\"").expect("the selection block");
     let spelled = |seg: usize| format!("\"step\": \"{}\"", step_of(seg));
     let at_low = text[sel..].find(&spelled(low)).expect("the lower id");
     let at_high = text[sel..].find(&spelled(high)).expect("the higher id");
@@ -97,8 +100,7 @@ fn the_selection_reaches_the_wire_canonical() {
     // A non-canonical selection on the wire is a CORRUPT file: refused
     // at the shared validator, never quietly re-sorted (a repair would
     // move the node's content key behind the caller's back). The form
-    // is one predicate on `Node::input_fault`, so the load door names it
-    // in the arm it names every other structural fault in;
+    // is one predicate, `Select::fault`, asked at both doors;
     // `edit_blend_canonical` is where the two doors are pinned together.
     // The two pieces' steps swapped, so the list runs high to low.
     let corrupt = format!(
@@ -110,8 +112,8 @@ fn the_selection_reaches_the_wire_canonical() {
             .replacen("@swap@", &spelled(high), 1)
     );
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::ListFault::SelectionNotCanonical { at: 0 },
+        Err(PersistError::Snapshot(editor_core::SnapshotError::SelectionShape {
+            fault: editor_core::SelectionFault::NotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),

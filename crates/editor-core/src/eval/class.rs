@@ -83,8 +83,10 @@ pub enum NodeErrorClass {
     MissingInput,
     /// [`NodeErrorKind::UnresolvedRead`].
     UnresolvedRead,
-    /// [`NodeErrorKind::UnresolvedSite`].
-    UnresolvedSite,
+    /// [`NodeErrorKind::SelectResolve`].
+    SelectResolve,
+    /// [`NodeErrorKind::SelectKind`].
+    SelectKind,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
@@ -154,42 +156,24 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::ParamSourceAttach`].
-    ParamSourceAttach,
     /// [`NodeErrorKind::DeclareResolve`].
     DeclareResolve,
     /// [`NodeErrorKind::DeclareSiteNotAnOperand`].
     DeclareSiteNotAnOperand,
     /// [`NodeErrorKind::DeclareUnsupportedPair`].
     DeclareUnsupportedPair,
-    /// [`NodeErrorKind::UndeclaredCoincidence`].
-    UndeclaredCoincidence,
-    /// [`NodeErrorKind::UndeclarableContact`].
-    UndeclarableContact,
-    /// [`NodeErrorKind::BlendSelectionResolve`] refused by a fillet.
-    FilletSelectionResolve,
-    /// [`NodeErrorKind::BlendSelectionResolve`] refused by a chamfer.
-    ChamferSelectionResolve,
-    /// [`NodeErrorKind::BlendSelectionKind`] refused by a fillet.
-    FilletSelectionKind,
-    /// [`NodeErrorKind::BlendSelectionKind`] refused by a chamfer.
-    ChamferSelectionKind,
+    /// [`NodeErrorKind::DeclaredContactUnbacked`].
+    DeclaredContactUnbacked,
+    /// [`NodeErrorKind::UnionFoldStep`].
+    UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
     FilletSelectionEmpty,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a chamfer.
     ChamferSelectionEmpty,
     /// [`NodeErrorKind::Shell`].
     Shell,
-    /// [`NodeErrorKind::ShellOpenResolve`].
-    ShellOpenResolve,
-    /// [`NodeErrorKind::ShellOpenKind`].
-    ShellOpenKind,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
     ShellLaneUnsupported,
-    /// [`NodeErrorKind::FaceFrameResolve`].
-    FaceFrameResolve,
-    /// [`NodeErrorKind::FaceFrameKind`].
-    FaceFrameKind,
     /// [`NodeErrorKind::FaceFrameNotPlanar`].
     FaceFrameNotPlanar,
     /// [`NodeErrorKind::FaceFrameReadback`].
@@ -280,8 +264,6 @@ pub enum NodeErrorClass {
     MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
-    /// [`NodeErrorKind::MeasureRefResolve`].
-    MeasureRefResolve,
     /// [`NodeErrorKind::MeasureRefUnreadable`].
     MeasureRefUnreadable,
     /// [`NodeErrorKind::MeasureNonFinite`].
@@ -292,8 +274,6 @@ pub enum NodeErrorClass {
     MeasureUnsupported,
     /// [`NodeErrorKind::PayloadExpr`].
     PayloadExpr,
-    /// [`NodeErrorKind::MeasureSelectionKind`].
-    MeasureSelectionKind,
     /// [`NodeErrorKind::MeasureClearanceRefused`].
     MeasureClearanceRefused,
     /// [`NodeErrorKind::AssertionDimension`].
@@ -328,7 +308,8 @@ impl NodeErrorKind {
             Self::CurvedSolidFrontier { .. } => C::CurvedSolidFrontier,
             Self::MissingInput { .. } => C::MissingInput,
             Self::UnresolvedRead { .. } => C::UnresolvedRead,
-            Self::UnresolvedSite { .. } => C::UnresolvedSite,
+            Self::SelectResolve { .. } => C::SelectResolve,
+            Self::SelectKind { .. } => C::SelectKind,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
@@ -357,27 +338,16 @@ impl NodeErrorKind {
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::ParamSourceAttach(_) => C::ParamSourceAttach,
             Self::DeclareResolve { .. } => C::DeclareResolve,
             Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
             Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::UndeclaredCoincidence { .. } => C::UndeclaredCoincidence,
-            Self::UndeclarableContact { .. } => C::UndeclarableContact,
-            Self::BlendSelectionResolve { verb, .. } => {
-                by_verb(*verb, C::FilletSelectionResolve, C::ChamferSelectionResolve)
-            }
-            Self::BlendSelectionKind { verb, .. } => {
-                by_verb(*verb, C::FilletSelectionKind, C::ChamferSelectionKind)
-            }
+            Self::DeclaredContactUnbacked { .. } => C::DeclaredContactUnbacked,
+            Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
             }
             Self::Shell(_) => C::Shell,
-            Self::ShellOpenResolve { .. } => C::ShellOpenResolve,
-            Self::ShellOpenKind { .. } => C::ShellOpenKind,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
-            Self::FaceFrameResolve { .. } => C::FaceFrameResolve,
-            Self::FaceFrameKind { .. } => C::FaceFrameKind,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
             Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
             Self::DerivedFrameSection { .. } => C::DerivedFrameSection,
@@ -412,13 +382,11 @@ impl NodeErrorKind {
             Self::Unplaced { .. } => C::Unplaced,
             Self::PlacementRefused { .. } => C::PlacementRefused,
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
-            Self::MeasureRefResolve { .. } => C::MeasureRefResolve,
             Self::MeasureRefUnreadable { .. } => C::MeasureRefUnreadable,
             Self::MeasureNonFinite { .. } => C::MeasureNonFinite,
             Self::MeasureNotParallel { .. } => C::MeasureNotParallel,
             Self::MeasureUnsupported(_) => C::MeasureUnsupported,
             Self::PayloadExpr { .. } => C::PayloadExpr,
-            Self::MeasureSelectionKind { .. } => C::MeasureSelectionKind,
             Self::MeasureClearanceRefused(_) => C::MeasureClearanceRefused,
             Self::AssertionDimension { .. } => C::AssertionDimension,
         }
@@ -554,7 +522,8 @@ mod tests {
         CurvedSolidFrontier,
         MissingInput,
         UnresolvedRead,
-        UnresolvedSite,
+        SelectResolve,
+        SelectKind,
         ToleranceConflict,
         ParamBox,
         Seed,
@@ -587,24 +556,15 @@ mod tests {
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
-        ParamSourceAttach,
         DeclareResolve,
         DeclareSiteNotAnOperand,
         DeclareUnsupportedPair,
-        UndeclaredCoincidence,
-        UndeclarableContact,
-        FilletSelectionResolve,
-        ChamferSelectionResolve,
-        FilletSelectionKind,
-        ChamferSelectionKind,
+        DeclaredContactUnbacked,
+        UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
         Shell,
-        ShellOpenResolve,
-        ShellOpenKind,
         ShellLaneUnsupported,
-        FaceFrameResolve,
-        FaceFrameKind,
         FaceFrameNotPlanar,
         FaceFrameReadback,
         DerivedFrameSection,
@@ -645,13 +605,11 @@ mod tests {
         MateFaceUnresolved,
         MateFrameUnevaluated,
         CrossingUnverified,
-        MeasureRefResolve,
         MeasureRefUnreadable,
         MeasureNonFinite,
         MeasureNotParallel,
         MeasureUnsupported,
         PayloadExpr,
-        MeasureSelectionKind,
         MeasureClearanceRefused,
         AssertionDimension,
     }
@@ -794,7 +752,19 @@ mod tests {
                 slot: crate::OperandSlot::Target,
                 var: crate::VarId::new(3, 3),
             },
-            C::UnresolvedSite => K::UnresolvedSite { at: n(3) },
+            C::SelectResolve => K::SelectResolve {
+                slot: crate::OperandSlot::Selection,
+                var: crate::VarId::new(3, 3),
+                reference: 0,
+                error: resolve_error(),
+            },
+            C::SelectKind => found_body(|found| K::SelectKind {
+                slot: crate::OperandSlot::Selection,
+                var: crate::VarId::new(3, 3),
+                name: Box::new(name()),
+                expected: crate::EntityKind::Edge,
+                found,
+            }),
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,
@@ -911,7 +881,6 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::ParamSourceAttach => K::ParamSourceAttach(topo::ParamAttachError::StaleKey),
             C::DeclareResolve => K::DeclareResolve {
                 error: resolve_error(),
                 reference: 0,
@@ -921,51 +890,14 @@ mod tests {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
             },
-            C::UndeclaredCoincidence => K::UndeclaredCoincidence {
-                finding: Box::new(crate::FlushFinding {
-                    pair: (
-                        crate::SitedRef {
-                            at: n(2),
-                            name: name(),
-                        },
-                        crate::SitedRef {
-                            at: n(3),
-                            name: name(),
-                        },
-                    ),
-                    class: topo::BooleanCoincidence::REST,
-                    evidence: crate::FlushEvidence {
-                        relation: topo::PlaneRelation::SameOpposite,
-                        rung: crate::FlushRung::DecidedCoincident,
-                    },
-                }),
-                merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
-            },
-            C::UndeclarableContact => K::UndeclarableContact {
-                row: Box::new(name()),
-                diag: diag(),
-            },
-            C::FilletSelectionResolve => K::BlendSelectionResolve {
-                verb: BlendKind::Fillet,
-                error: resolve_error(),
+            C::DeclaredContactUnbacked => K::DeclaredContactUnbacked {
                 reference: 0,
+                at_union_step: false,
             },
-            C::ChamferSelectionResolve => K::BlendSelectionResolve {
-                verb: BlendKind::Chamfer,
-                error: resolve_error(),
-                reference: 0,
+            C::UnionFoldStep => K::UnionFoldStep {
+                member: n(2),
+                refusal: Box::new(K::UnschedulableCycle),
             },
-            C::FilletSelectionKind => found_body(|found| K::BlendSelectionKind {
-                verb: BlendKind::Fillet,
-                name: Box::new(name()),
-                found,
-            }),
-            C::ChamferSelectionKind => found_body(|found| K::BlendSelectionKind {
-                verb: BlendKind::Chamfer,
-                name: Box::new(name()),
-                found,
-            }),
             C::FilletSelectionEmpty => K::BlendSelectionEmpty {
                 verb: BlendKind::Fillet,
             },
@@ -973,22 +905,7 @@ mod tests {
                 verb: BlendKind::Chamfer,
             },
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
-            C::ShellOpenResolve => K::ShellOpenResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::ShellOpenKind => found_body(|found| K::ShellOpenKind {
-                name: Box::new(name()),
-                found,
-            }),
             C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },
-            C::FaceFrameResolve => K::FaceFrameResolve {
-                error: resolve_error(),
-            },
-            C::FaceFrameKind => found_body(|found| K::FaceFrameKind {
-                name: Box::new(name()),
-                found,
-            }),
             C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
                 carrier: geom::SurfaceKind::Cylinder,
             },
@@ -1177,12 +1094,9 @@ mod tests {
                 outer: Box::new(crate::FaceName::new(name()).expect("a face name")),
                 name: Box::new(name()),
             },
-            C::MeasureRefResolve => K::MeasureRefResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
             C::MeasureRefUnreadable => K::MeasureRefUnreadable {
-                name: Box::new(name()),
+                slot: crate::OperandSlot::Measured(crate::MeasureVerb::Distance, 0),
+                var: crate::VarId::new(3, 3),
                 error: crate::InterrogateError::NoSuchName,
             },
             C::MeasureNonFinite => K::MeasureNonFinite {
@@ -1206,10 +1120,6 @@ mod tests {
                 index: 2,
                 source: EvalError::NonFiniteResult,
             },
-            C::MeasureSelectionKind => found_body(|found| K::MeasureSelectionKind {
-                verb: "min_clearance",
-                found,
-            }),
             C::MeasureClearanceRefused => {
                 K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Unsupported {
                     carrier: "a free-form face",

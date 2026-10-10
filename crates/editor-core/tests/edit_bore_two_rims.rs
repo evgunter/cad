@@ -86,9 +86,8 @@ fn fillet_both(
     fixture::insert(
         doc,
         Node::Fillet {
-            target: target.into(),
             radius: len(R),
-            selection,
+            selection: editor_core::Operand::select(target, selection),
         },
     )
 }

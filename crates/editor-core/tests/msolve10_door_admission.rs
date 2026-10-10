@@ -1129,6 +1129,7 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::Rebind {
+                body: None,
                 from: in_part(ids[1], body, CapEnd::Start),
                 to: in_part(ids[0], body, CapEnd::Start),
             },

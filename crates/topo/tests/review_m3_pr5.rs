@@ -352,34 +352,26 @@ fn interior_column_union_works() {
     assert_props(&body.body, 15.03125, 39.0);
 }
 
-/// The full-overlap stack, both doors: declared, the union is one
-/// brick, contact faces gone. The refusing door is the UNDECLARED
-/// one (the coincidence
-/// ladder), pinned deterministic and operand-preserving, exactly as
-/// the refusal contract demands.
+/// The full-overlap stack, both doors: the union is one brick, contact
+/// faces gone, declared or not (D10) — the undeclared door pinned
+/// deterministic, operand-preserving, and the declared door's body.
 #[test]
-fn pinned_refusals_deterministic() {
+fn pinned_stack_deterministic() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    // Undeclared: typed, deterministic, operands untouched.
+    // Undeclared: deterministic, operands untouched.
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let e1 = topo::union(&a, &b, Tol::witness()).map(|_| ()).unwrap_err();
-    let e2 = topo::union(&a, &b, Tol::witness()).map(|_| ()).unwrap_err();
-    assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
-    assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
-    assert_eq!(
-        format!("{e1:?}"),
-        format!("{e2:?}"),
-        "refusal deterministic"
-    );
-    assert!(
-        format!("{e1:?}").contains("UndeclaredCoincidence"),
-        "got {e1:?}"
-    );
+    let r1 = topo::union(&a, &b, Tol::witness()).expect("the undeclared stack glues");
+    let r2 = topo::union(&a, &b, Tol::witness()).expect("the rerun glues");
+    assert_eq!(format!("{a:?}"), a0, "operand A untouched");
+    assert_eq!(format!("{b:?}"), b0, "operand B untouched");
+    let (u1, u2) = (&body_of(&r1).body, &body_of(&r2).body);
+    assert_eq!(format!("{u1:?}"), format!("{u2:?}"), "deterministic");
     // Declared: the join glues the stack — exact volume and
-    // area of the (0..2)²×(0..4) brick.
+    // area of the (0..2)²×(0..4) brick, the undeclared body.
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
+    assert_eq!(format!("{u1:?}"), format!("{:?}", body.body));
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_props(&body.body, 16.0, 40.0);
 }

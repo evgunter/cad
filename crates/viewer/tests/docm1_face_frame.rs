@@ -69,11 +69,7 @@ fn boxed_with_face_frame(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, Recipe
     let (doc, cube) = boxed(tol);
     let (doc, frame) = inserted(
         &doc,
-        Node::Datum(Datum::FaceFrame {
-            at: cube.into(),
-            face: cap_of(cube),
-            spin: common::ang(0.0),
-        }),
+        Node::Datum(Datum::face_frame(cube, cap_of(cube), common::ang(0.0))),
         tol,
     );
     (doc, cube, frame)
@@ -135,11 +131,7 @@ fn the_chrome_mints_what_the_document_door_mints() {
     let spin = common::ang(0.3);
     let (hand, _) = inserted(
         &doc,
-        Node::Datum(Datum::FaceFrame {
-            at: cube.into(),
-            face: cap_of(cube),
-            spin: spin.clone(),
-        }),
+        Node::Datum(Datum::face_frame(cube, cap_of(cube), spin.clone())),
         tol,
     );
 

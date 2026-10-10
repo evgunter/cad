@@ -164,8 +164,9 @@
 //! Depth is the number of BRANCHES a node sits under, not the length
 //! of its input chain. A node continues the line of its PRIMARY input
 //! — the first entry of `Doc::upstream`, which is the operand the
-//! kernel accumulates into: a boolean's `a`, a fillet's `target`, a
-//! transform's `input`. Every other input is a branch that indents:
+//! kernel accumulates into: a boolean's `a`, the body a fillet's
+//! selection reads, a transform's `input`. Every other input is a
+//! branch that indents:
 //!
 //! ```text
 //! depth(n) = 0                                     if n has no inputs
@@ -620,10 +621,15 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(match doc.defined_by(*at) {
-            Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
-            None => "on a face of a deleted body".to_owned(),
-        }),
+        Node::Datum(Datum::FaceFrame { face, .. }) => Some(
+            match doc
+                .selection(*face)
+                .and_then(|selection| doc.defined_by(selection.body))
+            {
+                Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
+                None => "on a face of a deleted body".to_owned(),
+            },
+        ),
         Node::Datum(
             Datum::Plane { .. }
             | Datum::Axis { .. }
@@ -1190,8 +1196,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
-        // A measure's deleted site: the repair is at the measure.
-        | NodeErrorKind::UnresolvedSite { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
@@ -1226,17 +1230,13 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::DeclareResolve { .. }
-        | NodeErrorKind::UndeclaredCoincidence { .. }
-        | NodeErrorKind::UndeclarableContact { .. }
-        | NodeErrorKind::BlendSelectionResolve { .. }
-        | NodeErrorKind::BlendSelectionKind { .. }
-        | NodeErrorKind::ShellOpenResolve { .. }
-        | NodeErrorKind::ShellOpenKind { .. }
-        | NodeErrorKind::FaceFrameResolve { .. }
-        | NodeErrorKind::FaceFrameKind { .. }
-        | NodeErrorKind::MeasureRefResolve { .. }
+        | NodeErrorKind::SelectResolve { .. }
+        | NodeErrorKind::SelectKind { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
+        // The member names the step that refused, not the node to
+        // repair: the refusal is the union's.
+        NodeErrorKind::UnionFoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::Profile(_)
@@ -1272,8 +1272,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::ParamSourceAttach(_)
         | NodeErrorKind::DeclareUnsupportedPair { .. }
+        | NodeErrorKind::DeclaredContactUnbacked { .. }
         | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }
@@ -1284,7 +1284,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
         | NodeErrorKind::PayloadExpr { .. }
-        | NodeErrorKind::MeasureSelectionKind { .. }
         | NodeErrorKind::MeasureClearanceRefused(_)
         | NodeErrorKind::AssertionDimension { .. } => None,
     }

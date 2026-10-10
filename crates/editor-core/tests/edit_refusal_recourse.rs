@@ -192,18 +192,19 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: a.into(),
             radius: len(0.1),
-            selection: vec![fname(b, wb.clone())],
+            selection: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
         },
     );
     let doc = crate::fixture::place(doc, fillet).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));
+    let body = doc.output(a, 0);
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: from.clone(),
             to: to.clone(),
         },
@@ -246,9 +247,11 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
             && text.matches("Recourse:").count() == 1,
         "the split's own recourse, once, and not the insert door's: {text}"
     );
+    let body = crate::fixture::body_selecting(&doc, &forward);
     let (back_doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: forward,
             to: back,
         },

@@ -114,19 +114,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/editor-core/src/eval/wire.rs",
-        subject: "refusal_menu",
-        why: Payload(
-            "the boolean's coincidence menu over a kernel refusal: its only bracket reads \
-             are the shell fold's below, reached through `verb_refused`",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
-        subject: "union_refusal",
-        why: Payload("the union's refusal lowering, delegating to `refusal_menu` above"),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
         subject: "verb_refused",
         why: Payload(
             "lowers a verb's refusal into the scalar-free document vocabulary; its only \
