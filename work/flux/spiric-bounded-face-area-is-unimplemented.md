@@ -61,6 +61,6 @@ before that PR.
 (FLUX orchestrator) Built as a certified fifth-order Taylor quadrature
 lane, `geom_brep::props::spiric`, for spiric-bounded plane caps and torus
 walls, wired by carrier kind in `topo::props`. It went through dual review
-(DR-149) and a fix pass at `d43a02f36a`, and an independent verifier
+(DR-155) and a fix pass at `d43a02f36a`, and an independent verifier
 confirmed every fix by execution. The rows that pinned `Unimplemented` now
 measure against independent oracles.
