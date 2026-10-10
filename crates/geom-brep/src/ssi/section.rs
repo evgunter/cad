@@ -730,7 +730,7 @@ const SECTION_SETTLE_ITERS: usize = 128;
 mod tests {
     use geom::NurbsCurve3;
     use geom_core::interval::certification::Certification as _;
-    use geom_core::spline::restrict_bernstein;
+    use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, SupSpeed, Vec3};
 
     use super::{BoundarySection, SIDE_SIGN_HALVINGS, SignBudget, SsiError, refined_sign};
