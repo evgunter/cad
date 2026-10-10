@@ -330,7 +330,7 @@ pub enum StepImportError {
         /// `None`.
         solid: Option<u64>,
         /// The verdicts, verbatim: tiers 1–3 for a solid asked on its
-        /// own, tiers 1–3′ (the declared-contact census) for the
+        /// own, tiers 1–3′ (the contact-record census) for the
         /// assembled body.
         errors: Vec<topo::ValidationError>,
     },

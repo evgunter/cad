@@ -61,6 +61,14 @@ Pinned in `crates/sweep/tests/encl_curved_loft_shell.rs`,
 `a_fitted_walls_rims_answer_for_themselves_behind_its_seams` (each
 edge).
 
+2026-10-10, after the iso-row arm narrowed
+(`the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row`, the
+`## Designed` bullet "The iso-row arm narrows"): both seams of a moved
+wall answer alike, `NeighborPairUnroutable(Approx, Nurbs)`, on the
+prism and on the twisted loft, at every ε where the wall's fit
+certifies; the rims are unchanged. The three rows above are re-pinned
+to it.
+
 ## Designed
 
 A designer pair weighed this item on 2026-10-10 (fork-log row 106). Both designers agree on the following:
