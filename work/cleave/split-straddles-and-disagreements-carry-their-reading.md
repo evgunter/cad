@@ -46,3 +46,12 @@ Unit 2 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
 
 Same as unit 1: pin each moved arm's ending. `RefusedArm::Straddle` is
 the ending door for a straddle.
+
+## A ninth site, found by unit 1's census (2026-10-10)
+
+`splitting/order.rs` has a second mint beside C8: `split_join_frame_axis`.
+It hand-mints `invalid_margin::invalid(exact, "split_join_frame_axis")`
+when no member left an in-band reading (`order.rs:197` on main
+`cc3df241cc`). It came in with `f56de98848`, after the re-scope's census
+was taken. It has the same shape as C8, and the re-scope's pass 1 finds
+it.

@@ -91,7 +91,7 @@ use core::ops::ControlFlow;
 use crate::enters::LeverEscalation;
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
 use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
@@ -229,6 +229,16 @@ pub(crate) fn decide_magnitude<T: Decide>(
     geom_core::k_stats::decide_magnitude(name, margin, band)
 }
 
+/// [`decide_magnitude`], keeping the reporting margin it decided on
+/// ([`geom_core::k_stats::decide_magnitude_reported`]).
+pub(crate) fn decide_magnitude_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(Magnitude, MarginDiag), Indeterminate> {
+    geom_core::k_stats::decide_magnitude_reported(name, margin, band)
+}
+
 /// The crate's **collapsed-arm gate**, the same wrapper one door over
 /// ([`geom_core::k_stats::decide_positive`]): for a predicate whose
 /// question is only validly posed through a definitely-positive margin
@@ -254,6 +264,16 @@ pub(crate) fn decide_nonzero<T: Decide>(
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
+}
+
+/// [`decide_nonzero`], keeping the reporting margin the passing sign was
+/// decided on ([`geom_core::k_stats::decide_nonzero_reported`]).
+pub(crate) fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
+    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
 }
 
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at

@@ -768,3 +768,14 @@ Signed (CLEAVE orchestrator).
     - one germ-sign method;
     - the probe fixture made bit-identical again.
 - **PR 4571**: re-running CI after the merge of main; it merges when green. The seal's fired `blocked_on` entry is pruned.
+- **PR 4571 merged** (mints unit 1; single FULL review, fix pass done). It announces two seams:
+  `geom_brep::normal_alignment` / `ParallelNormal`, and `geom_core::k_stats::decide_nonzero_reported`
+  on SCALAR's ground. Unit 2 (PR 4578) must reconcile its own `k_stats` doors against these.
+- **PR 4571 merged** after a green re-run on the main merge.
+- **PR 4578** (mints unit 2; single FULL review): APPROVE-WITH-FIXES. Ruled:
+  - the unreachable `(Some, Some)` arm panics, and its one `at` is made structural;
+  - "nearest to passing" gets a pin;
+  - the straddle and gate-rejection doors take `Decided` bounds (D9 row 0);
+  - one `k_stats` gate-rejection path, reconciled with 4571's additions;
+  - `lift` and `clearance` endings traced.
+- **Dispatched:** mints unit 3, `point-in-solid-mints-outside-its-period-and-nappe-rows`.
