@@ -2,11 +2,12 @@
 id: circle-torus-root-slack-crowds-the-zero-band-at-1e-12
 kind: issue
 title: bool_circle_torus_root_slack's zero-classified margins crowd the coincidence band at eps 1e-12 (8 k-lint rule-2 flags)
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
-branch: germ/ev-klint-bound-door
+branch: germ/klint-zero-arm-tally
+closed: 2026-10-10
 refs: [sphere-region-root-slack-crowds-the-zero-band-at-1e-12]
 ---
 
@@ -228,3 +229,28 @@ Their full texts, A and B, are on the `[ev]` PR.
 - k-lint's rule 2 zero-arm flags are **tallied and printed** (e.g. "rounding uses 31% of ε here (lily, 1e-12)"); they do not fail the `k-lint (dev-probe)` gate.
 - No kernel bound or certification door. The root-slack decisions keep going through `decide`.
 - The unit that builds this is the item's next step.
+
+## Closed (branch `germ/klint-zero-arm-tally`, 2026-10-10)
+
+Built as Ev ruled on PR 4567. Rule 2's zero arm is no longer a
+`Reason`: `tools/k-lint`'s `zero_arm_usage` reads a zero-classified
+margin above `band_zero / 10²`, `Scan::zero_arm` tallies it per
+predicate with the largest `|m| / band_zero` and its row, and the CLI
+prints that per file and counts it in the TOTAL line. It fails nothing.
+Rule 2's definite arm and rules 1, 3 and 4 are unchanged, and no kernel
+decision moved. On the real dumps at ε 1e-6, 1e-9 and 1e-12 the ten
+former flags print as tallied notes, and a run over the dumps' zero
+rows alone exits 2 before and 0 after (the PR body carries the
+output). The full dumps still exit 2 on findings this change does not
+touch: `chart_bound_outer_span`'s rule-1 poison
+(`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`),
+`bool_pair_gap`'s ε-coupled margins
+(`work/cleave/bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint.md`,
+filed by this unit), `props_quad_*` on the cutaway and the lily
+(`work/quad/`) and `demo/table`'s `volume_backstop`
+(`work/tally/table-union-backstop-margin-sits-under-the-k-lint-floor.md`).
+
+The nightly `k-lint (dev-probe)` row still does not reach the lint:
+the sweep's pre-pass is red on
+`work/tint/probe-sweep-prepass-reds-on-assemble-one-local-battery.md`
+(P1, TINT's), which this change does not touch.

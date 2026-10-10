@@ -821,8 +821,8 @@ mod tests {
     //! The checks [`assemble`] guards, each planted: the walks of
     //! [`read`] never hand it roots that break them.
 
+    use super::super::search_kit::band;
     use super::*;
-    use geom_core::Tol;
 
     const ROWS: ChartRows = ChartRows {
         fold: "fold",
@@ -835,10 +835,6 @@ mod tests {
             width: "width",
         },
     };
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
 
     /// `E`'s sign as a cosine's: positive within a quarter turn of `0`.
     fn cosine(theta: f64) -> Option<Sign> {
