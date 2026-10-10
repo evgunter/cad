@@ -1918,23 +1918,6 @@ fn germ_section_frame<T: Decide>(
     };
     let sa = surf(&red.a, germ.a_face)?;
     let sb = surf(&red.b, germ.b_face)?;
-    // **The lowered parameter-identity channel's first production
-    // read.** Radius equality is structural or declared and never
-    // inferred from values, and this is the ONE site that can say
-    // which: the germ carries both bodies and both face keys, so the
-    // per-field side records are reachable here and nowhere below.
-    // `Declared` iff the recipe layer evaluated ONE expression into
-    // both carriers' radius fields; every other configuration —
-    // differing expressions, either side unsourced, imported or
-    // hand-built geometry — is `None` and routes the general rung
-    // permanently (VERB-SEAT-DESIGN P3).
-    let evidence = crate::param_source::field_source_evidence(
-        &red.a,
-        germ.a_face,
-        &red.b,
-        germ.b_face,
-        crate::param_source::SurfaceField::CylinderRadius,
-    );
     // `surf` resolved both faces above, and nothing writes between, so
     // `face_witnesses` reads each.
     let witnesses = |body: &Body<T>, f: FaceKey| {
@@ -1959,7 +1942,7 @@ fn germ_section_frame<T: Decide>(
         span,
     )
     .map_err(desync)?;
-    pair_section_frame_at(&sa, &sb, evidence, at, extent, band)
+    pair_section_frame_at(&sa, &sb, at, extent, band)
         .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
 }
 
@@ -2228,8 +2211,8 @@ pub(super) fn parallel_radical_plane<T: Decide>(
 /// The Boolean's refusal for a germ pair's frame refusal, the pair
 /// being the A face `a` and the B face `b` with their surfaces: a
 /// section pose's escalation is a coincidence between the two walls,
-/// asked on the pair's parameter-source evidence and no face-pair
-/// declaration, and an operand guard's is that radius's own decision.
+/// asked on no face-pair declaration, and an operand guard's is that
+/// radius's own decision.
 /// No declaration settles either.
 pub(super) fn frame_refusal<T: geom_core::Real>(
     e: FrameError,
@@ -2251,11 +2234,13 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
             b_face: b.0,
             b_kind: b.1.kind(),
         },
-        FrameError::IntersectingCylinderAxes { evidence } => BooleanError::GermFrameCylinderPinch {
-            a_face: a.0,
-            b_face: b.0,
-            evidence,
-        },
+        FrameError::IntersectingCylinderAxes { equal_radii } => {
+            BooleanError::GermFrameCylinderPinch {
+                a_face: a.0,
+                b_face: b.0,
+                equal_radii,
+            }
+        }
         FrameError::OutsideInventory { conic, section } => {
             BooleanError::GermSectionOutsideInventory {
                 a_face: a.0,
@@ -2271,8 +2256,8 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
 
 /// Why [`pair_section_frame_at`] could not name a frame. The keys and
 /// bodies live at the call site, so this carries none of them: the
-/// dispatch is a statement about the kind pair and the DECLARED
-/// evidence it was handed, never about the arenas.
+/// dispatch is a statement about the two surfaces, never about the
+/// arenas.
 pub(super) enum FrameError {
     /// A section predicate landed in the sliver band.
     Escalated(geom_core::Indeterminate),
@@ -2297,14 +2282,13 @@ pub(super) enum FrameError {
     /// [`BooleanError::GermFrameCylinderPinch`] for the two shapes it
     /// takes and why this dispatch can name neither.
     ///
-    /// The evidence it was reached under is carried, because it is what
-    /// decides WHICH of those two shapes the locus has: `Declared` and
-    /// the section is the verified ellipse pair, `None` and the pair
-    /// routes the general rung with the question unanswered.
+    /// Whether the radii decided equal is carried, because it is what
+    /// decides WHICH of those two shapes the locus has: equal and the
+    /// section is the constructed ellipse pair, unequal and the pair
+    /// routes the general rung.
     IntersectingCylinderAxes {
-        /// The radius-equality evidence the germ site read off the
-        /// parameter-identity channel.
-        evidence: geom_brep::RadiusEvidence,
+        /// Whether the two radii decided equal.
+        equal_radii: bool,
     },
     /// The section is a conic outside the inventory by decision (R1).
     OutsideInventory {
@@ -2337,13 +2321,12 @@ pub(super) enum FrameError {
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
-    evidence: geom_brep::RadiusEvidence,
     at: geom_core::Point3<T>,
     span: Option<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
     let extent = span.map_or(FrameExtent::Radii, FrameExtent::Span);
-    pair_section_frame_at(sa, sb, evidence, at, extent, band)
+    pair_section_frame_at(sa, sb, at, extent, band)
 }
 
 /// The plane×cylinder and cylinder pairs read their axis rows at the
@@ -2360,7 +2343,6 @@ pub(super) fn pair_section_frame<T: Decide>(
 pub(super) fn pair_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
-    evidence: geom_brep::RadiusEvidence,
     at: geom_core::Point3<T>,
     extent: FrameExtent<T>,
     band: Band,
@@ -2437,10 +2419,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
                 )),
             };
         }
-        // **Cylinder×sphere** ([`cs_germ_frame`]): the declared-coaxial
-        // classification first ([`cs_pair_frame`], unreadable here
-        // yet), then the transverse frame for a pose off the axis
-        // ([`cs_transverse_frame`]).
+        // **Cylinder×sphere** ([`cs_germ_frame`]): the coaxial
+        // classification first ([`cs_pair_frame`]), then the transverse
+        // frame for a pose off the axis ([`cs_transverse_frame`]).
         (Sf::Plane { .. }, Sf::Cone { .. }) => return pk_germ_frame(sa, sb, extent, band),
         (Sf::Cone { .. }, Sf::Plane { .. }) => return pk_germ_frame(sb, sa, extent, band),
         (Sf::Cylinder { .. }, Sf::Sphere { .. }) => return cs_germ_frame(sa, sb, band),
@@ -2450,8 +2431,8 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
         // **Cylinder×cylinder.** Two walls with PARALLEL axes meet in
         // rulings — lines — whatever their radii, so `None` here is
-        // proven by the axes alone and needs neither radius evidence
-        // nor a constructed section: a tangent-ruling pair at rest is
+        // proven by the axes alone and needs neither the radii nor a
+        // constructed section: a tangent-ruling pair at rest is
         // exactly this case. The non-parallel
         // half is never straight, and it splits again on coplanarity
         // (below): skew keeps the general rung's `NoArm`, intersecting
@@ -2510,7 +2491,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             // reds the moment the gap is measured along an axis instead
             // of along `a1×a2`.
             return match geom_brep::cylinder_axes_coplanar(&reach, (*o1, *a1), (*o2, *a2), band) {
-                Ok(Sign::Zero) => Err(intersecting_cylinder_axes(sa, sb, evidence, &reach, band)),
+                Ok(Sign::Zero) => Err(intersecting_cylinder_axes(sa, sb, &reach, band)),
                 Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
                 Err(diag) => Err(FrameError::Escalated(diag)),
             };
@@ -2636,52 +2617,39 @@ fn pk_germ_frame<T: Decide>(
     }
 }
 
-/// **The intersecting-axes cylinder pair, routed by the
-/// parameter-identity channel.**
+/// **The intersecting-axes cylinder pair, routed by whether its radii
+/// decide equal.**
 ///
 /// The axes meet, so the locus is neither straight nor one conic and no
 /// frame can be named either way — but WHICH shape it has is a
-/// radius-equality question, and the channel is the only thing that may
-/// answer it (values never may). This is where the answer is used:
+/// radius-equality question, decided by its margin in the section
+/// table (`cylinder_cylinder_section`'s `cc_radius_equality`):
 ///
-/// * `Declared` — the recipe layer put ONE expression into both radius
-///   fields. The equal-radius closed form is then reachable, and it is
-///   REACHED: `cylinder_cylinder_section` verifies the declaration
-///   against the geometry (declared ≠ unchecked) and constructs the two
-///   bisector-plane ellipses. The refusal that comes back out carries
-///   the evidence, so the pinch it names is a proven configuration —
-///   four arcs at two valence-4 vertices — rather than one of two
-///   possibilities.
-/// * `None` — no channel, and none is ever inferred: the pair routes
-///   the general rung with the question open. That is the permanent
-///   fallback for imported and hand-built geometry, not a gap.
-///
-/// A declaration the geometry CONTRADICTS is a document-layer bug (D9
-/// makes one expression evaluate to one value, so two fields sharing a
-/// token cannot hold different radii) and is surfaced as a desync, not
-/// laundered into the undeclared arm.
+/// * equal — the equal-radius closed form is REACHED: the table
+///   constructs the two bisector-plane ellipses, so the pinch the
+///   refusal names is a proven configuration — four arcs at two
+///   valence-4 vertices — rather than one of two possibilities;
+/// * unequal — the pair routes the general rung, a space quartic.
 fn intersecting_cylinder_axes<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
-    evidence: geom_brep::RadiusEvidence,
     reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> FrameError {
-    if evidence == geom_brep::RadiusEvidence::None {
-        return FrameError::IntersectingCylinderAxes { evidence };
-    }
-    // The radii are NEVER compared here — equality is the channel's
-    // answer, not this function's. The table reads the same `reach`
-    // the parallelism gate above levered from, because it re-decides
-    // the two axis margins this dispatch just decided and must reach
-    // the same verdicts from the same margins.
+    // The table reads the same `reach` the parallelism gate above
+    // levered from, because it re-decides the two axis margins this
+    // dispatch just decided and must reach the same verdicts from the
+    // same margins.
     //
     // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
     // outcome and every refusal is named, so a variant added to either
     // enum is a compile-time visit here rather than a silent desync.
-    match geom_brep::cylinder_cylinder_section(sa, sb, evidence, reach, band) {
+    match geom_brep::cylinder_cylinder_section(sa, sb, reach, band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { .. }) => {
-            FrameError::IntersectingCylinderAxes { evidence }
+            FrameError::IntersectingCylinderAxes { equal_radii: true }
+        }
+        Err(geom_brep::SectionError::UnequalRadii) => {
+            FrameError::IntersectingCylinderAxes { equal_radii: false }
         }
         // The three parallel-axes answers, from a table whose
         // parallelism verdict this dispatch already took the other
@@ -2691,8 +2659,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::EqualCylinderSection::TangentLine(_)
             | geom_brep::EqualCylinderSection::Empty,
         ) => FrameError::Desync(
-            "the declared equal-radius section of an intersecting-axes cylinder pair \
-             classified as a parallel-axes locus",
+            "the equal-radius section of an intersecting-axes cylinder pair classified as \
+             a parallel-axes locus",
         ),
         Err(
             e @ (geom_brep::SectionError::Escalated(_)
@@ -2700,10 +2668,6 @@ fn intersecting_cylinder_axes<T: Decide>(
                 geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
             )),
         ) => section_refusal(e),
-        Err(geom_brep::SectionError::RadiusDeclarationContradicted) => FrameError::Desync(
-            "two cylinder radii carrying the SAME lowered parameter source hold \
-             different values — one expression evaluated to two numbers",
-        ),
         // The table's own routing verdict, honoured the way
         // `cs_pair_frame` honours it: NOT a desync, since nothing is
         // contradicted — the pair marches one rung down. Reachable only
@@ -2714,16 +2678,14 @@ fn intersecting_cylinder_axes<T: Decide>(
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
         // coaxial-equal-radius pose was refused at the parallelism
-        // gate, no coaxiality or torus question is asked of two
-        // cylinders with meeting axes, the bisector ellipses' semi-axes
-        // are decided positive and major-first, and no arm this
-        // pair reaches states a locus off the extent it was handed
-        // (the cylinder pair's ellipses stand on the operands
-        // themselves).
+        // gate, no torus question is asked of two cylinders with
+        // meeting axes, the bisector ellipses' semi-axes are decided
+        // positive and major-first, and no arm this pair reaches states
+        // a locus off the extent it was handed (the cylinder pair's
+        // ellipses stand on the operands themselves).
         Err(
             geom_brep::SectionError::WrongLane { .. }
             | geom_brep::SectionError::RadiusEscalated { .. }
-            | geom_brep::SectionError::CoaxialDeclarationContradicted
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
@@ -2733,22 +2695,22 @@ fn intersecting_cylinder_axes<T: Decide>(
             )
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
-            "the declared equal-radius cylinder section refused at the germ pair \
-             with a refusal this pair cannot produce",
+            "the equal-radius cylinder section refused at the germ pair with a refusal this \
+             pair cannot produce",
         ),
     }
 }
 
-/// The cylinder×sphere germ frame: the declared-coaxial classification
-/// first ([`cs_pair_frame`]), and where it routes to the general rung,
-/// the transverse frame ([`cs_transverse_frame`]).
+/// The cylinder×sphere germ frame: the coaxial classification first
+/// ([`cs_pair_frame`]), and where it routes to the general rung, the
+/// transverse frame ([`cs_transverse_frame`]).
 #[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
 fn cs_germ_frame<T: Decide>(
     cyl: &geom::Surface<T>,
     sph: &geom::Surface<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    match cs_pair_frame(cyl, sph, geom_brep::CoaxialEvidence::None, band) {
+    match cs_pair_frame(cyl, sph, band) {
         Err(FrameError::NoArm) => cs_transverse_frame(cyl, sph, band),
         other => other,
     }
@@ -2777,14 +2739,14 @@ fn cs_germ_frame<T: Decide>(
 ///   radial about it.
 /// * **Two loops** (Positive): each is the graph `±h(θ)` over the whole
 ///   circle, so it turns monotonically about the cylinder's own axis.
-///   Both share that axis, the declared-coaxial frame's argument.
+///   Both share that axis, the coaxial frame's argument.
 /// * **A tangency** (Zero: the walls touch at `θ = π`, the loop's
 ///   figure-eight node) has no frame and keeps [`FrameError::NoArm`].
 ///
 /// The offset `d` must be definite (`bool_germ_frame_cs_offset`): `û`
-/// does not exist on the axis, and a coaxial pose is never read from a
-/// measured `d` ([`cs_pair_frame`]), so a Zero or in-band offset keeps
-/// `NoArm` verbatim rather than escalating. Radii are read by magnitude:
+/// does not exist on the axis. A pose reaches here only once
+/// [`cs_pair_frame`] has decided it off the axis, so a Zero or in-band
+/// offset here keeps `NoArm` verbatim rather than escalating. Radii are read by magnitude:
 /// a negative stored radius denotes the same point set.
 #[allow(clippy::type_complexity)] // (frame centre, frame axis) — one frame tuple
 fn cs_transverse_frame<T: Decide>(
@@ -2832,48 +2794,32 @@ fn cs_transverse_frame<T: Decide>(
     }
 }
 
-/// The cylinder×sphere germ frame, from the DECLARED-coaxial
-/// classification (`geom_brep::cylinder_sphere_section`).
+/// The cylinder×sphere germ frame, from the coaxial classification
+/// (`geom_brep::cylinder_sphere_section`, the sphere's centre decided on
+/// the cylinder's axis by its margin).
 ///
 /// **ONE frame serves BOTH section circles, and that is a proof rather
-/// than a convenience.** The declared-coaxial section is two circles of
-/// the cylinder's radius, centred at `c ± axis·station` on the
-/// cylinder's own axis — the SAME axis for both. The facing test this
-/// frame feeds asks only for the rotational sense `axis·((p−c)×dir)`,
-/// and sliding `c` along `axis` changes `p−c` by a multiple of `axis`,
-/// which the triple product annihilates. So the sense a germ gets is
-/// identical whichever of the two stations (or the sphere centre
-/// between them) is handed over, and the pair needs neither a second
-/// frame nor a pinch door. This is exactly where the cylinder PAIR
-/// differs: its crossing ellipses lie in two DIFFERENT bisector
-/// planes with two different axes, and no single frame is right for
-/// both — hence [`FrameError::IntersectingCylinderAxes`] there and
-/// nothing like it here.
-///
-/// **The declaration cannot be read at this door yet, and that is
-/// stated rather than hidden.** This dispatch is keyed on surface
-/// KINDS alone — no bodies, no keys — so it has nowhere to consult a
-/// coincidence ladder, and coaxiality is declared-only: it is NEVER
-/// inferred from a measured axis-to-centre distance, at any tolerance.
-/// Every in-tree caller therefore passes
-/// `geom_brep::CoaxialEvidence::None`, the section routes to the
-/// general rung, and the dispatch reads the transverse frame
-/// ([`cs_transverse_frame`]), which keeps [`FrameError::NoArm`]
-/// VERBATIM for a pose not definitely off the axis. Coaxiality is placement data (an
-/// axis, a centre), so the scalar-field channel read at
-/// `germ_section_frame` cannot carry it; its carrier is the axis-shaped
-/// identity channel (`docs/AXIS-DECLARATION-DESIGN.md`), unbuilt. A
-/// coaxiality declaration enters HERE, and the `Declared` path below is
-/// what it reaches.
+/// than a convenience.** The coaxial section is two circles of the
+/// cylinder's radius, centred at `c ± axis·station` on the cylinder's
+/// own axis — the SAME axis for both. The facing test this frame feeds
+/// asks only for the rotational sense `axis·((p−c)×dir)`, and sliding
+/// `c` along `axis` changes `p−c` by a multiple of `axis`, which the
+/// triple product annihilates. So the sense a germ gets is identical
+/// whichever of the two stations (or the sphere centre between them)
+/// is handed over, and the pair needs neither a second frame nor a
+/// pinch door. This is exactly where the cylinder PAIR differs: its
+/// crossing ellipses lie in two DIFFERENT bisector planes with two
+/// different axes, and no single frame is right for both — hence
+/// [`FrameError::IntersectingCylinderAxes`] there and nothing like it
+/// here.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn cs_pair_frame<T: Decide>(
     cyl: &geom::Surface<T>,
     sph: &geom::Surface<T>,
-    evidence: geom_brep::CoaxialEvidence,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    match geom_brep::cylinder_sphere_section(cyl, sph, evidence, band) {
-        Ok(geom_brep::CylinderSphereSection::TwoCircles { center, axis, .. }) => {
+    match geom_brep::cylinder_sphere_section(cyl, sph, band) {
+        Ok((geom_brep::CylinderSphereSection::TwoCircles { center, axis, .. }, _)) => {
             Ok(Some((center, axis)))
         }
         // A tangent circle / empty gap under a minted germ is a
@@ -2882,19 +2828,20 @@ pub(super) fn cs_pair_frame<T: Decide>(
         // The tangency is classification data at BOTH doors: the
         // marcher's own `ssi_cs_tangency` refuses the same pose toward
         // C7, and nothing here re-adjudicates it.
-        Ok(
+        Ok((
             geom_brep::CylinderSphereSection::TangentCircle { .. }
             | geom_brep::CylinderSphereSection::Empty,
-        ) => Err(FrameError::Desync(
+            _,
+        )) => Err(FrameError::Desync(
             "germ pair's cylinder×sphere section is not a locus",
         )),
         Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
         Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
             Err(FrameError::RadiusEscalated { radius, diag })
         }
-        // The undeclared / non-coaxial pose. NOT a desync: nothing is
-        // contradicted, the pair simply has no exact arm at this door
-        // and marches one rung down.
+        // The non-coaxial pose. NOT a desync: nothing is contradicted,
+        // the pair simply has no exact arm at this door and marches one
+        // rung down.
         Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => Err(FrameError::NoArm),
         Err(_) => Err(FrameError::Desync(
             "germ pair's section refused at match time",
@@ -3946,7 +3893,7 @@ mod frame_dispatch_tests {
             ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
         ] {
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-            let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, span, band());
+            let got = pair_section_frame(a, b, at, span, band());
             assert!(
                 matches!(got, Ok(None)),
                 "({label}): the tangent ruling's frame, got {:?}",
@@ -3981,7 +3928,7 @@ mod frame_dispatch_tests {
             ("c2, c1", &c2, &c1, wall(1.0), wall(1.0)),
         ] {
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-            let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, span, band());
+            let got = pair_section_frame(a, b, at, span, band());
             assert!(
                 matches!(
                     got,
@@ -4035,8 +3982,7 @@ mod frame_dispatch_tests {
                 ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
             ] {
                 let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-                let got =
-                    pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, span, band());
+                let got = pair_section_frame(a, b, at, span, band());
                 assert!(
                     matches!(got, Ok(None)),
                     "stored {along} m along ({label}): the tangent ruling's frame, got {:?}",
@@ -4103,14 +4049,7 @@ mod frame_dispatch_tests {
             };
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
             let extent = super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
-            let got = super::pair_section_frame_at(
-                a,
-                b,
-                geom_brep::RadiusEvidence::None,
-                at,
-                extent,
-                band(),
-            );
+            let got = super::pair_section_frame_at(a, b, at, extent, band());
             (label, got)
         })
         .collect()
@@ -4396,7 +4335,6 @@ mod frame_dispatch_tests {
                 &mut body,
                 frame,
                 crate::test_support_fixtures::CylKey::OnSeed,
-                None,
                 (0.0, du),
                 (0.0, h),
                 Tol::witness(),
@@ -4488,7 +4426,6 @@ mod frame_dispatch_tests {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(r),
-            None,
             (0.0, w / r),
             (0.0, e),
             Tol::witness(),
@@ -4596,14 +4533,7 @@ mod frame_dispatch_tests {
                 ("plane, coin", &plane, &coin),
                 ("coin, plane", &coin, &plane),
             ] {
-                let got = pair_section_frame(
-                    a,
-                    b,
-                    geom_brep::RadiusEvidence::None,
-                    coin_face,
-                    None,
-                    band(),
-                );
+                let got = pair_section_frame(a, b, coin_face, None, band());
                 assert!(
                     matches!(
                         got,
@@ -4620,15 +4550,12 @@ mod frame_dispatch_tests {
     }
 
     /// **An operand's radius guard escalates as the radius's own
-    /// decision, on a real raise**: the declared-coaxial cylinder ×
-    /// sphere arm reads each radius before any pose, and a cylinder
+    /// decision, on a real raise**: the cylinder × sphere arm reads
+    /// each radius before any pose, and a cylinder
     /// whose radius lies in the band escalates there. The germ frame's
     /// refusal names whose radius, its lever and the tolerance the
     /// radius gives, and offers no declaration: no face pair names an
-    /// operand's own size. The raise enters at `cs_pair_frame` with
-    /// `CoaxialEvidence::Declared`, which no public door passes today,
-    /// so this row pins the routing a caller of that evidence will
-    /// reach, not a path a Boolean reaches now.
+    /// operand's own size.
     #[test]
     fn a_radius_guard_escalates_as_the_radius_decision() {
         use crate::boolean::{BooleanDecision, BooleanError, SectionRadius};
@@ -4642,7 +4569,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, b) else {
+        let Err(e) = cs_pair_frame(&cyl, &sph, b) else {
             panic!("an in-band cylinder radius refuses the frame");
         };
         let face = FaceKey::default();
@@ -4693,6 +4620,17 @@ mod frame_dispatch_tests {
         geom::Surface::Sphere {
             center: Point3::new(0.0, 0.0, 0.0),
             radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// A sphere touching [`cylinder`]'s unit wall from outside its
+    /// axis at one azimuth (`R = r + d`), the transverse frame's node.
+    fn node_sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.5, 0.0, 0.0),
+            radius: 1.5,
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -4761,20 +4699,17 @@ mod frame_dispatch_tests {
                 cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
                 true,
             ),
-            // Cylinder × sphere, both orders. This pose is EXACTLY
-            // coaxial (`sphere()` sits on `cylinder()`'s axis) and its
-            // walls cross, so it is the pair's declared-arm pose — and
-            // it still refuses, because the declaration channel does
-            // not exist and coaxiality is never inferred from the
-            // measured distance. `NoArm` is the routing, not a
-            // frontier: the general rung marches this pair. The pinch
+            // Cylinder × sphere, both orders, at the figure-eight's
+            // node: the walls touch at one azimuth, so neither the
+            // coaxial frame nor the transverse one exists. `NoArm` is
+            // the routing, not a frontier: the general rung marches
+            // this pair. The pinch
             // variant stays unreachable — pinned exactly.
-            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere(), false),
-            (sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
+            (cylinder(Vec3::new(0.0, 0.0, 1.0)), node_sphere(), false),
+            (node_sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
         for (a, b, cylinder_pair) in curved_pairs {
-            let got =
-                pair_section_frame(&a, &b, geom_brep::RadiusEvidence::None, at(), None, band());
+            let got = pair_section_frame(&a, &b, at(), None, band());
             if cylinder_pair {
                 assert!(
                     matches!(
@@ -4809,7 +4744,6 @@ mod frame_dispatch_tests {
             let meeting = pair_section_frame(
                 &cylinder(z),
                 &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r),
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -4826,7 +4760,6 @@ mod frame_dispatch_tests {
             let skew = pair_section_frame(
                 &cylinder(z),
                 &cylinder_at(Point3::new(0.0, 0.5, 0.0), x, r),
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -4843,7 +4776,6 @@ mod frame_dispatch_tests {
                 pair_section_frame(
                     &cylinder(z),
                     &cylinder_at(Point3::new(1.3, 0.0, 0.0), z, 0.4),
-                    geom_brep::RadiusEvidence::None,
                     at(),
                     None,
                     band()
@@ -4854,72 +4786,39 @@ mod frame_dispatch_tests {
         );
     }
 
-    /// **The intersecting-axes cylinder pair routes on the
-    /// parameter-identity channel, and on nothing else.**
+    /// **The intersecting-axes cylinder pair carries the radius
+    /// equality its margin decides.**
     ///
     /// The frontier is the same either way — no conic frame exists for
     /// a pair of crossing walls — but WHICH shape the locus has is a
-    /// radius-equality question, and the refusal now carries the
-    /// channel's answer instead of leaving it open. `Declared` reaches
-    /// the equal-radius closed form (`cylinder_cylinder_section`), which
-    /// verifies the declaration against the geometry and classifies the
-    /// ellipse pair; `None` reaches nothing and routes the general rung
-    /// with the question unanswered, which is the permanent fallback
-    /// for imported and hand-built geometry.
-    ///
-    /// The radii are IDENTICAL in both rows: the only difference is the
-    /// evidence, which is exactly the claim.
+    /// radius-equality question, and the refusal carries the margin's
+    /// answer: equal radii reach the closed form
+    /// (`cylinder_cylinder_section`), which classifies the ellipse
+    /// pair; definitely unequal radii are the general rung's space
+    /// quartic.
     #[test]
-    fn the_intersecting_axes_pair_routes_on_declared_evidence() {
+    fn the_intersecting_axes_pair_carries_its_decided_radius_equality() {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
-        let pair = || (cylinder(z), cylinder_at(Point3::new(0.0, 0.0, 0.0), x, 1.0));
-        for evidence in [
-            geom_brep::RadiusEvidence::None,
-            geom_brep::RadiusEvidence::Declared,
-        ] {
-            let (a, b) = pair();
-            let got = pair_section_frame(&a, &b, evidence, at(), None, band());
+        for (radius, equal) in [(1.0, true), (0.4, false)] {
+            let got = pair_section_frame(
+                &cylinder(z),
+                &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, radius),
+                at(),
+                None,
+                band(),
+            );
             match got {
-                Err(FrameError::IntersectingCylinderAxes { evidence: carried }) => assert_eq!(
-                    carried, evidence,
-                    "the refusal must carry the evidence it was reached under"
+                Err(FrameError::IntersectingCylinderAxes { equal_radii }) => assert_eq!(
+                    equal_radii, equal,
+                    "radius {radius}: the refusal carries the decided equality"
                 ),
                 ref other => panic!(
-                    "{evidence:?}: expected the pinch door, got {}",
+                    "radius {radius}: expected the pinch door, got {}",
                     outcome(other)
                 ),
             }
         }
-    }
-
-    /// **A declared equality the geometry contradicts is a desync, not a
-    /// quiet fall back to the undeclared arm.**
-    ///
-    /// Two carriers whose radius fields carry the same lowered source
-    /// cannot hold different values — one expression evaluates to one
-    /// number (D9) — so this configuration is a document-layer bug, and
-    /// the dispatch says so rather than silently routing the general
-    /// rung as if nothing had been declared. It is also the row that
-    /// proves the closed form is genuinely REACHED on the declared
-    /// side: only a call into the section table can notice this.
-    #[test]
-    fn a_declared_equality_the_geometry_contradicts_is_a_desync() {
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let got = pair_section_frame(
-            &cylinder(z),
-            &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, 0.4),
-            geom_brep::RadiusEvidence::Declared,
-            at(),
-            None,
-            band(),
-        );
-        assert!(
-            matches!(got, Err(FrameError::Desync(_))),
-            "a contradicted declaration must be loud, got {}",
-            outcome(&got)
-        );
     }
 
     /// **The pinch is a property of the whole intersecting
@@ -4936,7 +4835,7 @@ mod frame_dispatch_tests {
     /// [`BooleanError::GermFrameCylinderPinch`]'s doc is checkable.
     #[test]
     fn the_equal_radius_section_always_crosses_at_two_pinch_points() {
-        use geom_brep::{EqualCylinderSection, RadiusEvidence, cylinder_cylinder_section};
+        use geom_brep::{EqualCylinderSection, cylinder_cylinder_section};
         let p = Point3::new(0.3, -0.2, 0.7);
         let a1 = Vec3::new(0.0, 0.0, 1.0);
         for deg in [20.0_f64, 45.0, 90.0, 130.0] {
@@ -4958,7 +4857,6 @@ mod frame_dispatch_tests {
             let sec = cylinder_cylinder_section(
                 &c1,
                 &c2,
-                RadiusEvidence::Declared,
                 &geom_brep::Reach::Measured {
                     at: at(),
                     lever: 1.0,
@@ -5008,14 +4906,7 @@ mod frame_dispatch_tests {
     fn the_wired_pairs_keep_their_verdicts() {
         assert!(
             matches!(
-                pair_section_frame(
-                    &plane(),
-                    &plane(),
-                    geom_brep::RadiusEvidence::None,
-                    at(),
-                    None,
-                    band()
-                ),
+                pair_section_frame(&plane(), &plane(), at(), None, band()),
                 Ok(None)
             ),
             "plane×plane is straight by construction"
@@ -5027,7 +4918,6 @@ mod frame_dispatch_tests {
                 pair_section_frame(
                     &plane(),
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
-                    geom_brep::RadiusEvidence::None,
                     at(),
                     None,
                     band()
@@ -5043,7 +4933,6 @@ mod frame_dispatch_tests {
                 pair_section_frame(
                     &plane(),
                     &cylinder(Vec3::new(1.0, 0.0, 0.0)),
-                    geom_brep::RadiusEvidence::None,
                     at(),
                     None,
                     band()
@@ -5054,14 +4943,7 @@ mod frame_dispatch_tests {
         );
         assert!(
             matches!(
-                pair_section_frame(
-                    &plane(),
-                    &sphere(),
-                    geom_brep::RadiusEvidence::None,
-                    at(),
-                    None,
-                    band()
-                ),
+                pair_section_frame(&plane(), &sphere(), at(), None, band()),
                 Ok(Some(_))
             ),
             "plane×sphere names its circle frame"
@@ -5074,7 +4956,6 @@ mod frame_dispatch_tests {
                 pair_section_frame(
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
-                    geom_brep::RadiusEvidence::None,
                     at(),
                     None,
                     band()
@@ -5106,7 +4987,6 @@ mod frame_dispatch_tests {
             let got = pair_section_frame(
                 &ball(Point3::new(0.0, 0.0, 0.0), 2.0, a_axis),
                 &ball(Point3::new(2.5, 0.0, 0.0), 2.0, b_axis),
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -5128,7 +5008,6 @@ mod frame_dispatch_tests {
             let got = pair_section_frame(
                 &ball(Point3::new(0.0, 0.0, 0.0), 2.0, z),
                 &b,
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -5230,10 +5109,10 @@ mod frame_dispatch_tests {
                 twin(&ball(Point3::new(0.0, 0.0, 0.0), 2.0)),
             ),
         ] {
-            let got = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band());
+            let got = cs_pair_frame(&cyl, &sph, band());
             let Ok(Some((c, axis))) = got else {
                 panic!(
-                    "{label}: the declared coaxial pose must name a frame, got {}",
+                    "{label}: the coaxial pose must name a frame, got {}",
                     outcome(&got)
                 );
             };
@@ -5270,14 +5149,12 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The declaration is the whole gate.** The SAME exactly-coaxial
-    /// pose answers with a frame under `Declared` and refuses `NoArm`
-    /// under `None` — the never-infer rule, at this door. `NoArm` here
-    /// is a routing (the general rung marches the pair), never a
-    /// desync, and the dispatch's own arm passes `None` today because
-    /// it is keyed on KINDS and has nowhere to read a ladder.
+    /// **The coaxial frame is decided by its margin, at every door.**
+    /// An exactly coaxial pose, and its re-posed twin, answer the
+    /// coaxial frame through [`cs_pair_frame`] and through the kind
+    /// dispatch in both operand orders.
     #[test]
-    fn the_coaxial_frame_needs_the_declaration_and_never_infers_it() {
+    fn the_coaxial_frame_is_decided_by_its_margin() {
         for (label, cyl, sph) in [
             (
                 "direct",
@@ -5291,56 +5168,30 @@ mod frame_dispatch_tests {
             ),
         ] {
             assert!(
+                matches!(cs_pair_frame(&cyl, &sph, band()), Ok(Some(_))),
+                "{label}: the pair door"
+            );
+            assert!(
                 matches!(
-                    cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band()),
+                    pair_section_frame(&cyl, &sph, at(), None, band()),
                     Ok(Some(_))
-                ),
-                "{label}: declared"
-            );
-            assert!(
-                matches!(
-                    cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::None, band()),
-                    Err(FrameError::NoArm)
-                ),
-                "{label}: undeclared"
-            );
-            // And that is what the kind dispatch itself does today, in
-            // both operand orders.
-            assert!(
-                matches!(
-                    pair_section_frame(
-                        &cyl,
-                        &sph,
-                        geom_brep::RadiusEvidence::None,
-                        at(),
-                        None,
-                        band()
-                    ),
-                    Err(FrameError::NoArm)
                 ),
                 "{label}: dispatch, cylinder first"
             );
             assert!(
                 matches!(
-                    pair_section_frame(
-                        &sph,
-                        &cyl,
-                        geom_brep::RadiusEvidence::None,
-                        at(),
-                        None,
-                        band()
-                    ),
-                    Err(FrameError::NoArm)
+                    pair_section_frame(&sph, &cyl, at(), None, band()),
+                    Ok(Some(_))
                 ),
                 "{label}: dispatch, sphere first"
             );
         }
     }
 
-    /// A germ was minted from a crossing, so a section that is a
-    /// TANGENCY, an empty gap, or a contradicted declaration is a
-    /// lockstep failure — loud, typed, and never `None`. Each is a
-    /// distinct cause and each gets the desync door, exactly as the
+    /// A germ was minted from a crossing, so a coaxial section that is
+    /// a TANGENCY or an empty gap is a lockstep failure — loud, typed,
+    /// and never `None`. Each is a distinct cause and each gets the
+    /// desync door, exactly as the
     /// two sphere arms above treat their non-locus outcomes.
     #[test]
     fn a_cylinder_sphere_pose_that_is_not_a_locus_is_a_desync() {
@@ -5350,15 +5201,12 @@ mod frame_dispatch_tests {
             ("tangent", ball(Point3::new(0.0, 0.0, 0.0), 1.0)),
             // R < r: the sphere never reaches the wall.
             ("empty", ball(Point3::new(0.0, 0.0, 0.0), 0.5)),
-            // Declared coaxial, definitely off the axis: the
-            // declaration is verified and contradicted.
-            ("off-axis", ball(Point3::new(0.4, 0.0, 0.0), 2.0)),
         ] {
             for (label, cyl, s) in [
                 ("direct", cylinder(z), sph.clone()),
                 ("re-posed twin", twin(&cylinder(z)), twin(&sph)),
             ] {
-                let got = cs_pair_frame(&cyl, &s, geom_brep::CoaxialEvidence::Declared, band());
+                let got = cs_pair_frame(&cyl, &s, band());
                 assert!(
                     matches!(got, Err(FrameError::Desync(_))),
                     "{row} / {label}: expected a desync, got {}",
@@ -5368,7 +5216,7 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// An ill-conditioned declared pair escalates through this door
+    /// An ill-conditioned coaxial pair escalates through this door
     /// rather than picking a branch — the same plumbing the sphere
     /// arms use, on this arm.
     #[test]
@@ -5387,7 +5235,7 @@ mod frame_dispatch_tests {
                 twin(&ball(Point3::new(0.0, 0.0, 0.0), 1.0 + 3.0 * eps)),
             ),
         ] {
-            let got = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band());
+            let got = cs_pair_frame(&cyl, &sph, band());
             // The PREDICATE is pinned, not merely the variant: the
             // section arm this door forwards from has four numeric
             // rows, every one of which escalates through
@@ -5493,7 +5341,6 @@ mod frame_dispatch_interval_tests {
             let got = pair_section_frame(
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(p3(0.0, 0.0, 0.0), r),
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -5522,7 +5369,6 @@ mod frame_dispatch_interval_tests {
             let got = pair_section_frame(
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(p3(0.0, 0.375, 0.0), r),
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -5541,7 +5387,6 @@ mod frame_dispatch_interval_tests {
             let got = pair_section_frame(
                 &about_z(p3(0.0, 0.0, 0.0), 1.0),
                 &about_x(along, 1.0),
-                geom_brep::RadiusEvidence::None,
                 at(),
                 None,
                 band(),
@@ -5564,7 +5409,6 @@ mod frame_dispatch_interval_tests {
                 pair_section_frame(
                     &about_z(p3(0.0, 0.0, 0.0), 1.0),
                     &about_z(p3(1.25, 0.0, 0.0), 0.5),
-                    geom_brep::RadiusEvidence::None,
                     at(),
                     None,
                     band()
@@ -5729,25 +5573,11 @@ mod transverse_cs_frame_rows {
             for (order, got) in [
                 (
                     "cylinder first",
-                    pair_section_frame(
-                        &cyl,
-                        &sph,
-                        geom_brep::RadiusEvidence::None,
-                        at(),
-                        None,
-                        band(),
-                    ),
+                    pair_section_frame(&cyl, &sph, at(), None, band()),
                 ),
                 (
                     "sphere first",
-                    pair_section_frame(
-                        &sph,
-                        &cyl,
-                        geom_brep::RadiusEvidence::None,
-                        at(),
-                        None,
-                        band(),
-                    ),
+                    pair_section_frame(&sph, &cyl, at(), None, band()),
                 ),
             ] {
                 let Ok(Some((c, axis))) = got else {
@@ -5791,14 +5621,7 @@ mod transverse_cs_frame_rows {
     fn the_loop_count_picks_the_frame() {
         for (label, pose) in poses() {
             let (cyl, sph) = pose.surfaces();
-            let Ok(Some((c, axis))) = pair_section_frame(
-                &cyl,
-                &sph,
-                geom_brep::RadiusEvidence::None,
-                at(),
-                None,
-                band(),
-            ) else {
+            let Ok(Some((c, axis))) = pair_section_frame(&cyl, &sph, at(), None, band()) else {
                 panic!("{label}: a frame");
             };
             let two = pose.big > pose.r + pose.d;
@@ -5819,18 +5642,24 @@ mod transverse_cs_frame_rows {
         }
     }
 
-    /// **The poses with no frame keep `NoArm`; an undecided reach
-    /// escalates.** The walls touching at `θ = π` (`R = r + d`, the
-    /// figure-eight's node) and a coaxial pose, decided or in the band,
-    /// keep the dispatch's `NoArm`; a reach margin in the band escalates
-    /// under `bool_germ_frame_cs_reach`.
+    /// **The tangent pose keeps `NoArm`; the coaxial pose is the
+    /// coaxial frame; an undecided offset or reach escalates.** The
+    /// walls touching at `θ = π` (`R = r + d`, the figure-eight's node)
+    /// keep the dispatch's `NoArm`; a coaxial pose its margin decides
+    /// answers the coaxial frame ([`cs_pair_frame`]); an offset from
+    /// the axis in the band escalates under `cs_coaxial`, and a reach
+    /// margin in the band under `bool_germ_frame_cs_reach`.
     #[test]
-    fn a_tangency_or_a_coaxial_pose_keeps_no_arm() {
+    fn a_tangency_keeps_no_arm_and_a_coaxial_pose_is_decided() {
         let eps = Tol::witness().get().eps;
         for (label, pose, want) in [
             ("node", Pose::at(0.5, 0.25, 0.75), "NoArm"),
-            ("coaxial", Pose::at(0.5, 0.0, 0.75), "NoArm"),
-            ("offset in band", Pose::at(0.5, 4.0 * eps, 0.75), "NoArm"),
+            ("coaxial", Pose::at(0.5, 0.0, 0.75), "a frame"),
+            (
+                "offset in band",
+                Pose::at(0.5, 4.0 * eps, 0.75),
+                "cs_coaxial",
+            ),
             (
                 "reach in band",
                 Pose::at(0.5, 0.25, 0.75 + 4.0 * eps),
@@ -5838,16 +5667,10 @@ mod transverse_cs_frame_rows {
             ),
         ] {
             let (cyl, sph) = pose.surfaces();
-            let got = pair_section_frame(
-                &cyl,
-                &sph,
-                geom_brep::RadiusEvidence::None,
-                at(),
-                None,
-                band(),
-            );
+            let got = pair_section_frame(&cyl, &sph, at(), None, band());
             let read = match got {
                 Err(FrameError::NoArm) => "NoArm",
+                Ok(Some(_)) => "a frame",
                 Err(FrameError::Escalated(diag)) => diag.predicate.unwrap_or("unnamed"),
                 _ => "another answer",
             };

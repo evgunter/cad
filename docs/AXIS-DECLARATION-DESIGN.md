@@ -1,5 +1,11 @@
 # Axis-flavoured declarations — a design question
 
+**D10 retired this channel** (Booleans glue on Zero; `docs/DESIGN.md`):
+coaxiality is one `Axis` read twice, or a margin decided Zero and
+recorded, and its proof is the `unproven-coincidence` lint's rung over
+`PoseForm` (`docs/INTENT-STAGE4-SPEC.md` §1). The text below is the
+conversation that ratified the channel, kept for its reasoning.
+
 **STATUS: RATIFIED (Ev, 2026-09-12, PR 2404).** Opened by WIRE the same
 day. The ruling is in §"Round 3" at the foot; the rounds above are the
 conversation that produced it and are kept because the reasoning is the

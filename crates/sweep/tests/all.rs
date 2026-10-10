@@ -59,6 +59,8 @@ mod revolve_common;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
+#[path = "a_plane_moved_to_a_cone_apex.rs"]
+mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -304,6 +306,8 @@ mod blend_operand_gate;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "blend_value_decided_rows.rs"]
+mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]
@@ -591,8 +595,6 @@ mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
-#[path = "seat6_germ_channel.rs"]
-mod seat6_germ_channel;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]

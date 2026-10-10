@@ -14,10 +14,10 @@
 //! The letters meet where a person drawing them would make them meet:
 //! the T's stem spans exactly the H's bar band (y ∈ [1.25, 1.75]), and
 //! every letter's box is the block's, so their outer walls share
-//! carriers. Coincidence is intent, so those contacts are DECLARED
+//! carriers. Those contacts are DECLARED
 //! ([`crate::booleans::try_intersect_declared`]); the same operands
-//! undeclared refuse typed at the coincidence door, and the scene
-//! narrates that refusal before it builds.
+//! undeclared glue the same contacts on their decided zero (D10), and
+//! the scene checks the two are one solid before it builds.
 //!
 //! The 3-way is built `C ∩ (H × T)`. The other operand order refuses
 //! `JoinDesync` on the same declared contacts — a live wall probe in
@@ -29,7 +29,7 @@
 use pncad::document::ExtrudeSide;
 use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError};
+use pncad::topo::{AtRestBody, Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_intersect, try_intersect_declared};
 use crate::scalar::Scalar;
@@ -135,25 +135,29 @@ const V_2WAY: f64 = 4.25;
 /// — 11/4.
 const V_3WAY: f64 = 2.75;
 
-/// Builds the 2-way and 3-way results, narrating the undeclared
-/// refusal first; also hands back the C prism the 3-way consumed.
+/// Builds the 2-way and 3-way results, checking first that the
+/// undeclared H x T is the declared one; also hands back the C prism
+/// the 3-way consumed.
 pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>, AtRestBody<S>) {
     let (h, t, c) = (h_prism::<S>(tol), t_prism::<S>(tol), c_prism::<S>(tol));
-    match try_intersect(&h, &t, tol) {
-        Err(e @ BooleanError::UndeclaredCoincidence { .. }) => println!(
-            "   H x T UNDECLARED refuses typed at the coincidence door ({:?}): \
-             value-equality never glues; the scene declares its contacts",
-            e.kind()
-        ),
-        other => panic!(
-            "the undeclared flush H x T must refuse UndeclaredCoincidence, got {:?}",
-            other.map(|_| "a result")
-        ),
-    }
+    let undeclared = expect_seamed(
+        "undeclared H x T intersect",
+        check(try_intersect(&h, &t, tol), V_2WAY, tol),
+        V_2WAY,
+    );
+    println!(
+        "   H x T UNDECLARED glues its flush contacts on their decided zero (D10): \
+         the same solid as the declared scene"
+    );
     let two = expect_seamed(
         "declared H x T intersect",
         check(try_intersect_declared(&h, &t, tol), V_2WAY, tol),
         V_2WAY,
+    );
+    assert_eq!(
+        format!("{:?}", undeclared.body),
+        format!("{:?}", two.body),
+        "declared and undeclared H x T are one body"
     );
     let three = expect_seamed(
         "declared C x (H x T) intersect",
@@ -260,7 +264,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             note: Some(format!(
                 "volume {V_2WAY} = 17/4 (gated 1e-9); the T's stem spans exactly the H's \
                  bar band and both letters fill one block, so the contacts are declared — \
-                 undeclared, the same operands refuse UndeclaredCoincidence"
+                 undeclared, the same operands glue them alike"
             )),
             view: View {
                 elev: 24.0,

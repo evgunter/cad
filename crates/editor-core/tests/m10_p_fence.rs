@@ -108,6 +108,26 @@
 //! `measured_web`'s row and no other, and the id-masked geometry fence
 //! below did not move: no body's point moved anywhere.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN AN ASSERTION'S `dir` BECAME
+//! `relation`** (INTENT stage 5 PR A), through `measured_web` only.
+//! The mint preimage is the stored node, so the renamed field moved the
+//! assertion's id and every id the mint chain draws after it (the
+//! placement's). No outcome or point moved: `lib_g16_corpus_name_digests`
+//! moved `measured_web`'s row alone, the id-masked geometry fence held,
+//! and the assertion's verdict, dumped at `f64` and at `Interval` on main
+//! and on the branch, was the same text.
+//!
+//! **ALL THREE NUMBERS MOVED WHEN A SELECTION BECAME A VARIABLE**
+//! (INTENT stage 2 PR E), through the seven documents that blend,
+//! shell, frame on a face or measure. Each such node now reads a
+//! selection variable its insert mints, so its id moved, and every id
+//! minted after it in the document. `lib_g16_corpus_name_digests`
+//! moved those seven rows and no other, and the id-masked geometry
+//! fence below did not move: no outcome flipped and no body's point
+//! moved anywhere. Merged with stage 5 A's `relation`, the numbers were
+//! re-taken once more; only `measured_web`'s rows moved, where both
+//! changes meet.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -329,11 +349,9 @@
 //!   `0cf7de91f6a41015, eb2817baa67d6be1` — the committed constants
 //!   of the tree it landed on, and all three rows came back GREEN
 //!   against them, the probe row executed. That removal is also the
-//!   receipt for two changes the unit made on the path every other
+//!   receipt for a change the unit made on the path every other
 //!   document walks: `wire_split` stamping both halves in one source
-//!   index space, and the same-source debug assertions reading a
-//!   channel-less scalar as no evidence — neither moved a coordinate
-//!   of any pre-existing document. `lib_g16_corpus_name_digests`
+//!   index space moved no coordinate of any pre-existing document. `lib_g16_corpus_name_digests`
 //!   agrees the finer way — every pre-existing per-document row
 //!   unchanged, one row added.
 //!
@@ -814,7 +832,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
+        (0xe249_c5dc_c8b7_22c4, 0x6f44_2203_4d09_c4b8),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -840,7 +858,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xee4f_5451_968a_f210, 0x5d4d_eba3_ca25_5ccc),
+        (0x9750_02a2_5c09_bc1c, 0xa8b9_b31e_324f_6d98),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -864,7 +882,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
+        (0xe249_c5dc_c8b7_22c4, 0x6f44_2203_4d09_c4b8),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -14,12 +14,12 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula,
-    Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
-    NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, SplitHalf, Step,
-    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    Alignment, AssertionRelation, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass,
+    ContentPin, Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath,
+    Formula, Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -620,8 +620,10 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
             v: [scl(0.0), scl(1.0), scl(0.0)],
         },
         Datum::FaceFrame {
-            at: nid(0).into(),
-            face: fixture::fname(nid(0), RoleSeg::Cap(CapEnd::Start)),
+            face: editor_core::Operand::select(
+                nid(0),
+                vec![fixture::fname(nid(0), RoleSeg::Cap(CapEnd::Start))],
+            ),
             spin: ang(0.0),
         },
     ]
@@ -680,19 +682,16 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             v_degree: Formula::count(1),
         },
         Node::Fillet {
-            target: nid(1).into(),
             radius: len(0.1),
-            selection: Vec::new(),
+            selection: editor_core::Operand::select(nid(1), Vec::new()),
         },
         Node::Chamfer {
-            target: nid(1).into(),
             distance: len(0.1),
-            selection: Vec::new(),
+            selection: editor_core::Operand::select(nid(1), Vec::new()),
         },
         Node::Shell {
-            target: nid(1).into(),
             thickness: len(0.1),
-            open: Vec::new(),
+            open: editor_core::Operand::select(nid(1), Vec::new()),
         },
         Node::Split {
             target: nid(1).into(),
@@ -849,14 +848,14 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {
-                a: fixture::cap_ref(nid(1), editor_core::CapEnd::Start),
-                b: fixture::cap_ref(nid(1), editor_core::CapEnd::End),
+                a: fixture::cap_ref(nid(1), editor_core::CapEnd::Start).into(),
+                b: fixture::cap_ref(nid(1), editor_core::CapEnd::End).into(),
             },
         },
         Node::Assertion {
             value: len(1.0),
             bound: len(1.0),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     ]);
     nodes

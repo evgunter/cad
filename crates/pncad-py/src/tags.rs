@@ -156,7 +156,6 @@ use pncad::select::{
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
-use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
     BooleanErrorKind, CensusContact, CensusSubject, EntityId, JoinRefusal, RingContact,
@@ -562,13 +561,16 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Axis => "axis",
         S::Frame => "frame",
         S::Target => "target",
+        S::Selection => "selection",
+        S::Open => "open",
+        S::Face => "face",
+        S::Measured(..) => "measured",
         S::Tool => "tool",
         S::A => "a",
         S::B => "b",
         S::Member(_) => "member",
         S::Input => "input",
         S::Of => "of",
-        S::At => "at",
         S::Body => "body",
     }
 }
@@ -589,8 +591,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // through `Node.union` and `DocEdit.set_members` — the node
         // whose members are a list and the edit that rewrites one.
         EditError::DuplicateInput { .. } => "duplicate_input",
-        EditError::RepeatedDesignation { .. } => "repeated_designation",
-        EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
+        EditError::SelectionShape { .. } => "selection_shape",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
         EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
@@ -608,7 +609,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::DefinesNothing { .. } => "defines_nothing",
         EditError::PartHalfPort { .. } => "part_half_port",
         EditError::ReadsWorldCopy { .. } => "reads_world_copy",
-        EditError::MeasuresWorldCopy { .. } => "measures_world_copy",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -950,15 +950,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Loft => "loft",
         C::CurvedSolidFrontier => "curved_solid_frontier",
         C::MissingInput => "missing_input",
-        C::MeasureRefResolve => "measure_ref_resolve",
         C::MeasureRefUnreadable => "measure_ref_unreadable",
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        // Its own tag rather than `measure_unsupported`'s: the
-        // recourse is "select a body or a face", not "this carrier
-        // pair has no closed form".
-        C::MeasureSelectionKind => "measure_selection_kind",
         // And its own again: the clearance engine refused, so the
         // recourse is the engine's — a wider budget, an admitted
         // carrier — and not the measurement vocabulary's.
@@ -984,9 +979,10 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
-        // A measure's site was deleted: the delete reported the names
-        // it stranded.
-        C::UnresolvedSite => "unresolved_site",
+        // A selection a node reads: a name the ladder refused, or one
+        // denoting another entity kind than the selection's.
+        C::SelectResolve => "select_resolve",
+        C::SelectKind => "select_kind",
         C::EmptyOperand => "empty_operand",
         C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
@@ -1011,38 +1007,21 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
-        C::ParamSourceAttach => "param_source_attach",
         C::DeclareResolve => "declare_resolve",
         C::DeclareUnsupportedPair => "declare_unsupported_pair",
+        C::DeclaredContactUnbacked => "declared_contact_unbacked",
         C::DeclareSiteNotAnOperand => "declare_site_not_an_operand",
-        // The refusal MENU: the boolean's
-        // undeclared-contact refusal carrying the candidate
-        // declaration; the `finding` payload crosses as a typed
-        // attribute beside this tag.
-        C::UndeclaredCoincidence => "undeclared_coincidence",
-        // The same refusal with no declare arm: the contact is
-        // against a row the union's own fold minted, which no sited
-        // declaration names.
-        C::UndeclarableContact => "undeclarable_contact",
-        C::FilletSelectionResolve => "fillet_selection_resolve",
-        C::ChamferSelectionResolve => "chamfer_selection_resolve",
-        C::FilletSelectionKind => "fillet_selection_kind",
-        C::ChamferSelectionKind => "chamfer_selection_kind",
+        C::UnionFoldStep => "union_fold_step",
         C::FilletSelectionEmpty => "fillet_selection_empty",
         C::ChamferSelectionEmpty => "chamfer_selection_empty",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
-        // are prose in the message), the two open-list refusals in the
-        // `chamfer_selection_*` spelling, and the lane refusal.
+        // are prose in the message), and the lane refusal.
         C::Shell => "shell",
-        C::ShellOpenResolve => "shell_open_resolve",
-        C::ShellOpenKind => "shell_open_kind",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
-        // The derived sketch frame's refusals (DOCM-1): the fillet's
-        // ladder and kind refusals, one carrier-kind refusal, one
-        // read-back refusal, and the section refusal DM1c adds.
-        C::FaceFrameResolve => "face_frame_resolve",
-        C::FaceFrameKind => "face_frame_kind",
+        // The derived sketch frame's refusals (DOCM-1): one
+        // carrier-kind refusal, one read-back refusal, and the section
+        // refusal DM1c adds.
         C::FaceFrameNotPlanar => "face_frame_not_planar",
         C::FaceFrameReadback => "face_frame_readback",
         C::DerivedFrameSection => "derived_frame_section",
@@ -1178,7 +1157,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
-        NodeErrorKind::UnresolvedSite { .. } => None,
+        NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
+        NodeErrorKind::SelectKind { .. } => None,
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
@@ -1207,25 +1187,15 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
-        NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
         NodeErrorKind::DeclareResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
-        // The candidate declaration crosses whole, as the `finding`
-        // attribute; the refusing predicate's diagnostic is a margin.
-        NodeErrorKind::UndeclaredCoincidence { .. } => None,
-        // The row it names crosses in the message; there is no inner
-        // refusal to delegate to.
-        NodeErrorKind::UndeclarableContact { .. } => None,
-        NodeErrorKind::BlendSelectionResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::BlendSelectionKind { .. } => None,
+        NodeErrorKind::DeclaredContactUnbacked { .. } => None,
+        // The step's own refusal crosses in the message.
+        NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
-        NodeErrorKind::ShellOpenResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::ShellOpenKind { .. } => None,
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
-        NodeErrorKind::FaceFrameResolve { error } => Some(resolve_error_tag(error)),
-        NodeErrorKind::FaceFrameKind { .. } => None,
         NodeErrorKind::FaceFrameNotPlanar { .. } => None,
         NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
         NodeErrorKind::DerivedFrameSection { .. } => None,
@@ -1238,7 +1208,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The placement's own refusal is a whole `NodeErrorKind`: its
         // word is the arm, as for `PlacementAxis`.
         NodeErrorKind::PlacementRefused { error, .. } => Some(node_error_tag(error.kind().class())),
-        NodeErrorKind::MeasureRefResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Some(interrogate_error_tag(error)),
         NodeErrorKind::MeasureNonFinite { source } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureNotParallel { .. } => None,
@@ -1247,7 +1216,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
-        NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
         // mints, not a discriminant this crate can match; it is already
         // the whole of the message.
@@ -1281,8 +1249,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
         EditError::DuplicateInput { .. } => None,
-        EditError::RepeatedDesignation { .. } => None,
-        EditError::SelectionNotCanonical { .. } => None,
+        EditError::SelectionShape { fault, .. } => Some(selection_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
         EditError::SetDeclareOnNonDeclaring { .. } => None,
         EditError::DeclaredSiteNotAnOperand { .. } => None,
@@ -1297,7 +1264,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DefinesNothing { .. } => None,
         EditError::PartHalfPort { .. } => None,
         EditError::ReadsWorldCopy { .. } => None,
-        EditError::MeasuresWorldCopy { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -1631,13 +1597,6 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
 /// with no arm behind it is a phantom, and the fix is to delete it
 /// kernel-side; minting a tag for one would publish an FFI name no
 /// refusal can ever carry.
-///
-/// `undeclared_coincidence` is here and is ALSO the node kind the
-/// detect/declare protocol raises: the document layer lifts the kernel
-/// refusal to its own `undeclared_coincidence` node kind with the
-/// candidate declaration attached, and this arm (an `inner_kind`) is
-/// what survives when a key fails to resolve to a name. One
-/// coincidence, one word, two attributes.
 pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
     match kind {
         BooleanErrorKind::Band => "band",
@@ -1661,7 +1620,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
-        BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
@@ -1814,15 +1772,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
-    }
-}
-
-/// The stable tag for a lowered parameter-identity attach refusal —
-/// the inner arm of [`NodeErrorKind::ParamSourceAttach`].
-pub fn param_attach_error_tag(err: &ParamAttachError) -> &'static str {
-    match err {
-        ParamAttachError::StaleKey => "stale_key",
-        ParamAttachError::FieldNotOnKind { .. } => "field_not_on_kind",
     }
 }
 
@@ -2046,7 +1995,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
         SnapshotError::PartHalfPort { .. } => "part_half_port",
         SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
-        SnapshotError::MeasuresWorldCopy { .. } => "measures_world_copy",
+        SnapshotError::SelectionShape { .. } => "selection_shape",
+        SnapshotError::SelectionBody { .. } => "selection_body",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
@@ -3024,6 +2974,10 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::EqualAngles => "equal_angles",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
+        R::TangentContact { seam: false } => "tangent_contact",
+        R::TangentContact { seam: true } => "seam",
+        R::Coaxial => "coaxial",
+        R::CoRuled => "co_ruled",
     }
 }
 
@@ -3034,8 +2988,15 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
     match site {
         S::PlaneLadder => "plane_ladder",
         S::CarrierLadder => "carrier_ladder",
+        S::TangentWitness => "tangent_witness",
+        S::CoaxialSphere => "coaxial_sphere",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
+        S::BatteryJoint => "battery_joint",
+        S::BatterySupportAxis => "battery_support_axis",
+        S::VertexFusion => "vertex_fusion",
+        S::CensusAtRest => "census_at_rest",
+        S::ImportAnchor => "import_anchor",
         S::ProfileJunction => "profile_junction",
     }
 }
@@ -3425,6 +3386,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
+        Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::LabelDropped { .. } => "label_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
@@ -3476,5 +3438,19 @@ pub fn step_handle_refusal_tag(refusal: &StepHandleRefusal) -> &'static str {
 pub fn interface_crossing_tag(crossing: &InterfaceCrossing) -> &'static str {
     match crossing {
         InterfaceCrossing::Mate { .. } => "mate",
+    }
+}
+
+/// **A selection's shape fault, as Python spells it** — the inner word
+/// of `selection_shape`.
+pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static str {
+    use pncad::document::SelectionFault as F;
+    match fault {
+        F::NotASelection { .. } => "not_a_selection",
+        F::Seat { .. } => "seat",
+        F::Singleton { .. } => "singleton",
+        F::NotCanonical { .. } => "not_canonical",
+        F::Repeated { .. } => "repeated",
+        F::OtherBody => "other_body",
     }
 }

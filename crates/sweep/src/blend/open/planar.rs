@@ -35,9 +35,7 @@ use std::collections::btree_map::Entry;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::intersect::{
-    EqualCylinderSection, RadiusEvidence, SectionError, cylinder_cylinder_section,
-};
+use geom_brep::intersect::{EqualCylinderSection, SectionError, cylinder_cylinder_section};
 use geom_brep::{EdgeCurveSpec, Reach};
 use geom_core::{Band, Bounds, Decide, Point3, Real, Tol, Vec3};
 use topo::{
@@ -433,11 +431,10 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide>(
             };
             let [l1, l2] = [links[0].link(), links[1].link()];
             // The two radii are the one request's radius: equal by
-            // construction, so the evidence is structural.
+            // construction, so the table's radius margin decides Zero.
             let section = cylinder_cylinder_section(
                 &cylinder(l1, turn.out[0])?,
                 &cylinder(l2, turn.out[1])?,
-                RadiusEvidence::Declared,
                 &Reach::Measured {
                     at: p,
                     lever: l1.arm_len.max(l2.arm_len),

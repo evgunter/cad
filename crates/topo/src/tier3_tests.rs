@@ -2103,11 +2103,14 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
         Ok(())
     );
     let mut records = crate::boolean::ContactRecords::default();
-    records.curves.push(crate::boolean::CurveContact {
-        face_a: p.face_side[0],
-        face_b: p.face_side[2],
-        witness: kiss_edge(&p),
-    });
+    records.curves.push(crate::Cited::new(
+        crate::boolean::CurveContact {
+            face_a: p.face_side[0],
+            face_b: p.face_side[2],
+            witness: kiss_edge(&p),
+        },
+        crate::Cites::decided(0),
+    ));
     assert_eq!(
         crate::validate::validate_pseudomanifold(&p.body, &records, tol),
         Ok(())

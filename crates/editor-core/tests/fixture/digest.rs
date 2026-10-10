@@ -1,4 +1,4 @@
-//! **The provenance-extended evaluation digest** — the ONE home of the
+//! **The evaluation digest** — the ONE home of the
 //! feed every verb-migration suite pins its documents with
 //! (`seat4_verb_lowering`, `seat7_sweep_lowering`,
 //! `seat8_split_lowering`). The constants stay per suite; the feed
@@ -10,17 +10,17 @@
 //!
 //! Not "everything observable": the channels the migrated lowerings can
 //! move, enumerated off their own bodies. `wire_blend` writes exactly
-//! four things — the name table the emitter returns, the body the
-//! kernel verb returns, the provenance stamp `stamp_minted` applies to
-//! that body, and (on the refusal path) a typed error. `wire_swept`
-//! writes the same four. `wire_boolean` writes the first three plus the
+//! three things — the name table the emitter returns, the body the
+//! kernel verb returns, and (on the refusal path) a typed error.
+//! `wire_swept` writes the same three. `wire_boolean` writes the first
+//! two plus the
 //! boolean VALUE's other halves — the result classification, the
 //! surviving declared contacts, and the typed empty success — fed by
 //! the `Boolean` arm, each with a pinned input on which it actually
 //! VARIES (the contacts through `kiss_carry`, the empty token through
 //! the disjoint intersect; both were measured fed-but-dead before those
 //! inputs existed). `wire_split` writes the name table and TWO sides,
-//! each stamped in one index space, fed by the `Split` arm: each side
+//! fed by the `Split` arm: each side
 //! under its ROLE token — so a lowering that swapped the halves moves
 //! the digest even where every arena is bit-identical — and an EMPTY
 //! side as its own token, pinned live by an input that produces it.
@@ -30,11 +30,6 @@
 //! digest, so a change that only altered which `NodeErrorKind` came
 //! back would pass it.
 //!
-//! **What it deliberately does NOT feed: the per-field parameter
-//! sources.** They are SEAT-6's channel, pinned in their own rows
-//! through the kernel's evidence door; feeding them here would make the
-//! sweeps' differential against their merge base impossible to state.
-//!
 //! # Why each half of the body feed is load-bearing, measured
 //!
 //! - **Point bits alone are not enough.** A unit cube filleted at
@@ -42,16 +37,10 @@
 //!   twenty-four vertex positions to the bit, differing only in whether
 //!   the faces between them are cylinders and spheres or planes. A
 //!   points-only digest gave the two documents ONE identical number.
-//! - **Carriers alone are not enough either.** With face carriers only,
-//!   `stamp_minted` — the line that gives every description a blend
-//!   mints its `GeomSource` — could be DELETED from `wire_blend` with
-//!   the whole editor-core suite green. So the three provenance source
-//!   tables are fed, and so are the edge curve carriers.
+//! - **Face carriers alone are not enough either**: the edge curve
+//!   carriers are fed beside them.
 //!
-//! Deleting a lowering's stamp reds its suite's rows; that is the
-//! red-first evidence each suite records for its own constants.
-//!
-//! Geometry and provenance enter through `Debug`, whose `f64` rendering
+//! Geometry enters through `Debug`, whose `f64` rendering
 //! is the shortest round-tripping decimal: a bijection with the bits
 //! for every finite value, `-0.0` included. Nothing rendered from a
 //! classification band enters, so the constants are eps-independent.
@@ -117,23 +106,22 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
     h
 }
 
-/// The body half of [`digest`]: points with their provenance stamps,
-/// the curve and surface arenas with theirs, the topology's attachment
-/// both ways, and the entity census.
+/// The body half of [`digest`]: points, the curve and surface arenas,
+/// the topology's attachment both ways, and the entity census.
 pub fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
-    // Points: bits, then the provenance stamp on the same key.
+    // Points: their keys and bits.
     for (key, p) in body.points() {
         for c in p.to_array() {
             feed(&c.to_bits().to_be_bytes());
         }
-        feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
+        feed(format!("{key:?}").as_bytes());
     }
-    // Curves and surfaces: the arenas themselves plus their stamps.
+    // Curves and surfaces: the arenas themselves.
     for (key, curve) in body.curves() {
-        feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
+        feed(format!("{key:?}{curve:?}").as_bytes());
     }
     for (key, surface) in body.surfaces() {
-        feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
+        feed(format!("{key:?}{surface:?}").as_bytes());
     }
     // The topology's attachment to that geometry, both ways: a face's
     // carrier and an edge's curve. A re-plumbing that kept every arena

@@ -11,15 +11,17 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
+use geom_brep::recourse::Reading;
 use geom_brep::{
     AnalyticRung3Refusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
     SsiLimb, SurfaceKey, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
-use geom_core::{Band, FileCoincidence, Interval, Point3, Real, Vec3};
+use geom_core::{Band, FileCoincidence, Interval, KERNEL_LIMIT_RECOURSE, Point3, Real, Vec3};
 use slotmap::SlotMap;
 
 use crate::shared::tol::band;
+use geom_core::test_support::upper;
 
 /// The unit quarter circle in `z = 0`, as `n` rational quadratic
 /// sub-arcs joined at double knots `j/n`, each sub-arc's middle control
@@ -107,14 +109,14 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     )
 }
 
-/// The import door's words on a definite miss of the kernel's fit that
-/// lies within the file's `eps_in`.
+/// The import door's words on a certified bound on the miss that lies
+/// within the file's `eps_in`.
 fn in_file_words(eps_in: f64) -> String {
     format!(
-        "This miss lies beyond the tolerance and within the file's declared coincidence \
-         distance ε_in = {eps_in:e} m, and may be the kernel's own approximation. Recourse: \
-         re-export the file more precisely, or, as a stopgap, set the tolerance to ε_in = \
-         {eps_in:e} m; this refusal may indicate a kernel bug worth reporting"
+        "The certificate's bound on this miss lies within the file's declared coincidence \
+         distance ε_in = {eps_in:e} m. Recourse: re-export the file more \
+         precisely, or, as a stopgap, set the tolerance to ε_in = {eps_in:e} m; this refusal \
+         may indicate a kernel bug worth reporting"
     )
 }
 
@@ -149,27 +151,38 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
                 limb: SsiLimb::HullSup,
-                value,
+                margin,
                 ..
-            }) if *value >= off
+            }) if upper(*margin) >= off
         )
     };
     let at_f64 = certify(&carrier, plane(), cylinder_z(), true).map(|_| ());
     assert!(at_f64.as_ref().is_err_and(plane_limb), "f64: {at_f64:?}");
     let at_iv = certify(&lift(&carrier), plane(), cylinder_z(), true).map(|_| ());
     assert!(at_iv.as_ref().is_err_and(plane_limb), "Interval: {at_iv:?}");
-    // The import door reads the miss the limb carries: an ε_in past it
-    // holds the miss, so the sentence says it lies within, not that it
-    // may.
+    // The limb refuses on a certified bound on the miss, not the miss:
+    // at rest that is the certificate's limit, and the import door names
+    // the bound where ε_in holds it and reads the limit where it does not.
     for refused in [&at_f64, &at_iv] {
-        let Err(e @ CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb { value, .. })) =
+        let Err(e @ CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb { margin, .. })) =
             refused
         else {
             panic!("the plane limb refused above: {refused:?}")
         };
+        let value = upper(*margin);
+        assert_eq!(
+            e.ending(Reading::AtRest).as_deref(),
+            Some(KERNEL_LIMIT_RECOURSE),
+            "{e:?}"
+        );
         assert_eq!(
             e.ending(FileCoincidence::new(2.0 * value)),
             Some(in_file_words(2.0 * value)),
+            "{e:?}"
+        );
+        assert_eq!(
+            e.ending(FileCoincidence::new(0.5 * value)).as_deref(),
+            Some(KERNEL_LIMIT_RECOURSE),
             "{e:?}"
         );
     }
@@ -375,9 +388,9 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
             past,
             Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                value,
+                margin,
                 ..
-            })) if value >= off
+            })) if upper(margin) >= off
         ),
         "{past:?}"
     );

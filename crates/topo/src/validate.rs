@@ -427,11 +427,14 @@ pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
     }
 }
 
-/// The one classification funnel of this crate (the `geom-brep`
-/// pattern): delegates to the unified recorder funnel
+/// The crate's plain classification door (the `geom-brep` pattern):
+/// delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
 /// for the margin-telemetry recorder, classifies through the
-/// sanctioned [`Decide`] door, and tags any escalation.
+/// sanctioned [`Decide`] door, and tags any escalation. A decision
+/// whose margin is kept (a contact's, recorded as a coincidence) goes
+/// to the same funnel's `decide_reported` or `decide_magnitude_reported`,
+/// which classify and record exactly as this does.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
@@ -1389,8 +1392,8 @@ pub enum ValidationError {
     ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
     ///   the certified-quadrature lane consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a rim-and-ruling cylinder wall, which a boolean
-    ///   pierce leaves in the face it pierces.
+    ///   other than a cone wall or a rim-and-ruling cylinder or torus
+    ///   wall, which a boolean pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -2513,7 +2516,7 @@ const PLANAR_CORNER: Unsized = Unsized::Defect;
 
 /// A flat face's edge on its plane: a residual of a carrier the kernel may
 /// have fitted.
-const PLANAR_BOUNDARY: Unsized = Unsized::LastResort;
+const PLANAR_BOUNDARY: Unsized = Unsized::Fit;
 
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
@@ -2646,6 +2649,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     use geom_brep::AnalyticRung3Refusal as A;
     use geom_brep::PlaneNurbsRefusal as P;
     const MISMATCH: &str = "its stored description does not match its geometry";
+    const BOUND: &str = "the check's certified bound on how far it strays from its faces \
+                         exceeds the tolerance";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     // The lead is this window's own.
     let why = match e {
@@ -2657,9 +2662,28 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             verdict: Refused::Negative { .. },
         }
         | CertifyError::WindingExceeded
-        | CertifyError::ResidualExceeded { .. }
-        | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. })
-        | CertifyError::AnalyticRung3(A::Limb { .. }) => MISMATCH,
+        | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::ResidualExceeded { check, .. } => {
+            if check.bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
+        CertifyError::PlaneNurbs(P::Limb { limb, .. }) => {
+            if limb.check().bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
+        CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
+            if A::check(*limb).bounds_a_miss() {
+                BOUND
+            } else {
+                MISMATCH
+            }
+        }
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"
@@ -2712,8 +2736,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        CertifyError::PlaneNurbs(P::Escalated { limb, .. })
-        | CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::AnalyticRung3(A::Escalated { limb, .. }) => {
+            certify_undecided(A::check(*limb))
+        }
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
@@ -2811,7 +2837,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::MappedSource
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
-        | CertCheck::PlaneNurbsHull => {
+        | CertCheck::PlaneNurbsHull
+        | CertCheck::AnalyticHull => {
             geom_core::undecided!("whether it lies where its description says")
         }
         CertCheck::PlaneNurbsReportedTransversality => {
@@ -15978,12 +16005,46 @@ mod certify_escalation_rows {
                 says(CertifyError::PlaneNurbs(
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::OnLocus,
-                        value: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
+            ),
+            // A certified bound on the miss past the tolerance
+            // contradicts nothing stored: the certificate's limit.
+            (
+                says(CertifyError::ResidualExceeded {
+                    check: CertCheck::TangentHull,
+                    sample: 0,
+                    margin: geom_core::MarginDiag::value(3e-8),
+                }),
+                "the check's certified bound on how far it strays from its faces exceeds the \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
+                    },
+                )),
+                "the check's certified bound on how far it strays from its faces exceeds the \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
+            ),
+            (
+                says(CertifyError::AnalyticRung3(
+                    geom_brep::AnalyticRung3Refusal::Limb {
+                        operand: geom::SurfaceKind::Plane,
+                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
+                    },
+                )),
+                "the check's certified bound on how far it strays from its faces exceeds the \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
             ),
             // A span shorter than the tolerance is a length a user may
             // intend; one of no length is one no construction mints; a

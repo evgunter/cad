@@ -2,8 +2,9 @@
 id: a-computed-value-re-enters-as-a-constant
 kind: issue
 title: Computed values re-enter the symbolic lane as constants (from_f64 laundering); unaudited, and it makes a Sym theorem false
-status: open
+status: dispatched
 opened: 2026-10-08
+branch: intent/from-f64-audit
 ---
 
 The symbolic tier's zero verdicts (ERROR-DESIGN E12) are theorems about

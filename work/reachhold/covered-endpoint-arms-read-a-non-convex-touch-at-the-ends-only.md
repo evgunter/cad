@@ -2,11 +2,10 @@
 id: covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only
 kind: issue
 title: The covered endpoint arms read a torus line or an arc at its ends only, though either can touch twice
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the dual review of PR 3846 (r1 NOTE 3); analysis on that PR's
@@ -59,3 +58,7 @@ torus line or a non-coincident arc.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the arms sit under `if covered` in reduce::curved_face_arm, and the cover is the declared-tangency channel stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not close the gap, and widens its reach. The covered arms are unchanged (`crates/topo/src/boolean/reduce.rs:1630`, `covered`; the circle rung's `Ok(Sign::Zero) if covered` at `:1853`; `(Zero, Zero) if covered` at `:2004`). The cover is now also the glue door's auto-declaration, Zero-decided pairs and witness-verified tangencies, declared or not (`crates/topo/src/boolean/glue.rs:40`). So a covered torus line or arc reaches these arms in undeclared scenes too. The fix's two shapes stand.

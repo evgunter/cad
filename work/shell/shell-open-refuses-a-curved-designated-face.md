@@ -80,8 +80,8 @@ form. The design they converged on, which is now this row's spec basis:
     on a curved face; RESTFRONT's
     `check-9-meeting-arms-silent-off-a-plane-…` holds that.
 - **What stays unreadable is the readers' frontier, not shell's.**
-  - A ringed window on a cylinder bounded by rims and rulings passes
-    props.
+  - A ringed window on a cone, or on a cylinder bounded by rims and
+    rulings, passes props.
   - The mesh refuses it until TESS's
     `a-notched-or-ringed-cylinder-wall-does-not-tessellate` lands.
   - Any other ringed curved window refuses at the closing check 7

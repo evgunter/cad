@@ -8,7 +8,7 @@
 //! `S(u,v) = Σᵢⱼ Nᵢ(u)·Nⱼ(v)·Pᵢⱼ`, every partial is itself a
 //! tensor-product B-spline whose coefficient net comes from knot
 //! differencing per direction (The NURBS Book Eq. 3.24 — exactly
-//! [`geom_core::spline::net::TensorNet::diff_u_knots`], which is
+//! [`geom_core::spline::net::TensorCoeffs::diff_u`], which is
 //! [`geom_core::spline::SplineCoeffs::derivative_coeffs`] iterated across the
 //! net's lines; that iteration is the ONE spelling, here and in every
 //! other tensor consumer). Both
@@ -99,10 +99,10 @@ use std::ops::RangeInclusive;
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, norm_sup};
-use geom_core::spline::algebra::{equal_split_plan, equal_split_points};
+use geom_core::spline::KnotVector;
+use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::tensor::coefficient_norm_sup;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{CurvePlan, KnotVector};
+use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -167,10 +167,13 @@ pub enum PatchBoundError {
     /// valid clamped vector is total, so the description that reached
     /// this is reported rather than repaired.
     RefinementFailed,
-    /// A direction whose once-differenced knot vector failed to
-    /// materialise. Outside the certified inventory: a direction that
-    /// passed the C¹ gate has a valid once-differenced vector, so the
-    /// description that reached this is reported rather than repaired.
+    /// A direction whose differenced knot vector failed to
+    /// materialise. In the patch lanes a valid face reaches this when a
+    /// span only a few ulps wide is cut by the equal-split schedule:
+    /// its split points collide with the span's ends, the refined
+    /// vector carries a knot of full multiplicity, and its
+    /// twice-differenced vector is not clamped. The answer is a typed
+    /// refusal, never a second partial read as zero.
     DerivedKnots,
 }
 
@@ -206,8 +209,8 @@ impl PatchBoundError {
                 geom_core::kernel_defect_ending!()
             ),
             Self::DerivedKnots => concat!(
-                "NURBS face whose derivative could not be formed, which a valid face always \
-                 allows. ",
+                "NURBS face whose derivative could not be formed for bounding (a knot span \
+                 a few ulps wide, cut by the fixed subdivision, reaches this). ",
                 geom_core::kernel_defect_ending!()
             ),
         }
@@ -344,32 +347,24 @@ pub fn patch_cells_refined(
     }
 }
 
-/// The refinement schedule of one direction and the knot vector it
-/// lands on: [`geom_core::spline::algebra::equal_split_plan`], the plan
-/// chain that cuts every nonempty span into `splits` equal pieces,
-/// built from STRUCTURE alone (the homogeneous nets this module refines
-/// are polynomial, so their weights are unit).
-///
-/// One schedule, two arithmetics: this is the same plan the `f64`
-/// surface refinement applies through
-/// [`geom_core::spline::CurvePlan::apply_points`], and interval arithmetic applier
-/// re-derives each insertion ratio from the knots it is made of instead
-/// of widening the plan's `f64` `λ`.
+/// The equal-split refinement of every channel of `nets`
+/// ([`TensorChannels::refine_equal_split`]), IN INTERVAL ARITHMETIC. The
+/// chains are built from structure alone (the homogeneous nets this
+/// module refines are polynomial, so their weights are unit): the same
+/// chain the `f64` surface refinement applies through
+/// [`geom_core::spline::CurvePlan::apply_points`], with interval
+/// arithmetic re-deriving each insertion ratio from the knots it is made
+/// of instead of widening the plan's `f64` `λ`.
 ///
 /// # Errors
 ///
-/// [`PatchBoundError::RefinementFailed`] — insertion into a direction
-/// that already passed the C¹ gate is total, so a refusal here is a
-/// description worth reporting rather than one to repair.
-fn refine_chain(
-    kv: &KnotVector,
+/// [`PatchBoundError::RefinementFailed`] — a refused insertion chain.
+fn refine_split<'s, const C: usize>(
+    nets: &'s TensorChannels<'_, C>,
     splits: usize,
-) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
-    let plans = equal_split_plan(kv, splits).map_err(|_| PatchBoundError::RefinementFailed)?;
-    let refined = plans
-        .last()
-        .map_or_else(|| kv.clone(), |p| p.knots().clone());
-    Ok((refined, plans))
+) -> Result<TensorChannels<'s, C>, PatchBoundError> {
+    nets.refine_equal_split(splits)
+        .map_err(|_| PatchBoundError::RefinementFailed)
 }
 
 /// The C¹ gate per direction: degree 0 refuses; degree 1 must be
@@ -396,18 +391,6 @@ pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
         return Err(PatchBoundError::Crease);
     }
     Ok(())
-}
-
-/// The once-differenced knot vector (drop the outer knot pair, degree
-/// − 1).
-///
-/// # Errors
-///
-/// [`PatchBoundError::DerivedKnots`] when the result is not a valid
-/// clamped vector.
-pub fn derived_knots(kv: &KnotVector) -> Result<KnotVector, PatchBoundError> {
-    let inner = kv.derivative_knot_slice().to_vec();
-    KnotVector::clamped(inner, kv.degree() - 1).map_err(|_| PatchBoundError::DerivedKnots)
 }
 
 /// The interior split points of the fixed rational refinement
@@ -477,16 +460,17 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
     )
 }
 
-/// The three spatial channels of a control net, as enclosure points.
+/// The three spatial channels of a control net, as enclosure points
+/// over the surface's one pair of vectors — the integral arm's nets;
+/// [`rational_cells`] builds the homogeneous ones beside `w`.
 ///
-/// **The SHAPE is shared** with `offset_fit::channel`: both build a
-/// [`Net`], and the flat/nested bridge the two used to need is gone —
-/// [`geom_core::spline::net::TensorNet`] is row-major and hands out
-/// both a flat slice (what `PatchSpans::decompose` consumes) and
-/// indexed windows (what [`window_hull`] reads).
+/// **The SHAPE is shared** with `offset_fit::channel`: both build
+/// [`TensorCoeffs`] against the surface's own knot vectors, which
+/// `PatchSpans::decompose` consumes and whose net [`window_hull`]
+/// reads.
 ///
 /// **The ARITHMETIC still diverges, and that is what is left.** This
-/// one extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
+/// module extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
 /// against a WHOLE-PATCH recentring origin, because its net feeds
 /// polynomial products formed once over the merged break structure,
 /// where interval arithmetic's rounding scales with the coordinate. This site
@@ -506,26 +490,58 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// one — a measurement on `offset_fit`'s numbers, not a refactor. It
 /// is filed rather than assigned here, because a residue whose owner
 /// is the unit that chose to keep it has no owner at all.
-fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
-    let (nu, nv) = n.control_counts();
-    (0..3)
-        .map(|c| {
-            Net::from_fn(nu, nv, |i, j| {
-                // Row-major layout: control[iu·nv + iv] — the net's own.
-                let p = n.control()[i * nv + j];
-                let x = Interval::point(match c {
-                    0 => p.x,
-                    1 => p.y,
-                    _ => p.z,
-                });
-                if weighted {
-                    Interval::point(n.weights()[i * nv + j]) * x
-                } else {
-                    x
-                }
-            })
-        })
-        .collect()
+fn comp_nets(n: &NurbsSurface<f64>) -> TensorChannels<'_, 3> {
+    let nv = n.knots_v().control_count();
+    TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+        // Row-major layout: control[iu·nv + iv] — the net's own.
+        let p = n.control()[i * nv + j];
+        [p.x, p.y, p.z].map(Interval::point)
+    })
+}
+
+/// A second partial along one direction: identically zero (a degree-1
+/// direction, which the C¹ gate admits only as one linear span, so its
+/// refinement's knots are removable), or the twice-differenced net.
+/// There is no third case: a degree ≥ 2 direction whose derived vector
+/// is not clamped is refused when the nets are built, never read as
+/// zero.
+enum Second {
+    Zero,
+    Net(Net),
+}
+
+impl Second {
+    /// The second partial along a direction of degree `degree`, from
+    /// its derivative pair's differenced net (`None` where that pair
+    /// does not exist).
+    ///
+    /// # Errors
+    ///
+    /// [`PatchBoundError::DerivedKnots`] when `degree ≥ 2` and the
+    /// derived vector is not clamped — a multiplicity the C¹ gate never
+    /// saw, which equal-split refinement can raise when its split points
+    /// collide on a span a few ulps wide.
+    fn of(degree: usize, derived: Option<Net>) -> Result<Self, PatchBoundError> {
+        match derived {
+            Some(net) => Ok(Self::Net(net)),
+            None if degree == 1 => Ok(Self::Zero),
+            None => Err(PatchBoundError::DerivedKnots),
+        }
+    }
+
+    /// The hull over a cell: exactly zero for [`Second::Zero`]; for a
+    /// net, `read` over the span's second derived window, which every
+    /// degree ≥ 2 span has — refused, never zero, if it were missing.
+    fn hull(
+        &self,
+        d2: Option<&RangeInclusive<usize>>,
+        read: impl Fn(&Net, &RangeInclusive<usize>) -> Interval,
+    ) -> Interval {
+        match self {
+            Self::Zero => Interval::zero(),
+            Self::Net(net) => d2.map_or_else(Interval::refused, |w| read(net, w)),
+        }
+    }
 }
 
 /// The five per-direction derivative nets one channel needs.
@@ -533,30 +549,28 @@ struct DNets {
     d10: Net,
     d01: Net,
     d11: Net,
-    d20: Option<Net>,
-    d02: Option<Net>,
+    d20: Second,
+    d02: Second,
 }
 
 impl DNets {
-    fn build(
-        base: &Net,
-        kv_u: &KnotVector,
-        kv_v: &KnotVector,
-        kv_u1: Option<&KnotVector>,
-        kv_v1: Option<&KnotVector>,
-    ) -> Self {
-        let d10 = base.diff_u_knots(kv_u);
-        let d01 = base.diff_v_knots(kv_v);
-        let d11 = d10.diff_v_knots(kv_v);
-        let d20 = kv_u1.map(|k1| d10.diff_u_knots(k1));
-        let d02 = kv_v1.map(|k1| d01.diff_v_knots(k1));
-        Self {
-            d10,
-            d01,
-            d11,
-            d20,
-            d02,
-        }
+    /// # Errors
+    ///
+    /// As [`Second::of`].
+    fn build(base: &TensorCoeffs<'_>) -> Result<Self, PatchBoundError> {
+        Ok(Self {
+            d10: base.diff_u(),
+            d01: base.diff_v(),
+            d11: base.diff_uv(),
+            d20: Second::of(
+                base.knots_u().degree(),
+                base.derivative_u().map(|t| t.diff_u()),
+            )?,
+            d02: Second::of(
+                base.knots_v().degree(),
+                base.derivative_v().map(|t| t.diff_v()),
+            )?,
+        })
     }
 }
 
@@ -610,12 +624,12 @@ fn window_norm_sup(nets: [&Net; 3], wu: &RangeInclusive<usize>, wv: &RangeInclus
 /// assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    integral_cells_on(&comp_nets(n, false), n.knots_u(), n.knots_v())
+    integral_cells_on(&comp_nets(n))
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
 /// equal pieces, IN INTERVAL ARITHMETIC: an integral net's weights are unit, so the
-/// net is already homogeneous and [`refine_chain`]'s schedule applies to
+/// net is already homogeneous and [`refine_split`]'s schedule applies to
 /// it directly. The cells therefore enclose the described patch, where an
 /// `f64` refinement would have them enclose the refined-`f64` one.
 ///
@@ -626,13 +640,7 @@ fn integral_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
-    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
-    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
-    let nets: Vec<Net> = comp_nets(n, false)
-        .iter()
-        .map(|net| net.refine_u(&plans_u).refine_v(&plans_v))
-        .collect();
-    integral_cells_on(&nets, &kv_u, &kv_v)
+    integral_cells_on(&refine_split(&comp_nets(n), splits)?)
 }
 
 /// The integral arm's per-cell assembly over ALREADY-BUILT spatial nets
@@ -642,22 +650,14 @@ fn integral_cells_refined(
 ///
 /// # Errors
 ///
-/// [`PatchBoundError::DerivedKnots`].
-fn integral_cells_on(
-    base_nets: &[Net],
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-) -> Result<Vec<PatchCell>, PatchBoundError> {
-    let kv_u1 = (kv_u.degree() >= 2)
-        .then(|| derived_knots(kv_u))
-        .transpose()?;
-    let kv_v1 = (kv_v.degree() >= 2)
-        .then(|| derived_knots(kv_v))
-        .transpose()?;
-    let nets: Vec<DNets> = base_nets
+/// [`PatchBoundError::DerivedKnots`] ([`Second::of`]).
+fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>, PatchBoundError> {
+    let (kv_u, kv_v) = (base_nets.knots_u(), base_nets.knots_v());
+    let nets = base_nets
+        .channels()
         .iter()
-        .map(|base| DNets::build(base, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
-        .collect();
+        .map(DNets::build)
+        .collect::<Result<Vec<_>, _>>()?;
     let zero = Interval::zero();
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
@@ -684,14 +684,10 @@ fn integral_cells_on(
             for (c, d) in nets.iter().enumerate() {
                 let g20 = d
                     .d20
-                    .as_ref()
-                    .zip(w.u_d2.as_ref())
-                    .map_or(zero, |(net, wu2)| window_hull(net, wu2, &w.v_val));
+                    .hull(w.u_d2.as_ref(), |net, wu2| window_hull(net, wu2, &w.v_val));
                 let g02 = d
                     .d02
-                    .as_ref()
-                    .zip(w.v_d2.as_ref())
-                    .map_or(zero, |(net, wv2)| window_hull(net, &w.u_val, wv2));
+                    .hull(w.v_d2.as_ref(), |net, wv2| window_hull(net, &w.u_val, wv2));
                 let g11 = window_hull(&d.d11, &w.u_d1, &w.v_d1);
                 let g10 = window_hull(&d.d10, &w.u_d1, &w.v_val);
                 let g01 = window_hull(&d.d01, &w.u_val, &w.v_d1);
@@ -741,14 +737,25 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // here would make them enclose the refined-`f64` patch instead, and
     // the described one escapes that by insertion rounding amplified by
     // the knot differencing.
-    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
-    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
-    let (pu, pv) = (kv_u.degree(), kv_v.degree());
-    let (nu0, nv0) = n.control_counts();
-    let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
-    let w_grid = refine(&Net::from_fn(nu0, nv0, |i, j| {
-        Interval::point(n.weights()[i * nv0 + j])
-    }));
+    // One refinement of the four homogeneous channels `w·x, w·y, w·z, w`
+    // over the surface's one pair of vectors.
+    let nv0 = n.knots_v().control_count();
+    let described = TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+        let (p, w) = (
+            n.control()[i * nv0 + j],
+            Interval::point(n.weights()[i * nv0 + j]),
+        );
+        [
+            w * Interval::point(p.x),
+            w * Interval::point(p.y),
+            w * Interval::point(p.z),
+            w,
+        ]
+    });
+    let refined = refine_split(&described, splits)?;
+    let (kv_u, kv_v) = (refined.knots_u(), refined.knots_v());
+    let [ax, ay, az, w_pair] = refined.channels();
+    let w_grid = w_pair.net();
     let (nu, nv) = (w_grid.nu(), w_grid.nv());
     // Positivity survives insertion in ℝ (convex combinations); this
     // code may not assume the ARITHMETIC proved it, so the refined
@@ -768,16 +775,16 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // Second derivatives along a degree-1 direction are EXACTLY zero
     // in ℝ for the polynomial nets A and w (the direction is a single
     // linear span pre-refinement — the C¹ gate — and refinement's
-    // inserted knots are removable), so those nets are `None` and
-    // their terms exact zeros; the CROSS terms stay.
-    let kv_u1 = (pu >= 2).then(|| derived_knots(&kv_u)).transpose()?;
-    let kv_v1 = (pv >= 2).then(|| derived_knots(&kv_v)).transpose()?;
-    let w_nets = DNets::build(&w_grid, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref());
-    let a_base: Vec<Net> = comp_nets(n, true).iter().map(refine).collect();
-    let a_nets: Vec<DNets> = a_base
+    // inserted knots are removable), so those partials are
+    // `Second::Zero` and their terms exact zeros; the CROSS terms
+    // stay. A degree ≥ 2 direction with no derived vector refuses
+    // (`DerivedKnots`) rather than reading zero.
+    let w_nets = DNets::build(&w_pair)?;
+    let a_base = [ax, ay, az];
+    let a_nets = a_base
         .iter()
-        .map(|g| DNets::build(g, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
-        .collect();
+        .map(DNets::build)
+        .collect::<Result<Vec<_>, _>>()?;
     // The refined control points, `P = A / w` per channel, ONCE for the
     // whole net. Each is read by every cell whose window covers it —
     // `(pu + 1)(pv + 1)` cells at the interior, twice over (the centroid
@@ -787,7 +794,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // at the cell's weight hull.
     let p_nets: Vec<Net> = a_base
         .iter()
-        .map(|a| Net::from_fn(nu, nv, |i, j| a.get(i, j) / w_grid.get(i, j)))
+        .map(|a| Net::from_fn(nu, nv, |i, j| a.net().get(i, j) / w_grid.get(i, j)))
         .collect();
     let zero = Interval::zero();
     let two = Interval::point(2.0);
@@ -836,21 +843,17 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 *slot = sum / count;
             }
             // The cell's weight hull — the divisor (module docs).
-            let w_cell = window_hull(&w_grid, &w.u_val, &w.v_val);
+            let w_cell = window_hull(w_grid, &w.u_val, &w.v_val);
             // Weight-net hulls on the cell.
             let w10s = window_hull(&w_nets.d10, &w.u_d1, &w.v_val);
             let w01s = window_hull(&w_nets.d01, &w.u_val, &w.v_d1);
             let w11s = window_hull(&w_nets.d11, &w.u_d1, &w.v_d1);
             let w20s = w_nets
                 .d20
-                .as_ref()
-                .zip(w.u_d2.as_ref())
-                .map_or(zero, |(net, wu2)| window_hull(net, wu2, &w.v_val));
+                .hull(w.u_d2.as_ref(), |net, wu2| window_hull(net, wu2, &w.v_val));
             let w02s = w_nets
                 .d02
-                .as_ref()
-                .zip(w.v_d2.as_ref())
-                .map_or(zero, |(net, wv2)| window_hull(net, &w.u_val, wv2));
+                .hull(w.v_d2.as_ref(), |net, wv2| window_hull(net, &w.u_val, wv2));
             let mut s_u = [zero; 3];
             let mut s_v = [zero; 3];
             let mut s_uu = [zero; 3];
@@ -882,13 +885,23 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 let a10s = at(&a.d10, &w_nets.d10, &w.u_d1, &w.v_val);
                 let a01s = at(&a.d01, &w_nets.d01, &w.u_val, &w.v_d1);
                 let a11s = at(&a.d11, &w_nets.d11, &w.u_d1, &w.v_d1);
-                let a20s = match (a.d20.as_ref(), w_nets.d20.as_ref(), w.u_d2.as_ref()) {
-                    (Some(an), Some(wn), Some(wu2)) => at(an, wn, wu2, &w.v_val),
-                    _ => zero,
+                // `A` and `w` are channels of one pair, so their second
+                // partials are both `Zero` or both nets.
+                let a20s = match (&a.d20, &w_nets.d20) {
+                    (Second::Zero, Second::Zero) => zero,
+                    (Second::Net(an), Second::Net(wn)) => w
+                        .u_d2
+                        .as_ref()
+                        .map_or_else(Interval::refused, |wu2| at(an, wn, wu2, &w.v_val)),
+                    _ => unreachable!("A and w share one pair of vectors"),
                 };
-                let a02s = match (a.d02.as_ref(), w_nets.d02.as_ref(), w.v_d2.as_ref()) {
-                    (Some(an), Some(wn), Some(wv2)) => at(an, wn, &w.u_val, wv2),
-                    _ => zero,
+                let a02s = match (&a.d02, &w_nets.d02) {
+                    (Second::Zero, Second::Zero) => zero,
+                    (Second::Net(an), Second::Net(wn)) => w
+                        .v_d2
+                        .as_ref()
+                        .map_or_else(Interval::refused, |wv2| at(an, wn, &w.u_val, wv2)),
+                    _ => unreachable!("A and w share one pair of vectors"),
                 };
                 // The quotient rule itself, in certification arithmetic, divided by
                 // the whole weight hull.
@@ -901,7 +914,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
             }
             cells.push(cell_from(
-                (span_extent(&kv_u, su), span_extent(&kv_v, sv)),
+                (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
                 [norm_sup(&s_u), norm_sup(&s_v)],
             ));
@@ -998,6 +1011,59 @@ mod tests {
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+
+    /// **Colliding split points do not zero a second partial.**
+    /// Equal-split points collide with each other on a span a few ulps
+    /// wide, so refinement can raise a multiplicity to `p` after the C¹
+    /// gate passed, and the derived vector stops being clamped. That
+    /// must refuse typed or bound the partial — never read it as zero.
+    /// `x = Σ i³·N_i(u)` on a degree-3 `u` with knots `½, ½ + 3 ulp` has
+    /// `S_uu ≠ 0`; both arms (unit and non-unit weights), at two split
+    /// counts.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn colliding_split_points_do_not_zero_the_second_partial() {
+        let (a, b) = (0.5_f64, f64::from_bits(0.5_f64.to_bits() + 3));
+        let ku =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, a, b, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let (x, y) = (i as f64, j as f64);
+                control.push(geom_core::Point3::new(x * x * x, y, 0.0));
+            }
+        }
+        for (arm, w) in [("integral", 1.0), ("rational", 1.5)] {
+            let mut weights = vec![1.0; nu * nv];
+            weights[nv] = w;
+            let n = NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), weights).unwrap();
+            for splits in [8, 12] {
+                match patch_cells_refined(&n, splits) {
+                    // A typed refusal is an honest answer: `DerivedKnots`
+                    // at 8 splits; at 12 the insertion chain itself
+                    // refuses, `RefinementFailed`.
+                    Err(e) => assert_eq!(
+                        e,
+                        if splits == 8 {
+                            PatchBoundError::DerivedKnots
+                        } else {
+                            PatchBoundError::RefinementFailed
+                        },
+                        "{arm} @ {splits}"
+                    ),
+                    Ok(cells) => assert!(
+                        cells.iter().any(|c| c.s_uu[0].hi() > 0.0),
+                        "{arm} @ {splits}: x = Σ i³·N_i(u) has S_uu ≠ 0, but every cell's \
+                         S_uu.x is {:?}",
+                        cells[0].s_uu[0]
+                    ),
+                }
+            }
         }
     }
 }

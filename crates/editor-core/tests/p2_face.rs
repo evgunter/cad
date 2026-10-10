@@ -726,6 +726,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     let (doc, _) = step_with(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: old_head,
             to: in_part(base, new_body, CapEnd::End),
         },
@@ -783,6 +784,7 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     let (doc, _) = step_with(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: low_head,
             to: in_part(high, high_body, CapEnd::End),
         },

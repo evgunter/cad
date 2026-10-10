@@ -195,8 +195,9 @@
 //!
 //! What the wild states that this reader still refuses is named at
 //! the point of refusal: a curved face carrying a genuine interior
-//! ring — `topo` has no volume construction for one, so the body
-//! would not be tier-3 valid — and edges the D7 ladder cannot
+//! ring, which this reader adopts on no curved chart yet — `topo`
+//! measures one on a cone wall and on a cylinder or torus wall bounded
+//! by rims and rulings, and no other — and edges the D7 ladder cannot
 //! certify, the same refusal it has always been. Open CASCADE's
 //! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
@@ -339,9 +340,10 @@ pub enum NormalizationKind {
     /// lateral face stated as its two full-period rim bounds with NO
     /// seam generator between them (Open CASCADE never splits a
     /// periodic face on export). The kernel's face model has one outer
-    /// loop plus rings, and a curved face with a ring has no volume
-    /// construction (`RingOnCurvedFace`), so the band cannot adopt as
-    /// stated. Re-minted as the kernel's own shape for the same locus:
+    /// loop plus rings, and a ring that winds the chart's period is a
+    /// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`),
+    /// so the band cannot adopt as stated. Re-minted as the kernel's
+    /// own shape for the same locus:
     /// ONE single-loop face whose loop walks one rim, the minted seam
     /// generator (the surface's u_ref ruling for a cylinder, its u_ref
     /// meridian arc for a torus), the other rim, and the generator
@@ -657,6 +659,11 @@ pub enum StepImport {
         /// finding is a measurement, and reading it as a verdict is
         /// reading intent into a number.
         coherence: Option<topo::CoherenceReport>,
+        /// **The anchors' decisions**: one row per declared anchor, in
+        /// declaration order, its two vertices decided at one point
+        /// within the file's ε_in ([`topo::DecisionSite::ImportAnchor`]).
+        /// The records the at-rest gate certified cite these.
+        coincidences: Vec<topo::Coincidence>,
     },
     /// The file carried a `GEOMETRIC_CURVE_SET` wireframe and no
     /// solid: the reconstructed carriers, exact. **No body is
@@ -883,14 +890,8 @@ pub fn import_step(
             // per-solid gates above stay tier 3: contact is an
             // aggregate-body fact, and the aggregate census sweeps
             // every entity of every instance.
-            //
-            // The origin channel's import arm (`topo::GeomOrigin`, D7):
-            // every description in the shipped body came out of this
-            // file, and this door is the only one in a position to say
-            // so. After the materialization loop, so it covers every
-            // instance's grafted descriptions.
-            body.mark_imported();
-            let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
+            let (records, coincidences) =
+                resolve_declarations(&body, &options.declared_contacts, eps_in)?;
             let enclosure = gate3(&body, &records, tol)?;
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
@@ -912,6 +913,7 @@ pub fn import_step(
                 curve_promotions: model.curve_promotions.clone(),
                 instances: record,
                 coherence,
+                coincidences,
             })
         }
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
@@ -972,7 +974,8 @@ fn gate3(
 
 /// Resolves the position-anchored import declarations against the
 /// assembled body into the kernel's contact-record currency
-/// ([`ImportContact`] docs). Resolution compares a rounded-f64 sum of
+/// ([`ImportContact`] docs), each record citing the row that records
+/// its anchor's decision. Resolution compares a rounded-f64 sum of
 /// squared coordinate differences against ε_in² — the import's own
 /// input tolerance, because anchors are FILE-side data and resolve at
 /// the file's tolerance, not the kernel band. An anchor with anything
@@ -981,43 +984,59 @@ fn resolve_declarations(
     body: &topo::Body<f64>,
     contacts: &[ImportContact],
     eps_in: f64,
-) -> Result<topo::ContactRecords, StepImportError> {
+) -> Result<(topo::ContactRecords, Vec<topo::Coincidence>), StepImportError> {
     let mut records = topo::ContactRecords::default();
+    let mut rows = Vec::new();
     for c in contacts {
         match *c {
             ImportContact::VertexRest { at } => {
                 let candidates = body.vertex_points();
+                let (pair, row) = vertex_rest_contact(candidates, at, eps_in)?;
+                let k = u32::try_from(rows.len()).unwrap_or(u32::MAX);
+                rows.push(row);
                 records
                     .vv
-                    .push(vertex_rest_contact(candidates, at, eps_in)?);
+                    .push(topo::Cited::new(pair, topo::Cites::decided(k)));
             }
         }
     }
-    Ok(records)
+    Ok((records, rows))
 }
 
 /// One vertex-rest anchor resolved against the body's vertices, each
 /// paired with its position: the exactly-two coincidences within ε_in
-/// of `at`, as the kernel's `VvContact`.
+/// of `at`, as the kernel's `VvContact`, and the row recording the
+/// decision. Its margin is the farther vertex's distance from the
+/// anchor, the comparison against ε_in that bound the pair.
 fn vertex_rest_contact(
     candidates: impl Iterator<Item = (topo::VertexKey, geom_core::Point3<f64>)>,
     at: [f64; 3],
     eps_in: f64,
-) -> Result<topo::VvContact, StepImportError> {
+) -> Result<(topo::VvContact, topo::Coincidence), StepImportError> {
     let mut hits = Vec::new();
     for (vk, p) in candidates {
         let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
         if d2 <= eps_in.powi(2) {
-            hits.push(vk);
+            hits.push((vk, d2));
         }
     }
-    let [a, b] = hits[..] else {
+    let [(a, da), (b, db)] = hits[..] else {
         return Err(StepImportError::DeclarationUnresolved {
             at,
             found: hits.len(),
         });
     };
-    Ok(topo::VvContact { a, b })
+    let cell = |v| topo::RowCell::Result {
+        cell: topo::Cell::Vertex(v),
+    };
+    let row = topo::Coincidence {
+        cells: [cell(a), cell(b)],
+        relation: topo::Relation::OnCarrier,
+        site: topo::DecisionSite::ImportAnchor,
+        margin: geom_core::MarginDiag::value(da.max(db).sqrt()),
+        discharge: topo::Discharge::Numeric,
+    };
+    Ok((topo::VvContact { a, b }, row))
 }
 
 #[cfg(test)]
@@ -1040,12 +1059,13 @@ mod declaration_tests {
     }
 
     /// The resolvable case, end to end through the walk: an anchor on
-    /// two coincident vertices mints their `VvContact`.
+    /// two coincident vertices mints their `VvContact`, citing the row
+    /// that records the anchor's decision.
     #[test]
     fn a_vertex_rest_anchor_resolves_two_coincident_vertices() {
         let body = two_coincident_vertices(Point3::new(1.0, 1.0, 1.0));
         let keys: Vec<_> = body.vertices().map(|(vk, _)| vk).collect();
-        let records = resolve_declarations(
+        let (records, rows) = resolve_declarations(
             &body,
             &[ImportContact::VertexRest {
                 at: [1.0, 1.0, 1.0],
@@ -1058,6 +1078,21 @@ mod declaration_tests {
             [records.vv[0].a, records.vv[0].b],
             [keys[0], keys[1]],
             "the record names the two vertices at the anchor"
+        );
+        assert_eq!(rows.len(), 1, "one anchor, one decision");
+        assert_eq!(rows[0].site, topo::DecisionSite::ImportAnchor);
+        let cell = |v| topo::RowCell::Result {
+            cell: topo::Cell::Vertex(v),
+        };
+        assert_eq!(
+            rows[0].cells,
+            [cell(keys[0]), cell(keys[1])],
+            "the row names the two vertices"
+        );
+        assert_eq!(
+            records.vv[0].cites,
+            topo::Cites::decided(0),
+            "the record cites the anchor's row"
         );
     }
 

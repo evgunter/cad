@@ -1,7 +1,7 @@
 //! **Shared vocabulary for the MATE-5 cylinder suites.**
 //!
 //! What lives here is the one spelling those suites build a sheet
-//! with — a frame, a source and two chart windows, in a body of its
+//! with — a frame and two chart windows, in a body of its
 //! own — and the stand-down: the one judgement the adversarial suites
 //! make in common about a fixture the current ε cannot build. The
 //! builder itself is `topo::test_support`'s; this module adds nothing
@@ -13,32 +13,24 @@ use geom_core::Tol;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{Body, FaceKey};
 
-/// These suites' spelling of the shared door: the frame, the source
-/// and the two chart windows, flat, so a row that turns on how A's
+/// These suites' spelling of the shared door: the frame and the two
+/// chart windows, flat, so a row that turns on how A's
 /// window and B's differ can be read as two adjacent lines. The sheet
 /// is grown into a body of its own, which is returned with it: every
 /// pair these suites declare is two independently authored bodies.
 ///
 /// One spelling, not one per suite: [`try_wall_sheet`] wraps THIS, so
-/// a change to the tolerance or the source convention reaches the
+/// a change to the tolerance reaches the
 /// fallible spelling too.
 pub(crate) fn wall_sheet(
     frame: CylFrame,
-    src_id: u64,
     u0: f64,
     u1: f64,
     v0: f64,
     v1: f64,
 ) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(
-        &mut body,
-        frame,
-        Some(src_id),
-        (u0, u1),
-        (v0, v1),
-        Tol::witness(),
-    );
+    let face = cyl_wall_sheet(&mut body, frame, (u0, u1), (v0, v1), Tol::witness());
     (body, face)
 }
 
@@ -62,11 +54,10 @@ pub(crate) fn wall_sheet(
 /// a suite's to make, not a builder's.
 pub(crate) fn try_wall_sheet(
     frame: CylFrame,
-    src_id: u64,
     u0: f64,
     u1: f64,
     v0: f64,
     v1: f64,
 ) -> Option<(Body<f64>, FaceKey)> {
-    std::panic::catch_unwind(|| wall_sheet(frame, src_id, u0, u1, v0, v1)).ok()
+    std::panic::catch_unwind(|| wall_sheet(frame, u0, u1, v0, v1)).ok()
 }

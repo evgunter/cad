@@ -58,10 +58,10 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// any future one, because no raise of this class can be written
 /// without naming a variant of the enum.
 ///
-/// `kind`, `inner_kind`, `through`, `finding` and `document` are ALWAYS
-/// present on the exception — `None` where the reason has no failing
-/// kind, no arm under that kind, no poisoning ancestor, no refusal-menu
-/// payload, or the node is the evaluated document's own — so
+/// `kind`, `inner_kind`, `through` and `document` are ALWAYS present on
+/// the exception — `None` where the reason has no failing kind, no arm
+/// under that kind, no poisoning ancestor, or the node is the evaluated
+/// document's own — so
 /// stub-guided code can read them without an `AttributeError` trap — a
 /// stub that over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
@@ -80,7 +80,6 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
-            ("finding", py.None().into_any()),
             ("document", py.None().into_any()),
         ],
     )
@@ -137,21 +136,6 @@ pub(crate) fn refused(
         },
         None => py.None().into_any(),
     };
-    // The refusal MENU: an undeclared-contact
-    // refusal carries its candidate declaration as a typed
-    // `FlushFinding` on the exception — the same value shape
-    // `Evaluation.find_flush_candidates` answers with, ready for
-    // `Node.boolean`'s `declare=` or `Doc.declare`. `None` on every
-    // other kind.
-    let finding = match kind {
-        d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
-            match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
-                Ok(bound) => bound.unbind().into_any(),
-                Err(failed) => return failed,
-            }
-        }
-        _ => py.None().into_any(),
-    };
     typed_err(
         py,
         ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed {
@@ -168,7 +152,6 @@ pub(crate) fn refused(
             ),
             ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
-            ("finding", finding),
             ("document", document),
         ],
     )
@@ -267,7 +250,6 @@ fn poisoning(
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
         ("node", node_obj),
         ("through", through_obj),
-        ("finding", py.None().into_any()),
         ("document", py.None().into_any()),
     ];
     // The node never ran, so the standing's sentence is followed by
@@ -897,7 +879,7 @@ impl Measurement {
 ///
 /// `measured` and `bound` are present for a decided verdict and `None`
 /// for an undecided one. Reading a verdict changes nothing: a failing
-/// assertion gates no build and moves no product (E10 v1).
+/// assertion gates no build and moves no product (D10).
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Verdict {
     /// `"Holds"`, `"Violated"` or `"Unevaluated"`.
@@ -2368,6 +2350,8 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
+            // Empty by construction: the options declare no anchor.
+            coincidences: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: enclosure.map(MassProperties::from),
@@ -2696,16 +2680,21 @@ impl Coincidence {
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent` or
-    /// `cusp`. A `profile_junction` row is `tangent` or `cusp` between
-    /// two carriers and `same_oriented` where its pieces continue one.
+    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `split_on`, `battery_turn` or `profile_junction`.
+    /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

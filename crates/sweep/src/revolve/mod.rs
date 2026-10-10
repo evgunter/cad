@@ -82,9 +82,9 @@
 //!
 //! # What a revolve stores (the D2 story, applied)
 //!
-//! Meridian chain edges are `MappedCurve::PlacedSegment` (start chain at
+//! Meridian chain edges are `MappedSource::PlacedSegment` (start chain at
 //! the sketch placement, end chain at the rotated placement); latitude
-//! edges are `MappedCurve::RevolvedPoint`. After all surfaces exist:
+//! edges are `MappedSource::RevolvedPoint`. After all surfaces exist:
 //! wedge-cap meridians upgrade to `Intersection { cap, wall, witness }`,
 //! definitely-transverse latitude rims upgrade to
 //! `Intersection { wall₁, wall₂, witness }` (witness = carrier

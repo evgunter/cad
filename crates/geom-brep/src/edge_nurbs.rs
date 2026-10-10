@@ -25,8 +25,7 @@
 //!   linearized implicit residual at the fixed schedule plus its
 //!   certified composite hull sup over the whole span.
 //! * **on-NURBS residual**: `|C(t) − S(u*, v*)|` at a **certified foot
-//!   point** ([`geom::NurbsSurface::project`], D9-fixed),
-//!   the foot's own orthogonality residuals banded alongside, and the
+//!   point** ([`geom::NurbsSurface::project`], D9-fixed), and the
 //!   between-samples obligation discharged by the tensor-product
 //!   Bernstein composite `sup_t |S(P(t)) − C(t)|` — a whole-curve
 //!   bound, not a sampled max.
@@ -157,17 +156,19 @@ pub enum PlaneNurbsRefusal {
     /// because its recourse is the carrier's parameterization, not a
     /// defect report.
     CarrierDomain(CarrierDomainRefusal),
-    /// A certificate limb exceeded ε, with the measured bound. **The
-    /// declare-and-check refusal**: the file's carrier is not on both
-    /// surfaces to the run's tolerance, and this is by how much.
+    /// A certificate limb exceeded ε, with its number. **The
+    /// declare-and-check refusal**: limb 1 measured the file's carrier
+    /// off its surfaces by this much; limb 2's certified bound on that
+    /// miss is this much, so the certificate cannot show the carrier on
+    /// them.
     Limb {
         /// Which limb refused.
         limb: SsiLimb,
-        /// The measured bound, in meters.
-        value: f64,
-        /// What the classifier saw of the miss, for error reporting only
-        /// ([`MarginDiag`]): it rides [`PlaneNurbsRefusal::decision`]'s
-        /// sign-certain arm to the import door's words on a definite miss.
+        /// What the classifier saw of limb 1's measured miss, or of limb
+        /// 2's bound on it, in metres, for error reporting only
+        /// ([`MarginDiag`]): it rides
+        /// [`PlaneNurbsRefusal::decision`]'s sign-certain arm to the import
+        /// door's words on it.
         margin: MarginDiag,
     },
     /// The uniqueness tube's transversality is not certified clear of
@@ -404,12 +405,21 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
-            Self::Limb { limb, value, .. } => write!(
-                f,
-                "{} measured {value:e} m against the run tolerance — the declared carrier \
-                 is not on both surfaces",
-                limb.name()
-            ),
+            Self::Limb { limb, margin } => match limb {
+                SsiLimb::HullSup => write!(
+                    f,
+                    "{} bounds the declared carrier's distance from both surfaces by {margin:e} \
+                     m, past the run tolerance — the certificate cannot show the carrier is on \
+                     them",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                    f,
+                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
+                     is not on both surfaces",
+                    limb.name()
+                ),
+            },
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
                 "the uniqueness tube's transversality is not certified clear of the zero band \
@@ -676,7 +686,6 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
                     limb: SsiLimb::HullSup,
-                    value: offset.hi(),
                     margin,
                 });
             }
@@ -702,7 +711,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         crate::pcurve_cache::carrier_diameter(&piece),
         band,
         crate::ssi::certify::Limbs::Tube,
-        &mut Vec::new(),
+        &mut crate::ssi::certify::Refused::default(),
     )
     .map(|_| ())
     .map_err(AnalyticRung3Refusal::of_tube)
@@ -793,19 +802,18 @@ fn edge_piece<T: Real>(
     strum_discriminants(name(AnalyticRung3RefusalKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum AnalyticRung3Refusal {
-    /// The carrier's certified distance from an operand exceeds the
-    /// band: it is not on that surface between the schedule's samples,
-    /// by this much.
+    /// The carrier's certified distance bound from an operand exceeds
+    /// the band: the certificate cannot show the carrier on that surface
+    /// between the schedule's samples.
     Limb {
-        /// The operand the carrier is off.
+        /// The operand the bound is from.
         operand: geom::SurfaceKind,
         /// Which limb refused.
         limb: SsiLimb,
-        /// The measured bound, in metres.
-        value: f64,
-        /// What the classifier saw of the miss, for error reporting only
+        /// What the classifier saw of the certified bound, in metres,
+        /// for error reporting only
         /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
-        /// sign-certain arm to the import door's words on a definite miss.
+        /// sign-certain arm to the import door's words on a bound.
         margin: MarginDiag,
     },
     /// A limb's margin escalated.
@@ -899,14 +907,27 @@ impl AnalyticRung3Refusal {
         self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
+    /// The certification check a refusal of `limb` is a refused arm of in
+    /// this certificate: its limb 2 is the carrier's certified distance
+    /// bound from an analytic operand, not the plane × NURBS lane's.
+    #[must_use]
+    pub fn check(limb: SsiLimb) -> CertCheck {
+        match limb {
+            SsiLimb::HullSup => CertCheck::AnalyticHull,
+            SsiLimb::OnLocus | SsiLimb::Tube => limb.check(),
+        }
+    }
+
     /// The decision this refusal is a refused arm of, and which arm.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
             Self::Limb { limb, margin, .. } => {
-                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
+                (Self::check(*limb), RefusedArm::SignCertain(Some(*margin)))
             }
-            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::Escalated { limb, cause, .. } => {
+                (Self::check(*limb), RefusedArm::Undecided(cause))
+            }
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
@@ -923,12 +944,12 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             Self::Limb {
                 operand,
                 limb,
-                value,
-                ..
+                margin,
             } => write!(
                 f,
-                "{} measured {value:e} m from the {} against the run tolerance — the \
-                 carrier leaves that surface between the schedule's samples",
+                "{} bounds the carrier's distance from the {} by {margin:e} m, past the run \
+                 tolerance — the certificate cannot show the carrier stays on that surface \
+                 between the schedule's samples",
                 limb.name(),
                 operand.name()
             ),
@@ -1211,15 +1232,7 @@ fn on_carrier_domain<T: Real>(
 /// The SSI refusal, in this lane's vocabulary.
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
-        SsiError::CertificateLimb {
-            limb,
-            value,
-            margin,
-        } => PlaneNurbsRefusal::Limb {
-            limb,
-            value,
-            margin,
-        },
+        SsiError::CertificateLimb { limb, margin } => PlaneNurbsRefusal::Limb { limb, margin },
         SsiError::TubeStraddles { verdict, boxes } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }

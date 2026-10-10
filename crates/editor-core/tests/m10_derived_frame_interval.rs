@@ -158,8 +158,10 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube.into(),
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -232,8 +234,10 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         },
     ));
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted.into(),
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            lifted,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(

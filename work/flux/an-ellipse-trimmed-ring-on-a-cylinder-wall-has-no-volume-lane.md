@@ -4,6 +4,8 @@ kind: issue
 title: A cylinder wall carrying a ring trimmed by ellipse arcs (a tilted bar through a pipe) has no volume lane: RingOnCurvedFace
 status: open
 opened: 2026-10-02
+priority: P0
+cost: H
 ---
 
 
