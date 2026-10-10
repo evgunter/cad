@@ -245,3 +245,17 @@ pass, which closes its three rows. The lane pushed one empty commit to
 re-trigger CI before it found the merge conflict that was blocking the
 run. That is a rule slip, left in history (merge-only). The plan now
 lists the rows this session's reviews filed. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — the tangent-tolerance fork goes to Ev as a split (PR 4595)
+
+A designer pair weighed `tangent-offset-and-tilt-are-two-epsilon-checks-…`
+(blinding byte 123 on `analysis/design-fork/contacthold-tangent-one-displacement`).
+Both rejected the filed premise (the offsets are perpendicular, √2ε; no
+sum). They crossed three times over rounds 2–4 on whether to add a
+per-sample separation row, and the question beneath both got named: does
+a served `Tangent` claim the pair touching within ε (a relation, like
+`Rest`) or a witness within ε of each surface (like `Intersection`)?
+That stated split is `[ev]` PR 4595 (fork log row 111); the diff carries
+the text-only option's wording. Both found
+`rim_wedge::same_circle`'s three-row rim identity, filed on HONE.
+— (CONTACTHOLD orchestrator)
