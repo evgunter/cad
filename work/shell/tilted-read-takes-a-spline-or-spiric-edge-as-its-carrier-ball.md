@@ -53,6 +53,12 @@ bands. A sample point or a ball the band cannot place counts with the
 reaching side, so the read only ever grows. The ball's offset from the
 line is taken as a vector's norm: the old `|w|² − along²` cancelled to
 about `1e-8` noise.
+A window runs the way its half-edge runs (reversed on a minus
+half-edge). The review of PR 4467 caught the first version seeding
+carrier-ordered windows with the face's own vertex order, which left
+holes in a minus-held arc's cut and read a crossing pair clear. A spline
+piece is read in the smaller of its speed ball and its control net's
+ball.
 
 The item's hypothesis held, and the case was reachable through `shell`.
 The bowl sector (`common::shell_operands::bowl_sector`: an annular
@@ -65,4 +71,7 @@ has no volume yet (`work/flux/spiric-bounded-face-area-is-unimplemented.md`,
 evidence added there). Rows: `a_bowl_sectors_spiric_bounded_end_walls_clear`
 (`verbs_shell`) and `the_tilted_cut_reads_a_spline_on_its_carrier`
 (unit: a parabola's cut within a few bands of `[0, 0.75]`, where its
-ball covered `[−0.32, 2.32]`).
+ball covered `[−0.32, 2.32]`, in both orientations at three lines),
+`the_tilted_cut_reads_a_spiric_on_its_carrier` (both orientations) and
+`a_reversed_spline_wall_crossing_a_rectangle_refuses` (the review's
+end-to-end case, overlap `0.06`).
