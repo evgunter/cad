@@ -2,13 +2,14 @@
 id: topo-keeps-computed-values-in-t
 kind: unit
 title: from_f64 audit, topo: every listed launders site keeps its value in T or enters it through from_computed
-status: review
+status: closed
 opened: 2026-10-10
 priority: P0
 cost: M
 refs: [carriers-compare-in-canonical-form]
 branch: intent/from-f64-topo
 pr: 4585
+closed: 2026-10-10
 ---
 
 
@@ -43,3 +44,7 @@ with the question in their reason: a `MetredRect` is a query cell
 whose corners the driver computes by subdividing the window in `f64`.
 Is a cell a constant of the query, so `constant`, or a function of the
 window, so it re-enters through `from_computed` or stays in `T`?
+
+## Closed
+
+PR 4585. Every topo `launders` site enters through `Real::from_computed`; none could stay in `T`. Each has its own `Sym<f64>` re-valuation pin (`crates/topo/src/revalue_pin.rs`), red on the old spelling. The `chart_bound` cell is a function of the window, so it enters as computed. The `die` `volume_backstop` candidate is not this crate's (planar document, round count identical); it is filed as `die-volume-backstop-launders-a-constant-no-open-row-names`. The review's clamped-foot point is filed as `a-clamped-carrier-foot-is-the-stored-knot`.
