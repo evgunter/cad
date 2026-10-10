@@ -7,7 +7,7 @@
 //!   off it — the mirror of the m5_s12 fixture (there the sphere is the
 //!   cutter). The crossing insertion splits the ball's seam meridians,
 //!   which are `MappedCurve` over `Arc`, so the split rides
-//!   `SketchSegment::restrict`/`eval` end-to-end and re-certifies
+//!   `MappedCurve::restrict`/`eval` end-to-end and re-certifies
 //!   against `carrier_matches_mapped_source`. The row asserts the
 //!   subtraction decides definitely at the certified scalar and that
 //!   the volume enclosure contains the closed form (ball minus a

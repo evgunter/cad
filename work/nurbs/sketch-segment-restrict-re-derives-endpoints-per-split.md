@@ -37,6 +37,25 @@ At the far centre the growth is ~2.3e-13 per split — two ulps of the
 coordinates each time — even for `(0, ½)`, where the parameter
 composition is exact and nothing but the re-derived endpoint moves.
 
+**The line arm is worse: it grows exponentially.** `SketchSegment::Line`
+restricts through `lerp`, which re-derives BOTH stored ends at every
+split from two already-wide ends, so each split multiplies the width
+rather than adding to it. Measured the same way (the chord between the
+arc's ends, `c ± (1, 0)`, exact inputs, widest of `eval` at
+`s = 0, ½, 1`; `(a, 1)` is the chain an intersection hands `restrict`,
+`a = 0.37 … 0.414` varying per split):
+
+| centre | split | 1 | 8 | 32 | 64 |
+|---|---|---|---|---|---|
+| (0, 0) | (0.3, 0.7) | 0 | 1.27e-14 | 1.21e-8 | 1.13 m |
+| (0, 0) | (a, 1) | 0 | 1.01e-13 | 5.59e-6 | 1.2e5 m |
+| (1000, −700) | (0.3, 0.7) | 6.8e-13 | 9.2e-11 | 8.8e-5 | 8.2e3 m |
+| (1000, −700) | (a, 1) | 4.5e-13 | 1.6e-10 | 8.9e-3 | 1.9e8 m |
+| either | (0, ½) | 0 | 0 | 0 | ≤ 2.3e-13 |
+
+The dyadic `(0, ½)` chain stays exact because `lerp(a, b, 0)` returns
+`a` and the halving is exact; every inexact chain explodes.
+
 The parameter form is the candidate fix: an arc keeps its authoritative
 `a` and carrier and carries the sub-range of its sweep (`Arc2`'s sweep
 plus a start offset, or a `SweepRange` of angles about the centre), so

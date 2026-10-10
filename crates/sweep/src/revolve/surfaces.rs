@@ -68,7 +68,7 @@ pub(super) fn wall_surface<T: Real>(
 }
 
 /// A latitude strut/rim spec: the sketch point's trajectory under the
-/// rotation family (`MappedCurve::RevolvedPoint`), carrier the
+/// rotation family (`MappedSource::RevolvedPoint`), carrier the
 /// latitude circle. `axis_c` is the θ-signed carrier axis (forward
 /// interval `(0, |θ|]`; `u_ref` points at the start point `q` — the
 /// carrier-frame convention, distinct from the surfaces' shared `u₃`).

@@ -1,12 +1,12 @@
 //! The swept-point descriptions' anchor and restriction, pinned at the
 //! certified scalar.
 //!
-//! `MappedCurve::RevolvedPoint` evaluates through
+//! A `RevolvedPoint` description evaluates through
 //! `Affine3::rotation_about_axis(axis_origin, axis_dir, range.at(s)·angle)`,
 //! and `restrict` narrows `range`, a sub-range of the whole sweep's
 //! normalized parameter, while the stored placement stays as built. So
 //! the description pays for its rotation once per evaluation and never
-//! per split. `ExtrudedPoint` restricts its `range` the same way.
+//! per split. An `ExtrudedPoint` description restricts the same way.
 //!
 //! The first fixture's `axis_origin` carries width deliberately. Bodies
 //! built in-process hand the constructor exact axis origins; the widths

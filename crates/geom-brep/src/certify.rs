@@ -975,7 +975,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// carrier the line from `p0` to `p1` (arc-length parameters
     /// `0 … |p1 − p0|`), description the honest pushforward — `p0`'s
     /// trajectory under the translation by `p1 − p0`
-    /// ([`crate::MappedCurve::ExtrudedPoint`] with the sketch origin
+    /// ([`crate::MappedSource::ExtrudedPoint`] with the sketch origin
     /// placed at `p0`) — through the scaffolding door (D3).
     ///
     /// By calling this the caller asserts the edge's locus **is** the
@@ -1013,7 +1013,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// verbatim, and the description is the honest pushforward —
     /// the start point's trajectory under the rotation about the
     /// carrier's own axis by the swept angle
-    /// ([`crate::MappedCurve::RevolvedPoint`], the same
+    /// ([`crate::MappedSource::RevolvedPoint`], the same
     /// geometry-derived posture as [`Self::line_between`]'s
     /// `ExtrudedPoint`). This is the conventional description for a
     /// circular locus the adjacent surfaces UNDER-determine (D2's
@@ -1050,7 +1050,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// The straight SCAFFOLDING spec along an existing LINE carrier
     /// between the given parameters: carrier and interval kept verbatim,
     /// description the start point's trajectory under the translation to
-    /// the end ([`crate::MappedCurve::ExtrudedPoint`], as
+    /// the end ([`crate::MappedSource::ExtrudedPoint`], as
     /// [`Self::line_between`] states it). `None` for a non-line carrier.
     pub fn segment_of_line(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
     where
