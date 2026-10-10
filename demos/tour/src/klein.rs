@@ -114,8 +114,8 @@
 //!    longitudinal edges are NURBS carriers, and rung-3 edges are what
 //!    the curved zip MINTS, not what it consumes. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
-//!    Cone, other_kind: Plane }` — the flare against a planar cap of
-//!    the loop, a pair whose boxes MAY meet (box overlap
+//!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
+//!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
 //!    over-approximates; the kernel cannot rule the meeting out, a
 //!    weaker claim than that they do). So the bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
@@ -662,17 +662,19 @@ fn wall3_pinned(e: &BooleanError) -> bool {
     )
 }
 
-/// Wall 4's pinned refusal: the flare's cone against a planar cap of
-/// the loop, at the ∖/∩ revert roster. Both kinds and the op are
-/// pinned, so a pair that changed kind reds. The cone has no arm under
-/// any op, and the roster has no covered rung whatever the pair; it
-/// answers before the edge gate that stops wall 3.
+/// Wall 4's pinned refusal: one of the loop's rational NURBS walls
+/// against a planar face of the bulb, at the ∖/∩ revert roster. Both
+/// kinds and the op are pinned, so a pair that changed kind reds. A
+/// NURBS face has no seam lane under ∖ and ∩, and the roster has no
+/// covered rung whatever the pair; it answers before the edge gate
+/// that stops wall 3.
 fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::CurvedPairUnsupported {
             op: Some(BooleanOp::Subtract),
-            kind: SurfaceKind::Cone,
+            operand: Operand::B,
+            kind: SurfaceKind::Nurbs,
             other_kind: SurfaceKind::Plane,
             ..
         }
@@ -969,8 +971,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
                  and they cannot be joined: union refuses the loop's NURBS edges at the \
-                 operand gate, and subtract refuses the bulb's cone flare against a \
-                 planar cap at the revert roster. The neck passes through the flare \
+                 operand gate, and subtract refuses the loop's NURBS walls against a \
+                 planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
     vec![Stop {
         name: "klein",
@@ -1437,12 +1439,10 @@ mod verbs_gate_r1_probes {
     //!
     //! Wall 4 is doubly out of reach and the second reason is the more
     //! durable one: it is a SUBTRACT, and the revert roster it refuses
-    //! at, on the flare's cone, has no covered rung at all. A
+    //! at, on the loop's NURBS wall, has no covered rung at all. A
     //! declaration supplies the verdict a germ arm would have; it
     //! cannot supply a seam lane to revert through, so declaring the
-    //! cone's pairs would not move wall 4. (The torus is on that roster:
-    //! a declared torus pair passes it, and `mate7a_torus_rest` pins
-    //! where it stops.)
+    //! wall's pairs would not move wall 4.
 
     use super::*;
 
@@ -1468,7 +1468,8 @@ mod verbs_gate_r1_probes {
         println!("klein wall 4: {trimmed:?}");
         assert!(
             wall4_pinned(&trimmed),
-            "wall 4 must name the flare against a planar cap of the loop: {trimmed:?}"
+            "wall 4 must name a NURBS wall of the loop against a planar face of the bulb: \
+             {trimmed:?}"
         );
     }
 }

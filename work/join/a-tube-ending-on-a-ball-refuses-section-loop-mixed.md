@@ -41,3 +41,29 @@ volume above the sphere plus the ball's.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: an undeclared union; Join(SectionLoopMixed) is the join's role resolution on an in-face section loop, which the Zero-glue path keeps. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Built
+
+Branch `join/tube-ending-on-a-ball`, 2026-10-09.
+
+- **The refusal had moved.** On main at `ba5b54d87` the witness no
+  longer reaches role resolution: every op refuses
+  `GermFrameUnsupported { Cylinder, Sphere }` in `partners`, where
+  `germ_section_frame` read an edge's own curve only for a germ along an
+  edge of BOTH solids, and the rim's germs run along the tube's edge
+  inside a ball face.
+- **The fix.** A germ along an edge of either solid takes that edge's
+  curve as its frame; and a segment along a conic edge of one solid,
+  inside a face of the other, whose kind pair has no join arm, takes
+  `GermLane::EdgePlane`: the edge's solid copies its edge
+  (`JoinLane::AlongEdge`), the other solid's face is cut by the edge's
+  plane (`JoinLane::Split`), which meets its carrier in that conic.
+- **Built:** every op in both orders, sound at its closed form (the cap
+  of height `√2 − z0` is the shared volume), at radii 1, 0.3, 0.7,
+  0.99, short and long, the tube's seam on and off the ball's seam
+  meridians, tilted, at every ε row, and at the `Interval` scalar.
+- **Refuses typed:** a rim inside one ball face (∪ and `ball ∖ tube`,
+  `RingOnCurvedFace`); the rim through or near the chart's pole
+  (`CurvedPierceUnsupported`, `ArcNearPole`, in-band escalations); a
+  tube ending on the ball from inside
+  (`a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`).
