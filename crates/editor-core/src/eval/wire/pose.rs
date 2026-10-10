@@ -75,9 +75,7 @@ fn eval_pose_as<T: Decide>(
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let value = match held.def() {
-        VarDef::Output { node, port } => {
-            output(doc, results, slot, admits, *node, *port, env, tol)?
-        }
+        VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
         VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
@@ -93,11 +91,9 @@ fn eval_pose_as<T: Decide>(
 
 /// **An operation's pose output**: a datum's value, or a revolve's
 /// axis, the lift of its 2-D axis line through its profile's plane.
-#[allow(clippy::too_many_arguments)]
 fn output<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
-    slot: OperandSlot,
     admits: crate::SlotKind,
     node: crate::RecipeNodeId,
     port: u8,

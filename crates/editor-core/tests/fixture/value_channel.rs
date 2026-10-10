@@ -213,7 +213,6 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.vec3(f.u().get());
                     d.vec3(f.v().get());
                 }
-                // Tag 24 is retired with the in-plane axis datum.
                 ValuePayload::Datum(PoseValue::Direction { dir }) => {
                     d.u64(26);
                     d.vec3(dir.get());

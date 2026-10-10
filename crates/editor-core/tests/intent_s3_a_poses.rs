@@ -390,3 +390,44 @@ fn a_revolves_axis_lies_in_its_profiles_plane_over_a_box() {
         "{decided:?}"
     );
 }
+
+/// **A construction reads what was written, through a pose too** (D10):
+/// a split's tool defined as a cap's plane moved by a measured length
+/// reads the measure, and the door refuses it as it refuses a slot
+/// reading one — naming the split's tool.
+#[test]
+fn a_pose_moved_by_a_measured_length_is_observed() {
+    let (doc, cube) = unit_box();
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            fixture::cap_ref(cube, CapEnd::Start),
+            fixture::cap_ref(cube, CapEnd::End),
+        ],
+    );
+    let out = fixture::output(&doc, measure);
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    let refused = fixture::insert_refused(
+        &doc,
+        Node::Split {
+            target: Operand::output(cube, 0),
+            tool: pose(PoseDef::Standoff {
+                plane: pose(PoseDef::Plane {
+                    face: select(cube, cap),
+                }),
+                by: Formula::mul(Formula::var(out, Dimension::Length), scl(-0.5)).unwrap(),
+            }),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::ConstructionReadsObserved {
+                slot: editor_core::SlotId::Operand(OperandSlot::Tool),
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+}

@@ -1410,7 +1410,8 @@ impl<P> Doc<P> {
 
     /// **The observed variables** (D10): every [`Node::Measure`]'s
     /// output — a function of the built geometry — and every definition
-    /// reading one, directly or through another definition. Only an
+    /// reading one, directly or through another definition, a pose
+    /// definition's included. Only an
     /// assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
     pub fn observed(&self) -> std::collections::BTreeSet<VarId> {
         let mut observed: std::collections::BTreeSet<VarId> = self
@@ -1423,12 +1424,19 @@ impl<P> Doc<P> {
             return observed;
         }
         for id in self.definition_order() {
-            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+            // A pose definition is a definition too: a standoff by a
+            // measured length is as observed as the length.
+            if !matches!(
+                self.vars.get(&id).map(Var::def),
+                Some(VarDef::Defined(_) | VarDef::Pose(_))
+            ) {
                 continue;
-            };
-            let mut reads = Vec::new();
-            expr.var_reads(&mut reads);
-            if reads.iter().any(|(read, _)| observed.contains(read)) {
+            }
+            if self
+                .definition_reads(id)
+                .iter()
+                .any(|read| observed.contains(read))
+            {
                 observed.insert(id);
             }
         }
@@ -1454,6 +1462,14 @@ impl<P> Doc<P> {
             .into_iter()
             .find(|(_, var)| observed.contains(var))
             .map(|(slot, &var)| (slot, var))
+            .or_else(|| {
+                // An operand reads an observed variable through a pose
+                // definition that reads one.
+                node.operand_rows()
+                    .into_iter()
+                    .find(|(_, var)| observed.contains(var))
+                    .map(|(slot, var)| (crate::SlotId::Operand(slot), var))
+            })
     }
 
     /// **The first construction in this document reading an observed

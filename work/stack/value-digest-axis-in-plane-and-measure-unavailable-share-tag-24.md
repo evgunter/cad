@@ -2,8 +2,9 @@
 id: value-digest-axis-in-plane-and-measure-unavailable-share-tag-24
 kind: issue
 title: The value digest's AxisInPlane and MeasureUnavailable arms both write tag 24
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-10
 priority: P3
 cost: E
 ---
@@ -48,3 +49,11 @@ would turn it red.
 
 Found by RECIPE's follow-up to PR 3902, while putting retired tag 20
 under a guard.
+
+## Closed
+
+INTENT stage 3 A (`poses-are-variables`) retired `Datum::AxisInPlane`
+into `Revolve`'s axis slots, so the arm that wrote 24 is gone: in
+`crates/editor-core/src/stackup.rs` only `MeasureUnavailable` writes 24 now, and a datum's
+`PoseValue::Direction` arm took the free tag 27. Each tag is claimed
+once.
