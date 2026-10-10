@@ -118,6 +118,8 @@ mod coincidence_door;
 mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "dm4_migration_one_shot.rs"]
+mod dm4_migration_one_shot;
 #[path = "dm4_reads_key_booleans.rs"]
 mod dm4_reads_key_booleans;
 #[path = "dm7_delete_strands.rs"]
