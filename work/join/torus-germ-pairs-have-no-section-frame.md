@@ -37,9 +37,11 @@ brick `[−0.4, 0.4]³`; the six placements are rotation 0 then
 | brick × donut, donut × brick | Plane × Torus | 21 (the plane × torus half is GERM's `c5-plane-torus-cone-cylinder-arms`) |
 
 The remaining donut lines escalate (`ArcCylinderRoots`, `PierceCurvature`)
-or stop at `CurvedPierceUnsupported` before the join. Every cone pair
-stops earlier, at the operand gate (`CurvedPairUnsupported`), so no cone
-germ pair reaches the frame.
+or stop at `CurvedPierceUnsupported` before the join. No cone pair was
+in this measurement: it stopped at the operand gate then, and since the
+cone joined the roster (VERBS-CONE U7) a cone germ against a curved face
+is documented to refuse at its frame (`GermFrameUnsupported`; the Cone
+bullet of `BooleanError::CurvedPairUnsupported`'s docs), unmeasured here.
 
 ## What a fix has to supply
 
