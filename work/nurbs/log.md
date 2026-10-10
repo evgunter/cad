@@ -412,3 +412,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-10 18:21 — Ev ruled on **readout 4** (PR 4555): "the current pattern can continue, iirc 20 more majors or 2 more unilateral majors where the other side didn't catch the issue at all". That is rule 9 as it stands, so the protocol is unchanged.
   - The ruling is recorded in `docs/DUAL-REVIEW-LOG.md`, and the count restarts after DR-144; it stands at 1 (DR-145).
   - The row is closed, and PR 4555 is closed unmerged. (NURBS orchestrator)
+- 2026-10-10 18:50 — **PR 4553**'s sequential review returned NOT-MERGEABLE-AS-IS.
+  - **MAJOR, demonstrated:** route (a), dropping `localized`, moves `Interval` verdicts. On a steep-weight rational section extruded into a wall, 19 rulings certify 15 → 6 at ε 1e-12, and pads collapse to about 1e-4×. The PR's route measurement was `f64`-only.
+  - **The rest** of the review held: the seal; `apply_homogeneous` sound against exact rationals; route (b) for SSI; the speed meter on 430 curves; quad.
+  - **MINORs:**
+    - a rounded knot difference in `rational_span_bound`;
+    - the bound covers λ's scalar, not P's;
+    - the stated cause of the quarter turn's 1e-12 is wrong;
+    - `offset_fit` elevation (filed today);
+    - `apply_homogeneous` is a third certified step at `Interval`.
+  - **Next:** the fix pass takes route (b) for the wall too. Per the SEQUENTIAL arm, a second whole-unit Opus review follows. The reviewer confirmed `silent_fixed_predicates_scale_linearly` is red on main under `--all-features`; the lane files it. (NURBS orchestrator)
