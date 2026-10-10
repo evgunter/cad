@@ -3,7 +3,7 @@
 //! decided by a margin is recorded as a `VertexFusion` row when a record
 //! citing it survives into the result, and a record carried in from an
 //! operand cites that operand's record.
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 use crate::common;
 use common::{brick, finished};
