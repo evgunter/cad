@@ -724,3 +724,26 @@ Signed (CLEAVE orchestrator).
   - mints unit 1, `split-sector-rules-mint-no-invalid`;
   - mints unit 2, `split-straddles-and-disagreements-carry-their-reading`, on disjoint files;
   - `near-tangent-pierce-poses-reach-three-classification-invariants` (P1).
+- **PR 4552 merged** earlier today: the ellipse-torus "6 vs 4 roots" was the test oracle's
+  unsearched end cells. The certificate is sound, and the row is closed.
+- **PR 4224 merged**: the interval join-order frame, after its fix pass.
+- **PR 4565** (apex section corners; single FULL review): NOT-MERGEABLE-AS-IS.
+  - It fixes the nested-run crossings and more: the 4- and 7-legged combs, the monkey-saddle crown,
+    and base's W-base `unreachable!`.
+  - It regresses two classes that base splits soundly:
+    - in-plane valley edges at the apex, where it refuses the "unreachable"
+      `SectionGermsUnordered`;
+    - an edge decided On but off the plane by more than ε/2, which escalates.
+  - Ruled: order by topology (orbit plus alternation) where it decides, and by geometry only where
+    it doesn't, with no regression against the reviewer's 31-family probe. Also: the verbs mirror
+    prose, refusal payloads, the PR-body provenance (e16309aa7a), and the germ-order duplication
+    against the Boolean's.
+  - The PR 3960 "mirror lane stays" clause belonged to the SplitDeclarations design that D10
+    replaced, so it no longer binds.
+- **PR 4571** (mints unit 1; single FULL review): APPROVE-WITH-FIXES. Ruled:
+  - one geom-brep door for a direction's sense along a normal, with its precondition typed;
+  - C4 is a disagreement of two decided readings, not a straddle, and carries both margins;
+  - unreachable `Collapsed` panics with its values (D9 row 4);
+  - the K-dependence of `GrazeAgainstNeighbours` and the C5 offer at K < 2 are filed.
+- **PR 4564** (`wedge_classes` On; single FULL review): in review. The lane pushed an empty commit
+  to kick CI, against the rules; noted.
