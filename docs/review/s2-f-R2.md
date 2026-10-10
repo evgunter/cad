@@ -335,7 +335,7 @@ split prologue whole, but not all ~5k lines of `refactor.rs`.
   rotting. *Likely.*
 - **S9 (Q6)** — m5's interim with no schedule. m1's disclosed deviation
   has no schedule either. *Sure.*
-- **S10 (Q2) — Long justification for a skipped check.** The split's
+- **S10 (Q2) — The comment that justifies skipping the check is false.** The split's
   `world_heir` skip is justified in one line ("A selection names the
   copy it reads, so it asks no such thing"), and that line is false for
   a posed copy (M1). *Sure.*
