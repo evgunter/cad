@@ -588,28 +588,15 @@ fn a_long_armed_bar_builds() {
     assert_bar_through_the_pipe((-3.0, 3.0), (-0.3, 0.3), (-0.3, 0.3));
 }
 
-/// **The kind fence, differential — and what it does and does not
-/// witness.**
-///
-/// MEASURED, the frustum's bar meets `CurvedPairUnsupported { kind:
-/// Cone, other_kind: Plane }`: the kind-PAIR operand gate, on the cone
-/// face against the BAR's own plane face. It never reaches the crossing
-/// layer's `f2` fold or `face_geo` at all, so this row does NOT witness
-/// "the ring lane gave a cone no roots" — that pair has had no arm
-/// since long before this lane, and the row reads identically with the
-/// ring lane reverted.
-///
-/// It is kept for what it does witness, asserted positively rather than
-/// as a not-the-other-door: a cone operand is stopped at the OUTERMOST
-/// gate, so no cone geometry is ever handed to the wall lane in the
-/// first place. That is a dead-belt fence — the inner fences
-/// (`face_geo`'s `KindUnsupported`, the `f2` fold's Cylinder/Sphere-only
-/// arms, and `wall_crossing`'s own non-cylinder `Unsettled`) are the
-/// live ones and are unreachable from any authorable cone body while
-/// this gate stands. If a later unit opens the pair gate for cones,
-/// this row flips and the inner fences become the ones under test.
+/// **A cone wall cut along its axis refuses by decision, naming the
+/// conic.** The bar's side planes `z = 0.25` and `z = 0.35` run parallel
+/// to the frustum's axis, so each meets the cone wall in a HYPERBOLA,
+/// which is outside the conic inventory (`geom_brep`'s C1/C5, ruling
+/// R1). The cone is on the operand roster, so the pair passes the gate
+/// and the crossing layer, and the join's section frame names the conic:
+/// `GermSectionOutsideInventory`, never a missing arm and never a body.
 #[test]
-fn a_cone_wall_is_stopped_at_the_outermost_gate() {
+fn a_cone_wall_cut_along_its_axis_names_the_hyperbola() {
     let tol = Tol::witness();
     let frustum = {
         let lp = bulge_loop(
@@ -644,12 +631,13 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPairUnsupported {
-                kind: geom::SurfaceKind::Cone,
-                other_kind: geom::SurfaceKind::Plane,
+            BooleanError::GermSectionOutsideInventory {
+                conic: geom_brep::OutsideConic::Hyperbola,
+                a_kind: geom::SurfaceKind::Cone,
+                b_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),
-        "the cone's own door, asserted rather than excluded: {err:?}"
+        "the hyperbola's refusal, by decision: {err:?}"
     );
 }

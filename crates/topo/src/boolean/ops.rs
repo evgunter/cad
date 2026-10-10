@@ -567,8 +567,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // face pair of the kind is answered by a vertex probe that could
     // not see into it. `Nurbs` is on ∪'s roster for its plane×NURBS
     // germ arm, but has no edge×NURBS-face crossing layer (deviation 5),
-    // so ∖ and ∩ have no seam lane for it; `Cone` has no arm under any
-    // op.
+    // so ∖ and ∩ have no seam lane for it.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is
@@ -608,18 +607,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
         super::reduce::gate_unverdicted_operand(body, operand, band, tol)?;
     }
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(
-        op,
-        &a,
-        &b,
-        decls,
-        JoinSweep {
-            strategy,
-            roster: super::reduce::boolean_arm_exists,
-        },
-        true,
-        tol,
-    )
+    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -643,13 +631,13 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    sweep: JoinSweep<T>,
+    strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops) =
-        match through_the_join(op, a, b, decls, sweep, recut, tol)? {
+        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
@@ -804,17 +792,6 @@ pub(super) enum Joined<T: Real> {
     },
 }
 
-/// How [`through_the_join`]'s reduction sweeps: its strategy, and the
-/// operand gate's face-kind roster
-/// ([`super::boolean_reduce_declared_strategy`]).
-#[derive(Clone, Copy)]
-pub(super) struct JoinSweep<T: geom_core::Real> {
-    /// The sweep strategy.
-    pub(super) strategy: SweepStrategy,
-    /// The face kinds the operand gate admits.
-    pub(super) roster: fn(&geom::Surface<T>) -> bool,
-}
-
 /// **The pipeline through its join**: the reduction, then the
 /// no-crossings path where there is no null pair, and otherwise the
 /// join.
@@ -826,19 +803,18 @@ pub(super) struct JoinSweep<T: geom_core::Real> {
 ///
 /// The reduction's, the no-crossings path's and the join's refusals.
 ///
-/// The reduction sweeps as `sweep` says ([`JoinSweep`]).
+/// The reduction sweeps by `strategy`.
 pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
-    sweep: JoinSweep<T>,
+    strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
-    let JoinSweep { strategy, roster } = sweep;
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, roster, tol)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -891,7 +867,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // entity's key (`splitting::finish`'s `carve`), so those
             // names still hold on `a2` and `b2`.
             apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-            return boolean_op_recut(op, &a2, &b2, decls, sweep, false, tol)
+            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
@@ -1514,15 +1490,8 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let band = Band::linear(tol)?;
     let decls = BooleanDeclarations::default();
-    let red = super::boolean_reduce_declared_strategy(
-        op,
-        a,
-        b,
-        &decls,
-        SweepStrategy::Realized,
-        super::reduce::boolean_arm_exists,
-        tol,
-    )?;
+    let red =
+        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
     let events = event_pairs(&red);
     section_pairs(
         a,
@@ -6841,10 +6810,7 @@ mod tests {
                 &a,
                 &b,
                 &decls,
-                super::JoinSweep {
-                    strategy: SweepStrategy::Realized,
-                    roster: crate::boolean::reduce::boolean_arm_exists,
-                },
+                SweepStrategy::Realized,
                 true,
                 tol,
             )
