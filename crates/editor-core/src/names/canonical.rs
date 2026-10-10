@@ -391,12 +391,15 @@ fn order(mut name: StableName, seams: Seams) -> StableName {
     one_constituent(name)
 }
 
-/// **A `Merged` whose set has one element is that element** (N3): a face
-/// glued to its twin, the same read spelled twice (REFERENCES DM5), is
-/// named as the face, with whatever follows the set kept after it.
+/// **A `Merged` whose set has one element, minted by the node that minted
+/// the set, is that element** (N3): a face glued to its twin, the same
+/// read spelled twice (REFERENCES DM5), is named as the face, with
+/// whatever follows the set kept after it. A set of one name minted
+/// upstream stays a set: hoisting that name would publish another node's
+/// row in this node's table.
 fn one_constituent(name: StableName) -> StableName {
     match name.path.split_first() {
-        Some((RoleSeg::Merged(set), rest)) if set.len() == 1 => {
+        Some((RoleSeg::Merged(set), rest)) if set.len() == 1 && set[0].node == name.node => {
             let one = &set[0];
             let mut path = one.path.clone();
             path.extend(rest.iter().cloned());

@@ -88,16 +88,20 @@ fn names(ev: &Evaluation<f64>, at: RecipeNodeId) -> Vec<StableName> {
     n
 }
 
-/// `at`'s names are exactly `a`'s, each carried as `From { read, of }`.
+/// `at`'s names are exactly `a`'s, each carried as `From { read, of }`,
+/// and the body named by `at` itself.
 fn assert_named_as_a_through(ev: &Evaluation<f64>, at: RecipeNodeId, a: RecipeNodeId, read: VarId) {
-    let expected: Vec<StableName> = {
-        let mut v: Vec<StableName> = names(ev, a)
-            .into_iter()
-            .map(|of| fixture::member_entity(at, read, of.clone(), of.kind))
-            .collect();
-        v.sort();
-        v
-    };
+    let mut expected: Vec<StableName> = names(ev, a)
+        .into_iter()
+        .filter(|of| of.kind != EntityKind::Body)
+        .map(|of| fixture::member_entity(at, read, of.clone(), of.kind))
+        .collect();
+    expected.push(StableName {
+        kind: EntityKind::Body,
+        node: at,
+        path: vec![RoleSeg::OutputBody],
+    });
+    expected.sort();
     assert_eq!(
         names(ev, at),
         expected,

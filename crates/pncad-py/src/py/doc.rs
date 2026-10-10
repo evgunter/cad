@@ -881,7 +881,9 @@ impl MembersArg {
     pub(crate) fn bodies(self) -> d::Bodies<d::Operand> {
         match self {
             Self::Family(read) => d::Bodies::Family(read.read()),
-            Self::Spelled(reads) => d::Bodies::Spelled(reads.into_iter().map(OperandArg::read).collect()),
+            Self::Spelled(reads) => {
+                d::Bodies::Spelled(reads.into_iter().map(OperandArg::read).collect())
+            }
         }
     }
 }
@@ -3025,10 +3027,7 @@ impl Node {
     /// list on the live node.
     #[staticmethod]
     #[pyo3(signature = (members, declare=Vec::new()))]
-    fn intersect(
-        members: MembersArg,
-        declare: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<Self> {
+    fn intersect(members: MembersArg, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Intersect {
                 members: members.bodies(),
