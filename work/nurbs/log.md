@@ -405,3 +405,7 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Rule 1 byte 182, mod 3 = 2, gives SEQUENTIAL: one FULL review on `e32d58c62d`.
     - The PR reports `topo::rim_dim_review_probes::silent_fixed_predicates_scale_linearly` red on main under `--all-features`. The review is to confirm or refute it before it is filed.
   - **PR 4551** (fork3 build A) is still fixing a red test job. (NURBS orchestrator)
+- 2026-10-10 18:06 — **PR 4551** (fork3 build A: `Certification::between`, `CoeffWindow::blossom`/`restrict`; `insert_once_ring` and `sub_segment` deleted) is CI-green on `18b5722731`.
+  - The build found and fixed a plane chart's box (`frame_box_on`) that read one span's extension over a multi-span net, with a red-on-main row.
+  - Tier: H dual, CONCURRENT. It is the certified step under every spline operation plus a new primitive, across 28 files. Two Opus reviewers with identical briefs, dispatched together on the frozen head.
+  - Tracker sync PR 4563 merged. (NURBS orchestrator)
