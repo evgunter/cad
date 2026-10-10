@@ -39,11 +39,10 @@ corners, all three edges requested or the chain's edge alone cut off
 at a plane end face** — see the row below),
 merge_coplanar_faces, rigid transform, **shell / hollow** (sealed and
 opened, `topo::shell` / `topo::shell_open` — with the reach bound its
-own demo measured, in "Scope limits" below: the sealed arm's PER-CHART
-door survives exactly the plane-normal-to-cylinder junction, and since
-#1081 PR-2a an ALL-PLANAR body takes the simultaneous door instead and
-its oblique corners hollow; curved corners still take the per-chart
-door (PR-2b)), **offset of a surface** (analytic exactly, NURBS
+own demo measured, in "Scope limits" below: every solid is offset
+simultaneously — an all-planar one through `offset_planes_together`,
+an axial one through `offset_charts_together`, anything else through
+`offset_surfaces_together`), **offset of a surface** (analytic exactly, NURBS
 through the certified intensional route — no body-level offset verb
 for a body with any curved face, per row 36),
 **patterns** (linear / circular / explicit, part-level), **datum
@@ -264,7 +263,8 @@ the table.
   is not about curvature — and since #1081's PR-2a that arm is not the
   only one.** An all-planar body is offset SIMULTANEOUSLY and its
   oblique corners hollow; what is described below is the per-chart door,
-  which is what every body with a CURVED face still takes. Added
+  which `shell` no longer takes: a solid neither planar nor axial goes
+  through `topo::offset_surfaces_together`, every chart at once. Added
   2026-08-27 by the verb's own designated demo
   (`demos/tour/src/teapot.rs`, wall 1; the table and its sweep are
   `demos/tour/tests/verbs_teapot.rs`). The sealed arm replaces one
@@ -321,7 +321,9 @@ the table.
     `TogetherAxialCorner` and `TogetherAxialEdge`.
 
   `shell` picks the branch structurally, and everything outside both
-  keeps the per-chart posture and the refusal it had. **The honest
+  goes through `topo::offset_surfaces_together`, which moves every chart
+  at once and derives each edge as its two moved surfaces' section and
+  each corner as their root. **The honest
   boundary is a TORUS**: it is outside the axial kinds, so a pot whose
   belly bulges about a centre off the axis never reaches the door and
   keeps the C5 table's own `NeighborPairUnroutable` naming the pair —
@@ -353,7 +355,7 @@ the table.
   `topo::{face_nappe, group_nappe}`: the face's two extreme corner
   stations are decided (a SUM answers `Opening` for a face with corners
   on both nappes), the answer is agreed across the chart's faces, and
-  both offset doors, the per-chart door's apex-window gate and
+  both offset doors, the general door's apex-window gate and
   `ConeOffset::displacement` turn by it. A corner at the apex is on
   both nappes and decides neither, so a face that reaches its apex lies
   on its other corners' nappe. A face with corners on both sides of its

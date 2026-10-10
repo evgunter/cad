@@ -2306,7 +2306,8 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
 /// on an ALL-PLANAR body. The cavity of these prisms goes through
 /// `offset_planes_together` (every plane moving, each corner solved
 /// against all of them); the lift moves ONE chart and goes through the
-/// per-chart door, which re-describes the moved plane's boundary
+/// general door with every other chart held, which re-describes the
+/// moved plane's boundary
 /// against its UNTOUCHED neighbours — one plane against two fixed ones
 /// is exact at every corner, oblique or not, which is why the
 /// composed-door defect (#1081: a corner transported once per moving
@@ -2350,7 +2351,7 @@ fn oblique_planar_prisms_open_at_their_cap() {
                     props.volume
                 );
             }
-            Err(e) => panic!("{what}: an all-planar cap lifts through the per-chart door, got {e}"),
+            Err(e) => panic!("{what}: an all-planar cap lifts through the general door, got {e}"),
         }
     }
 }

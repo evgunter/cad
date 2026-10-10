@@ -273,7 +273,7 @@ fn r1_a_part_inside_another_solids_void() {
 /// lift's door must be the vessel's minted thin solid's — axial — not
 /// the body's, which is neither planar nor axial. If the lift read the
 /// whole result the vessel's cylindrical counterpart would take the
-/// per-chart door and the rim would not land.
+/// general door and the rim would not land.
 #[test]
 fn r1_the_lift_door_is_the_designated_faces_solids() {
     let (r, h, t1, t2) = (1.0, 2.0, 0.2, 0.05);

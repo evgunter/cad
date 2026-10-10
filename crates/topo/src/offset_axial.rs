@@ -115,7 +115,7 @@
 //!    circle-profile corner stands on two.
 //!
 //! **The offsets themselves are [`geom_brep::offset_surface`]'s** — the
-//! same analytic mint the per-chart door uses. One derivation, not a
+//! same analytic mint the general door uses. One derivation, not a
 //! second copy that could drift from it.
 //!
 //! # Every edge, and where its carrier comes from
@@ -478,32 +478,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
-    //
-    // The planar door's own two preconditions, for the same reason: a
-    // caller's mistake must be named here rather than surfacing
-    // downstream as a refusal about something else.
-    let mut seen: Vec<FaceKey> = Vec::new();
-    for m in moves {
-        let Some(&first) = m.faces.first() else {
-            return Err(ReplaceFaceError::EmptyGroup);
-        };
-        let key = body
-            .get_face(first)
-            .ok_or(ReplaceFaceError::StaleFace { face: first })?
-            .surface;
-        for &face in &m.faces {
-            let data = body
-                .get_face(face)
-                .ok_or(ReplaceFaceError::StaleFace { face })?;
-            if data.surface != key {
-                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
-            }
-            if seen.contains(&face) {
-                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
-            }
-            seen.push(face);
-        }
-    }
+    let seen = crate::offset_together::well_formed(body, moves)?;
     // The scope is the SOLIDS the moves touch, and every face of each
     // of them must be in the set: a corner belongs to one solid, so a
     // solid named in part has corners whose answer depends on faces
@@ -821,7 +796,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 /// ambiguity band means this body's kinds are not DECIDED either way
 /// (D4 ¶3). Answering `false` there would turn "I cannot tell" into a
 /// silent branch choice, and the branch it silently chooses is the
-/// per-chart door — whose refusal would then name a carrier rather than
+/// general door — whose refusal would then name a carrier rather than
 /// the undecided geometry that actually stopped it. So the escalation
 /// is returned typed and the caller refuses with it. Every other
 /// verdict — a NURBS or fitted wall, a skew cylinder, a torus whose own
@@ -2872,7 +2847,7 @@ mod tests {
 
     /// A torn record is not a verdict: a dangling point or surface on a
     /// face in scope panics naming the record, rather than reading as a
-    /// silent `false` that would pick `shell`'s per-chart branch.
+    /// silent `false` that would pick `shell`'s general branch.
     #[test]
     fn is_axial_panics_on_a_torn_record_rather_than_answering_not_axial() {
         use crate::entity::GeomRef;

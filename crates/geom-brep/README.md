@@ -769,13 +769,15 @@ definition, boolean-family; its execution never runs the crossing
 pipeline. An open shell is unrepresentable by construction (every edge
 has exactly two half-edges; D1 is manifold-first), and shell does not
 need one. *Sealed* (`topo::shell`): one clone with every boundary face
-moved to its inward offset (all-planar bodies through
-`offset_planes_together`, which solves each corner against all moved
-planes at once; planes meeting revolved walls through
-`offset_charts_together`; anything else chart by chart through
-`replace_faces_offset`, which derives each edge between a moved and a
-held surface as their section and each moved corner as a root of the
-surfaces meeting it), then inserted through the shared void-insertion
+moved to its inward offset, every chart of a solid at once (all-planar
+solids through `offset_planes_together`, which solves each corner
+against all moved planes; planes meeting revolved walls through
+`offset_charts_together`; anything else through
+`offset_surfaces_together`, which derives each edge as the section of
+its two moved surfaces, transporting it only where both sides' offset
+actions agree on it, and each corner as a root of the moved surfaces
+meeting it; the first two are its closed forms, and
+`replace_faces_offset` is its one-chart spelling), then inserted through the shared void-insertion
 door `boolean::voids::insert_void` with the construction's own
 d-vs-reach margins carried as `VoidContainment::Carried` evidence; the
 door never derives containment. The result is a two-shell solid, and the
@@ -790,11 +792,13 @@ thin solids keep their two), and the invariant is closure, not genus
 (one opening is a cup, genus 0). Refusals: a wall past a curved face's reach at O1's floor,
 inverted cavity walls at edge re-attachment. A fitted face's edge with a
 plane is their section over the fit (C5), and a row of its fit beside
-an analytic face is extracted from the new fit. Its corners are the
-held planes' roots along those edges, a section's sought from its end
-at the corner; the fit itself is not rooted along a held edge. Its
-other boundary refuses: `Approx` against anything but a plane (`NeighborPairUnroutable`,
-naming `Approx`); by `FittedBoundaryUnsupported`, a row of the fit
+an analytic face held still is extracted from the new fit. Its corners
+are the planes' roots along those edges, a section's sought from its
+end at the corner; the fit itself is not rooted, and a corner no root
+of which lies on a moved fit refuses (`CornerSection`). Its other
+boundary refuses: `Approx` against anything but a plane, a seam between
+two moved fits included (`NeighborPairUnroutable`, naming `Approx`); by
+`FittedBoundaryUnsupported`, a row of the fit
 shared with a spline or another fitted face, a curve on the fit that
 does not run along its rows, a scaffold edge, and a seam the face shares
 with itself; a section outside the fit's window (the section's own

@@ -3779,7 +3779,7 @@ pub trait AtRestPolicy: Decide {
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's section lane, or `None` where it is not
-    /// derived here** — the per-chart offset door's plane × spline-wall
+    /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
     /// ([`crate::offset_derive::SectionLane`]). Its march is written at
     /// `f64` alone, so that arm answers `Some`; an offset whose edge or

@@ -27,7 +27,7 @@
 //! A door whose argument means something about material — this verb's
 //! thickness, into the solid — takes a finished body; a door whose
 //! argument is stated against charts alone takes a [`Body`], tier 2 in
-//! and tier 2 out. [`crate::replace_faces_offset`],
+//! and tier 2 out. [`crate::offset_surfaces_together`],
 //! [`crate::offset_planes_together`] and
 //! [`crate::offset_charts_together`] are the second kind: each reads
 //! `d` along a chart's stored normal, no face's sense deciding the
@@ -69,10 +69,11 @@
 //!    once and solves each corner against all the moved planes meeting
 //!    it; a body of revolution goes through
 //!    [`crate::offset_charts_together`], which solves each corner in
-//!    the meridian half-plane; anything else goes chart by chart
-//!    through [`crate::replace_faces_offset`], which derives each edge
-//!    between a moved and a held surface as their section and solves
-//!    each moved corner as a root against the surfaces meeting it;
+//!    the meridian half-plane; anything else goes through
+//!    [`crate::offset_surfaces_together`], which moves every chart at
+//!    once too, derives each edge as the section of its two moved
+//!    surfaces and solves each corner as a root of the moved surfaces
+//!    meeting it. The first two are that door's closed forms;
 //! 2. that body inserted through the shared void-insertion door
 //!    ([`crate::boolean::voids::insert_hollow_voids`]) with carried evidence —
 //!    every shell of it, grafted under the operand solid its own solid
@@ -252,9 +253,10 @@
 //! 1. the sealed shell, exactly as above — so the evidence handed to
 //!    the void door is the strict one, before anything is opened;
 //! 2. per designated CHART, its CAVITY counterpart offset back OUTWARD
-//!    by `t` (the same door ladder as the cavity's —
+//!    by `t` (the same door ladder as the cavity's, every other chart
+//!    named at distance zero —
 //!    [`crate::offset_charts_together`] for a solid of revolution,
-//!    [`crate::replace_faces_offset`] otherwise), which lands it on
+//!    [`crate::offset_surfaces_together`] otherwise), which lands it on
 //!    the designated face's own surface and — because the door
 //!    re-describes a moved face's boundary against its untouched
 //!    neighbours — extends the cavity's side walls up to meet it;
@@ -1352,19 +1354,18 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // by dropping it.
     let mut cavity_body = body.clone();
     let mut cavity = cavity_body.begin_surgery();
-    // **All-planar and AXIAL bodies move SIMULTANEOUSLY; everything
-    // else moves chart by chart.** The per-chart door solves each moved
-    // corner as a root against the moved and held surfaces meeting it,
-    // so composing it over a body reaches the corner satisfying every
-    // moved surface at once where each step's section exists; the
-    // simultaneous doors solve the same corners in one step, the planar
-    // one against every moved plane and `offset_charts_together` in the
-    // meridian half-plane, and the branch below picks them.
+    // **Every solid moves SIMULTANEOUSLY**: every chart at once, each
+    // edge the section of its two moved surfaces and each corner a root
+    // of the moved surfaces meeting it (`offset_surfaces_together`).
+    // An all-planar solid and an axial one take that door's closed
+    // forms, the planar one solving each corner against every moved
+    // plane and `offset_charts_together` in the meridian half-plane,
+    // and the branch below picks them.
     //
     // **The door is ONE decision PER SOLID.** A body with a box tilted
     // off a vessel's axis beside it is neither all-planar nor axial, and a
-    // whole-body reading would put both on the per-chart door — which
-    // refuses the vessel's corners it solves alone. The ladder is
+    // whole-body reading would put both on the general door, away from
+    // the closed forms each solves alone. The ladder is
     // unchanged; what it reads is the solid's own faces. The cavity
     // and the rim lift read the same ladder over the same solid, and
     // the lift reads it on the body the cavity's door BUILT — so the
@@ -1399,62 +1400,45 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             face: offending_face(&cavity, &error).unwrap_or(fallback),
             error: Box::new(error),
         })?;
-        match door {
-            OffsetDoor::PlanesTogether | OffsetDoor::ChartsTogether => {
-                let mut moves: Vec<crate::offset_together::ChartMove<T>> =
-                    Vec::with_capacity(mine.len());
-                for group in &mine {
-                    moves.push(crate::offset_together::ChartMove {
-                        faces: group.to_vec(),
-                        distance: inward(&cavity, group[0], thickness),
-                    });
-                }
-                // `ShellError::Face` carries ONE face, and on this branch the
-                // honest one is the face the door's own refusal is about — not
-                // the first chart's first face, which names the operand's arena
-                // order and nothing about the failure. The door's typed
-                // refusals carry a face, a vertex or an edge; the last two are
-                // resolved to a face they touch.
-                let outcome = if door == OffsetDoor::ChartsTogether {
-                    crate::offset_axial::offset_charts_together_staged(
-                        &mut cavity,
-                        &moves,
-                        band,
-                        tol,
-                        false,
-                    )
-                } else {
-                    crate::offset_together::offset_planes_together_staged(
-                        &mut cavity,
-                        &moves,
-                        band,
-                        tol,
-                        false,
-                    )
-                };
-                outcome.map_err(|error| ShellError::Face {
-                    face: offending_face(&cavity, &error).unwrap_or(fallback),
-                    error: Box::new(error),
-                })?;
-            }
-            OffsetDoor::PerChart => {
-                for group in &mine {
-                    let face = group[0];
-                    let d = inward(&cavity, face, thickness);
-                    crate::replace_face::replace_faces_offset_staged(
-                        &mut cavity,
-                        group,
-                        d,
-                        tol,
-                        false,
-                    )
-                    .map_err(|error| ShellError::Face {
-                        face,
-                        error: Box::new(error),
-                    })?;
-                }
-            }
+        let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::with_capacity(mine.len());
+        for group in &mine {
+            moves.push(crate::offset_together::ChartMove {
+                faces: group.to_vec(),
+                distance: inward(&cavity, group[0], thickness),
+            });
         }
+        // `ShellError::Face` carries ONE face, and the honest one is the
+        // face the door's own refusal is about — not the first chart's
+        // first face, which names the operand's arena order and nothing
+        // about the failure. The doors' typed refusals carry a face, a
+        // vertex or an edge; the last two are resolved to a face they
+        // touch.
+        let outcome = match door {
+            OffsetDoor::Axial => crate::offset_axial::offset_charts_together_staged(
+                &mut cavity,
+                &moves,
+                band,
+                tol,
+                false,
+            ),
+            OffsetDoor::Planar => crate::offset_together::offset_planes_together_staged(
+                &mut cavity,
+                &moves,
+                band,
+                tol,
+                false,
+            ),
+            OffsetDoor::General => crate::offset_general::offset_surfaces_together_staged(
+                &mut cavity,
+                &moves,
+                tol,
+                false,
+            ),
+        };
+        outcome.map_err(|error| ShellError::Face {
+            face: offending_face(&cavity, &error).unwrap_or(fallback),
+            error: Box::new(error),
+        })?;
     }
 
     // ---- Decide: no two moved walls meeting at an angle cross. ----
@@ -1657,20 +1641,19 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // rim has to land where the moved plane meets the cavity walls
         // it shares an edge with, and on a CURVED wall that is not
         // where translating the rim puts it. Measured on the bellied
-        // pot: the per-chart lift leaves the rim 6.2 mm off the
-        // cavity's own sphere and refuses. So an axial body's lift goes
-        // through the same simultaneous door, with every OTHER chart
-        // named at distance zero — which is what makes it a corner
-        // solve rather than a transport, and what keeps those charts
-        // and their corners untouched.
+        // pot: a lift that translates the rim leaves it 6.2 mm off the
+        // cavity's own sphere and refuses. So the lift goes through the
+        // cavity's simultaneous door, with every OTHER chart named at
+        // distance zero — which is what makes it a corner solve rather
+        // than a transport, and what keeps those charts and their
+        // corners untouched.
         // The same decision as the cavity's (`offset_door`), read on the
-        // result body. An ALL-PLANAR body's lift takes the per-chart
-        // door on purpose: only ONE chart moves here, and that door
-        // re-describes the moved plane's boundary against its UNTOUCHED
-        // neighbours — one plane against two fixed ones is exact at
-        // every corner, oblique or not, so the composed-door defect
-        // (a corner transported once per MOVING chart) cannot arise.
-        // Measured on the oblique prisms' caps (`verbs_shell`'s
+        // result body. An ALL-PLANAR body's lift takes the general door
+        // rather than Cramer's: only ONE chart moves here, and the
+        // general door roots the moved plane's corners against its
+        // UNTOUCHED neighbours — one plane against two fixed ones is
+        // exact at every corner, oblique or not. Measured on the oblique
+        // prisms' caps (`verbs_shell`'s
         // `oblique_planar_prisms_open_at_their_cap`, closed forms).
         //
         // **The solid is the designated face's own, read on the result.**
@@ -1697,31 +1680,23 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             face: designated,
             error: Box::new(error),
         })?;
+        let moves: Vec<crate::offset_together::ChartMove<T>> = lift_charts
+            .iter()
+            .map(|(key, group)| crate::offset_together::ChartMove {
+                faces: group.to_vec(),
+                distance: if key == counterpart_chart {
+                    back
+                } else {
+                    T::zero()
+                },
+            })
+            .collect();
         let outcome = match lift_door {
-            OffsetDoor::ChartsTogether => {
-                let moves: Vec<crate::offset_together::ChartMove<T>> = lift_charts
-                    .iter()
-                    .map(|(key, group)| crate::offset_together::ChartMove {
-                        faces: group.to_vec(),
-                        distance: if key == counterpart_chart {
-                            back
-                        } else {
-                            T::zero()
-                        },
-                    })
-                    .collect();
-                crate::offset_axial::offset_charts_together_staged(
-                    &mut out, &moves, band, tol, false,
-                )
-            }
-            OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_face::replace_faces_offset_staged(
-                    &mut out,
-                    lift_charts.of(counterpart_chart),
-                    back,
-                    tol,
-                    false,
-                )
+            OffsetDoor::Axial => crate::offset_axial::offset_charts_together_staged(
+                &mut out, &moves, band, tol, false,
+            ),
+            OffsetDoor::Planar | OffsetDoor::General => {
+                crate::offset_general::offset_surfaces_together_staged(&mut out, &moves, tol, false)
             }
         };
         outcome.map_err(|error| ShellError::Lift {
@@ -3476,15 +3451,16 @@ fn mean_radius<T: Real>(points: &[geom_core::Point3<T>], centre: geom_core::Poin
 enum OffsetDoor {
     /// Every face is a plane: [`crate::offset_planes_together`], every
     /// chart at once, each corner solved against all the moved planes.
-    PlanesTogether,
+    Planar,
     /// An axial body — every face of revolution about one axis, or a
     /// plane normal or parallel to it (a bored box and a D-shaft as
     /// much as a vessel): [`crate::offset_charts_together`], each
     /// corner solved in the meridian half-plane.
-    ChartsTogether,
-    /// Anything else: [`crate::replace_faces_offset`] chart by chart,
-    /// whose oblique corners refuse rather than build.
-    PerChart,
+    Axial,
+    /// Anything else: [`crate::offset_surfaces_together`], every chart
+    /// at once, each edge the section of its two moved surfaces and each
+    /// corner a root of the moved surfaces meeting it.
+    General,
 }
 
 /// The door for the solids `scope` names. A door is a property of a
@@ -3492,7 +3468,7 @@ enum OffsetDoor {
 /// all-planar nor axial while each of the two is one of those — so the
 /// ladder reads that solid's
 /// own faces and nothing else. An UNDECIDED axis gate is not
-/// `PerChart`: it escalates typed, and the caller refuses with it
+/// `General`: it escalates typed, and the caller refuses with it
 /// rather than taking the other branch (`is_axial`'s docs).
 fn offset_door<T: Decide>(
     body: &Body<T>,
@@ -3504,12 +3480,12 @@ fn offset_door<T: Decide>(
         .filter(|(k, _)| scope.holds_face(*k))
         .all(|(k, f)| matches!(body.face_surface_linked(k, f), geom::Surface::Plane { .. }));
     if all_planar {
-        return Ok(OffsetDoor::PlanesTogether);
+        return Ok(OffsetDoor::Planar);
     }
     Ok(if crate::offset_axial::is_axial_in(body, scope, band)? {
-        OffsetDoor::ChartsTogether
+        OffsetDoor::Axial
     } else {
-        OffsetDoor::PerChart
+        OffsetDoor::General
     })
 }
 
@@ -3528,7 +3504,15 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherFaceRepeated { face }
         | ReplaceFaceError::TogetherAxialUnsupported { face, .. }
         | ReplaceFaceError::TogetherNotAxial { face, .. }
-        | ReplaceFaceError::NappeStraddles { face, .. } => Some(*face),
+        | ReplaceFaceError::NappeStraddles { face, .. }
+        | ReplaceFaceError::Offset { face, .. }
+        | ReplaceFaceError::Fit { face, .. }
+        | ReplaceFaceError::ApproxLaneUnsupported { face, .. }
+        | ReplaceFaceError::SharedSurfaceKey { face, .. }
+        | ReplaceFaceError::GroupChartsDiffer { face, .. }
+        | ReplaceFaceError::PlaceholderSurface { face }
+        | ReplaceFaceError::ApexWindow { face, .. }
+        | ReplaceFaceError::ApexWindowUnknown { face } => Some(*face),
         ReplaceFaceError::TogetherCorner { vertex, .. }
         | ReplaceFaceError::TogetherAxialCorner { vertex, .. }
         | ReplaceFaceError::CornerSection { vertex, .. }
@@ -3543,7 +3527,12 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::ReanchorCollapse { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
         | ReplaceFaceError::NurbsLaneUnsupported { edge, .. }
-        | ReplaceFaceError::NeighborPoseUnroutable { edge, .. } => {
+        | ReplaceFaceError::NeighborPoseUnroutable { edge, .. }
+        | ReplaceFaceError::NeighborPairUnroutable { edge, .. }
+        | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
+        | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
+        | ReplaceFaceError::IsoRow { edge, .. }
+        | ReplaceFaceError::Structure { edge, .. } => {
             face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus)
         }
         _ => None,

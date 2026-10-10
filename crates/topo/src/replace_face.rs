@@ -29,6 +29,16 @@
 //! **The neighbours' surfaces are untouched.** Only the named face's
 //! surface is replaced; every other face keeps the chart it had.
 //!
+//! **This door is one chart of the general simultaneous door**
+//! ([`crate::offset_surfaces_together`]), and its body is that door's:
+//! every chart named is minted first, an edge is planned against the
+//! moved surfaces on both of its sides, and a corner is solved against
+//! every surface meeting it as moved. What follows is stated for one
+//! moved chart; where a second moved chart is the edge's other side,
+//! the edge is transported where both sides' offset actions agree on it
+//! (a G1 pair holding the move, two coplanar charts moved alike) and is
+//! otherwise the section of the two MOVED surfaces through C5.
+//!
 //! **What the move does to an edge depends on the neighbour.** An edge
 //! between the moved surface and a held one is their SECTION
 //! ([`crate::offset_derive`]): the C5 arm's closed form, or for a plane
@@ -58,7 +68,9 @@
 //! that corner, the section running with the old edge, and a surface
 //! its lane does not root contributes no root. A spline or fitted
 //! surface is never the one rooted, so a moved fitted face's corner
-//! stands on the held surfaces' roots along its sections.
+//! stands on the other surfaces' roots along its sections; a moved
+//! surface that no root at its corner lies on refuses the corner by
+//! name ([`ReplaceFaceError::CornerSection`]).
 //!
 //! What must then be re-derived is everything the replaced chart
 //! carries:
@@ -516,8 +528,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door's scope gate**: a face it was asked to
     /// move is not a plane. Its corner solve is three plane equations,
-    /// and a curved face has no such equation; the per-chart door
-    /// solves those corners one chart at a time.
+    /// and a curved face has no such equation;
+    /// [`crate::offset_surfaces_together`] roots those corners.
     TogetherNonPlanar {
         /// The face that is not a plane.
         face: FaceKey,
@@ -601,7 +613,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// not a plane, cylinder, cone, sphere or TORUS. The axial reduction
     /// reads each surface as a line or a circle in the meridian
     /// half-plane, and a NURBS or a fitted chart is neither — such
-    /// bodies keep the per-chart door and the refusal it gives them.
+    /// bodies take [`crate::offset_surfaces_together`] instead.
     ///
     /// A coaxial torus IS one of the kinds: its meridian is the circle
     /// centred `(R, h_c)`, the sphere's circle centred `(0, h_c)` with
@@ -1401,20 +1413,25 @@ pub fn offset_edge_plans_for_tests<T: Decide + crate::props::AtRestPolicy>(
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
     .unwrap_or_else(|e| panic!("the offset mints: {e}"));
-    group_boundary(body, &[face])
+    let faces = [face];
+    let chart = MovedChart {
+        faces: &faces,
+        old_key,
+        shift: apex_shift(&old_surface, d),
+        old_surface,
+        new_surface,
+        nappe: Nappe::Opening,
+        d,
+    };
+    group_boundary(body, &faces)
         .into_iter()
         .map(|edge| {
             let plan = plan_edge(
                 body,
                 edge,
-                &[face],
-                &old_surface,
-                old_key,
-                &new_surface,
-                Nappe::Opening,
-                d,
-                apex_shift(&old_surface, d),
+                core::slice::from_ref(&chart),
                 band,
+                tol,
                 T::section_lane(),
             );
             (edge, plan.map(|p| p.refused))
@@ -1452,21 +1469,26 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
     .unwrap_or_else(|e| panic!("the offset mints: {e}"));
-    let boundary = group_boundary(body, &[face]);
+    let faces = [face];
+    let chart = MovedChart {
+        faces: &faces,
+        old_key,
+        shift: apex_shift(&old_surface, d),
+        old_surface,
+        new_surface,
+        nappe: Nappe::Opening,
+        d,
+    };
+    let boundary = group_boundary(body, &faces);
     let plans: Vec<EdgePlan<T>> = boundary
         .iter()
         .map(|&edge| {
             plan_edge(
                 body,
                 edge,
-                &[face],
-                &old_surface,
-                old_key,
-                &new_surface,
-                Nappe::Opening,
-                d,
-                apex_shift(&old_surface, d),
+                core::slice::from_ref(&chart),
                 band,
+                tol,
                 T::section_lane(),
             )
             .unwrap_or_else(|e| panic!("{edge:?} plans: {e}"))
@@ -1531,8 +1553,8 @@ pub(crate) fn staged_join<T: Decide + crate::props::AtRestPolicy>(
 
 /// [`replace_faces_offset`], ending with the join where `join` is set.
 /// Unset, the result is construction state a later step must join: the
-/// shell's cavity and lift offsets, which key their naming rows by the
-/// moved body's cells.
+/// shell's lift offset, which keys its naming rows by the moved body's
+/// cells.
 pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
@@ -1540,156 +1562,213 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     tol: Tol,
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
+    offset_charts_staged(body, &[(faces, d)], tol, join)
+}
+
+/// One chart the door moves, resolved and minted before anything is
+/// written.
+pub(crate) struct MovedChart<'a, T: Real> {
+    /// Its wearers.
+    faces: &'a [FaceKey],
+    old_key: SurfaceKey,
+    old_surface: Surface<T>,
+    new_surface: Surface<T>,
+    nappe: Nappe,
+    /// The offset in the mint's convention: the caller's number turned
+    /// by the chart's nappe.
+    d: T,
+    /// The cone's `d·cot α` parameter shift; zero on every other kind.
+    shift: T,
+}
+
+/// The moved chart wearing `key`, if one does.
+fn moved_of<'c, 'a, T: Real>(
+    charts: &'c [MovedChart<'a, T>],
+    key: SurfaceKey,
+) -> Option<&'c MovedChart<'a, T>> {
+    charts.iter().find(|c| c.old_key == key)
+}
+
+/// **The offset door's one body**: every chart `moves` names — its
+/// wearers and its signed distance — moved AT ONCE, every new surface
+/// minted before any edge is planned. An edge between a moved chart and
+/// a held one, or between two moved charts, is planned against the
+/// moved surfaces on both sides ([`plan_edge`]), and every moved corner
+/// is solved against every surface meeting it as moved
+/// ([`solve_corners`]). One move is [`replace_faces_offset`]; every
+/// chart of a solid is [`crate::offset_surfaces_together`].
+pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    moves: &[(&[FaceKey], T)],
+    tol: Tol,
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // The one band every decision below classifies at, derived from the
     // same witness the fit door reads.
     let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
-    // ---- Decide: the group. ----
-    let Some(&face) = faces.first() else {
+    // ---- Decide: the groups. ----
+    if moves.is_empty() {
         return Err(ReplaceFaceError::EmptyGroup);
-    };
-    let face_data = body
-        .get_face(face)
-        .ok_or(ReplaceFaceError::StaleFace { face })?;
-    let old_key = face_data.surface;
-    for &member in &faces[1..] {
-        let data = body
-            .get_face(member)
-            .ok_or(ReplaceFaceError::StaleFace { face: member })?;
-        if data.surface != old_key {
-            return Err(ReplaceFaceError::GroupChartsDiffer {
-                face,
-                other: member,
-            });
-        }
     }
-    // The group must be the WHOLE group within its solids: a wearer
-    // left behind there could share an edge with a re-keyed one.
-    // Every member resolved above; its `shell` is a link of its record.
     let mut solids: Vec<SolidKey> = Vec::new();
-    for &member in faces {
-        let shell = proven(&body.faces, member, EntityId::Face).shell;
-        let solid = linked(
-            &body.shells,
-            shell,
-            EntityId::Shell,
-            EntityId::Face(member),
-            "shell",
-        )
-        .solid;
-        if !solids.contains(&solid) {
-            solids.push(solid);
+    for &(faces, _) in moves {
+        let Some(&face) = faces.first() else {
+            return Err(ReplaceFaceError::EmptyGroup);
+        };
+        let old_key = body
+            .get_face(face)
+            .ok_or(ReplaceFaceError::StaleFace { face })?
+            .surface;
+        for &member in &faces[1..] {
+            let data = body
+                .get_face(member)
+                .ok_or(ReplaceFaceError::StaleFace { face: member })?;
+            if data.surface != old_key {
+                return Err(ReplaceFaceError::GroupChartsDiffer {
+                    face,
+                    other: member,
+                });
+            }
+        }
+        // The group must be the WHOLE group within its solids: a wearer
+        // left behind there could share an edge with a re-keyed one.
+        // Every member resolved above; its `shell` is a link of its record.
+        for &member in faces {
+            let shell = proven(&body.faces, member, EntityId::Face).shell;
+            let solid = linked(
+                &body.shells,
+                shell,
+                EntityId::Shell,
+                EntityId::Face(member),
+                "shell",
+            )
+            .solid;
+            if !solids.contains(&solid) {
+                solids.push(solid);
+            }
         }
     }
     let scope = crate::offset_together::Scope::of_solids(body, &solids).faces_in_scope();
-    let charts = ChartGroups::within(body, scope).unwrap_or_else(|face| {
+    let groups = ChartGroups::within(body, scope).unwrap_or_else(|face| {
         unreachable!("{face:?}, walked out of its solid's shells, resolved in that walk")
     });
-    if let Some(&other) = charts.of(old_key).iter().find(|k| !faces.contains(k)) {
-        return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
-    }
-    let old_surface = body.face_surface_linked(face, face_data).clone();
-    // **The cone's mirror nappe is a consumer obligation, and this is
-    // where this door discharges it.** `geom_brep::ConeOffset`'s action
-    // moves the surface along the OPENING nappe's normal field, so a
-    // mirror-nappe face's surface moves `−d` along its own chart
-    // normal; `d` arrives at this door along the FACE's chart normal,
-    // so the two conventions are opposite below the apex and
-    // the number has to be turned over before it reaches the mint. The
-    // nappe is decided at its one home, from the face's own corners.
-    //
-    // EVERY face of the group is decided and the answers are agreed
-    // ([`crate::offset_nappe::group_nappe`]), because the door moves a
-    // chart and a chart's faces need not share a nappe: one member's
-    // sign standing for another's is exactly the thing being ruled out.
-    //
-    // Only a cone is asked. Every other chart has ONE sheet, on which
-    // the face's own normal and the mint's stored field are the same
-    // direction, so the answer is `Opening` by construction and walking
-    // a plane's corners to be told so is work with no question behind
-    // it. `face_nappe` answers for those kinds too — the answer is
-    // total, so a caller that has no cone in hand still gets a turn to
-    // apply — but this door knows the surface already.
-    //
-    // Below this line `d` is the mint's own convention, not the door's.
-    let nappe = match old_surface {
-        Surface::Cone { .. } => crate::offset_nappe::group_nappe(body, faces, band)?,
-        _ => Nappe::Opening,
-    };
-    let d = nappe.turn(d);
-    let new_surface = mint_offset(
-        face,
-        &old_surface,
-        d,
-        band,
-        tol,
-        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
-    )?;
-
-    // ---- Decide: the apex window (cones only). ----
-    let shift = apex_shift(&old_surface, d);
-    if let Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
-    } = old_surface
-    {
-        let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
-            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
-        // The nappe decides which end of the window is the one nearest
-        // the apex; the window decides whether that end has CLEARED the
-        // apex. One predicate, on the near end alone — the far end's
-        // sign follows from `v_min ≤ v_max` and needs no meter of its
-        // own — and a window that has not cleared it (because it
-        // straddles, touches, or carries a face of the other nappe) is
-        // refused before the collapse margin is taken.
-        let esc = |source| ReplaceFaceError::Escalated { source };
-        let (v_near, sense) = match nappe {
-            Nappe::Opening => (v_min, T::one()),
-            Nappe::Mirror => (v_max, -T::one()),
+    let mut charts: Vec<MovedChart<'_, T>> = Vec::with_capacity(moves.len());
+    for &(faces, d) in moves {
+        let face = faces[0];
+        let face_data = proven(&body.faces, face, EntityId::Face);
+        let old_key = face_data.surface;
+        if let Some(&other) = groups.of(old_key).iter().find(|k| !faces.contains(k)) {
+            return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
+        }
+        let old_surface = body.face_surface_linked(face, face_data).clone();
+        // **The cone's mirror nappe is a consumer obligation, and this is
+        // where this door discharges it.** `geom_brep::ConeOffset`'s
+        // action moves the surface along the OPENING nappe's normal
+        // field, so a mirror-nappe face's surface moves `−d` along its
+        // own chart normal; `d` arrives at this door along the FACE's
+        // chart normal, so the two conventions are opposite below the
+        // apex and the number has to be turned over before it reaches
+        // the mint. The nappe is decided at its one home, from the
+        // face's own corners.
+        //
+        // EVERY face of the group is decided and the answers are agreed
+        // ([`crate::offset_nappe::group_nappe`]), because the door moves
+        // a chart and a chart's faces need not share a nappe.
+        //
+        // Only a cone is asked: every other chart has ONE sheet, on
+        // which the face's own normal and the mint's stored field are
+        // the same direction.
+        //
+        // Below this line `d` is the mint's own convention, not the door's.
+        let nappe = match old_surface {
+            Surface::Cone { .. } => crate::offset_nappe::group_nappe(body, faces, band)?,
+            _ => Nappe::Opening,
         };
-        match decide("offset_apex_nappe", Margin::of(v_near * sense), band).map_err(esc)? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => {
-                return Err(ReplaceFaceError::ApexWindow {
-                    face,
-                    v_min,
-                    v_max,
-                    shift,
-                });
+        let d = nappe.turn(d);
+        let new_surface = mint_offset(
+            face,
+            &old_surface,
+            d,
+            band,
+            tol,
+            <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+        )?;
+
+        // ---- Decide: the apex window (cones only). ----
+        let shift = apex_shift(&old_surface, d);
+        if let Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } = old_surface
+        {
+            let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
+                .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+            // The nappe decides which end of the window is the one
+            // nearest the apex; the window decides whether that end has
+            // CLEARED the apex. One predicate, on the near end alone,
+            // and a window that has not cleared it (because it
+            // straddles, touches, or carries a face of the other nappe)
+            // is refused before the collapse margin is taken.
+            let esc = |source| ReplaceFaceError::Escalated { source };
+            let (v_near, sense) = match nappe {
+                Nappe::Opening => (v_min, T::one()),
+                Nappe::Mirror => (v_max, -T::one()),
+            };
+            match decide("offset_apex_nappe", Margin::of(v_near * sense), band).map_err(esc)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => {
+                    return Err(ReplaceFaceError::ApexWindow {
+                        face,
+                        v_min,
+                        v_max,
+                        shift,
+                    });
+                }
+            }
+            // `inf(v-window) + d·cot α > 0` on the opening nappe, and its
+            // mirror on the other — one margin, signed by the nappe.
+            let realized = (v_near + shift) * sense;
+            match decide("offset_apex_window", Margin::of(realized), band).map_err(esc)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => {
+                    return Err(ReplaceFaceError::ApexWindow {
+                        face,
+                        v_min,
+                        v_max,
+                        shift,
+                    });
+                }
             }
         }
-        // `inf(v-window) + d·cot α > 0` on the opening nappe, and its
-        // mirror on the other — one margin, signed by the nappe.
-        let realized = (v_near + shift) * sense;
-        match decide("offset_apex_window", Margin::of(realized), band).map_err(esc)? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => {
-                return Err(ReplaceFaceError::ApexWindow {
-                    face,
-                    v_min,
-                    v_max,
-                    shift,
-                });
+        charts.push(MovedChart {
+            faces,
+            old_key,
+            old_surface,
+            new_surface,
+            nappe,
+            d,
+            shift,
+        });
+    }
+    // ---- Decide: the boundary plan. ----
+    let mut boundary: Vec<EdgeKey> = Vec::new();
+    for chart in &charts {
+        for edge in group_boundary(body, chart.faces) {
+            if !boundary.contains(&edge) {
+                boundary.push(edge);
             }
         }
     }
-
-    // ---- Decide: the boundary plan. ----
-    let boundary = group_boundary(body, faces);
     let mut plans: Vec<EdgePlan<T>> = Vec::with_capacity(boundary.len());
     for &edge in &boundary {
         plans.push(plan_edge(
             body,
             edge,
-            faces,
-            &old_surface,
-            old_key,
-            &new_surface,
-            nappe,
-            d,
-            shift,
+            &charts,
             band,
+            tol,
             T::section_lane(),
         )?);
     }
@@ -1699,8 +1778,7 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
         body,
         &plans,
         &boundary,
-        (old_key, &old_surface, &new_surface),
-        d,
+        &charts,
         band,
         tol,
         T::section_lane(),
@@ -1710,7 +1788,7 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
         .iter()
         .flat_map(|(group, point)| group.iter().map(|&v| (v, *point)))
         .collect();
-    let groups = corners.groups.clone();
+    let vertex_groups = corners.groups.clone();
     for plan in &mut plans {
         if let Some(refused) = plan.refused.take() {
             return Err(refused);
@@ -1727,18 +1805,23 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     // ---- Decide: the apex window again, on the boundary as derived. ----
     // The window above shifts the face's old rims by the action's own
     // shift, which is where a TRANSPORTED rim lands. A derived rim is a
-    // section with a held surface and lands where that surface puts it,
+    // section with a neighbour and lands where that surface puts it,
     // so the window is read again off the moved cone and the carriers
     // the face now has: its near end must still clear the moved apex.
-    if let Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
-    } = new_surface
-    {
+    for chart in &charts {
+        let Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } = chart.new_surface
+        else {
+            continue;
+        };
+        let face = chart.faces[0];
+        let own = group_boundary(body, chart.faces);
         let mut window: Option<(T, T)> = None;
-        for plan in &plans {
+        for plan in plans.iter().filter(|p| own.contains(&p.edge)) {
             let (lo, hi) = cone_v_range(
                 &plan.spec.carrier,
                 plan.spec.param_start,
@@ -1753,7 +1836,7 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
             });
         }
         let (v_min, v_max) = window.ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
-        let (v_near, sense) = match nappe {
+        let (v_near, sense) = match chart.nappe {
             Nappe::Opening => (v_min, T::one()),
             Nappe::Mirror => (v_max, -T::one()),
         };
@@ -1766,16 +1849,16 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
             Sign::Zero | Sign::Negative => {
                 return Err(ReplaceFaceError::ApexWindow {
                     face,
-                    v_min: v_min - shift,
-                    v_max: v_max - shift,
-                    shift,
+                    v_min: v_min - chart.shift,
+                    v_max: v_max - chart.shift,
+                    shift: chart.shift,
                 });
             }
         }
     }
 
     // ---- Decide: the incident edges that only need re-anchoring. ----
-    let anchored = plan_reanchors(body, &boundary, &corners, d, band, tol, T::nurbs_lane())?;
+    let anchored = plan_reanchors(body, &boundary, &corners, band, tol, T::nurbs_lane())?;
 
     // ---- Mutation, on a clone (infallible decisions are done). ----
     //
@@ -1784,10 +1867,17 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     // whole-body check is the tier-2 gate the clone is adopted on.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    // The whole group moves onto one new chart: it wore one surface
-    // before and wears one after, which is what keeps its shared seams
-    // describable, and a plan's `old_key` stands for that chart.
-    let chart = offset_rechart(&work, new_surface, faces)?;
+    // Each group moves onto one new chart: it wore one surface before
+    // and wears one after, which is what keeps its shared seams
+    // describable, and a plan's old key stands for that chart.
+    let mut recharts: Vec<Rechart<T>> = Vec::with_capacity(charts.len());
+    for chart in &charts {
+        recharts.push(offset_rechart(
+            &work,
+            chart.new_surface.clone(),
+            chart.faces,
+        )?);
+    }
     let specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = plans
         .into_iter()
         .map(|plan| (plan.edge, plan.spec))
@@ -1801,7 +1891,7 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
         .map(|(e, _)| *e)
         .chain(anchored.iter().map(|(e, _, _)| *e))
         .collect();
-    move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
+    move_points_then_rechart(&mut work, &vertex_groups, recharts, &specs, tol)?;
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
     // ends at a moved vertex. They go before the re-anchors' site mints
@@ -1826,14 +1916,17 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     work.drop_rows(staled);
     for (edge, spec, unwound) in anchored {
         work.set_edge_curve(edge, spec, tol)
-            .map_err(|error| match error {
+            .map_err(|error| match (error, unwound) {
                 // The edge was forward before the re-anchor and its
                 // carrier has no turn to choose, so a span that is not
                 // forward is the move's length.
-                EulerOpError::Certification {
-                    error: geom_brep::CertifyError::IntervalNotForward { .. },
-                } if unwound => ReplaceFaceError::ReanchorCollapse { edge, offset: d },
-                error => ReplaceFaceError::Op {
+                (
+                    EulerOpError::Certification {
+                        error: geom_brep::CertifyError::IntervalNotForward { .. },
+                    },
+                    Some(offset),
+                ) => ReplaceFaceError::ReanchorCollapse { edge, offset },
+                (error, _) => ReplaceFaceError::Op {
                     edge: Some(edge),
                     error: error.from_driver(),
                 },
@@ -2054,19 +2147,14 @@ fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Ve
 
 /// One boundary edge's re-derivation: the description re-stated against
 /// the moved chart, the carrier transported, the endpoints read off the
-/// transported carrier.
-#[allow(clippy::too_many_arguments)]
+/// transported carrier — or, between two distinct moved charts,
+/// [`plan_between_moved`].
 fn plan_edge<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
-    group: &[FaceKey],
-    old_surface: &Surface<T>,
-    old_key: SurfaceKey,
-    new_surface: &Surface<T>,
-    nappe: Nappe,
-    d: T,
-    shift: T,
+    charts: &[MovedChart<'_, T>],
     band: Band,
+    tol: Tol,
     section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     let edge_data = proven(&body.edges, edge, EntityId::Edge);
@@ -2087,6 +2175,29 @@ fn plan_edge<T: Decide>(
             what: "it has no curve to move",
         });
     };
+    let mover = match (moved_of(charts, sides[0]), moved_of(charts, sides[1])) {
+        (Some(a), Some(b)) if a.old_key != b.old_key => {
+            return plan_between_moved(
+                (edge, start, end, sides),
+                curve,
+                (a, b),
+                band,
+                tol,
+                section_lane,
+            );
+        }
+        (Some(mover), _) | (None, Some(mover)) => mover,
+        (None, None) => unreachable!("{edge:?} bounds a moved chart, which is why it was planned"),
+    };
+    let (group, old_key, old_surface, new_surface, nappe, d, shift) = (
+        mover.faces,
+        mover.old_key,
+        &mover.old_surface,
+        &mover.new_surface,
+        mover.nappe,
+        mover.d,
+        mover.shift,
+    );
     let (t0, t1) = curve.params();
     let old_carrier = curve.carrier().clone();
     let description = curve.description().clone();
@@ -2487,8 +2598,121 @@ fn edge_side_keys<T: Real>(
     [a, b].map(|f| proven(&body.faces, f, EntityId::Face).surface)
 }
 
-/// **An edge between the moved surface and a held one the move does not
-/// carry onto itself**: their section, nearest the old carrier and
+/// **An edge between two distinct charts that both move.** Where the
+/// pair's relative motion carries it rigidly it is transported: each
+/// side's offset action is a closed form on its own chart, and where
+/// the two put every point of the edge in the same place — a G1 pair
+/// whose normals agree along the edge and whose distances agree, two
+/// coplanar charts moved alike — that image lies on both moved
+/// surfaces, so it is their section. Anywhere else the edge is the
+/// section of the two MOVED surfaces through C5, seeded by the old
+/// carrier for branch and sense ([`derive_edge`]).
+fn plan_between_moved<T: Decide>(
+    (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
+    curve: &geom_brep::EdgeCurve<T>,
+    (a, b): (&MovedChart<'_, T>, &MovedChart<'_, T>),
+    band: Band,
+    tol: Tol,
+    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
+    let (t0, t1) = curve.params();
+    let old = curve.carrier();
+    let description = curve.description().clone();
+    if matches!(description, EdgeDescription::Scaffold(_)) {
+        return Err(ReplaceFaceError::DeclaredEdgeTilted { edge });
+    }
+    if let Some((carrier, delta)) = carried_alike(edge, old, (t0, t1), (a, b), band, tol)? {
+        let mid = carrier.mid_point(t0, t1);
+        // Both charts move, so an image in either has slid within it and
+        // is derived afresh from the moved carrier; a declaration rides
+        // the edge's own rigid shift.
+        let carried = |mc| {
+            let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "its declared sketch record cannot follow the face, whose offset is not a \
+                       rigid shift",
+            })?;
+            translate_mapped(mc, delta).ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "it was swept by a rotation, and its sweep does not shift with the face",
+            })
+        };
+        let description = crate::offset_restate::restate(
+            description,
+            curve.authority(),
+            [(a.old_key, true), (b.old_key, true)],
+            true,
+            mid,
+            carried,
+        )?;
+        return Ok(EdgePlan {
+            edge,
+            spec: EdgeCurveSpec {
+                description,
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            start,
+            end,
+            ends: Some((carrier.eval(t0), carrier.eval(t1))),
+            sides,
+            refused: None,
+        });
+    }
+    let extent = geom_brep::edge_extent(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
+    derive_edge(
+        (edge, start, end, sides),
+        (curve, &description, (t0, t1)),
+        (a.old_key, b.old_key, &a.new_surface, &b.new_surface),
+        extent,
+        band,
+        section_lane,
+    )
+}
+
+/// The edge's image under both sides' offset actions, where the two
+/// agree: each side's transport ([`transport_curve`]) read at the
+/// edge's ends and middle, and every pair within ε. `None` where
+/// either side has no exact action on the carrier — a fitted or spline
+/// chart's lane is a translation by its mid-domain normal, exact only
+/// where that normal is constant, so it is no witness — or where the
+/// two disagree.
+fn carried_alike<T: Decide>(
+    edge: EdgeKey,
+    old: &Curve3<T>,
+    (t0, t1): (T, T),
+    (a, b): (&MovedChart<'_, T>, &MovedChart<'_, T>),
+    band: Band,
+    tol: Tol,
+) -> Result<Transported<T>, ReplaceFaceError<T>> {
+    let spline =
+        |c: &MovedChart<'_, T>| matches!(c.old_surface, Surface::Nurbs(_) | Surface::Approx(_));
+    if spline(a) || spline(b) {
+        return Ok(None);
+    }
+    let mid = old.mid_point(t0, t1);
+    let transport = |c: &MovedChart<'_, T>| {
+        transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band).map_err(|e| match e {
+            TransportError::Escalated(source) => ReplaceFaceError::Escalated { source },
+            TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },
+        })
+    };
+    let (Some(on_a), Some((on_b, _))) = (transport(a)?, transport(b)?) else {
+        return Ok(None);
+    };
+    let tm = (t0 + t1) * T::from_f64(0.5);
+    for t in [t0, tm, t1] {
+        if !gap_within_eps(on_a.0.eval(t).distance(on_b.eval(t)), tol, band)? {
+            return Ok(None);
+        }
+    }
+    Ok(Some(on_a))
+}
+
+/// **An edge between the moved surface and a neighbour the move does not
+/// carry onto itself** — a held surface, or another moved one: their
+/// section, nearest the old carrier and
 /// running with it, stated as their `Intersection` with any sketch
 /// record beside it dropped — the moved edge is not the curve a sketch
 /// drew. Its ends are its corners', read once those are solved.
@@ -2840,9 +3064,10 @@ pub(crate) fn remap_description<T: Real>(
     }
 }
 
-/// One re-anchored edge: its key, its new spec, and whether its carrier
-/// is unwound ([`plan_reanchors`]).
-type Reanchored<T> = (EdgeKey, EdgeCurveSpec<T>, bool);
+/// One re-anchored edge: its key, its new spec, and, where its carrier
+/// is unwound ([`plan_reanchors`]), the distance its corner's chart
+/// moved by.
+type Reanchored<T> = (EdgeKey, EdgeCurveSpec<T>, Option<T>);
 
 /// The edges that end at a moved vertex without lying on the replaced
 /// face's boundary: their carriers are unchanged (the surfaces that
@@ -2852,17 +3077,16 @@ type Reanchored<T> = (EdgeKey, EdgeCurveSpec<T>, bool);
 ///
 /// A spline carrier's parameter is a foot point read through
 /// `nurbs_lane` ([`crate::AtRestPolicy::nurbs_lane`]); a scalar holding
-/// none refuses with [`ReplaceFaceError::NurbsLaneUnsupported`]. `d`
-/// is the offset, which a move through an edge's far end is refused
-/// with ([`ReplaceFaceError::ReanchorCollapse`]). Each spec carries
-/// whether its carrier is unwound (a line or a spline, with no turn to
-/// choose), the carriers whose non-forward span the attach door is
-/// read as that collapse.
+/// none refuses with [`ReplaceFaceError::NurbsLaneUnsupported`]. A
+/// move through an edge's far end is refused with the distance its
+/// corner's chart moved by ([`ReplaceFaceError::ReanchorCollapse`]).
+/// Each spec carries that distance where its carrier is unwound (a line
+/// or a spline, with no turn to choose), the carriers whose non-forward
+/// span the attach door is read as that collapse.
 fn plan_reanchors<T: Decide>(
     body: &Body<T>,
     boundary: &[EdgeKey],
     corners: &Corners<T>,
-    d: T,
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<T>>,
@@ -2895,6 +3119,17 @@ fn plan_reanchors<T: Decide>(
         if new_start.is_none() && new_end.is_none() {
             continue;
         }
+        let offset_at = |v: VertexKey| {
+            corners
+                .groups
+                .iter()
+                .zip(&corners.offsets)
+                .find(|((group, _), _)| group.contains(&v))
+                .map(|(_, d)| *d)
+        };
+        let d = offset_at(start)
+            .or_else(|| offset_at(end))
+            .unwrap_or_else(|| unreachable!("{edge:?} ends at a moved corner, read off its group"));
         let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
@@ -3111,7 +3346,7 @@ fn plan_reanchors<T: Decide>(
         };
         // A line or a clamped spline has no turn to choose, so a span
         // that stops being forward on it is the move's length alone.
-        let unwound = matches!(carrier, Curve3::Line { .. } | Curve3::Nurbs(_));
+        let unwound = matches!(carrier, Curve3::Line { .. } | Curve3::Nurbs(_)).then_some(d);
         out.push((
             edge,
             EdgeCurveSpec {
@@ -3131,6 +3366,9 @@ fn plan_reanchors<T: Decide>(
 /// on the untouched edges they were sought along.
 struct Corners<T: Real> {
     groups: Vec<(Vec<VertexKey>, Point3<T>)>,
+    /// Beside each group, the distance the first chart moving it moved
+    /// by: what a move through an edge there is refused with.
+    offsets: Vec<T>,
     /// `(edge, is_start, t)`: the corner at that end of an untouched
     /// edge is its carrier at `t`.
     solved: Vec<(EdgeKey, bool, T)>,
@@ -3240,39 +3478,47 @@ fn spline_corner_root<T: Decide>(
 
 /// **Where each moved corner lands** (module docs).
 ///
-/// A corner every held surface around which holds the move
-/// (`offset_derive::holds_the_move`) is where the transports put it.
-/// Any other corner is solved: along each edge meeting it, the root of
-/// each surface there the edge does not lie on — the moved surface
-/// along an untouched edge, a held one along a moved edge — never a
+/// A corner where ONE chart moves, and every held surface around which
+/// holds that move (`offset_derive::holds_the_move`), is where the
+/// transports put it. Any other corner is solved: along each edge
+/// meeting it, the root of each surface there the edge does not lie
+/// on, every moved surface standing as moved — a moved surface along
+/// any edge, a held one along an edge with a moved side — never a
 /// transported point tested afterwards. Every candidate is checked
 /// against every other, PAIRWISE: a star comparison passes a spread of
 /// up to 2ε, and the claim is that the re-derivation is coherent.
+///
+/// A spline or fitted surface is not rooted: the lane roots a plane
+/// along a spline carrier and the closed forms an analytic surface. It
+/// is not skipped either. A candidate lies on the surface it roots and
+/// on both sides of the edge it was rooted along, and every MOVED
+/// surface at the corner must lie under at least one candidate, or the
+/// corner refuses naming it ([`ReplaceFaceError::CornerSection`]).
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn solve_corners<T: Decide>(
     body: &Body<T>,
     plans: &[EdgePlan<T>],
     boundary: &[EdgeKey],
-    (old_key, old_surface, new_surface): (SurfaceKey, &Surface<T>, &Surface<T>),
-    d: T,
+    charts: &[MovedChart<'_, T>],
     band: Band,
     tol: Tol,
     section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<Corners<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::CornerVerdict;
     let esc = |source| ReplaceFaceError::Escalated { source };
+    let is_moved = |key: SurfaceKey| moved_of(charts, key).is_some();
     let surface_of = |key: SurfaceKey| -> &Surface<T> {
-        if key == old_key {
-            new_surface
-        } else {
-            body.get_surface(key).unwrap_or_else(|| {
+        match moved_of(charts, key) {
+            Some(chart) => &chart.new_surface,
+            None => body.get_surface(key).unwrap_or_else(|| {
                 unreachable!("{key:?} is a face's surface, read off a live face")
-            })
+            }),
         }
     };
-    let mut holds: Vec<(SurfaceKey, bool)> = Vec::new();
+    let mut holds: Vec<(SurfaceKey, SurfaceKey, bool)> = Vec::new();
     let mut corners = Corners {
         groups: Vec::new(),
+        offsets: Vec::new(),
         solved: Vec::new(),
         rooted: Vec::new(),
     };
@@ -3290,25 +3536,57 @@ fn solve_corners<T: Decide>(
             .get_point(proven(&body.vertices, vertex, EntityId::Vertex).point)
             .unwrap_or_else(|| unreachable!("{vertex:?}'s point is a link of a live vertex"));
         let incident = incident_edges(body, plans, boundary, &group, old_point)?;
-        let mut around: Vec<SurfaceKey> = vec![old_key];
-        for k in incident.iter().flat_map(|i| i.sides) {
+        // The moved charts first, in the order they were named, then the
+        // held ones in the order the incident edges reach them.
+        // A refused section is no incident edge, and its moved side still
+        // meets the corner.
+        let sides: Vec<SurfaceKey> = incident.iter().flat_map(|i| i.sides).collect();
+        let movers: Vec<&MovedChart<'_, T>> = charts
+            .iter()
+            .filter(|c| {
+                plans
+                    .iter()
+                    .filter(|p| group.contains(&p.start) || group.contains(&p.end))
+                    .any(|p| p.sides.contains(&c.old_key))
+            })
+            .collect();
+        let Some(d) = movers.first().map(|c| c.d) else {
+            unreachable!(
+                "{vertex:?} ends a planned edge, and every planned edge bounds a moved chart"
+            )
+        };
+        let mut around: Vec<SurfaceKey> = movers.iter().map(|c| c.old_key).collect();
+        for k in sides {
             if !around.contains(&k) {
                 around.push(k);
             }
         }
-        let mut all_hold = true;
-        for &k in around.iter().filter(|k| **k != old_key) {
-            let held = match holds.iter().find(|(h, _)| *h == k) {
-                Some((_, held)) => *held,
-                None => {
-                    let held =
-                        crate::offset_derive::holds_the_move(old_surface, surface_of(k), d, band);
-                    holds.push((k, held));
-                    held
+        let all_hold = match movers.as_slice() {
+            [mover] => {
+                let mut all_hold = true;
+                for &k in around.iter().filter(|k| **k != mover.old_key) {
+                    let held = match holds
+                        .iter()
+                        .find(|(m, h, _)| *m == mover.old_key && *h == k)
+                    {
+                        Some((.., held)) => *held,
+                        None => {
+                            let held = crate::offset_derive::holds_the_move(
+                                &mover.old_surface,
+                                surface_of(k),
+                                mover.d,
+                                band,
+                            );
+                            holds.push((mover.old_key, k, held));
+                            held
+                        }
+                    };
+                    all_hold &= held;
                 }
-            };
-            all_hold &= held;
-        }
+                all_hold
+            }
+            _ => false,
+        };
         let transported: Vec<Point3<T>> = plans
             .iter()
             .filter_map(|p| p.ends.map(|e| (p, e)))
@@ -3321,13 +3599,15 @@ fn solve_corners<T: Decide>(
         } else {
             corners.rooted.extend(group.iter().copied());
             let mut points = Vec::new();
+            // The surfaces some candidate lies on.
+            let mut covered: Vec<SurfaceKey> = Vec::new();
             // The first lane verdict a derived section passed over.
             let mut passed: Option<(EdgeKey, CornerVerdict<T>)> = None;
             for inc in &incident {
-                let on_moved = inc.sides.contains(&old_key);
+                let on_moved = inc.sides.iter().any(|&k| is_moved(k));
                 for &k in around
                     .iter()
-                    .filter(|k| !inc.sides.contains(k) && (on_moved || **k == old_key))
+                    .filter(|k| !inc.sides.contains(k) && (on_moved || is_moved(**k)))
                 {
                     let surface = surface_of(k);
                     if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
@@ -3371,6 +3651,11 @@ fn solve_corners<T: Decide>(
                             .map_err(corner)?,
                         };
                         points.push(inc.carrier.eval(t));
+                        for s in inc.sides.into_iter().chain([k]) {
+                            if !covered.contains(&s) {
+                                covered.push(s);
+                            }
+                        }
                         if !inc.boundary {
                             corners.solved.push((edge, is_start, t));
                         }
@@ -3387,6 +3672,8 @@ fn solve_corners<T: Decide>(
                 {
                     return Err(refused);
                 }
+            }
+            if let Some(bare) = movers.iter().find(|c| !covered.contains(&c.old_key)) {
                 // Else the verdict of a derived section it passed over.
                 if let Some((edge, verdict)) = passed {
                     return Err(ReplaceFaceError::CornerSection {
@@ -3395,12 +3682,23 @@ fn solve_corners<T: Decide>(
                         verdict,
                     });
                 }
+                let edge = if points.is_empty() {
+                    incident.first()
+                } else {
+                    incident.iter().find(|i| i.sides.contains(&bare.old_key))
+                }
+                .map_or(plans[0].edge, |i| i.edge);
                 return Err(ReplaceFaceError::CornerSection {
                     vertex,
-                    edge: incident.first().map_or(plans[0].edge, |i| i.edge),
+                    edge,
                     verdict: CornerVerdict::Unsupported {
-                        what: "no edge meeting this corner crosses a surface the corner can be \
-                               solved on",
+                        what: if points.is_empty() {
+                            "no edge meeting this corner crosses a surface the corner can be \
+                             solved on"
+                        } else {
+                            "a moved spline or fitted surface meets this corner, and no root here \
+                             lies on it"
+                        },
                     },
                 });
             }
@@ -3415,6 +3713,7 @@ fn solve_corners<T: Decide>(
             }
         }
         corners.groups.push((group, points[0]));
+        corners.offsets.push(d);
     }
     Ok(corners)
 }

@@ -1,5 +1,5 @@
 //! **Bodies with NURBS walls, against the shell verb and the offset
-//! door it runs per face.**
+//! doors it runs.**
 //!
 //! The twisted loft (`common::approx::twisted_loft`) is lofted through
 //! `sweep::loft_body` between a square and the same square turned
@@ -8,16 +8,14 @@
 //! the natural operand for the question "what does a shell of a
 //! spline-walled body cost at the run's ε", and these rows pin why that
 //! cost cannot be taken yet, at the thickness a user would ask for:
-//! `topo::shell` refuses before any wall is fitted.
+//! `topo::shell` moves every chart at once and refuses at a wall, at its
+//! offset fit or at a seam between two moved fits.
 //!
-//! A cap's offset moves the cap's corners, so each seam between two
-//! walls that ends at a moved corner is re-anchored on its lofted
-//! spline carrier. The twist slants those seams, and the per-chart
-//! door moves the cap rigidly along its normal, so the moved corner
-//! leaves a slanted seam by the thickness times the slant's sine: the
-//! oblique-junction refusal, met here on a spline wall. The straight
-//! prism's seams are parallel to the cap normal, so its re-anchor
-//! holds and the moved rim lands on an interior row of each wall.
+//! A cap moved alone moves the cap's corners along the slanted seams:
+//! each corner is the moved plane's root along its seam, and each rim
+//! the moved plane's section of its wall. The straight prism's seams
+//! are parallel to the cap normal, so its moved rim lands on an interior
+//! row of each wall.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -34,14 +32,6 @@ const THICKNESS: f64 = 0.05;
 
 fn is_spline_wall(walls: &[(FaceKey, impl Sized)], face: FaceKey) -> bool {
     walls.iter().any(|(k, _)| *k == face)
-}
-
-fn is_cap<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> bool {
-    matches!(
-        body.get_face(face)
-            .and_then(|f| body.get_surface(f.surface)),
-        Some(geom::Surface::Plane { .. })
-    )
 }
 
 /// The `z = 1` cap, whose chart normal points out of the body.
@@ -167,10 +157,11 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
     );
 }
 
-/// With its caps derived, the curved loft's shell moves on to the walls
-/// and refuses at the first one: its offset fit where ε is tighter than
-/// the fit reaches, its seam with the next wall where the fit
-/// certifies.
+/// The curved loft's shell moves every chart at once, so it mints every
+/// wall's offset fit before any edge, and refuses at a wall: its offset
+/// fit where ε is tighter than the fit reaches, and where the fit
+/// certifies, at a seam between two walls, which is the section of two
+/// moved fits and has no C5 arm.
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -204,13 +195,16 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
         );
     } else {
-        // The wall's rims with the caps derive as the plane × fit
-        // sections; its seam with the next wall is one of the fit's own
-        // rows, shared with that unmoved spline wall, and refuses.
-        let ReplaceFaceError::FittedBoundaryUnsupported { edge, what } = error.as_ref() else {
-            panic!("eps {eps:e}: expected the fitted wall's seam to refuse, got {e}");
+        // Both walls of a seam move, so the seam is the section of their
+        // two fits, which C5 does not route.
+        let ReplaceFaceError::NeighborPairUnroutable {
+            edge,
+            kind: geom::SurfaceKind::Approx,
+            other_kind: geom::SurfaceKind::Approx,
+        } = error.as_ref()
+        else {
+            panic!("eps {eps:e}: expected the seam between two moved fits to refuse, got {e}");
         };
-        assert_eq!(*what, "a row of this fit shared with a spline face");
         assert_wall_seam(&body, *edge, "the refused seam");
     }
 }
@@ -332,17 +326,19 @@ fn vase() -> Body<f64> {
     .body
 }
 
-/// The vase's walls are rational, and the moved plane's section of one
-/// is not exact structure as a row (its skinned weights differ along
-/// the stacking by an ulp), so the door marches it. The plane × NURBS
-/// certificate then refuses the marched rim on its rational wall, by
-/// its own limb-2 bound, as the door re-charts the cap: the shell
-/// refuses at a cap before any wall moves, so the walls' smooth seams
-/// are never reached. A wall moved alone refuses at its fit instead:
-/// its net carries a C⁰ crease the fit's Taylor bound cannot cross.
+/// The shell moves every chart at once and mints every new surface
+/// first, so it refuses at a wall's fit: the wall's net carries a C⁰
+/// crease the fit's Taylor bound cannot cross. A cap moved alone meets
+/// its rim instead. The vase's walls are rational, and the moved
+/// plane's section of one is not exact structure as a row (its skinned
+/// weights differ along the stacking by an ulp), so the door marches
+/// it, and the plane × NURBS certificate refuses the marched rim on its
+/// rational wall, by its own limb-2 bound, as the door re-charts the
+/// cap.
 #[test]
-fn shelling_the_vase_refuses_at_its_rims_certificate() {
+fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_at_its_rims_certificate() {
     let body = vase();
+    let walls = nurbs_walls(&body);
     let e = topo::shell(
         &finished("the vase", body.clone(), Tol::witness()),
         THICKNESS,
@@ -352,7 +348,35 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
-    assert!(is_cap(&body, *face), "the refusing face is not a cap: {e}");
+    assert!(
+        is_spline_wall(&walls, *face),
+        "the refusing face is not a wall: {e}"
+    );
+    assert!(
+        matches!(
+            error.as_ref(),
+            ReplaceFaceError::Fit {
+                error: geom_brep::OffsetFitError::PatchBound(
+                    geom_brep::patch_bound::PatchBoundError::Crease
+                ),
+                ..
+            }
+        ),
+        "expected the wall's fit to refuse at its crease, got {e}"
+    );
+    // The bottom cap, moved alone into the vase.
+    let (cap, d) = body
+        .faces()
+        .find_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) if origin.z < 0.5 => {
+                Some((k, THICKNESS * normal.z.signum()))
+            }
+            _ => None,
+        })
+        .expect("the vase has a bottom cap");
+    let mut alone = body.clone();
+    let error = topo::replace_face_offset(&mut alone, cap, d, Tol::witness())
+        .expect_err("the vase's cap does not move alone today");
     let ReplaceFaceError::Op {
         error:
             topo::EulerOpError::RechartFalsifies {
@@ -365,38 +389,21 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                 ..
             },
         ..
-    } = error.as_ref()
+    } = &error
     else {
-        panic!("expected the rim certificate's limb-2 refusal, got {e}");
+        panic!("expected the rim certificate's limb-2 refusal, got {error}");
     };
     assert!(
         upper(*margin) > 1e2 * Tol::witness().eps(),
         "limb 2 is far past the band, not at its edge: {margin}"
     );
     let data = body.get_edge(*edge).expect("the rim resolves");
-    let walls = nurbs_walls(&body);
     assert!(
         [data.he_plus, data.he_minus]
             .into_iter()
             .filter_map(|he| body.face_of_half_edge(he))
             .any(|f| is_spline_wall(&walls, f)),
         "the refused rim bounds a spline wall"
-    );
-    let (wall, _) = walls[0];
-    let mut alone = body.clone();
-    let e = topo::replace_face_offset(&mut alone, wall, -THICKNESS, Tol::witness())
-        .expect_err("a vase wall does not move alone today");
-    assert!(
-        matches!(
-            e,
-            ReplaceFaceError::Fit {
-                error: geom_brep::OffsetFitError::PatchBound(
-                    geom_brep::patch_bound::PatchBoundError::Crease
-                ),
-                ..
-            }
-        ),
-        "expected the wall's fit to refuse at its crease, got {e}"
     );
 }
 
