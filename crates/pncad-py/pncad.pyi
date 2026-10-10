@@ -197,10 +197,9 @@ class EvaluationError(PncadError):
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (which door refused),
     `inner_kind` (the arm of the kernel refusal that door holds),
-    `through` (the nearest failed ancestor), `finding` (the
-    refusal-menu payload) and `document` (the part the node is in) are
-    always present, `None` where the reason has none (attributes never
-    go missing).
+    `through` (the nearest failed ancestor) and `document` (the part
+    the node is in) are always present, `None` where the reason has none
+    (attributes never go missing).
 
     The message speaks the failed node as the document holds it: its
     kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
@@ -231,14 +230,6 @@ class EvaluationError(PncadError):
     rather than a fault — which split half, which entity kind — is a
     different question and is not this attribute's.
 
-    `finding` is the boolean's refusal MENU: when
-    `kind == "undeclared_coincidence"`, it carries the candidate
-    declaration as a typed `FlushFinding` — the same value
-    `Evaluation.find_flush_candidates` answers with, ready for
-    `Node.boolean`'s `declare=` or `Doc.declare`. The menu has exactly
-    two arms:
-    declare that finding, or move the geometry.
-
     A refusal that CARRIES another node's refusal — `part_root_failed`,
     a part whose world placement failed, `part_root_poisoned`, a part
     whose world placement never ran because a node upstream of it failed,
@@ -261,7 +252,6 @@ class EvaluationError(PncadError):
     kind: Optional[str]
     inner_kind: Optional[str]
     through: Optional[NodeId]
-    finding: Optional[FlushFinding]
     document: Optional[DocRef]
 
 class ValidationFinding:
@@ -2452,12 +2442,12 @@ class Node:
         """A Boolean of two upstream solids. `declare` is its declared
         contact pairs, given as the INSPECTED findings (each carries
         its pair and class) and held as the node's own payload; an
-        empty list declares nothing, and then operands that merely
-        TOUCH refuse with the typed menu (`EvaluationError`,
-        `kind == "undeclared_coincidence"`, `finding` attached) — the
-        kernel never infers that two faces are the same face.
-        `Doc.declare` / `Doc.declare_all` set the list on the live
-        node.
+        empty list declares nothing. Operands whose faces a margin
+        decides on one surface glue there, declared or not, and each
+        such coincidence is recorded for the `unproven_coincidence`
+        check. A declaration adds its verification, and bridges a
+        residue inside the tolerance band. `Doc.declare` /
+        `Doc.declare_all` set the list on the live node.
 
         A closed surface of one operand that lies wholly on the
         other's — one body at both seats, or a member carried into a
@@ -2478,8 +2468,10 @@ class Node:
         authored independently and the membership is a list, which
         `DocEdit.set_members` rewrites on the live node. `declare` is
         the same declared-pair list `boolean` takes, each pair fed at
-        the fold step its two members meet at; without one, members
-        that merely TOUCH refuse (`undeclared_coincidence`).
+        the fold step its two members meet at. Members that touch glue
+        as a binary boolean's operands do; each pair of members is
+        judged before the fold, and a refusal only a fold step raises
+        is `kind == "union_fold_step"`, naming the member it folds in.
 
         Refuses at `Doc.insert` on the list as stated: `too_few_members`
         (with the `count` found), `duplicate_input`,
@@ -3990,9 +3982,7 @@ class Doc:
     def declare(self, node: NodeId, finding: FlushFinding) -> None:
         """ADD one inspected finding's pair to the declared pairs of the
         live boolean or union `node`, keeping every pair it declares
-        already (the detect/declare protocol's declare arm, and the
-        door an `undeclared_coincidence` refusal's recourse names:
-        following each refusal with its `finding` converges). A pair on
+        already (the detect/declare protocol's declare arm). A pair on
         the same two sides as one already declared replaces it. Raises
         EditError, typed: `set_declare_on_non_declaring` on a node
         that is neither a boolean nor a union, `unknown_node`,
@@ -4981,10 +4971,8 @@ class Verdict:
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
 # caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
 # `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
-# inspected findings on a boolean or union as its declared pairs. The
-# same value rides the
-# boolean's refusal menu (`EvaluationError.finding`). Detection and
-# declaration are separate doors ON PURPOSE: no fused
+# inspected findings on a boolean or union as its declared pairs.
+# Detection and declaration are separate doors ON PURPOSE: no fused
 # detect-and-declare door exists.
 
 class PlaneRelation:
@@ -5022,10 +5010,8 @@ class BooleanCoincidence:
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
-    `SharedSource` = syntactic recipe identity (zero numerics),
     `DecidedCoincident` = the geometric trilean's coincident arm."""
 
-    SharedSource: Final[FlushRung]
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
@@ -6961,11 +6947,14 @@ class Coincidence:
     answer with); the plane a split cuts with is `(node, None)`, and a
     profile's own piece is `(profile, piece)`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
-    `tangent`, `cusp`, `coaxial` or `co_ruled`; `site` is `plane_ladder`,
-    `carrier_ladder`, `split_on`, `battery_turn`, `battery_joint`,
-    `battery_support_axis` or `profile_junction`. A `profile_junction`
-    row is `tangent` or `cusp` between two carriers and `same_oriented`
-    where its two pieces continue one carrier. `rung` is the door's rung that proved
+    `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
+    `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
+    `battery_joint`, `battery_support_axis` or `profile_junction`. A
+    `profile_junction` row is `tangent` or `cusp` between two carriers
+    and `same_oriented` where its two pieces continue one carrier; a
+    `tangent_witness` row is `tangent_contact` (the outward sides
+    opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 

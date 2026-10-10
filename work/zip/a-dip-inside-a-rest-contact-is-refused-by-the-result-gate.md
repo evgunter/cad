@@ -2,13 +2,12 @@
 id: a-dip-inside-a-rest-contact-is-refused-by-the-result-gate
 kind: issue
 title: An edge-in-face contact beside a declared Rest contact has no section segment, so the REST zip admits it (a dip inside the contact reaches the result gate; a line kiss beside it ships failing tier 3′)
-status: parked
+status: open
 opened: 2026-10-06
 priority: P3
 cost: M
 design: true
-refs: [a-flush-declared-reflex-union-ships-the-wrong-volume]
-blocked_on: [booleans-glue-on-zero]
+refs: [a-flush-declared-reflex-union-ships-the-wrong-volume, a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face]
 ---
 
 
@@ -130,3 +129,27 @@ The zip is deleted, and the join takes both shapes.
 
 - **Shape 1 closes.** The three dips (across the south wall, inside the contact, deep across the south wall) build sound at box arithmetic in both orders: `rest_zip_admission.rs`'s `a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice` now requires the build.
 - **Shape 2 stands, in the join.** All 20 line-kiss runs (the ten poses, both orders) build at `vol a + vol b′` (to 4e-15), and tier 3′ fails with the same two `UndeclaredContact` findings (`VertexOnFace` and `EdgeFaceOverlap` along the kissing edge) the zip shipped. The contact is decided Zero and backed by no record. Stage 4 E glues and records a Zero-decided contact, which backs the census, so the row waits on it.
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+E does not record this contact. Its glue records face pairs that the
+carrier ladder decides are one carrier, or that the witness lane
+verifies are tangent. A line kiss is an edge and a vertex on a face's
+interior, so no face pair there is coincident, and the census's two
+`UndeclaredContact` findings stand.
+
+Measured on the `dUp (0.25, 0.25)` and `dLeft (−0.5, −0.5)` poses, in
+both orders:
+
+- The reduction mints vertex-on-face records on the kissed face
+  (`BooleanNaming::reduction_contacts`).
+- The result's `ContactRecords` hold only one vertex–vertex row.
+
+So the records are minted and then dropped where the result carries
+them (`boolean::ops::carry_rows`). That is the remap half of
+`a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`'s
+"mint or remap", and the two rows share one fix site. The undeclared
+union is now the declared one, body and records alike.
+`rest_zip_admission.rs`'s
+`a_line_kiss_beside_a_tangent_site_ships_its_contact_undeclared` pins
+that.

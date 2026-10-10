@@ -117,9 +117,29 @@ the capsule's, in both member orders:
 - Pinned by `the_capsules_strut_waits_at_the_crossing_layer`. The torus
   rows were not probed.
 
+## With INTENT stage 4 PR E
+
+PR E glues Zero rests and continuations by value. Since then, each
+cylinder × cylinder stack unions without the strut row's diff, at its
+closed form, in both orders and declared or not. Subtract and
+intersect stop at `FallbackExtentUnsupported`.
+`the_arc_joint_stacks_union_and_stop_at_the_fallback_extent` pins
+this, and `two_cylinders_tangent_along_a_ruling_cover_the_stack`
+meters it. The point-probe row,
+`the_covered_stack_meets_its_point_probes`, is still `#[ignore]`d,
+because the stack's tessellation refuses `CertificateExceeded` on the
+lower plate's wall.
+
+On the capsule, the rod that ends on the joint now builds in one
+member order and escalates in the other
+(`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
+The other three rods refuse `CurvedPierceUnsupported` as before.
+
 ## The work
 
-Once stage 4 lands: apply the diff above, un-ignore the witness rows and
-retire the pin. For the sphere row, find a union that needs the strut
-cover on sphere × cylinder once the doors above move, and widen the row
-with it as its witness.
+- Find out which read now covers the cylinder stacks without the strut
+  row. Then either admit the row as the certificate that read stands
+  on, or retire the row as unneeded.
+- For the sphere row, find a union that needs the strut cover on
+  sphere × cylinder once the doors above move, and widen the row with
+  it as its witness.

@@ -105,27 +105,26 @@ fn net_iso_u<T: Real>(net: &NetView<'_, T>, end: bool) -> Result<NurbsCurve3<T>,
     NurbsCurve3::new(net.knots_v.clone(), control, weights)
 }
 
-/// `column` run back: its knots mirrored across its domain `[a, b]`,
-/// its control points and weights reversed, so its point at `t` is
-/// `column`'s at `a + b − t`. A wrap edge a construction lays against
-/// its column's direction is carried by this (D1), and the seam-class
-/// pcurve certification compares it against the same reversal of the
-/// chart's own column.
+/// `column` run back: its knots reflected through 0
+/// ([`KnotVector::negated`], exact for every vector), its control
+/// points and weights reversed, so on `[−b, −a]` its point at `t` is
+/// `column`'s at `−t`. A wrap edge a construction lays against its
+/// column's direction is carried by this (D1), on that reflected
+/// domain; the seam-class pcurve certification reads the relation back
+/// with [`KnotVector::is_reflection_of`].
 ///
-/// # Errors
-///
-/// [`SplineError`] from re-validating the mirrored knot vector or the
-/// curve's counts, each unreachable for a curve
-/// [`NurbsCurve3::new`] built.
-pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> Result<NurbsCurve3<T>, SplineError> {
-    let knots = column.knots();
-    let (a, b) = knots.domain();
-    let mirrored = knots.knots().iter().rev().map(|&k| (a + b) - k).collect();
+/// The reflection about the column's own domain, `a + b − t`, is not
+/// offered: `a + b − k` is not an `f64` for most knots (`1 − fl(1/3)`,
+/// on a four-section loft's column), and a curve on rounded knots is
+/// not the column run back.
+#[must_use]
+pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
-        geom_core::spline::KnotVector::clamped(mirrored, knots.degree())?,
+        column.knots().negated(),
         column.control().iter().rev().copied().collect(),
         column.weights().iter().rev().copied().collect(),
     )
+    .unwrap_or_else(|e| unreachable!("a valid curve's net reversed onto its negated knots: {e}"))
 }
 
 /// The `v = 0` (`end = false`) or `v = 1` (`end = true`) boundary

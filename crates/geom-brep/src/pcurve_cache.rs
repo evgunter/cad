@@ -6891,10 +6891,10 @@ fn seam_envelope<T: Decide>(
     }
     let u_start = p0.x + pl.x * t0;
     // Which way the image runs the column: a wrap edge a
-    // construction laid against the column's own direction
-    // (D1) is carried by the column run back
-    // ([`crate::nurbs_iso::reversed_column`]), and is compared
-    // against that same reversal of the traversed row.
+    // construction laid against the column's own direction (D1)
+    // is carried by the column run back — on any exact reflection
+    // of its knots — and is compared against the traversed row
+    // read backwards.
     let backward = match decide(
         "pcurve_iso_seam_sense",
         Margin::metered_sup(pl.y * span, stretch_v),
@@ -6919,55 +6919,67 @@ fn seam_envelope<T: Decide>(
     // the chart's own `v` space, which is all the hull below
     // ever used.
     let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-    let b = if backward {
-        crate::nurbs_iso::reversed_column(&b)
-            .map_err(|source| PcurveCertifyError::ChartRow { source })?
+    // One spline space: the knots bitwise, or — run back — the
+    // carrier's knots the row's EXACT reflection (a reflection
+    // rebuilt in `f64` is not that space); and the weights, read
+    // the same way, either bitwise (a boundary row's, or a collapsed
+    // row's with the net's weights constant along `u`) or both
+    // constant (a collapsed row wrapped polynomial, whose carrier's
+    // constant cancels the same way).
+    let row_weights: Vec<f64> = if backward {
+        b.weights().iter().rev().copied().collect()
     } else {
-        b
+        b.weights().to_vec()
     };
-    // One spline space: the knots bitwise, and the weights
-    // either bitwise (a boundary row's, or a collapsed row's
-    // with the net's weights constant along `u`) or both
-    // constant (a collapsed row wrapped polynomial, whose
-    // carrier's constant cancels the same way).
-    let shared_weights = b.weights() == c.weights()
+    let shared_weights = row_weights == c.weights()
         || (constant_weights(b.weights()) && constant_weights(c.weights()));
-    if b.knots().knots() != c.knots().knots()
-        || b.knots().degree() != c.knots().degree()
-        || !shared_weights
-    {
+    let shared_knots = if backward {
+        b.knots().is_reflection_of(c.knots())
+    } else {
+        b.knots().knots() == c.knots().knots() && b.knots().degree() == c.knots().degree()
+    };
+    if !shared_knots || !shared_weights {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "the seam carrier is not the chart's own column (its knot/weight \
                        structure differs from the traversed row's) — the hull \
                        comparison needs one spline space",
         });
     }
+    // One spline space means one control count, so the backward
+    // index `n − 1 − i` is in range for every `i`.
+    let n = b.control().len();
     let mut hull = T::zero();
-    for (pb, pc) in b.control().iter().zip(c.control()) {
-        hull = hull.max((*pb - *pc).norm());
+    for (i, pc) in c.control().iter().enumerate() {
+        let pb = b.control()[if backward { n - 1 - i } else { i }];
+        hull = hull.max((pb - *pc).norm());
     }
     // Parameter map v(t) = p0.y + pl.y·t vs the identity, or
-    // vs `a + b − t` on a column run back over `[a, b]`: the
-    // difference is affine, so its extremes are at the
-    // endpoints; metered through the carrier's own rate bound.
+    // vs `S − t` on a column run back (the reflection's sum, the
+    // row's first knot plus the carrier's last): the difference is
+    // affine, so its extremes are at the endpoints; metered through
+    // the carrier's own rate bound.
     let v_at_0 = p0.y + pl.y * t0;
     let v_at_1 = p0.y + pl.y * t1;
     let along = |t: T| {
         if backward {
-            let (a, b) = c.domain();
-            T::from_f64(a + b) - t
+            T::from_f64(b.domain().0) + T::from_f64(c.domain().1) - t
         } else {
             t
         }
     };
     let slack_param =
         curve_rate_bound(c).to_meters((v_at_0 - along(t0)).abs().max((v_at_1 - along(t1)).abs()));
-    // Domain containment: the hull and rate bounds hold on the
-    // carrier's knot domain only.
+    // Domain containment: the hull and rate bounds hold on the knot
+    // domains only — the image's `v` on the row's, the span on the
+    // carrier's (one domain, unless the carrier is reflected).
+    let (r0, r1) = b.domain();
     let (d0, d1) = c.domain();
-    let lo = t0.min(v_at_0).min(v_at_1);
-    let hi = t1.max(v_at_0).max(v_at_1);
-    let over = escape((T::from_f64(d0) - lo).max(hi - T::from_f64(d1)));
+    let over = escape(
+        (T::from_f64(r0) - v_at_0.min(v_at_1))
+            .max(v_at_0.max(v_at_1) - T::from_f64(r1))
+            .max(T::from_f64(d0) - t0)
+            .max(t1 - T::from_f64(d1)),
+    );
     match decide(
         "pcurve_iso_domain",
         Margin::metered_sup(over, stretch_v),

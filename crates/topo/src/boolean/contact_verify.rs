@@ -173,9 +173,9 @@ fn rest_pair_verdict<T: Decide>(
         }),
         // The ladder contradicts a declared pair before it can call
         // it `Distinct`, and a declared pair never reaches the
-        // undeclared coincidence rung; either here would be the ladder
-        // breaking its own contract.
-        Ok((CarrierRelation::Distinct, _)) | Err(CarrierEqError::Undeclared { .. }) => {
+        // undeclared posture's undecided coincidence; either here would
+        // be the ladder breaking its own contract.
+        Ok((CarrierRelation::Distinct, _)) | Err(CarrierEqError::Undecided { .. }) => {
             Err(ContactRefusal::Escalated {
                 diag: Indeterminate {
                     margin: geom_core::MarginDiag::INVALID,

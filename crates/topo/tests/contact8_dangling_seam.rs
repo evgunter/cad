@@ -20,8 +20,8 @@ use common::{
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
-    Operand, mass_properties, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanResult, LoopBoundary,
+    mass_properties, union_with, validate_pseudomanifold,
 };
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
@@ -147,38 +147,28 @@ fn the_merged_union_takes_a_third_brick_declared() {
     assert_green(&bb, "(a ∪ f) ∪ c");
 }
 
-/// **Without its declarations the next union refuses on a pair it
-/// really has**: an undeclared coincidence ACROSS the operands — not a
-/// same-operand pair left by the merge, which no declaration could
-/// cover.
+/// **Without its declarations the next union glues the same body**:
+/// every flush pair across the operands decides Zero on its own
+/// margins, so the undeclared union is the declared one, bit for bit.
 #[test]
-fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
+fn the_merged_union_glues_an_undeclared_third_brick_as_declared() {
     let tol = Tol::witness();
     let af = a_union_f();
-    let err = union_with(&af.body, &c(), &BooleanDeclarations::none(), tol)
-        .expect_err("c's flush faces are undeclared");
-    let BooleanError::UndeclaredCoincidence { pair, .. } = &err else {
-        panic!("expected an undeclared coincidence, got {err:?}");
-    };
-    // The refused pair is exactly one the declarations would have
-    // covered: A's face and c's face, in that order, a flush pair.
-    let [(Operand::A, fa), (Operand::B, fb)] = *pair else {
-        panic!("a cross-operand (A, B) pair: {err:?}");
-    };
-    let flush = flush_declarations(&af.body, &c(), tol);
-    assert!(
-        flush
-            .coincident_faces
-            .iter()
-            .any(|d| (d.a, d.b) == (fa, fb)),
-        "({fa:?}, {fb:?}) is a flush pair of the two operands: {:?}",
-        flush.coincident_faces
+    let c = c();
+    let declared = unwrap_body(
+        union_with(&af.body, &c, &flush_declarations(&af.body, &c, tol), tol)
+            .expect("a merged union is a boolean operand"),
     );
-    // ...and it is the two TOP caps: the merged union's octagonal top
-    // and c's top, the first continuation the reduction's scan meets in
-    // arena order.
-    assert_eq!(face_height(&af.body, fa), Some(1.0), "{err:?}");
-    assert_eq!(face_height(&c(), fb), Some(1.0), "{err:?}");
+    let undeclared = unwrap_body(
+        union_with(&af.body, &c, &BooleanDeclarations::none(), tol)
+            .expect("c's flush faces glue on their decided zero"),
+    );
+    assert_eq!(
+        format!("{:?}", undeclared.body),
+        format!("{:?}", declared.body),
+        "declared and undeclared are one body"
+    );
+    assert_green(&undeclared, "(a ∪ f) ∪ c, undeclared");
 }
 
 /// **The bent seam's corner is deleted, and no record survives to
