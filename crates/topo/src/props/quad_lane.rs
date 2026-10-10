@@ -440,8 +440,7 @@ pub(super) fn polygon_face_about(
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
-    outer: &[LoopEdge<T>],
-    hes: &[HalfEdgeKey],
+    loops: &[super::FlatLoop<T>],
     band: Band,
     tol: Tol,
     window: RoundWindow,
@@ -456,6 +455,11 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     // widen this quadrature (the same deliberate omission the
     // mesh tolerance makes).
     if let Some(payload) = surface.spline_chart() {
+        let [(outer, hes)] = loops else {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a ring on a described spline face — the patch lanes read one loop",
+            });
+        };
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
@@ -467,7 +471,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         });
     };
     let eps = tol.eps();
-    let va = loop_vector_area(outer, *origin)?;
+    let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+    for (edges, _) in loops {
+        va = va + loop_vector_area(edges, *origin)?;
+    }
     // The flux about the chart's own origin, `r²·A_s`, is where the
     // face is; only this term carries its position. Taken about a centre
     // it is `(origin − centre)·A⃗` in interval arithmetic, a lever the
@@ -490,49 +497,54 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             (lift(*origin) - c).dot(va)
         }
     };
-    let mut edges = Vec::with_capacity(outer.len());
-    let lifted = crate::pcurves::lifted_images(body, hes);
-    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
-        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries no stored pcurve cache — \
+    let mut trims = Vec::with_capacity(loops.len());
+    for (loop_edges, hes) in loops {
+        let mut edges = Vec::with_capacity(loop_edges.len());
+        let lifted = crate::pcurves::lifted_images(body, hes);
+        for ((le, he), lifted) in loop_edges.iter().zip(hes).zip(&lifted) {
+            let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "curved-cut face half-edge carries no stored pcurve cache — \
                        caches mint in the split/boolean pipelines",
-            });
-        };
-        // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
-        // projected or focal-section image has none on an ANALYTIC
-        // chart's Green reduction, and refuses typed. A sphere's general
-        // circle mints a projected one at rest (an oblique fillet
-        // corner's octant); the props door refuses that face's spherical
-        // triangle before this lane is asked.
-        let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
+                });
+            };
+            // The certified quadrature lane reads a chart image
+            // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
+            // projected or focal-section image has none on an ANALYTIC
+            // chart's Green reduction, and refuses typed. A sphere's general
+            // circle mints a projected one at rest (an oblique fillet
+            // corner's octant); the props door refuses that face's spherical
+            // triangle before this lane is asked.
+            let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
                        an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
                        Villarceau circle's focal section) — its Green-form boundary integral \
                        is not wired",
+                });
+            };
+            let (t0, t1) = cache.params();
+            // The interval-start vertex: traversal start when forward,
+            // traversal end when reversed (`he_plus` start either way).
+            let p_start = start_point(body, *he, le.forward)?;
+            let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
+            edges.push(TrimEdgeQ {
+                u: chan(p0.x, pa.x, pb.x, pl.x)?,
+                v: chan(p0.y, pa.y, pb.y, pl.y)?,
+                t0: Interval::from_certified(t0),
+                t1: Interval::from_certified(t1),
+                forward: le.forward,
+                trig0,
+                env: Interval::from_certified(cache.certificate().envelope),
             });
-        };
-        let (t0, t1) = cache.params();
-        // The interval-start vertex: traversal start when forward,
-        // traversal end when reversed (`he_plus` start either way).
-        let p_start = start_point(body, *he, le.forward)?;
-        let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
-        edges.push(TrimEdgeQ {
-            u: chan(p0.x, pa.x, pb.x, pl.x)?,
-            v: chan(p0.y, pa.y, pb.y, pl.y)?,
-            t0: Interval::from_certified(t0),
-            t1: Interval::from_certified(t1),
-            forward: le.forward,
-            trig0,
-            env: Interval::from_certified(cache.certificate().envelope),
-        });
+        }
+        trims.push(edges);
     }
+    let trims: Vec<&[TrimEdgeQ]> = trims.iter().map(Vec::as_slice).collect();
     quad::cylinder_cut_face_rounds::<T>(
         Interval::from_certified(*radius),
         o_dot_va,
-        &edges,
+        &trims,
         eps,
         band,
         window,

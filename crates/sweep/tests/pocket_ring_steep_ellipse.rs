@@ -468,37 +468,18 @@ fn u_plate_battery() {
     }
 }
 
-/// One gating run: the op, the operand order and what it must do.
-type Run = (&'static str, &'static str, Want);
+/// One gating run: the op and the operand order.
+type Run = (&'static str, &'static str);
 
-/// What a gating run must do.
-#[derive(Clone, Copy, Debug)]
-enum Want {
-    /// Build a sound body.
-    Sound,
-    /// Build a sound body, or refuse with anything but a join desync —
-    /// for runs whose travel-correct pairing reaches a frontier past the
-    /// join (`VolumeUnmeasured { RingOnCurvedFace }`, the volume lane's).
-    SoundOrRefused,
-}
-
-/// The run's failure, if it fails `want`: a desync, a refusal where a
-/// body is wanted, or a body that fails tier 2, tier 3′, the
+/// The run's failure, if any: a refusal, or a body that fails tier 2, tier 3′, the
 /// certificate or the volume (`vol_tol`, the oracle's accuracy).
 fn miss(
     got: Result<BooleanResult<f64>, BooleanError>,
-    want: Want,
     volume: f64,
     vol_tol: f64,
 ) -> Option<String> {
     let r = match got {
-        Err(e @ BooleanError::JoinDesync { .. }) => return Some(format!("desync {e:?}")),
-        Err(e) => {
-            return match want {
-                Want::Sound => Some(format!("refused {e:?}")),
-                Want::SoundOrRefused => None,
-            };
-        }
+        Err(e) => return Some(format!("refused {e:?}")),
         Ok(r) => r,
     };
     let Some(bb) = r.body() else {
@@ -538,42 +519,29 @@ const REFUSES_AT_1E6: (f64, &str) = (70.0, "bool_pierce_sector_side_curved");
 /// this shape refuses on main too.
 #[test]
 fn steep_ellipse_poses_build_sound_or_refuse_typed() {
-    use Want::{Sound, SoundOrRefused};
     let ops = door;
     let mut misses = Vec::new();
 
     let cyl_z = (-8.0, 16.0);
     let base = cylinder(1.0, cyl_z.0, cyl_z.1);
     let vc = topo::mass_properties(&base, tol()).unwrap().volume;
-    let all = |w| {
-        [
-            ("U", "AB", w),
-            ("U", "BA", w),
-            ("S", "AB", w),
-            ("S", "BA", w),
-            ("I", "AB", w),
-            ("I", "BA", w),
-        ]
-    };
+    let all: [Run; 6] = [
+        ("U", "AB"),
+        ("U", "BA"),
+        ("S", "AB"),
+        ("S", "BA"),
+        ("I", "AB"),
+        ("I", "BA"),
+    ];
     let quads: Vec<(f64, [f64; 4], f64, Vec<Run>)> = vec![
-        (
-            6.0,
-            [200.0, 230.0, 300.0, 120.0],
-            1.75,
-            vec![("I", "AB", Sound)],
-        ),
-        (
-            6.0,
-            [225.0, 240.0, 320.0, 110.0],
-            1.658,
-            all(Sound).to_vec(),
-        ),
-        (6.0, [225.0, 240.0, 320.0, 110.0], 4.8, all(Sound).to_vec()),
+        (6.0, [200.0, 230.0, 300.0, 120.0], 1.75, vec![("I", "AB")]),
+        (6.0, [225.0, 240.0, 320.0, 110.0], 1.658, all.to_vec()),
+        (6.0, [225.0, 240.0, 320.0, 110.0], 4.8, all.to_vec()),
         (
             0.5,
             [200.0, 230.0, 300.0, 120.0],
             0.0,
-            vec![("U", "AB", SoundOrRefused)],
+            vec![("U", "AB"), ("U", "BA")],
         ),
     ];
     for (k, sites, psi, runs) in quads {
@@ -586,7 +554,7 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
             .map(|(n, d)| (turn.transform_vec(n), d))
             .collect();
         let vi = oracle_intersection(&planes, cyl_z.0, cyl_z.0 + cyl_z.1, 1200);
-        for (op, order, want) in runs {
+        for (op, order) in runs {
             let volume = match (op, order) {
                 ("U", _) => vc + vp - vi,
                 ("S", "AB") => vc - vi,
@@ -598,18 +566,16 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
             } else {
                 (&pr, &base)
             };
-            if let Some(m) = miss(ops(op, l, r), want, volume, 2e-5) {
-                misses.push(format!(
-                    "k={k} sites={sites:?} psi={psi} {op} {order} ({want:?}): {m}"
-                ));
+            if let Some(m) = miss(ops(op, l, r), volume, 2e-5) {
+                misses.push(format!("k={k} sites={sites:?} psi={psi} {op} {order}: {m}"));
             }
         }
     }
 
     for (theta_deg, t, x1f, x2f, mirror, runs) in [
-        (60.0f64, 0.02, -0.95, 0.1, false, all(Sound)),
-        (70.0, 0.02, -0.8, -0.3, false, all(SoundOrRefused)),
-        (70.0, 0.02, -0.8, 0.1, true, all(Sound)),
+        (60.0f64, 0.02, -0.95, 0.1, false, all),
+        (70.0, 0.02, -0.8, -0.3, false, all),
+        (70.0, 0.02, -0.8, 0.1, true, all),
     ] {
         let theta = theta_deg.to_radians();
         let x = (x1f * R / theta.cos(), x2f * R);
@@ -625,7 +591,7 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
         let mb = topo::mass_properties(&rd, tol()).unwrap();
         let (vb, pad_b) = (mb.volume, mb.volume_pad);
         let vi = want_i(theta, xs, t);
-        for (op, order, want) in runs {
+        for (op, order) in runs {
             let volume = match (op, order) {
                 ("U", _) => va + vb - vi,
                 ("S", "AB") => va - vi,
@@ -648,9 +614,9 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
                 }
                 continue;
             }
-            if let Some(m) = miss(got, want, volume, 1e-7 + pad_b) {
+            if let Some(m) = miss(got, volume, 1e-7 + pad_b) {
                 misses.push(format!(
-                    "theta={theta_deg} x={xs:?} mirror={mirror} {op} {order} ({want:?}): {m}"
+                    "theta={theta_deg} x={xs:?} mirror={mirror} {op} {order}: {m}"
                 ));
             }
         }

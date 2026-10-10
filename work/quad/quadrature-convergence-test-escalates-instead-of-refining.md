@@ -229,3 +229,13 @@ longer exists) and the `VolumeWall` machinery in `demos/tour`. The
 mechanism this row names, an in-band convergence test escalating
 instead of refining, is untouched. The CLEAVE instances above are not
 re-measured, so the row stays open.
+
+## More witnesses (FLUX, `flux/ellipse-ring`)
+
+`pocket_ring_steep_ellipse::steep_plate_rod_battery` (3 240 runs, ε =
+1e-9): with the cylinder quadrature reading rings, no run ends at
+`RingOnCurvedFace` any more, 2 872 build at the oracle's volume, and 44
+refuse here — `props_quad_converged` with margins of −6.8e-9 and the
+like, inside the band's escalate half, at every tilt θ ∈ {30, 50, 60,
+70, 78}° and both thicknesses, ∩ rows (no ring on the wall) among them.
+A run that refined one more round instead would measure.

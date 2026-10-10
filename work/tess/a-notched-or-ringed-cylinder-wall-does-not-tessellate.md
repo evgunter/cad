@@ -45,3 +45,16 @@ horizontal, rulings vertical), holes included, inside one branch of the
 azimuth when the face window is under a period; a chart-polygon
 triangulation of that region, lifted through the cylinder, would serve
 both shapes.
+
+## More witnesses (FLUX, `flux/ellipse-ring`)
+
+A wall whose ring is trimmed by ELLIPSE arcs now measures too: the
+cylinder quadrature reads every loop
+(`geom_brep::props::quad::cylinder_cut_face`). The unit pipe ∪ or ∖ the
+brick `(−1.1, 1.1) × (0.2, 0.7) × (−0.15, 0.15)` turned about the x axis
+through `(0, 0.45, 0)` by 0.3, 0.7, 1.0 or 1.3 rad meets its exact volume
+(`verbs_germarms::a_wall_ringed_by_ellipse_arcs_measures`), and the
+mesh's trimmed lane refuses that wall `RingOnCurvedFace` before its
+dispatch (`crates/mesh/src/trimmed.rs`, `tessellate_trimmed`'s ring
+guard). The fix above wants the trimmed lane's chart region as well:
+the same polygon with the ring's ellipse images for edges.
