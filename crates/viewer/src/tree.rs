@@ -630,12 +630,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 None => "on a face of a deleted body".to_owned(),
             },
         ),
-        Node::Datum(
-            Datum::Plane { .. }
-            | Datum::Axis { .. }
-            | Datum::Point { .. }
-            | Datum::AxisInPlane { .. },
-        )
+        Node::Datum(Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. })
         | Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }

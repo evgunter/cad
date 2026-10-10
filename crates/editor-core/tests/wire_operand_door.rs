@@ -26,7 +26,7 @@
 //!
 //! **Two rows are document-reachable**: the kind is right and the
 //! value is not — a half or an instance of a plain body. Their phrases
-//! and families differ, so a door that answered a constant goes red.
+//! differ, so a door that answered a constant phrase goes red.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -421,15 +421,17 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     // A census that read nothing would pass vacuously, and one that
     // reached a single phrase, family or kind would pin neither half
     // against a door that answers a constant.
-    assert_eq!(phrases.len(), 3, "the document-reachable rows");
-    assert_eq!(doors.len(), 14, "the rows the edit door refuses");
+    assert_eq!(phrases.len(), 2, "the document-reachable rows");
+    assert_eq!(doors.len(), 13, "the rows the edit door refuses");
     phrases.sort_unstable();
     phrases.dedup();
     families.sort_unstable();
     families.dedup();
+    // Both reachable rows read a plain body, so only the phrase half
+    // varies between them; the family half is pinned row by row above.
     assert!(
-        phrases.len() == 3 && families.len() == 2,
-        "the reachable rows must vary both halves: {} phrases over {} families",
+        phrases.len() == 2 && families.len() == 1,
+        "the reachable rows must vary the phrase: {} phrases over {} families",
         phrases.len(),
         families.len()
     );

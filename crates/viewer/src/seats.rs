@@ -100,8 +100,6 @@ vocabulary! {
     pub enum Seat {
         /// The profile a revolve sweeps.
         RevolveProfile,
-        /// The axis a revolve sweeps about.
-        RevolveAxis,
         /// The boolean's first operand — the body `A ∖ B` KEEPS.
         OperandA,
         /// The boolean's second operand — the body `A ∖ B` REMOVES.
@@ -149,7 +147,6 @@ impl Seat {
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,
-            Self::RevolveAxis => NodeKindWanted::SketchAxis,
             Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
             Self::PartSplit => NodeKindWanted::Split,
@@ -167,7 +164,6 @@ impl Seat {
     pub fn name(self) -> &'static str {
         match self {
             Self::RevolveProfile => "profile",
-            Self::RevolveAxis => "axis",
             Self::OperandA => "first operand",
             Self::OperandB => "second operand",
             Self::SplitTarget => "split target",

@@ -152,8 +152,6 @@ vocabulary! {
         FaceFrame = "frame on face",
         /// An axis datum, in world coordinates.
         Axis = "axis",
-        /// An axis written in a picked sketch frame — a revolve's axis.
-        AxisInPlane = "axis in sketch",
         /// A point datum.
         Point = "point",
     }
@@ -184,7 +182,6 @@ impl DatumKindChoice {
     /// string at its one home and cannot drift apart.
     pub(crate) fn unmet_seat(self) -> Option<&'static str> {
         match self {
-            Self::AxisInPlane => Some("pick a frame to write the axis in"),
             Self::FaceFrame => Some(crate::session::NO_FACE_PICKED),
             Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
         }
@@ -201,7 +198,6 @@ impl DatumKindChoice {
             Self::Frame => "Datum frame",
             Self::FaceFrame => "Datum frame (on face)",
             Self::Axis => "Datum axis",
-            Self::AxisInPlane => "Datum axis (in sketch)",
             Self::Point => "Datum point",
         }
     }
@@ -213,7 +209,6 @@ partial_mirror! {
         Plane { .. } => Plane,
         Axis { .. } => Axis,
         Point { .. } => Point,
-        AxisInPlane { .. } => AxisInPlane,
         Frame { .. } => Frame,
         FaceFrame { .. } => FaceFrame,
     ],

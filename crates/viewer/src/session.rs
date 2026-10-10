@@ -1655,9 +1655,10 @@ impl DocSession {
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
-                axis,
+                axis_origin,
+                axis_direction,
                 angle,
-            } => self.add_revolve(profile, axis, angle),
+            } => self.add_revolve(profile, axis_origin, axis_direction, angle),
             SessionOp::AddBoolean { op, a, b, declare } => self.add_boolean(op, a, b, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
@@ -2591,25 +2592,17 @@ impl DocSession {
     }
 
     /// Insert one datum node ([`SessionOp::AddDatum`]). Its slots are
-    /// literals; the two kinds that also name a node by PICK — an axis
-    /// in a sketch names its frame, a frame on a face names the body
-    /// its face is read out of — are gated by kind here, so a pick of
-    /// the wrong kind is refused `WrongNodeKind` before the edit.
+    /// literals; the one kind that also names a node by PICK — a frame
+    /// on a face names the body its face is read out of — is gated by
+    /// kind here, so a pick of the wrong kind is refused
+    /// `WrongNodeKind` before the edit.
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
-        // An axis in a sketch names its frame by PICK, so it is gated
-        // at this door by kind, as the add-profile door gates its
-        // plane.
-        if let DatumSpec::AxisInPlane { plane, .. } = &datum
-            && let Err(refusal) = self.require_kind(*plane, NodeKindWanted::Frame)
-        {
-            return OpOutcome::refused(refusal);
-        }
         // A frame on a face names the node its face is read out of by
-        // PICK too, and that node has to denote ONE body: the
+        // PICK, and that node has to denote ONE body: the
         // evaluator reads the face through its single-body operand
         // door, so a split side or a pattern instance would mint a
-        // node that refuses after the edit lands. Gated here for the
-        // same reason the frame above is.
+        // node that refuses after the edit lands. Gated here, as the
+        // add-profile door gates its plane.
         if let DatumSpec::FaceFrame { at, .. } = &datum
             && let Err(refusal) = self.require_kind(*at, NodeKindWanted::Body)
         {
@@ -2798,23 +2791,22 @@ impl DocSession {
         })
     }
 
-    /// Insert one revolve of an existing profile about an existing
-    /// axis datum ([`SessionOp::AddRevolve`]).
+    /// Insert one revolve of an existing profile about an axis line in
+    /// its own plane ([`SessionOp::AddRevolve`]).
     fn add_revolve(
         &mut self,
         profile: RecipeNodeId,
-        axis: RecipeNodeId,
+        axis_origin: [Formula; 2],
+        axis_direction: [Formula; 2],
         angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
-            return OpOutcome::refused(refusal);
-        }
         self.create_placed(Node::Revolve {
             profile: profile.into(),
-            axis: axis.into(),
+            axis_origin,
+            axis_direction,
             angle,
         })
     }

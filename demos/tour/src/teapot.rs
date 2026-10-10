@@ -802,12 +802,13 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     applied.record.minted.expect("insert mints an id")
 }
 
-/// One full revolve of `loop_` about the sketch frame's own `+v`,
-/// which this document places on world `+y`.
+/// One full revolve of `loop_` about the sketch frame's own `+v`
+/// through its origin, which this document places on world `+y`: the
+/// axis is written in the frame's 2-D coordinates, so it cannot leave
+/// the plane the meridian is drawn on.
 fn revolved(
     doc: &mut Doc<ProfileProgram>,
     plane: RecipeNodeId,
-    axis: RecipeNodeId,
     loop_: LoopProgram<Formula>,
     tol: Tol,
 ) -> RecipeNodeId {
@@ -824,7 +825,8 @@ fn revolved(
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis: axis.into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
             angle: ang(TAU),
         },
         tol,
@@ -869,16 +871,14 @@ fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
     [band_rim(node, vertex), band_rim_pi(node, vertex)]
 }
 
-/// **The sketch frame and the axis every meridian here turns about.**
+/// **The sketch frame every meridian here is drawn on.**
 ///
 /// u = +X (the radius), v = +Y (the axis), so a meridian point
 /// `(x, y)` is the world point `(x, y, 0)` and the pot stands on +Y —
 /// the world placement every camera, cell and budget row of this scene
-/// was taken from. The axis is written in the frame's own 2-D
-/// coordinates, its own +v through the origin, so it cannot leave the
-/// plane the meridian is drawn on.
-fn frame_and_axis(doc: &mut Doc<ProfileProgram>, tol: Tol) -> (RecipeNodeId, RecipeNodeId) {
-    let plane = insert(
+/// was taken from.
+fn sketch_frame(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+    insert(
         doc,
         Node::Datum(Datum::Frame {
             origin: [len(0.0), len(0.0), len(0.0)],
@@ -886,25 +886,15 @@ fn frame_and_axis(doc: &mut Doc<ProfileProgram>, tol: Tol) -> (RecipeNodeId, Rec
             v: [scl(0.0), scl(1.0), scl(0.0)],
         }),
         tol,
-    );
-    let axis = insert(
-        doc,
-        Node::Datum(Datum::AxisInPlane {
-            frame: plane.into(),
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
-    (plane, axis)
+    )
 }
 
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot", tol);
-    let (plane, axis) = frame_and_axis(&mut doc, tol);
+    let plane = sketch_frame(&mut doc, tol);
 
     // ---- the vessel ----
-    let bellied = revolved(&mut doc, plane, axis, vessel_meridian(), tol);
+    let bellied = revolved(&mut doc, plane, vessel_meridian(), tol);
     // The mouth is the meridian's mouth-disc segment, NAMED. A full
     // revolve sweeps a planar wall whole — no seam meridian cuts it —
     // so the mouth disc is ONE face, its `Band`.
@@ -930,7 +920,7 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the lid ----
-    let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+    let plain_lid = revolved(&mut doc, plane, lid_meridian(), tol);
     // THREE rims, THREE DIFFERENT coaxial arms, in ONE request. The
     // radius is per REQUEST, not per edge, and each later rim's
     // seam-piece identities are re-read against the partially-carved
@@ -1044,8 +1034,8 @@ fn build_doc(tol: Tol) -> Recipe {
 /// models is not part of that recipe.
 fn wall_one_pot(tol: Tol) -> Body<f64> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-wall-1", tol);
-    let (plane, axis) = frame_and_axis(&mut doc, tol);
-    let belly = revolved(&mut doc, plane, axis, torus_belly_meridian(), tol);
+    let plane = sketch_frame(&mut doc, tol);
+    let belly = revolved(&mut doc, plane, torus_belly_meridian(), tol);
     let hollow = insert(
         &mut doc,
         Node::shell(
@@ -1361,8 +1351,8 @@ type Census = (usize, usize, usize);
 /// in it would be three bodies the scene does not model.
 fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
-    let (plane, axis) = frame_and_axis(&mut doc, tol);
-    let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+    let plane = sketch_frame(&mut doc, tol);
+    let lid = revolved(&mut doc, plane, lid_meridian(), tol);
     let rims: Vec<[StableName; 2]> = LID_RIMS
         .iter()
         .map(|&(v, ..)| rim_arcs(lid, vertex_at(&doc, lid, v, tol)))

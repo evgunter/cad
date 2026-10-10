@@ -257,18 +257,6 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         }),
         tol,
     );
-    // The pole axis, written in the meridian frame: that frame's v IS
-    // world +Z, so the axis is its own +y through (0, 0). Minted after
-    // the frame, which it names.
-    let axis = insert(
-        doc,
-        Node::Datum(Datum::AxisInPlane {
-            frame: ball_plane.into(),
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -282,7 +270,11 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         doc,
         Node::Revolve {
             profile: ball_p.into(),
-            axis: axis.into(),
+            // The pole axis, in the meridian frame's own coordinates:
+            // that frame's v IS world +Z, so the axis is its +y through
+            // (0, 0).
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
             // A full turn, in the degrees this document is written in.
             angle: ang(360.0),
         },

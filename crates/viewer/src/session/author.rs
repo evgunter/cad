@@ -45,24 +45,6 @@ pub enum DatumSpec {
         /// Position components (`Length`).
         position: [Formula; 3],
     },
-    /// An axis written in a sketch frame — a revolve's axis of
-    /// revolution.
-    ///
-    /// `plane` is a PICK, not a field: it names the `Datum::Frame` the
-    /// two coordinate pairs are written against, and the pairs are
-    /// that frame's own 2-D coordinates. There is no third component,
-    /// which is the whole of why a revolve about one cannot leave the
-    /// sketch.
-    AxisInPlane {
-        /// The frame node the axis lives in.
-        plane: RecipeNodeId,
-        /// Origin components in the frame's coordinates (`Length`).
-        origin: [Formula; 2],
-        /// Direction components in the frame's coordinates (`Scalar`),
-        /// unnormalized — the kernel's `RevolveAxis` normalizes and
-        /// refuses a sliver at its own door.
-        direction: [Formula; 2],
-    },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
@@ -77,8 +59,7 @@ pub enum DatumSpec {
     /// are the face's, and `spin` is the only number an author
     /// chooses.
     ///
-    /// Two PICKS and one field — [`Self::AxisInPlane`]'s shape, not
-    /// [`Self::Plane`]'s.
+    /// Two PICKS and one field, not [`Self::Plane`]'s shape.
     ///
     /// **`at` is the node whose BODY the ray met, never the feature
     /// that minted the face.** The name is read out of that body's own
@@ -91,8 +72,7 @@ pub enum DatumSpec {
     /// why it is said here.
     FaceFrame {
         /// The body-denoting node the face is read out of — a PICK,
-        /// and a DAG input exactly as [`Self::AxisInPlane`]'s `plane`
-        /// is.
+        /// and a DAG input.
         at: RecipeNodeId,
         /// The picked face, frozen — a PICK, resolved through `at`'s
         /// value under the N5 ladder.
@@ -276,15 +256,6 @@ pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
         DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
-        DatumSpec::AxisInPlane {
-            plane,
-            origin,
-            direction,
-        } => Datum::AxisInPlane {
-            frame: plane.into(),
-            origin,
-            direction,
-        },
         DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame {
             face: Operand::select(at, vec![face]),
             spin,

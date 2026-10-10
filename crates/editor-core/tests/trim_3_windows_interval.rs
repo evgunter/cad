@@ -21,10 +21,7 @@
 //! **E8**, the identity a refused description owes.
 //!
 //! E7 is cut on an EXTRUDED scallop rather than the spec's
-//! negative-angle revolve, and E6 and E8 record a skip rather than an
-//! assertion, for one measured reason: no revolve on this tree replays
-//! at the interval scalar over an ε-scaled box, so a revolved band
-//! refuses at the SELECTION door and never reaches `window_of`.
+//! negative-angle revolve.
 //!
 //! The basename carries `interval` because the suite's subject is the
 //! certified scalar.
@@ -586,14 +583,12 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 /// row does not certify that, and the honest thing is to say what it
 /// does certify instead.
 ///
-/// **Measured**: the revolve does not replay at the interval scalar
-/// over an ε-scaled box, so this query refuses at the SELECTION door
-/// (`node did not build in this leaf's replay`) and
-/// `ClearanceReport::refused` mints `windows = (0, 0)` and a default
-/// receipt **before `window_of` runs**. Both numbers below are that
-/// constant. They pin something real — a refusal at the door reports
-/// no windows, which is what a reader of `windows()` must be able to
-/// rely on — and they are not the identity claim.
+/// **Measured**: the quarter annulus builds at the interval scalar over
+/// the ε-scaled box, and every window it reaches is tightened. The row
+/// once read a refusal at the SELECTION door here; that refusal was the
+/// fixture's revolve reading a world axis datum its door refused, not a
+/// replay that failed, and with its axis written in the profile's plane
+/// the band reaches `window_of`.
 ///
 /// **The identity claim is unexercised**, and cannot be exercised on
 /// this tree: no fixture reaches `chart_boundary`'s `Err` arm from
@@ -602,13 +597,12 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 /// carriers `chart_arms` declines before the walk is called) and a
 /// `General` carrier (which `EdgeCurve::certify` refuses at build
 /// time). Filed as
-/// `work/trim/a-refused-chart-boundary-has-no-reachable-window.md`;
-/// `work/trim/revolved-bands-reach-no-clearance-row.md` is why this
-/// fixture in particular stops at the door. A mutant that turns the
-/// `Err` arm into a `ClearanceRefusal::Unsupported` survives the whole
-/// suite, and no row in this file claims otherwise.
+/// `work/trim/a-refused-chart-boundary-has-no-reachable-window.md`.
+/// A mutant that turns the `Err` arm into a
+/// `ClearanceRefusal::Unsupported` survives the whole suite, and no row
+/// in this file claims otherwise.
 #[test]
-fn a_selection_door_refusal_reports_no_windows_at_all() {
+fn a_revolved_quarter_band_is_windowed_and_holds() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let plane = insert_xy_frame(&mut r);
@@ -654,25 +648,16 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
-    let ClearanceVerdict::Refused(ClearanceRefusal::Selection(_)) = report.verdict() else {
-        panic!(
-            "this row's subject is the SELECTION door's refusal; if the revolve has started \
-             replaying at the interval scalar this fixture now reaches `window_of` and the \
-             row must be rewritten to say what it finds there: {}",
-            report.serialize()
-        );
-    };
     assert_eq!(
-        report.windows(),
-        (0, 0),
-        "a refusal at the door reports no windows in either column — it did not look at \
-         one: {}",
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the block clears the quarter annulus by more than the window comes within: {}",
         report.serialize()
     );
-    assert_eq!(
-        report.receipt(),
-        editor_core::clearance::CellReceipt::default(),
-        "and nothing was classified: {}",
+    let (tightened, loose) = report.windows();
+    assert!(
+        tightened > 0 && loose == 0,
+        "every window of the revolved band is cut to its chart: {}",
         report.serialize()
     );
 }

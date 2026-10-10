@@ -816,42 +816,6 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.datum_direction,
                 );
             }
-            DatumKindChoice::AxisInPlane => {
-                let frames = self.frames();
-                let names = self.frame_names();
-                frame_picker(
-                    ui,
-                    &self.theme,
-                    "in frame",
-                    "datum_frame",
-                    &frames,
-                    &mut self.drafts.datum_frame,
-                    names,
-                );
-                let unit = self.notation.length.def();
-                ui.horizontal(|ui| {
-                    ui.label("origin");
-                    point_fields(ui, unit, &mut self.drafts.datum_in_frame_origin);
-                    length_picker(ui, "datum_origin", &mut self.notation.length);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("direction");
-                    for (axis, component) in ["x", "y"]
-                        .into_iter()
-                        .zip(&mut self.drafts.datum_in_frame_direction)
-                    {
-                        ui.label(axis);
-                        ui.add(number_field(component, UNIT_DRAG_SPEED));
-                    }
-                });
-                // The same-frame rule is the revolve's, and a person
-                // authoring this axis is about to meet it: say it here
-                // rather than at the revolve's refusal.
-                crate::widgets::message(
-                    ui,
-                    "x and y are the frame's own; a revolve needs its profile on this frame",
-                );
-            }
             DatumKindChoice::FaceFrame => self.datum_face_frame_rows(ui),
             DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
         }
@@ -1283,9 +1247,10 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// The revolve tool's panel: activation, the two held picks
-    /// (profile, then axis), the angle field, and the one committed
-    /// edit — the same chrome shape as every other seated tool.
+    /// The revolve tool's panel: activation, the held profile pick, the
+    /// axis line in the profile's own coordinates, the angle field, and
+    /// the one committed edit — the same chrome shape as every other
+    /// seated tool.
     pub(crate) fn revolve_tool_ui(&mut self, ui: &mut egui::Ui) {
         // A copy of the small tool value, for the reason the mate
         // panel takes one: the panel reads it while pushing ops and
@@ -1302,9 +1267,27 @@ impl ViewerBehavior<'_> {
         };
         crate::widgets::message(
             ui,
-            ToolKind::Revolve.says(&"pick the profile, then the axis"),
+            ToolKind::Revolve.says(&"pick the profile, then write its axis"),
         );
         seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        let unit = self.notation.length.def();
+        ui.horizontal(|ui| {
+            ui.label("axis origin");
+            point_fields(ui, unit, &mut self.drafts.revolve_axis_origin);
+            length_picker(ui, "revolve_axis_origin", &mut self.notation.length);
+        });
+        ui.horizontal(|ui| {
+            ui.label("axis direction");
+            for (axis, component) in ["x", "y"]
+                .into_iter()
+                .zip(&mut self.drafts.revolve_axis_direction)
+            {
+                ui.label(axis);
+                ui.add(number_field(component, UNIT_DRAG_SPEED));
+            }
+        });
+        // Where the numbers are measured, said where they are typed.
+        crate::widgets::message(ui, "x and y are the profile's own; the axis lies in its plane");
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -1316,7 +1299,11 @@ impl ViewerBehavior<'_> {
             angle_picker(ui, "revolve_angle", &mut self.notation.angle);
         });
         self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
-            Ok(tool.op(notation.angle_literal(drafts.revolve_angle)?)?)
+            Ok(tool.op(
+                notation.point_literals(drafts.revolve_axis_origin.to_array())?,
+                crate::drafts::scalars2(drafts.revolve_axis_direction)?,
+                notation.angle_literal(drafts.revolve_angle)?,
+            )?)
         });
     }
 

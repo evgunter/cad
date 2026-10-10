@@ -565,6 +565,10 @@ pub use editor_core::{
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
 pub use editor_core::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
+// The pose definitions (D10): how a pose variable is defined, read off
+// geometry or constructed, and the faults the doors and the evaluator
+// name. A module, so its arms keep their names (`pose::PoseDef::Plane`).
+pub use editor_core::pose;
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///

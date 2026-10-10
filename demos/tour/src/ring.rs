@@ -234,26 +234,19 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             ids: Vec::new(),
         })),
     );
-    // The axis of revolution, written in the sketch it turns: the
-    // frame's v is world +Y, so this is its own +y through (0, 0).
-    // Four numbers in the frame's coordinates rather than six in the
-    // world's — and no way to write one that leaves the plane.
-    let axis = insert(
-        &mut doc,
-        Box::new(Node::Datum(Datum::AxisInPlane {
-            frame: plane.into(),
-            origin: [mm(0.0), mm(0.0)],
-            direction: [
-                Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),
-                Formula::literal(1.0, Dimension::Scalar).expect("a scalar"),
-            ],
-        })),
-    );
     let revolved = insert(
         &mut doc,
         Box::new(Node::Revolve {
             profile: profile.into(),
-            axis: axis.into(),
+            // The axis of revolution, written in the sketch it turns:
+            // the frame's v is world +Y, so this is its own +y through
+            // (0, 0). Four numbers in the sketch's coordinates, with no
+            // way to write one that leaves its plane.
+            axis_origin: [mm(0.0), mm(0.0)],
+            axis_direction: [
+                Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),
+                Formula::literal(1.0, Dimension::Scalar).expect("a scalar"),
+            ],
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.

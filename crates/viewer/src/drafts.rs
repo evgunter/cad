@@ -113,21 +113,6 @@ pub(crate) struct Drafts {
     pub(crate) datum_u: [f64; 3],
     /// The frame form's sketch +y axis.
     pub(crate) datum_v: [f64; 3],
-    /// **The frame an axis-in-sketch is written in** — `None` until
-    /// one is picked, for [`Self::profile_plane`]'s reason: the frame
-    /// is a document node, so the form names one that exists.
-    ///
-    /// Its own pick rather than the profile form's, because the two
-    /// forms are filled in separately. A revolve does need both nodes
-    /// written against the SAME frame, which the form says beside the
-    /// picker.
-    pub(crate) datum_frame: Option<RecipeNodeId>,
-    /// The axis-in-sketch form's point on the axis, metres, in the
-    /// picked frame's 2-D coordinates.
-    pub(crate) datum_in_frame_origin: Point2<f64>,
-    /// Its direction in the same coordinates (unitless). Opens as the
-    /// frame's +y, the axis a profile drawn beside it turns about.
-    pub(crate) datum_in_frame_direction: [f64; 2],
     /// **The face a frame-on-face is read off** — `None` until one is
     /// picked in the viewport.
     ///
@@ -208,6 +193,13 @@ pub(crate) struct Drafts {
     pub(crate) extrude_distance: f64,
     /// The revolve tool's angle, radians.
     pub(crate) revolve_angle: f64,
+    /// The revolve tool's point on its axis, metres, in the profile's
+    /// own 2-D coordinates.
+    pub(crate) revolve_axis_origin: Point2<f64>,
+    /// The revolve tool's axis direction in the same coordinates
+    /// (unitless). Opens as the profile's +y, the axis a profile drawn
+    /// beside it turns about.
+    pub(crate) revolve_axis_direction: [f64; 2],
     /// The boolean tool's operation choice.
     pub(crate) boolean_op: BooleanOp,
     /// The transform tool's translation, metres.
@@ -669,9 +661,6 @@ impl Default for Drafts {
             // cannot drift apart.
             datum_u: xy_u,
             datum_v: xy_v,
-            datum_frame: None,
-            datum_in_frame_origin: Point2::origin(),
-            datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
             datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
@@ -690,6 +679,8 @@ impl Default for Drafts {
             profile_extent: [0.01, 0.01],
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
+            revolve_axis_origin: Point2::origin(),
+            revolve_axis_direction: [0.0, 1.0],
             boolean_op: BooleanOp::Union,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
@@ -1054,16 +1045,6 @@ impl Drafts {
                 origin: notation.length_literals(self.datum_origin)?,
                 direction: scalars(self.datum_direction)?,
             },
-            DatumKindChoice::AxisInPlane => {
-                let Some(plane) = self.datum_frame else {
-                    return Ok(None);
-                };
-                DatumSpec::AxisInPlane {
-                    plane,
-                    origin: notation.point_literals(self.datum_in_frame_origin.to_array())?,
-                    direction: scalars2(self.datum_in_frame_direction)?,
-                }
-            }
             DatumKindChoice::FaceFrame => {
                 // Carried, not re-derived: which node the face is read
                 // out of is the gate's answer, decided where the
@@ -1343,7 +1324,6 @@ mod tests {
     fn picked(datum_kind: DatumKindChoice) -> Drafts {
         Drafts {
             datum_kind,
-            datum_frame: Some(RecipeNodeId::new(0, 0)),
             datum_face: Some(FaceSelection {
                 name: StableName {
                     kind: EntityKind::Face,
@@ -1451,7 +1431,6 @@ mod tests {
                 | NodeKindWanted::Split
                 | NodeKindWanted::Instances => continue,
                 NodeKindWanted::Axis
-                | NodeKindWanted::SketchAxis
                 | NodeKindWanted::Plane
                 | NodeKindWanted::Frame => {}
             }

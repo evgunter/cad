@@ -772,8 +772,7 @@ impl ValidationFinding {
 /// A datum: a construction plane, frame, axis, or point.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Datum {
-    /// `"plane"`, `"frame"`, `"axis"`, `"axis_in_plane"`, or
-    /// `"point"`.
+    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
     #[pyo3(get)]
     kind: &'static str,
     /// Plane/frame/axis origin, or the point's position, as metres.
@@ -783,22 +782,6 @@ pub(crate) struct Datum {
     /// for a point.
     #[pyo3(get)]
     direction: Option<(f64, f64, f64)>,
-    /// An in-plane axis in its frame's own 2-D coordinates — the
-    /// origin then the direction, as authored. `None` for every other
-    /// kind, whose numbers are all world numbers.
-    ///
-    /// The two halves cross differently because they ARE different
-    /// things. The origin is a POSITION — a distance from the frame's
-    /// own origin, measured in metres — so it crosses dimensioned, as
-    /// `origin` does and as `Node.datum_axis_in_plane` takes it. The
-    /// direction is dimensionless and crosses bare, which is the
-    /// placement vocabulary's rule: a bare float appears only where
-    /// the Rust side is itself a direction or a matrix entry. Being
-    /// written in a frame's coordinates rather than the world's
-    /// changes the DATUM a position is measured from, never its
-    /// dimension.
-    #[pyo3(get)]
-    in_plane: Option<((Length, Length), (f64, f64))>,
     /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
     /// for every other kind.
     ///
@@ -816,11 +799,8 @@ pub(crate) struct Datum {
     // An alias would name the pair on the Rust side while the thing the
     // stub records stayed a bare nested tuple on the Python side, so a
     // reader checking the binding against the stub would have to chase
-    // the alias to learn nothing new. The two fields above it —
-    // `direction`'s triple and `in_plane`'s pair of pairs — are literal
-    // for the same reason and stay under clippy's threshold; naming
-    // only the third would make three projections of one kind read as
-    // two.
+    // the alias to learn nothing new. The field above it, `direction`'s
+    // triple, is literal for the same reason.
     #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
     #[pyo3(get)]
     axes: Option<((f64, f64, f64), (f64, f64, f64))>,
@@ -1041,7 +1021,6 @@ impl Value {
                     kind: "plane",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
-                    in_plane: None,
                     axes: None,
                 })
             }
@@ -1051,7 +1030,6 @@ impl Value {
                     kind: "axis",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
-                    in_plane: None,
                     axes: None,
                 })
             }
@@ -1059,7 +1037,6 @@ impl Value {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
-                in_plane: None,
                 axes: None,
             }),
             d::ValuePayload::Datum(d::PoseValue::Frame(f)) => {
@@ -1069,34 +1046,11 @@ impl Value {
                     kind: "frame",
                     origin: lengths(f.origin()),
                     direction: Some((n.x, n.y, n.z)),
-                    in_plane: None,
                     axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
                 })
             }
-            // BOTH spellings reach Python: `origin`/`direction` are the
-            // world line, so a reader that only wants to know where the
-            // axis IS treats it like any other axis, and `in_plane`
-            // carries the sketch numbers a revolve consumes.
-            d::ValuePayload::Datum(d::PoseValue::AxisInPlane {
-                plane_origin,
-                plane_dir,
-                origin,
-                dir,
-            }) => {
-                let v = dir.get();
-                Ok(Datum {
-                    kind: "axis_in_plane",
-                    origin: lengths(*origin),
-                    direction: Some((v.x, v.y, v.z)),
-                    in_plane: Some((
-                        (
-                            Length(pncad::quantity::Length::from_meters(plane_origin.x)),
-                            Length(pncad::quantity::Length::from_meters(plane_origin.y)),
-                        ),
-                        (plane_dir.x, plane_dir.y),
-                    )),
-                    axes: None,
-                })
+            d::ValuePayload::Datum(d::PoseValue::Direction { .. }) => {
+                unreachable!("a datum node's value is a point, an axis, a plane or a frame")
             }
             other => Err(eval_err(
                 py,

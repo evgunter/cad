@@ -131,15 +131,6 @@ fn sharp_lid_in(
         }),
         tol,
     );
-    let axis = insert(
-        &mut doc,
-        Node::Datum(Datum::AxisInPlane {
-            frame: plane.into(),
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
@@ -153,7 +144,8 @@ fn sharp_lid_in(
         &mut doc,
         Node::Revolve {
             profile: profile.into(),
-            axis: axis.into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
             angle: ang(TAU),
         },
         tol,

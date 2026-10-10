@@ -213,13 +213,19 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// `Debug`. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
         ("part_select", 0x90fb_17e7_6b0b_54f9),
-        ("kitchen_sink", 0x98c0_fba7_09be_e02d),
+        ("kitchen_sink", 0xbcb8_5815_76af_f1ea),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

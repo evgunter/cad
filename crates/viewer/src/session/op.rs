@@ -595,17 +595,19 @@ pub enum SessionOp {
         /// The extrusion depth (`Length`).
         distance: Formula,
     },
-    /// Insert one revolve of an existing profile node about an
-    /// existing axis datum, and its identity world placement (A10) —
-    /// the revolve tool's one committed action.
-    /// Either seat's wrong-kind pick refuses
-    /// [`Refusal::WrongNodeKind`] at the door.
+    /// Insert one revolve of an existing profile node about an axis
+    /// line in the profile's own plane, and its identity world
+    /// placement (A10) — the revolve tool's one committed action.
+    /// A wrong-kind profile pick refuses [`Refusal::WrongNodeKind`] at
+    /// the door.
     AddRevolve {
         /// The profile node revolved.
         profile: RecipeNodeId,
-        /// The `Datum::AxisInPlane` node revolved about — an axis
-        /// written in the same sketch frame the profile is drawn on.
-        axis: RecipeNodeId,
+        /// A point on the axis, in the profile's 2-D coordinates
+        /// (`Length`).
+        axis_origin: [Formula; 2],
+        /// The axis direction in the same coordinates (`Scalar`).
+        axis_direction: [Formula; 2],
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
         angle: Formula,

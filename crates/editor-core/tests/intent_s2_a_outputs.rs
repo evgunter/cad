@@ -502,7 +502,6 @@ fn every_node_shape_states_its_signature() {
         "Datum::Plane -> [plane:Plane]",
         "Datum::Axis -> [axis:Axis]",
         "Datum::Point -> [point:Point]",
-        "Datum::AxisInPlane -> [axis:Axis]",
         "Datum::Frame -> [frame:Frame]",
         "Datum::FaceFrame -> [frame:Frame]",
         "Profile -> [profile:Profile]",

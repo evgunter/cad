@@ -2236,10 +2236,21 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: _Operand, axis: _Operand, angle: _AngleArg) -> Node:
-        """Revolve a profile about a datum axis. `angle` mints a
-        literal in the node's `revolve_angle` slot, driven afterwards
-        by `DocEdit.set_param` as an extrude's `distance` is."""
+    def revolve(
+        profile: _Operand,
+        axis_origin: tuple[_LengthArg, _LengthArg],
+        axis_direction: tuple[_ScalarArg, _ScalarArg],
+        angle: _AngleArg,
+    ) -> Node:
+        """Revolve a profile about an axis line in its own plane.
+
+        `axis_origin` and `axis_direction` are the line in the
+        profile's own 2-D coordinates: four numbers in the plane, which
+        cannot leave it. The revolve's second output,
+        `Doc.output(revolve, 1)`, is the line lifted to 3-D, an axis
+        other nodes read. `angle` mints a literal in the node's
+        `revolve_angle` slot, driven afterwards by `DocEdit.set_param`
+        as an extrude's `distance` is."""
     @staticmethod
     def tube(
         frame: _Operand,
@@ -2317,18 +2328,6 @@ class Node:
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
         direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
-    @staticmethod
-    def datum_axis_in_plane(
-        plane: _Operand,
-        origin: tuple[_LengthArg, _LengthArg],
-        direction: tuple[_ScalarArg, _ScalarArg],
-    ) -> Node:
-        """An axis written IN a sketch frame — a revolve's axis.
-
-        The two pairs are `plane`'s own 2-D coordinates. A revolve
-        takes one of these and not a `datum_axis`: an axis written in
-        the frame cannot leave the plane it turns.
-        """
     @staticmethod
     def datum_plane(
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
@@ -2703,12 +2702,69 @@ _LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
 _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
-_Operand: TypeAlias = NodeId | Var
+_Operand: TypeAlias = NodeId | Var | PoseDef
 """What an operand takes: a node, read at its one output (a node with
 several, a revolve's body and axis or a split's two halves, refuses
-`ambiguous_output`: read its port with `Doc.output(node, port)`), or a
-variable — an output by `Doc.output`, or a named one. The slot admits
-one kind, and a read of another refuses `slot_var_kind`."""
+`ambiguous_output`: read its port with `Doc.output(node, port)`), a
+variable — an output by `Doc.output`, or a named one — or a pose
+defined at the seat (`PoseDef`). The slot admits one kind, and a read
+of another refuses `slot_var_kind`."""
+
+class PoseDef:
+    """A pose defined where it is read: pass it to an operand that reads
+    a pose (a split's `tool`, a profile's frame, a circular rule's
+    axis), and the edit door mints the pose variable there. No pose is
+    free and none is defined from nothing: each constructor reads
+    geometry, writes coordinates in a frame it reads, or constructs
+    from other poses."""
+
+    @staticmethod
+    def plane(at: _Operand, face: str) -> PoseDef:
+        """A face read as a plane: its carrier's plane, with the face's
+        outward normal. A curved face refuses `pose_read` at
+        `evaluate`."""
+    @staticmethod
+    def axis(at: _Operand, name: str) -> PoseDef:
+        """A cylinder's, a cone's or a torus's axis, a straight edge's
+        line, or a circular edge's axis."""
+    @staticmethod
+    def point(at: _Operand, name: str) -> PoseDef:
+        """A sphere's, a torus's or a circle's centre, a cone's apex, or
+        a vertex's point."""
+    @staticmethod
+    def in_frame(
+        frame: _Operand,
+        *,
+        origin: Optional[tuple[_LengthArg, _LengthArg, _LengthArg]] = None,
+        direction: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        normal: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        u: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        v: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+    ) -> PoseDef:
+        """A pose written by coordinates in a frame: `origin` alone a
+        point, `direction` alone a direction, `origin` and `direction`
+        an axis, `origin` and `normal` a plane, `origin`, `u` and `v` a
+        frame. Any other combination raises `ValueError`."""
+    @staticmethod
+    def through(axis: _Operand, point: _Operand) -> PoseDef:
+        """The frame through an axis and a point: origin the foot of the
+        point on the axis, `z` the axis, `x` towards the point. A point
+        on the axis refuses `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def meet(a: _Operand, b: _Operand) -> PoseDef:
+        """The axis two planes meet in. Parallel planes refuse
+        `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def flip(pose: _Operand) -> PoseDef:
+        """The opposite sense of a direction, an axis, a plane or a
+        frame. A flip of a flip defined here is the pose it flips."""
+    @staticmethod
+    def standoff(plane: _Operand, by: _LengthArg) -> PoseDef:
+        """A plane moved along its own normal by `by`."""
+    @staticmethod
+    def project(of: _Operand, to: str) -> PoseDef:
+        """A frame's `"plane"`, `"axis"` or `"point"`, or a plane's or
+        an axis's `"direction"`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -4929,18 +4985,6 @@ class Datum:
     def origin(self) -> tuple[Length, Length, Length]: ...
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
-    @property
-    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
-        """An in-plane axis in its frame's own 2-D coordinates — the
-        origin then the direction, as authored. `None` for every other
-        kind, whose numbers are all world numbers.
-
-        The halves cross differently because they are different
-        things. The ORIGIN is a position, so it carries `Length`s —
-        the same shape `Node.datum_axis_in_plane` writes it in and the
-        same shape `Datum.origin` reads back. The DIRECTION is
-        dimensionless and stays bare. Frame-local is a change of
-        datum, not of dimension."""
 
     @property
     def axes(

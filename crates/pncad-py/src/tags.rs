@@ -592,6 +592,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // whose members are a list and the edit that rewrites one.
         EditError::DuplicateInput { .. } => "duplicate_input",
         EditError::SelectionShape { .. } => "selection_shape",
+        EditError::PoseShape { .. } => "pose_shape",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
         EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
@@ -993,7 +994,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MissingSlot => "missing_slot",
         C::VerbArity => "verb_arity",
         C::Escalated => "escalated",
-        C::AxisInDifferentPlane => "axis_in_different_plane",
+        C::PoseRead => "pose_read",
+        C::PoseDegenerate => "pose_degenerate",
+        C::PoseScalar => "pose_scalar",
         C::NonPositiveCount => "non_positive_count",
         C::NegativeSpacing => "negative_spacing",
         C::DegenerateSpacing => "degenerate_spacing",
@@ -1176,7 +1179,12 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
         NodeErrorKind::Escalated { .. } => None,
-        NodeErrorKind::AxisInDifferentPlane { .. } => None,
+        NodeErrorKind::PoseRead { fault, .. } => Some(pose_read_fault_tag(fault)),
+        NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
+            pncad::document::pose::PoseConstruction::Through => "through",
+            pncad::document::pose::PoseConstruction::Meet => "meet",
+        }),
+        NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::NonPositiveCount { .. } => None,
         NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing
@@ -1248,6 +1256,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::WouldCycle { .. } => None,
         EditError::DuplicateInput { .. } => None,
         EditError::SelectionShape { fault, .. } => Some(selection_fault_tag(fault)),
+        EditError::PoseShape { fault, .. } => Some(pose_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
         EditError::SetDeclareOnNonDeclaring { .. } => None,
         EditError::DeclaredSiteNotAnOperand { .. } => None,
@@ -1995,6 +2004,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
         SnapshotError::SelectionShape { .. } => "selection_shape",
         SnapshotError::SelectionBody { .. } => "selection_body",
+        SnapshotError::PoseShape { .. } => "pose_shape",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
@@ -3433,6 +3443,33 @@ pub fn step_handle_refusal_tag(refusal: &StepHandleRefusal) -> &'static str {
 pub fn interface_crossing_tag(crossing: &InterfaceCrossing) -> &'static str {
     match crossing {
         InterfaceCrossing::Mate { .. } => "mate",
+    }
+}
+
+/// **A pose definition's shape fault, as Python spells it** — the inner
+/// word of `pose_shape`.
+pub fn pose_fault_tag(fault: &pncad::document::pose::PoseFault) -> &'static str {
+    use pncad::document::pose::PoseFault as F;
+    match fault {
+        F::ReadKind { .. } => "read_kind",
+        F::DoubleFlip => "double_flip",
+        F::Projection { .. } => "projection",
+        F::Unminted { .. } => "unminted",
+        F::ScalarKind { .. } => "scalar_kind",
+        F::Kind { .. } => "kind",
+        F::Cycle => "cycle",
+    }
+}
+
+/// **Why a pose read off geometry found none**, as its word: the
+/// `pose_read` refusal's detail.
+pub fn pose_read_fault_tag(fault: &pncad::document::pose::PoseReadFault) -> &'static str {
+    use pncad::document::pose::PoseReadFault as F;
+    match fault {
+        F::NotPlanar { .. } => "not_planar",
+        F::NoAxis { .. } => "no_axis",
+        F::NoCentre { .. } => "no_centre",
+        F::Readback { .. } => "readback",
     }
 }
 

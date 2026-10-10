@@ -573,20 +573,16 @@ const POINT_ARM_PX: f64 = 14.0;
 /// Which kind of datum a drawing came from — carried so a consumer can
 /// say what it is pointing at without re-reading the document.
 ///
-/// **A partition of the datum VALUES by how they are drawn**, which is
-/// why four members cover `PoseValue`'s five arms: `AxisInPlane` is a
-/// line in space and is drawn as the axis it is, so it carries this
-/// same tag as `Axis`. `draw_one` is where each datum value is given
-/// its tag.
+/// **A partition of the datum VALUES by how they are drawn**: one
+/// member per value a datum node evaluates to. `draw_one` is where each
+/// datum value is given its tag.
 ///
 /// **Not the add-datum form's `forms::DatumKindChoice`**, which names
 /// what that form OFFERS rather than what a drawing IS, and which owns
-/// the radio row's words and its `ALL`. The two differ by
-/// `AxisInPlane` and by `FaceFrame`, and for one reason twice over:
-/// each is its own choice in the form because authoring it takes a
-/// PICK, and each is drawn here as the thing it evaluates to — the
-/// axis, and the frame. Neither side is required to move when the
-/// other does.
+/// the radio row's words and its `ALL`. The two differ by `FaceFrame`,
+/// its own choice in the form because authoring it takes a PICK, and
+/// drawn here as the frame it evaluates to. Neither side is required to
+/// move when the other does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
@@ -741,15 +737,9 @@ fn draw_one(node: RecipeNodeId, datum: &PoseValue<f64>, view: View) -> DatumDraw
             kind: DatumKind::Frame,
             segments: frame_segments(f.origin(), f.u().get(), f.v().get(), view),
         },
-        // Drawn from the WORLD lift, and drawn as the axis it is: the
-        // sketch coordinates it was authored in are what a revolve
-        // reads, not what a viewport shows, and a line in space looks
-        // the same however it was written down.
-        PoseValue::AxisInPlane { origin, dir, .. } => DatumDraw {
-            node,
-            kind: DatumKind::Axis,
-            segments: axis_segments(*origin, *dir, view),
-        },
+        PoseValue::Direction { .. } => {
+            unreachable!("a datum node's value is a point, an axis, a plane or a frame")
+        }
     }
 }
 

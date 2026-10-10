@@ -60,7 +60,7 @@ pub(crate) fn eval_pose<T: Decide>(
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let value = match held.def() {
-        VarDef::Output { node, port } => output(doc, results, *node, *port, env, tol)?,
+        VarDef::Output { node, port } => output(doc, results, slot, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
         VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
@@ -79,6 +79,7 @@ pub(crate) fn eval_pose<T: Decide>(
 fn output<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
+    slot: OperandSlot,
     node: crate::RecipeNodeId,
     port: u8,
     env: &VarEnv<T>,
@@ -86,7 +87,9 @@ fn output<T: Decide>(
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let value = value_of(results, node)?;
     match (&value.payload, doc.node(node)) {
-        (ValuePayload::Datum(pose), _) => Ok(pose.clone()),
+        (ValuePayload::Datum(pose), _) if !matches!(slot.kind(), crate::SlotKind::Is(kind) if kind != pose.kind()) => {
+            Ok(pose.clone())
+        }
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
             let at = super::super::read_at(doc, OperandSlot::Profile, *profile)?;
             let ValuePayload::Profile(drawn) = &value_of(results, at)?.payload else {
@@ -104,11 +107,18 @@ fn output<T: Decide>(
                     .map_err(DirectionRefusal::node_error)?,
             })
         }
-        _ => Err(super::wrong_operand(
-            value,
-            node,
-            super::super::family::DATUM,
-        )),
+        // A read the door would have refused, in a document built past
+        // it: the datum the seat asks for, in the operand door's words.
+        _ => {
+            use super::super::phrase;
+            let expected = match slot.kind() {
+                crate::SlotKind::Is(K::Axis) => phrase::DATUM_AXIS,
+                crate::SlotKind::Is(K::Plane) => phrase::DATUM_PLANE,
+                crate::SlotKind::Is(K::Frame) => phrase::DATUM_FRAME,
+                _ => super::super::family::DATUM,
+            };
+            Err(super::wrong_operand(value, node, expected))
+        }
     }
 }
 

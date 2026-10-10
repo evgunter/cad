@@ -12,6 +12,7 @@ mod mesh;
 mod path;
 mod pick;
 mod place;
+mod pose;
 mod quantity;
 mod readback;
 mod refactor;
@@ -934,6 +935,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     path::register(m)?;
     step::register(m)?;
     place::register(m)?;
+    pose::register(m)?;
     doc::register(m)?;
     expr::register(m)?;
     select::register(m)?;

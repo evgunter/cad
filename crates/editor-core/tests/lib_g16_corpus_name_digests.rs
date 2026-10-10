@@ -157,6 +157,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// selection variable each such node reads, so their node ids moved and
 /// every row naming them; every other row held its word, and the
 /// id-masked geometry fence held untouched.
+///
+/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
+/// the node): the five documents that revolve — `kitchen_sink`,
+/// `die_pips`, `die_tool`, `die_composed` and `die_composed_tour` —
+/// hold no in-plane axis datum, so their later node ids moved and every
+/// name holding one; every other row held its word.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xddcc3ced224b3abe),
     ("corner_table", 0xbf41aa6a471ab71c),
@@ -166,20 +172,20 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0xe60447ef73de5f47),
     ("nested_islands_106_depth2", 0x0d0f5287d3949db6),
     ("declared_tangency", 0x370595ad9c1f1053),
-    ("kitchen_sink", 0x9b19e7c275c8b587),
+    ("kitchen_sink", 0x0cdf36ff0ef0327f),
     ("cut_cylinder", 0xecad82208268b4e3),
     ("measured_web", 0xa8eab47c82dec152),
     ("boss_union", 0xbb9123c70a8e96d8),
     ("die_fillet", 0xac1b616d285f9b3e),
     ("die_chamfer", 0x2111595b3f98da9c),
-    ("die_pips", 0x5f07295c3f1a2633),
+    ("die_pips", 0x6af3a447f0bd3196),
     ("heat_sink_fins", 0xf0b12754e2c4efed),
-    ("die_tool", 0x1cd399b374c5520c),
+    ("die_tool", 0x527c30728f53f806),
     ("face_sketch", 0x033a72b2be1ba6b8),
     ("part_select", 0xbd9176c4c3e50f39),
     ("loft_prism", 0x4413e8ba1b27cd15),
-    ("die_composed", 0x95a151a7e9e9c601),
-    ("die_composed_tour", 0x55b7629845fad59a),
+    ("die_composed", 0x885b7fea99c7cf8c),
+    ("die_composed_tour", 0x5cd04b4d58f60a1d),
     ("plate_param", 0xb8c9e234c718e107),
     ("kiss_carry", 0x8be2464010f4249d),
     ("tube_ring", 0x0d0d950420bce9dd),

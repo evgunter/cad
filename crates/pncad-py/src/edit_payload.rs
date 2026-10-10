@@ -370,6 +370,12 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
+        EditError::PoseShape { node, slot, fault: _ } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
+            ..none
+        },
         // `found` here is a COUNT, not a dimension, so it takes the
         // `count` attribute: one attribute never carries two types.
         EditError::TooFewMembers { node, found } => EditPayload {

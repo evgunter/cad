@@ -842,14 +842,17 @@ pub(crate) enum SlotValueArg {
 
 /// **An operand as Python writes it**: a node, read at its one output
 /// (a node with several, a revolve or a split, refuses
-/// `ambiguous_output`: its port is read by `Doc.output`), or a variable
-/// — an output by `Doc.output`, or a name's.
-#[derive(FromPyObject, Clone, Copy)]
+/// `ambiguous_output`: its port is read by `Doc.output`), a variable
+/// — an output by `Doc.output`, or a name's — or a pose defined at the
+/// seat (`PoseDef`).
+#[derive(FromPyObject, Clone)]
 pub(crate) enum OperandArg {
     /// A node, read at its one output.
     Node(NodeId),
     /// A variable, read as itself.
     Var(Var),
+    /// A pose defined at the seat.
+    Pose(super::pose::PoseDef),
 }
 
 impl OperandArg {
@@ -858,6 +861,7 @@ impl OperandArg {
         match self {
             Self::Node(node) => d::Operand::Node(node.0),
             Self::Var(var) => d::Operand::Var(var.0),
+            Self::Pose(pose) => pose.inner,
         }
     }
 }
@@ -2427,7 +2431,14 @@ impl Node {
         })
     }
 
-    /// Revolve an upstream profile about a datum axis.
+    /// Revolve an upstream profile about an axis line in its own plane.
+    ///
+    /// `axis_origin` and `axis_direction` are the line in the profile's
+    /// own 2-D coordinates: the origin lengths, the direction
+    /// dimensionless and unnormalized. Four numbers in the plane cannot
+    /// leave it, so no residual is checked. The revolve's second output
+    /// (`Doc.output(revolve, 1)`) is the line lifted to 3-D, an axis
+    /// other nodes read.
     ///
     /// `angle` is the node's `revolve_angle` slot —
     /// `DocEdit.set_param` is what drives it afterwards, as it is for
@@ -2436,14 +2447,22 @@ impl Node {
     fn revolve(
         py: Python<'_>,
         profile: OperandArg,
-        axis: OperandArg,
+        axis_origin: (super::expr::SlotArg, super::expr::SlotArg),
+        axis_direction: (super::expr::SlotArg, super::expr::SlotArg),
         angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
                 profile: profile.read(),
-                axis: axis.read(),
+                axis_origin: [
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &axis_origin.0)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &axis_origin.1)?,
+                ],
+                axis_direction: [
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &axis_direction.0)?,
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &axis_direction.1)?,
+                ],
                 angle,
             },
         })
@@ -2657,46 +2676,11 @@ impl Node {
         })
     }
 
-    /// A datum axis written IN a sketch frame — what a revolve turns.
-    ///
-    /// `plane` is the `Datum.frame` node the axis lives in, and the
-    /// two pairs are that frame's own 2-D coordinates: the origin
-    /// slots `Length`, the direction's dimensionless and
-    /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
-    ///
-    /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
-    /// would have to be checked into the profile's plane, and that
-    /// check was a tolerance verdict on a direction residual. Written
-    /// here, the axis cannot leave the frame — and whether it is the
-    /// frame the profile was drawn on is an equality of node ids.
-    #[staticmethod]
-    fn datum_axis_in_plane(
-        py: Python<'_>,
-        plane: OperandArg,
-        origin: (super::expr::SlotArg, super::expr::SlotArg),
-        direction: (super::expr::SlotArg, super::expr::SlotArg),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::AxisInPlane {
-                frame: plane.read(),
-                origin: [
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,
-                ],
-                direction: [
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &direction.0)?,
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &direction.1)?,
-                ],
-            }),
-        })
-    }
-
     /// **A sketch frame DERIVED from a face** — "sketch on this
     /// face", as a node.
     ///
     /// `at` is the body-denoting node the face is read out of, and it
-    /// is a DAG input exactly as [`Node::datum_axis_in_plane`]'s
-    /// `plane` is: the frame moves when the face moves, so raising the
+    /// is a DAG input: the frame moves when the face moves, so raising the
     /// body carries every sketch built on this frame up with it.
     /// `face` is one of the opaque texts `Evaluation.all_faces` /
     /// `select` answered with, handed back unread — the face is

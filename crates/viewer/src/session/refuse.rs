@@ -49,14 +49,6 @@ pub enum NodeKindWanted {
     /// A `Node::Datum(Datum::Axis)` — a world-space line, which is
     /// what a circular placement rule turns about.
     Axis,
-    /// A `Node::Datum(Datum::AxisInPlane)` — an axis written in a
-    /// sketch frame, which is what a revolve turns.
-    ///
-    /// Separate from [`Self::Axis`] because the two are separate node
-    /// kinds and the evaluator's operand door refuses across them. A
-    /// seat that admitted both would route a pick the door then
-    /// rejects, which is the drift this vocabulary exists to prevent.
-    SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
     /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
@@ -105,7 +97,6 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
             }),
         NodeKindWanted::Profile
         | NodeKindWanted::Axis
-        | NodeKindWanted::SketchAxis
         | NodeKindWanted::Plane
         | NodeKindWanted::Frame
         | NodeKindWanted::Split => held.and_then(seat_kind) == Some(wanted),
@@ -122,7 +113,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Datum(datum) => match datum {
             Datum::Axis { .. } => Some(NodeKindWanted::Axis),
-            Datum::AxisInPlane { .. } => Some(NodeKindWanted::SketchAxis),
             Datum::Plane { .. } => Some(NodeKindWanted::Plane),
             // Both frame kinds: a profile is drawn on a frame VALUE,
             // and a derived frame evaluates to the same value an
@@ -162,7 +152,6 @@ impl NodeKindWanted {
         match self {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
-            Self::SketchAxis => "an axis datum in a sketch frame",
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",

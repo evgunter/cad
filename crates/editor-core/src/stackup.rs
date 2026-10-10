@@ -921,7 +921,6 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.vec3(f.u().get());
             d.vec3(f.v().get());
         }
-        // 24 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
         ValuePayload::Datum(PoseValue::Direction { dir }) => {
             d.u64(27);
             d.vec3(dir.get());
@@ -1017,7 +1016,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations"), (24, "AxisInPlane")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 
 // ------------------------------------------------- the verdict's tie
 
