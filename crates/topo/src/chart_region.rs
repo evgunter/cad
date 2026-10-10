@@ -5697,7 +5697,7 @@ mod from_computed_rows {
     use super::{ChartOverlap, declared_pair_overlap};
     use crate::Body;
     use crate::contact::ContactVerdict;
-    use crate::revalue_pin::{S, revalued};
+    use crate::revalue_pin::{Revalued, S, revalued};
     use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 
     /// The interior witness enters as computed values: the thin
@@ -5754,7 +5754,14 @@ mod from_computed_rows {
             );
             Vec::new()
         });
-        assert_eq!(found.laundered, 0, "{found:?}");
-        assert!(found.opaque > 0, "the witness was decided: {found:?}");
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 1189,
+                opaque: 186,
+                laundered: 0,
+            },
+            "the decisions at the witness are opaque, and the rest re-value with the scale"
+        );
     }
 }

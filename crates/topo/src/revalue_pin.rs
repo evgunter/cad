@@ -77,20 +77,26 @@ pub(crate) fn revalued_at(
             values1.len(),
             "the two builds returned different values"
         );
-        let at = |s: ParamSymbol| (s == symbol).then_some(p[1]);
+        let at = |q: f64| move |s: ParamSymbol| (s == symbol).then_some(q);
+        let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
+        let value = |d: &geom_core::sym::revalue::Decision| {
+            d.value.expect("Sym<f64> values every decision")
+        };
         let mut found = Revalued::default();
         let nodes = decided
             .iter()
-            .map(|d| d.node)
-            .chain(out.iter().map(|x| x.node()));
-        let wants = decided1
-            .iter()
-            .map(|d| d.value.expect("Sym<f64> values every decision"))
-            .chain(values1.iter().copied());
-        for (node, want) in nodes.zip(wants) {
-            match revalue(node, &at) {
+            .map(|d| (d.node, value(d)))
+            .chain(out.iter().map(|x| (x.node(), x.value)));
+        let wants = decided1.iter().map(value).chain(values1.iter().copied());
+        for ((node, own), want) in nodes.zip(wants) {
+            assert!(
+                revalue(node, &at(p[0])).is_none_or(|r| same(r, own)),
+                "a DAG re-valued at p0 is not the p0 build's own bits: revalue no longer \
+                 computes an op as Sym builds it"
+            );
+            match revalue(node, &at(p[1])) {
                 None => found.opaque += 1,
-                Some(r) if r.to_bits() == want.to_bits() => found.kept += 1,
+                Some(r) if same(r, want) => found.kept += 1,
                 Some(_) => found.laundered += 1,
             }
         }

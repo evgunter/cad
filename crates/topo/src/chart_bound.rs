@@ -692,23 +692,25 @@ mod tests {
 mod from_computed_rows {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::revalue_pin::{S, revalued};
+    use crate::revalue_pin::{Revalued, S, revalued};
     use geom_core::{SupSpeed, Tol};
 
-    /// The cell enters as a computed value: built at `Sym<f64>` over a
-    /// square whose right side is the parameter, with the cell the
-    /// driver's `f64` arithmetic on that side, no decision re-values to
-    /// the cell `p0` asked about.
+    /// The cell enters as a computed value: built at `Sym<f64>` over the
+    /// triangle `(0, 0), (x, 0), (0, x)` with `x` the parameter, and cells
+    /// the driver's `f64` arithmetic on that window places — one past each
+    /// side of its box, so each box gap separates one, and one past the
+    /// hypotenuse inside its box, which only the edge's normal separates.
+    /// No decision re-values to the cells `p0` asked about.
     #[test]
     fn the_query_cell_enters_as_computed() {
         let band = Band::linear(Tol::witness()).unwrap();
         let found = revalued([1.0, 1.0 + 1.0e-3], |p, x| {
-            let (zero, one) = (S::zero(), S::one());
-            let verts = [(zero, zero), (x, zero), (x, one), (zero, one)];
+            let zero = S::zero();
+            let verts = [(zero, zero), (x, zero), (zero, x)];
             let outer = ChartLoop {
-                edges: (0..4)
+                edges: (0..3)
                     .map(|i| {
-                        let (a, b) = (verts[i], verts[(i + 1) % 4]);
+                        let (a, b) = (verts[i], verts[(i + 1) % 3]);
                         ChartEdge::Segment {
                             a: Point2::new(a.0, a.1),
                             b: Point2::new(b.0, b.1),
@@ -717,6 +719,7 @@ mod from_computed_rows {
                     .collect(),
                 ring: false,
             };
+            let one = S::one();
             let bound = ChartBound::assembled(
                 outer,
                 Vec::new(),
@@ -726,16 +729,32 @@ mod from_computed_rows {
             )
             .unwrap()
             .metred((one, one));
-            assert!(
-                bound.certifies_outside(MetredRect::new(p + 0.25, p + 0.5, 0.25, 0.75), band),
-                "a cell right of the square is outside it"
-            );
+            let (near, far) = (0.25 * p, 0.5 * p);
+            for (name, cell) in [
+                ("right", MetredRect::new(p + 0.25, p + 0.5, near, far)),
+                ("left", MetredRect::new(-far, -near, near, far)),
+                ("above", MetredRect::new(near, far, p + 0.25, p + 0.5)),
+                ("below", MetredRect::new(near, far, -far, -near)),
+                (
+                    "past the hypotenuse",
+                    MetredRect::new(0.6 * p, 0.7 * p, 0.6 * p, 0.7 * p),
+                ),
+            ] {
+                assert!(
+                    bound.certifies_outside(cell, band),
+                    "the cell {name} of the triangle is outside it"
+                );
+            }
             Vec::new()
         });
-        assert_eq!(found.laundered, 0, "{found:?}");
-        assert!(
-            found.opaque > 0,
-            "the cell's decisions were compared: {found:?}"
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 15,
+                opaque: 73,
+                laundered: 0,
+            },
+            "every gap, normal and parity decision reads a cell; the ray schedule's own rows do not"
         );
     }
 }

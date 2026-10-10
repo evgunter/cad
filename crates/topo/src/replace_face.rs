@@ -4655,8 +4655,15 @@ mod from_computed_rows {
             assert_eq!(end.value, 1.0, "a gap within ε takes the end");
             Vec::new()
         });
-        assert_eq!(found.laundered, 0, "{found:?}");
-        assert!(found.opaque > 0, "the gap was decided: {found:?}");
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 1,
+                laundered: 0,
+            },
+            "ε decides the gap as the lane measured it"
+        );
         let past = 2.0 * (band().zero() + band().escalate());
         let found = revalued([past, past * (1.0 + 1.0e-3)], |p, _| {
             match corner(short(p)) {

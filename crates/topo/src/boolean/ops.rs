@@ -7965,7 +7965,7 @@ mod from_computed_rows {
     use crate::Body;
     use crate::boolean::BooleanOp;
     use crate::props::QuadLane;
-    use crate::revalue_pin::{S, revalued_at};
+    use crate::revalue_pin::{Revalued, S, revalued_at};
     use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 
     /// The backstop's lower end takes the interval re-derivation as a
@@ -8013,8 +8013,15 @@ mod from_computed_rows {
             assert!(got.is_ok(), "the tie passes: {got:?}");
             Vec::new()
         });
-        assert_eq!(found.laundered, 0, "{found:?}");
-        assert!(found.opaque > 0, "the lower end was decided: {found:?}");
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 343,
+                opaque: 2,
+                laundered: 0,
+            },
+            "the two decisions the re-derived lower end feeds, and nothing else, are opaque"
+        );
     }
 
     /// The reach enters as computed values: built at `Sym<f64>` from two

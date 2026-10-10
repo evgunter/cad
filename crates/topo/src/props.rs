@@ -118,9 +118,16 @@ impl<T: Real> MassProperties<T> {
     /// would move a margin the reporting door's telemetry pins.
     #[must_use]
     pub fn enclosure(&self) -> VolumeEnclosure<T> {
+        // A body with no quadrature face has no pad, structurally rather
+        // than as a measured zero; any other pad is the quadrature's.
+        let pad = if self.volume_pad == 0.0 {
+            T::zero()
+        } else {
+            T::from_computed(self.volume_pad)
+        };
         VolumeEnclosure {
-            volume_lo: self.volume - T::from_computed(self.volume_pad),
-            volume_hi: self.volume + T::from_computed(self.volume_pad),
+            volume_lo: self.volume - pad,
+            volume_hi: self.volume + pad,
             surface_area: self.surface_area,
         }
     }
