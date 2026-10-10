@@ -316,3 +316,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - DR-140: tally 1, R1's ladder zeroing, which predates the PR;
   - the row is closed in the PR.
 - Merges when CI is green on `695dc165ce`. (NURBS orchestrator)
+- 2026-10-10 11:28 — PR 4485 merged at `695dc165ce` (CI green), with DR-140 and the row closed; tracker sync PR 4528 merged. (NURBS orchestrator)
