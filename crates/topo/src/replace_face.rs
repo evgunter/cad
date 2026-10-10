@@ -3102,14 +3102,11 @@ fn solve_corners<T: Decide>(
     let extent_of = |c: &Curve3<T>, t0: T, t1: T| {
         geom_brep::edge_extent(c, t0, t1, c.eval(t0).distance(c.eval(t1)))
     };
-    let within_eps = |gap: f64| {
-        decide(
-            "offset_vertex_agreement",
-            Margin::of(T::from_f64(tol.eps() - gap)),
-            band,
-        )
-        .map(|s| !matches!(s, Sign::Negative))
-        .map_err(esc)
+    let eps = T::from_f64(tol.eps());
+    let within_eps = |gap: T| {
+        decide("offset_vertex_agreement", Margin::of(eps - gap), band)
+            .map(|s| !matches!(s, Sign::Negative))
+            .map_err(esc)
     };
     let mut holds: Vec<(SurfaceKey, bool)> = Vec::new();
     let mut corners = Corners {
@@ -3195,7 +3192,7 @@ fn solve_corners<T: Decide>(
                                         end,
                                         near_gap,
                                         near: true,
-                                    }) if within_eps(near_gap)? => T::from_f64(end),
+                                    }) if within_eps(T::from_f64(near_gap))? => T::from_f64(end),
                                     Ok(SplineRoot::Short { near_gap, near, .. }) => {
                                         return Err(if near {
                                             ReplaceFaceError::ReanchorPastCarrierEnd {
@@ -3246,17 +3243,8 @@ fn solve_corners<T: Decide>(
         for (i, a) in points.iter().enumerate() {
             for b in &points[i + 1..] {
                 let gap = a.distance(*b);
-                match decide(
-                    "offset_vertex_agreement",
-                    Margin::of(T::from_f64(tol.eps()) - gap),
-                    band,
-                )
-                .map_err(esc)?
-                {
-                    Sign::Positive | Sign::Zero => {}
-                    Sign::Negative => {
-                        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-                    }
+                if !within_eps(gap)? {
+                    return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
                 }
             }
         }
