@@ -621,7 +621,7 @@ pub enum PropsCheck {
     /// **The certified quadrature's convergence meter** against its
     /// target: the enclosure's own width, nothing of the model's, so
     /// there is no coincidence to declare and no geometry to move. A
-    /// kernel approximation limit ([`Unsized::LastResort`]), which is
+    /// kernel approximation limit ([`Unsized::Fit`]), which is
     /// the one shape D4 ¶1 (i) lets name loosening.
     Converged,
 }
@@ -689,7 +689,7 @@ impl PropsCheck {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
             Self::Inventory => crate::recourse::not_yet(arm, reading),
             Self::Extent => FACE_EXTENT.recourse(arm, reading),
-            Self::Converged => Unsized::LastResort.recourse(arm, reading),
+            Self::Converged => Unsized::Fit.recourse(arm, reading),
         }
     }
 }
