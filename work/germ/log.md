@@ -893,3 +893,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The r4592 pair is running. The container restarted at about 21:56, before their dispatch, so they are unaffected.
   - The half-angle lane is running its topo battery.
   - **The P1 c5 is scoped.** What GERM owes is `join.rs` `pair_section_frame`'s plane × torus germ frame. Four consumers stop there, and the corner bar's lens obligation is among them. A spec lane is dispatched first, on the cone-sector spec's method: `session_01VC2opodGJHiq98up3Jx4ua`, branch `germ/torus-plane-frame-spec`. Any forks go to the designers.
+- 2026-10-10 23:51 — PR 4592's HOLDOUT pair is in. R1 (r4592a) and R2 (r4592b) both gave APPROVE-WITH-FIXES with no MAJOR. Together they ran about 75k fuzzed poses at three ε (independent mpmath oracles) and about 20k end-to-end runs, with 0 contradictions and 0 wrong bodies.
+  - Coded (`scratchpad/dr4592/coding.md`), **0 tallied**. The pair is fair but flagged: R2 saw the filename `brief-a.md` and did not open it.
+  - Bilateral MIN/MIN: the boolean join IS reached, and right bodies are lost to the apex-read bound. The PR body's Consumers section is wrong, and the P3 is under-scoped (no nappe, no boolean).
+  - Fix pass: cloud session `session_01WeYG31VoA55k12e6iaAiL3`. It is also asked to try serving the pair to a one-nappe consumer if a derivation allows.
