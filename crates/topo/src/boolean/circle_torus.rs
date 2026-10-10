@@ -1513,7 +1513,6 @@ mod tests {
                     match got {
                         CircleRoots::Uncertain => {}
                         CircleRoots::OnSurface => panic!("{label}: not on the torus"),
-                        CircleRoots::CountDisagrees => panic!("{label}: counts disagree"),
                         CircleRoots::AtApex => panic!("{label}: a torus has no apex"),
                         CircleRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");

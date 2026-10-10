@@ -247,6 +247,16 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             cause: uncrossable(),
         },
         S::WallOutlineUnsupported { face },
+        S::JunctionSidesDisagree {
+            face,
+            sides: (MarginDiag::value(2e-9), MarginDiag::value(-1.6e-9)),
+            band: Band::new(1e-9, 1.5e-9).expect("a well-formed band"),
+        },
+        S::RootCountDisagrees {
+            face,
+            certified: 2,
+            constructed: 4,
+        },
         S::NoSuchSolid {
             solid: SolidKey::default(),
         },

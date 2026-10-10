@@ -54,3 +54,38 @@ shared vertex's struts before any fan, and the TOPO row's close says no
 battery reaches the check. If that ordering is a proof, `corner_bound`'s
 refusal is bug-only and belongs in row 4 with the other two. If it is
 not, its comment should name the input that reaches it.
+
+## Ruling for `CountDisagrees` (CLEAVE unit `point-in-solid-mints-outside-its-period-and-nappe-rows`, 2026-10-10)
+
+**`TorusRoots::CountDisagrees` is reachable, so it is typed, not a panic.**
+The shared quartic ladder (`solid_contain.rs` `depressed_quartic_roots`)
+builds a root count its own sign ladder did not certify on coefficients an
+input gives. The half-angle lane hands it such quartics for
+`circle_wall_rows::a_graze_is_read_by_its_depth` and
+`ellipse_rows::a_graze_is_read_by_its_depth`, with every sign decided past
+the band. `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
+pins four of them (certified 4 / built 2, and certified 2 / built 4). The
+factorization's rounding is not charged to its band decisions, so the
+agreement of the two counts is not a property of the f64 computation. No
+ray×torus input has reached it.
+
+- **C17** (`point_in_solid`'s torus arm): `PointInSolidError::RootCountDisagrees
+  { face, certified, constructed }`, a limit of that ray's computation
+  (`confined`, `RayFault::Blocked`), so another ray may settle.
+- **C18** (`sphere_region` `ray`): row 0. `CircleRoots::CountDisagrees` is
+  gone. Its only producer was the conversion from `TorusRoots` in
+  `reduce.rs`'s line lane, which now matches `TorusRoots` itself, so no
+  circle root door can answer it.
+- **Left on this row:** `reduce.rs` `line_roots` still answers
+  `TorusRoots::CountDisagrees` with `ClassificationInvariant` and the
+  kernel-defect ending. By this ruling the state is reachable, so that
+  ending is a false story there. The span lane's honest reading is
+  probably `Uncertain`'s (localize and read against the face), which is a
+  behaviour change in the reduction and was not made by this unit.
+
+The same unit found the two wall-junction mints K-dependent rather than
+bug-only. Both are reachable because `Tolerance` accepts any finite K > 1:
+- C13 (sides disagree at an active junction) at K below a few, in
+  `PointInSolidError::JunctionSidesDisagree`.
+- C14 (both ends of a piece active) at K < 2, where the parity has a definite
+  answer and the arm now gives it.

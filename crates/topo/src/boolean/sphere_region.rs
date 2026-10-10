@@ -132,9 +132,7 @@ const TARGET_SHARES: [f64; 3] = [0.5, 0.25, 0.75];
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum RegionRefusal {
     /// The point is in the band of a boundary arc; or no ray decided,
-    /// and the first one set aside read in band; or, the walk's refusal
-    /// of the whole query, two computations of one root count disagreed
-    /// (`bool_sphere_region_roots_count`, an invalid margin).
+    /// and the first one set aside read in band.
     Escalated(Indeterminate),
     /// No ray settled ([`ray_walk::NoRaySettled`]): each grazed or gave
     /// nothing to read. `outer` is the face's outer loop, the loop the
@@ -371,19 +369,14 @@ impl<T: Decide> SphereFaceRegion<T> {
             let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
                 CircleRoots::Miss => continue,
                 CircleRoots::Certified { count, thetas } => thetas[..count].to_vec(),
-                // The arc in the ray's plane, or a tangency; a plane has no
-                // apex, so `AtApex` is the cone's and never reaches here.
-                CircleRoots::OnSurface | CircleRoots::Uncertain | CircleRoots::AtApex => {
+                // The arc in the ray's plane, or a tangency.
+                CircleRoots::OnSurface | CircleRoots::Uncertain => {
                     return Err(RayFault::Graze);
                 }
-                // Two computations of one count disagreeing is a broken
-                // invariant, not a ray's conditioning (D9); every caller of
-                // the root doors refuses on it.
-                CircleRoots::CountDisagrees => {
-                    return Err(RayFault::Fatal(RegionRefusal::Escalated(
-                        crate::invalid_margin::invalid(band, "bool_sphere_region_roots_count"),
-                    )));
-                }
+                CircleRoots::AtApex => unreachable!(
+                    "the first-harmonic door answered AtApex for arc {j} against a great \
+                     circle's plane: it decides a first harmonic's range, which has no apex"
+                ),
             };
             for theta in thetas {
                 let start = row("bool_sphere_region_span", arc.radius * (theta - arc.t0))?;

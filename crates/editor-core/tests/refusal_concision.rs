@@ -735,6 +735,22 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             PointInSolidError::WallOutlineUnsupported { face },
         ),
         (
+            "Containment(JunctionSidesDisagree)",
+            PointInSolidError::JunctionSidesDisagree {
+                face,
+                sides: (MarginDiag::value(2.0e-9), MarginDiag::value(-1.6e-9)),
+                band: Band::new(1e-9, 1.5e-9).unwrap(),
+            },
+        ),
+        (
+            "Containment(RootCountDisagrees)",
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified: 2,
+                constructed: 4,
+            },
+        ),
+        (
             "Containment(NoSuchSolid)",
             PointInSolidError::NoSuchSolid {
                 solid: SolidKey::default(),

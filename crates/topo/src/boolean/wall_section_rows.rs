@@ -375,14 +375,11 @@ fn a_wall_no_ray_reaches_never_escalates_the_query() {
     );
 }
 
-/// **A junction the hit cannot be put on one side of escalates.** From
-/// a resolved outline this cannot happen: near a vertex without a
-/// meridian both incident planes pass within the band of the hit, and a
-/// meridian run's span catches a hit between its ends. So the branch is
-/// a guard, and this row holds it: the step with its meridian span
-/// dropped, asked between the two floors on the step's azimuth.
+/// **A junction the hit is on both sides of carries both sides.** The
+/// step with its meridian span dropped, asked between the two floors on
+/// the step's azimuth: definitely above one floor and below the other.
 #[test]
-fn a_hit_between_a_junctions_pieces_escalates() {
+fn a_hit_between_a_junctions_pieces_carries_both_sides() {
     let WallOutline::Chart {
         pieces,
         mut junctions,
@@ -393,10 +390,232 @@ fn a_hit_between_a_junctions_pieces_escalates() {
     junctions[0].span = None;
     let outline = WallOutline::Chart { pieces, junctions };
     match ask(&outline, UPPER_HALF, on_wall(HALF_PI, 0.5)) {
-        Err(PointInSolidError::Escalated { diag, .. }) => {
-            assert_eq!(diag.predicate, Some("bool_wall_junction"));
+        Err(PointInSolidError::JunctionSidesDisagree { sides, .. }) => {
+            assert_eq!((read(sides.0), read(sides.1)), (0.5, -0.5));
         }
         other => panic!("{other:?}"),
+    }
+}
+
+/// A decided reading's point margin.
+fn read(m: geom_core::MarginDiag) -> f64 {
+    m.diagnostic_f64_for_error_text().value().unwrap()
+}
+
+/// [`point_on_wall_in_face`] at `band`, on the unit wall about `z`.
+fn ask_at(
+    outline: &WallOutline<f64>,
+    az: (f64, f64),
+    p: Point3<f64>,
+    band: Band,
+) -> Result<Option<bool>, PointInSolidError> {
+    point_on_wall_in_face(
+        FaceKey::default(),
+        Point3::new(0.0, 0.0, 0.0),
+        z(),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+        az,
+        outline,
+        p,
+        band,
+    )
+}
+
+/// A refusal's three renderings — the solid door's, the containment
+/// door's, and the census's — each asserted to end on the placement
+/// lever alone: every margin it carries was read.
+fn ends_on_the_placement_lever(e: &PointInSolidError) {
+    let lever = format!("Recourse: {}", crate::boolean::placement_lever(None));
+    let contain = crate::boolean::contain::solid_err(e.clone()).to_string();
+    for (door, text) in [("solid", e.to_string()), ("contain", contain)] {
+        assert!(text.ends_with(&lever), "{door}: {text}");
+        assert!(!text.contains("unreadable"), "{door}: {text}");
+    }
+    assert_eq!(
+        crate::census::Undecided::of_point_in_solid(e).what(),
+        crate::census::Undecided::WitnessTooClose(None).what()
+    );
+}
+
+/// **A V of two steep pieces, read at `K = 1.5`, puts a hit on opposite
+/// sides of them.** The pieces meet at `(1, 0, 1)`, each plane
+/// `0.9ε` off that vertex (a vertex within the band of each edge), their
+/// normals tilted `α` toward opposite tangents. A hit `0.9ε` round the
+/// wall from the vertex's ruling, at or a few `ε` off its height, is
+/// within the junction's band and reads definitely above one plane and
+/// definitely below the other. At the default `K` the same hit is in the
+/// planes' band instead.
+#[test]
+fn a_hit_in_a_steep_junctions_band_carries_both_sides() {
+    let eps = Tol::witness().eps();
+    let tight = Band::new(eps, 1.5 * eps).unwrap();
+    for (alpha, rise) in [
+        (1.5f64, 0.0),
+        (1.5, 3.0 * eps),
+        (1.5, -3.0 * eps),
+        (1.4, 0.0),
+    ] {
+        let (s, c) = alpha.sin_cos();
+        let v = Point3::new(1.0, 0.0, 1.0);
+        let (na, nb) = (Vec3::new(0.0, s, c), Vec3::new(0.0, -s, c));
+        let a = WallPlane {
+            point: v - na * (0.9 * eps),
+            normal: na,
+        };
+        let b = WallPlane {
+            point: v + nb * (0.9 * eps),
+            normal: nb,
+        };
+        let outline = WallOutline::Chart {
+            pieces: vec![
+                WallPiece {
+                    plane: a,
+                    az: (-0.3, 0.0),
+                    ends: (2, 0),
+                },
+                WallPiece {
+                    plane: b,
+                    az: (0.0, 0.3),
+                    ends: (0, 1),
+                },
+                WallPiece {
+                    plane: rim(10.0),
+                    az: (-0.3, 0.3),
+                    ends: (2, 1),
+                },
+            ],
+            junctions: vec![
+                WallJunction {
+                    az: 0.0,
+                    pieces: (0, 1),
+                    span: None,
+                },
+                WallJunction {
+                    az: 0.3,
+                    pieces: (1, 2),
+                    span: Some((plane_height(&b, 0.3), 10.0)),
+                },
+                WallJunction {
+                    az: -0.3,
+                    pieces: (2, 0),
+                    span: Some((plane_height(&a, -0.3), 10.0)),
+                },
+            ],
+        };
+        let p = on_wall((0.9 * eps).asin(), 1.0 + rise);
+        let label = format!("alpha {alpha}, rise {rise:e}");
+        match ask_at(&outline, (-0.3, 0.3), p, tight) {
+            Err(e @ PointInSolidError::JunctionSidesDisagree { sides, band, .. }) => {
+                assert_eq!(band, tight, "{label}");
+                let (sa, sb) = (read(sides.0), read(sides.1));
+                assert!(sa > 1.5 * eps && sb < -1.5 * eps, "{label}: {sa:e}, {sb:e}");
+                assert!(e.in_band(), "{label}: a reading about where the hit stands");
+                ends_on_the_placement_lever(&e);
+            }
+            other => panic!("{label}: {other:?}"),
+        }
+        assert!(
+            matches!(
+                ask_at(&outline, (-0.3, 0.3), p, band()),
+                Err(PointInSolidError::Escalated { .. })
+            ),
+            "{label}: at the default K the sides are in band"
+        );
+    }
+}
+
+/// **A piece both of whose ends are active does not cover the hit.**
+/// At `K = 1.2` a floor piece `w` wide, `1.2ε < w < 2ε`, is a piece with
+/// a definite extent whose two ends are each within `ε` of its midpoint.
+/// Read just past both, the floors beside it decide the parity: a hit
+/// between floor and roof is on the face, one under the floor or over
+/// the roof is not.
+#[test]
+fn a_piece_narrower_than_two_bands_is_read_past_both_ends() {
+    let eps = Tol::witness().eps();
+    let tight = Band::new(eps, 1.2 * eps).unwrap();
+    for w in [1.3 * eps, 1.5 * eps, 1.9 * eps] {
+        let outline = WallOutline::Chart {
+            pieces: vec![
+                WallPiece {
+                    plane: rim(0.0),
+                    az: (-0.3, 0.0),
+                    ends: (3, 0),
+                },
+                WallPiece {
+                    plane: rim(0.0),
+                    az: (0.0, w),
+                    ends: (0, 1),
+                },
+                WallPiece {
+                    plane: rim(0.0),
+                    az: (w, 0.3),
+                    ends: (1, 2),
+                },
+                WallPiece {
+                    plane: rim(2.5),
+                    az: (-0.3, 0.3),
+                    ends: (3, 2),
+                },
+            ],
+            junctions: vec![
+                WallJunction {
+                    az: 0.0,
+                    pieces: (0, 1),
+                    span: None,
+                },
+                WallJunction {
+                    az: w,
+                    pieces: (1, 2),
+                    span: None,
+                },
+                WallJunction {
+                    az: 0.3,
+                    pieces: (2, 3),
+                    span: Some((0.0, 2.5)),
+                },
+                WallJunction {
+                    az: -0.3,
+                    pieces: (3, 0),
+                    span: Some((0.0, 2.5)),
+                },
+            ],
+        };
+        for (h, inside) in [(1.0, true), (-1.0, false), (3.0, false)] {
+            let got = ask_at(&outline, (-0.3, 0.3), on_wall(w / 2.0, h), tight);
+            assert_eq!(got.unwrap(), Some(inside), "w {w:e}, h {h}");
+        }
+    }
+}
+
+/// **A narrow piece's window margin in band of zero is the gate's
+/// rejection, with its margin.** On a window `width` wide the cosine
+/// construction's margin at a hit `δ` past (or short of) its end is
+/// about `sin(width/2)·δ`: at `δ = 2Kε` the junction there is
+/// definitely not active, and still the margin is within `ε`. The hit is
+/// clear of every boundary, so it is no graze; the window's reading is
+/// refused, carrying the decided margin, and it ends on the placement
+/// lever alone.
+#[test]
+fn a_narrow_windows_collapsed_margin_keeps_its_reading() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    for width in [0.02, 0.05, 0.08] {
+        let window = (0.0, width);
+        for past in [2.0 * k * eps, -2.0 * k * eps] {
+            let label = format!("width {width}, past {past:e}");
+            match ask(&cut_upper(window), window, on_wall(width + past, 2.0)) {
+                Err(e @ PointInSolidError::Escalated { diag, .. }) => {
+                    assert_eq!(diag.predicate, Some("bool_wall_trim"), "{label}");
+                    assert_eq!(diag.margin.rejected_sign(), Some(Sign::Zero), "{label}");
+                    let m = read(diag.margin);
+                    assert!(m.abs() <= eps, "{label}: {m:e}");
+                    ends_on_the_placement_lever(&e);
+                }
+                other => panic!("{label}: {other:?}"),
+            }
+        }
     }
 }
 

@@ -1174,7 +1174,7 @@ fn cone_face_containment<T: Decide>(
     }
 }
 
-fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
+pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
     match e {
         super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
             ContainError::Escalated {

@@ -3739,9 +3739,11 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } => Self::WitnessTooClose(None),
+            E::Escalated { .. } | E::JunctionSidesDisagree { .. } => Self::WitnessTooClose(None),
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
-            E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
+            E::RayExhausted | E::Loop(L::RayExhausted { .. }) | E::RootCountDisagrees { .. } => {
+                Self::WitnessGrazed
+            }
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }

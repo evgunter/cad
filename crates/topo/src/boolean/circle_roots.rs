@@ -154,7 +154,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
-use super::solid_contain::{QuarticRows, TorusRoots, depressed_quartic_roots};
+use super::solid_contain::{QuarticRows, depressed_quartic_roots};
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 
@@ -181,31 +181,11 @@ pub(super) enum CircleRoots<T> {
         count: usize,
         thetas: [T; 2 * MAX_DEGREE],
     },
-    /// The quartic's constructed roots disagree in number with its
-    /// certified count ([`TorusRoots::CountDisagrees`]).
-    CountDisagrees,
     /// A root within the band of a cone's apex, where the surface has no
     /// tangent plane and its quadric form's gradient vanishes: no
     /// crossing there can be read, and the door refuses rather than
     /// answer.
     AtApex,
-}
-
-impl<T: geom_core::Real> From<TorusRoots<T>> for CircleRoots<T> {
-    /// The quartic ladder's answer in the doors' shape: it has no
-    /// on-surface case (no line lies on a torus).
-    fn from(roots: TorusRoots<T>) -> Self {
-        match roots {
-            TorusRoots::Certified { count, ts } => {
-                let mut thetas = [T::zero(); 2 * MAX_DEGREE];
-                thetas[..ts.len()].copy_from_slice(&ts);
-                Self::Certified { count, thetas }
-            }
-            TorusRoots::Miss => Self::Miss,
-            TorusRoots::Uncertain => Self::Uncertain,
-            TorusRoots::CountDisagrees => Self::CountDisagrees,
-        }
-    }
 }
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a

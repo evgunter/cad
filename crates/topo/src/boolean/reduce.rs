@@ -3204,12 +3204,6 @@ fn wall_crossing<T: Decide + Bounds>(
         }
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
         CircleRoots::AtApex => return Ok(SpanVerdict::AtApex),
-        CircleRoots::CountDisagrees => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "the constructed roots of a quartic disagree in number with its \
-                       certified count",
-            });
-        }
     };
     let ts = &roots[..count];
     // **A root on the far nappe is not this face's.** The roots are the
@@ -3378,7 +3372,7 @@ fn line_wall_roots_of<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
-    use super::solid_contain::WallRoots;
+    use super::solid_contain::{TorusRoots, WallRoots};
     let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| {
         let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
@@ -3422,7 +3416,7 @@ fn line_wall_roots_of<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => super::solid_contain::line_torus_roots(
+        } => match super::solid_contain::line_torus_roots(
             origin,
             dir,
             center,
@@ -3434,8 +3428,21 @@ fn line_wall_roots_of<T: Decide>(
         .map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::TorusRoots,
             diag,
-        })?
-        .into(),
+        })? {
+            TorusRoots::Miss => CircleRoots::Miss,
+            TorusRoots::Uncertain => CircleRoots::Uncertain,
+            TorusRoots::Certified { count, ts } => {
+                let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+                thetas[..ts.len()].copy_from_slice(&ts);
+                CircleRoots::Certified { count, thetas }
+            }
+            TorusRoots::CountDisagrees { .. } => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "the constructed roots of a quartic disagree in number with its \
+                           certified count",
+                });
+            }
+        },
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {

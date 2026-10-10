@@ -3253,7 +3253,25 @@ fn classify_point_in_solid(
             diag,
             ..
         }) => close_to_boundary(Some((*decision).into()), *escalation, diag),
-        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
+        // The in-band escalation's story, read definitely (D4 ¶1 (iv)).
+        S::JunctionSidesDisagree { sides, .. } => (
+            format!(
+                "{} is undecided at this tolerance",
+                crate::boolean::placement_subject(None)
+            )
+            .into(),
+            geom_brep::recourse::LeverOnly {
+                lever: crate::boolean::placement_lever(None),
+            }
+            .recourse(
+                geom_brep::recourse::RefusedArm::SignCertain(Some(sides.0)),
+                Reading::AtRest,
+            )
+            .into(),
+        ),
+        S::RayExhausted | S::Loop(L::RayExhausted { .. }) | S::RootCountDisagrees { .. } => {
+            (GRAZED.into(), MOVE_GEOMETRY.into())
+        }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
