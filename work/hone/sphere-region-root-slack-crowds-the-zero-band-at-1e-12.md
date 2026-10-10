@@ -40,3 +40,12 @@ nothing on the slack's path reads ε, then rule with the germ row
 whether rule 2's zero arm applies to an ε-independent noise statistic
 at all (a rule-4-style allow-list entry or a different comparand). Do
 not change geometry to get under the lint.
+
+## Ev's ruling reaches this row (PR 4567, 2026-10-10)
+
+The circle × torus sibling's ruling covers this flag too: rule 2's
+zero arm is a tally that fails nothing, so the 1.5093e-14 sample on
+`demo/lily_walls` at 1e-12 now prints as a tallied note
+(`bool_sphere_region_roots_slack: 1`) and leaves `k-lint (dev-probe)`
+green. Built on `germ/klint-zero-arm-tally`. Whether anything else on
+this row is still wanted is HONE's call.

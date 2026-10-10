@@ -1366,7 +1366,9 @@ proximity rule's closest baseline approach is `pm_census_ee_span`'s
 threshold, only 1.9× clear. A future scene with ~1e-14 float noise
 at model scale will advisory-flag at 1e-12; that is the intended
 signal (ε = 1e-12 has thin noise headroom at unit scale), not a
-false positive to tune away.
+false positive to tune away. (That reading is a tally today and never
+fails the row: "Rule 2's zero arm is a tally" at the end of this
+report.)
 
 ## M5 addendum — the curved-corpus telemetry snapshot (2026-08-03, M5 PR 14)
 
@@ -1953,7 +1955,9 @@ corpus has now grown fine enough to prove it.
 **`k-lint (gate)` fails on a finding** (ruled by the project owner, PR
 #243). The CI row — `.github/workflows/nightly.yml`'s `k-lint` job — is
 red whenever any margin in a fresh sweep
-crowds a decision boundary; harness breakage still fails it in its own
+crowds a decision boundary, except through rule 2's zero arm, which is
+tallied and printed and fails nothing ("Rule 2's zero arm is a tally",
+at the end of this report); harness breakage still fails it in its own
 distinct voice, and the two exit codes differ (2 vs 1) so they can
 never be confused for one another.
 
@@ -2994,3 +2998,29 @@ is the exception, re-counted off the frozen files by the same row.
 dated figure.** The M2-era, M4, M5 and M7 numbers in this report
 describe the snapshots they name and still describe them correctly; the
 figures here describe `c39a904e` and are dated as such.
+
+## Rule 2's zero arm is a tally (ruled by the project owner, PR 4567, 2026-10-10)
+
+Rule 2's zero arm reads a zero-classified margin above
+`band_zero / 10²`. **It is tallied and printed, and it does not fail
+`k-lint (dev-probe)`**; rule 2's definite arm and rules 1, 3 and 4 gate
+as before, and no kernel decision changed. The CLI prints, per file, the
+count of such margins and, per predicate, its count and the largest
+`|m| / band_zero` with the row it came from, as the share of ε that
+margin uses; the TOTAL line carries the count across files.
+
+What prompted it: at ε = 1e-12 the lily's walls carry ten such margins
+(`work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`,
+closed by the change that shipped this): eight
+`bool_circle_torus_root_slack`, one `bool_circle_torus_meridian` and
+one `bool_sphere_region_roots_slack`, each the same at every ε row. A
+root slack is the arithmetic's own rounding bound, zero by
+construction, so on a metre-scale scene it sits in the window at the
+tightest ε however the bound is metered. The tally reports that as a
+fact about the scene and ε ("the margin uses 31% of eps here") rather
+than as a distribution change.
+
+The calibration is unchanged: `PROXIMITY_FACTOR`'s measured ceiling is
+still M7's own zero side, now stated as "the baseline tallies itself"
+(`tests/threshold_provenance.rs`), and the re-cut trigger in
+`docs/k-report-data/README.md` that names the zero-side ceiling stands.

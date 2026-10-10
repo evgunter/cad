@@ -2,9 +2,10 @@
 //! K-telemetry CSVs (the `scripts/k_probe_sweep.sh` output — every
 //! predicate decision of the Band 4 corpus + the demo scenes at the
 //! recording scalar) and FLAGS margins that crowd a decision boundary.
-//! **The CI row is a GATE: a finding fails it.** A firing lint is
-//! evidence that the margin DISTRIBUTION moved — possibly that a
-//! threshold or the baseline is stale — never a licence to nudge
+//! **The CI row is a GATE: a finding fails it.** Rule (2)'s zero arm is
+//! the one reading that is tallied and printed instead of flagged. A
+//! firing lint is evidence that the margin DISTRIBUTION moved — possibly
+//! that a threshold or the baseline is stale — never a licence to nudge
 //! geometry until the lint goes quiet; the CLI prints that discipline
 //! and its recourse on every failure (`main.rs`). Harness breakage
 //! (missing or malformed input) fails with its own distinct voice.
@@ -21,7 +22,10 @@
 //!    escalation threshold (`|m| < 10² · Kε`, **capped at**
 //!    [`BASELINE_FLOOR_MARGIN`] — see "Rule (2)'s discrimination
 //!    floor"), or a zero-classified margin within [`PROXIMITY_FACTOR`]
-//!    below the coincidence threshold (`|m| > ε / 10²`).
+//!    below the coincidence threshold (`|m| > ε / 10²`). **The zero
+//!    arm is a tally, not a finding** ([`zero_arm_usage`]): the CLI
+//!    prints how much of ε each such predicate uses, per file, and
+//!    fails nothing on it. The definite arm gates.
 //! 3. **Below the baseline floor** — a definite non-zero margin
 //!    smaller than [`BASELINE_FLOOR_MARGIN`], the bottom edge of the
 //!    committed baseline's ε-INDEPENDENT distribution (see "Threshold
@@ -269,7 +273,7 @@ pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 /// bounds it is derived instead, in `tests/threshold_provenance.rs`:
 /// below the structural edge the rule-2 cap stops binding at the
 /// loosest supported row, and above the corpus's own largest zero-side
-/// ratio the baseline starts flagging itself under rule (2)-below.
+/// ratio the baseline starts tallying itself under rule (2)'s zero arm.
 /// **That measured ceiling is the binding one of the two** — well
 /// under the structural edge, and under 2x above the shipped factor,
 /// at the 1e-12 row where a fixed rounding-scale coincidence is
@@ -459,9 +463,6 @@ pub enum Reason {
     Invalid,
     /// Definite margin within [`PROXIMITY_FACTOR`] of `band_escalate`.
     NearBandAbove,
-    /// Zero-classified margin within [`PROXIMITY_FACTOR`] below
-    /// `band_zero`.
-    NearBandBelow,
     /// Definite margin below [`BASELINE_FLOOR_MARGIN`].
     BelowBaselineFloor,
     /// An [`EPS_COUPLED_PREDICATES`] margin below
@@ -490,18 +491,17 @@ impl Reason {
     pub fn rule(self) -> u8 {
         match self {
             Self::InBand | Self::Invalid => 1,
-            Self::NearBandAbove | Self::NearBandBelow => 2,
+            Self::NearBandAbove => 2,
             Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
         }
     }
 
     /// Every reason, for tallying — so a per-rule count cannot silently
     /// omit a variant the enum grows.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 5] = [
         Self::InBand,
         Self::Invalid,
         Self::NearBandAbove,
-        Self::NearBandBelow,
         Self::BelowBaselineFloor,
         Self::BelowEpsCoupledFloor,
     ];
@@ -513,7 +513,6 @@ impl core::fmt::Display for Reason {
             Reason::InBand => "IN the ambiguity band (indeterminate outcome)",
             Reason::Invalid => "invalid (poisoned) margin",
             Reason::NearBandAbove => "definite within 10^2 of the escalation threshold",
-            Reason::NearBandBelow => "zero-classified within 10^2 of the coincidence threshold",
             Reason::BelowBaselineFloor => "definite below the baseline distribution's floor (4e-5)",
             Reason::BelowEpsCoupledFloor => {
                 "ε-coupled headroom below the ε-relative floor (1.5e2·ε)"
@@ -521,6 +520,45 @@ impl core::fmt::Display for Reason {
         };
         f.write_str(s)
     }
+}
+
+/// Rule (2)'s zero arm: the fraction of `band_zero` a zero-classified
+/// margin uses, when it is more than `1 /` [`PROXIMITY_FACTOR`] of it.
+///
+/// **A tally, never a finding.** A `zero` outcome answers "within ε",
+/// and a margin that is the arithmetic's own rounding — a root slack, a
+/// noise meter — sits in this window by construction at the tightest ε
+/// on a metre-scale scene. Its usage of ε is a fact about the scene and
+/// the ε row, so the CLI prints it ([`Scan::zero_arm`]) and fails
+/// nothing on it. Rule (2)'s definite arm is a [`Reason`] and gates.
+#[must_use]
+pub fn zero_arm_usage(margin: f64, band_zero: f64, outcome: &str) -> Option<f64> {
+    let m = margin.abs();
+    (outcome == "zero" && band_zero >= AMBIENT_BAND_MIN && m > band_zero / PROXIMITY_FACTOR)
+        .then(|| m / band_zero)
+}
+
+/// One predicate's zero-arm readings in one file ([`zero_arm_usage`]).
+#[derive(Debug, Clone)]
+pub struct ZeroArmTally {
+    pub predicate: String,
+    /// Samples of this predicate the zero arm read.
+    pub count: usize,
+    /// The one with the largest `|m| / band_zero`; the first such row
+    /// on a tie.
+    pub worst: ZeroArmRow,
+}
+
+/// One zero-arm sample, with the row it came from.
+#[derive(Debug, Clone)]
+pub struct ZeroArmRow {
+    /// 1-based line number in the input.
+    pub line: usize,
+    pub shape: String,
+    pub margin: f64,
+    pub band_zero: f64,
+    /// `|margin| / band_zero`.
+    pub usage: f64,
 }
 
 /// One flagged CSV row.
@@ -561,6 +599,9 @@ pub struct Scan {
     /// rests on the registrant's argument.
     pub registered: usize,
     pub flags: Vec<Flag>,
+    /// Rule (2)'s zero arm, per predicate, largest usage first. Never
+    /// part of [`Scan::flags`]: see [`zero_arm_usage`].
+    pub zero_arm: Vec<ZeroArmTally>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
     /// floor. The CLI PRINTS this — the cap is never silent (module
@@ -741,14 +782,9 @@ pub fn lint_sample(
     match outcome {
         "indeterminate" => reasons.push(Reason::InBand),
         "invalid" => reasons.push(Reason::Invalid),
-        "zero" if band_zero >= AMBIENT_BAND_MIN => {
-            // Coincidence proximity is the same question in the same
-            // units for every family: a zero classification is a
-            // decision against ε itself, ε-coupled or not.
-            if m > band_zero / PROXIMITY_FACTOR {
-                reasons.push(Reason::NearBandBelow);
-            }
-        }
+        // Rule (2)'s zero arm reads these, as a tally and for every
+        // family alike: `zero_arm_usage`.
+        "zero" => {}
         // **Never a rule sample, and not because it is uninteresting.**
         // A `symbolic_zero` row is a decision the symbolic identity tier
         // answered (ERROR-DESIGN E12): the margin's expression is
@@ -808,6 +844,7 @@ pub fn lint_sample(
 /// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
+    let mut zero_arm: Vec<ZeroArmTally> = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
     let mut sign_gated = 0usize;
@@ -931,6 +968,28 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
                 proximity_capped = Some((raw, BASELINE_FLOOR_MARGIN));
             }
         }
+        if let Some(usage) = zero_arm_usage(margin, band_zero, out) {
+            let row = ZeroArmRow {
+                line: i + 1,
+                shape: shape.to_string(),
+                margin,
+                band_zero,
+                usage,
+            };
+            match zero_arm.iter_mut().find(|t| t.predicate == pred) {
+                Some(t) => {
+                    t.count += 1;
+                    if usage > t.worst.usage {
+                        t.worst = row;
+                    }
+                }
+                None => zero_arm.push(ZeroArmTally {
+                    predicate: pred.to_string(),
+                    count: 1,
+                    worst: row,
+                }),
+            }
+        }
         let reasons = lint_sample(pred, margin, band_zero, band_escalate, out);
         if !reasons.is_empty() {
             flags.push(Flag {
@@ -943,12 +1002,14 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
     }
+    zero_arm.sort_by(|a, b| b.worst.usage.total_cmp(&a.worst.usage));
     Ok(Scan {
         scanned,
         symbolic,
         sign_gated,
         registered,
         flags,
+        zero_arm,
         proximity_capped,
         unruled: EPS_COUPLED_UNRULED
             .iter()
@@ -1035,18 +1096,53 @@ mod tests {
     }
 
     #[test]
-    fn proximity_flags_both_sides_of_the_band() {
+    fn proximity_flags_the_definite_side_and_tallies_the_zero_side() {
         // Definite 1.5 decades above Kε: flagged (and it is also below
         // the baseline floor).
         assert_eq!(
             lint_sample("p", 3e-7, 1e-9, 1e-8, "positive"),
             vec![Reason::NearBandAbove, Reason::BelowBaselineFloor]
         );
-        // Zero half a decade below ε: flagged.
+        // Zero half a decade below ε: read by the zero arm, and no
+        // flag.
+        assert!(lint_sample("p", 3e-10, 1e-9, 1e-8, "zero").is_empty());
+        assert_eq!(zero_arm_usage(-3e-10, 1e-9, "zero"), Some(3e-10 / 1e-9));
+        // At the threshold itself, under it, against a tie-break band,
+        // or on a definite outcome: not read.
+        assert_eq!(zero_arm_usage(1e-11, 1e-9, "zero"), None);
+        assert_eq!(zero_arm_usage(1e-12, 1e-9, "zero"), None);
+        assert_eq!(zero_arm_usage(1e-101, 1e-100, "zero"), None);
+        assert_eq!(zero_arm_usage(3e-10, 1e-9, "positive"), None);
+    }
+
+    #[test]
+    fn the_zero_arm_tallies_per_predicate_and_keeps_the_worst_row() {
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/a,p,2e-14,1e-12,1e-11,zero\n\
+                   demo/b,q,5e-14,1e-12,1e-11,zero\n\
+                   demo/c,p,3e-13,1e-12,1e-11,zero\n\
+                   demo/d,p,-1e-13,1e-12,1e-11,zero\n\
+                   demo/e,p,5e-15,1e-12,1e-11,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        assert!(scan.flags.is_empty(), "the zero arm is never a flag");
+        let got: Vec<_> = scan
+            .zero_arm
+            .iter()
+            .map(|t| {
+                (
+                    t.predicate.as_str(),
+                    t.count,
+                    t.worst.line,
+                    t.worst.shape.as_str(),
+                )
+            })
+            .collect();
         assert_eq!(
-            lint_sample("p", 3e-10, 1e-9, 1e-8, "zero"),
-            vec![Reason::NearBandBelow]
+            got,
+            vec![("p", 3, 4, "demo/c"), ("q", 1, 3, "demo/b")],
+            "per predicate, largest usage first, the worst row kept"
         );
+        assert_eq!(scan.zero_arm[0].worst.usage, 3e-13 / 1e-12);
     }
 
     #[test]
@@ -1393,7 +1489,7 @@ mod tests {
         for r in Reason::ALL {
             assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
         }
-        assert_eq!(seen.len(), 6, "Reason::ALL must list every variant");
+        assert_eq!(seen.len(), 5, "Reason::ALL must list every variant");
     }
 
     /// An `indeterminate` row is rule 1 and a merely-near-threshold row
