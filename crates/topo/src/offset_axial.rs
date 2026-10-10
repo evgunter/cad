@@ -2711,23 +2711,30 @@ fn reauthor<T: Decide>(
             angle,
             ..
         } => {
-            // The sketch plane turned `theta` about the axis: `place`
-            // itself at a whole sweep's exact start. A moved start is
-            // read on its own plane turned by the measured turn, and
-            // its range moves by that turn over the angle.
-            let plane = |theta: Option<T>| match theta {
-                None => place,
-                Some(theta) => {
-                    geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, theta) * place
-                }
+            // A corner read on the sketch plane turned `theta` about
+            // the axis: turned back on its offset from the axis, then
+            // through `place⁻¹` — `place` itself at a whole sweep's
+            // exact start. A moved start is read on its own plane
+            // turned by the measured turn, and its range moves by that
+            // turn over the angle.
+            let inv = place.inverse();
+            let read = |theta: Option<T>, p: Point3<T>| {
+                inv.transform_point(match theta {
+                    None => p,
+                    Some(theta) => geom_core::Affine3::rotate_point_about_axis(
+                        axis_origin,
+                        axis_dir,
+                        -theta,
+                        p,
+                    ),
+                })
             };
             let turn = |name, theta: Option<T>, s: T, moved: Point3<T>| {
-                let old = mapped.eval(s);
                 azimuth_turn(
                     name,
-                    plane(theta),
+                    read(theta, moved).z,
                     (axis_origin, axis_dir),
-                    old,
+                    mapped.eval(s),
                     moved,
                     band,
                 )
@@ -2749,7 +2756,7 @@ fn reauthor<T: Decide>(
                 start_turn.map(|phi| phi / angle),
                 end_turn.map(|phi| phi / angle),
             );
-            let q = plane(read_at).inverse().transform_point(p_start);
+            let q = read(read_at, p_start);
             if start_turn.is_some() {
                 match decide("offset_axial_reauthor_azimuth", Margin::of(q.z), band) {
                     Ok(Sign::Zero) => {}
@@ -2778,19 +2785,18 @@ fn reauthor<T: Decide>(
 }
 
 /// How far about the axis a revolved point's end moved: `None` when the
-/// moved corner still stands in that end's own sketch plane `plane`
-/// (its out-of-plane coordinate, a length, decided under `name`), and
+/// moved corner still stands in that end's own sketch plane (`off`, its
+/// out-of-plane coordinate there, a length, decided under `name`), and
 /// otherwise the signed turn about `axis` from the old corner's
 /// azimuth to the moved one's.
 fn azimuth_turn<T: Decide>(
     name: &'static str,
-    plane: geom_core::Affine3<T>,
+    off: T,
     (origin, dir): (Point3<T>, Vec3<T>),
     old: Point3<T>,
     moved: Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ReplaceFaceError<T>> {
-    let off = plane.inverse().transform_point(moved).z;
     match decide(name, Margin::of(off), band) {
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
@@ -3075,8 +3081,7 @@ mod tests {
     /// `rim`'s placed point turned `theta` about its own axis — a start
     /// corner an offset moved round the axis.
     fn turned<T: Decide>(rim: &Rim<T>, theta: T) -> Point3<T> {
-        Affine3::rotation_about_axis(rim.axis_origin, rim.axis_dir, theta)
-            .transform_point(placed(rim))
+        Affine3::rotate_point_about_axis(rim.axis_origin, rim.axis_dir, theta, placed(rim))
     }
 
     /// The turn main read off a moved start: the azimuth about the axis
@@ -3110,14 +3115,6 @@ mod tests {
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
-    /// A band the tilted far placement's turned corner fits inside at
-    /// `Interval`: read back through the composed placement a thousand
-    /// metres out, its out-of-plane coordinate is some 1e-6 wide, on
-    /// main's composite as on this one.
-    fn wide() -> Band {
-        Band::new(1e-5, 1e-4).unwrap()
-    }
-
     const NEAR: [f64; 3] = [0.0, 0.0, 3.0];
     const FAR: [f64; 3] = [1000.0, -700.0, 300.0];
     const FARTHER: [f64; 3] = [1.0e5, 3.0e4, -2.0e4];
@@ -3207,58 +3204,107 @@ mod tests {
         }
     }
 
-    /// **A turned start on a tilted far placement lands as close to its
-    /// corner as composing the turn into the placement did.** At `f64`,
-    /// over 200 turns in `[−3, 3]`, the re-authored description's start
-    /// sample sits within 1.25× of main's worst distance, plus one ulp
-    /// of the coordinates: main read the corner back through `(R(φ)·place)⁻¹`
-    /// and placed it again through the same composite, rebuilt here from
-    /// `Affine3` alone. The ulp is the start sample's own form, which
-    /// applies `place` and then the rotation rather than their
-    /// composite; the distances are a few ulps of the coordinates, so
-    /// one ulp is a ratio of 1.5 at 1e5. Turning the corner back through
-    /// `I − R(−θ)` and reading it through `place⁻¹` landed 2.5–3×
-    /// farther.
+    /// **A turned start on a tilted far placement stores its sketch
+    /// point within a few ulps of the coordinates of exact.** At `f64`,
+    /// over 200 turns in `[−3, 3]`, the stored point is carried forward
+    /// at `Interval` — placed, then turned by the `φ` re-authoring read,
+    /// from the same `f64` data — and that enclosure's far endpoint
+    /// bounds its distance from the corner, which is exact data. The
+    /// placement is rigid, so that distance is the stored point's
+    /// error. The turn is checked against the stored range's start over
+    /// the angle, to a few ulps of the turn. Measured (an upper bound,
+    /// the reference's own width included): 4.5e-13 at 1e3 and
+    /// 4.4e-11 at 1e5, four and three ulps of the coordinates, under a
+    /// five-ulp bar. A corner read back through the composite
+    /// `(R(φ)·place)⁻¹` stores a point 9 and 6 ulps off, past it at both.
     #[test]
-    fn a_turned_start_on_a_tilted_far_placement_lands_as_close_as_composing() {
-        let mut worst = Vec::new();
+    fn a_turned_start_on_a_tilted_far_placement_stores_within_ulps_of_the_exact_read_back() {
+        let iv = Interval::from_f64;
         for at in [FAR, FARTHER] {
             let mapped = tilted_rim(at, |x| x);
             let rim = parts(mapped);
-            let (mut ours, mut main) = (0.0f64, 0.0f64);
+            let lift = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+            let place = rim.place;
+            let place_iv = Affine3::from_parts(
+                place.linear.map(iv),
+                Vec3::new(
+                    iv(place.translation.x),
+                    iv(place.translation.y),
+                    iv(place.translation.z),
+                ),
+            );
+            let (q, n) = (rim.axis_origin, rim.axis_dir);
+            let (mut ours, mut composite) = (0.0f64, 0.0f64);
             for k in 0..200 {
                 let theta = -3.0 + 6.0 * f64::from(k) / 199.0;
                 let corner = turned(&rim, theta);
-                let start = reauthored(mapped, corner, band()).eval(0.0);
-                ours = ours.max((start - corner).norm_inf());
-                let (q, plane) = composed_reading(&rim, main_turn(&rim, corner), corner);
-                main = main
-                    .max((plane.transform_point(Point3::new(q.x, q.y, 0.0)) - corner).norm_inf());
+                let a = n.normalize();
+                let radial = |p: Point3<f64>| {
+                    let v = p - q;
+                    v - a * v.dot(a)
+                };
+                let (from, to) = (radial(mapped.eval(0.0)), radial(corner));
+                let phi = a.dot(from.cross(to)).atan2(from.dot(to));
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
+                    range,
+                } = reauthored(mapped, corner, band())
+                else {
+                    panic!("a revolved point re-authors as one");
+                };
+                let read = range.start().expect("a turned start moves its range") * angle;
+                assert!(
+                    (read - phi).abs() <= 4.0 * f64::EPSILON * phi.abs().max(1.0),
+                    "at {at:?}, turn {theta}: re-authoring read the turn {read}, not {phi}"
+                );
+                // The stored point carried forward exactly, enclosed:
+                // placed, then turned by `φ`, at `Interval` from the
+                // same `f64` data. The placement is rigid, so its
+                // distance from the corner is the stored point's error.
+                let off = |x: f64, y: f64| {
+                    let f = Affine3::rotate_point_about_axis(
+                        lift(q),
+                        Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                        iv(phi),
+                        place_iv.transform_point(Point3::new(iv(x), iv(y), iv(0.0))),
+                    );
+                    [(corner.x, f.x), (corner.y, f.y), (corner.z, f.z)]
+                        .into_iter()
+                        .map(|(c, r)| (c - r.lo()).abs().max((r.hi() - c).abs()))
+                        .fold(0.0, f64::max)
+                };
+                ours = ours.max(off(point.x, point.y));
+                let (main, _) = composed_reading(&rim, phi, corner);
+                composite = composite.max(off(main.x, main.y));
             }
-            println!("at {at:?}: worst start-sample distance {ours:e}, composed {main:e}");
-            worst.push((at, ours, main));
-        }
-        for (at, ours, main) in worst {
             let scale = at.iter().fold(0.0f64, |m, c| m.max(c.abs()));
             let ulp = scale.next_up() - scale;
+            println!(
+                "at {at:?}: stored point within {ours:e} of exact ({:.1} ulps), composite \
+                 read-back {composite:e} ({:.1} ulps)",
+                ours / ulp,
+                composite / ulp
+            );
             assert!(
-                ours <= 1.25 * main + ulp,
-                "at {at:?} a turned start re-authors {ours:e} from its corner, over 1.25× \
-                 the composed placement's {main:e} plus one ulp of the coordinates ({ulp:e})"
+                ours <= 5.0 * ulp,
+                "at {at:?} a turned start stored a point {ours:e} from the exact read-back, \
+                 over five ulps of the coordinates ({ulp:e} each; the composite read-back \
+                 is {composite:e} off)"
             );
         }
     }
 
-    /// **At `Interval` a turned start stores no wider than composing the
-    /// turn into the placement did.** On the tilted far placement, at
-    /// three turns, the stored sketch point is no wider than main's
-    /// composed reading of the same corner, with main's turn rebuilt
-    /// here as main measured it. Every input is an exact point; at 1e5
-    /// the composite's reading is some 7e-3 wide out of the plane, past
-    /// any band a decision there could take, on main's spelling as on
-    /// this one.
+    /// **At `Interval` a turned start stores a thousand times tighter
+    /// than composing the turn into the placement.** On the tilted far
+    /// placement, at four turns, the stored sketch point is 2.3e-11 to
+    /// 3.9e-11 wide, the turn's width times the radius, where the
+    /// composite `(R(φ)·place)⁻¹` reads the same corner 3.5e-7 to
+    /// 5.2e-7 wide, the turn's width times the coordinates. The corner
+    /// is read at the ordinary band: its out-of-plane coordinate, read
+    /// on the turned offset, fits inside it, where the composite's does
+    /// not and the re-authoring escalates.
     #[test]
-    fn a_turned_start_on_a_tilted_far_placement_stores_no_wider_than_composing() {
+    fn a_turned_start_on_a_tilted_far_placement_stores_far_tighter_than_composing() {
         let iv = Interval::from_f64;
         for at in [FAR] {
             let mapped = lifted(tilted_rim(at, |x| x));
@@ -3268,7 +3314,7 @@ mod tests {
                 let geom_brep::MappedCurve {
                     source: geom_brep::MappedSource::RevolvedPoint { point, .. },
                     ..
-                } = reauthored(mapped, corner, wide())
+                } = reauthored(mapped, corner, band())
                 else {
                     panic!("a revolved point re-authors as one");
                 };
@@ -3277,9 +3323,9 @@ mod tests {
                 let main = width(q.x).max(width(q.y));
                 println!("at {at:?}, turn {theta}: stored width {ours:e}, composed {main:e}");
                 assert!(
-                    ours <= main,
-                    "at {at:?} a start turned {theta} stored a point {ours:e} wide, over the \
-                     composed placement's {main:e}"
+                    ours <= 1e-3 * main,
+                    "at {at:?} a start turned {theta} stored a point {ours:e} wide, over a \
+                     thousandth of the composed placement's {main:e}"
                 );
             }
         }
