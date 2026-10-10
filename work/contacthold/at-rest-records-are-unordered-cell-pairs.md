@@ -61,5 +61,5 @@ cells' carriers.
 PR 4598 (1/2): the one-list type (`Contact`, `ContactKind`,
 `ContactRecords`), the reduction's `ReductionContacts`, and every
 producer and consumer, with the census reading what it read before.
-PR 2/2, stacked on it, is the census's carrier-read generalisation and
-the new edge–face and face–face rows.
+PR 4604 (2/2), stacked on it, is the census's carrier-read
+generalisation and the new edge–face and face–face rows.
