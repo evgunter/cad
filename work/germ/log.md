@@ -860,3 +860,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - MINOR-1: no test pins `zero_arm`'s order or its tie-break;
     - MINOR-2: PROXIMITY_FACTOR's ceiling is still called "binding" (`lib.rs:274`, `threshold_provenance.rs:600`, K-REPORT);
     - NITs: one label spelled two ways; a hone item that claims dev-probe goes green.
+- 2026-10-10 19:30 — Ev saw the DR-147 short readout on PR 4576: "thanks for letting me know! glad to hear it wasn't a very serious issue". That is an acknowledgement, not a ruling. PR 4576 is closed unmerged and unsubscribed, and the item is closed via 4579.
