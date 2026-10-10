@@ -75,17 +75,20 @@ fn pair(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], PartStore, RecipeNodeId)
     (doc, [a, b], store, body)
 }
 
+/// Which relative-freedom component `id` is in.
+fn component_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<usize> {
+    relative_freedom_components(doc)
+        .iter()
+        .position(|c| c.contains(&id))
+}
+
 /// **Test 20 (A9 over reads).** Two instances are relatively free until
 /// a mate reads a face of each: its reads reach down to both instances,
 /// so mate and instances are one component.
 #[test]
 fn a_mate_couples_its_two_instances_through_its_reads() {
     let (doc, [a, b], _, body) = pair("f-a9");
-    let of = |doc: &ProfileDoc, id| {
-        relative_freedom_components(doc)
-            .iter()
-            .position(|c| c.contains(&id))
-    };
+    let of = component_of;
     assert_ne!(of(&doc, a), of(&doc, b), "unmated instances are free");
     let (doc, mate) = insert(doc, seat(body, (a, a), (b, b)));
     assert_eq!(of(&doc, a), of(&doc, b), "the mate couples them");
@@ -95,6 +98,53 @@ fn a_mate_couples_its_two_instances_through_its_reads() {
         vec![a, b],
         "a mate's upstream is the bodies its sides read, in side order"
     );
+}
+
+/// **Test 20 (A9 over reads, without a mate).** A measure across two
+/// unmated instances reads both, so it couples them as a mate does
+/// (Q4); and two instances on one gauge stay one component, because the
+/// gauge edges outlive A12's reading edges.
+#[test]
+fn a_measure_and_a_shared_gauge_couple_as_reads_do() {
+    let (doc, [a, b], _, body) = pair("f-a9-measure");
+    let (measured, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            editor_core::SitedRef::at_mint(in_part(a, body, CapEnd::End)),
+            editor_core::SitedRef::at_mint(in_part(b, body, CapEnd::Start)),
+        ],
+    );
+    assert_eq!(
+        component_of(&measured, a),
+        component_of(&measured, b),
+        "a measure across two instances couples them"
+    );
+    assert_eq!(component_of(&measured, measure), component_of(&measured, a));
+    let (doc, g) = insert(
+        doc,
+        Node::gauge(
+            None,
+            editor_core::Placement::literal(&editor_core::Frame::translation([0.0, 0.0, 5.0])),
+        ),
+    );
+    let mut doc = doc;
+    for instance in [a, b] {
+        doc = step(
+            doc,
+            DocEdit::SetGauge {
+                node: instance,
+                gauge: Some(g),
+            },
+        )
+        .0;
+    }
+    assert_eq!(
+        component_of(&doc, a),
+        component_of(&doc, b),
+        "two instances on one gauge are one component"
+    );
+    assert_eq!(component_of(&doc, g), component_of(&doc, a));
 }
 
 /// **Test 21 (split across a mate).** A cut that takes the body a kept
