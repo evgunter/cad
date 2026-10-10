@@ -167,10 +167,13 @@ pub enum PatchBoundError {
     /// valid clamped vector is total, so the description that reached
     /// this is reported rather than repaired.
     RefinementFailed,
-    /// A direction whose once-differenced knot vector failed to
-    /// materialise. Outside the certified inventory: a direction that
-    /// passed the C¹ gate has a valid once-differenced vector, so the
-    /// description that reached this is reported rather than repaired.
+    /// A direction whose differenced knot vector failed to
+    /// materialise. In the patch lanes a valid face reaches this when a
+    /// span only a few ulps wide is cut by the equal-split schedule:
+    /// its split points collide with the span's ends, the refined
+    /// vector carries a knot of full multiplicity, and its
+    /// twice-differenced vector is not clamped. The answer is a typed
+    /// refusal, never a second partial read as zero.
     DerivedKnots,
 }
 
@@ -206,8 +209,8 @@ impl PatchBoundError {
                 geom_core::kernel_defect_ending!()
             ),
             Self::DerivedKnots => concat!(
-                "NURBS face whose derivative could not be formed, which a valid face always \
-                 allows. ",
+                "NURBS face whose derivative could not be formed for bounding (a knot span \
+                 a few ulps wide, cut by the fixed subdivision, reaches this). ",
                 geom_core::kernel_defect_ending!()
             ),
         }
@@ -772,8 +775,10 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // Second derivatives along a degree-1 direction are EXACTLY zero
     // in ℝ for the polynomial nets A and w (the direction is a single
     // linear span pre-refinement — the C¹ gate — and refinement's
-    // inserted knots are removable), so those nets are `None` and
-    // their terms exact zeros; the CROSS terms stay.
+    // inserted knots are removable), so those partials are
+    // `Second::Zero` and their terms exact zeros; the CROSS terms
+    // stay. A degree ≥ 2 direction with no derived vector refuses
+    // (`DerivedKnots`) rather than reading zero.
     let w_nets = DNets::build(&w_pair)?;
     let a_base = [ax, ay, az];
     let a_nets = a_base
@@ -1039,10 +1044,18 @@ mod tests {
             let n = NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), weights).unwrap();
             for splits in [8, 12] {
                 match patch_cells_refined(&n, splits) {
-                    // A typed refusal is an honest answer (`DerivedKnots`
+                    // A typed refusal is an honest answer: `DerivedKnots`
                     // at 8 splits; at 12 the insertion chain itself
-                    // refuses, `RefinementFailed`).
-                    Err(_) => {}
+                    // refuses, `RefinementFailed`.
+                    Err(e) => assert_eq!(
+                        e,
+                        if splits == 8 {
+                            PatchBoundError::DerivedKnots
+                        } else {
+                            PatchBoundError::RefinementFailed
+                        },
+                        "{arm} @ {splits}"
+                    ),
                     Ok(cells) => assert!(
                         cells.iter().any(|c| c.s_uu[0].hi() > 0.0),
                         "{arm} @ {splits}: x = Σ i³·N_i(u) has S_uu ≠ 0, but every cell's \

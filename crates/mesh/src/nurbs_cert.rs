@@ -3667,11 +3667,25 @@ pub(crate) mod tests {
             });
             // `check_direction` admits a degree-1 direction only without
             // interior knots and a higher one only below full
-            // multiplicity, so `derivative_*` is `None` exactly at degree
-            // 1, where the second partial is zero.
+            // multiplicity, so on this unrefined net `derivative_*` is
+            // `None` exactly at degree 1, where the second partial is
+            // zero. Any other `None` is a broken premise, said loudly.
+            let second = |h: Option<Interval>, degree: usize| match h {
+                Some(h) => h,
+                None if degree == 1 => zero,
+                None => {
+                    panic!("a degree-{degree} direction past check_direction has no derived vector")
+                }
+            };
             let (d10, d01, d11) = (base.diff_u(), base.diff_v(), base.diff_uv());
-            let g20 = base.derivative_u().map_or(zero, |d| d.diff_u().hull());
-            let g02 = base.derivative_v().map_or(zero, |d| d.diff_v().hull());
+            let g20 = second(
+                base.derivative_u().map(|d| d.diff_u().hull()),
+                kv_u.degree(),
+            );
+            let g02 = second(
+                base.derivative_v().map(|d| d.diff_v().hull()),
+                kv_v.degree(),
+            );
             for (slot, h) in sq
                 .iter_mut()
                 .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])

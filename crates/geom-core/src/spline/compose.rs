@@ -384,8 +384,8 @@ fn insert_once_ring(
 
 /// Bézier-decomposes one scalar channel: knot insertion to full
 /// interior multiplicity (structure from the pair's vector,
-/// coefficients in the ring), then the per-span coefficient rows read off by chunks — with
-/// **extra break parameters** injected: each
+/// coefficients in the ring), then the per-span coefficient rows read
+/// off by chunks — with **extra break parameters** injected: each
 /// `extra` value strictly inside the domain and not already a knot
 /// becomes a break, so two channels decomposed with each other's knots
 /// as extras land on one shared break list (the tensor composite's
@@ -394,8 +394,8 @@ fn insert_once_ring(
 /// or duplicating a knot are structure-filtered, not errors.
 ///
 /// The extras are cut out of the Bézier segment of the pair's vector
-/// they fall in,
-/// each sub-segment from that segment's own row ([`sub_segment`]), not
+/// they fall in, each sub-segment from that segment's own row
+/// ([`sub_segment`]), not
 /// by inserting them one after another into the whole net: a ring
 /// insertion combines coefficients that already carry the previous
 /// insertions' widths, so a sequential schedule grows a segment's
