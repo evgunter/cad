@@ -239,7 +239,7 @@ fn clone_product(
         coincidences: product.coincidences.clone(),
         cited_inputs: product.cited_inputs.clone(),
         refused_at_rest: product.refused_at_rest.clone(),
-        solid_roots: product.solid_roots.clone(),
+        solid_copies: product.solid_copies.clone(),
         minted: product.minted.clone(),
         unminted: product.unminted.clone(),
         carried: product.carried.clone(),

@@ -482,6 +482,13 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         .map(|k| place(&mut doc, k, base_pin, tol))
         .collect();
     pins.push(place(&mut doc, links, tip_pin, tol));
+    // The mechanism is the world: every placed bar and pin, one copy
+    // each, base first.
+    for &body in bars.iter().chain(&pins) {
+        doc = apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
+            .expect("a placed link places")
+            .doc;
+    }
 
     // The target: the mating pin at the chain's nominal tip, fixed.
     let target = pin_at(&mut doc, links as f64 * LINK_LENGTH, tol);

@@ -18,7 +18,7 @@
 //!
 //! 1. **Gates**: per-arm since M5 PR 9 (C12.1 —
 //!    [`BooleanError::CurvedBooleanUnsupported`] retires per C5 table
-//!    arm; Plane/Cylinder/Sphere/Nurbs faces pass, Cone/Torus refuse);
+//!    arm; every kind but `Approx` passes, `Nurbs` under ∪ only);
 //!    each operand a closed solid by tier 2's own verdict
 //!    ([`crate::validate_closed`]; no scaffolding operands); **maximal
 //!    faces (F7)** via the
@@ -164,8 +164,8 @@ pub use discard::{DiscardRow, HeldEdge, lineage_root};
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
 pub use edge_join::{
-    EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_edge,
+    EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_edge,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -2058,10 +2058,10 @@ pub enum BooleanError {
     Band(BandError),
     /// A face's kind has no wired boolean arm at the classification
     /// site that met it (M5 PR 9: the F5 planar-only gate retired PER
-    /// C5 TABLE ARM — `Plane`/`Cylinder`/`Sphere`/`Nurbs` faces pass
-    /// the operand gate and pair-level refusals fire where an arm is
-    /// actually exercised, citing the table's routing; `Cone`/`Torus`
-    /// keep the gate refusal — no wired arm involves them).
+    /// C5 TABLE ARM — every kind on the operand roster passes the
+    /// gate and pair-level refusals fire where an arm is actually
+    /// exercised, citing the table's routing; `Approx` keeps the gate
+    /// refusal).
     ///
     /// What is missing at the raising site is the boolean's own
     /// crossing layer for the kind — edge×face sweep events, curved trim
@@ -2369,9 +2369,11 @@ pub enum BooleanError {
         /// The sector's face.
         face: FaceKey,
     },
-    /// A reduction/classification predicate escalated (in-band margin):
-    /// the operand pair is ill-conditioned at this ε — a genuine
-    /// sliver (F6). Never a snap, never a guess.
+    /// A reduction/classification predicate escalated (in-band margin),
+    /// or the finished result holds a shell certified in band
+    /// ([`BooleanDecision::ShellRole`], which definite cuts can compose):
+    /// the operand pair is ill-conditioned at this ε — a genuine sliver
+    /// (F6). Never a snap, never a guess.
     Escalated {
         /// The decision that escalated, which the refusal's ending
         /// follows from.
@@ -2654,8 +2656,8 @@ pub enum BooleanError {
     /// and, failing both, do the caller's DECLARATIONS speak for this
     /// particular pair. Reach is decided at box-level conservatism
     /// (`reduce::first_unsupported_pair`), which is why the payload
-    /// names a pair rather than a body: a cone or a torus whose box
-    /// clears every face of the other operand cannot enter a crossing,
+    /// names a pair rather than a body: a face whose box clears every
+    /// face of the other operand cannot enter a crossing,
     /// a section or a germ pair, so the operation does not depend on
     /// its kind and the gate says nothing about it.
     ///
@@ -2665,7 +2667,8 @@ pub enum BooleanError {
     /// a pair it covers is one the pipeline has an answer for. What may
     /// be declared is bounded by the certified carrier inventory, so a
     /// kind with no rung there can never be covered here — which is why
-    /// this refusal still names cones and NURBS unconditionally.
+    /// this refusal still names NURBS (under ∖ and ∩) and `Approx`
+    /// unconditionally.
     ///
     /// **The overlap that DID fire is a may, not a does.** Boxes are
     /// supersets, so the two faces named here may in exact geometry
@@ -2687,15 +2690,16 @@ pub enum BooleanError {
     ///   no-crossings section pass, the join catch-all below, and this
     ///   variant at [`PairRefusalSite::InteriorLoopGuard`] for a torus
     ///   pair the section certificate cannot clear.
-    /// - **Cone**: the germ-pair JOIN dispatch —
-    ///   `join::bool_connect`'s match on the two germ faces'
-    ///   surfaces — wires only the pairs `meeting_recourse` names, and
-    ///   no cone or torus pair: a plane against a plane, cylinder or
-    ///   sphere, a sphere pair (on its radical plane) and a cylinder
-    ///   pair with parallel offset axes (on its rulings). Its catch-all
-    ///   raises [`BooleanError::CurvedBooleanUnsupported`], not this
-    ///   error, and a torus or `(Cylinder, Sphere)` germ lands there
-    ///   too.
+    /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
+    ///   dispatch — `join::bool_connect`'s match on the two germ faces'
+    ///   surfaces — wires only the pairs `meeting_recourse` names: a
+    ///   plane against a plane, cylinder, sphere or cone, a sphere pair
+    ///   (on its radical plane) and a cylinder pair with parallel offset
+    ///   axes (on its rulings). Its catch-all raises
+    ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
+    ///   and a torus or `(Cylinder, Sphere)` germ lands there too; a
+    ///   cone against a curved face refuses one door earlier, at its
+    ///   germ frame ([`BooleanError::GermFrameUnsupported`]).
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
@@ -3038,7 +3042,10 @@ pub enum BooleanError {
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
     /// the scaffold fence where the scalar runs none), loudly — no body
-    /// below it is ever returned. Where the scalar runs the at-rest
+    /// below it is ever returned. A result whose every finding is a
+    /// shell certified in band is the operands' instead, refused
+    /// [`BooleanError::Escalated`] on [`BooleanDecision::ShellRole`];
+    /// this carries the rest. Where the scalar runs the at-rest
     /// gate, the operands are finished bodies, so no finding is carried
     /// in from an operand: each is either a defect in what the door
     /// built or a wrong verdict of the validator's own (a valid sliver
@@ -3539,15 +3546,16 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 ///
 /// **This is the one statement of the pairs the Boolean can join**: the
 /// germ-pair JOIN dispatch (`join::bool_connect`) wires a plane face
-/// against a plane, cylinder or sphere face, mirrors included, and
-/// nothing else. The rustdoc that needs the set points here. The
-/// operand gate's box test is conservative (a box overlap is a MAY),
+/// against a plane, cylinder, sphere or cone face, mirrors included,
+/// and two spheres or two parallel cylinders along their radical plane.
+/// The rustdoc that needs the set points here. The operand gate's box
+/// test is conservative (a box overlap is a MAY),
 /// so moving the face clear of the other solid is a real recourse even
 /// where the faces never touch in exact geometry.
 fn meeting_recourse(kind: &str) -> String {
     format!(
         "Recourse: reshape the parts so they meet only where a plane face meets \
-         a plane, cylinder or sphere face, or move them so the {kind} face stays \
+         a plane, cylinder, sphere or cone face, or move them so the {kind} face stays \
          clear of the other solid"
     )
 }
@@ -4270,7 +4278,6 @@ pub fn boolean_reduce_declared<T: Decide + Bounds + crate::props::AtRestPolicy>(
         b_operand,
         decls,
         SweepStrategy::Realized,
-        reduce::boolean_arm_exists,
         tol,
     )
 }
@@ -4376,41 +4383,32 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     Ok((ab, ba))
 }
 
-/// **The crossing sweep past the operand gate's cone refusal**: both
-/// sweep directions run with `Cone` on the pair gate's roster, undeclared,
-/// and the split operands they leave with their traces. The boolean does
-/// not admit a cone operand (`work/germ/VERBS-CONE.md`), so this door,
-/// [`join_admitting_cones`] and [`boolean_admitting_cones`] are how a
-/// finished body reaches the cone's lanes — breakable knobs,
-/// `sweep-testing` only, never production surface.
+/// **The crossing sweep's split operands**: both sweep directions run
+/// undeclared and realized, and the split operands they leave with
+/// their traces. The one door that hands a suite the operands as the
+/// SWEEP leaves them — [`sweep_traces`] returns the traces alone, and
+/// `test_support::boolean_through_the_join` the operands after the
+/// join has killed the null edges — so the crossing lanes' splits
+/// are read on finished bodies; `sweep-testing` only.
 ///
 /// # Errors
 ///
-/// [`BooleanError`] as [`sweep_traces`], less the pair gate's refusal of
-/// a cone face.
+/// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-pub fn sweep_split_admitting_cones(
+pub fn sweep_split(
     a_operand: &Body<f64>,
     b_operand: &Body<f64>,
     tol: Tol,
 ) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
-    let (a, b, ab, ba, _) = sweep_admitting_cones(a_operand, b_operand, tol)?;
-    Ok((a, b, ab, ba))
-}
-
-/// [`sweep_split_admitting_cones`], with the contacts the sweep recorded.
-#[cfg(feature = "sweep-testing")]
-#[allow(clippy::type_complexity)] // the split operands, their traces, the contacts
-fn sweep_admitting_cones(
-    a_operand: &Body<f64>,
-    b_operand: &Body<f64>,
-    tol: Tol,
-) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace, ContactRecords), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, |s| {
-        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
-    })?;
+    reduce::gate_operand_pairs(
+        a_operand,
+        b_operand,
+        &declared,
+        band,
+        reduce::boolean_arm_exists,
+    )?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     let mut a = a_operand.clone();
@@ -4429,137 +4427,7 @@ fn sweep_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba, acc.finish().0))
-}
-
-/// **The section certificate on the crossings path past the cone
-/// refusal**: the sweep of [`sweep_split_admitting_cones`], its contacts
-/// read into face-pair events by the reduction's own reading
-/// (`ops::contact_face_pairs`, before any null edge exists), and every
-/// in-scope pair of `a` × `b` certified with them, as
-/// `(A face, B face, outcome)` spelled by `Debug`. The crossings path's
-/// certificate on a cone pair, until the roster admits the cone;
-/// `sweep-testing` only.
-///
-/// # Errors
-///
-/// The sweep's refusals, and the certificate's own
-/// ([`ops::section_pairs`]).
-#[cfg(feature = "sweep-testing")]
-pub fn section_report_admitting_cones(
-    a: &Body<f64>,
-    b: &Body<f64>,
-    tol: Tol,
-) -> Result<Vec<(FaceKey, FaceKey, String)>, BooleanError> {
-    let (sa, sb, _, _, contacts) = sweep_admitting_cones(a, b, tol)?;
-    let events = ops::contact_face_pairs(&sa, &sb, &contacts, &[]);
-    Ok(ops::section_pairs(
-        a,
-        b,
-        Band::linear(tol)?,
-        ops::SectionPath::Crossings,
-        ops::Exempt::Nothing,
-        |fa, fb| events.contains(&(fa, fb)),
-        false,
-    )?
-    .into_iter()
-    .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
-    .collect())
-}
-
-/// **The pipeline through its join with `Cone` on the operand gate's
-/// roster**: the production sequence (`ops::through_the_join`) stopped
-/// after the join, as [`sweep_split_admitting_cones`] stops after the
-/// sweep, so the cone's join arms are read on whole poses while the
-/// public gate still refuses the cone. `None` where the pipeline answers
-/// without a join. Undeclared and realized; `sweep-testing` only.
-///
-/// # Errors
-///
-/// The pipeline's refusal on the way through its join.
-#[cfg(feature = "sweep-testing")]
-pub fn join_admitting_cones(
-    op: BooleanOp,
-    a_operand: &Body<f64>,
-    b_operand: &Body<f64>,
-    tol: Tol,
-) -> Result<Option<ConeJoin>, BooleanError> {
-    fn roster(s: &geom::Surface<f64>) -> bool {
-        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
-    }
-    Ok(
-        match ops::through_the_join(
-            op,
-            a_operand,
-            b_operand,
-            &BooleanDeclarations::none(),
-            ops::JoinSweep {
-                strategy: SweepStrategy::Realized,
-                roster,
-            },
-            true,
-            tol,
-        )? {
-            ops::Joined::Answered(_) => None,
-            ops::Joined::Connected {
-                red,
-                interior_loops,
-                ..
-            } => Some(ConeJoin {
-                a: red.a,
-                b: red.b,
-                interior_loops,
-            }),
-        },
-    )
-}
-
-/// **The whole op with `Cone` on the operand gate's roster**: the
-/// production pipeline behind the front door ([`ops::boolean_op_recut`]),
-/// finished, gated and backstopped, as [`join_admitting_cones`] runs it
-/// to the join, so a cone pose's built body is read while the public
-/// gate still refuses the cone. Undeclared and realized; skips the
-/// front door's ∖/∩ revert roster, which has no cone row; `sweep-testing`
-/// only.
-///
-/// # Errors
-///
-/// The pipeline's refusals past the operand gate's cone refusal.
-#[cfg(feature = "sweep-testing")]
-pub fn boolean_admitting_cones(
-    op: BooleanOp,
-    a: &crate::AtRestBody<f64>,
-    b: &crate::AtRestBody<f64>,
-    tol: Tol,
-) -> Result<BooleanResult<f64>, BooleanError> {
-    fn roster(s: &geom::Surface<f64>) -> bool {
-        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
-    }
-    ops::boolean_op_recut(
-        op,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        ops::JoinSweep {
-            strategy: SweepStrategy::Realized,
-            roster,
-        },
-        true,
-        tol,
-    )
-}
-
-/// [`join_admitting_cones`]' product.
-#[cfg(feature = "sweep-testing")]
-#[derive(Debug)]
-pub struct ConeJoin {
-    /// The A operand as the join leaves it.
-    pub a: Body<f64>,
-    /// The B operand as the join leaves it.
-    pub b: Body<f64>,
-    /// The interior-loop guard's verdict, which the pipeline raises on
-    /// the built body and this door does not.
-    pub interior_loops: Result<(), BooleanError>,
+    Ok((a, b, ab, ba))
 }
 
 /// **The sweep's contact records and the split operands' sizes** under
@@ -4620,7 +4488,8 @@ pub fn sweep_records(
 /// **The boolean pipeline through its join**, undeclared and realized:
 /// the two operand clones as the join leaves them, every null edge
 /// killed, before the finish, the zip and the closing mint — the
-/// production sequence itself (`ops::through_the_join`), stopped there.
+/// production sequence itself (`ops::through_the_join`), stopped there,
+/// with the interior-loop guard's verdict the pipeline raises later.
 /// `None` where the pipeline answers without a join to stop at. Test
 /// vocabulary (`topo::test_support`), for the rows that read the rows
 /// a face carries at that point.
@@ -4641,15 +4510,20 @@ pub(crate) fn through_the_join(
             a,
             b,
             &BooleanDeclarations::none(),
-            ops::JoinSweep {
-                strategy: SweepStrategy::Realized,
-                roster: reduce::boolean_arm_exists,
-            },
+            SweepStrategy::Realized,
             true,
             tol,
         )? {
             ops::Joined::Answered(_) => None,
-            ops::Joined::Connected { red, .. } => Some((red.a, red.b)),
+            ops::Joined::Connected {
+                red,
+                interior_loops,
+                ..
+            } => Some(crate::test_support::JoinedOperands {
+                a: red.a,
+                b: red.b,
+                interior_loops,
+            }),
         },
     )
 }
@@ -4688,15 +4562,7 @@ pub(crate) fn join_refusal(
     tol: Tol,
 ) -> Result<Option<BooleanError>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = boolean_reduce_declared_strategy(
-        op,
-        a,
-        b,
-        decls,
-        SweepStrategy::Realized,
-        reduce::boolean_arm_exists,
-        tol,
-    )?;
+    let mut red = boolean_reduce_declared_strategy(op, a, b, decls, SweepStrategy::Realized, tol)?;
     if red.null_pairs.is_empty() {
         return Ok(None);
     }
@@ -4734,17 +4600,12 @@ pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
 /// bit-equality. Reached via [`boolean_op_with`] for full ops.
-///
-/// `roster` is the operand gate's face-kind roster: production reads
-/// [`reduce::boolean_arm_exists`], and a test door admits a kind whose
-/// arms are landing below the gate (`join_admitting_cones`).
 pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
-    roster: fn(&geom::Surface<T>) -> bool,
     tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -4761,7 +4622,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         });
     }
     let declared = DeclaredPairs::build(decls, verified, a_operand, b_operand, band)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, roster)?;
+    reduce::gate_operand_pairs(
+        a_operand,
+        b_operand,
+        &declared,
+        band,
+        reduce::boolean_arm_exists,
+    )?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
     let mut coincident: Vec<SettledPair> = declared.settled().collect();

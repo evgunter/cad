@@ -90,7 +90,10 @@ pub(crate) struct BooleanRecord {
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
 fn build_boolean<T: geom_core::Real>(op: BooleanOp, declare: BooleanDeclarations) -> Verb<T> {
-    Verb::Boolean { op, declare }
+    Verb::Boolean {
+        op,
+        declare: Box::new(declare),
+    }
 }
 
 /// The boolean family's arm of the record channel. Exhaustive with no

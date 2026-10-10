@@ -222,7 +222,7 @@ pub(crate) fn every_member_edge_lies_on_its_source(
 fn cited_faces(side: &StableName) -> Vec<(RecipeNodeId, StableName)> {
     match side.path.as_slice() {
         [RoleSeg::FromMember { member, of }] => vec![(*member, (**of).clone())],
-        [RoleSeg::Merged(set)] => set.iter().flat_map(|c| cited_faces(c)).collect(),
+        [RoleSeg::Merged(set)] => set.iter().flat_map(cited_faces).collect(),
         _ => Vec::new(),
     }
 }

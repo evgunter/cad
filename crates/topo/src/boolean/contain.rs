@@ -166,7 +166,7 @@ impl ContainDecision {
         let lever = placement_lever(Some(self));
         match self {
             Self::Loop(d) => d.ending(escalation, diag, reading),
-            Self::ArcEnd | Self::Carrier => LeverOnly { lever }.recourse(arm),
+            Self::ArcEnd | Self::Carrier => LeverOnly { lever }.recourse(arm, reading),
             Self::OneCircle => placement_sized(lever, "gap between circles", SizedPass::AnySign)
                 .recourse(arm, reading),
             Self::WindowPeriod => {
@@ -177,13 +177,14 @@ impl ContainDecision {
 
     /// The decision's lever alone on `escalation`'s arm, with the
     /// unreadable-margin note on a poisoned margin: its ending at a door
-    /// that offers no tolerance for it (the Boolean's, `refusal_routes`).
+    /// that offers no tolerance for it (the Boolean's, `refusal_routes`),
+    /// read at the build.
     #[must_use]
     pub fn lever_ending(self, escalation: Escalation, diag: &Indeterminate) -> String {
         LeverOnly {
             lever: placement_lever(Some(self)),
         }
-        .recourse(escalation.arm(diag))
+        .recourse(escalation.arm(diag), Reading::Build)
     }
 }
 
@@ -201,7 +202,7 @@ pub fn placement_ending(
         None => LeverOnly {
             lever: placement_lever(None),
         }
-        .recourse(escalation.arm(diag)),
+        .recourse(escalation.arm(diag), reading),
     }
 }
 
@@ -1279,8 +1280,9 @@ mod tests {
         let above = diag(MarginDiag::value(5e-9));
         let below = diag(MarginDiag::value(-5e-9));
         let poisoned = diag(MarginDiag::INVALID);
-        const NOTE: &str =
-            "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
+        const NOTE: &str = "an unreadable margin may indicate a kernel bug worth reporting";
+        const NOTE_AT_REST: &str =
+            "an unreadable margin may indicate a kernel or file defect worth reporting";
         const BOUNDARY: &str =
             "Recourse: move the point exactly onto the boundary or clearly off it";
         const RAY: &str = "Recourse: nudge the point so no boundary corner lines up with it";
@@ -1395,9 +1397,18 @@ mod tests {
         }
         for (decision, escalation, cause, ending) in rows {
             let row = format!("{decision:?} {escalation:?} {}", cause.margin);
+            // A poisoned margin's note names the file at rest.
+            let stored = match ending.strip_suffix(NOTE) {
+                Some(lever) => format!("{lever}{NOTE_AT_REST}"),
+                None => ending.clone(),
+            };
             for reading in [Reading::Build, Reading::AtRest] {
+                let ending = match reading {
+                    Reading::Build => &ending,
+                    Reading::AtRest => &stored,
+                };
                 assert_eq!(
-                    placement_ending(decision, escalation, &cause, reading),
+                    &placement_ending(decision, escalation, &cause, reading),
                     ending,
                     "{row} ({reading:?})"
                 );
@@ -1439,7 +1450,7 @@ mod tests {
             .to_string();
             assert!(
                 at_rest.ends_with(&format!(
-                    "{} is undecided at this tolerance. {ending}",
+                    "{} is undecided at this tolerance. {stored}",
                     placement_subject(decision)
                 )),
                 "{row}: {at_rest}"

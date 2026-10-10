@@ -94,6 +94,10 @@
 //!   convex pieces, and the vertices a built body holds there: a truth
 //!   derived without the kernel plus the check against it, so beside
 //!   [`differential`];
+//! - [`solid_truth`] — the operands' point membership in closed form
+//!   and the check of a boolean's body against it (volume, tier 3,
+//!   `point_in_solid`): a truth plus the check against it, so beside
+//!   [`differential`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -273,6 +277,11 @@ pub mod pinch_cones;
 /// cross product of seam or `Tangent` declarations. What a suite drives
 /// a door WITH, so it routes here.
 pub mod seam_pairs;
+/// The operands' point membership in closed form, and the check every
+/// body a boolean returns is held to against it (volume, tier 3,
+/// `point_in_solid`): a truth plus the check of a body against it, so
+/// beside [`differential`].
+pub mod solid_truth;
 
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the

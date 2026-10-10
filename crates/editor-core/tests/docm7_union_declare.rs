@@ -1721,9 +1721,9 @@ fn a_kiss_record_cites_its_vertex_fusion_row_at_the_boolean_and_the_union() {
     let mut inputs: Vec<RecipeNodeId> = pair_row
         .cells
         .iter()
-        .map(|c| match c {
-            editor_core::NamedCell::Entity { input, .. } => *input,
-            editor_core::NamedCell::Tool { input } => *input,
+        .filter_map(|c| match c {
+            editor_core::NamedCell::Entity { input, .. } => Some(*input),
+            _ => None,
         })
         .collect();
     inputs.sort();

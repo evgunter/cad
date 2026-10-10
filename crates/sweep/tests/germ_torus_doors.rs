@@ -51,7 +51,7 @@ use crate::revolve_common;
 use sweep::ExtrudeSide;
 
 use geom_core::{Band, Point2, Point3, Tol};
-use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
@@ -85,49 +85,37 @@ enum Handle {
 fn half(sign: f64, handle: Handle) -> AtRestBody<f64> {
     let s = sign;
     // CCW in the (ρ, y) half-plane.
-    let (mut chain, tangent_joint) = match handle {
-        Handle::Torus if s > 0.0 => (
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.3, 0.0), QUARTER_CW),
-                (Point2::new(0.8, 0.5), 0.0),
-                (Point2::new(1.5, 0.5), 0.0),
-                (Point2::new(1.5, 1.5), 0.0),
-                (Point2::new(0.0, 1.5), 0.0),
-            ],
-            Some(2),
-        ),
-        Handle::Torus => (
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.0, -1.5), 0.0),
-                (Point2::new(1.5, -1.5), 0.0),
-                (Point2::new(1.5, -0.5), 0.0),
-                (Point2::new(0.8, -0.5), QUARTER_CW),
-                (Point2::new(0.3, 0.0), 0.0),
-            ],
-            Some(4),
-        ),
-        Handle::Cylinder => (
-            vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(0.3, 0.0), 0.0),
-                (Point2::new(0.3, 0.5 * s), 0.0),
-                (Point2::new(1.5, 0.5 * s), 0.0),
-                (Point2::new(1.5, 1.5 * s), 0.0),
-                (Point2::new(0.0, 1.5 * s), 0.0),
-            ],
-            None,
-        ),
+    let mut chain = match handle {
+        Handle::Torus if s > 0.0 => vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.3, 0.0), QUARTER_CW),
+            (Point2::new(0.8, 0.5), 0.0),
+            (Point2::new(1.5, 0.5), 0.0),
+            (Point2::new(1.5, 1.5), 0.0),
+            (Point2::new(0.0, 1.5), 0.0),
+        ],
+        Handle::Torus => vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.0, -1.5), 0.0),
+            (Point2::new(1.5, -1.5), 0.0),
+            (Point2::new(1.5, -0.5), 0.0),
+            (Point2::new(0.8, -0.5), QUARTER_CW),
+            (Point2::new(0.3, 0.0), 0.0),
+        ],
+        Handle::Cylinder => vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.3, 0.0), 0.0),
+            (Point2::new(0.3, 0.5 * s), 0.0),
+            (Point2::new(1.5, 0.5 * s), 0.0),
+            (Point2::new(1.5, 1.5 * s), 0.0),
+            (Point2::new(0.0, 1.5 * s), 0.0),
+        ],
     };
     if matches!(handle, Handle::Cylinder) && s < 0.0 {
         // Mirrored, so reversed to stay CCW (every bulge is zero).
         chain.reverse();
     }
-    let lp: ProfileLoop<f64> = match tangent_joint {
-        Some(j) => bulge_loop(chain).with_tangent_joints(vec![j]),
-        None => bulge_loop(chain),
-    };
+    let lp: ProfileLoop<f64> = bulge_loop(chain);
     let half = revolve(
         &validated(vec![lp]),
         axis_y(),

@@ -683,6 +683,7 @@ test_utils::f6_variants! {
         NoSuchVariable,
         VariableIsDefined,
         NotOffered,
+        OfferIsNamed,
         ConstantRefused,
         EmptyName,
         WrongNodeKind,

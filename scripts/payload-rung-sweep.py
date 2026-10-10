@@ -214,6 +214,12 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
                             "crates/pncad/src/select.rs; the general rule is at the "
                             "payload-rule header of crates/pncad/src/document.rs"),
+    # A coincidence row's cell names a profile piece by the same reference a
+    # profile pick does, so `NamedCell::Piece` carries `select`'s word for it.
+    "ProfileEdgeRef": ("argued", "the naming vocabulary is `select`'s and is spelled "
+                                 "once, crates/pncad/src/select.rs; the general rule is "
+                                 "at the payload-rule header of "
+                                 "crates/pncad/src/document.rs"),
     # The same rule with the two lists swapped, and it decides these the same
     # way: the payload's vocabulary is the DOCUMENT layer's, so it is spelled
     # once on `document` and the analysis list points at it. That split is the

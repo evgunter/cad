@@ -234,21 +234,94 @@ fn both_sweeps_evaluate_in_one_document() {
 /// bit-identical**, body and name table, one committed number each
 /// (`fixture::digest::digest`, the one feed every verb suite shares).
 ///
-/// The five rows cover the shapes the lowering can differ on: `die`
-/// and `corner_table` are polygon extrudes, `cut_cylinder` and
+/// The registry is FULL of extrudes — every solid in it starts as one —
+/// so this is the widest differential the verb migration has had. The
+/// five rows are chosen to cover the shapes the lowering can differ on:
+/// `die` and `corner_table` are polygon extrudes, `cut_cylinder` and
 /// `boss_union` carry the two carrier loop forms (`circle` and
-/// `circle_split`), and `kitchen_sink` is the registry's revolve. Each
-/// also carries a boolean or a split. They are goldens in the ordinary
-/// sense — when one moves the question is whether the new behaviour is
-/// right, never how to restore the old number.
+/// `circle_split`), and `kitchen_sink` is the registry's revolve.
+///
+/// RE-MINTED when the digest moved to its one home
+/// (`fixture::digest`) and gained the boolean and split arms every
+/// suite now shares: each of these five documents carries a boolean
+/// (the die's pip subtracts, the table's and the boss's unions) or a
+/// split (the cut cylinder, the kitchen sink) that this suite's own
+/// copy of the feed never read, so the numbers moved with the FEED
+/// and not with any evaluation. The differential was re-taken on the
+/// extracted merge base with the shared feed: all five reproduce
+/// there, and `cut_cylinder`'s and `kitchen_sink`'s are now the same
+/// numbers the split suite pins — one feed, one number per document.
+///
+/// They are goldens in the ordinary sense — when one moves the question
+/// is whether the new behaviour is right, never how to restore the old
+/// number.
+///
+/// RE-BLESSED for the orthonormal basis's world-axis comparison: the
+/// digest feeds each surface's `Debug`, and every planar carrier's
+/// stored `u_ref` is now `normalize(e_z × n)` or `normalize(e_y × n)`
+/// by `|n.z| ≤ max(|n.x|, |n.y|)/2`. The plane's LOCUS did not move —
+/// origin and normal are bit-identical, which the STEP fixtures'
+/// record-level diff shows directly — and the id-free body rows
+/// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
+/// realized-vs-idealized bit equality) were green across the change
+/// untouched.
+///
+/// RE-BLESSED, `die` and `kitchen_sink` only, when declaring a variable
+/// began minting its id on the document's chain: every node minted
+/// after a declare was renumbered, and this digest feeds ids. The
+/// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
+///
+/// RE-BLESSED (`boss_union` alone) when `circle_split` began storing
+/// its authored carrier (centre and `|r|`) instead of re-deriving each
+/// arc's carrier from its chord: the boss's split rims moved in the
+/// last bits. `cut_cylinder`'s `circle` did not move — its chord
+/// lowering returned the authored centre and radius bit for bit.
+///
+/// Re-blessed when contact records gained the `(vertex, edge)` and
+/// edge-edge kinds: the digest feeds the records' `Debug`, which now
+/// prints empty `ve` and `ee` lists; with those fields stripped every
+/// constant here held.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a chart
+/// image's flag became `wrap` (the wrap edge, D1): the digest feeds each
+/// curve's `Debug`, whose field name moved; with `wrap: ` read back as
+/// `seam: ` the feed reproduces every old constant, so no evaluation
+/// moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a swept point's description began
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
+///
+/// RE-BLESSED, all five, for INTENT stage 2 PR C (the product is the
+/// world): each document now places its bodies, and every placement is
+/// a node with a value and a name table of its own, so the evaluation
+/// this digest walks holds those copies. No node evaluated before moved:
+/// `intent_s2_c_world`'s migration check holds each product to its
+/// pre-C digest.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xd21d85daf4b4c97b),
-        ("corner_table", 0x34340b2ab5918dfc),
-        ("cut_cylinder", 0x241e03514e94a3d9),
-        ("boss_union", 0xd3160ef813b69044),
-        ("kitchen_sink", 0xbe0fcb2bd9b2b528),
+        ("die", 0x1077_757a_ce0f_17c1),
+        ("corner_table", 0x956a_8c9d_2a36_d96a),
+        ("cut_cylinder", 0x5b24_7f0a_1360_4db4),
+        ("boss_union", 0x97c7_3b56_4913_d69c),
+        ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

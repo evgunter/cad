@@ -688,9 +688,9 @@ fn analysis_keeps_its_ids_across_a_rename() {
 
 // -------------------------------------------------------------- row 12
 
-/// A frame, a square and an extrude of depth `depth`, at `cx`: the
-/// three ids.
-fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
+/// A frame, a square and an extrude of depth `depth`, at `cx`, the
+/// extrude placed in the world: the four ids.
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -707,7 +707,16 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
             side: ExtrudeSide::Along,
         },
     );
-    (doc, [frame, profile, extrude])
+    let (doc, placed) = crate::fixture::place(doc, extrude);
+    (doc, [frame, profile, extrude, placed])
+}
+
+/// The one extrude a part carried.
+fn carried_extrude(part: &ProfileDoc) -> RecipeNodeId {
+    part.ids()
+        .into_iter()
+        .rfind(|&id| matches!(part.node(id), Some(Node::Extrude { .. })))
+        .expect("the carried extrude")
 }
 
 /// Row 12: a split declares each variable the cut reads in the part and
@@ -732,7 +741,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("the cut alone reads h");
     let part_h = id(&out.part, "h");
     assert_ne!(part_h, id(&doc, "h"), "the part mints its own id");
-    let extrude = *out.part.ids().last().expect("the carried extrude");
+    let extrude = carried_extrude(&out.part);
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
         Formula::var(part_h, Dimension::Length),
@@ -766,10 +775,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("an anonymous variable crosses a split");
     let carried = out
         .part
-        .slot(
-            *out.part.ids().last().expect("the carried extrude"),
-            SlotId::Distance,
-        )
+        .slot(carried_extrude(&out.part), SlotId::Distance)
         .expect("the carried extrude's depth");
     assert!(out.part.var_name(carried).is_none(), "it stays anonymous");
     assert!(
@@ -839,7 +845,7 @@ fn declare_as(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc 
 /// `doc` split at `cut` into a part, the part published to a store.
 fn split_into_store(
     doc: &ProfileDoc,
-    cut: [RecipeNodeId; 3],
+    cut: [RecipeNodeId; 4],
     seed: &str,
 ) -> (
     editor_core::SplitOutcome,
@@ -1055,24 +1061,37 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
     assert!(!said.contains("which stays"), "{said:?}");
 }
 
-/// A named definition reading the cut extrude's anonymous depth moves
-/// with it, and the round trip is exact: the comparator reads the
-/// anonymous id as its image, through the slot that holds it.
+/// A named definition reading the cut extrude's depth moves with it,
+/// and the round trip is exact. The depth is anonymous, so the
+/// definition's read refuses until the depth is named (VR2): a variable
+/// two readers share has a name.
 #[test]
-fn a_named_definition_reading_an_anonymous_variable_comes_back() {
+fn a_named_definition_reading_the_depth_comes_back() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork6-anon-read"), Tol::witness());
     let (doc, cut) = block(doc, 0.0, len(0.5));
     let depth = doc
         .slot(cut[2], SlotId::Distance)
         .expect("the extrude reads its depth");
     assert_eq!(doc.var_name(depth), None, "the depth is anonymous");
-    let doc = declare_as(
-        &doc,
-        "k",
-        VarDecl::defined(
+    let k = DocEdit::DeclareVar {
+        name: n("k"),
+        def: VarDecl::defined(
             Formula::add(Formula::var(depth, Dimension::Length), len(0.001)).expect("lengths add"),
         ),
-    );
+    };
+    match try_step(&doc, k.clone()) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), depth),
+        other => panic!("a definition sharing the depth refuses until it is named, got {other:?}"),
+    }
+    let doc = step(
+        &doc,
+        DocEdit::RenameVar {
+            var: depth.into(),
+            name: Some(n("depth")),
+        },
+    )
+    .doc;
+    let doc = step(&doc, k).doc;
     let (doc, _) = block(doc, 10.0, len(1.0));
     let (out, store) = split_into_store(&doc, cut, "fork6-anon-read-part");
     assert_eq!(out.remainder.var_named("k"), None, "k left");
@@ -1297,7 +1316,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         Tol::witness(),
     );
     let part = declare(&part, "d", 1.0);
-    let (part, [_, _, toleranced]) = block(part, 0.0, len(0.75));
+    let (part, [_, _, toleranced, _]) = block(part, 0.0, len(0.75));
     let Some(Node::Extrude { distance, .. }) = part.node(toleranced) else {
         unreachable!("block's third node is its extrude")
     };
@@ -1310,7 +1329,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         },
     )
     .doc;
-    let (part, [_, _, offset]) = block(
+    let (part, [_, _, offset, _]) = block(
         part,
         4.0,
         Formula::add(named("d"), len(0.25)).expect("lengths add"),
@@ -1559,7 +1578,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         Tol::witness(),
     );
     let doc = declare(&doc, "w", 1.0);
-    let (doc, [_, _, extrude]) = block(doc, 0.0, len(1.0));
+    let (doc, [_, _, extrude, _]) = block(doc, 0.0, len(1.0));
     let w = id(&doc, "w");
     let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
     for var in [w, VarId::new(0, 12_345)] {

@@ -487,10 +487,31 @@ impl fmt::Display for StepImportError {
                     verdicts.join("; ")
                 )
             }
-            Self::Join { solid, refusal } => write!(
-                f,
-                "step import: joining the edges of the solid at #{solid}: {refusal}"
-            ),
+            Self::Join { solid, refusal } => {
+                write!(
+                    f,
+                    "step import: joining the edges of the solid at #{solid}: "
+                )?;
+                // The import door reads the adopted body at rest.
+                match refusal {
+                    topo::JoinRefusal::Undecided(undecided) => match undecided.diag() {
+                        Some(diag) => write!(
+                            f,
+                            "{} is undecided ({}). {}",
+                            topo::JOIN_SUBJECT,
+                            diag.payload(),
+                            diag.ending_noted(
+                                topo::JOIN_LEVER,
+                                geom_brep::recourse::unreadable_margin_note(
+                                    geom_brep::recourse::Reading::AtRest
+                                )
+                            )
+                        ),
+                        None => write!(f, "{refusal}"),
+                    },
+                    _ => write!(f, "{refusal}"),
+                }
+            }
             Self::Placement { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \

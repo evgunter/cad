@@ -27,9 +27,8 @@ use crate::node::{
     SlotId, StableName, StepId,
 };
 use crate::placement::{FrameFault, FrameSite};
-use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
+use crate::var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -61,9 +60,9 @@ impl From<crate::Operand> for SlotValue {
 /// a document value, every arm plain data, applied by the pure
 /// [`apply`] (spec D2), which answers a new document and leaves its
 /// input untouched. The set has three shapes. Structural edits over
-/// nodes, their slots, the document's roots and where instances sit
+/// nodes, their slots and where instances sit
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
-/// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
+/// `SetParam`, `SetStructuralParam`, `SetExpression`,
 /// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference`). The
 /// variable family: `DeclareVar`, which mints a variable, `DefineVar`,
 /// which replaces its definition, the carry-forward doors, each
@@ -103,9 +102,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Delete a node. Refused while any live node holds it as an
     /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
@@ -237,9 +237,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// **The slot door**: replace a CONTINUOUS slot's value
     /// (Length/Angle/Scalar slots; spec D3's continuous parameters) or
@@ -266,9 +267,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Replace a STRUCTURAL (Count-typed) slot's expression — a
     /// DISTINCT arm from [`DocEdit::SetParam`] so the structural/
@@ -284,9 +286,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Set which side of its sketch plane an extrude goes toward — the
     /// one structural choice on a [`Node::Extrude`] that is not an
@@ -340,9 +343,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Write a NEW VALUE into a free variable, keeping its definition:
     /// its kind, its notation and its optional distribution ride
@@ -406,7 +410,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// ([`EditError::UnknownVar`]), a name another variable holds
     /// ([`EditError::VarNameTaken`]), the name the variable already has
     /// ([`EditError::VarNameUnchanged`]), and clearing the name of a
-    /// variable nothing reads ([`EditError::AnonymousVarUnread`]).
+    /// variable nothing reads ([`EditError::AnonymousVarUnread`]) or
+    /// more than one reader reads ([`EditError::SharedVarNeedsName`]).
     RenameVar {
         /// The variable.
         var: VarRef,
@@ -420,8 +425,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// read it.
     ///
     /// Refuses a variable the document does not hold
-    /// ([`EditError::UnknownVar`]) and an anonymous one, whose lifecycle
-    /// is its readers' ([`EditError::DeleteAnonymousVar`]).
+    /// ([`EditError::UnknownVar`]) and an anonymous one, which goes with
+    /// its reader ([`EditError::DeleteAnonymousVar`]).
     DeleteVar {
         /// The variable.
         var: VarRef,
@@ -537,16 +542,6 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The metadata key removed.
         key: String,
     },
-    /// Set the document's ordered product roots outright (A10;
-    /// ASM-ROOTS D-3). THE designate/undesignate door: one TOTAL edit
-    /// rather than partial add/remove arms, so the product's solid
-    /// order is always stated rather than inferred from an edit
-    /// sequence. Validator-checked like any other apply, recorded like
-    /// any other edit, and undone by keeping the prior value.
-    SetRoots {
-        /// The new root list, in product order.
-        roots: Vec<RecipeNodeId>,
-    },
     /// Set an instance's offset in its gauge (A11 (2)), or clear it
     /// with `None`. On its group's root the offset places the group;
     /// on any other member it is a statement the solve checks.
@@ -558,9 +553,10 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
-        /// read the entries before it.
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        fresh: Vec<VarDecl>,
+        fresh: Vec<FreshEntry>,
     },
     /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
     /// a gauge's parent, `None` for the world. The gauge must be live
@@ -679,6 +675,23 @@ pub enum DocEdit<P: crate::ProfilePayload> {
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
+    /// **One copy of `body` in the world** (A10): the insert of a
+    /// [`Node::PlaceInWorld`] reading it at `pose`, the identity when
+    /// `None`. Nothing places but this; Python's `Doc.place` is the
+    /// same edit.
+    pub fn place(
+        body: impl Into<crate::Operand>,
+        pose: Option<crate::placement::Placement<Formula>>,
+    ) -> Self {
+        Self::InsertNode {
+            node: Box::new(Node::place_in_world(
+                body,
+                pose.unwrap_or(crate::placement::Placement::IDENTITY),
+            )),
+            fresh: Vec::new(),
+        }
+    }
+
     /// **Whether this edit writes a mate's alignment datum** — the
     /// frames, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Two edits do, and both ask the
@@ -727,7 +740,6 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::SetTolerance { .. }
             | Self::SetAppearanceMeta { .. }
             | Self::ClearAppearanceMeta { .. }
-            | Self::SetRoots { .. }
             | Self::SetLabel { .. }
             | Self::UpdateReference { .. } => false,
         }
@@ -874,12 +886,12 @@ impl Lowering {
         }
     }
 
-    /// Mints the edit's fresh table into `new`: each entry an anonymous
-    /// variable, its definition lowered in the document's names and
-    /// the entries before it.
-    fn start<P>(new: &mut Doc<P>, fresh: &[VarDecl]) -> Result<Self, EditError> {
+    /// Mints the edit's fresh table into `new`: each entry a variable
+    /// under the entry's name, or none, its definition lowered in the
+    /// document's names and the entries before it.
+    fn start<P>(new: &mut Doc<P>, fresh: &[FreshEntry]) -> Result<Self, EditError> {
         let mut minted = Self::none();
-        for decl in fresh {
+        for FreshEntry { name, decl } in fresh {
             let def = match decl {
                 VarDecl::Free(free) => WrittenDef::Free(free.clone()),
                 VarDecl::Defined(formula) => {
@@ -894,7 +906,18 @@ impl Lowering {
             minted
                 .defined
                 .set(minted.defined.get() | matches!(def, WrittenDef::Defined(_)));
+            if let Some(name) = name
+                && let Some(holder) = new.var_named(name.as_str())
+            {
+                return Err(EditError::VarNameTaken {
+                    name: name.clone(),
+                    holder: new.spoken_var(holder),
+                });
+            }
             let var = mint_anonymous(new, def)?;
+            if let Some(name) = name {
+                new.var_names.insert(var, name.clone());
+            }
             minted.fresh.push((var, dim));
         }
         Ok(minted)
@@ -983,8 +1006,12 @@ impl Lowering {
     /// answer is the variables the fresh table minted, entry by entry.
     fn finish<P: crate::ProfilePayload>(self, new: &Doc<P>) -> Result<Vec<VarId>, EditError> {
         if !self.fresh.is_empty() {
-            let unread = new.unread_anonymous_vars();
-            if let Some(index) = self.fresh.iter().position(|(var, _)| unread.contains(var)) {
+            let readers = new.reader_counts();
+            if let Some(index) = self
+                .fresh
+                .iter()
+                .position(|(var, _)| readers.get(var).copied().unwrap_or(0) == 0)
+            {
                 return Err(EditError::FreshUnread {
                     index: u16::try_from(index).unwrap_or(u16::MAX),
                 });
@@ -1227,6 +1254,17 @@ fn lower_operand<P: crate::ProfilePayload>(
     check_read(doc, spoken, slot, var, half, expected, unresolved)
 }
 
+/// **The world placement a site `at` would read the copy of**, if any:
+/// a measure site there reads the pose, which only the gather and export
+/// read. The edit doors refuse it ([`EditError::MeasuresWorldCopy`]) and
+/// so does the load door.
+pub(crate) fn world_copy_site<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    at: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    matches!(doc.node(at), Some(Node::PlaceInWorld { .. })).then_some(at)
+}
+
 /// [`lower_operand`]'s checks of the variable an operand resolved to:
 /// live, and then [`Doc::read_fault`] — the load door's rule too —
 /// rendered in this module's vocabulary.
@@ -1255,6 +1293,11 @@ fn check_read<P: crate::ProfilePayload>(
             node: spoken(),
             half,
             var: Box::new(doc.spoken_var(var)),
+        }),
+        Some(crate::doc::ReadFault::WorldCopy { placement }) => Err(EditError::ReadsWorldCopy {
+            node: spoken(),
+            slot,
+            placement: doc.spoken(placement),
         }),
     }
 }
@@ -1614,8 +1657,8 @@ impl core::fmt::Display for DefinitionVarKindSentence<'_> {
 /// [`EditError::ContinuousVarCannotBeCount`],
 /// [`EditError::VarKindFixed`], [`EditError::UnknownVar`],
 /// [`EditError::VarNameTaken`], [`EditError::VarNameUnchanged`],
-/// [`EditError::AnonymousVarUnread`] and
-/// [`EditError::DeleteAnonymousVar`] — and those have no address: the
+/// [`EditError::AnonymousVarUnread`], [`EditError::SharedVarNeedsName`]
+/// and [`EditError::DeleteAnonymousVar`] — and those have no address: the
 /// variable IS the subject, so each is named by its FACT alone.
 /// ([`EditError::UnknownVar`]'s `door` says which edit was refused —
 /// which edit, not where a read sits.)
@@ -1710,6 +1753,24 @@ pub enum EditError {
         half: crate::SplitHalf,
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
+    },
+    /// A read names a world placement's copy (D10: construction never
+    /// reads the world): only the product gather and export read a
+    /// placement's pose, so a slot reads the body the placement reads.
+    ReadsWorldCopy {
+        /// The reading node.
+        node: SpokenNode,
+        /// The slot.
+        slot: SlotId,
+        /// The placement whose copy it reads.
+        placement: SpokenNode,
+    },
+    /// A measure is sited at a world placement, so its value would read
+    /// the placement's pose, which only the gather and export read.
+    /// Measuring between placed copies is stage 3's to design.
+    MeasuresWorldCopy {
+        /// The placement it is sited at.
+        placement: SpokenNode,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
@@ -2018,9 +2079,17 @@ pub enum EditError {
         /// The variable.
         var: SpokenVar,
     },
+    /// An edit would leave a variable with no name and more than one
+    /// reader: it gave an unnamed variable a second reader, or cleared
+    /// the name of one two readers share (VR2, VR7). An unnamed variable
+    /// has exactly one reader, a slot or a definition; sharing one is
+    /// naming it.
+    SharedVarNeedsName {
+        /// The variable to name.
+        var: SpokenVar,
+    },
     /// A [`DocEdit::DeleteVar`] named an anonymous variable, whose
-    /// lifecycle is its readers': it goes when the last of them stops
-    /// reading it (VR7).
+    /// lifecycle is its reader's: it goes with it (VR7).
     DeleteAnonymousVar {
         /// The variable.
         var: SpokenVar,
@@ -2409,12 +2478,6 @@ pub enum EditError {
         /// The colliding metadata key.
         key: String,
     },
-    /// The edit's result would violate a product-root invariant (A10;
-    /// ASM-ROOTS D-2). Reached from `SetRoots` in practice — the
-    /// automatic maintenance keeps every other arm's result legal —
-    /// but checked after EVERY apply, so no door can produce an
-    /// invariant-violating document.
-    Roots(RootFault),
     /// An offset aimed at a node that does not instantiate a part
     /// (A11 (2): an offset places an instance in its gauge, and
     /// nothing else has one).
@@ -2961,6 +3024,7 @@ impl EditError {
                 holder: var,
             }
             | Self::AnonymousVarUnread { var }
+            | Self::SharedVarNeedsName { var }
             | Self::DeleteAnonymousVar { var }
             | Self::VarKindFixed {
                 var,
@@ -3024,6 +3088,15 @@ impl EditError {
                 *node = node.respoken(doc);
                 **var = var.respoken(doc);
             }
+            Self::ReadsWorldCopy {
+                node,
+                slot: _,
+                placement,
+            } => {
+                *node = node.respoken(doc);
+                *placement = placement.respoken(doc);
+            }
+            Self::MeasuresWorldCopy { placement } => *placement = placement.respoken(doc),
             Self::AmbiguousOutput {
                 input,
                 slot: _,
@@ -3091,7 +3164,6 @@ impl EditError {
                 *node = node.respoken(doc);
                 *held = held.respoken(doc);
             }
-            Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
             | Self::VarNameUnchanged { var: _ }
             | Self::UnknownNode { id: _ }
@@ -3317,6 +3389,29 @@ impl EditError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())?;
                 tail.recourse(f, format_args!("read the split's {} output", half.name()))
+            }
+            Self::ReadsWorldCopy {
+                node,
+                slot,
+                placement,
+            } => {
+                write!(
+                    f,
+                    "{node}'s {slot} reads the world copy {placement} makes, and construction \
+                     never reads the world"
+                )?;
+                tail.recourse(f, format_args!("read the body {placement} reads"))
+            }
+            Self::MeasuresWorldCopy { placement } => {
+                write!(
+                    f,
+                    "a measure is sited at {placement}, whose copy only the product and \
+                     export read"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("site the measure at the body {placement} reads"),
+                )
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;
@@ -3592,11 +3687,22 @@ impl EditError {
                     format_args!("read it from a slot before clearing its name, or delete it"),
                 )
             }
+            Self::SharedVarNeedsName { var } => {
+                write!(
+                    f,
+                    "this edit leaves {var} with no name and more than one reader, and a \
+                     variable with no name has exactly one"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name it, and its readers share it by that name"),
+                )
+            }
             Self::DeleteAnonymousVar { var } => {
                 write!(
                     f,
-                    "{var} has no name, and a variable with no name goes when the last \
-                     expression reading it stops reading it"
+                    "{var} has no name, and a variable with no name goes with the one \
+                     expression reading it"
                 )?;
                 tail.recourse(
                     f,
@@ -3909,30 +4015,6 @@ impl EditError {
                     "the rebind would land two values under metadata {key:?} on {name}"
                 )?;
                 tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
-            }
-            // `RootFault`'s sentence is the load door's too; the repair
-            // is this door's, since only an edit re-lists the roots.
-            Self::Roots(fault) => {
-                write!(f, "{fault}")?;
-                match fault {
-                    RootFault::NotLive { .. } => {
-                        tail.recourse(f, format_args!("list only live nodes as product roots"))
-                    }
-                    RootFault::Duplicate { .. } => {
-                        tail.recourse(f, format_args!("list each product root once"))
-                    }
-                    RootFault::Ancestor { ancestor, .. } => tail.recourse(
-                        f,
-                        format_args!(
-                            "drop {ancestor} from the root list, since its material reaches \
-                             the product through the other"
-                        ),
-                    ),
-                    RootFault::Uncovered { node } => tail.recourse(
-                        f,
-                        format_args!("list {node} or a node built from it as a product root"),
-                    ),
-                }
             }
             Self::OffsetOnNonInstance { node } => {
                 write!(
@@ -4298,8 +4380,8 @@ pub enum Maintenance {
         var: SpokenVar,
     },
     /// **An anonymous variable this edit removed** (VR7): the edit
-    /// detached the last expression reading it, and a variable with no
-    /// name is one something reads. The mint log keeps its id, so it is
+    /// detached the one expression reading it, and a variable with no
+    /// name goes with its reader. The mint log keeps its id, so it is
     /// never minted again.
     AnonymousVarRemoved {
         /// The variable, spoken from the document the edit entered.
@@ -4438,7 +4520,7 @@ impl core::fmt::Display for Maintenance {
                 write!(
                     f,
                     "the edit left nothing reading {var}, which had no name, so it went with \
-                     its last reader"
+                     its reader"
                 )?;
                 if distribution.is_some() {
                     f.write_str(", and the tolerance it carried went with it")?;
@@ -5064,17 +5146,6 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
     }
 }
 
-/// **A node an edit's result names, as its refusal speaks it**: from
-/// `before` when it holds the node, else by its kind as `after` mints
-/// it ([`written`]), else [`SpokenNode::absent`]: a refusal speaks the
-/// node as the author handed it.
-fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
-    match after.node(id) {
-        Some(node) => written(before, id, node),
-        None => before.spoken(id),
-    }
-}
-
 /// A broken E2 invariant as the edit door reports it, in ONE place.
 ///
 /// The split is by CLASS, not by door: a non-finite offset is a
@@ -5431,6 +5502,15 @@ fn check_payload_refs<P: crate::ProfilePayload>(
             });
         }
     }
+    if let Some(placement) = node
+        .measure_sites()
+        .into_iter()
+        .find_map(|at| world_copy_site(new, at))
+    {
+        return Err(EditError::MeasuresWorldCopy {
+            placement: doc.spoken(placement),
+        });
+    }
     Ok(())
 }
 
@@ -5459,12 +5539,10 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     // strict ancestors, or — for a node not yet inserted — the
     // operations it reads and theirs.
     let reach: std::collections::BTreeSet<RecipeNodeId> = match at {
-        Some(at) => crate::roots::strict_ancestors(new, at),
+        Some(at) => crate::doc::strict_ancestors(new, at),
         None => operands
             .iter()
-            .flat_map(|&site| {
-                std::iter::once(site).chain(crate::roots::strict_ancestors(new, site))
-            })
+            .flat_map(|&site| std::iter::once(site).chain(crate::doc::strict_ancestors(new, site)))
             .collect(),
     };
     let upstream = |minter: RecipeNodeId| reach.contains(&minter);
@@ -5633,7 +5711,6 @@ fn write_reads<P: crate::ProfilePayload>(
     check_written_node(doc, new, id, &rewritten, Writes::Reads, tol)?;
     new.nodes.insert(id, rewritten);
     check_acyclic(new)?;
-    crate::roots::on_set_members(new);
     reported.extend(stranded_by_repoint(doc, new, id));
     Ok(EditRecord {
         minted: None,
@@ -5660,11 +5737,11 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         if names.is_empty() {
             continue;
         }
-        let after = crate::roots::strict_ancestors(new, carrier);
+        let after = crate::doc::strict_ancestors(new, carrier);
         if carrier != id && !after.contains(&id) {
             continue;
         }
-        let was = crate::roots::strict_ancestors(before, carrier);
+        let was = crate::doc::strict_ancestors(before, carrier);
         for name in names {
             if was.contains(&name.node) && !after.contains(&name.node) {
                 rows.push(Maintenance::Strand {
@@ -5971,9 +6048,8 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // word and reports nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
     let wrote = write(&mut new, &mut reported)?;
-    // VR7, on EVERY arm: an anonymous variable is read by something, so
-    // the edit that detached its last reader removes it. The mint log
-    // keeps its id.
+    // VR7, on EVERY arm: an anonymous variable goes with its reader, so
+    // the edit that detached it removes it. The mint log keeps its id.
     for var in new.unread_anonymous_vars() {
         new.vars.remove(&var);
         reported.push(Maintenance::AnonymousVarRemoved {
@@ -5981,11 +6057,17 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
-    // The D-2 backstop, on EVERY arm: the maintenance rules make the
-    // invariant-violating states unreachable, and this is what says so
-    // rather than assuming it.
-    crate::roots::check(&new, |id| spoken_before_else_after(doc, &new, id))
-        .map_err(EditError::Roots)?;
+    // VR2, on EVERY arm: an anonymous variable has one reader, so the
+    // edit that gave it a second, or cleared the name two share, refuses
+    // until it is named.
+    if let Some(&var) = new.shared_unnamed_vars().first() {
+        // Spoken as the document before the edit held it: a cleared
+        // name is the one to give back.
+        let held = if doc.var(var).is_some() { doc } else { &new };
+        return Err(EditError::SharedVarNeedsName {
+            var: held.spoken_var(var),
+        });
+    }
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar
@@ -6061,7 +6143,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     reported: &mut Vec<Maintenance>,
     authored: &Node<P::Authored, Formula>,
-    fresh: &[VarDecl],
+    fresh: &[FreshEntry],
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<(RecipeNodeId, Vec<VarId>, Vec<VarId>), EditError> {
@@ -6133,7 +6215,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new.nodes.insert(id, node.clone());
     let fresh = lowering.finish(new)?;
     check_acyclic(new)?;
-    crate::roots::on_insert(new, id, &new.upstream(id));
     // The solve's own per-mate admission (A11 rule 1), asked
     // of the document the mate now stands in — its walks read
     // the operands there — through the reach this door holds:
@@ -6972,19 +7053,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::SetRoots { roots } => {
-            new.roots.clone_from(roots);
-            // Structural: the root list decides which nodes the
-            // document's product gathers, and in what order — the
-            // product's combinatorial shape, not a continuous value.
-            EditRecord {
-                minted: None,
-                minted_var: None,
-                structural: true,
-                fresh: Vec::new(),
-                outputs: Vec::new(),
-            }
-        }
         DocEdit::SetOffset {
             instance,
             offset,
@@ -7100,10 +7168,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;
             new.mint = mint;
             new.nodes.insert(id, promoted);
-            match new.roots.iter().position(|r| r == instance) {
-                Some(at) => new.roots.insert(at, id),
-                None => new.roots.push(id),
-            }
             for member in &group {
                 let Some(Node::InstantiatePart { gauge, offset, .. }) = new.nodes.get_mut(member)
                 else {
@@ -7282,8 +7346,7 @@ fn mate_that_would_start_placing<P>(
 
 /// **A node removed** (D10: deleting a variable leaves its readers
 /// unresolved, typed, never re-pointed): it leaves the node table, the
-/// order, the witness and label stores and the root list (whose
-/// maintenance re-roots the inputs it orphaned), and its outputs leave
+/// order and the witness and label stores, and its outputs leave
 /// the variable table. Nothing is refused: the answer is the report of
 /// what it stranded — each operand still reading one of its outputs
 /// ([`Maintenance::StrandedRead`], [`stranded_reads`]), then DM7's
@@ -7295,14 +7358,12 @@ fn remove_node<P: crate::ProfilePayload>(
     new: &mut Doc<P>,
     id: RecipeNodeId,
 ) -> Vec<Maintenance> {
-    let inputs = new.upstream(id);
     let outputs = new.outputs(id);
     if new.nodes.remove(&id).is_none() {
         unreachable!("node {} is removed only while live", id)
     }
     let mut reported = stranded_reads(before, new, &outputs);
     reported.extend(stranded_references(before, new, id));
-    crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
     new.labels.remove(&id);
     for var in outputs {
@@ -7544,7 +7605,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     id: RecipeNodeId,
     slot: SlotId,
     formula: &Formula,
-    fresh: &[VarDecl],
+    fresh: &[FreshEntry],
 ) -> Result<Vec<VarId>, EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode {

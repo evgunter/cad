@@ -127,7 +127,7 @@ pub(crate) struct PartValue<T: Decide> {
     /// ([`crate::Product::cited_inputs`]).
     pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
     /// How many parts the referenced document's product is: its
-    /// distinct root outputs ([`crate::product::Product::solid_roots`]),
+    /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
     /// parts count through (`NodeValue::parts`).
     pub parts: usize,
@@ -395,7 +395,6 @@ impl PartFault {
                     refusal.error().bare_said(by)
                 )?;
                 match product_recourse(refusal.kind()) {
-                    ProductRecourse::InThePart(action) => write!(f, ". {}", InThePart(action)),
                     ProductRecourse::KernelDefect => {
                         write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
                     }
@@ -477,9 +476,6 @@ impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
 
 /// What a part with no product states after the gather's own sentence.
 enum ProductRecourse {
-    /// The repair is in the part, and the gather's sentence does not
-    /// say what it is.
-    InThePart(&'static str),
     /// The gather's sentence already states the one recourse: its own,
     /// or the kernel refusal it forwards.
     Carried,
@@ -494,11 +490,12 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::NoBodyRoots => ProductRecourse::InThePart("give it a root that denotes a body"),
-        K::Naming => ProductRecourse::InThePart("repair it there"),
-        K::Unplaced | K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
-            ProductRecourse::Carried
-        }
+        K::EmptyProduct
+        | K::StrandedPlacement
+        | K::Unplaced
+        | K::Graft
+        | K::RootInvalid
+        | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
@@ -759,7 +756,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // `Arc`s are the cache's, so every instance of one part shares
         // one row set.
         let parts = product
-            .solid_roots
+            .solid_copies
             .iter()
             .map(|o| (o.node, o.output))
             .collect::<std::collections::BTreeSet<_>>()

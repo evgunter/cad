@@ -427,11 +427,282 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
+    // The near-tangent census's lump (`notch307 nt e0 a3 d1e-8 pc I`):
+    // every cut that makes it is definite, and its V/A lies in band.
+    sliver_lump_of_an_intersection: "ShellRole", sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().intersect();
+    // The same lump as a cavity: a box less each operand, unioned.
+    sliver_cavity_of_a_union: "ShellRole", -sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().cavity();
+    // Two such cavities, of `V/A` −3.29e-9 and −6.58e-9: in either order
+    // the thinner binds, and the tolerance it offers decides both.
+    two_sliver_cavities_of_a_union: "ShellRole", -sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().two_cavities(false);
+    two_sliver_cavities_of_a_union_reversed: "ShellRole", -sliver_lump().thickness(), Public,
+        Valued => sliver_lump().two_cavities(true);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
          public raise is known to reach it in band"
     ), Valued => recut(D);
+}
+
+/// A point or direction, for the near-tangent pose's own arithmetic.
+type V3 = [f64; 3];
+
+fn dot3(a: V3, b: V3) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross3(a: V3, b: V3) -> V3 {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn add3(a: V3, b: V3) -> V3 {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+fn sub3(a: V3, b: V3) -> V3 {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn scale3(a: V3, k: f64) -> V3 {
+    a.map(|c| c * k)
+}
+
+fn unit3(a: V3) -> V3 {
+    scale3(a, 1.0 / dot3(a, a).sqrt())
+}
+
+/// Two unit directions square to `m` and to each other.
+fn basis3(m: V3) -> (V3, V3) {
+    let m = unit3(m);
+    let seed = if m[2].abs() < 0.9 {
+        [0.0, 0.0, 1.0]
+    } else {
+        [1.0, 0.0, 0.0]
+    };
+    let u = unit3(cross3(seed, m));
+    (u, cross3(m, u))
+}
+
+/// `faces` (outward-wound polygons of a convex solid) less the side
+/// `n · x > d`, the cut closed by a cap.
+fn clip3(faces: &[Vec<V3>], n: V3, d: f64) -> Vec<Vec<V3>> {
+    let mut kept = Vec::new();
+    let mut cap: Vec<V3> = Vec::new();
+    for f in faces {
+        let mut g = Vec::new();
+        for i in 0..f.len() {
+            let (p, q) = (f[i], f[(i + 1) % f.len()]);
+            let (sp, sq) = (dot3(n, p) - d, dot3(n, q) - d);
+            if sp <= 0.0 {
+                g.push(p);
+            }
+            if sp * sq < 0.0 {
+                let x = add3(p, scale3(sub3(q, p), sp / (sp - sq)));
+                g.push(x);
+                cap.push(x);
+            }
+            if sp == 0.0 {
+                cap.push(p);
+            }
+        }
+        if g.len() >= 3 {
+            kept.push(g);
+        }
+    }
+    if cap.len() >= 3 {
+        let c = scale3(
+            cap.iter().fold([0.0; 3], |a, &b| add3(a, b)),
+            1.0 / cap.len() as f64,
+        );
+        let (e1, e2) = basis3(unit3(n));
+        let at = |x: V3| dot3(sub3(x, c), e2).atan2(dot3(sub3(x, c), e1));
+        cap.sort_by(|a, b| at(*a).total_cmp(&at(*b)));
+        if dot3(cross3(sub3(cap[1], cap[0]), sub3(cap[2], cap[0])), n) < 0.0 {
+            cap.reverse();
+        }
+        kept.push(cap);
+    }
+    kept
+}
+
+/// The near-tangent census's witness pose (`notch307 nt e0 a3 d1e-8`):
+/// the notch prism, corner `v = (2, 1, 1)`, and a cube of side 4 whose
+/// near face passes through `v`, its normal `m` a sixteenth-turn pose
+/// about the corner's top edge `e = (2, 1, 0)` tilted `1e-8` rad along
+/// it. Their intersection keeps, beside its main lump, a lump along `e`
+/// that meets it only at `v`.
+struct SliverLump {
+    v: V3,
+    u: V3,
+    w: V3,
+    m: V3,
+}
+
+/// The notch prism's profile.
+const NOTCH: [(f64, f64); 5] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+
+fn sliver_lump() -> SliverLump {
+    let e = unit3([2.0, 1.0, 0.0]);
+    let (p1, p2) = basis3(e);
+    let turn = core::f64::consts::TAU * 3.25 / 16.0;
+    let m = unit3(add3(
+        add3(scale3(p1, turn.cos()), scale3(p2, turn.sin())),
+        scale3(e, 1e-8),
+    ));
+    let (u, w) = basis3(m);
+    SliverLump {
+        v: [2.0, 1.0, 1.0],
+        u,
+        w,
+        m,
+    }
+}
+
+impl SliverLump {
+    /// The lump's volume over its area, from the pose's own geometry:
+    /// the prism's convex piece beyond the notch, about `v`, clipped by
+    /// the cube's six planes.
+    fn thickness(&self) -> f64 {
+        let Self { u, w, m, .. } = *self;
+        let piece =
+            [(2.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0)].map(|(x, y)| (x - 2.0, y - 1.0));
+        let bottom: Vec<V3> = piece.iter().map(|&(x, y)| [x, y, -1.0]).collect();
+        let top: Vec<V3> = piece.iter().map(|&(x, y)| [x, y, 0.0]).collect();
+        let mut faces: Vec<Vec<V3>> = vec![bottom.iter().rev().copied().collect(), top.clone()];
+        for i in 0..4 {
+            let j = (i + 1) % 4;
+            faces.push(vec![bottom[i], bottom[j], top[j], top[i]]);
+        }
+        let cuts = [
+            (scale3(m, -1.0), 0.0),
+            (m, 4.0),
+            (u, 2.0),
+            (scale3(u, -1.0), 2.0),
+            (w, 2.0),
+            (scale3(w, -1.0), 2.0),
+        ];
+        let lump = cuts
+            .iter()
+            .fold(faces, |faces, &(n, d)| clip3(&faces, n, d));
+        let (mut volume, mut area) = (0.0, 0.0);
+        for f in &lump {
+            for i in 1..f.len() - 1 {
+                let c = cross3(sub3(f[i], f[0]), sub3(f[i + 1], f[0]));
+                volume += dot3(f[0], cross3(f[i], f[i + 1])) / 6.0;
+                area += dot3(c, c).sqrt() / 2.0;
+            }
+        }
+        volume / area
+    }
+
+    /// The two operands, finished.
+    fn operands(&self) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
+        self.operands_at(1.0, 0.0)
+    }
+
+    /// The two operands scaled `k` about the origin and moved `dx` along
+    /// `x`, finished: the lump's `V/A` scales by `k`.
+    fn operands_at(&self, k: f64, dx: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
+        let Self { v, u, w, m } = *self;
+        let tol = Tol::witness();
+        let notch = NOTCH.map(|(x, y)| (k * x + dx, k * y));
+        let prism = finished(
+            "the notch prism",
+            crate::test_support_fixtures::prism::<f64>(&notch, k, tol).body,
+            tol,
+        );
+        let v = add3(scale3(v, k), [dx, 0.0, 0.0]);
+        let corner = move |x: f64, y: f64, z: f64| {
+            let p = add3(
+                v,
+                add3(
+                    scale3(u, k * (-2.0 + 4.0 * x)),
+                    add3(scale3(w, k * (-2.0 + 4.0 * y)), scale3(m, k * 4.0 * z)),
+                ),
+            );
+            Point3::new(p[0], p[1], p[2])
+        };
+        let cube = finished(
+            "the cube",
+            crate::test_support_fixtures::mapped_cube::<f64>(corner, tol),
+            tol,
+        );
+        (prism, cube)
+    }
+
+    /// Two of the lump's cavities in one result, the second at twice the
+    /// scale 20 along `x` (so twice the `V/A`): a box less both prisms,
+    /// unioned with a larger box less both cubes, in the given order.
+    fn two_cavities(&self, boxed_cubes_first: bool) -> Result<(), BooleanError> {
+        let tol = Tol::witness();
+        let (prism, cube) = self.operands();
+        let (wide_prism, wide_cube) = self.operands_at(2.0, 20.0);
+        let around = |r: f64| {
+            finished(
+                "a box",
+                crate::test_support_fixtures::brick::<f64>(
+                    (-r, 24.0 + r),
+                    (-r, 4.0 + r),
+                    (-r, 4.0 + r),
+                    tol,
+                ),
+                tol,
+            )
+        };
+        let less = |from: crate::AtRestBody<f64>, tools: [&crate::AtRestBody<f64>; 2]| {
+            tools.iter().fold(from, |acc, tool| {
+                let r =
+                    crate::subtract(&acc, tool, tol).expect("a box less a tool inside it builds");
+                r.body()
+                    .expect("a box less a tool inside it is not empty")
+                    .body
+                    .clone()
+            })
+        };
+        let prisms = less(around(6.0), [&prism, &wide_prism]);
+        let cubes = less(around(7.0), [&cube, &wide_cube]);
+        let (a, b) = if boxed_cubes_first {
+            (&cubes, &prisms)
+        } else {
+            (&prisms, &cubes)
+        };
+        crate::union(a, b, tol).map(|_| ())
+    }
+
+    fn intersect(&self) -> Result<(), BooleanError> {
+        let (prism, cube) = self.operands();
+        crate::intersect(&prism, &cube, Tol::witness()).map(|_| ())
+    }
+
+    /// `(box ∖ prism) ∪ (larger box ∖ cube)`, whose cavities are the
+    /// intersection's lumps.
+    fn cavity(&self) -> Result<(), BooleanError> {
+        let tol = Tol::witness();
+        let (prism, cube) = self.operands();
+        let around = |r: f64| {
+            let side = (-r, 4.0 + r);
+            finished(
+                "a box",
+                crate::test_support_fixtures::brick::<f64>(side, side, side, tol),
+                tol,
+            )
+        };
+        let less_prism =
+            crate::subtract(&around(6.0), &prism, tol).expect("the box less the prism builds");
+        let less_cube =
+            crate::subtract(&around(7.0), &cube, tol).expect("the larger box less the cube builds");
+        let (Some(a), Some(b)) = (less_prism.body(), less_cube.body()) else {
+            panic!("a box less an operand inside it is not empty");
+        };
+        crate::union(&a.body, &b.body, tol).map(|_| ())
+    }
 }
 
 /// The norm of the coincfr4 review's cc2 turning axis, `(−2, 1, ½)`.
@@ -1651,8 +1922,35 @@ fn row(case: &Case) -> String {
 
 /// The point margin a refusal quotes, read off its payload.
 fn quoted_margin(text: &str) -> Option<f64> {
-    let (_, tail) = text.split_once("margin ")?;
-    tail.split_whitespace().next()?.parse::<f64>().ok()
+    if let Some((_, tail)) = text.split_once("margin ") {
+        return tail.split_whitespace().next()?.parse::<f64>().ok();
+    }
+    // An enclosure on one side of zero quotes its nearer end.
+    let (_, tail) = text.split_once("enclosure [")?;
+    let (lo, tail) = tail.split_once(", ")?;
+    let (hi, _) = tail.split_once(']')?;
+    let (lo, hi) = (lo.parse::<f64>().ok()?, hi.parse::<f64>().ok()?);
+    Some(if lo.abs() < hi.abs() { lo } else { hi })
+}
+
+/// **An enclosure quotes its end nearer zero**, on either side: the
+/// offer below it is the one that decides the whole enclosure. The
+/// fixtures' enclosures are an ulp wide, so these are wide on purpose.
+#[test]
+fn a_quoted_enclosure_is_its_end_nearer_zero() {
+    let quote = |enclosure: &str| {
+        quoted_margin(&format!(
+            "whether a shell of the result bounds material or a cavity is undecided: \
+             enclosure {enclosure} cannot be classified against the ambiguity band (1e-9, 1e-8)"
+        ))
+    };
+    assert_eq!(quote("[3e-9, 6e-9]"), Some(3e-9), "the outer side");
+    assert_eq!(quote("[-6e-9, -3e-9]"), Some(-3e-9), "the void side");
+    assert_eq!(
+        quoted_margin("margin 5.5e-9 lies inside the ambiguity band (1e-9, 1e-8)"),
+        Some(5.5e-9),
+        "a point margin"
+    );
 }
 
 /// Whether `got` is `want` to the precision a fixed pose's margin is
@@ -2413,6 +2711,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
+    (
+        "ops.rs",
+        "finished_body_refusal",
+        "BooleanDecision::ShellRole",
+        1,
+    ),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (

@@ -1852,7 +1852,7 @@ fn export_err(
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
         // `Product` is the WHOLE-DOCUMENT door's refusal: it names
-        // product roots, not this call's node, so it adds no field
+        // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
@@ -2563,7 +2563,9 @@ pub(crate) fn evaluate(
 /// Its two cells cross as `(node, name)` pairs: the input node whose
 /// table names the cell and the name there, the same opaque text the
 /// materializers answer with; a tool cell (the plane a split cuts with)
-/// has no name and crosses as `(node, None)`. `rung` names the door's
+/// has no name and crosses as `(node, None)`, and a profile's own piece
+/// crosses as `(profile, piece)`, the piece's text as a step's pieces
+/// spell it. `rung` names the door's
 /// rung that proved the row structural, `None` where none did, and then
 /// `residual` says what separates the two constructions, or why a
 /// cell's could not be read (`coincide::Unwalked`, said by its sentence
@@ -2594,6 +2596,9 @@ impl Coincidence {
                     Ok((NodeId(*input), Some(super::doc::name_text(py, name)?)))
                 }
                 d::NamedCell::Tool { input } => Ok((NodeId(*input), None)),
+                d::NamedCell::Piece { profile, piece } => {
+                    Ok((NodeId(*profile), Some(super::doc::piece_text(piece)?)))
+                }
             })
             .collect::<PyResult<_>>()?;
         let (rung, residual) = match proof {
@@ -2621,7 +2626,10 @@ impl Coincidence {
 
     /// What was decided between them: `same_oriented`,
     /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent` or
-    /// `seam`.
+    /// `cusp`. A `profile_junction` row is `tangent` or `cusp` between
+    /// two carriers and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent` for a seam and `cusp` for a
+    /// tangent contact.
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
@@ -2629,7 +2637,8 @@ impl Coincidence {
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    /// `profile_junction`, `vertex_fusion`, `census_at_rest` or
+    /// `import_anchor`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site
