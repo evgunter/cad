@@ -2,11 +2,12 @@
 id: poses-are-variables
 kind: issue
 title: D10 stage 3 PR A: a pose is a defined variable of its kind, read off geometry or constructed; one Subgroup; the revolve's axis is a 2-D line on the node
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
 refs: [explicit-placement-frames-hold-floats, intent-stage3-is-built]
+branch: intent/s3-a-poses
 ---
 
 INTENT stage 3, PR A. Spec: `docs/INTENT-STAGE3-SPEC.md` §2. Built on FORK-S3P (fork log row 95, PR 4324).
