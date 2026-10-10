@@ -222,8 +222,12 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     let read: Vec<Result<ShellRead, PieceSortError>> = shells
         .iter()
         .map(|&shell| {
-            ShellRead::of(body, shell, band, tol, quad)
-                .map_err(|source| PieceSortError::RoleUnread { shell, source })
+            ShellRead::of(body, shell, band, tol, quad).map_err(|refusal| {
+                PieceSortError::RoleUnread {
+                    shell,
+                    source: refusal.error,
+                }
+            })
         })
         .collect();
     let decided_outers = read
@@ -534,8 +538,7 @@ mod tests {
         );
         assert!(
             tail.ends_with(
-                "). Recourse: thicken or remove the degenerate geometry; an unreadable or \
-                 collapsed margin may indicate a kernel bug worth reporting"
+                "). Recourse: thicken or remove the degenerate geometry; an unreadable margin may indicate a kernel bug worth reporting"
             ),
             "{text}"
         );

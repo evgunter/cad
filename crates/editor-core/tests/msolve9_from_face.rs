@@ -44,7 +44,7 @@ use editor_core::{
     RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
     mate_reach, save,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, in_world, with_resolver};
 use fixture::{
     at_the_door, gate, insert, len, on_frame, on_frame_keeping, run, solve, square, step, step_with,
 };
@@ -76,6 +76,22 @@ fn block(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// The PART-LOCAL name of a cap face of `body`: the row the part's own
 /// table holds, with no instance wrapped round it.
+/// **`doc` with `body` placed in its world**, as
+/// [`PartStore::insert_part`] places it — so [`in_world`] spells the
+/// part's caps through that placement wherever the part is stored.
+fn placed(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
+    let mut scratch = PartStore::new();
+    let (doc_ref, _) = scratch.insert_part((doc, body), Tol::witness());
+    scratch.doc(doc_ref.id)
+}
+
+/// **`part` with `root` placed in its world, and `face` of `root` as
+/// the part's product names it**: under that placement's copy.
+fn world_face(part: ProfileDoc, root: RecipeNodeId, face: &StableName) -> (ProfileDoc, StableName) {
+    let (part, placement) = fixture::place(part, root);
+    (part, face.in_copy(placement))
+}
+
 fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -113,7 +129,7 @@ fn mate(
     b: (RecipeNodeId, RecipeNodeId),
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
-    mate_on(a, &cap(a_body, CapEnd::End), b, alignment)
+    mate_on(a, &in_world(a_body, CapEnd::End), b, alignment)
 }
 
 /// The mate `a` (on `a_face`, a face of its part by the part's own
@@ -159,6 +175,7 @@ struct Seat {
 fn seat(label: &str, post_height: f64) -> Seat {
     let mut store = PartStore::new();
     let (post, post_body) = block(&format!("{label}-post"), 0.5, post_height);
+    let post = placed(post, post_body);
     let post_ref = store.insert(post.clone(), Tol::witness());
     let (block_ref, block_body) =
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
@@ -170,6 +187,7 @@ fn seat(label: &str, post_height: f64) -> Seat {
     // operand's group on the second's, so with the post first the
     // block's empty offset keeps the post the root it seats on.
     let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
+    let doc = fixture::place_all(doc, &[post_i, block_i]);
     let (doc, mate) = step_with(
         doc,
         DocEdit::InsertNode {
@@ -391,12 +409,13 @@ fn carrier(
         other => panic!("no analytic fixture for {other:?}"),
     };
     let ev = run(&doc, &EvalOptions::default());
-    let root = *doc.roots().first().expect("a product root");
+    let root = *doc.ids().last().expect("the revolve");
     let name = all_faces(&ev, root)
         .into_iter()
         .find(|name| face_carrier_kind(&ev, root, name) == Ok(wanted))
         .unwrap_or_else(|| panic!("{label}: a {wanted:?} face"));
     let pose = face_frame(&ev, root, &name).expect("the carrier has a pose");
+    let (doc, name) = world_face(doc, root, &name);
     (doc, name, pose)
 }
 
@@ -578,7 +597,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         vec![vec![(0.0, 0.0), (0.4, 0.0), (0.4, 1.0), (0.0, 1.0)]],
     );
     let ev = run(&part, &EvalOptions::default());
-    let root = *part.roots().first().expect("a product root");
+    let root = *part.ids().last().expect("the revolve");
     let (name, pose) = all_faces(&ev, root)
         .into_iter()
         .filter_map(|name| {
@@ -588,6 +607,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         })
         .next()
         .expect("a planar face whose outward normal is -axis");
+    let (part, name) = world_face(part, root, &name);
     let aligned = resolve_through_the_solve(
         "msolve9-a2-sense-aligned",
         part.clone(),
@@ -652,6 +672,7 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         .into_iter()
         .find(|name| face_carrier_kind(&ev, loft, name) == Ok(SurfaceKind::Nurbs))
         .expect("a lofted flank is a spline patch");
+    let (part, flank) = world_face(part, loft, &flank);
     let fault = resolve_through_the_solve(
         "msolve9-a2-nurbs-asm",
         part.clone(),
@@ -720,6 +741,7 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
             _ => None,
         })
         .expect("the U cutter ties a face");
+    let (part, tied) = world_face(part, sub, &tied);
     let fault = resolve_through_the_solve(
         "msolve9-tie",
         part,
@@ -891,6 +913,8 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         ProfileDoc::empty(s.post.id(), Tol::witness()),
         vec![vec![(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)]],
     );
+    let root = *post.ids().last().expect("the revolve");
+    let post = fixture::place(post, root).0;
     let new_ref = s.store.insert(post, Tol::witness());
     s.opts = with_resolver(s.store.clone());
     let reach = mate_reach::<f64>(&s.opts, Tol::witness());
@@ -992,7 +1016,7 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
                         refusal: FacePoseRefusal::PartUnresolved { fault: PartFault::NoResolver },
                     } if instance_named.is_none_or(|named| *instance == named)
                         && *part == post_ref
-                        && **face == cap(s.post_body, CapEnd::End)
+                        && **face == in_world(s.post_body, CapEnd::End)
                 )
         )
     };
@@ -1008,7 +1032,7 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     };
     let text = refusal.to_string();
     assert!(
-        text.contains(&cap(s.post_body, CapEnd::End).to_string())
+        text.contains(&in_world(s.post_body, CapEnd::End).to_string())
             && text.contains(&format!("instance {}'s part", s.post_i)),
         "the message names the face and the instance whose part it is: {text}"
     );
@@ -1204,12 +1228,12 @@ fn an_older_file_naming_its_face_refuses_unreadable_with_the_recourse() {
         (
             "a face tag naming the head's own face",
             "a",
-            serde_json::json!({ "FromFace": { "face": cap(s.post_body, CapEnd::End) } }),
+            serde_json::json!({ "FromFace": { "face": in_world(s.post_body, CapEnd::End) } }),
         ),
         (
             "a face tag naming another face",
             "a",
-            serde_json::json!({ "FromFace": { "face": cap(s.post_body, CapEnd::Start) } }),
+            serde_json::json!({ "FromFace": { "face": in_world(s.post_body, CapEnd::Start) } }),
         ),
         (
             "a face tag over null",
@@ -1279,7 +1303,7 @@ fn an_untagged_frame_refuses_whichever_arms_keys_it_carries() {
         (
             "a face key",
             "a",
-            serde_json::json!({ "face": cap(s.post_body, CapEnd::End) }),
+            serde_json::json!({ "face": in_world(s.post_body, CapEnd::End) }),
         ),
     ] {
         let doctored = wire::doctored(&text, |wire| {
@@ -1460,7 +1484,7 @@ fn a_face_sides_face_is_its_heads_row_in_the_part() {
     assert_eq!(head.name.node, s.post_i, "a head is the instance's wrapper");
     assert_eq!(
         editor_core::head_face(&s.doc, head).map(FaceName::into_name),
-        Some(cap(s.post_body, CapEnd::End)),
-        "the post's own row, unwrapped"
+        Some(in_world(s.post_body, CapEnd::End)),
+        "the post's own row — its world copy's — unwrapped"
     );
 }

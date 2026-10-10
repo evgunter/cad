@@ -42,16 +42,8 @@ fn accessors_read_back_everything_the_doors_wrote() {
         assert_eq!(matches!(s, profile::Segment::Line), *bulge == 0.0);
     }
 
-    // ProfileLoop: vertices() is the chain in traversal order;
-    // tangent_joints() is empty until declared.
+    // ProfileLoop: vertices() is the chain in traversal order.
     assert_eq!(lp.vertices().len(), vs.len());
-    assert!(lp.tangent_joints().is_empty());
-
-    // The declaring door round-trips through the accessor verbatim —
-    // no sorting, no dedup (validation owns that; see the accessor's
-    // normative docs).
-    let declared = lp.with_tangent_joints(vec![2, 0, 2]);
-    assert_eq!(declared.tangent_joints(), &[2, 0, 2]);
 
     // The polygon door: every bulge zero, chain order preserved.
     let poly: ProfileLoop<f64> = RawLoop::polygon([
@@ -69,12 +61,11 @@ fn accessors_read_back_everything_the_doors_wrote() {
 
     // reversed() survives the seal: it reads and rebuilds through the
     // same private representation, and it is still an involution.
-    let there_and_back = declared.reversed().reversed();
-    assert_eq!(there_and_back.tangent_joints(), declared.tangent_joints());
-    for (a, b) in there_and_back.vertices().iter().zip(declared.vertices()) {
+    let there_and_back = lp.reversed().reversed();
+    for (a, b) in there_and_back.vertices().iter().zip(lp.vertices()) {
         assert_eq!(a.x.to_bits(), b.x.to_bits());
     }
-    for (a, b) in there_and_back.segments().iter().zip(declared.segments()) {
+    for (a, b) in there_and_back.segments().iter().zip(lp.segments()) {
         assert_eq!(format!("{a:?}"), format!("{b:?}"));
     }
 }
@@ -101,7 +92,6 @@ fn the_canonical_door_writes_the_stored_form_verbatim() {
         assert_eq!(bits(&lp.vertices()[k]), bits(&pos), "vertex {k}");
         assert_eq!(bits(&lp.segments()[k]), bits(&segment), "segment {k}");
     }
-    assert!(lp.tangent_joints().is_empty());
 
     let circle: ProfileLoop<f64> = RawLoop::new([(
         Point2::new(1.0, 0.0),

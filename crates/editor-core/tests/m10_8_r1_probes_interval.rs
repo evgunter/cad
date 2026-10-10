@@ -30,8 +30,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
-    Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Selector, SitedRef,
+    SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
@@ -350,10 +350,11 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         vec![wall(disc), wall(bore)]
     };
     // wall = distance(outer wall, bore wall) = outer_r − offset − bore_r.
-    let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(wall, refs).expect("both indices in range"));
+    let wall = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[wall], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.25e-3 - 1.0e-4),
         dir: editor_core::AssertionDir::AtLeast,
     });
@@ -401,7 +402,14 @@ fn r1_annulus_end_to_end() {
                         println!("{}", v.render(&doc, &analyzed));
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, None, tol,
+                        &doc,
+                        crate::fixture::output(&doc, measure),
+                        &analyzed,
+                        &v,
+                        None,
+                        false,
+                        None,
+                        tol,
                     );
                     println!("   stackup: {stack:?}");
                     let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), d, tol);

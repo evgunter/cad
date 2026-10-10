@@ -235,7 +235,7 @@ impl LoopDecision {
             Self::Ray | Self::Plane => LeverOnly {
                 lever: self.lever(),
             }
-            .recourse(arm),
+            .recourse(arm, reading),
         }
     }
 }
@@ -1555,18 +1555,10 @@ pub(crate) fn carrier_ball<T: Decide>(
             minor_radius,
             offset,
             ..
-        } => {
-            let (speed, _) = geom::spiric_rate_bounds(
-                minor_radius,
-                offset,
-                (major_radius - minor_radius, major_radius + minor_radius),
-                T::one(),
-            );
-            Some((
-                carrier.mid_point(t0, t1),
-                speed * (t1 - t0).abs() * T::from_f64(0.5),
-            ))
-        }
+        } => Some((
+            carrier.mid_point(t0, t1),
+            spiric_speed(major_radius, minor_radius, offset) * (t1 - t0).abs() * T::from_f64(0.5),
+        )),
         // Positive weights put a NURBS curve inside its control
         // hull, so inside any ball holding every control point: the
         // one about the control points' bounding-box centre, to the
@@ -1587,6 +1579,13 @@ pub(crate) fn carrier_ball<T: Decide>(
             Some((center, reach))
         }
     }
+}
+
+/// **A spiric's speed bound**, metres per radian of its parameter:
+/// [`geom::spiric_rate_bounds`] over the whole oval of the torus
+/// `(major, minor)` cut at `offset`.
+pub(crate) fn spiric_speed<T: geom_core::Real>(major: T, minor: T, offset: T) -> T {
+    geom::spiric_rate_bounds(minor, offset, (major - minor, major + minor), T::one()).0
 }
 
 /// **How far from `q` the loop reaches**: the radius of a ball about

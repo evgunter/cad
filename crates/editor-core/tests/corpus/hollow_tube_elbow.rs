@@ -65,6 +65,8 @@ pub fn document() -> CorpusDoc {
         wall: len(WALL),
     });
 
+    r.place(elbow);
+
     CorpusDoc {
         name: "hollow_tube_elbow",
         about: "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",

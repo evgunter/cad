@@ -1182,10 +1182,18 @@ impl SizedPass {
     }
 }
 
-/// What an unreadable margin may mean, appended to an ending by
-/// [`noted`].
+/// What an unreadable margin may mean at a build, where the kernel made
+/// the geometry: appended to an ending by [`noted`] on a poisoned margin
+/// ([`MarginDiag::unreadable_note`]).
 pub const UNREADABLE_MARGIN_NOTE: &str =
-    "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
+    "an unreadable margin may indicate a kernel bug worth reporting";
+
+/// What an unreadable margin may mean over stored geometry, which a
+/// damaged file reaches as surely as a defective operation does:
+/// [`UNREADABLE_MARGIN_NOTE`]'s twin there. Which of the two a door
+/// gives is its reader's choice (`geom_brep::recourse`).
+pub const UNREADABLE_STORED_MARGIN_NOTE: &str =
+    "an unreadable margin may indicate a kernel or file defect worth reporting";
 
 /// **The recourse, labelled**: `Recourse: {action}`, the one spelling
 /// of the label a refusal's way through opens with.
@@ -1210,8 +1218,8 @@ pub fn noted(ending: impl fmt::Display, note: Option<&str>) -> String {
 }
 
 /// **A refusal ending in its geometry lever alone** (D4 ¶1 (i)):
-/// [`Recourse`]`(lever)`, [`noted`] where a note is given — the
-/// [`UNREADABLE_MARGIN_NOTE`] on a poisoned margin, or a sized
+/// [`Recourse`]`(lever)`, [`noted`] where a note is given — a poisoned
+/// margin's ([`MarginDiag::unreadable_note`]), or a sized
 /// decision's [`SizedWords::otherwise`]. The one spelling of that
 /// ending, for [`MarginDiag::sized_recourse`]'s lever-alone arms and
 /// `geom_brep::recourse`'s table.
@@ -1233,6 +1241,11 @@ pub struct SizedWords<'a> {
     /// Appended to the lever as "; {note}" where no smaller tolerance
     /// decides the margin passing.
     pub otherwise: Option<&'a str>,
+    /// Appended to the lever as "; {note}" instead where the margin is
+    /// poisoned: the unreadable-margin note of the door reading it
+    /// ([`UNREADABLE_MARGIN_NOTE`] at a build,
+    /// [`UNREADABLE_STORED_MARGIN_NOTE`] over stored geometry).
+    pub unreadable: &'a str,
 }
 
 /// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), as the
@@ -1387,6 +1400,19 @@ impl MarginDiag {
         self.kind() == MarginKind::Invalid
     }
 
+    /// **What a refusal's ending adds on this margin** (D4 ¶1 (i)):
+    /// `note`, the unreadable-margin note the door reading it gives, on a
+    /// poisoned margin; nothing on a margin that was read. The ending it
+    /// notes keeps the decision's own lever: a poisoned margin drops only
+    /// the tolerance arm, which no tolerance answers. The one home of that
+    /// rule, for every table that notes a poisoned margin
+    /// ([`MarginDiag::sized_recourse`], `geom_brep::recourse`'s lever-only
+    /// and not-yet endings).
+    #[must_use]
+    pub fn unreadable_note(self, note: &str) -> Option<&str> {
+        self.is_invalid().then_some(note)
+    }
+
     /// This decided reading, as a gate that passes only `passes`
     /// rejected its decided `sign` — the one mint of the tag
     /// [`MarginDiag::rejected_sign`] reads.
@@ -1431,6 +1457,19 @@ impl MarginDiag {
         }
     }
 
+    /// **Whether this reading binds a shared offer before `other`**: a
+    /// tolerance that decides it lies no higher than one deciding
+    /// `other`, its end nearer zero being no farther out. An unreadable
+    /// reading binds first, offering none. A refusal standing for
+    /// several in-band readings quotes the one that binds, so the
+    /// tolerance it offers decides every one; the choice is the
+    /// refusal's words, taken here beside the offer it shapes.
+    #[must_use]
+    pub fn binds_before(self, other: Self) -> bool {
+        let near = |m: Self| m.magnitudes().map_or(f64::NEG_INFINITY, |(near, _)| near);
+        near(self) <= near(other)
+    }
+
     /// Where this reading stands against `band`, as the classifier
     /// would place it — for composing error text only.
     fn placement(self, band: Band) -> Placement {
@@ -1469,7 +1508,8 @@ impl MarginDiag {
     /// accepts; an enclosure where both ends do, below its nearer end;
     /// neither where it lies past the band, decided at this tolerance
     /// already. Otherwise the lever alone, with [`SizedWords::otherwise`]
-    /// where given; a poisoned margin adds [`UNREADABLE_MARGIN_NOTE`].
+    /// where given; a poisoned margin takes [`SizedWords::unreadable`]
+    /// instead ([`MarginDiag::unreadable_note`]).
     ///
     /// The choice is made here, from the number, and only a sentence
     /// leaves. Because the sentence is chosen from the number, reading
@@ -1483,16 +1523,14 @@ impl MarginDiag {
             size,
             passes,
             otherwise,
+            unreadable,
         } = words;
-        if self.is_invalid() {
-            return lever_recourse(lever, Some(UNREADABLE_MARGIN_NOTE));
-        }
         match self.tightens_below(band, passes) {
             Some(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
                  {v:e} m"
             ),
-            None => lever_recourse(lever, otherwise),
+            None => lever_recourse(lever, self.unreadable_note(unreadable).or(otherwise)),
         }
     }
 
@@ -1527,6 +1565,7 @@ impl MarginDiag {
             size,
             passes,
             otherwise,
+            ..
         } = words;
         let eps_in = file.eps_in;
         let (Some((near, _)), Some(within)) = (self.magnitudes(), self.within(eps_in)) else {
@@ -2043,9 +2082,18 @@ impl Indeterminate {
     /// zero on the side it rejects. The words are
     /// [`MarginDiag::sized_recourse`]'s, which is also where a
     /// straddling enclosure and an unreadable margin lose the offer:
-    /// neither names a tolerance that decides.
+    /// neither names a tolerance that decides. The classifier names no
+    /// door, so an unreadable margin takes a build's note; a reader over
+    /// stored geometry gives its own ([`Indeterminate::ending_noted`]).
     #[must_use]
     pub fn ending(&self, levers: &str) -> String {
+        self.ending_noted(levers, UNREADABLE_MARGIN_NOTE)
+    }
+
+    /// [`Indeterminate::ending`], with `unreadable` the note a poisoned
+    /// margin takes: the one its reader's door gives.
+    #[must_use]
+    pub fn ending_noted(&self, levers: &str, unreadable: &str) -> String {
         self.margin.sized_recourse(
             self.band,
             SizedWords {
@@ -2053,6 +2101,7 @@ impl Indeterminate {
                 size: "size",
                 passes: self.passes(),
                 otherwise: None,
+                unreadable,
             },
         )
     }
@@ -2466,7 +2515,8 @@ mod tests {
     /// The sentence the reporting margin gives a sized decision: the
     /// valued offer where a smaller tolerance decides the margin passing
     /// and the door may name one, else the lever with the caller's note,
-    /// or with what an unreadable margin may mean.
+    /// or, on a poisoned margin, with the door's unreadable-margin note in
+    /// its place.
     #[test]
     fn a_sized_recourse_quotes_the_value_or_names_the_lever() {
         let band = band_1e9();
@@ -2475,6 +2525,7 @@ mod tests {
             size: "length",
             passes: SizedPass::Positive,
             otherwise,
+            unreadable: "u",
         };
         let offer = "Recourse: L, or, if this length is intended, tighten the tolerance below \
                      5e-11 m";
@@ -2513,7 +2564,7 @@ mod tests {
             (
                 MarginDiag::INVALID,
                 words(Some("n")),
-                format!("Recourse: L; {UNREADABLE_MARGIN_NOTE}"),
+                "Recourse: L; u".to_owned(),
             ),
         ];
         for (margin, words, want) in rows {
@@ -2535,6 +2586,7 @@ mod tests {
             size: "length",
             passes: SizedPass::Positive,
             otherwise: Some("n"),
+            unreadable: "u",
         };
         let at = |eps_in| FileCoincidence::new(eps_in);
         // Wholly at or below ε_in, the size is one the file does not
@@ -2715,6 +2767,29 @@ mod tests {
     /// sliver band, on either side, is terminal; touching a threshold or
     /// straddling zero is curable; a point margin and a poisoned one are
     /// never terminal.
+    /// The reading nearer zero binds a shared offer, whichever side it
+    /// lies on and whatever its kind; an unreadable one binds first.
+    #[test]
+    fn the_reading_nearer_zero_binds_a_shared_offer() {
+        let v = MarginDiag::value;
+        let e = MarginDiag::enclosure;
+        let rows = [
+            ("two points", v(3e-9), v(6e-9)),
+            ("across the sign", v(-3e-9), v(6e-9)),
+            (
+                "enclosures by their nearer end",
+                e(-4e-9, -3e-9),
+                e(3.5e-9, 9e-9),
+            ),
+            ("an enclosure against a point", e(2e-9, 9e-9), v(2.5e-9)),
+            ("an unreadable reading", MarginDiag::INVALID, v(1e-12)),
+        ];
+        for (what, near, far) in rows {
+            assert!(near.binds_before(far), "{what}: the nearer binds");
+            assert!(!far.binds_before(near), "{what}: the farther does not");
+        }
+    }
+
     #[test]
     fn the_classifier_records_whether_an_escalation_is_a_terminal_sliver() {
         use crate::Interval;

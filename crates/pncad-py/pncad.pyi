@@ -111,9 +111,7 @@ class EditError(PncadError):
       doors that write one, `at` where the fault is a position in the
       graph). `input` is a node the subject NAMES — an operand that
       does not resolve, an input reached twice, the measure an
-      assertion constrains. `referenced_by` is a node DOWNSTREAM of
-      `node` that references it: the descendant root that makes an
-      ancestor redundant.
+      assertion constrains.
     - `expected` and `found` are the DIMENSION pair — what the door
       required and what it was offered — under every spelling the
       kernel gives them (`expected`/`found`, `declared`/`referenced`,
@@ -171,7 +169,6 @@ class EditError(PncadError):
     inner_variant: Optional[str]
     node: Optional[NodeId]
     input: Optional[NodeId]
-    referenced_by: Optional[NodeId]
     slot: Optional[str]
     param: Optional[str]
     name: Optional[str]
@@ -243,8 +240,8 @@ class EvaluationError(PncadError):
     declare that finding, or move the geometry.
 
     A refusal that CARRIES another node's refusal — `part_root_failed`,
-    a part whose product root failed, `part_root_poisoned`, a part
-    whose product root never ran because a node upstream of it failed,
+    a part whose world placement failed, `part_root_poisoned`, a part
+    whose world placement never ran because a node upstream of it failed,
     and `mate_placer_refused`, a mate whose poisoned placer could not
     derive its pose — names the node that failed and points at it, and
     never quotes it. The carried refusal is `__cause__`: an
@@ -363,10 +360,9 @@ class QuantityOpMismatch(PncadError):
 
     The class is the Rust type's own name. This is the quantity
     boundary only, and not the library's only dimension check: the
-    document layer's own refusal type reaches Python at SIX doors
+    document layer's own refusal type reaches Python at FIVE doors
     under four DOOR names rather than one type name — LiteralError
-    (literal construction, the MeasureExpr arithmetic constructors,
-    and the recorded-program lift), ParseError with `variant ==
+    (literal construction and the recorded-program lift), ParseError with `variant ==
     "dimension"` (`Doc.parse_formula`), EditError (`Doc.apply`), and
     PersistError with `variant == "dimension"` (`load`). Each carries
     the failing check's own tag, so which check refused is branchable
@@ -400,22 +396,13 @@ class LiteralError(PncadError):
 
     Not QuantityOpMismatch, which is the quantity boundary's operator
     check and a different type. The expression layer's refusal type has
-    dimension-mismatch arms too, and reaches Python at six doors under
+    dimension-mismatch arms too, and reaches Python at five doors under
     four class names in all: `load` does, from a hand-edited save file,
     and they arrive as PersistError with `variant == "dimension"` and
     the check's own tag as `inner_variant`; `Doc.apply` does, as
-    EditError; `Doc.parse_formula` does, and they
-    arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
-    constructors do (`MeasureExpr.add` and its siblings), arriving on
-    THIS class with the mismatch's own tag as `kind` — the same kernel
-    type refusing at the same layer, because that language asks
-    `Formula`'s own constructors for its dimensions rather than restating
-    the table.
-
-    `value` is the offending number where the refusing door had one in
-    hand, and `None` where it did not: a measurement constructor
-    refuses over two operands' DIMENSIONS, and there is no single
-    float to name."""
+    EditError; `Doc.parse_formula` does, and they arrive as ParseError;
+    and literal construction and the recorded-program lift arrive on
+    THIS class."""
 
     kind: str
     value: Optional[float]
@@ -707,7 +694,7 @@ class AssemblyError(PncadError):
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+    (`empty_product`, `root_poisoned`, ...), not a wrapper tag.
 
     The two MINT arms each answer with a LIST, because a document with
     two broken mates is two repairs and learning about the second only
@@ -732,17 +719,25 @@ class AssemblyError(PncadError):
     through: Optional[NodeId]
 
 class ProductError(PncadError):
-    """The whole-document gather refused. A product is all of the
-    roots or none of them — there are no partial products.
+    """The whole-document gather refused. A product is every copy the
+    world's placements define or none of them — there are no partial
+    products.
 
     Its message names each node as the evaluation's own document holds
     it (kind, label and tag): the document the gather was taken of.
-    `node` and `through` carry the full ids."""
+    `node` and `through` carry the full ids: a failed or poisoned
+    placement and the failed node that poisoned it, and on
+    `stranded_placement` the placement whose body is gone.
+    `empty_product` is the world holding no placement; `unplaced_bodies`
+    is then the bodies nothing places, each its output variable — the
+    handle `Doc.place` takes — in document order, and `None` on every
+    other arm. (The `unplaced` arm is a different fact: placed material
+    living in an unplaced group's own space.)"""
 
     variant: str
     node: Optional[NodeId]
     through: Optional[NodeId]
-    name: Optional[str]
+    unplaced_bodies: Optional[list[Var]]
 
 class SplitError(PncadError):
     """The `split` refactoring refused."""
@@ -781,6 +776,7 @@ class InlineError(PncadError):
     variant: str
     node: Optional[NodeId]
     by: Optional[NodeId]
+    """`instance_read_uncarried`: the host node reading the instance."""
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
@@ -952,14 +948,14 @@ class NodePickError(PncadError):
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
 
-    `variant` is `root_without_value` (a root produced no value in this
-    evaluation — checks are defined over roots that evaluated, and a
-    report over a partial one would claim more than was checked),
+    `variant` is `root_without_value` (a placement produced no value in
+    this evaluation — checks are defined over copies that evaluated, and
+    a report over a partial one would claim more than was checked),
     `band` (the tolerance forms no band), `evaluation_of_another
     _document` (the evaluation is not an evaluation of this document —
     DI3, refused before any check runs) or `product_unavailable` (the
-    roots gather into no product, so the registry has no subject for a
-    check that reads one). `node` names the root on the first arm and
+    placements gather into no product, so the registry has no subject
+    for a check that reads one). `node` names the placement on the first arm and
     is `None` on the others. Its message names each node as the
     evaluation's own document holds it, the gather's included.
 
@@ -1139,27 +1135,6 @@ class MeasureUnavailable(PncadError):
 
     variant: str
     param: str
-
-class MeasureNodeFault(PncadError):
-    """`Node.measure` was handed an expression that reads a reference
-    the node does not carry.
-
-    `variant` is `ref_index_out_of_range`; `verb` is which primitive
-    reads it, `index` the out-of-range one, and `refs` how many the
-    node carries.
-
-    The kernel's own `Node::measure` decides this — the one
-    construction door, running the check the edit door and the load
-    door's re-check both run — so a measure these constructors accept
-    is one a document accepts. What the constructor adds is TIMING:
-    the index refuses where it is written, not at the `Doc.apply`
-    after it, where the same fault arrives as EditError
-    `measure_malformed`."""
-
-    variant: str
-    verb: str
-    index: int
-    refs: int
 
 class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
@@ -2145,33 +2120,30 @@ class PartSelect:
         clamps."""
 
 class MeasurePrimitive:
-    """Which closed-form measurement a `MeasureExpr` leaf computes, and
-    over which of the measure node's references.
+    """Which closed-form measurement a measure computes, and of which
+    two references.
 
     Four verbs and no fifth: `distance` and `angle` are the geometric
     readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
     `min_clearance` is the one an engine answers.
 
-    Every argument is a POSITION — an index into the reference list
-    `Node.measure` is given, so a plain `int`, the structural-slot
-    exception `PartSelect.instance` and `NodePick.build` already ride.
-    An index past the end of that list raises MeasureNodeFault at
-    `Node.measure`; a negative one is not representable and raises
-    OverflowError at the call.
+    Each reference is a `(node, name)` pair: the entity's stable name
+    and the node its carrier is READ AT. A text that is not a name
+    raises ValueError here.
     """
 
     @staticmethod
-    def distance(a: int, b: int) -> MeasurePrimitive:
+    def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The distance between two referenced entities — a length. A
         carrier pair the v1 closed forms have no arm for refuses at
         `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
-    def angle(a: int, b: int) -> MeasurePrimitive:
+    def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The angle between two referenced entities — an angle."""
 
     @staticmethod
-    def min_clearance(a: int, b: int) -> MeasurePrimitive:
+    def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The minimum clearance between two selections — a length, and
         the one verb whose value is an ENCLOSURE.
 
@@ -2188,7 +2160,7 @@ class MeasurePrimitive:
         failure."""
 
     @staticmethod
-    def gap(outer: int, inner: int) -> MeasurePrimitive:
+    def gap(outer: tuple[NodeId, str], inner: tuple[NodeId, str]) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
         Argument order is the mating ROLE, not a symmetry: `outer` is
@@ -2204,13 +2176,12 @@ class MeasurePrimitive:
 
     @property
     def dimension(self) -> str:
-        """`length` or `angle`. Fixed per verb: the quantity kind
-        rides the expression."""
+        """`length` or `angle`. Fixed per verb."""
 
     @property
-    def refs(self) -> tuple[int, int]:
-        """The reference indices, in ARGUMENT order — a gap's pair
-        reads `(outer, inner)` and is not re-sorted."""
+    def refs(self) -> tuple[tuple[NodeId, str], tuple[NodeId, str]]:
+        """The two references, in ARGUMENT order — a gap's pair reads
+        `(outer, inner)` and is not re-sorted."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
@@ -2227,78 +2198,6 @@ class AssertionDir:
     @property
     def symbol(self) -> str:
         """The relation as a report reads it: `">="` or `"<="`."""
-
-class MeasureExpr:
-    """A dimension-checked measurement expression: the recipe's
-    arithmetic over a closed-form measurement leaf.
-
-    The dimension checker runs at CONSTRUCTION and it is the kernel's
-    own — the measurement language builds probe expressions and asks
-    `Formula`'s smart constructors what comes out, so a mis-dimensioned
-    tree refuses in the same words a document expression would have
-    earned, and it refuses where it is written rather than at the
-    `Doc.apply` after it. The refusal is LiteralError, carrying the
-    mismatch's own tag as `kind`.
-
-    A measurement nests at most 128 levels, the bound it shares with
-    `Formula`, a value leaf counting as the expression it holds; a
-    constructor that would nest deeper refuses (`kind`
-    `"nested_too_deep"`), so a flat chain of more than 128 terms
-    refuses.
-
-    No `__hash__`, for `Formula`'s reason: equality is an IEEE comparison
-    of the literals inside, so `0.0` and `-0.0` are equal trees whose
-    bit patterns are not.
-    """
-
-    @staticmethod
-    def primitive(p: MeasurePrimitive) -> MeasureExpr:
-        """A closed-form measurement leaf. Total."""
-
-    @staticmethod
-    def value(e: Formula) -> MeasureExpr:
-        """An ordinary document expression as a leaf — a literal
-        bound, a parameter, a whole arithmetic subtree of them.
-        `Doc.parse_formula` is where one comes from, and it is the only
-        door: a second spelling of that grammar is what `py/expr.rs`
-        already rules out."""
-
-    @staticmethod
-    def add(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension. Refuses (LiteralError, `kind`
-        `"nested_too_deep"`) only a tree that would nest deeper than an
-        expression may, as every constructor here does."""
-
-    @staticmethod
-    def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
-        """Product; at least one operand dimensionless."""
-
-    @staticmethod
-    def div(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
-        """Quotient; the divisor must be dimensionless."""
-
-    @staticmethod
-    def min(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def max(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @property
-    def dimension(self) -> str:
-        """`length`, `angle`, `count` or `scalar` — correct by
-        construction, and the dimension an assertion's bound has to
-        match."""
-
-    @property
-    def primitives(self) -> list[MeasurePrimitive]:
-        """Every primitive in the tree, in PRE-ORDER: the order the
-        construction door's bounds check runs over and the order the
-        evaluation reads them back in."""
-
-    def __eq__(self, other: object) -> bool: ...
-    def __repr__(self) -> str: ...
 
 class Node:
     """A recipe node, before insertion."""
@@ -2539,6 +2438,13 @@ class Node:
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
+    def place_in_world(body: _Operand, pose: Optional[Placement] = None) -> Node:
+        """One copy of `body` in the world at `pose`, the identity when
+        `None`: the operation whose output is a product copy. Inserting
+        it is `Doc.place`. The pose is a `Placement` chain, checked as
+        `Node.transform_by`'s is."""
+
+    @staticmethod
     def boolean(
         op: BooleanOp, a: _Operand, b: _Operand, declare: list[FlushFinding] = []
     ) -> Node:
@@ -2727,13 +2633,12 @@ class Node:
         is the node-failure tag)."""
 
     @staticmethod
-    def measure(expr: MeasureExpr, refs: list[tuple[NodeId, str]]) -> Node:
-        """A measurement sink: one dimension-generic node that denotes
-        no body and evaluates to a typed quantity.
-
-        `refs` is the reference list the expression's primitives index,
-        IN ORDER, each a `(node, name)` pair — the entity's stable name
-        and the node its carrier is READ AT.
+    def measure(primitive: MeasurePrimitive) -> Node:
+        """One measurement: a `Measure` node holds one closed-form
+        primitive and defines one observed scalar, its output
+        (`Doc.output(node)`), which only an assertion reads, directly
+        or through a definition. Arithmetic over measured values is an
+        ordinary `Formula` over the outputs.
 
         The read site is what makes a measure report PLACED geometry. A
         rigid transform is identity-preserving, so the moved body keeps
@@ -2748,10 +2653,7 @@ class Node:
         names, so deleting a referenced node is accepted and reported
         as a `strand` on the measure, like any other reader's.
 
-        Every index is checked HERE, through the kernel's one
-        construction door, so a leaf pointing past the end of `refs`
-        raises MeasureNodeFault where it is written. Nothing else is
-        pre-checked: a name that no longer resolves
+        Nothing is pre-checked here: a name that no longer resolves
         (`measure_ref_resolve`), a carrier pair with no v1 closed form
         (`measure_unsupported`), a `min_clearance` handed an edge
         (`measure_selection_kind`) and a non-finite result
@@ -2759,28 +2661,27 @@ class Node:
         `evaluate`."""
 
     @staticmethod
-    def assertion(measure: _Operand, dir: AssertionDir, bound: Formula) -> Node:
+    def assertion(value: _SlotArg, dir: AssertionDir, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.
 
-        `measure` is the `Node.measure` this constrains — an ordinary
-        recipe edge, so a failed or poisoned measure poisons the
-        assertion rather than producing a verdict about nothing.
+        `value` is the scalar this bounds: a measure's output
+        (`Doc.output(measure)`, one of `Doc.measure`'s `outputs`), or
+        any formula or variable — a variable read at its own kind,
+        anything else at the bound's dimension. A failed or
+        poisoned measure under it poisons the assertion rather than
+        producing a verdict about nothing.
 
         The bound is a `Formula` and not a typed quantity, because its
-        DIMENSION is the measure's. Every other node door takes a
-        `Length` or an `Angle` because a slot's address fixes what it
-        holds; this one's is fixed by the node it points at, and may be
-        an angle, a count or a plain scalar as readily as a length.
-        `Doc.parse_formula("0.5 mm")` is the one spelling, and it reaches
-        document parameters (`"min_web"`) in the same call — which is
-        what makes an assertion re-decidable by a parameter edit.
+        DIMENSION is the value's: it may be an angle, a count or a plain
+        scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+        the one spelling, and it reaches document parameters
+        (`"min_web"`) in the same call — which is what makes an
+        assertion re-decidable by a parameter edit.
 
-        Two things are checked at `Doc.apply` and not here, because
-        both need the document: that `measure` names a measure at all
-        (EditError `assertion_target`) and that the bound's dimension
-        is the measured one (`assertion_dimension`). A document never
+        That the value's dimension is the bound's is checked at
+        `Doc.apply` (EditError `assertion_dimension`): a document never
         carries a comparison of radians with metres.
 
         REPORT-ONLY, structurally: no operation accepts a verdict as an
@@ -2949,6 +2850,15 @@ class VarName:
     def name(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+class Measured:
+    """What `Doc.measure` inserted: the measures, one per primitive in
+    order, and their outputs in the same order."""
+
+    @property
+    def measures(self) -> list[NodeId]: ...
+    @property
+    def outputs(self) -> list[Var]: ...
 
 class Var:
     """A document variable's identity: the id the document minted it,
@@ -3207,6 +3117,30 @@ class McMeasure:
     def unmeasured(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+class McValue:
+    """One asserted value's empirical summary — ADVISORY: the scalar an
+    assertion reads (a measure's output, or a formula over outputs such
+    as a web), read per sample with its measures bound. The statistics
+    are over the samples that HAD a value; `unmeasured` counts the rest
+    and is never averaged over."""
+
+    @property
+    def var(self) -> Var: ...
+    @property
+    def mean(self) -> float: ...
+    @property
+    def sigma(self) -> float:
+        """The sample standard deviation, the `N - 1` form."""
+    @property
+    def min(self) -> float: ...
+    @property
+    def max(self) -> float: ...
+    @property
+    def measured(self) -> int: ...
+    @property
+    def unmeasured(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
 class McAssertion:
     """One assertion node's empirical summary.
 
@@ -3246,6 +3180,10 @@ class McReport:
     @property
     def measures(self) -> list[McMeasure]:
         """Per measure node, in the document's own node order."""
+    @property
+    def values(self) -> list[McValue]:
+        """Per value an assertion reads, each once, in the order of the
+        first assertion reading it."""
     @property
     def assertions(self) -> list[McAssertion]:
         """Per assertion node, in the document's own node order."""
@@ -3575,19 +3513,6 @@ class DocEdit:
         broken E2 invariant (`invalid_distribution`,
         `non_finite_var`)."""
     @staticmethod
-    def set_roots(roots: list[NodeId]) -> DocEdit:
-        """Set the document's ordered PRODUCT ROOTS outright.
-
-        The designate/undesignate door: one TOTAL edit rather than
-        partial add/remove arms, so the product's solid order is
-        always stated rather than inferred from an edit sequence. The
-        four root invariants refuse under their own tags on
-        `EditError` — `root_not_live`, `root_duplicate`,
-        `root_ancestor` (one root upstream of another would gather its
-        material twice), `root_uncovered` (a live node reaching no
-        root is a silently dead subgraph)."""
-
-    @staticmethod
     def set_offset(instance: NodeId, offset: Optional[Placement]) -> DocEdit:
         """Set an instance's OFFSET in its gauge, or clear it with
         `None`.
@@ -3740,7 +3665,8 @@ class DocEdit:
         (`unknown_var`), a name another variable holds
         (`var_name_taken`), the name it already has
         (`var_name_unchanged`), and clearing the name of a variable
-        nothing reads (`anonymous_var_unread`)."""
+        nothing reads (`anonymous_var_unread`) or more than one reader
+        reads (`shared_var_needs_name`: an unnamed variable has one)."""
     @staticmethod
     def delete_var(var: Var | VarName) -> DocEdit:
         """Delete a named variable. Its readers stay, unresolved:
@@ -3923,13 +3849,13 @@ class Doc:
         maintenance, so "the last accepted edit" means the last one
         accepted through this object."""
 
-    @property
-    def roots(self) -> list[NodeId]:
-        """The document's ordered product roots — what `product` and
-        `assemble` gather, in this order. Set through
-        `DocEdit.set_roots`; maintained by every other edit, so a
-        document always states its product rather than leaving it to
-        be inferred."""
+    def placements(self) -> list[NodeId]:
+        """The world placements, in document order: the nodes whose
+        copies are the product — what `product` and `assemble` gather,
+        in this order. Written through `place` (or an inserted
+        `Node.place_in_world`) and nothing else: no edit places or
+        unplaces as a side effect, so a body is in the product exactly
+        when a placement reads it."""
 
     def offset(self, node: NodeId) -> Optional[Placement]:
         """An instance's OFFSET in its gauge, or `None` when it carries
@@ -3965,8 +3891,9 @@ class Doc:
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
         `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
-        `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
-        `placed_union`, `instantiate_part`, `mate`, `gauge`,
+        `boolean_subtract`, `union`, `transform`, `place_in_world`,
+        `pattern`, `part`, `placed_union`, `instantiate_part`, `mate`,
+        `gauge`,
         `measure`, `assertion`. A Boolean answers a word per
         OPERATION, because union, intersect and subtract are three
         kernel operations sharing one payload shape; the unprefixed
@@ -4009,6 +3936,23 @@ class Doc:
         and its clocking rider on a frame coincidence is decided there
         over the mated parts' extent, both read through `resolver` —
         see `apply` for what a mate refuses here (`mate_refused`)."""
+    def measure(
+        self,
+        primitives: list[MeasurePrimitive],
+        *,
+        resolver: Optional[Workspace] = None,
+    ) -> Measured:
+        """Insert measures: one `Measure` node per primitive, in order,
+        as one action — all land or none does. Answers a `Measured`:
+        the measures and their outputs, the observed values an assertion
+        reads. Arithmetic over them is an ordinary `Formula`: name an
+        output (`DocEdit.rename_var`) and write the arithmetic with
+        `Doc.parse_formula`; an assertion reads the formula, or
+        `DocEdit.declare_var` names it.
+
+        Exactly `insert(Node.measure(p))` per primitive, recorded as one
+        action and answered with the outputs, as `sketch_frame` is
+        `insert(Node.sketch_frame(...))`."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -4022,6 +3966,25 @@ class Doc:
         mints a FRESH frame; two sketches meant to share a plane bind
         the id once and pass it twice.
         """
+
+    def place(
+        self,
+        body: _Operand,
+        pose: Optional[Placement] = None,
+        *,
+        label: Optional[str] = None,
+    ) -> NodeId:
+        """Place one copy of `body` in the world at `pose`, the identity
+        when `None`, and return the placement's id.
+
+        The one door that puts a body in the product: nothing places as
+        a side effect, so a boolean of two placed bodies leaves both
+        placed and the boolean unplaced until it is placed here. The
+        edit is the Rust façade's `DocEdit::place`, the insert of
+        `Node.place_in_world(body, pose)`. A split's half is placed by
+        its output, `place(doc.output(split, 1))`. Two placements of one
+        body are two copies. `label=` labels the placement in the same
+        call, as `insert`'s does."""
 
     def declare(self, node: NodeId, finding: FlushFinding) -> None:
         """ADD one inspected finding's pair to the declared pairs of the
@@ -4445,6 +4408,7 @@ class SegTag:
     HoleRim: Final[SegTag]
     Instance: Final[SegTag]
     InPart: Final[SegTag]
+    Placed: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -4464,6 +4428,7 @@ class OpGroup:
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
     InstantiatePart: Final[OpGroup]
+    PlaceInWorld: Final[OpGroup]
     Shell: Final[OpGroup]
 
 class CapEnd:
@@ -5439,6 +5404,17 @@ class Evaluation:
     """
 
     def value(self, node: NodeId) -> Value: ...
+    def reading(self, value: Var | Formula) -> Measurement:
+        """A scalar's value in this evaluation, measured values bound:
+        a variable — a measure's output, or a definition over outputs —
+        or a formula over them. The one reader of
+        an observed value outside an assertion.
+
+        A measure under it that did not land raises as `value` of that
+        measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+        `min_clearance` at this point scalar); an evaluation over the
+        bound values that refuses raises `ExprError`."""
+
     def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
@@ -6334,23 +6310,27 @@ class Maintenance:
 # --- the gather and the at-rest gate ----------------------------------
 
 def product(doc: Doc, evaluation: Evaluation) -> Body:
-    """The document's PRODUCT: every body-denoting root's solids,
-    gathered in root-list order into one body.
+    """The document's PRODUCT: its world — every copy a placement
+    defines, in the placements' document order — gathered into one
+    body.
 
     What a document IS — and for an assembly the only useful reading,
     because an assembly's nodes are instances and mates and no single
-    node's value is the assembly. A pure function of the root list and
-    the evaluation.
+    node's value is the assembly. A pure function of the placements
+    and the evaluation; nothing is in it that `Doc.place` did not put
+    there.
 
     `evaluation` must be an evaluation OF `doc`, and the door checks
     it: an evaluation carries the id of the document it was run on,
     and a foreign one raises ProductError with tag
-    `evaluation_of_another_document` before the first root is read.
-    Node ids alone could not decide this — they are minted by a
+    `evaluation_of_another_document` before the first placement is
+    read. Node ids alone could not decide this — they are minted by a
     per-document counter, so two documents built from one recipe
     carry the same ids for the same nodes and a gather over the wrong
     one would succeed, in full, about other geometry. Raises
-    ProductError, typed."""
+    ProductError, typed: `empty_product` naming the unplaced bodies,
+    `stranded_placement` naming a placement whose body is gone, a
+    failed or poisoned placement, a graft or validity refusal."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     """The product with the stable names its entities answer to —
@@ -6648,8 +6628,13 @@ def split(
     in one store.
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
-    placement groups. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, group, parameter or name.
+    placement groups. A part delivers only its world: the cut's world
+    placements are the part's, the remainder places one copy of the
+    instance left behind, and a remainder read of a cut body the cut
+    does not place refuses (`severed_edge`), as does a name reaching a
+    cut body no one cut placement places (`name_outside_part_world`).
+    Pure — `doc` is untouched. Raises SplitError, typed, naming the
+    offending edge, group, parameter or name.
 
     `resolver` is the document seam the part's mate inserts lever
     through where one carries a clocking rider, decided over the mated
@@ -6714,7 +6699,15 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     mate-placed instance inlines only over a part that is one group
     rooted at the empty chain on its world, holding no gauge and no
     other member carrying an offset, whose root takes its place;
-    otherwise it refuses `mate_placed`."""
+    otherwise it refuses `mate_placed`.
+
+    The host's identity placements of the instance are deleted — the
+    part's own placements arrive with its nodes — and a host node that
+    read the instance reads the inlined body: the body the part's one placement places. A part
+    whose world is not one body for that reader refuses
+    `instance_read_uncarried` (`by` the reader), and a host placement
+    with a pose of its own over a part whose world is not one identity
+    placement refuses `placement_pose_crosses` (`node` the placement)."""
 
 # --- the pin-update door ----------------------------------------------
 
@@ -6920,7 +6913,9 @@ class CheckEvidence:
     as `coincidence`) — a node decided two cells one from values and
     the coincidence door does not prove it structural. `reason` says
     what separates the two constructions, or why a cell's could not be
-    read. A report, never a refusal."""
+    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    between two carriers and `same_oriented` on one. A report, never a
+    refusal."""
 
     @property
     def variant(self) -> str: ...
@@ -6962,10 +6957,13 @@ class Coincidence:
 
     `cells` are `(node, name)` pairs: the input node whose table names
     the cell, and the name there (the opaque text the materializers
-    answer with); the plane a split cuts with is `(node, None)`.
-    `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
-    `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
-    `split_on` or `battery_turn`. `rung` is the door's rung that proved
+    answer with); the plane a split cuts with is `(node, None)`, and a
+    profile's own piece is `(profile, piece)`. `relation` is
+    `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
+    `tangent` or `cusp`; `site` is `plane_ladder`, `carrier_ladder`,
+    `split_on`, `battery_turn` or `profile_junction`. A `profile_junction`
+    row is `tangent` or `cusp` between two carriers and `same_oriented`
+    where its two pieces continue one carrier. `rung` is the door's rung that proved
     it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 
@@ -6981,10 +6979,10 @@ class Coincidence:
     def residual(self) -> Optional[str]: ...
 
 class CheckFinding:
-    """One finding of one check on one subject: a body-denoting root
-    output, attributed as `(root, output_ix)`, or a node of the
-    document (`node`), root or not — the node that decided an unproven
-    coincidence. Whichever it is not answers `None`.
+    """One finding of one check on one subject: a copy a placement
+    defines, attributed as `(root, output_ix)` with `root` the placement,
+    or a node of the document (`node`) — the node that decided an
+    unproven coincidence. Whichever it is not answers `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -7027,8 +7025,8 @@ class ChecksReport:
 
     @property
     def findings(self) -> list[CheckFinding]:
-        """Deterministic order: each resident's own pass by root-list
-        position then output index, residents in registry order. NOT
+        """Deterministic order: each resident's own pass by placement
+        order then output index, residents in registry order. NOT
         one global sort."""
 
     @property
@@ -7050,8 +7048,8 @@ def run_checks(
     `enforce_checks` is the only door that turns one into a refusal.
 
     `evaluation` must be an evaluation OF `doc` that ran to completion:
-    subjects are the body-denoting outputs of the document's roots, so
-    a root that failed or was poisoned refuses `root_without_value`
+    subjects are the copies the document's placements define, so a
+    placement that failed or was poisoned refuses `root_without_value`
     rather than reporting over a partial evaluation.
 
     Expectations are TWO-DIRECTIONAL — an `expected_components` entry

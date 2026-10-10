@@ -2,11 +2,13 @@
 id: operations-define-output-variables
 kind: issue
 title: D10 stage 2 PR A: an operation defines variables — VarDef::Output { node, port }, the reference kinds, outputs minted at insert without moving a node id, the OutputSignature load walk
-status: open
+status: closed
 opened: 2026-10-07
 priority: P0
 cost: M
 refs: [d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-10
+pr: 4295
 ---
 
 INTENT stage 2, PR A. Spec: `docs/INTENT-STAGE2-SPEC.md` §0, §2.

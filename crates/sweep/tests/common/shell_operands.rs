@@ -3,7 +3,7 @@
 //! annular meridian, each revolved a full turn), the hollow box, the
 //! two-void box, the curved-mouth operands (a vessel under a spherical
 //! cap, a hemisphere or a cone, or over a cone; the D-section; a dome
-//! sector), and the readers that name a body's shells by the role the
+//! sector; a bowl sector), the lipped block, and the readers that name a body's shells by the role the
 //! classifier decides.
 //!
 //! A shell row and its review twin are about THE SAME BODY only while
@@ -32,8 +32,8 @@
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::test_support::bulge_loop;
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::{block, brick, corners, revolved_about_y};
+use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::test_support::{block, brick, corners, prism_at, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis};
 use topo::{Body, ShellKey, ShellRole, SolidKey};
 
@@ -122,24 +122,20 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
 /// **The domed vessel**: a cylinder of radius `r` and height `h` under
 /// a hemisphere of the same radius, tangent to the wall at the equator.
 pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {
-    revolved_full(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
-            (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
-    )
+    revolved_full(bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), core::f64::consts::FRAC_PI_8.tan()),
+        (Point2::new(0.0, h + r), 0.0),
+    ]))
 }
 
 /// **The nearly domed vessel**: [`domed_vessel`] whose cap is a sphere
 /// of radius `r + gap`, so it meets the wall at `asin(r / (r + gap))`,
-/// short of tangent by `gap`. `declared` declares the joint tangent,
-/// which the profile accepts only while the crossing angle is within
-/// its tolerance. Returns the body, the sphere's radius and its centre
-/// height.
-pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64, declared: bool) -> (Body<f64>, f64, f64) {
+/// short of tangent by `gap`; while the crossing angle is within the
+/// profile's tolerance, validation decides the joint tangent. Returns
+/// the body, the sphere's radius and its centre height.
+pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64) -> (Body<f64>, f64, f64) {
     let rho = r + gap;
     let polar = (r / rho).asin();
     let rise = rho * (1.0 - polar.cos());
@@ -149,11 +145,6 @@ pub fn nearly_domed_vessel(r: f64, h: f64, gap: f64, declared: bool) -> (Body<f6
         (Point2::new(r, h), (polar / 4.0).tan()),
         (Point2::new(0.0, h + rise), 0.0),
     ]);
-    let meridian = if declared {
-        meridian.with_tangent_joints(vec![2])
-    } else {
-        meridian
-    };
     (revolved_full(meridian), rho, h + rise - rho)
 }
 
@@ -211,6 +202,93 @@ pub fn dome_sector(r: f64, deg: f64) -> Body<f64> {
         Revolution::Partial(deg.to_radians()),
         Tol::witness(),
     )
+}
+
+/// **The bowl sector**: an annular meridian over `[0.3, 3] × [0, 1]`
+/// whose floor is an arc bulging down by `bulge` (a ring torus wall,
+/// `0.8` makes the arc `154.6°`), revolved `deg` degrees. Its two end
+/// faces are not adjacent (the bore stands between them), and on the
+/// cavity each is bounded by the spiric the moved end plane cuts from
+/// the moved torus.
+pub fn bowl_sector(bulge: f64, deg: f64) -> Body<f64> {
+    revolved_about_y(
+        vec![
+            (Point2::new(0.3, 0.0), bulge),
+            (Point2::new(3.0, 0.0), 0.0),
+            (Point2::new(3.0, 1.0), 0.0),
+            (Point2::new(0.3, 1.0), 0.0),
+        ],
+        Revolution::Partial(deg.to_radians()),
+        Tol::witness(),
+    )
+}
+
+/// **The lipped block**: `block(2, 2, 3)` with a lip standing on the
+/// edge its top `y = 2` shares with its front `x = 2`, over
+/// `1 ≤ z ≤ 2` only. The lip's section is `foot` wide where it stands
+/// and `brim` wide at its height `rise`, its front flush with the
+/// block's, so its back leans over the top when `brim > foot`. The top
+/// and the front still share their edge either side of the lip, and
+/// along the lip they come within the lip's width of each other: the
+/// shape in which two adjacent walls could cross away from their
+/// common edge. Built as the union a user would write, with the lip's
+/// foot declared resting on the top and its front continuing the
+/// block's.
+pub fn lipped_block(foot: f64, brim: f64, rise: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let base = block::<f64>(2.0, 2.0, 3.0, tol);
+    let lip = prism_at(
+        corners(&[
+            (2.0 - foot, 2.0),
+            (2.0, 2.0),
+            (2.0, 2.0 + rise),
+            (2.0 - brim, 2.0 + rise),
+        ]),
+        1.0,
+        1.0,
+        tol,
+    );
+    // The planar face of `body` whose outward normal is `n` and whose
+    // plane stands `at` along it.
+    let plane = |body: &Body<f64>, n: [f64; 3], at: f64| {
+        body.faces()
+            .find(|(_, f)| match body.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    let out = if f.sense { *normal } else { -*normal };
+                    let along = origin.x * n[0] + origin.y * n[1] + origin.z * n[2];
+                    (out.x - n[0]).abs() + (out.y - n[1]).abs() + (out.z - n[2]).abs() < 1e-9
+                        && (along - at).abs() < 1e-9
+                }
+                _ => false,
+            })
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("a plane {n:?} at {at}"))
+    };
+    let declared = topo::BooleanDeclarations {
+        coincident_faces: vec![
+            topo::FacePairDeclaration::rest(
+                plane(&base, [0.0, 1.0, 0.0], 2.0),
+                plane(&lip, [0.0, -1.0, 0.0], -2.0),
+            ),
+            topo::FacePairDeclaration::continuation(
+                plane(&base, [1.0, 0.0, 0.0], 2.0),
+                plane(&lip, [1.0, 0.0, 0.0], 2.0),
+            ),
+        ],
+        ..topo::BooleanDeclarations::none()
+    };
+    topo::union_with(
+        &finished("the block", base, tol),
+        &finished("the lip", lip, tol),
+        &declared,
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the lip unites with the block: {e:?}"))
+    .body()
+    .expect("the union leaves material")
+    .body
+    .clone()
+    .into_body()
 }
 
 /// **The hollow box**: `block(2, 3, 4)` shelled at `0.25` — one solid,

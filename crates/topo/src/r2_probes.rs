@@ -1,5 +1,5 @@
 //! R2 REVIEW PROBES for MATE-3 (PR 1423). Not part of the unit under
-//! review; committed to the reviewer's own branch only.
+//! review; written on the reviewer's branch and since merged to main.
 //!
 //! The point of this module is that it does NOT call
 //! `classify_material_pairing` or `material_kappa_rel`. It re-derives

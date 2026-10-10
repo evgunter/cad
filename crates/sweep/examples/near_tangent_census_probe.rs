@@ -1,5 +1,5 @@
 //! **What the near-tangent census cannot decide**: a measurement probe
-//! for `work/join/near-tangent-boolean-results-ship-with-an-escalated-tier-3-census.md`.
+//! for `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census` (JOIN, closed by PR 4335).
 //!
 //! The poses are PR 4026 review r1's near-tangent set (`r1_pierce_probes
 //! cube` under `R1_NT_D`): a prism's corner `v` on the near face of a
@@ -12,7 +12,8 @@
 //! through its trace door and every pair it decided against is dumped
 //! as a `PAIR` JSON line: the two entities, their exact `f64`
 //! coordinates, and the census's own reading of each predicate on the
-//! pair. A refusal prints its findings. `scripts/near_tangent_census_classify.py`
+//! pair. A refusal prints its findings, and a sliver shell the gate
+//! refuses as in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
 //! re-reads every `PAIR` at 60 digits and classifies it.
 //!
 //! `NT_D` (comma list) sets the tilts, `NT_ONLY` one prism, `NT_POSE`
@@ -31,8 +32,8 @@ use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::test_support as fixtures;
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult,
-    CensusStrategy, RegionLane, ValidationError, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
+    BooleanResult, CensusStrategy, RegionLane, ValidationError, mass_properties,
 };
 
 type V3 = [f64; 3];
@@ -152,11 +153,17 @@ fn clip(poly: &Poly, (n, d): Plane) -> Poly {
     out
 }
 
+/// The polytope's volume, its divergence sum taken about one of its own
+/// vertices: about the world origin, a sliver's volume drowns in its
+/// faces' rounding.
 fn volume(poly: &Poly) -> f64 {
+    let Some(&o) = poly.first().and_then(|f| f.first()) else {
+        return 0.0;
+    };
     poly.iter()
         .map(|f| {
             (1..f.len() - 1)
-                .map(|i| dot(f[0], cross(f[i], f[i + 1])))
+                .map(|i| dot(sub(f[0], o), cross(sub(f[i], o), sub(f[i + 1], o))))
                 .sum::<f64>()
         })
         .sum::<f64>()
@@ -551,6 +558,19 @@ fn run_all(
                     for e in errors {
                         after.push(format!("  REFUSAL {line} | {e:?}"));
                     }
+                    if op == "I" {
+                        after.extend(lumps.iter().cloned());
+                    }
+                }
+                // The finished-body gate's in-band typing: a sliver shell.
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::ShellRole { others, .. },
+                    diag,
+                }) => {
+                    after.push(format!(
+                        "  ESCALATED {line} | ShellRole {:e} (+{others} in band)",
+                        diag.margin
+                    ));
                     if op == "I" {
                         after.extend(lumps.iter().cloned());
                     }

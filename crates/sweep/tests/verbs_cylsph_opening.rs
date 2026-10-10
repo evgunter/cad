@@ -159,7 +159,7 @@ fn both_poses_take_the_same_door() {
 /// certifies, and the cylinder × sphere germ pair it mints has the
 /// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
 /// chord lane takes its quartic section
-/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
+/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
 /// poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
@@ -442,10 +442,10 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     };
     let msg = format!("{err}");
     // What the JOIN dispatch wires, stated as the recourse: a plane
-    // face against a plane, cylinder or sphere face — so the sentence
-    // does not read as cone/torus-only, and does not claim the wider
-    // SECTION-FRAME dispatch's pairs as join arms.
-    let wired = "they meet only where a plane face meets a plane, cylinder or sphere face";
+    // face against a plane, cylinder, sphere or cone face — so the
+    // sentence does not claim the wider SECTION-FRAME dispatch's pairs
+    // as join arms.
+    let wired = "they meet only where a plane face meets a plane, cylinder, sphere or cone face";
     assert!(
         msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"

@@ -97,6 +97,17 @@
 //! worth making here. It is not a claim of parameter-level bit
 //! identity, and nothing in this file should be read as one.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN A MEASURE BECAME ONE PRIMITIVE**
+//! (INTENT stage 2 PR D), and through one document only.
+//! `measured_web`'s measure used to hold the web's arithmetic; it now
+//! holds the distance alone, and the web is an anonymous definition
+//! the assertion reads. The measure node's mint preimage moved with its
+//! shape (`tests/golden/mint_node_ids.txt`), so its id and the
+//! assertion's moved, and the measure's outcome is now the distance
+//! rather than the web. `lib_g16_corpus_name_digests` moved
+//! `measured_web`'s row and no other, and the id-masked geometry fence
+//! below did not move: no body's point moved anywhere.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -496,6 +507,18 @@
 //!   they were 4 to 8), endpoints moving at most 9 ulps. Each still
 //!   holds its value. The dump does not say which read of the
 //!   reversed carrier the widening enters through.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 2 PR C
+//! (the product is the world), and for a structural reason.** Each
+//! corpus document now places its bodies: a `PlaceInWorld` node per
+//! placed body, each with a value and points of its own, and a `Part`
+//! pick for each placed pattern copy. The tour die also keeps its blank
+//! (DM4: nothing places it, so it is not deleted). Those nodes join the
+//! stream, so the id-free digest moves with the node count, as it did
+//! at DOCM-3. What the documents deliver did not move, and that is
+//! asserted rather than argued: `intent_s2_c_world`'s migration check
+//! holds each document's product to the digest recorded on the tree
+//! before the change, body for body and in order.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -791,7 +814,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xf0c5001f8cb398d0, 0x6003617f4561e464),
+        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -817,7 +840,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xd804d6d2a1d882e1, 0x473637e25bef9895),
+        (0xee4f_5451_968a_f210, 0x5d4d_eba3_ca25_5ccc),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -841,7 +864,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xf0c5001f8cb398d0, 0x6003617f4561e464),
+        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -919,7 +942,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x469c_9889_e471_859c, 0x05a8_ea33_bf1d_ddc8),
+        (0x2b03_cbac_a56c_3ad0, 0x6637_f0f0_be0b_f72c),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

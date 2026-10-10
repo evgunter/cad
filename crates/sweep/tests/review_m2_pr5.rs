@@ -1114,6 +1114,7 @@ fn survives_near_full_period_rim_span_escalates() {
             axis_origin: center,
             axis_dir: Vec3::new(0.0, 1.0, 0.0),
             angle: span,
+            range: geom_brep::SweepRange::whole(),
         }),
         carrier: Curve3::Circle {
             center,
@@ -1510,7 +1511,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // join at (1,1) is TANGENT (smooth, distinct keys): the D2
     // conventional split must survive in BOTH bands, and tier 3 must
     // accept it while the transverse base join upgrades.
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
         // quarter arc to (0, 2), center (0,1)
@@ -1520,7 +1521,6 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // The cylinder-sphere tangency this test is ABOUT is declared
     // (#101): the discipline gates the profile door; the D2 split and
     // tier-3 acceptance downstream are what the test pins.
-    lp = lp.with_tangent_joints(vec![2]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
