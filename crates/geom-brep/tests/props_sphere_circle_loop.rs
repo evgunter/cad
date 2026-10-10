@@ -205,8 +205,17 @@ fn holes_that_overlap_bound_no_face_under_either_bit() {
     for sense in [true, false] {
         let (outer, hole) = (cap(1.0, sense), cap(0.8, !sense));
         assert_eq!(
-            curved_face_loops(&s, &[&[outer][..], &[hole.clone()], &[hole]], sense, band())
-                .map(|c| c.area),
+            curved_face_loops(
+                &s,
+                &[
+                    &[outer][..],
+                    core::slice::from_ref(&hole),
+                    core::slice::from_ref(&hole)
+                ],
+                sense,
+                band()
+            )
+            .map(|c| c.area),
             Err(geom_brep::props::PropsError::SphereLoop {
                 what: "props_sphere_face_area"
             }),

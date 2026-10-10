@@ -2415,8 +2415,12 @@ fn sphere_face<T: Decide>(
 /// narrower than any region. Where it does not (an apex at the loop,
 /// or at the centre for a loop whose vector area vanishes), the
 /// correction fades to zero by `2e-12` sr and Gauss–Bonnet stands. The
-/// blend is branch-free in the scalar: an enclosure or a derivative
-/// passes through it as through any other arithmetic.
+/// blend is branch-free in the scalar, and it is taken only for a
+/// region of at most one steradian ([`Real::select_le_zero`], the door
+/// that picks the well-conditioned candidate): Gauss–Bonnet's rounding
+/// is already a few ulps of a larger region, and a large region's
+/// vector area can vanish — a hemisphere's does — leaving the fan's
+/// apex at the centre, where an enclosure's triangles are undefined.
 fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> T {
     let tau = T::tau();
     let gauss = if left {
@@ -2490,7 +2494,8 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
     let gap = fan + four_pi * turns - gauss;
     let reach = T::from_f64(1e-12);
     let held = gap.max(-reach).min(reach);
-    gauss + held - (gap - held).max(-reach).min(reach)
+    let blended = gauss + held - (gap - held).max(-reach).min(reach);
+    (gauss - T::one()).select_le_zero(blended, gauss)
 }
 
 /// The signed solid angle of the geodesic triangle `(q, a, b)` seen
