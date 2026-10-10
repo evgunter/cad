@@ -1616,9 +1616,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// names — but no code, because the operand differs at every step.
 ///
 /// The verb ARGUMENTS come in already resolved: a revolve's axis is a
-/// node whose value must be an in-plane axis on the profile's own
-/// frame, with an angle classified full or partial under a
-/// document-layer refusal. That is what the document MEANS, not a verb
+/// line in its profile's own 2-D coordinates, with an angle classified
+/// full or partial under a document-layer refusal. That is what the document MEANS, not a verb
 /// parameter, so each node's arm resolves it and this body takes over
 /// from the built verb.
 ///

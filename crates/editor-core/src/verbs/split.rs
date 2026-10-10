@@ -207,10 +207,10 @@ mod tests {
 
     /// **The tool reading takes a plane and nothing else**, and the
     /// label its refusal carries says so. An axis and a point are two
-    /// of the other datum kinds a document can hand a split (a frame
-    /// and an in-plane axis are the rest, refused by the same
-    /// exhaustive arm), and each is refused by the reading rather
-    /// than read as some plane.
+    /// of the other pose kinds a document can hand a split (a direction
+    /// and a frame are the rest, refused by the same exhaustive arm),
+    /// and each is refused by the reading rather than read as some
+    /// plane.
     #[test]
     fn the_tool_reading_takes_a_plane_only() {
         let corr = split::<f64>();

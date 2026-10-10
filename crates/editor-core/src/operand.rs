@@ -143,12 +143,10 @@ pub enum OperandSlot {
     Section(u32),
     /// A sweep's path profile.
     Path,
-    /// The axis a revolve turns about, or a circular rule's.
+    /// The axis a circular rule turns about.
     Axis,
-    /// The frame a tube is built in, a profile is drawn on, or an
-    /// in-plane axis is written in: the one operand kind a field of
-    /// each reads, so one slot (its field is `frame` on a tube and
-    /// `plane` on the other two).
+    /// The frame a tube is built in or a profile is drawn on: the one
+    /// operand kind a field of each reads, so one slot.
     Frame,
     /// The body a split cuts.
     Target,

@@ -2024,14 +2024,15 @@ recipe and normalizes that same direction through `eval_direction_norm`
 (same arithmetic, same refusal shape, different name in this census).
 
 **And the mate road is not the only place one triple carries two
-names.** `DatumValue::AxisInPlane` is decided twice by design: the
-evaluation layer lifts the authored sketch direction and decides the
-lifted 3-D vector under `datum_unit_norm` (`wire.rs`'s
-`datum_unit(lift(plane_dir), …)`), while `sweep`'s revolve takes the
+names.** A revolve's axis is decided twice by design: the
+evaluation layer lifts the authored sketch direction for the revolve's
+axis output and decides the lifted 3-D vector under `datum_unit_norm`
+(`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
+`sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
 `revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
 two names, because the frame's axes are orthonormal and
-`|lift(d)| = |d|`. The variant's own doc says why it carries both
+`|lift(d)| = |d|`. `Revolve`'s field doc says why it carries both
 spellings. So "one length, two funnel names, split by road" is a
 SHAPE in this workspace rather than a one-off, and the ruling below is
 about which layer names a decision, not about ever having only one
@@ -2041,7 +2042,7 @@ name for a value.
 (Ev's ruling (B), 2026-09-05, on the `[ev]` PR that put the options).
 The two names stay exactly where they are read, because the layer that
 OWNS a value is the layer whose telemetry names its length decision: a
-`DatumValue` has no unnormalized spelling, so its normal is the kernel
+`PoseValue` has no unnormalized spelling, so its normal is the kernel
 type's to decide, while a transform axis and a pattern direction are
 the evaluation layer's — and collapsing the two names would erase
 which layer a decision came from, in the one column this census has to

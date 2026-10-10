@@ -26,7 +26,8 @@ The recipe admits three reference shapes, and every node is built from them:
   are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
   (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
   `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
-  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  `Datum::FaceFrame`'s face, a `Plane { face }` pose's face, a
+  `Measure`'s refs. The N5 ladder runs in the
   selection's evaluation and nowhere else for these. A **payload** is a
   name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
   declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
@@ -45,9 +46,13 @@ The recipe admits three reference shapes, and every node is built from them:
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
 `name` says which entity. A selection is the same pairing as a definition,
-its `body` the `at`. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
-the one datum with a DAG input: its meaning comes from another node, which
-does not make the check cheaper but makes the error unrepresentable.
+its `body` the `at`. A `Revolve`'s axis (`node.rs`, `axis_origin` and
+`axis_direction`) is two pairs in its profile's own coordinates: its
+meaning comes from the profile's plane, which does not make the check
+cheaper but makes an axis out of that plane unrepresentable. A pose
+definition (`VarDef::Pose`, `pose.rs`) is a variable read off geometry or
+constructed from other poses (D10), each of its reads a DAG edge, bound at
+the reader's seat.
 
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
 materialize and are never stored (`names/select.rs`); `PlacedUnion` is a node
@@ -68,6 +73,13 @@ at the carrier's origin projected to the face's plane (the carrier's own
 distinguished point, `readback.rs` rule 2), its normal along the face's
 outward normal (DM1a), and sketch +x along the carrier's u-reference rotated
 by `spin`.
+
+A reader that reads the face as a plane reads the pose definition
+`Plane { face }` (`pose.rs`), not a frame: the same `Face` selection, the
+plane through the face with its outward normal (DM1a), and no `spin` and no
+u-reference, because a plane has no in-plane direction (D10: no reader takes
+a carrier's reference direction). A split's tool is such a reader. A frame
+on a face, which a sketch on the face reads, is the `FaceFrame` above.
 
 - **Why derived, not frozen.** A sketch carries no twelve-float plane snapshot
   (`program.rs`); a frame read off a face and written into nine literals
@@ -93,8 +105,10 @@ by `spin`.
   The asymmetry is principled — a sketch frame is consumed by evaluation,
   which reads geometry constantly; a mate frame by a solve that must not.
 - **DM1b — a non-planar carrier refuses typed at evaluation** (a
-  `NodeErrorKind` arm naming the carrier kind found), so a headless author
-  gets the same answer the chrome pre-empts under DM2.
+  `NodeErrorKind` arm naming the carrier kind found: `FaceFrameNotPlanar`
+  for a frame, `PoseRead` with `PoseReadFault::NotPlanar` for a plane read),
+  so a headless author gets the same answer the chrome pre-empts under
+  DM2.
 - **DM1c — the lanes.** A derived frame has no document elaboration, so the
   profile lift's "the sketch plane stays f64" fence (PP6,
   `crates/editor-core/README.md`, which carries the same rule) does not apply
