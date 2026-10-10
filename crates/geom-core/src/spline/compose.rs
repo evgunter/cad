@@ -1582,6 +1582,72 @@ mod tests {
         out
     }
 
+    /// PROBE (nurbs/fork3): excess width over the EXACT true set, per
+    /// input family, for the form CAD_COMBINE selects.
+    #[test]
+    fn probe_fork3_excess_over_exact() {
+        let form = std::env::var("CAD_COMBINE").unwrap_or_else(|_| "convex".into());
+        #[allow(clippy::cast_precision_loss)]
+        for &(p, m) in &[(3usize, 4usize), (3, 16), (3, 64), (3, 256), (6, 4), (6, 16), (6, 64), (6, 256)] {
+            let mut knot_list = vec![0.0; p + 1];
+            for j in 1..=m {
+                // irregular interior knots
+                let t = j as f64 / (m + 1) as f64;
+                knot_list.push(t + 0.013 * (t * 17.0).sin() / (m + 1) as f64);
+            }
+            knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let n = kv.control_count();
+            let fams: Vec<(&str, Vec<(f64, f64)>)> = {
+                let smooth = |off: f64, amp: f64| -> Vec<(f64, f64)> {
+                    (0..n).map(|i| { let v = off + amp * (0.37 * i as f64).sin(); (v, v) }).collect()
+                };
+                let wide = |r: f64| -> Vec<(f64, f64)> {
+                    (0..n).map(|i| { let v = (0.37 * i as f64).sin(); (v - r, v + r) }).collect()
+                };
+                // homogeneous-like: w*(x-c) rounded outward, ~1 ulp wide
+                let homog: Vec<(f64, f64)> = (0..n).map(|i| {
+                    let w = Interval::point(1.0 + 0.3 * (0.7 * i as f64).cos());
+                    let x = Interval::point(0.913 + 0.4 * (0.37 * i as f64).sin()) - Interval::point(0.3);
+                    let g = w * x;
+                    (g.lo(), g.hi())
+                }).collect();
+                vec![
+                    ("smooth@0", smooth(0.0, 1.0)),
+                    ("smooth@1e3", smooth(1e3, 1.0)),
+                    ("smooth@1e6", smooth(1e6, 1.0)),
+                    ("near-const 1+1e-9", smooth(1.0, 1e-9)),
+                    ("wide r=1e-12", wide(1e-12)),
+                    ("wide r=1e-9", wide(1e-9)),
+                    ("homog ~1ulp", homog),
+                ]
+            };
+            for (name, ends) in fams {
+                let mut knots = kv.knots().to_vec();
+                let mut ring: Vec<Interval> = ends.iter().map(|&(a, b)| Interval::from_bounds(a, b)).collect();
+                let mut ex: Vec<QInt> = ends.iter().map(|&(a, b)| QInt { lo: Q::from_f64(a), hi: Q::from_f64(b) }).collect();
+                for (v, s) in kv.interior_knot_runs().collect::<Vec<_>>() {
+                    for step in s..p {
+                        ex = insert_once_exact(&knots, p, step, &ex, v);
+                        insert_once_ring(&mut knots, p, step, &mut ring, v);
+                    }
+                }
+                let mut worst = 0.0f64;
+                let mut worst_rel = 0.0f64;
+                for (r, e) in ring.iter().zip(&ex) {
+                    let up = Q::from_f64(r.hi()).sub(&e.hi).to_f64_report();
+                    let dn = e.lo.sub(&Q::from_f64(r.lo())).to_f64_report();
+                    assert!(up >= 0.0 && dn >= 0.0, "{form} {name}: ESCAPE");
+                    let exc = up + dn;
+                    let mag = r.hi().abs().max(r.lo().abs()).max(f64::MIN_POSITIVE);
+                    worst = worst.max(exc);
+                    worst_rel = worst_rel.max(exc / (mag * f64::EPSILON));
+                }
+                println!("FORK3 {form:>14} p={p} m={m} {name:>18}: worst excess {worst:.3e} = {worst_rel:.2} ulps of own coefficient");
+            }
+        }
+    }
+
     /// The fixture families, chosen to BREAK containment rather than to
     /// flatter it: `(name, degree, knot vector, coefficient endpoints)`.
     /// Each name says what it attacks.

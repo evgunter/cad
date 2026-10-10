@@ -406,7 +406,52 @@ pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) ->
     let span = hi - lo;
     let alpha = (u - lo) / span;
     let beta = (hi - u) / span;
-    (x * beta + y * alpha).meet(Interval::hull(x, y))
+    // PROBE (nurbs/fork3): the combine's form, chosen by CAD_COMBINE.
+    match probe_form() {
+        1 => x + (y - x) * alpha,
+        2 => (x * beta + y * alpha)
+            .meet(x + (y - x) * alpha)
+            .meet(Interval::hull(x, y)),
+        3 => midrad(x, y, alpha, beta).meet(Interval::hull(x, y)),
+        4 => midrad(x, y, alpha, beta),
+        5 => x * beta + y * alpha,
+        _ => (x * beta + y * alpha).meet(Interval::hull(x, y)),
+    }
+}
+
+fn probe_form() -> u8 {
+    use std::sync::OnceLock;
+    static F: OnceLock<u8> = OnceLock::new();
+    *F.get_or_init(|| match std::env::var("CAD_COMBINE").as_deref() {
+        Ok("lerp") => 1,
+        Ok("lerpmeet") => 2,
+        Ok("midrad") => 3,
+        Ok("midrad_nohull") => 4,
+        Ok("convex_nohull") => 5,
+        _ => 0,
+    })
+}
+
+/// Midpoint-radius combine: the centre in the lerp form on POINT
+/// centres, the radius in the convex form on radii.
+fn midrad(x: Interval, y: Interval, alpha: Interval, beta: Interval) -> Interval {
+    use crate::real::Bounds;
+    if !x.is_certified() || !y.is_certified() {
+        return Interval::refused();
+    }
+    let centre = |v: Interval| {
+        let m = 0.5 * v.lo() + 0.5 * v.hi();
+        let r = (Interval::point(v.hi()) - Interval::point(m))
+            .hi()
+            .max((Interval::point(m) - Interval::point(v.lo())).hi());
+        (m, r)
+    };
+    let (xm, xr) = centre(x);
+    let (ym, yr) = centre(y);
+    let (xm, ym) = (Interval::point(xm), Interval::point(ym));
+    let c = xm + (ym - xm) * alpha;
+    let r = (beta * Interval::point(xr) + alpha * Interval::point(yr)).hi();
+    c + Interval::from_bounds(-r, r)
 }
 
 /// Validates weights against a knot vector: count, positivity,
