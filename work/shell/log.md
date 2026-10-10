@@ -1389,3 +1389,8 @@ Ev said go.
   - R1's unilateral MINOR: G1 transport is unused at a whole-solid corner, and a tangent candidate is fatal even when a transversal one exists.
   - Tally: 0, since the MAJOR is bilateral. The pair counts as fair: no glimpse was disclosed, and the brief forbade system-wide process listings.
   - Ruling: fix both MAJORs' root and the MINORs, plus the docs and style items, in one pass. The pre-existing unnamed collapse refusal is filed rather than fixed.
+- **Unit 17 merged** (PR 4525, DR-145, M tier, sequential arm).
+  - `plan_edge`'s iso-row arm extracts a moved fit's row only for a self-shared image, or beside a neighbour that `holds_the_move`. The new Nurbs/Approx × Plane arm requires steps along the normal, one-way, with equal weights.
+  - Every other iso image takes the section route, so both seams of a lofted wall now refuse alike.
+  - The arm reads the image's own row, reflected through 0 when the edge runs against it, and the wrap flag travels.
+  - The orchestrator merged main twice; the row was renumbered DR-144 → DR-145, and a stale duplicate tally line was removed.
