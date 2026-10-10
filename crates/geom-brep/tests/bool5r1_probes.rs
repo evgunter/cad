@@ -279,8 +279,11 @@ fn probe_the_coincident_plane_ladder_at_f64() {
             20.0 => {
                 let area = got.expect("past escalate the arm measures the slit");
                 let exact = 2.0 * RS * RS * (k * eps() / RS);
+                // Gauss–Bonnet reads a hairline lune's width off two pole
+                // turnings near a half-turn each, so its rounding is the
+                // sphere's (`R²` times a few ulps), not the lune's.
                 assert!(
-                    (area - exact).abs() / exact < 1e-9,
+                    (area - exact).abs() < 1e-14 * RS * RS,
                     "k = {k}: {area} vs {exact}"
                 );
             }

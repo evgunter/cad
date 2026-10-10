@@ -569,8 +569,10 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 
 /// The unit ball against `ball(50)` `2·10⁻⁶` inside external tangency,
 /// a band-relative pose read at the default band only. The union
-/// refuses at the result gate: the rim of the unit ball's kept face
-/// reads its level in band. The two lens-shaped differences build. The
+/// builds and meshes at its closed form: the sphere arm reads the unit
+/// ball's kept face by Gauss–Bonnet and asks no rim level, where the
+/// iso arm read that level in band and refused it at the result gate.
+/// The two lens-shaped differences build. The
 /// intersection builds a sliver `2·10⁻⁶` thick whose at-infinity side
 /// the next op cannot decide (`operand=false`), filed on the result
 /// gate as `a-built-sliver-is-not-a-legal-operand`.
@@ -588,16 +590,6 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     let d = 51.0 - 2e-6;
     let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
     let (va, vb, shared) = (ball_volume(1.0), ball_volume(50.0), lens(1.0, 50.0, d));
-    let rim_in_band = |e: &BooleanError| {
-        matches!(
-            e,
-            BooleanError::ResultInvalid { errors }
-                if matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable { .. }]
-                )
-        )
-    };
     for (op, out) in [
         ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
         ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
@@ -606,7 +598,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
             &format!("r 50, {op}"),
             out,
             (va + vb - shared, va + vb),
-            Refuses(rim_in_band),
+            Draws,
         );
     }
     check(
