@@ -3,7 +3,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "mint": {
-      "chain": "c7036032b008dd5f10bd8f7f7720f955a5dc4eb1fa46d703dec4612ac536aa0e",
+      "chain": "37375879f1b1897978575c886cf4555b56f96727be11082f7d8ca3ebbcca3442",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -192,10 +192,10 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "var": "62:4cfbc25c35f2b5ae"
         },
         {
-          "node": "63:610b17e5643cf9ba"
+          "node": "63:a243f2ecfa85ed34"
         },
         {
-          "var": "64:c7036032b008dd5f"
+          "var": "64:37375879f1b18979"
         }
       ]
     },
@@ -518,17 +518,16 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "63:610b17e5643cf9ba": {
-        "Boolean": {
-          "op": "Subtract",
-          "a": "29:9117322ce802f579",
-          "b": "62:4cfbc25c35f2b5ae",
+      "63:a243f2ecfa85ed34": {
+        "Subtract": {
+          "from": "29:9117322ce802f579",
+          "tool": "62:4cfbc25c35f2b5ae",
           "declare": []
         }
       }
     },
     "roots": [
-      "63:610b17e5643cf9ba"
+      "63:a243f2ecfa85ed34"
     ],
     "vars": {
       "1:b639d844bab8e826": {
@@ -1056,11 +1055,11 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "64:c7036032b008dd5f": {
+      "64:37375879f1b18979": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "63:610b17e5643cf9ba",
+            "node": "63:a243f2ecfa85ed34",
             "port": 0
           }
         }

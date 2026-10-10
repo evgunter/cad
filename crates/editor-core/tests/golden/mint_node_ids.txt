@@ -16,8 +16,9 @@ Fillet 2:910cd155b4829fa2
 Chamfer 2:7fac8ef1a54c4bcf
 Shell 2:a86d465651a19a51
 Split 1:363b3cf61ca9b8b1
-Boolean 1:f03474b3feed6d4e
-Union 1:ccd1186c5d3ffc93
+Subtract 1:5474c7e3e7c07536
+Union 1:f755409332e8f5cc
+Intersect 1:aca0938825d7ca12
 Transform 8:d6db91cbf9fbbd1d
 Transform 15:290e34a337ad0034
 Transform 1:ec3e03a281b7e37b

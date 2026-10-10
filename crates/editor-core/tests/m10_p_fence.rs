@@ -70,6 +70,13 @@
 //! order**, so a change to how the mint draws ids moves all three
 //! numbers with no point moving.
 //!
+//! **THE `f64` AND `Interval` NUMBERS MOVED AT FORK-DM4 BY IDS ALONE.**
+//! The three boolean nodes replaced `Boolean { op, a, b }`, and a node's
+//! variant feeds its mint preimage, so every node from the first boolean
+//! on re-minted and the stream reorders. No point moved: the id-free
+//! row, `the_corpus_geometry_is_bit_identical_with_ids_masked`, held
+//! across the change without a re-bless.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -791,7 +798,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xf0c5001f8cb398d0, 0x6003617f4561e464),
+        (0xe015b66575b321ac, 0x385be8d034aa88e0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -817,7 +824,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xd804d6d2a1d882e1, 0x473637e25bef9895),
+        (0x7a720bcf854ddae5, 0xb972f71c5fb1a409),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -841,7 +848,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xf0c5001f8cb398d0, 0x6003617f4561e464),
+        (0xe015b66575b321ac, 0x385be8d034aa88e0),
         "the corpus's Probe evaluation moved"
     );
 }
