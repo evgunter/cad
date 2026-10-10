@@ -549,7 +549,7 @@ fn bore_pin_and_holes(
 }
 
 /// **(B, test 6, curved) A press fit quiets under its bore's gap.** A
-/// pin of radius 0.505 through a plate's 0.5 bore. The census decides
+/// pin of radius 0.505, and one 2000 ε over, through a plate's 0.5 bore. The census decides
 /// the pair interferes (the bore's rim vertices inside the pin, the
 /// pin's seams piercing the plate) and leaves its curved face pairs
 /// undecided, which are the same overlap: one finding, the annulus
@@ -559,33 +559,38 @@ fn bore_pin_and_holes(
 /// containment check's coincident faces glue.
 #[test]
 fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
-    let (doc, p, q, _, bore, wall) = bore_and_pin(0.505);
-    let loud = only_finding(&doc);
-    assert!(loud.is_loud(), "unasserted, the press fit is loud");
-    assert!(
-        loud.evidence
-            .iter()
-            .any(|e| matches!(e, ValidationError::InstanceInterference { .. }))
-            && loud
-                .evidence
+    // 5 mm of interference, and 2000 ε (2 µm at the default row): the
+    // second is a real press fit, its containment check's coincident
+    // faces nearest the boolean's band and still well above it.
+    let fine = 2000.0 * Tol::witness().eps();
+    for (pin_r, bound) in [(0.505, -0.001), (0.5 + fine, -fine / 2.0)] {
+        let (doc, p, q, _, bore, wall) = bore_and_pin(pin_r);
+        let loud = only_finding(&doc);
+        assert!(
+            loud.is_loud(),
+            "unasserted, the press fit is loud (pin {pin_r})"
+        );
+        assert!(
+            loud.evidence
                 .iter()
-                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
-        "the decided overlap carries the undecided curved pairs: {:?}",
-        loud.evidence
-    );
-    let (doc, assertion) = gap_at_copies(
-        doc.clone(),
-        (p, bore),
-        (q, wall),
-        AssertionRelation::AtMost,
-        -0.001,
-    );
-    let finding = only_finding(&doc);
-    assert_eq!(
-        finding.quiet,
-        Some(assertion),
-        "quiet under its gap: {finding:?}"
-    );
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "the census decided the overlap (pin {pin_r}): {:?}",
+            loud.evidence
+        );
+        let (doc, assertion) = gap_at_copies(
+            doc.clone(),
+            (p, bore),
+            (q, wall),
+            AssertionRelation::AtMost,
+            bound,
+        );
+        let finding = only_finding(&doc);
+        assert_eq!(
+            finding.quiet,
+            Some(assertion),
+            "quiet under Gap <= {bound} (pin {pin_r}): {finding:?}"
+        );
+    }
 }
 
 /// **(B) A clearance fit the census cannot decide still refuses.** A
