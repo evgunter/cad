@@ -3244,9 +3244,7 @@ fn boundary_axial<T: Decide>(
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let certified = body.edge_curve_linked(ek, e).certified();
-                let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
+                let axial = match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
                     // No axial-span closed form is written for the
                     // spiric (the boolean lane's own reading).
                     EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
@@ -3257,13 +3255,14 @@ fn boundary_axial<T: Decide>(
                         semi_u,
                         semi_v,
                         u_ref,
+                        params,
                     } => AxialCarrier::Conic {
                         center: SpanBox::point(center),
                         u_ref: SpanBox::vector(u_ref),
                         v_ref: SpanBox::vector(c_axis.cross(u_ref)),
                         semi_u,
                         semi_v,
-                        params: certified.map(geom_brep::EdgeCurve::params),
+                        params,
                     },
                 };
                 let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
@@ -3344,7 +3343,7 @@ fn edge_reach_of<T: Decide>(
     );
     let certified = body.edge_curve_linked(ek, e).certified();
     let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-    match crate::boolean::boxes::edge_box_rule(carrier) {
+    match crate::boolean::boxes::edge_box_rule(certified) {
         crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
         crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
         // The spiric's whole-period amplitude box at this lane's
@@ -3394,36 +3393,30 @@ fn edge_reach_of<T: Decide>(
             semi_u,
             semi_v,
             u_ref,
+            params: (t0, t1),
         } => {
             let (center, u_ref, v_ref) = (
                 frame.point(center),
                 frame.vector(u_ref),
                 frame.vector(axis.cross(u_ref)),
             );
-            // The ARC's own extent, not the closed conic's — the same
-            // construction the boolean lane reads, so the two cannot
-            // drift (`the_two_box_lanes_agree_face_for_face` is what
-            // says so). A carrier with no certified parameters has no
-            // arc to scope and keeps the full-turn amplitude.
-            let params = certified.map(geom_brep::EdgeCurve::params);
-            let (flo, fhi) = span_pts(match params {
-                Some((t0, t1)) => crate::boolean::boxes::arc_extent(
-                    &crate::boolean::boxes::SpanBox::point(center),
-                    &crate::boolean::boxes::SpanBox::vector(u_ref),
-                    &crate::boolean::boxes::SpanBox::vector(v_ref),
-                    crate::boolean::boxes::Span::exact(semi_u),
-                    crate::boolean::boxes::Span::exact(semi_v),
-                    t0,
-                    t1,
-                ),
-                None => crate::boolean::boxes::conic_extent(
-                    &crate::boolean::boxes::SpanBox::point(center),
-                    &crate::boolean::boxes::SpanBox::vector(u_ref),
-                    &crate::boolean::boxes::SpanBox::vector(v_ref),
-                    semi_u,
-                    semi_v,
-                ),
-            });
+            // The ARC's own extent, by `arc_extent`'s subdivision plus
+            // sagitta charge — not the exact arc box `edge_box` reads
+            // (`conic_arc_aabb`), because that one asks whether an
+            // extremal angle lies in the span and this scalar carries no
+            // ordering to answer. One rule, two arithmetics, the census
+            // box wider by at most the charge: `EdgeBoxRule`'s conic
+            // bullet states it, `the_two_box_lanes_agree_face_for_face`
+            // pins it.
+            let (flo, fhi) = span_pts(crate::boolean::boxes::arc_extent(
+                &crate::boolean::boxes::SpanBox::point(center),
+                &crate::boolean::boxes::SpanBox::vector(u_ref),
+                &crate::boolean::boxes::SpanBox::vector(v_ref),
+                crate::boolean::boxes::Span::exact(semi_u),
+                crate::boolean::boxes::Span::exact(semi_v),
+                t0,
+                t1,
+            ));
             Some((
                 Point3::new(
                     flo.x.min(chord.0.x),

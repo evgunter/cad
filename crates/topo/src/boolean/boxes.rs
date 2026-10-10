@@ -486,8 +486,7 @@ fn poison_value<T: Real>() -> T {
 ///   between the images.
 /// - **ConicAmplitude** — the conic's axial image, restricted to the
 ///   certified ARC by the same subdivision [`arc_extent`] runs one
-///   dimension up (a carrier with no certified span keeps the full
-///   turn). Over a full turn that image is
+///   dimension up. Over a full turn that image is
 ///   `(centre − origin)·axis ± √((a·(û·axis))² + (b·(v̂·axis))²)`, the
 ///   same full-turn amplitude [`conic_extent`] takes per coordinate,
 ///   taken along the axis instead. A rim PERPENDICULAR to the axis
@@ -514,9 +513,9 @@ pub(crate) enum AxialCarrier<T> {
         semi_u: T,
         /// The semi-axis along `v_ref`.
         semi_v: T,
-        /// The certified parameter span, when the carrier has one —
-        /// the arc this edge actually occupies.
-        params: Option<(T, T)>,
+        /// The certified parameter span — the arc this edge actually
+        /// occupies.
+        params: (T, T),
     },
 }
 
@@ -554,10 +553,7 @@ pub(crate) fn edge_axial_span<T: Real>(
             let dv = along(v_ref, &zero).abs_max();
             let amp = ((du * *semi_u).powi(2) + (dv * *semi_v).powi(2)).sqrt();
             let c = along(center, origin);
-            let Some((t0, t1)) = *params else {
-                // No certified span: the full turn, as before.
-                return c.widen(amp).hull(chord);
-            };
+            let (t0, t1) = *params;
             // The ARC's own axial image, by the same subdivision
             // [`arc_extent`] runs one dimension up — this projection is
             // that construction restricted to the axis, so the two
@@ -1872,9 +1868,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 }
                 BoundaryMember::Edge { ek, edge: e, .. } => {
                     let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
-                    let certified = body.edge_curve_linked(ek, e).certified();
-                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                    let axial = match edge_box_rule(carrier) {
+                    let axial = match edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
                         // No axial-span closed form is written
                         // for the spiric; a box that cannot
                         // claim is the honest answer.
@@ -1886,15 +1880,14 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                             semi_u,
                             semi_v,
                             u_ref,
+                            params: (t0, t1),
                         } => AxialCarrier::Conic {
                             center: bracket_point(center),
                             u_ref: bracket_vector(u_ref),
                             v_ref: bracket_vector(c_axis.cross(u_ref)),
                             semi_u: semi_u.hi(),
                             semi_v: semi_v.hi(),
-                            params: certified
-                                .map(geom_brep::EdgeCurve::params)
-                                .map(|(a, b)| (a.lo(), b.hi())),
+                            params: (t0.lo(), t1.hi()),
                         },
                     };
                     grow(edge_axial_span(
@@ -2252,6 +2245,10 @@ pub(crate) enum EdgeBoxRule<T: Real> {
         semi_v: T,
         /// The in-plane reference direction.
         u_ref: Vec3<T>,
+        /// The certified parameter span — read from the same
+        /// [`geom_brep::EdgeCurve`] as the carrier, so a conic rule
+        /// always has its arc.
+        params: (T, T),
     },
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
@@ -2266,40 +2263,48 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     Spiric,
 }
 
-/// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
-/// with `None` standing for the null-scaffolding state (no carrier by
-/// type). A kind added to [`geom::Curve3`] lands on
-/// [`EdgeBoxRule::NoSoundBox`] only by being written here.
-pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeBoxRule<T> {
-    match carrier {
-        Some(geom::Curve3::Line { .. }) => EdgeBoxRule::Chord,
-        Some(geom::Curve3::Circle {
+/// The [`EdgeBoxRule`] for an edge's certified curve — the single
+/// kind→rule mapping, with `None` standing for the null-scaffolding
+/// state (no carrier by type). A kind added to [`geom::Curve3`] lands
+/// on [`EdgeBoxRule::NoSoundBox`] only by being written here.
+pub(crate) fn edge_box_rule<T: Real>(
+    certified: Option<&geom_brep::EdgeCurve<T>>,
+) -> EdgeBoxRule<T> {
+    let Some(curve) = certified else {
+        return EdgeBoxRule::NoSoundBox;
+    };
+    let params = curve.params();
+    match curve.carrier() {
+        geom::Curve3::Line { .. } => EdgeBoxRule::Chord,
+        geom::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
-        }) => EdgeBoxRule::ConicAmplitude {
+        } => EdgeBoxRule::ConicAmplitude {
             center: *center,
             axis: *axis,
             semi_u: *radius,
             semi_v: *radius,
             u_ref: *u_ref,
+            params,
         },
-        Some(geom::Curve3::Ellipse {
+        geom::Curve3::Ellipse {
             center,
             axis,
             major,
             minor,
             u_ref,
-        }) => EdgeBoxRule::ConicAmplitude {
+        } => EdgeBoxRule::ConicAmplitude {
             center: *center,
             axis: *axis,
             semi_u: *major,
             semi_v: *minor,
             u_ref: *u_ref,
+            params,
         },
-        Some(geom::Curve3::Spiric { .. }) => EdgeBoxRule::Spiric,
-        Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
+        geom::Curve3::Spiric { .. } => EdgeBoxRule::Spiric,
+        geom::Curve3::Nurbs(_) => EdgeBoxRule::NoSoundBox,
     }
 }
 
@@ -2337,8 +2342,7 @@ pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f
     );
     let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
     let certified = body.edge_curve_linked(edge, e).certified();
-    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-    let boxed = match edge_box_rule(carrier) {
+    let boxed = match edge_box_rule(certified) {
         EdgeBoxRule::NoSoundBox => return Aabb::poison(),
         EdgeBoxRule::Chord => chord,
         EdgeBoxRule::Spiric => certified
