@@ -3460,17 +3460,20 @@ impl Node {
     /// authored one. Both are legal, and they are different questions.
     ///
     /// **The references ARE dag edges**, unlike a boolean's declared
-    /// pairs or a `Node.mate`'s names: a measure resolves its own against
-    /// values that must already exist, so the referenced nodes are its
-    /// data dependencies, and deleting one is accepted and reported as
-    /// a `strand` on the measure, like any other reader's.
+    /// pairs or a `Node.mate`'s names: each is a selection of the named
+    /// node's body (or, for a whole body, a read of it), so the
+    /// referenced nodes are its data dependencies, and deleting one is
+    /// accepted and reported on the measure (`stranded_read` and
+    /// `stranded_selection`), like any other reader's.
     ///
-    /// Nothing is pre-checked here: a name that no longer resolves
+    /// What each primitive reads is checked when the node is inserted:
+    /// `distance` a face, an edge or a vertex, `angle` a face or an
+    /// edge, `min_clearance` a body or a face, `gap` a face, and any
+    /// other refuses `slot_var_kind`. The rest are the kernel's own
+    /// typed refusals at `evaluate`: a name that no longer resolves
     /// (`select_resolve`), a carrier pair with no v1 closed form
-    /// (`measure_unsupported`), a `min_clearance` handed an edge
-    /// (`measure_selection_kind`) and a non-finite result
-    /// (`measure_non_finite`) are all the kernel's own typed refusals
-    /// at `evaluate`.
+    /// (`measure_unsupported`) and a non-finite result
+    /// (`measure_non_finite`).
     #[staticmethod]
     fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
         Self {

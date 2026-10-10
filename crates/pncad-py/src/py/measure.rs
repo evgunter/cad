@@ -134,8 +134,8 @@ impl MeasurePrimitive {
     ///
     /// Each reference's entity kind is the selection's face scope: a
     /// BODY reference selects every face of that body, a FACE
-    /// reference selects the one. Anything else (an edge, a vertex, a
-    /// datum) refuses at `evaluate` with `measure_selection_kind`.
+    /// reference selects the one. Anything else (an edge, a vertex)
+    /// refuses when the measure is inserted, `slot_var_kind`.
     ///
     /// At the `f64` scalar Python evaluates at, this measure HAS NO
     /// VALUE: a station pair found by a point-scalar search is an

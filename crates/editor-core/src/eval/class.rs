@@ -276,8 +276,6 @@ pub enum NodeErrorClass {
     MeasureUnsupported,
     /// [`NodeErrorKind::PayloadExpr`].
     PayloadExpr,
-    /// [`NodeErrorKind::MeasureSelectionKind`].
-    MeasureSelectionKind,
     /// [`NodeErrorKind::MeasureClearanceRefused`].
     MeasureClearanceRefused,
     /// [`NodeErrorKind::AssertionDimension`].
@@ -392,7 +390,6 @@ impl NodeErrorKind {
             Self::MeasureNotParallel { .. } => C::MeasureNotParallel,
             Self::MeasureUnsupported(_) => C::MeasureUnsupported,
             Self::PayloadExpr { .. } => C::PayloadExpr,
-            Self::MeasureSelectionKind { .. } => C::MeasureSelectionKind,
             Self::MeasureClearanceRefused(_) => C::MeasureClearanceRefused,
             Self::AssertionDimension { .. } => C::AssertionDimension,
         }
@@ -617,7 +614,6 @@ mod tests {
         MeasureNotParallel,
         MeasureUnsupported,
         PayloadExpr,
-        MeasureSelectionKind,
         MeasureClearanceRefused,
         AssertionDimension,
     }
@@ -1121,7 +1117,7 @@ mod tests {
                 name: Box::new(name()),
             },
             C::MeasureRefUnreadable => K::MeasureRefUnreadable {
-                slot: crate::OperandSlot::Measured(0),
+                slot: crate::OperandSlot::Measured(crate::MeasureVerb::Distance, 0),
                 var: crate::VarId::new(3, 3),
                 error: crate::InterrogateError::NoSuchName,
             },
@@ -1146,10 +1142,6 @@ mod tests {
                 index: 2,
                 source: EvalError::NonFiniteResult,
             },
-            C::MeasureSelectionKind => found_body(|found| K::MeasureSelectionKind {
-                verb: "min_clearance",
-                found,
-            }),
             C::MeasureClearanceRefused => {
                 K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Unsupported {
                     carrier: "a free-form face",

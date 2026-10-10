@@ -9,14 +9,15 @@
 //! half a caller must not write: `found:`, the kind the entity ACTUALLY
 //! has.
 //!
-//! Four readers over three found kinds, so two independent things are
+//! Three readers over three found kinds, so two independent things are
 //! pinned and a door that lost either goes red:
 //!
 //! - **The sentence varies with the READER.** A shell's open faces, a
-//!   blend's edges, a derived frame's face and a measure's reference
-//!   are one refusal (`SelectKind`) spoken by four nodes at four slots,
-//!   and a sentence that lost the reader's slot fails every row but
-//!   one; a measure's scope is a second refusal of its own.
+//!   blend's edges and a derived frame's face are one refusal
+//!   (`SelectKind`) spoken by three nodes at three slots, and a sentence
+//!   that lost the reader's slot fails every row but one. A measure's
+//!   reference is the fourth reader, and its kind is the edit door's to
+//!   refuse (FORK-VTX), so its rows pin that refusal instead.
 //! - **`found:` varies with the ENTITY, under a fixed road.** The two
 //!   shell rows differ only in what was designated, and so do the two
 //!   measure rows — so a door that answered a constant, or the negation
@@ -84,11 +85,6 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
     let edge = fixture::prism_edges(&doc, body, 4).remove(2);
     let vertex = end_cap_vertex(&doc, body, 0);
     (doc, body, face, edge, vertex)
-}
-
-/// The refusal `node` evaluates to, rendered.
-fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
-    failure(doc, node).kind
 }
 
 /// The refusal `node` evaluates to, whole.
@@ -202,26 +198,16 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     );
 }
 
-/// **A measure's reference is a SCOPE** — a whole body or one of its
-/// faces. The one road whose refusal names no designation, so it takes
-/// the inner door directly; two rows, because the article is the half a
-/// hand-written word CAN get wrong — this road's two were right, and
-/// what changed is that a word is no longer written at all.
+/// **A measure's reference kind is the door's, not evaluation's**
+/// (FORK-VTX): a `min_clearance` reads a body or a face, and an edge or
+/// a vertex refuses at insert as the seat's kind, before any evaluation
+/// could ask the entity door. Two rows, one per found kind, so a seat
+/// that admitted either goes red.
 #[test]
-fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
-    for (what, select, want) in [
-        (
-            "an edge",
-            EntityKind::Edge,
-            "`min_clearance` measures between two selections — a whole body or one of its \
-             faces — and this reference resolves to an edge",
-        ),
-        (
-            "a vertex",
-            EntityKind::Vertex,
-            "`min_clearance` measures between two selections — a whole body or one of its \
-             faces — and this reference resolves to a vertex",
-        ),
+fn a_measure_reference_of_another_kind_refuses_at_the_door() {
+    for (what, select, found) in [
+        ("an edge", EntityKind::Edge, editor_core::VarKind::Edge),
+        ("a vertex", EntityKind::Vertex, editor_core::VarKind::Vertex),
     ] {
         let (doc, _, face, edge, vertex) = solid();
         let name = if select == EntityKind::Edge {
@@ -229,17 +215,29 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
         } else {
             vertex
         };
-        let (doc, measure) = crate::fixture::measure_node(
+        let refused = editor_core::measure(
             &doc,
-            MeasurePrimitive::MinClearance { a: 0, b: 1 },
-            vec![SitedRef::at_mint(name), SitedRef::at_mint(face)],
+            &[MeasurePrimitive::MinClearance {
+                a: SitedRef::at_mint(name),
+                b: SitedRef::at_mint(face),
+            }],
+            Tol::witness(),
+            &editor_core::RefusingReach,
         );
-        let got = refusal(&doc, measure);
+        let Err(err) = refused else {
+            panic!("{what}: the insert refuses");
+        };
         assert!(
-            matches!(got, NodeErrorKind::MeasureSelectionKind { .. }),
-            "{what}: the measure's own refusal: {got:?}"
+            matches!(
+                &err,
+                editor_core::EditError::SlotVarKind {
+                    found: f,
+                    expected: editor_core::SlotKind::Measured(editor_core::MeasureVerb::MinClearance),
+                    ..
+                } if *f == found
+            ),
+            "{what}: the seat's kind refusal: {err:?}"
         );
-        assert_eq!(got.to_string(), want, "{what}");
     }
 }
 

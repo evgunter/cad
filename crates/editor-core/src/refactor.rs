@@ -2526,10 +2526,11 @@ fn remap_node(
             alignment: alignment.clone(),
         },
         Node::Measure { primitive } => {
+            let verb = primitive.kind();
             let mut i = 0u8;
             Node::Measure {
                 primitive: primitive.try_map(|&r| {
-                    let slot = crate::OperandSlot::Measured(i);
+                    let slot = crate::OperandSlot::Measured(verb, i);
                     i += 1;
                     rd(slot, r)
                 })?,

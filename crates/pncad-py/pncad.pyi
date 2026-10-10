@@ -2132,13 +2132,17 @@ class MeasurePrimitive:
 
     @staticmethod
     def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
-        """The distance between two referenced entities — a length. A
-        carrier pair the v1 closed forms have no arm for refuses at
-        `evaluate` (`measure_unsupported`), naming the pair."""
+        """The distance between two referenced entities — a length.
+        Each reference names a face, an edge or a vertex (another kind
+        refuses `slot_var_kind` at insert). A carrier pair the v1
+        closed forms have no arm for refuses at `evaluate`
+        (`measure_unsupported`), naming the pair."""
 
     @staticmethod
     def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
-        """The angle between two referenced entities — an angle."""
+        """The angle between two referenced entities — an angle. Each
+        reference names a face or an edge (another kind refuses
+        `slot_var_kind` at insert)."""
 
     @staticmethod
     def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
@@ -2147,8 +2151,8 @@ class MeasurePrimitive:
 
         Each reference's entity kind is its face scope: a body
         reference selects every face of that body, a face reference
-        selects the one. An edge or a vertex refuses at `evaluate`
-        (`measure_selection_kind`).
+        selects the one. An edge or a vertex refuses when the measure is
+        inserted (`slot_var_kind`).
 
         At the `f64` scalar this library evaluates at, the measure has
         NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
@@ -2165,7 +2169,9 @@ class MeasurePrimitive:
         the containing carrier (the socket, the bore, the plane the
         offset is measured from) and `inner` the contained one. C5's
         formulas are asymmetric in exactly that way, so the roles are
-        authored rather than inferred from which radius is larger."""
+        authored rather than inferred from which radius is larger. Each
+        reference names a face (another kind refuses `slot_var_kind` at
+        insert)."""
 
     @property
     def verb(self) -> str:
@@ -2647,16 +2653,20 @@ class Node:
         they are different questions.
 
         These references ARE recipe edges, unlike a boolean's declared
-        pairs and `Node.mate`'s names: a measure consumes the values it
-        names, so deleting a referenced node is accepted and reported
-        as a `strand` on the measure, like any other reader's.
+        pairs and `Node.mate`'s names: each is a selection of the named
+        node's body (or, for a whole body, a read of it), so deleting a
+        referenced node is accepted and reported on the measure
+        (`stranded_read` and `stranded_selection`), like any other
+        reader's.
 
-        Nothing is pre-checked here: a name that no longer resolves
+        What each primitive reads is checked at insert: `distance` a
+        face, an edge or a vertex, `angle` a face or an edge,
+        `min_clearance` a body or a face, `gap` a face; any other
+        refuses `slot_var_kind`. The rest are the kernel's own typed
+        refusals at `evaluate`: a name that no longer resolves
         (`select_resolve`), a carrier pair with no v1 closed form
-        (`measure_unsupported`), a `min_clearance` handed an edge
-        (`measure_selection_kind`) and a non-finite result
-        (`measure_non_finite`) are the kernel's own typed refusals at
-        `evaluate`."""
+        (`measure_unsupported`) and a non-finite result
+        (`measure_non_finite`)."""
 
     @staticmethod
     def assertion(value: _SlotArg, dir: AssertionDir, bound: Formula) -> Node:

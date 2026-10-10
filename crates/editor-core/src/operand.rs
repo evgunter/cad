@@ -140,8 +140,9 @@ pub enum OperandSlot {
     Open,
     /// The face a face frame is read off.
     Face,
-    /// Reference `i` of a measure, in argument order.
-    Measured(u8),
+    /// Reference `i` of a measure, in argument order, under its
+    /// primitive (which decides what the reference admits).
+    Measured(crate::MeasureVerb, u8),
     /// A split's plane.
     Tool,
     /// A boolean's first operand.
@@ -172,7 +173,7 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
-            Self::Measured(i) => format!("reference {}", u16::from(i) + 1),
+            Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::A => "first operand".to_owned(),
             Self::B => "second operand".to_owned(),
@@ -197,7 +198,7 @@ impl OperandSlot {
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
             Self::Face => SlotKind::Is(VarKind::Face),
-            Self::Measured(_) => SlotKind::Measured,
+            Self::Measured(verb, _) => SlotKind::Measured(verb),
             Self::Input | Self::Of => SlotKind::Placeable,
         }
     }
@@ -216,17 +217,18 @@ impl core::fmt::Display for OperandSlot {
 /// A scalar slot and an operand seat that holds one kind are
 /// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
-/// one body or a list of them), and [`SlotKind::Measured`]
-/// `{Body, Face, Edge, Vertex}` (a measure reads one entity, or a whole
-/// body).
+/// one body or a list of them), and [`SlotKind::Measured`] the kinds
+/// its primitive admits ([`crate::MeasureVerb::admits`]: one entity, or
+/// for `min_clearance` a whole body).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
     Is(VarKind),
     /// `Body` or `Bodies`.
     Placeable,
-    /// `Body`, `Face`, `Edge` or `Vertex`.
-    Measured,
+    /// What a reference of this primitive admits
+    /// ([`crate::MeasureVerb::admits`]).
+    Measured(crate::MeasureVerb),
 }
 
 impl SlotKind {
@@ -237,10 +239,7 @@ impl SlotKind {
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
-            Self::Measured => matches!(
-                kind,
-                VarKind::Body | VarKind::Face | VarKind::Edge | VarKind::Vertex
-            ),
+            Self::Measured(verb) => verb.admits(kind),
         }
     }
 
@@ -254,7 +253,10 @@ impl SlotKind {
         use crate::names::EntityKind as E;
         match self {
             Self::Is(kind) => kind.selection().is_some().then_some(kind),
-            Self::Measured => match entity {
+            // The singleton of the names' entity kind, whether or not
+            // the primitive admits it: the door mints it and the read's
+            // kind check refuses it as any seat's would.
+            Self::Measured(_) => match entity {
                 E::Face => Some(VarKind::Face),
                 E::Edge => Some(VarKind::Edge),
                 E::Vertex => Some(VarKind::Vertex),
@@ -270,7 +272,7 @@ impl core::fmt::Display for SlotKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
-            Self::Measured => f.write_str("a body, a face, an edge or a vertex"),
+            Self::Measured(verb) => f.write_str(verb.admitted()),
         }
     }
 }

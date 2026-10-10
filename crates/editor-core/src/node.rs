@@ -3273,8 +3273,9 @@ impl<P> Node<P> {
             } => vec![(O::Selection, *selection)],
             Node::Shell { thickness: _, open } => vec![(O::Open, *open)],
             Node::Measure { primitive } => {
+                let verb = primitive.kind();
                 let [a, b] = primitive.refs();
-                vec![(O::Measured(0), *a), (O::Measured(1), *b)]
+                vec![(O::Measured(verb, 0), *a), (O::Measured(verb, 1), *b)]
             }
             Node::Split { target, tool } => vec![(O::Target, *target), (O::Tool, *tool)],
             Node::Boolean {
@@ -3421,8 +3422,9 @@ impl<P> Node<P> {
             } => vec![(O::Selection, selection)],
             Node::Shell { thickness: _, open } => vec![(O::Open, open)],
             Node::Measure { primitive } => {
+                let verb = primitive.kind();
                 let [a, b] = primitive.refs_mut();
-                vec![(O::Measured(0), a), (O::Measured(1), b)]
+                vec![(O::Measured(verb, 0), a), (O::Measured(verb, 1), b)]
             }
             Node::Split { target, tool } => vec![(O::Target, target), (O::Tool, tool)],
             Node::Boolean {
@@ -4256,10 +4258,11 @@ impl<P, S: Slot> Node<P, S> {
                 alignment: alignment.try_map_slots(f)?,
             },
             Node::Measure { primitive } => {
+                let verb = primitive.kind();
                 let mut i = 0u8;
                 Node::Measure {
                     primitive: primitive.try_map(|r| {
-                        let slot = O::Measured(i);
+                        let slot = O::Measured(verb, i);
                         i += 1;
                         read(slot, r)
                     })?,
@@ -4643,7 +4646,9 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Chamfer { .. }, O::Selection) => Some(("chamfer", format!("edge {reference}"))),
             (Node::Shell { .. }, O::Open) => Some(("shell", format!("open face {reference}"))),
             (Node::Datum(Datum::FaceFrame { .. }), O::Face) => Some(("frame", "face".to_owned())),
-            (Node::Measure { .. }, O::Measured(i)) => Some(("measure", format!("reference {i}"))),
+            (Node::Measure { .. }, O::Measured(_, i)) => {
+                Some(("measure", format!("reference {i}")))
+            }
             _ => None,
         }
     }

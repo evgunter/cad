@@ -1336,7 +1336,7 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
         matches!(
             ev.node_error(measure).map(|e| &e.kind),
             Some(NodeErrorKind::UnresolvedRead {
-                slot: editor_core::OperandSlot::Measured(1),
+                slot: editor_core::OperandSlot::Measured(_, 1),
                 ..
             })
         ),

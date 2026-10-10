@@ -136,7 +136,7 @@ pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
     match kind {
         K::Is(kind) => var_kind_tag(kind),
         K::Placeable => "placeable",
-        K::Measured => "measured",
+        K::Measured(_) => "measured",
     }
 }
 

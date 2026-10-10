@@ -204,6 +204,6 @@ Mate { a: SitedFace { at: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), name: 
   #5 MateFrameStep { side: B, step: 1, arg: RotationAxis(Z) }
   #6 MateFrameStep { side: B, step: 1, arg: RotationAngle }
 Measure { primitive: Distance { a: @0, b: @1 } }
-  @0 Operand(Measured(0))
-  @1 Operand(Measured(1))
+  @0 Operand(Measured(Distance, 0))
+  @1 Operand(Measured(Distance, 1))
 Assertion { value: VarId(MintId { ordinal: 1, digest: 11183020936580787592 }), bound: VarId(MintId { ordinal: 2, digest: 2287397637766653602 }), dir: AtLeast }

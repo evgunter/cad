@@ -565,7 +565,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
-        S::Measured(_) => "measured",
+        S::Measured(..) => "measured",
         S::Tool => "tool",
         S::A => "a",
         S::B => "b",
@@ -955,10 +955,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        // Its own tag rather than `measure_unsupported`'s: the
-        // recourse is "select a body or a face", not "this carrier
-        // pair has no closed form".
-        C::MeasureSelectionKind => "measure_selection_kind",
         // And its own again: the clearance engine refused, so the
         // recourse is the engine's — a wider budget, an admitted
         // carrier — and not the measurement vocabulary's.
@@ -1233,7 +1229,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
-        NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
         // mints, not a discriminant this crate can match; it is already
         // the whole of the message.

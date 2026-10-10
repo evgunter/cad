@@ -1257,8 +1257,11 @@ fn lower_operand<P: crate::ProfilePayload>(
         }
         crate::Operand::Var(var) => *var,
         crate::Operand::Name(name) => doc.var_named(name.as_str()).ok_or_else(unresolved)?,
+        // Minted at the singleton of its names' kind where the seat
+        // admits several, and then read like any variable: a measure's
+        // primitive that does not admit that kind refuses here.
         crate::Operand::Select { body, names } => {
-            return mint_selection(doc, spoken, slot, body, names, expected);
+            mint_selection(doc, spoken, slot, body, names, expected)?
         }
     };
     check_read(doc, spoken, slot, var, half, expected, unresolved)

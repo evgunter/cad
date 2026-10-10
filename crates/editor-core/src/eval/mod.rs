@@ -1247,14 +1247,14 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
 /// of entity it is, refuse* — and, unlike a door built out of a
 /// convention, one a road cannot go around.
 ///
-/// Two refusals in `eval::wire` ask that question — a selection's
-/// (`SelectKind`, whichever node reads it: a blend's edges, a shell's
-/// open faces, a derived frame's face, a measure's reference) and a
-/// measure's scope (`MeasureSelectionKind`). They differ in the entity
-/// they admit, in the word they use for the road, and in what else the
-/// refusal carries (a name, a verb). They do NOT differ in how the
-/// answer to *"what was it instead"* is obtained, and that half is this
-/// module's.
+/// One refusal in `eval::wire` asks that question — a selection's
+/// (`SelectKind`), whichever node reads it: a blend's edges, a shell's
+/// open faces, a derived frame's face, a measure's reference. Its
+/// readers differ in the entity they admit and in the words the node
+/// speaks it in. They do NOT differ in how the answer to *"what was it
+/// instead"* is obtained, and that half is this module's. (A measure's
+/// primitive admits its kinds at the edit and load doors, as a seat's
+/// kind, so no evaluation-time kind refusal of its own remains.)
 ///
 /// # Why a token rather than a rule
 ///
@@ -1266,8 +1266,8 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
 /// that: it carries the kind, its field is private to this module, and
 /// [`entity_door::entity`] is the only thing that can mint one.
 ///
-/// The refusals therefore keep their own identities — two variants,
-/// two sentences — while the one fact they share has one source.
+/// The readers therefore keep their own sentences while the one fact
+/// they share has one source.
 ///
 /// # Why the door is in two files
 ///
@@ -2201,23 +2201,6 @@ pub enum NodeErrorKind {
         /// The expression evaluator's refusal, unaltered.
         source: EvalError,
     },
-    /// A `min_clearance` reference names something that is not a
-    /// selection: the primitive's two operands are SCOPES — a whole
-    /// body or one of its faces — and a vertex, an edge or a datum
-    /// names neither.
-    ///
-    /// Its own arm rather than [`NodeErrorKind::MeasureUnsupported`],
-    /// which says "the closed-form table has no row for this carrier
-    /// pair" — false here, because there is no table to have a row in:
-    /// the clearance engine measures FACES, and the fault is in what
-    /// was selected rather than in what the vocabulary covers.
-    MeasureSelectionKind {
-        /// Which primitive.
-        verb: &'static str,
-        /// What it actually denotes — the entity door's own answer,
-        /// which no road can have written ([`entity_door::Found`]).
-        found: entity_door::Found,
-    },
     /// The clearance engine refused a `min_clearance` measurement: its
     /// own typed refusal (E7's refusal vocabulary), carried unaltered.
     MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
@@ -2881,13 +2864,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 index,
                 source,
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
-            Self::MeasureSelectionKind { verb, found } => write!(
-                f,
-                "`{verb}` measures between two selections — a whole body or one of its faces — \
-                 and this reference resolves to {} {}",
-                found.article(),
-                found.noun()
-            ),
             Self::MeasureClearanceRefused(refusal) => {
                 write!(f, "the clearance engine refused `{}`", refusal.name())?;
                 let payload = refusal.said_payload(by);

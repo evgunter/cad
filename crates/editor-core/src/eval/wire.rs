@@ -2436,61 +2436,29 @@ struct Measured<'v, T: Decide> {
     key: crate::names::EntityKey,
 }
 
-/// What a measure reference is allowed to scope over — the whole body,
-/// or one face of it.
-///
-/// It exists so [`Measured::faces`]'s projection can be a `fn`: the
-/// entity door takes a `fn` so no `read` can answer from a captured
-/// key, so the body work happens after the door.
-enum Scope {
-    /// A body-kind reference: every face of it.
-    WholeBody,
-    /// A face-kind reference: that one face.
-    One(topo::entity::FaceKey),
-}
-
-/// The scope a key denotes, or `None` for a kind that is neither — the
-/// entity door's `read` for the measure road.
-fn scope_of(key: names::EntityKey) -> Option<Scope> {
-    match key {
-        names::EntityKey::Body => Some(Scope::WholeBody),
-        names::EntityKey::Face(k) => Some(Scope::One(k)),
-        names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => None,
-    }
-}
-
 impl<'v, T: Decide> Measured<'v, T> {
-    /// This selection as one side of a `min_clearance`.
-    fn clearance_operand(
-        &self,
-    ) -> Result<crate::measure::MinClearanceOperand<'v, T>, NodeErrorKind> {
-        Ok(crate::measure::MinClearanceOperand {
+    /// This selection as one side of a `min_clearance`: every face of
+    /// the body (arena order) for a body read, the one face for a face
+    /// selection.
+    ///
+    /// A `min_clearance` reference reads a `Body` or a `Face` and
+    /// nothing else ([`crate::MeasureVerb::admits`]), which the edit and
+    /// load doors hold as the seat's kind, so the key is one of those
+    /// two by construction.
+    fn clearance_operand(&self) -> crate::measure::MinClearanceOperand<'v, T> {
+        let faces = match self.key {
+            names::EntityKey::Body => self.body.faces().map(|(k, _)| k).collect(),
+            names::EntityKey::Face(k) => vec![k],
+            names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => {
+                unreachable!("a min_clearance reference reads a body or a face (its seat's kind)")
+            }
+        };
+        crate::measure::MinClearanceOperand {
             at: self.at,
             index: self.index,
             body: self.body,
-            faces: self.faces()?,
-        })
-    }
-
-    /// The faces this selection scopes over: every face of the body
-    /// (arena order) for a body-kind reference, the one face for a
-    /// face-kind reference.
-    ///
-    /// # Errors
-    ///
-    /// [`NodeErrorKind::MeasureSelectionKind`], naming what was
-    /// selected instead.
-    fn faces(&self) -> Result<Vec<topo::entity::FaceKey>, NodeErrorKind> {
-        let scope = super::entity_door::entity(self.key, scope_of, |found| {
-            NodeErrorKind::MeasureSelectionKind {
-                verb: "min_clearance",
-                found,
-            }
-        })?;
-        Ok(match scope {
-            Scope::WholeBody => self.body.faces().map(|(k, _)| k).collect(),
-            Scope::One(k) => vec![k],
-        })
+            faces,
+        }
     }
 }
 
@@ -2514,6 +2482,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     let mut sides = Vec::with_capacity(2);
     for (index, &var) in primitive.refs().into_iter().enumerate() {
         let slot = crate::OperandSlot::Measured(
+            primitive.kind(),
             u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
         );
         let (at, ent) = if doc.selection(var).is_some() {
@@ -2555,7 +2524,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     ) {
         // The E7 engine's, over the bodies this evaluation built: it
         // wants bodies and face scopes, not carriers.
-        let (oa, ob) = (a.clearance_operand()?, b.clearance_operand()?);
+        let (oa, ob) = (a.clearance_operand(), b.clearance_operand());
         match T::min_separation(&oa, &ob) {
             Some(Ok(v)) => super::measure::finite(v),
             Some(Err(refusal)) => return Err(NodeErrorKind::MeasureClearanceRefused(refusal)),

@@ -193,7 +193,10 @@ fn slot_kind_tags_are_stable() {
         crate::errors::slot_kind_tag(SlotKind::Placeable),
         "placeable"
     );
-    assert_eq!(crate::errors::slot_kind_tag(SlotKind::Measured), "measured");
+    assert_eq!(
+        crate::errors::slot_kind_tag(SlotKind::Measured(pncad::document::MeasureVerb::Distance)),
+        "measured"
+    );
 }
 
 /// The FFI tag and the kernel's prose word are two spellings of one
@@ -2481,7 +2484,6 @@ fn node_error_tags_are_the_published_words() {
         MeasureNotParallel => "measure_not_parallel",
         MeasureUnsupported => "measure_unsupported",
         PayloadExpr => "payload_expr",
-        MeasureSelectionKind => "measure_selection_kind",
         MeasureClearanceRefused => "measure_clearance_refused",
         AssertionDimension => "assertion_dimension",
     }
@@ -5591,7 +5593,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_non_finite",
             "measure_not_parallel",
             "measure_ref_unreadable",
-            "measure_selection_kind",
             "measure_unsupported",
             "members_share_an_operation",
             "missing_input",

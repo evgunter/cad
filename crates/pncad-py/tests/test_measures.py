@@ -430,17 +430,17 @@ class TestTheFourthVerb(unittest.TestCase):
 
     def test_it_refuses_typed_on_an_edge_reference(self):
         """A reference's entity kind is the selection's face scope, and
-        an edge names no faces at all."""
+        an edge names no faces at all: a `min_clearance` reference reads
+        a body or a face, so the insert refuses by the seat's kind."""
         doc = Doc()
         left = slab(doc, 0.0)
         right = slab(doc, 4.0)
         ev = evaluate(doc)
-        node = doc.insert(
-            Node.measure(MeasurePrimitive.min_clearance((left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])))
-        )
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(node)
-        self.assertEqual(caught.exception.kind, "measure_selection_kind")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(
+                Node.measure(MeasurePrimitive.min_clearance((left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])))
+            )
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
 
 class TestTheAssertion(unittest.TestCase):
@@ -528,19 +528,18 @@ class TestTheAssertion(unittest.TestCase):
         nothing, so the assertion is poisoned rather than
         `Unevaluated`."""
         doc = Doc()
-        left = slab(doc, 0.0)
-        right = slab(doc, 4.0)
+        node = slab(doc, 0.0)
         ev = evaluate(doc)
-        # An edge names no faces, so the measure fails.
-        measure = doc.insert(
-            Node.measure(MeasurePrimitive.min_clearance((left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])))
-        )
+        bottom = face_at_height(ev, node, 0.0)
+        side = next(f for f in ev.all_faces(node) if f not in (bottom, face_at_height(ev, node, 1.0)))
+        # A cap and a side wall are not parallel, so the gap fails.
+        measure = doc.insert(Node.measure(MeasurePrimitive.gap((node, bottom), (node, side))))
         assertion = doc.insert(
             Node.assertion(doc.output(measure), AssertionDir.AtLeast, doc.parse_formula("1 m"))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(assertion)
-        self.assertEqual(caught.exception.kind, "measure_selection_kind")
+        self.assertEqual(caught.exception.kind, "measure_not_parallel")
         self.assertEqual(caught.exception.through, measure)
 
     def test_an_assertion_over_a_non_finite_value_fails_itself(self):
@@ -641,18 +640,31 @@ class TestTheRefusals(unittest.TestCase):
             evaluate(doc).value(measure)
 
     def test_a_carrier_pair_with_no_closed_form_refuses_naming_the_pair(self):
-        """A whole BODY has no carrier, and the refusal names the pair
-        class rather than guessing an arm."""
+        """A plane against a cylinder has no v1 closed form, and the
+        refusal names the pair class rather than guessing an arm."""
         doc = Doc()
-        left = slab(doc, 0.0)
-        right = slab(doc, 4.0)
+        block = slab(doc, 2.0)
+        post = cylinder(doc, 0.0, 0.2)
         ev = evaluate(doc)
         node = doc.insert(
-            Node.measure(MeasurePrimitive.distance((left, ev.all_bodies(left)[0]), (right, ev.all_bodies(right)[0])))
+            Node.measure(MeasurePrimitive.distance((block, face_at_height(ev, block, 2.0)), (post, wall(ev, post))))
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node).measure()
         self.assertEqual(caught.exception.kind, "measure_unsupported")
+
+    def test_a_whole_body_is_no_distance_reference(self):
+        """A `distance` reads a face, an edge or a vertex, so a whole
+        body refuses at insert by the seat's kind."""
+        doc = Doc()
+        left = slab(doc, 0.0)
+        right = slab(doc, 4.0)
+        ev = evaluate(doc)
+        with self.assertRaises(EditError) as caught:
+            doc.insert(
+                Node.measure(MeasurePrimitive.distance((left, ev.all_bodies(left)[0]), (right, ev.all_bodies(right)[0])))
+            )
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_a_gap_between_non_parallel_planes_refuses(self):
         """C5's plane arm is about a SEPARATION along a shared normal,

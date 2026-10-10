@@ -161,8 +161,8 @@ pub use editor_core::{Placement, Step};
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
-    MeasureUnavailableAt, Measured, NotAFaceName, Observed, ObservedRefusal, SitedFace, SitedRef,
-    UnevaluatedReason, measure,
+    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.
