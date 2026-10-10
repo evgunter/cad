@@ -509,9 +509,9 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // ---- limb 2: the certified hull bound ----
     let hull = hull()?;
     // Interval arithmetic answers with an `f64` upper bound — that is what a hull
-    // bound is — and it is lifted here so the limb is banded at the
-    // caller's scalar like every other residual (field docs).
-    let sup = T::from_f64(hull.sup);
+    // bound is — and it enters as a computed value so the limb is banded
+    // at the caller's scalar like every other residual (field docs).
+    let sup = T::from_computed(hull.sup);
     let decided = decide_reported("ssi_hull_sup", Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, &mut at.spans);
@@ -623,7 +623,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
-    let sup = T::from_f64(sup);
+    let sup = T::from_computed(sup);
     let decided = decide_reported("ssi_hull_sup_chart", Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, &mut at.spans);
@@ -1204,7 +1204,7 @@ fn certificate<T: Real>(
         samples: CERT_SAMPLES,
         on_locus_max: on_locus,
         hull_sup,
-        tube: rung.tube.map(T::from_f64),
+        tube: rung.tube.map(T::from_computed),
         tube_transversality: transversality,
         tube_boxes: rung.boxes,
     }
@@ -1507,7 +1507,7 @@ fn tube_transversality<T: Decide>(
     boxes: u32,
     band: Band,
 ) -> Result<T, SsiError> {
-    let transversality = Margin::levered(T::from_f64(clearance), arm);
+    let transversality = Margin::levered(T::from_computed(clearance), arm);
     match band_verdict("ssi_tube_transversality", transversality, band) {
         None => Ok(transversality.value()),
         Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles { verdict, boxes }),

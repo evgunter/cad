@@ -184,6 +184,59 @@ fn knot_difference<T: Real>(lo: f64, hi: f64) -> T {
     T::from_f64(hi) - T::from_f64(lo)
 }
 
+/// The integral speed meter's piece schedule (D9: structure, never a
+/// decision): the third assembly of `speed_lower_bound`'s integral arm
+/// reads each nonempty span as this many equal pieces. See
+/// `piece_assembly`'s docs; `tests/curves/swaying_corner_meter.rs` pins
+/// what it buys (the reach on a swaying corner roughly doubles with
+/// each doubling of the count) and `tests/curves/piece_coverage_meter.rs`
+/// that every piece is read.
+const INTEGRAL_METER_SPLITS: usize = 16;
+
+/// The highest derivative degree whose [`piece_weights`], and the sums
+/// of their columns, are exact `f64`s. With [`INTEGRAL_METER_SPLITS`]
+/// `= 2⁴`, every value de Casteljau's recurrence forms at the dyadic
+/// breaks `k/16` over `q` levels is an integer over `16^q` no larger
+/// than `1`, and a column of `q + 1` of them sums to at most `q + 1`;
+/// both are exact while `(q + 1)·16^q ≤ 2⁵³`.
+const PIECE_EXACT_MAX_DEGREE: usize = 12;
+
+/// The piece-restriction weights of a degree-`q` Bernstein row on
+/// `[0, 1]`, for the [`INTEGRAL_METER_SPLITS`] equal pieces: piece `i`'s
+/// coefficient `k` is `Σⱼ w[i][k][j]·cⱼ`, the row's blossom at
+/// `((i/S)^{q−k}, ((i+1)/S)^k)`, laid out flat as
+/// `[piece][k][j]`. Each `w[i][k]` is a convex combination (de
+/// Casteljau's steps at ratios in `[0, 1]`), every entry exact
+/// ([`PIECE_EXACT_MAX_DEGREE`]); `None` above that degree.
+fn piece_weights(q: usize) -> Option<Vec<f64>> {
+    if q > PIECE_EXACT_MAX_DEGREE {
+        return None;
+    }
+    let n = q + 1;
+    let mut out = Vec::with_capacity(INTEGRAL_METER_SPLITS * n.pow(2));
+    let mut d = vec![0.0; n];
+    #[allow(clippy::cast_precision_loss)]
+    for piece in 0..INTEGRAL_METER_SPLITS {
+        let a = piece as f64 / INTEGRAL_METER_SPLITS as f64;
+        let b = (piece + 1) as f64 / INTEGRAL_METER_SPLITS as f64;
+        for k in 0..n {
+            for j in 0..n {
+                d.iter_mut()
+                    .enumerate()
+                    .for_each(|(i, x)| *x = if i == j { 1.0 } else { 0.0 });
+                for r in 1..=q {
+                    let t = if r <= q - k { a } else { b };
+                    for i in 0..=(q - r) {
+                        d[i] = d[i] * (1.0 - t) + d[i + 1] * t;
+                    }
+                }
+                out.push(d[0]);
+            }
+        }
+    }
+    Some(out)
+}
+
 macro_rules! nurbs_curve {
     ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
         #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
@@ -807,9 +860,8 @@ macro_rules! nurbs_curve {
             /// `C′(t)` is a **convex combination** of the local `Qᵢ`.
             /// Fix any unit direction `d`: then
             /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)` over the `Qᵢ` active where
-            /// `d` is applied. Since M8-14 (#222) the arm runs **two
-            /// independent assemblies** of that inequality and states
-            /// their join:
+            /// `d` is applied. The arm runs **three independent
+            /// assemblies** of that inequality and states their join:
             ///
             /// 1. the **global-chord** assembly — the retired original
             ///    arm, verbatim: one direction (first→last control
@@ -824,31 +876,38 @@ macro_rules! nurbs_curve {
             ///    `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`,
             ///    so the min over spans of per-span bounds still
             ///    bounds the whole domain (the M8-2 review's
-            ///    soundness argument, unchanged).
+            ///    soundness argument, unchanged);
+            /// 3. the **piece** assembly ([`Self::piece_assembly`]):
+            ///    each nonempty span cut into
+            ///    [`INTEGRAL_METER_SPLITS`] pieces, each piece
+            ///    projecting the derivative's own Bernstein
+            ///    coefficients there on their sum's direction. A curve
+            ///    that sways across its control chords — a wavy
+            ///    loft's corner — has `Qᵢ` pointing back along every
+            ///    chord the first two try, while on a short piece the
+            ///    coefficients crowd around `C′` itself, so this
+            ///    assembly answers wherever the speed stays clear of
+            ///    zero at the piece scale.
             ///
             /// **The join**: an assembly whose direction collapsed
-            /// (poison) abstains; if both abstain the answer is
-            /// poison; if both are real the answer is their `max` —
+            /// (poison) abstains; if every one abstains the answer is
+            /// poison; otherwise it is the `max` of the real ones —
             /// sound because each is independently a lower bound on
-            /// the same `inf‖C′‖`. Every cell of that lattice — both
-            /// abstentions, both-poison, and the poisoned-INPUT
-            /// no-laundering claim below — is EXERCISED on
-            /// bitwise-exact fixtures by the adopted review probes
-            /// (`tests/curves/lt_r1_probes.rs::r1_join_abstention_logic`,
-            /// `tests/curves/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
-            /// and the same suites' randomized fuzz kills the unsound
-            /// near-neighbors of the scan (active window shifted, last
-            /// span dropped, either arm deleted from the join) that
-            /// the smooth-interpolant corpus alone cannot detect. The
-            /// join is therefore **never
-            /// below the retired single-chord arm** on any carrier
-            /// that arm bounded (the M8-14 corpus pins exactly that,
-            /// green rows as floors), while a long-turn carrier (a
-            /// helix past half a revolution, a closed loop) whose
-            /// speed never drops no longer collapses the meter merely
-            /// because its tangent leaves the global chord's
-            /// half-space — that collapse was a MEASUREMENT artifact
-            /// of assembly 1, and assembly 2 retires it.
+            /// the same `inf‖C′‖`, and never below either chord
+            /// assembly. Each assembly still decides some carrier: the
+            /// pieces a curve that sways across its chords, the
+            /// global chord a jagged nearly straight net whose pieces
+            /// each lean off it, the per-span chords a few nets
+            /// between (`tests/curves/piece_coverage_meter.rs`, which
+            /// also pins the floor and the cell where only the pieces
+            /// abstain; the chord-assembly cells are pinned in
+            /// `lt_r1_probes.rs::r1_join_abstention_logic` and
+            /// `r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`).
+            /// A long-turn carrier (a helix past half a revolution, a
+            /// closed loop) whose speed never drops does not collapse
+            /// the meter merely because its tangent leaves the global
+            /// chord's half-space: the per-span and piece assemblies
+            /// answer there.
             ///
             /// The result may still be zero or negative — a genuine
             /// stationary point (cusp, turn-around) defeats every
@@ -888,26 +947,28 @@ macro_rules! nurbs_curve {
             /// as if it did would be reading an arc-length rate as a
             /// chord-distance rate.
             ///
-            /// Both arms project per span (the integral arm since
-            /// M8-14 — before that its single global direction also
-            /// collapsed on any curve that turns away from its chord,
-            /// which is what refused every ≥ half-turn sweep path).
-            /// Both are sound lower bounds on `‖C′‖`; neither is a
-            /// claim about the curve's shape beyond its speed.
+            /// Both arms read local directions — per span, and on the
+            /// integral arm per piece too — and both are sound lower
+            /// bounds on `‖C′‖`; neither is a claim about the curve's
+            /// shape beyond its speed.
             ///
             /// The arm is chosen on **f64 structure** (`w_j == 1.0`
             /// exactly), never on an evaluation scalar.
             ///
             /// # Rounding posture
             ///
-            /// The chord directions are `chord/‖chord‖` — unit only to
-            /// rounding at `f64`, so the plain-f64 reading is a bound
-            /// up to about a relative ulp (both review harnesses
-            /// measured the worst case one ulp on the SOUND side).
-            /// This is the kernel-wide posture shared with the
-            /// rational arm; the `Interval` instantiation is the
-            /// certified lane, and the bracket row in
-            /// `tests/curves/m5_pr7_speed_meter.rs` pins containment.
+            /// The directions are `chord/‖chord‖` — unit only to
+            /// rounding at `f64` — and the piece assembly's
+            /// coefficients are `q + 1` rounded steps from the stored
+            /// net (its blossoms and one exact-weight combination), so
+            /// the plain-f64 reading is a bound up to a few relative
+            /// ulps of the derivative's scale (the stall rows in
+            /// `tests/curves/piece_coverage_meter.rs` hold it to
+            /// `1e-12` of that scale). This is the kernel-wide posture
+            /// shared with the rational arm; the `Interval`
+            /// instantiation is the certified lane, and the bracket
+            /// row in `tests/curves/m5_pr7_speed_meter.rs` pins
+            /// containment.
             ///
             /// # Poison (total, D4 ¶2)
             ///
@@ -916,8 +977,8 @@ macro_rules! nurbs_curve {
             /// derivative coefficient (`u_{i+p+1} ≤ u_{i+1}` — a
             /// structural violation the old arm turned into ±∞/NaN
             /// arithmetic instead of naming), a knot vector with no
-            /// nonempty span, or BOTH assemblies abstaining — every
-            /// one yields NaN. A bound is never fabricated. The
+            /// nonempty span, or EVERY assembly abstaining — each one
+            /// yields NaN. A bound is never fabricated. The
             /// knot-difference clause is DEFENSIVE: it needs an
             /// interior multiplicity of `p + 1`, which Clamped-v1
             /// validation forbids (interior multiplicity ≤ `p`, end
@@ -1057,13 +1118,153 @@ macro_rules! nurbs_curve {
                     }
                     acc.unwrap_or(poison)
                 };
+                let pieces = if p == 1 { poison } else { self.piece_assembly(&coeffs) };
                 // ---- The join (doc: "The join"). ----
-                geom_core::InfSpeed::new(match (global.is_poison(), perspan.is_poison()) {
-                    (true, true) => poison,
-                    (true, false) => perspan,
-                    (false, true) => global,
-                    (false, false) => global.max(perspan),
-                })
+                let joined = [global, perspan, pieces]
+                    .into_iter()
+                    .filter(|b| !b.is_poison())
+                    .reduce(Real::max);
+                geom_core::InfSpeed::new(joined.unwrap_or(poison))
+            }
+
+            /// Assembly 3 of [`Self::speed_lower_bound`]'s integral arm:
+            /// every nonempty span cut into [`INTEGRAL_METER_SPLITS`]
+            /// equal pieces, and on each piece the BERNSTEIN
+            /// coefficients `βₖ` of `C′` there. On the piece `C′` is a
+            /// convex combination of the `βₖ`, so for the unit
+            /// direction `d` of their sum (the piece's chord)
+            /// `‖C′‖ ≥ d·C′ ≥ minₖ d·βₖ`; the min over pieces and spans
+            /// bounds the whole domain.
+            ///
+            /// Piece `[a, b]`'s coefficient `k` is the derivative
+            /// piece's blossom at `(a^{q−k}, b^k)`, `q = p − 1`. It is
+            /// read in two steps, neither depending on which piece:
+            /// the span's own Bernstein row is the blossom at
+            /// `(u_s^{q−k}, u_{s+1}^k)` of the active `Qᵢ`
+            /// ([`Self::derivative_blossom`], `q` steps), and each
+            /// piece's row is one convex combination of that row whose
+            /// weights ([`piece_weights`]) are exact `f64` structure.
+            /// So every `βₖ` is `q + 1` steps from the stored net at
+            /// any piece index, and at the interval scalar it encloses
+            /// the exact coefficient of the exact piece; no refined net
+            /// is rounded to `f64` on the way.
+            ///
+            /// The assembly abstains (poison) where its weights cannot
+            /// be exact, a derivative degree above
+            /// [`PIECE_EXACT_MAX_DEGREE`], and where a piece's
+            /// coefficients sum to zero (`d` is `0/0`). It is not run
+            /// at degree 1, where each piece reads the span's one
+            /// coefficient and the per-span assembly already answers
+            /// exactly that.
+            fn piece_assembly(&self, coeffs: &[$Vector<T>]) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                let q = p - 1;
+                let Some(weights) = piece_weights(q) else {
+                    return poison;
+                };
+                let knots = self.knots.knots();
+                let mut acc: Option<T> = None;
+                let mut row = Vec::with_capacity(p);
+                let mut dots = Vec::with_capacity(p);
+                for index in self.knots.first_span()..=self.knots.last_span() {
+                    let Some(span) = self.knots.span(index) else {
+                        continue;
+                    };
+                    let (lo_i, span) = (span.first_control(), span.index());
+                    let (Some(active), Some(&u0), Some(&u1)) =
+                        (coeffs.get(lo_i..span), knots.get(span), knots.get(span + 1))
+                    else {
+                        return poison;
+                    };
+                    let (u0, u1) = (T::from_f64(u0), T::from_f64(u1));
+                    row.clear();
+                    for k in 0..=q {
+                        let Some(b) = Self::derivative_blossom(active, knots, lo_i, |r| {
+                            if r <= q - k { u0 } else { u1 }
+                        }) else {
+                            return poison;
+                        };
+                        row.push(b);
+                    }
+                    for piece in weights.chunks_exact(p.pow(2)) {
+                        // The piece's chord `Σₖ βₖ = Σⱼ (Σₖ wₖⱼ)·rowⱼ`,
+                        // then every `d·βₖ = Σⱼ wₖⱼ·(d·rowⱼ)`: the same
+                        // reals as restricting the row first, with the
+                        // weights applied to scalars.
+                        let mut sum: Option<$Vector<T>> = None;
+                        for (j, rj) in row.iter().enumerate() {
+                            let wj: f64 = piece.iter().skip(j).step_by(p).sum();
+                            if wj == 0.0 {
+                                continue;
+                            }
+                            let term = *rj * T::from_f64(wj);
+                            sum = Some(match sum {
+                                None => term,
+                                Some(s) => s + term,
+                            });
+                        }
+                        let Some(sum) = sum else {
+                            return poison;
+                        };
+                        let d = sum / sum.norm();
+                        dots.clear();
+                        dots.extend(row.iter().map(|rj| d.dot(*rj)));
+                        for w in piece.chunks_exact(p) {
+                            let mut v: Option<T> = None;
+                            for (wj, dj) in w.iter().zip(&dots) {
+                                if *wj == 0.0 {
+                                    continue;
+                                }
+                                let term = *dj * T::from_f64(*wj);
+                                v = Some(match v {
+                                    None => term,
+                                    Some(x) => x + term,
+                                });
+                            }
+                            let Some(v) = v else {
+                                return poison;
+                            };
+                            acc = Some(match acc {
+                                None => v,
+                                Some(m) => m.min(v),
+                            });
+                        }
+                    }
+                }
+                acc.unwrap_or(poison)
+            }
+
+            /// The blossom of the derivative piece on one span at the
+            /// arguments `arg(1), …, arg(q)`: de Boor's recurrence on
+            /// the span's active derivative coefficients `active`
+            /// (`Q_{lo_i} … Q_{lo_i+q}`), argument `arg(r)` at level
+            /// `r`, every step a two-point combination at the ratio
+            /// `(arg − τ_j)/(τ_{j+q+1−r} − τ_j)` formed at `T`, with
+            /// `τ_j = u_{j+1}` the derivative's knots. The same
+            /// recurrence `geom_core`'s `CoeffWindow::blossom` runs on
+            /// a scalar certification row; this one runs on a vector
+            /// row at any scalar. `None` on a knot index past the
+            /// vector.
+            fn derivative_blossom(
+                active: &[$Vector<T>],
+                knots: &[f64],
+                lo_i: usize,
+                arg: impl Fn(usize) -> T,
+            ) -> Option<$Vector<T>> {
+                let q = active.len().checked_sub(1)?;
+                let mut d = active.to_vec();
+                for r in 1..=q {
+                    let t = arg(r);
+                    for jj in (r..=q).rev() {
+                        let j = lo_i + jj;
+                        let lo = T::from_f64(*knots.get(j + 1)?);
+                        let hi = T::from_f64(*knots.get(j + 2 + q - r)?);
+                        let ratio = (t - lo) / (hi - lo);
+                        d[jj] = d[jj - 1] + (d[jj] - d[jj - 1]) * ratio;
+                    }
+                }
+                d.last().copied()
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a

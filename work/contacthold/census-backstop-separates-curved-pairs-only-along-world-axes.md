@@ -2,11 +2,12 @@
 id: census-backstop-separates-curved-pairs-only-along-world-axes
 kind: issue
 title: The census backstop clears a curved cross-solid pair only by a gap along a world axis, so a pair's verdict depends on how the body is turned
-status: review
+status: closed
 pr: 4550
 opened: 2026-10-03
 priority: P1
 cost: M
+closed: 2026-10-10
 ---
 
 
@@ -68,4 +69,12 @@ Arm 1 now clears along the axis between the two faces' anchors and
 either face's own normal where it is planar, after the world axes
 (`census::backstop_apart`, over `boolean::separating::apart`). Arm 2's
 world-axis containment gate is
+`census-containment-gate-reads-instances-along-world-axes-only`.
+
+## Closed (2026-10-10, PR 4550)
+
+Arm 1 clears a curved pair along directions that turn with it (a planar
+face's normal, the anchors' axis) through `boolean::separating::apart`,
+padded by `sweep_pad`, after the world axes. Reviewed (full single) and
+verified after its fix pass. Arm 2 is split off as
 `census-containment-gate-reads-instances-along-world-axes-only`.
