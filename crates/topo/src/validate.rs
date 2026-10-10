@@ -556,7 +556,8 @@ impl core::fmt::Display for CensusSubject {
 /// different lanes, and until this was carried they all arrived at a
 /// consumer as one sentence about an uncertifiable inventory. That
 /// sentence is not always the true cause: a chart-region
-/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
+/// [`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded)
+/// or [`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded)
 /// decline means the interior-witness SEARCH STOPPED on a pair whose
 /// overlap may be fat and perfectly decidable, and its recourse is to
 /// simplify the trims — not to declare the geometry or separate it.
@@ -586,11 +587,16 @@ impl core::fmt::Display for CensusSubject {
 /// aside, and is the refusal, [`Escalated`](ChartRegionError::Escalated),
 /// only where no direction answers). A graze carries no margin to size
 /// a tolerance by; moving the point changes the answer.
-/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
-/// is the opposite: its cap stops the arrangement being BUILT, so
-/// nothing was measured at all, and the work it declined to do would
-/// have returned a definite answer on a fat overlap. One says the
-/// geometry is undecidable here; the other says nobody looked.
+/// The witness caps are the opposite. The segment cap
+/// ([`WitnessSegmentCapExceeded`](ChartRegionError::WitnessSegmentCapExceeded))
+/// stops the arrangement being BUILT, so nothing was measured at all;
+/// the cell cap
+/// ([`WitnessCellCapExceeded`](ChartRegionError::WitnessCellCapExceeded))
+/// stops the walk with cells unprobed, and a probe that failed to
+/// certify measured nothing against the overlap. Either way the work
+/// declined would have returned a definite answer on a fat overlap.
+/// One says the geometry is undecidable here; the other says nobody
+/// finished looking.
 ///
 /// Carrying the arm itself says all of that and pre-judges none of
 /// it.
@@ -3321,7 +3327,8 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         // The rays are the check's own: no coincidence to declare, and no
         // margin to size a tolerance by (`ray_walk::NoRaySettled`).
         ChartRegionError::RayExhausted => (GRAZED, MOVE_GEOMETRY),
-        ChartRegionError::WitnessBudgetExhausted { .. } => (
+        ChartRegionError::WitnessSegmentCapExceeded { .. }
+        | ChartRegionError::WitnessCellCapExceeded { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
         ),
@@ -15169,7 +15176,7 @@ mod tests {
     /// The pair here is the sharpest one the chart-region doors have. A
     /// `TouchingBoundary` decline is a statement about the GEOMETRY —
     /// the trims touch, the area is not decidable at this ε — and a
-    /// `WitnessBudgetExhausted` decline is a statement about the
+    /// witness-cap decline (either cap) is a statement about the
     /// WORK: the interior-witness search stopped, on a pair whose
     /// overlap may be fat and perfectly decidable. The repairs are
     /// unrelated, and while the census flattened both onto its
@@ -15179,9 +15186,10 @@ mod tests {
     /// either push site in `census.rs` and the two messages coincide
     /// again.
     ///
-    /// **Every quantity here is derived, none restated.** The segment
-    /// figure comes from [`crate::chart_region::WITNESS_BUDGET`], so
-    /// raising the cap moves this row with it instead of leaving it
+    /// **Every quantity here is derived, none restated.** The cap
+    /// figures come from [`crate::chart_region::WITNESS_SEGMENT_CAP`]
+    /// and [`crate::chart_region::WITNESS_CELL_CAP`], so raising a cap
+    /// moves this row with it instead of leaving it
     /// green over a state the guard can no longer reach; and each
     /// arm's reason is asserted as its classifier's own output rather
     /// than as a fragment this row believes the classifier emits.
@@ -15207,28 +15215,33 @@ mod tests {
         let thin = says(CensusUnsupportedCause::ChartRegion(
             ChartRegionError::TouchingBoundary,
         ));
-        // One past the cap: the state the guard actually answers, and
-        // it moves when the cap moves.
-        let over_cap = crate::chart_region::WITNESS_BUDGET.segments + 1;
-        let stopped = says(CensusUnsupportedCause::ChartRegion(
-            ChartRegionError::WitnessBudgetExhausted {
-                segments: over_cap,
-                cells: 0,
+        // Each cap's state as its guard answers it, derived so it
+        // moves when the cap moves. Both caps keep the one census
+        // answer.
+        use crate::chart_region::{WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP};
+        let not_run = says(CensusUnsupportedCause::ChartRegion(
+            ChartRegionError::WitnessSegmentCapExceeded {
+                segments: WITNESS_SEGMENT_CAP + 1,
             },
         ));
-        assert_ne!(thin, stopped);
-        assert!(
-            stopped.contains("their boundaries cross too many times for the check to finish"),
-            "{stopped}"
-        );
+        let stopped = says(CensusUnsupportedCause::ChartRegion(
+            ChartRegionError::WitnessCellCapExceeded {
+                segments: WITNESS_SEGMENT_CAP,
+                cells: WITNESS_CELL_CAP,
+            },
+        ));
+        for capped in [&not_run, &stopped] {
+            assert_ne!(&thin, capped);
+            assert!(
+                capped.contains("their boundaries cross too many times for the check to finish"),
+                "{capped}"
+            );
+            assert!(!capped.contains("separate the geometry"), "{capped}");
+        }
         assert!(
             thin.contains("the faces' edges touch at this tolerance"),
             "{thin}"
         );
-        // And the blanket recourse the arm used to append to every
-        // decline is gone: it is the inventory lanes' repair, and it
-        // is the wrong instruction for a stopped search.
-        assert!(!stopped.contains("separate the geometry"), "{stopped}");
 
         // The other two lanes compose from their own vocabularies.
         // The `what` is one of production's own, copied from

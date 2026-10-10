@@ -148,9 +148,12 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             r#loop: LoopKey::default(),
         },
         ChartRegionError::RayExhausted,
-        ChartRegionError::WitnessBudgetExhausted {
-            segments: crate::chart_region::WITNESS_BUDGET.segments + 1,
-            cells: 0,
+        ChartRegionError::WitnessSegmentCapExceeded {
+            segments: crate::chart_region::WITNESS_SEGMENT_CAP + 1,
+        },
+        ChartRegionError::WitnessCellCapExceeded {
+            segments: crate::chart_region::WITNESS_SEGMENT_CAP,
+            cells: crate::chart_region::WITNESS_CELL_CAP,
         },
         ChartRegionError::Corrupt,
     ];
