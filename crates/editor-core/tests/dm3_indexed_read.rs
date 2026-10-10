@@ -152,7 +152,7 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
     let (doc, lower) = insert(
         doc,
         Node::Part {
-            of: editor_core::Operand::output(split, 1).into(),
+            of: editor_core::Operand::output(split, 1),
             select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Below),
         },
     );
