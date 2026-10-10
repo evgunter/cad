@@ -102,3 +102,30 @@ A read-only lane re-reads the four B2-released record rows
 `topo-surgery-verbs-drop-…`, `contact-records-carry-operand-labels-…`)
 against B2's merged record: closed, narrowed, or a question for
 designers. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — the B2-released rows read; one design fork; wording lane
+
+A read-only lane read the four B2-released rows against merged main:
+
+- `boolean-vertex-contact-records-are-inferred-from-values`: answered by
+  B2 (each value-decided vv/vf record cites a `VertexFusion` coincidence
+  the lint walks; pinned by `records_cite_their_decision.rs`). What's
+  left is wording: DESIGN.md tier 3's "declared contacts ride beside it",
+  following B2's approved change, and about 25 "declared-contact record"
+  comments. Dispatched to `contacthold/declared-wording`. Review tier:
+  **orchestrator's read** (mechanical wording). Its owed audit of other
+  Zero-to-distinct-cell doors gets its own row in that PR.
+- `curve-contact-names-one-face-…` and `contact-records-carry-operand-labels-…`:
+  both are questions about what the record a body carries at rest says, so
+  they go to **one designer pair** with one problem statement. The blinding
+  byte is on `analysis/design-fork/contacthold-at-rest-record`. C3
+  (`crates/topo/README.md`) is ratified, so the outcome is probably an
+  `[ev]` PR.
+- `topo-surgery-verbs-drop-…`: buildable on B2's pattern, but its
+  re-citing addresses `rows()` order, which the fork may change, so it
+  parks on the fork.
+
+Held for designers once the tangent lane lands:
+`contact-verify-lane-gate-answers-a-crossing-not-certifiable` (same
+function as the tangent lane) and `declared-faces-has-no-cross-solid-check`.
+— (CONTACTHOLD orchestrator)
