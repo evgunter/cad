@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P1
 cost: M
 refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
-blocked_on: [contact-records-cite-their-decision]
+blocked_on: [contact-records-carry-operand-labels-into-the-at-rest-currency]
 ---
 
 
@@ -44,3 +44,19 @@ option (b)); the record this row is about is rewritten by B2
 `Coincidence` across ~99 files. Building on the record's shape while
 B2 rewrites it would collide and be built twice. Re-read it against
 B2's merged record. (CONTACTHOLD orchestrator)
+
+## Read against B2 (2026-10-10): parks on the at-rest record's shape
+
+Still true on main: no fillet, shell, `replace_face`, split or
+`transform_rigid` carries records, and the topo ops have no
+records-bearing return. B2 makes the carry well-defined: map each record's
+cells through the op's lineage, re-cite each survivor as
+`Backing::Carried { input, record }`, and refuse any new touch. A
+key-stable op (transform) can copy `wire.rs::wire_place_in_world`'s
+`contacts.carried_from(0)`. But `record` addresses `ContactRecords::rows()`
+order, which the open record-shape fork
+(`contact-records-carry-operand-labels-into-the-at-rest-currency`, with
+`curve-contact-names-one-face-…`) may renumber. Parked on that fork so
+the re-citing isn't built twice. The editor-core twin is WIRE's
+`transform-and-pattern-drop-a-values-contact-records`.
+(CONTACTHOLD orchestrator)

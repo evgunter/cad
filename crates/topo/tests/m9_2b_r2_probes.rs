@@ -88,10 +88,13 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
         found.expect("a z-facing planar face")
     };
     let patch = |fa, fb| ContactRecords {
-        patches: vec![PatchContact {
-            face_a: fa,
-            face_b: fb,
-        }],
+        patches: vec![topo::Cited::new(
+            PatchContact {
+                face_a: fa,
+                face_b: fb,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     let records = patch(z_facing(1.0, 1.0), z_facing(1.0, -1.0));

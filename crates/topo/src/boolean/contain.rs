@@ -15,7 +15,7 @@
 
 use geom_brep::recourse::{LeverOnly, Reading, SizedPass};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::sphere_region::RegionRefusal;
 use crate::body::Body;
@@ -371,10 +371,26 @@ pub fn contfp<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<FaceContainment, ContainError> {
+    contfp_decided(body, face, normal, q, band).map(|(at, _)| at)
+}
+
+/// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
+/// verdict (`None` for `In` and `Out`, which decide no coincidence).
+///
+/// # Errors
+///
+/// As [`contfp`].
+pub(crate) fn contfp_decided<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<(FaceContainment, Option<MarginDiag>), ContainError> {
     let loops = face_loops(body, face)?;
 
     let read = match boundary_pre_pass(body, &loops, q, band)? {
-        PrePass::On(on) => return Ok(on),
+        PrePass::On(on, margin) => return Ok((on, Some(margin))),
         PrePass::Off(read) => read,
     };
 
@@ -389,14 +405,14 @@ pub fn contfp<T: Decide>(
         unreachable!("the pre-pass reads every loop of the face, and a face has its outer loop")
     };
     if !inside(outer)? {
-        return Ok(FaceContainment::Out);
+        return Ok((FaceContainment::Out, None));
     }
     for ring in rings {
         if inside(ring)? {
-            return Ok(FaceContainment::Out);
+            return Ok((FaceContainment::Out, None));
         }
     }
-    Ok(FaceContainment::In)
+    Ok((FaceContainment::In, None))
 }
 
 /// The circle a disc-class loop bounds — its own type, because three
@@ -517,10 +533,10 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-) -> Result<Option<FaceContainment>, ContainError> {
+) -> Result<Option<(FaceContainment, MarginDiag)>, ContainError> {
     let loops = face_loops(body, face)?;
     Ok(match boundary_pre_pass(body, &loops, q, band)? {
-        PrePass::On(on) => Some(on),
+        PrePass::On(on, margin) => Some((on, margin)),
         PrePass::Off(_) => None,
     })
 }
@@ -553,10 +569,10 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            if super::one_vertex(q, *p, band)
+            if let Some(margin) = super::one_vertex_at(q, *p, band)
                 .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
             {
-                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v), margin));
             }
         }
     }
@@ -573,7 +589,9 @@ fn boundary_pre_pass<T: Decide>(
                     escalation: e.escalation,
                     diag: e.diag,
                 })? {
-                EdgeContact::On => return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]))),
+                EdgeContact::On(margin) => {
+                    return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]), margin));
+                }
                 EdgeContact::Off | EdgeContact::Carrier | EdgeContact::Unread => {}
                 // Within the band of a curved edge's END, which the vertex
                 // pass above placed definitely clear of both of this edge's
@@ -619,7 +637,7 @@ fn boundary_pre_pass<T: Decide>(
 /// read on its carriers — with `q` definitely off each of their edges —
 /// for the walk that follows.
 enum PrePass<T: geom_core::Real> {
-    On(FaceContainment),
+    On(FaceContainment, MarginDiag),
     Off(Vec<(LoopKey, CarrierLoop<T>)>),
 }
 
@@ -764,9 +782,34 @@ pub(crate) fn curved_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    if let Some(v) = curved_boundary_containment(body, face, q, band)? {
-        return Ok(CurvedPlacement::Trim(Some(v)));
+    curved_face_placement_decided(body, face, q, band).map(|(at, _)| at)
+}
+
+/// [`curved_face_placement`], with the margin that decided a boundary
+/// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it.
+///
+/// # Errors
+///
+/// As [`curved_face_containment`].
+pub(crate) fn curved_face_placement_decided<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<(CurvedPlacement, Option<MarginDiag>), ContainError> {
+    if let Some((v, margin)) = curved_boundary_containment(body, face, q, band)? {
+        return Ok((CurvedPlacement::Trim(Some(v)), Some(margin)));
     }
+    curved_interior_placement(body, face, q, band).map(|at| (at, None))
+}
+
+/// [`curved_face_placement`] past the boundary pre-pass.
+fn curved_interior_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<CurvedPlacement, ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let surface = body.face_surface_linked(face, face_data);
     // The sphere's region reading takes rings in its stride; the chart

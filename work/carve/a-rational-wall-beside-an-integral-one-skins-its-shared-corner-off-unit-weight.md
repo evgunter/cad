@@ -5,6 +5,7 @@ title: A rational loft wall skins its shared corner rows with synthesized weight
 status: open
 opened: 2026-10-06
 priority: P2
+cost: M
 ---
 
 
