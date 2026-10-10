@@ -1073,7 +1073,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         let (da, db) = (pa.deriv(T::from_f64(t)), pb.deriv(T::from_f64(t)));
         let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
         let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
-        let n = scaled.iter().map(|v| v * v).sum::<f64>().sqrt();
+        let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
         (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
     };
     let mut worst = f64::INFINITY;

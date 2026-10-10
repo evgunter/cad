@@ -672,8 +672,9 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         let Some(fa) = feet_a.get(i as usize) else {
             return Err(PlaneNurbsRefusal::PcurveFit);
         };
-        let ja = a.ders(T::from_f64(fa.x), T::from_f64(fa.y));
-        let jb = b.ders(T::from_f64(foot.x), T::from_f64(foot.y));
+        let (ua, va) = measured_foot(*fa);
+        let (ub, vb) = measured_foot(foot);
+        let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
         let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
         let kappa = crate::shape_operator::max_principal_curvature(&ja)
             .max(crate::shape_operator::max_principal_curvature(&jb));
