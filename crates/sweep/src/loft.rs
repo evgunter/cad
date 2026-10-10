@@ -61,9 +61,11 @@
 //!
 //! Structure — the skinned walls' knots, control bits, weights, and
 //! the section chains — is selected at `f64` ([`fn@crate::skin`]'s
-//! contract) and lifted exactly (`from_f64`) into the requested
-//! scalar, so every lane builds the SAME body and the interval lane
-//! encloses the very geometry the `f64` lane defines.
+//! contract) and lifted exactly into the requested scalar, so every
+//! lane builds the SAME body and the interval lane encloses the very
+//! geometry the `f64` lane defines. They are computed values, so they
+//! enter through `from_computed` (an unknown each at `Sym`), each
+//! placement lifted once and shared by every reader.
 
 use core::fmt;
 use std::sync::Arc;
@@ -327,11 +329,14 @@ impl From<EulerOpError> for LoftError {
 /// [`SkinError::SectionProfile`] before any of this runs.
 fn end_profile<T: Real>(
     canonical: &ValidatedProfile<f64>,
-    place: &Affine3<f64>,
+    place: Affine3<T>,
 ) -> ValidatedProfile<T> {
-    canonical
-        .clone()
-        .lift_onto(SketchPlane::new(place.map(T::from_f64)))
+    canonical.clone().lift_onto(SketchPlane::new(place))
+}
+
+/// A section placement at `T`: composed in `f64`, so a computed value.
+fn lift_place<T: Real>(place: &Affine3<f64>) -> Affine3<T> {
+    place.map(T::from_computed)
 }
 
 /// The world point of a sketch-plane point under a lifted placement.
@@ -349,15 +354,14 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 /// input fault.
 fn outer_world<T: Real>(
     canonical: &ValidatedProfile<f64>,
-    place: &Affine3<f64>,
+    place: Affine3<T>,
 ) -> Option<Vec<Point3<T>>> {
     let profile: ValidatedProfile<T> = end_profile(canonical, place);
     let outer = profile.loops().first()?;
-    let placed: Affine3<T> = place.map(T::from_f64);
     Some(
         swept_segments(outer, false)
             .iter()
-            .map(|s| world(&placed, s.a))
+            .map(|s| world(&place, s.a))
             .collect(),
     )
 }
@@ -398,7 +402,7 @@ fn outer_world<T: Real>(
 /// mismatched sections first (`SkinError::SectionShapeMismatch`), and
 /// a loopless section never leaves profile validation.
 fn stacking_fold<T: Decide>(
-    places: &[Affine3<f64>],
+    places: &[Affine3<T>],
     canonical: &[ValidatedProfile<f64>],
     band: Band,
 ) -> Result<(), LoftError> {
@@ -408,7 +412,7 @@ fn stacking_fold<T: Decide>(
     let mut outers = places
         .iter()
         .zip(canonical)
-        .map(|(place, c)| outer_world::<T>(c, place).ok_or(LoftError::SectionStructure));
+        .map(|(place, c)| outer_world(c, *place).ok_or(LoftError::SectionStructure));
     let mut base: Vec<Point3<T>> = outers.next().ok_or(LoftError::SectionStructure)??;
     // `outers` now yields section `slab + 1` beside the slab's base and
     // far placements.
@@ -424,8 +428,8 @@ fn stacking_fold<T: Decide>(
         }
         #[allow(clippy::cast_precision_loss)]
         let count = T::from_f64(next.len() as f64);
-        let facing = |place: &Affine3<f64>| {
-            let margin = d.dot(place.map(T::from_f64).linear.c2) / count;
+        let facing = |place: &Affine3<T>| {
+            let margin = d.dot(place.linear.c2) / count;
             geom_core::k_stats::decide("loft_stacking", Margin::of(margin), band)
         };
         match facing(base_place).map_err(|source| LoftError::StackingEscalated { slab, source })? {
@@ -459,13 +463,14 @@ fn build<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let canonical = validate_loft(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
-    stacking_fold::<T>(
-        places,
+    let lifted: Vec<Affine3<T>> = places.iter().map(lift_place).collect();
+    stacking_fold(
+        &lifted,
         &canonical,
         Band::linear(tol).map_err(LoftError::Band)?,
     )?;
     let geometry = skin_validated(canonical, places, v_degree).map_err(LoftError::Skin)?;
-    assemble(places, &geometry, tol)
+    assemble(&lifted, &geometry, tol)
 }
 
 /// Assembles the loft BODY from its skinned geometry (module docs),
@@ -475,7 +480,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
 ///
 /// [`LoftError`] — every door named on the enum.
 fn assemble<T: Decide + topo::AtRestPolicy>(
-    places: &[Affine3<f64>],
+    places: &[Affine3<T>],
     geometry: &LoftGeometry,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
@@ -488,10 +493,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     ) else {
         return Err(LoftError::SectionStructure);
     };
-    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, place_bottom);
-    let top_profile: ValidatedProfile<T> = end_profile(can_top, place_top);
-    let bplace: Affine3<T> = place_bottom.map(T::from_f64);
-    let tplace: Affine3<T> = place_top.map(T::from_f64);
+    let (bplace, tplace) = (*place_bottom, *place_top);
+    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, bplace);
+    let top_profile: ValidatedProfile<T> = end_profile(can_top, tplace);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
 
@@ -535,7 +539,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         .map(|loop_walls| {
             loop_walls
                 .iter()
-                .map(|w| Arc::new(w.map_scalar(T::from_f64)))
+                .map(|w| Arc::new(w.map_scalar(T::from_computed)))
                 .collect()
         })
         .collect();

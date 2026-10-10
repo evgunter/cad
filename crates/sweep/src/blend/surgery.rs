@@ -3181,8 +3181,11 @@ fn boxed_reach<T: Bounds>(
     if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
         return None;
     }
+    // The box's six bounds, each one computed value, shared by every
+    // corner and face that reads it.
+    let (lo, hi) = (lo.map(T::from_computed), hi.map(T::from_computed));
     let corner = |i: usize| {
-        let pick = |k: usize| T::from_f64(if i >> k & 1 == 0 { lo[k] } else { hi[k] });
+        let pick = |k: usize| if i >> k & 1 == 0 { lo[k] } else { hi[k] };
         Point3::new(pick(0), pick(1), pick(2))
     };
     let first = corner(0) - c;
@@ -3190,11 +3193,7 @@ fn boxed_reach<T: Bounds>(
         None => {
             // Nearest: the box's own distance from `c`, per axis the
             // overshoot past either face; farthest: a corner.
-            let gap = |k: usize, ck: T| {
-                (T::from_f64(lo[k]) - ck)
-                    .max(ck - T::from_f64(hi[k]))
-                    .max(T::zero())
-            };
+            let gap = |k: usize, ck: T| (lo[k] - ck).max(ck - hi[k]).max(T::zero());
             let near = (gap(0, c.x).powi(2) + gap(1, c.y).powi(2) + gap(2, c.z).powi(2)).sqrt();
             let far = (1..8).fold(first.norm(), |m, i| m.max((corner(i) - c).norm()));
             Some((near, far))
@@ -5605,6 +5604,61 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A boxed reach reads its box as computed values**: the carrier's
+    /// certified box is `f64` arithmetic over its hull, so at `Sym` its
+    /// bounds are unknowns, and the reach about a parameterized centre
+    /// re-values to nothing rather than to the box's `f64` numbers moved
+    /// by the centre alone.
+    #[test]
+    fn a_boxed_reach_reads_its_box_as_computed_values() {
+        use std::sync::Arc;
+
+        use geom::{Curve3, NurbsCurve3};
+        use geom_core::spline::KnotVector;
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+
+        use super::boxed_reach;
+
+        type S = Sym<f64>;
+        let nurbs = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 2.0, 0.5),
+                Point3::new(2.5, -1.0, 1.0),
+            ],
+            vec![1.0, 1.0, 1.0],
+        )
+        .unwrap();
+        let sx = ParamSymbol::new(1);
+        let budget = SymBudget {
+            max_terms: 256,
+            max_degree: 16,
+        };
+        let (revalued, _) = with_session(budget, || {
+            let carrier = Curve3::Nurbs(Arc::new(nurbs.map_scalar(S::from_f64)));
+            let ends = (carrier.eval(S::zero()), carrier.eval(S::one()));
+            let c = Point3::new(
+                S::from_f64(-3.0) + S::param(sx, 0.0),
+                S::from_f64(0.5),
+                S::from_f64(0.25),
+            );
+            let u = Vec3::new(S::one(), S::zero(), S::zero());
+            let window = (S::zero(), S::one());
+            let (near, far) = boxed_reach(&carrier, window, ends, c, None).expect("a finite box");
+            let (low, high) =
+                boxed_reach(&carrier, window, ends, c, Some(u)).expect("a finite box");
+            let at = |_: ParamSymbol| Some(0.125);
+            [near, far, low, high].map(|v| revalue(v.node(), &at))
+        });
+        assert_eq!(
+            revalued, [None; 4],
+            "the box's bounds are unknowns: no reach re-values as if only the centre moved"
+        );
     }
 
     /// Review probe (PR 3715): tier 3 certifies an ellipse whose
