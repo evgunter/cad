@@ -115,7 +115,6 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
@@ -130,7 +129,8 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
+    zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -461,19 +461,18 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             }
         })?;
         // Every reading crosses to metres by one outward division.
-        let per_meter = Interval::point(per_meter);
         Ok(Hull {
-            sup: (composite.bound() / per_meter).mag(),
+            sup: mag_in_meters(composite.bound(), per_meter),
             breaks: composite.num.breaks().to_vec(),
             spans: composite
                 .span_bounds()
                 .into_iter()
-                .map(|b| (b / per_meter).mag())
+                .map(|b| mag_in_meters(b, per_meter))
                 .collect(),
             values: composite
                 .break_values()
                 .into_iter()
-                .map(|v| v / per_meter)
+                .map(|v| in_meters(v, per_meter))
                 .collect(),
         })
     };
