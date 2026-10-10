@@ -30,7 +30,7 @@ Building that `MarginDiag` needs a door-sanctioned constructor. `scripts/gates/r
 
 ## Weighed (design fork, 2026-10-10)
 
-Two designers weighed this one, under fork-log row 103. They converged on the core:
+Two designers weighed this one, under fork-log row 104. They converged on the core:
 - A certified bound is a kind of quantity, so it is recorded on the check (`Unsized { Defect, Fit, Bound }`), not patched at the door.
 - A bound refusal ends in the kernel-limit last resort at every reading, at rest included: a loose hull contradicts nothing.
 - At the import door, a bound within ε_in gets a sentence that names the bound (`MissReading::Bound`).
