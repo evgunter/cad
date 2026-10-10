@@ -2,11 +2,12 @@
 id: topo-keeps-computed-values-in-t
 kind: unit
 title: from_f64 audit, topo: every listed launders site keeps its value in T or enters it through from_computed
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P0
 cost: M
 refs: [carriers-compare-in-canonical-form]
+branch: intent/from-f64-topo
 ---
 
 
