@@ -1065,3 +1065,42 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
     }
     Ok(result)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod sliver_sector_ending_rows {
+    use geom_core::{Band, MarginDiag};
+
+    use super::*;
+
+    /// **A sector escalation on a poisoned margin ends in the build's
+    /// defect ending** (D4 ¶1 (i)): the reduction's rules mint the invalid
+    /// margin for two decided readings that contradict each other (a
+    /// tangent wall after the parallelism gate decided it bends, sectors
+    /// that disagree), and a NaN no plane reaches either, so the split's
+    /// lever is not offered. A margin that was read keeps it.
+    #[test]
+    fn a_poisoned_sector_escalation_ends_in_the_defect_ending() {
+        let sector = |margin| SplitReduceError::SliverSector {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+            diag: Indeterminate {
+                margin,
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("wall_bend_order2"),
+                terminal_sliver: false,
+            },
+        };
+        let poisoned = sector(MarginDiag::INVALID).to_string();
+        assert!(
+            poisoned.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+            "{poisoned}"
+        );
+        assert!(!poisoned.contains(SPLIT_COINCIDENCE_RECOURSE), "{poisoned}");
+        let in_band = sector(MarginDiag::value(5e-9)).to_string();
+        assert!(
+            in_band.ends_with(&format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}")),
+            "{in_band}"
+        );
+    }
+}

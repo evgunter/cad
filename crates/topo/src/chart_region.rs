@@ -3487,6 +3487,35 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A poisoned overlap decision ends in the build's defect ending**
+    /// (D4 ¶1 (i)): its cylinder transfer mints the invalid margin for
+    /// two decided readings that contradict each other, and no
+    /// declaration or move reaches either that or a NaN. A margin that
+    /// was read keeps the coincidence menu.
+    #[test]
+    fn a_poisoned_overlap_escalation_ends_in_the_defect_ending() {
+        let diag = |margin| Indeterminate {
+            margin,
+            band: band(),
+            predicate: Some("chart_region_cyl_axis_sense"),
+            terminal_sliver: false,
+        };
+        let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
+        let text = poisoned.to_string();
+        assert!(
+            text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+            "{text}"
+        );
+        assert!(!text.contains("declare"), "{text}");
+        let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
+        assert!(
+            in_band
+                .to_string()
+                .contains(geom_core::COINCIDENCE_RECOURSE),
+            "{in_band}"
+        );
+    }
+
     /// **A ray read in band is set aside, and a later ray answers**
     /// (`work/chart/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
     /// The square's right side carries a vertex `3e-9` off the `+x` ray

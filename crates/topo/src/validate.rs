@@ -11073,17 +11073,49 @@ mod tests {
         }
     }
 
-    /// `too_close`'s two sentences are the shared coincidence menu,
-    /// spelled once in `geom_core` — the plain one, and the poisoned
-    /// margin's with its input check first.
+    /// `too_close` spells the shared coincidence menu, once in
+    /// `geom_core`, on a margin that was read.
     #[test]
     fn too_close_spells_the_shared_menu() {
         let menu = geom_core::COINCIDENCE_RECOURSE;
-        assert_eq!(super::too_close(None), format!("Recourse: {menu}"));
         assert_eq!(
-            super::too_close(Some(&geom_core::MarginDiag::INVALID)),
-            format!("Recourse: check the inputs that built this body, then {menu}")
+            super::too_close(Some(&geom_core::MarginDiag::value(5e-9))),
+            format!("Recourse: {menu}")
         );
+    }
+
+    /// **A poisoned margin at a coincidence-menu ending ends in the
+    /// defect ending at rest** (D4 ¶1 (i)): no declaration and no move
+    /// makes an unreadable margin readable, so neither arm of the menu is
+    /// offered. Both of `too_close`'s readers: the census's own escalation,
+    /// and the chart-region overlap it carries.
+    #[test]
+    fn a_poisoned_coincidence_menu_ends_in_the_defect_ending() {
+        use crate::chart_region::ChartRegionError as R;
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::INVALID,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("material_wedge_side"),
+            terminal_sliver: false,
+        };
+        let rows = [
+            ("census", ValidationError::CensusEscalated { cause }),
+            (
+                "chart region",
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
+                    cause: CensusUnsupportedCause::ChartRegion(R::Escalated(cause)),
+                },
+            ),
+        ];
+        for (label, e) in rows {
+            let text = e.to_string();
+            assert!(
+                text.ends_with(&format!(". {DEFECT}")),
+                "{label}: the defect ending, alone: {text}"
+            );
+            assert!(!text.contains("declare"), "{label}: {text}");
+        }
     }
 
     /// No ending this module renders tells the user to lower the

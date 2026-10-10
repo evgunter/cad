@@ -5949,3 +5949,61 @@ mod torn_hop_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod escalated_ending_rows {
+    use geom_core::{MarginDiag, UNREADABLE_MARGIN_NOTE};
+
+    use super::*;
+    use crate::boolean::ContainError;
+    use crate::splitting::Escalation;
+
+    /// **A solid door's escalation ends as the unnamed placement does**
+    /// (D4 ¶1 (i): one recourse per decision): the containment door
+    /// carries the same escalation — the sphere region's, on the same face
+    /// — as `ContainError::Escalated` naming no decision, and both end in
+    /// the placement's own lever. A point has no coincidence to declare,
+    /// and a poisoned margin — a NaN, or the invalid margin the door
+    /// mints where two decided readings contradict each other (wall
+    /// pieces on opposite sides of one junction, two counts of one
+    /// quartic's roots) or a face has no latitude at all — keeps the lever
+    /// with the build's unreadable-margin note: another point is a way
+    /// through, as `PointInSolidError::in_band` says.
+    #[test]
+    fn a_solid_escalation_ends_as_the_unnamed_placement_does() {
+        let face = FaceKey::default();
+        for margin in [MarginDiag::INVALID, MarginDiag::value(5e-9)] {
+            let diag = Indeterminate {
+                margin,
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("bool_ray_torus_count"),
+                terminal_sliver: false,
+            };
+            let contfp = ContainError::Escalated {
+                decision: None,
+                escalation: Escalation::Margin,
+                diag,
+            }
+            .to_string();
+            let placement = contfp.strip_prefix("contfp: ").unwrap();
+            for (label, e) in [
+                ("solid door", PointInSolidError::Escalated { face, diag }),
+                ("sphere region", RegionRefusal::Escalated(diag).of_face(face)),
+            ] {
+                let text = e.to_string();
+                assert_eq!(
+                    text.strip_prefix("cannot tell what is inside the solid: "),
+                    Some(placement),
+                    "{label} on {margin}"
+                );
+                assert!(!text.contains("declare"), "{label}: {text}");
+                assert_eq!(
+                    text.ends_with(UNREADABLE_MARGIN_NOTE),
+                    margin.is_invalid(),
+                    "{label}: {text}"
+                );
+            }
+        }
+    }
+}
