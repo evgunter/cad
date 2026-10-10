@@ -5300,6 +5300,10 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
 /// a recorded interference fit is, and what it may skip, is C6's
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
+/// A face's world reach ([`face_reach`]), `None` where it has no sound
+/// one.
+type WorldReach<T> = Option<(Point3<T>, Point3<T>)>;
+
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
 /// between the two faces' anchors, or either face's own normal where it
@@ -5314,8 +5318,8 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
 /// disjoint, as a world-axis gap does.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
-    (fa, ra): (FaceKey, Option<(Point3<T>, Point3<T>)>),
-    (fb, rb): (FaceKey, Option<(Point3<T>, Point3<T>)>),
+    (fa, ra): (FaceKey, WorldReach<T>),
+    (fb, rb): (FaceKey, WorldReach<T>),
     band: Band,
 ) -> bool {
     use crate::boolean::separating::{Item, apart, planar_axis};
