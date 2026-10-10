@@ -787,8 +787,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Ok((rel, _, margin)) => {
                 return Err(super::unglued_coincidence(
                     // A reading with no margin is one carrier by structure (one key,
-                    // or bit-identical descriptions): its offset is exactly zero.
-                    margin.unwrap_or(geom_core::MarginDiag::value(0.0)),
+                    // or bit-identical descriptions), which the glue door glues
+                    // wherever the two faces meet, as they do at this corner.
+                    margin.ok_or(BooleanError::ClassificationInvariant {
+                        what: "a corner pair one carrier by structure the glue door left unglued",
+                    })?,
                     declared.carriers_read(pair, rel),
                     band,
                 ));

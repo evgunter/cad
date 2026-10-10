@@ -3474,8 +3474,9 @@ pub(crate) mod tests {
     ///
     /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
     ///   **Prunes**: loose is slower work, never a different answer.
-    /// - `boolean/glue.rs` — the glue door's pair scan and its coaxial
-    ///   scan, face boxes of both operands. **Prunes**: a loose box
+    /// - `boolean/glue.rs` — the glue door's box sweep
+    ///   (`overlapping_pairs`), face boxes of both operands, which its
+    ///   pair scan and its coaxial scan both read. **Prunes**: a loose box
     ///   only adds pairs the carrier ladder reads and leaves apart,
     ///   which is slower work and the same answer. A box TIGHTER than
     ///   its face would miss a pair, which then reaches its site
@@ -3568,8 +3569,8 @@ pub(crate) mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         //
-        // `boolean/glue.rs`'s four are two doors, the pair scan and
-        // the coaxial scan, each boxing both operands' faces. One of
+        // `boolean/glue.rs`'s two are one door, the sweep its pair scan
+        // and its coaxial scan share, boxing both operands' faces. One of
         // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
@@ -3580,7 +3581,7 @@ pub(crate) mod tests {
         // `edge_box` to show a torn link panics.
         const PINNED: [(&str, usize); 10] = [
             ("boolean/carrier_touch.rs", 1),
-            ("boolean/glue.rs", 4),
+            ("boolean/glue.rs", 2),
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
