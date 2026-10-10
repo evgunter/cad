@@ -1103,6 +1103,18 @@ fn half_edge_description<T: Decide>(
     Ok(half_edge_curve(body, half_edge)?.description().clone())
 }
 
+/// Whether a carrier over `carrier` lies in the spline space of a chart
+/// row over `row`, run either way: the same knots, or their reflection.
+fn in_row_space(
+    carrier: &geom_core::spline::KnotVector,
+    row: &geom_core::spline::KnotVector,
+) -> bool {
+    let (a, b) = row.domain();
+    let mirrored: Vec<f64> = row.knots().iter().rev().map(|k| a + b - k).collect();
+    carrier.degree() == row.degree()
+        && (carrier.knots() == row.knots() || carrier.knots() == &mirrored[..])
+}
+
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
 /// spans — an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
 /// structure, which is what keeps the variant `T`-generic).
@@ -1488,12 +1500,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // ROW, `u` moving — offered only to a carrier in the row's
             // own spline space (the row class compares control nets),
             // run either way.
-            let ku = wall.knots_u();
-            let (a, b) = ku.domain();
-            let mirrored: Vec<f64> = ku.knots().iter().rev().map(|k| a + b - k).collect();
-            let row_space = spline.knots().degree() == ku.degree()
-                && (spline.knots().knots() == ku.knots()
-                    || spline.knots().knots() == &mirrored[..]);
+            let row_space = in_row_space(spline.knots(), wall.knots_u());
             let row_ys: &[T] = if row_space { &[cv0, cv1] } else { &[] };
             let rows = row_ys.iter().copied().flat_map(|y| {
                 [(cu0, cu1), (cu1, cu0)].map(|(u_at_t0, u_at_t1)| {
@@ -7263,5 +7270,34 @@ mod villarceau_joint_tests {
             }
         }
         assert_eq!(cases, 96);
+    }
+}
+
+#[cfg(test)]
+mod row_space_tests {
+    use super::in_row_space;
+    use geom_core::spline::KnotVector;
+
+    fn kv(knots: &[f64]) -> KnotVector {
+        KnotVector::clamped(knots.to_vec(), 1).unwrap()
+    }
+
+    /// The reversed row space is the row's EXACT reflection: on
+    /// `[0.1, 0.3]` the knots `0.25` and `0.15` sum to `0.1 + 0.3` in ℝ
+    /// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`; on `[0, 1]`,
+    /// `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1.
+    #[test]
+    fn a_carrier_is_in_the_reversed_row_space_on_its_exact_reflection() {
+        let row = kv(&[0.1, 0.1, 0.25, 0.3, 0.3]);
+        assert!(
+            in_row_space(&kv(&[0.1, 0.1, 0.15, 0.3, 0.3]), &row),
+            "an exact mirror the rounded reflection misses is in the row space"
+        );
+        assert!(in_row_space(&row, &row), "the row's own knots are in its space");
+        assert!(
+            !in_row_space(&kv(&[0.0, 0.0, 0.9, 1.0, 1.0]), &kv(&[0.0, 0.0, 0.1, 1.0, 1.0])),
+            "a vector the rounded reflection reproduces, a 2Sum residual off the exact \
+             one, is not in the row space"
+        );
     }
 }
