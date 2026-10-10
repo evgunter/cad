@@ -219,7 +219,7 @@ pub(crate) fn run_op<T>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    payload_values: Option<&[T]>,
+    payload: Option<&super::Payload<T>>,
     profile_pre: Option<&ProfilePre>,
     env: &OpEnv<'_, T>,
     tol: Tol,
@@ -269,17 +269,24 @@ where
             wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
-        Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(
+        Node::Profile(program) => {
+            let payload = wire_profile(
                 program,
                 at(O::Frame, program.frame)?,
                 results,
                 profile_pre,
                 env.lane,
                 tol,
-            )?,
-            names::empty(),
-        )),
+            )?;
+            let rows = match &payload {
+                ValuePayload::Profile(value) => {
+                    crate::coincide::name_junctions(id, &value.validated, &value.pieces)
+                        .map_err(NodeErrorKind::Naming)?
+                }
+                _ => Vec::new(),
+            };
+            Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
+        }
         Node::Extrude { profile, side, .. } => wire_extrude(
             id,
             at(O::Profile, *profile)?,
@@ -393,6 +400,11 @@ where
         Node::Transform { input, placement } => {
             wire_transform(id, at(O::Input, *input)?, placement, results, vals, tol)
         }
+        Node::PlaceInWorld { body, pose } => {
+            let at = at(O::Body, *body)?;
+            let port = doc.defined_by(*body).map_or(0, |(_, port)| port);
+            wire_place_in_world(id, at, port, pose, results, vals, tol)
+        }
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             wire_pattern(id, input, kind, doc, &written(doc, id), results, vals, tol)
@@ -411,36 +423,17 @@ where
                 wire_placed_union(id, input, kind, doc, &written(doc, id), results, vals, tol)
             }
         },
-        Node::Measure { expr, refs } => {
-            wire_measure(node, expr, refs, payload_values, doc, results, tol)
-        }
-        Node::Assertion {
-            measure,
-            bound,
-            dir,
-        } => {
+        Node::Measure { primitive } => wire_measure(primitive, doc, results, tol),
+        Node::Assertion { value, .. } => {
             // Which endpoints this assertion may read: structural, off
-            // the referenced measure's expression, so the same at every
-            // scalar. A reference that is not a measure falls through
-            // to `wire_assertion`'s typed `WrongOperand`.
-            let measure = at(O::Measure, *measure)?;
-            let certified = match doc.node(measure) {
-                Some(Node::Measure { expr, .. }) => expr.certified(),
-                _ => crate::measure::Certified::Enclosure,
+            // the measures under its value, so the same at every scalar.
+            let certified = super::measure::certified(doc, *value);
+            let reads = node.payload_reads(doc).unwrap_or_default();
+            let (Some(payload), [(_, value_dim), (_, bound_dim)]) = (payload, reads.as_slice())
+            else {
+                unreachable!("an assertion reads its value and its bound, and both were evaluated")
             };
-            let bound_dim = node
-                .payload_reads(doc)
-                .and_then(|reads| reads.first().map(|&(_, dim)| dim))
-                .unwrap_or_else(|| unreachable!("an assertion reads its bound, {bound}"));
-            wire_assertion(
-                measure,
-                bound_dim,
-                *dir,
-                certified,
-                payload_values,
-                results,
-                tol,
-            )
+            wire_assertion(*value_dim, *bound_dim, certified, node, payload, tol)
         }
         Node::InstantiatePart {
             doc_ref, interface, ..
@@ -2493,7 +2486,19 @@ fn scope_of(key: names::EntityKey) -> Option<Scope> {
     }
 }
 
-impl<T: Decide> Selected<'_, T> {
+impl<'v, T: Decide> Selected<'v, T> {
+    /// This selection as one side of a `min_clearance`.
+    fn clearance_operand(
+        &self,
+    ) -> Result<crate::measure::MinClearanceOperand<'v, T>, NodeErrorKind> {
+        Ok(crate::measure::MinClearanceOperand {
+            at: self.at,
+            index: self.index,
+            body: self.body,
+            faces: self.faces()?,
+        })
+    }
+
     /// The faces this selection scopes over: every face of the body
     /// (arena order) for a body-kind reference, the one face for a
     /// face-kind reference.
@@ -2516,55 +2521,27 @@ impl<T: Decide> Selected<'_, T> {
     }
 }
 
-/// **A measurement sink** (E3): resolve the node's references, read
-/// the carriers they sit on, run the closed form, hand back a typed F1
-/// quantity. No body in, no body out.
+/// **A measurement** (E3): resolve the primitive's two references,
+/// read the carriers they sit on, run the closed form, hand back a typed
+/// F1 quantity. No body in, no body out.
 ///
 /// # Where a reference resolves
 ///
 /// At the node the reference NAMES AS ITS READING SITE
 /// ([`crate::SitedRef::at`]), which makes the answer the PLACED carrier
 /// rather than the authored one: the minting node's value still holds
-/// the unmoved geometry. `at` is a DAG edge ([`crate::Doc::upstream`]), so it
-/// has evaluated by the time this runs. Resolution takes the
+/// the unmoved geometry. `at` is a dependency ([`crate::Doc::upstream`]),
+/// so it has evaluated by the time this runs. Resolution takes the
 /// mid-evaluation [`ladder`].
-///
-/// # Only the references the expression READS are resolved
-///
-/// An unused reference to a datum (which has no carrier) must not fail
-/// a measure that never asks about it. Unread slots hold
-/// [`super::measure::Carrier::Unread`], which no closed form can reach
-/// because `Node::measure_fault` has bounded every index.
 fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
-    node: &Node<ProfileProgram>,
-    expr: &crate::measure::MeasureExpr,
-    refs: &[crate::node::SitedRef],
-    leaves: Option<&[T]>,
+    primitive: &crate::measure::MeasurePrimitive,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    // Backstop: the construction and load doors both refuse this.
-    if let Some(fault) = node.measure_fault() {
-        return Err(NodeErrorKind::MeasureMalformed(fault));
-    }
-    let mut read = std::collections::BTreeSet::new();
-    let mut prims = Vec::new();
-    expr.primitives(&mut prims);
-    for prim in &prims {
-        read.extend(prim.refs());
-    }
-    let mut carriers = Vec::with_capacity(refs.len());
-    // The SELECTION half of the same resolution ([`Selected`]).
-    let mut selections: Vec<Option<Selected<'_, T>>> = Vec::with_capacity(refs.len());
-    for (index, r) in refs.iter().enumerate() {
-        // A primitive names a reference by a `u32` index, so one at a
-        // position past `u32::MAX` is one no primitive reads.
-        if !u32::try_from(index).is_ok_and(|i| read.contains(&i)) {
-            carriers.push(super::measure::Carrier::Unread);
-            selections.push(None);
-            continue;
-        }
+    let dim = primitive.dim();
+    let mut sides = Vec::with_capacity(2);
+    for (index, r) in primitive.refs().into_iter().enumerate() {
         let name = &r.name;
         let value = value_of(results, r.at)?;
         let ent = ladder::resolve_in(name, doc, &value.name_table, |error| {
@@ -2580,76 +2557,51 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
                     error,
                 }
             })?;
-        carriers.push(super::measure::carrier_of(body, ent));
-        selections.push(Some(Selected {
-            at: r.at,
-            index: ent.body,
-            body,
-            key: ent.key,
-        }));
+        let carrier = super::measure::carrier_of(body, ent);
+        sides.push((
+            Selected {
+                at: r.at,
+                index: ent.body,
+                body,
+                key: ent.key,
+            },
+            carrier,
+        ));
     }
-    // The `min_clearance` leaves, in the SAME pre-order `eval_measure`
-    // reads them back in. Computed here because this is where the
-    // bodies this evaluation built are.
-    let mut clearances = Vec::new();
-    for prim in &prims {
-        let crate::measure::MeasurePrimitive::MinClearance { a, b } = prim else {
-            continue;
-        };
-        let clearance_side =
-            |i: &u32| -> Result<crate::measure::MinClearanceOperand<'_, T>, NodeErrorKind> {
-                // Bounds are the node door's and the load door's; a miss
-                // here is the same kernel bug `eval_measure` announces.
-                let Some(Some(sel)) = selections.get(*i as usize) else {
-                    unreachable!(
-                        "`min_clearance` reads reference {i} of {} resolved selections, yet \
-                     `Node::measure_fault` bounds every index at both doors and the read set \
-                     is computed from these very primitives",
-                        selections.len()
-                    )
-                };
-                Ok(crate::measure::MinClearanceOperand {
-                    at: sel.at,
-                    index: sel.index,
-                    body: sel.body,
-                    faces: sel.faces()?,
-                })
-            };
-        let (oa, ob) = (clearance_side(a)?, clearance_side(b)?);
+    let [(a, ca), (b, cb)] = sides.as_slice() else {
+        unreachable!("a primitive reads two references")
+    };
+    let measured = if matches!(
+        primitive,
+        crate::measure::MeasurePrimitive::MinClearance { .. }
+    ) {
+        // The E7 engine's, over the bodies this evaluation built: it
+        // wants bodies and face scopes, not carriers.
+        let (oa, ob) = (a.clearance_operand()?, b.clearance_operand()?);
         match T::min_separation(&oa, &ob) {
-            Some(Ok(v)) => clearances.push(v),
+            Some(Ok(v)) => super::measure::finite(v),
             Some(Err(refusal)) => return Err(NodeErrorKind::MeasureClearanceRefused(refusal)),
-            // A leaf with no value at this scalar leaves the whole
-            // expression without one; saying so at the node lets an
+            // No value at this scalar: saying so at the node lets an
             // assertion over it report `Unevaluated` instead of being
             // poisoned.
             None => {
                 return Ok(OpOut::plain(
                     ValuePayload::MeasureUnavailable {
                         reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
-                            verb: prim.verb(),
+                            verb: primitive.verb(),
                             scalar: T::NAME,
                             door: "clearance::min_separation",
                         },
-                        dim: expr.dim(),
+                        dim,
                     },
                     names::empty(),
                 ));
             }
         }
-    }
-    let mut cursor = 0usize;
-    let mut clearance_cursor = 0usize;
-    let value = super::measure::eval_measure(
-        expr,
-        &carriers,
-        leaves.unwrap_or(&[]),
-        &mut cursor,
-        &clearances,
-        &mut clearance_cursor,
-        band(tol)?,
-    )
-    .map_err(|refusal| match refusal {
+    } else {
+        super::measure::primitive(primitive, ca, cb, band(tol)?).and_then(super::measure::finite)
+    };
+    let value = measured.map_err(|refusal| match refusal {
         super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
         super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
             NodeErrorKind::Escalated { predicate, source }
@@ -2669,67 +2621,59 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
             predicate,
         },
     })?;
-    debug_assert_eq!(clearance_cursor, clearances.len());
     Ok(OpOut::plain(
-        ValuePayload::Measure {
-            value,
-            dim: expr.dim(),
-        },
+        ValuePayload::Measure { value, dim },
         names::empty(),
     ))
 }
 
-/// **An assertion's verdict** (E10): compare the measure this node
-/// references against its bound, and report.
+/// **An assertion's verdict** (E10): compare the value this node reads
+/// against its bound, and report.
 ///
 /// Report-ONLY: no op accepts a verdict as an operand, and nothing here
-/// touches the measure's value or the document.
+/// touches the value or the document.
 fn wire_assertion<T: Decide>(
-    measure: RecipeNodeId,
+    value_dim: crate::expr::Dimension,
     bound_dim: crate::expr::Dimension,
-    dir: crate::measure::AssertionDir,
     certified: crate::measure::Certified,
-    payload_values: Option<&[T]>,
-    results: &Results<T>,
+    node: &Node<ProfileProgram>,
+    payload: &super::Payload<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let mv = value_of(results, measure)?;
-    // A measure with no value at this scalar is not a failed node, so
-    // the assertion answers with E10's third state and the requirement
-    // stays visible in a build that cannot check it. The dimension
-    // check runs at the scalar that HAS a value.
-    if let ValuePayload::MeasureUnavailable { reason, .. } = &mv.payload {
+    let Node::Assertion { dir, .. } = node else {
+        unreachable!("an assertion's verdict is wired for an assertion")
+    };
+    // A measured value with no value at this scalar is not a failed
+    // node, so the assertion answers with E10's third state and the
+    // requirement stays visible in a build that cannot check it.
+    if let Some((_, reason)) = payload.unavailable {
         return Ok(OpOut::plain(
             ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
-                reason: crate::measure::UnevaluatedReason::MeasureUnavailable(*reason),
+                reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),
             }),
             names::empty(),
         ));
     }
-    let ValuePayload::Measure { value, dim } = &mv.payload else {
-        return Err(wrong_operand(mv, measure, super::family::MEASURE));
-    };
     // The bound's DECLARED dimension must agree (units erase at the
-    // evaluation boundary), through the same rule the document doors
-    // ask via `Node::assertion_bound_fault`.
-    if crate::node::AssertionBoundFault::against(measure, *dim, bound_dim).is_some() {
+    // evaluation boundary), through the rule the document doors ask.
+    if crate::node::AssertionBoundFault::against(value_dim, bound_dim).is_some() {
         return Err(NodeErrorKind::AssertionDimension {
-            measured: *dim,
+            measured: value_dim,
             bound: bound_dim,
         });
     }
-    // A miss means `payload_exprs` and this arm disagree: a kernel bug.
-    let Some(bound) = payload_values.and_then(|v| v.first().copied()) else {
+    let [value, bound] = payload.values.as_slice() else {
         unreachable!(
-            "an assertion's bound is its only payload expression, yet the evaluated payload \
-             vector has none"
+            "an assertion with a value has its value and its bound evaluated, yet the payload \
+             vector holds {}",
+            payload.values.len()
         )
     };
     Ok(OpOut::plain(
         ValuePayload::Assertion(crate::measure::decide_assertion(
             *value,
-            bound,
-            dir,
+            *bound,
+            *dir,
             band(tol)?,
             certified,
         )),
@@ -4453,6 +4397,73 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
+}
+
+/// **A world placement** (A10): the body read, at port `port` of the
+/// operation `of`, placed at `pose` as one copy named under this node
+/// ([`names::name_placed`]). A split's half is its port, as a read of
+/// any port is that output. A boolean's empty result places as itself:
+/// an empty copy, a typed success (F8) the gather finds no solid in.
+///
+/// The copy carries the body's declared contact records and the
+/// declaration rows keyed with them (ASM-R2b D-1) verbatim: a rigid
+/// placement keeps every arena key (`transform_rigid`), so they key the
+/// copy as they keyed the body. A split's half carries none, as its
+/// value carries none.
+fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
+    id: RecipeNodeId,
+    of: RecipeNodeId,
+    port: u8,
+    pose: &crate::placement::Placement,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let value = value_of(results, of)?;
+    let mut contacts = Arc::clone(&value.contacts);
+    let mut carried = Arc::clone(&value.carried);
+    let (body, index) = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Empty) => {
+            return Ok(OpOut::plain(
+                ValuePayload::Boolean(BooleanValue::Empty),
+                names::empty(),
+            ));
+        }
+        ValuePayload::Boolean(BooleanValue::Body {
+            body,
+            contacts: records,
+            ..
+        }) => {
+            contacts = Arc::clone(records);
+            (Arc::clone(body), 0)
+        }
+        ValuePayload::Split { above, below } => {
+            let half = if port == 0 {
+                SplitHalf::Above
+            } else {
+                SplitHalf::Below
+            };
+            contacts = Arc::default();
+            carried = Arc::default();
+            match if port == 0 { above } else { below } {
+                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
+                SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
+            }
+        }
+        _ => (read_body(results, of)?, 0),
+    };
+    let table = value
+        .name_table
+        .project(index)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
+    let placed = place(&body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
+    let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut {
+        contacts,
+        carried,
+        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table).carrying(value.parts)
+    })
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),

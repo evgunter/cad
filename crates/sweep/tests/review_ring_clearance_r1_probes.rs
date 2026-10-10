@@ -21,7 +21,7 @@
 
 use geom::Surface;
 use geom_core::{Point2, Sign, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -179,8 +179,7 @@ fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
         v(-s, 1.0, q),
         v(-1.0, s, 0.0),
         v(-1.0, -s, q),
-    ])
-    .with_tangent_joints((0..8).collect());
+    ]);
     let pf = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .expect("the rounded rectangle validates with its joints declared");

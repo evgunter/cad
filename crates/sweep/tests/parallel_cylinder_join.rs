@@ -1,7 +1,7 @@
 //! **Two cylinder walls with parallel axes crossing**: they meet in two
 //! rulings, and the join's germ-pair dispatch splits each wall along its
 //! own ruling — the plane × cylinder ruling arm on both sides
-//! (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`).
+//! (`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031).
 //!
 //! Every pose runs ∪, ∩ and both differences in both operand orders,
 //! and every run builds a body that is SOUND by

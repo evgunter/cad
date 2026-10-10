@@ -5,7 +5,7 @@
 use eframe::egui;
 use pncad::document::{AssertionVerdict, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
-use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
+use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
 use crate::frame;
 use crate::props::Notation;
 use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
@@ -52,7 +52,7 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 /// **What one feature-tree row reads as, drawn**: its headline
 /// ([`tree::headline`]) — a labelled node's label with its kind and tag
 /// muted beside it, an unlabelled node's kind, tag and pose — and the
-/// root glyph.
+/// world badge.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Datum
 /// frame` twice asks a person to tell two frames apart by clicking;
@@ -75,9 +75,9 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
         job.append(" ", 0.0, voice(egui::Color32::PLACEHOLDER));
         job.append(&muted, 0.0, voice(ui.visuals().weak_text_color()));
     }
-    if row.root {
+    if row.placed {
         job.append(
-            &format!(" {GLYPH_ROOT}"),
+            &format!(" {GLYPH_WORLD}"),
             0.0,
             voice(egui::Color32::PLACEHOLDER),
         );
@@ -262,7 +262,11 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
-            } => clicked = link_to(ui, row.depth, &asserted.measure).or(clicked),
+            } => {
+                if let Some(measure) = &asserted.measure {
+                    clicked = link_to(ui, row.depth, measure).or(clicked);
+                }
+            }
             AssertionVerdict::Unevaluated {
                 reason:
                     reason @ (UnevaluatedReason::Indeterminate { .. }
@@ -362,7 +366,7 @@ mod tests {
         INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, feature_row_ui, indent, message_indent,
         row_label,
     };
-    use crate::app::GLYPH_ROOT;
+    use crate::app::GLYPH_WORLD;
     use crate::pane::headless::SLACK;
     use crate::pane::headless::{
         assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
@@ -458,7 +462,7 @@ mod tests {
             ),
             pose: Some(pose.to_owned()),
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
@@ -498,8 +502,8 @@ mod tests {
     }
 
     /// A node with no pose reads as its kind, with no dangling
-    /// separator where the sentence would have been — and a root
-    /// still carries its glyph.
+    /// separator where the sentence would have been — and a placed
+    /// body still carries its world badge.
     #[test]
     fn a_row_with_nothing_more_to_say_reads_as_its_kind() {
         let row = TreeRow {
@@ -510,7 +514,7 @@ mod tests {
             ),
             pose: None,
             depth: 0,
-            root: true,
+            placed: true,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
@@ -526,23 +530,23 @@ mod tests {
             "no separator with nothing after it: {drawn}"
         );
         assert!(
-            drawn.contains(GLYPH_ROOT),
-            "a root keeps its glyph: {drawn}"
+            drawn.contains(GLYPH_WORLD),
+            "a placed body keeps its world badge: {drawn}"
         );
     }
 
-    /// A root frame carries both: the pose AND the glyph, in that
+    /// A placed row with a pose carries both: the pose AND the badge, in that
     /// order — the composition the glyph arm is written around.
     #[test]
-    fn a_root_frame_row_carries_the_pose_and_the_glyph() {
+    fn a_placed_row_carries_the_pose_and_the_world_badge() {
         let mut row = frame_row(2, "yz at (0, 0, 0) m");
-        row.root = true;
+        row.placed = true;
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
         });
         assert!(
             drawn.contains(&format!(
-                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_ROOT}"
+                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_WORLD}"
             )),
             "{drawn}"
         );
@@ -559,7 +563,7 @@ mod tests {
             ),
             pose: None,
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
                 carried: Vec::new(),
@@ -695,12 +699,14 @@ mod tests {
     /// **A box's height, measured three ways over its two caps**, as
     /// `tree::rows` builds the rows off a real evaluation: a
     /// `distance`, which has a value; a `min_clearance`, which has none
-    /// at `f64`; and a distance over zero, whose node fails. And
+    /// at `f64`; a distance read at the profile, which holds no face, so
+    /// its node fails; and the right angle between a cap and a side. And
     /// assertions: the height, measured a second time, at least 0.01 m
     /// (holds), at least 0.02 m (violated), and at least itself and 2ε,
     /// in the band between ε and K·ε (indeterminate); the clearance and
-    /// the failed measure at least 0.01 m; and the angle at most 1 rad.
-    /// The first `distance` is consumed by none, so its row is a root.
+    /// the failed measure at least 0.01 m; and the angle at most 2 rad.
+    /// A measure or an assertion defines no body, so its row never
+    /// carries the world badge.
     struct MeasureFixture {
         doc: pncad::document::Doc<pncad::document::ProfileProgram>,
         evaluation: pncad::document::Evaluation<f64>,
@@ -721,13 +727,13 @@ mod tests {
 
     fn measure_fixture() -> MeasureFixture {
         use pncad::document::{
-            AssertionDir, CancelToken, Doc, EvalOptions, Formula, MeasureExpr, MeasurePrimitive,
-            Node, SitedRef, evaluate,
+            AssertionDir, CancelToken, Doc, EvalOptions, Formula, MeasurePrimitive, Node, SitedRef,
+            evaluate,
         };
         use pncad::geom_core::Tol;
         use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
-        use crate::test_support::{ang, framed_square, inserted, len, scl};
+        use crate::test_support::{ang, framed_square, inserted, len};
 
         let tol = Tol::witness();
         let run = |doc: &Doc<_>| {
@@ -758,31 +764,49 @@ mod tests {
             assert_eq!(found.len(), 1, "one {end:?} cap: {found:?}");
             SitedRef::new(solid, found[0].clone())
         };
-        let caps = vec![cap(CapEnd::Start), cap(CapEnd::End)];
-        let across = || MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-        let measure = |doc: &Doc<_>, expr: MeasureExpr<Formula>| {
-            inserted(
-                doc,
-                Node::measure(expr, caps.clone()).expect("both caps are referenced"),
-                tol,
-            )
+        let [start, end] = [cap(CapEnd::Start), cap(CapEnd::End)];
+        let side = {
+            let sel =
+                Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Lateral)));
+            let found = select(&box_run, solid, &sel);
+            SitedRef::new(solid, found[0].clone())
+        };
+        let measure = |doc: &Doc<_>, primitive: MeasurePrimitive| {
+            inserted(doc, Node::Measure { primitive }, tol)
+        };
+        let across = || MeasurePrimitive::Distance {
+            a: start.clone(),
+            b: end.clone(),
         };
         let (doc, distance) = measure(&doc, across());
         let (doc, clearance) = measure(
             &doc,
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+            MeasurePrimitive::MinClearance {
+                a: start.clone(),
+                b: end.clone(),
+            },
         );
+        // Read at the profile, which holds no face: the measure fails.
         let (doc, failed) = measure(
             &doc,
-            MeasureExpr::div(across(), MeasureExpr::value(scl(0.0)))
-                .expect("a length over a scalar is a length"),
+            MeasurePrimitive::Distance {
+                a: SitedRef::new(profile, start.name.clone()),
+                b: end.clone(),
+            },
         );
-        let (doc, angle) = measure(&doc, MeasureExpr::value(ang(0.5)));
+        let (doc, angle) = measure(
+            &doc,
+            MeasurePrimitive::Angle {
+                a: start.clone(),
+                b: side,
+            },
+        );
         let assertion = |doc: &Doc<_>, measure: RecipeNodeId, bound: Formula, dir: AssertionDir| {
+            let value = doc.output(measure, 0).expect("a measure defines its value");
             inserted(
                 doc,
                 Node::Assertion {
-                    measure: measure.into(),
+                    value: Formula::var(value, bound.dim()),
                     bound,
                     dir,
                 },
@@ -800,7 +824,7 @@ mod tests {
         );
         let (doc, unavailable) = assertion(&doc, clearance, len(0.01), AssertionDir::AtLeast);
         let (doc, poisoned) = assertion(&doc, failed, len(0.01), AssertionDir::AtLeast);
-        let (doc, angle_holds) = assertion(&doc, angle, ang(1.0), AssertionDir::AtMost);
+        let (doc, angle_holds) = assertion(&doc, angle, ang(2.0), AssertionDir::AtMost);
         let evaluation = run(&doc);
         MeasureFixture {
             doc,
@@ -868,7 +892,7 @@ mod tests {
         let kind = find(
             &painted,
             &format!(
-                "Measure {} {GLYPH_ROOT}",
+                "Measure {}",
                 test_utils::refusal::tag(fixture.distance.0.digest())
             ),
         );
@@ -902,7 +926,7 @@ mod tests {
                 Notation::CANONICAL,
             );
         });
-        assert!(drawn.contains("0.5 rad"), "{drawn}");
+        assert!(drawn.contains("1.5707963268 rad"), "{drawn}");
     }
 
     /// **An empty value says so on its own row, beside its kind**, and
@@ -922,7 +946,7 @@ mod tests {
             ),
             pose: None,
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
@@ -1120,7 +1144,7 @@ mod tests {
         let kind = find(
             &painted,
             &format!(
-                "Assertion {} {GLYPH_ROOT}",
+                "Assertion {}",
                 test_utils::refusal::tag(fixture.holds.0.digest())
             ),
         );
@@ -1175,7 +1199,7 @@ mod tests {
             texts(&painted),
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.violated.0.digest())
                 )
                 .as_str(),
@@ -1202,7 +1226,7 @@ mod tests {
                 Notation::CANONICAL,
             );
         });
-        let comparison = compared(&fixture, fixture.angle_holds, "0.5 rad", "1 rad");
+        let comparison = compared(&fixture, fixture.angle_holds, "1.5707963268 rad", "2 rad");
         assert!(
             drawn.contains(&comparison),
             "`{comparison}` among {drawn:?}"
@@ -1291,7 +1315,7 @@ mod tests {
             texts(&painted),
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.indeterminate.0.digest())
                 )
                 .as_str(),
@@ -1332,7 +1356,7 @@ mod tests {
             drawn,
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.unavailable.0.digest())
                 ),
                 state_of(&fixture, fixture.unavailable).to_owned(),
@@ -1365,7 +1389,7 @@ mod tests {
             drawn,
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.poisoned.0.digest())
                 ),
                 "POISONED".to_owned(),
@@ -1404,7 +1428,7 @@ mod tests {
             ),
             pose: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,

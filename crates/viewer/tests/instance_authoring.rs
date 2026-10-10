@@ -88,6 +88,25 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let (shelf_ref, shelf_interface) = instance_of(&session, shelf_i);
     assert_eq!(shelf_ref, bench.shelf);
     assert!(shelf_interface);
+    // And each is placed in the world by the same action (A10): one
+    // identity placement per body the instance defines.
+    let doc = session.committed_doc();
+    assert_eq!(
+        common::world(doc),
+        [post_i, shelf_i],
+        "both instances are drawn"
+    );
+    for instance in [post_i, shelf_i] {
+        let copy = common::copy_of(doc, instance);
+        assert!(
+            matches!(
+                doc.node(copy),
+                Some(Node::PlaceInWorld { body, pose })
+                    if Some(*body) == doc.output(instance, 0) && pose.steps.is_empty()
+            ),
+            "the instance's identity placement"
+        );
+    }
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
         "AddInstance authors the empty offset on the world"

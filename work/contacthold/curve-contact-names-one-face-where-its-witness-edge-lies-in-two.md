@@ -7,8 +7,8 @@ opened: 2026-10-02
 priority: P1
 cost: M
 design: true
-refs: [JOIN-1]
-blocked_on: [coincidences-are-recorded-at-one-door]
+refs: [3790]
+blocked_on: [contact-records-cite-their-decision]
 ---
 
 
@@ -22,7 +22,7 @@ by JOIN.
 edge of one operand, that edge lies in TWO of that operand's faces, so
 the record's single face is a choice it cannot state. This is the same
 ambiguity that left the join's section germs four loose ends on the
-half-lap (`work/join/an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired.md`).
+half-lap (`an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`, JOIN, closed by PR 3790).
 JOIN-1 retires it from the join by giving a germ a per-operand cell,
 `OnEdge(edge) | InFace(face)`.
 
@@ -37,3 +37,14 @@ blocked on JOIN-1, but cheapest once its cell type exists.
 ## Parked on the D10 hold (2026-10-08)
 
 It changes the shape of the `CurveContact` record, which the one recording door replaces. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Re-parked on B2 (2026-10-10)
+
+Its trigger, stage 4 B (`coincidences-are-recorded-at-one-door`, PR
+4354), fired, but B left `ContactRecords` as it was (the S4-B ruling,
+option (b)); the record this row is about is rewritten by B2
+(`contact-records-cite-their-decision`, live on
+`intent/s4-b2-records-cite`), which makes every row cite its
+`Coincidence` across ~99 files. Building on the record's shape while
+B2 rewrites it would collide and be built twice. Re-read it against
+B2's merged record. (CONTACTHOLD orchestrator)

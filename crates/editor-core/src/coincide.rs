@@ -22,6 +22,11 @@
 //! tool plane's. Provenance is the document's: the walk reads the
 //! recipe and the names, never a stamp the kernel carries.
 //!
+//! A profile's junction no constructor made is a row of the profile
+//! node itself, its cells the two pieces that meet there
+//! ([`NamedCell::Piece`]); each piece is its own construction, so no
+//! rung of today's proves one.
+//!
 //! A row this rung leaves [`Proof::Unproven`] is not proven
 //! structural; it may still hold structurally by an argument a later
 //! rung makes (the carrier-pair verdict, the margin identity at `Sym`).
@@ -30,7 +35,9 @@ use core::fmt;
 
 use geom_core::MarginDiag;
 
-use crate::names::{EntityKey, EntityRef, NameTable, NamingError, RoleSeg, StableName};
+use crate::names::{
+    EntityKey, EntityRef, NameTable, NamingError, ProfileEdgeRef, RoleSeg, StableName,
+};
 use crate::node::{Node, RecipeNodeId};
 
 /// **One coincidence an operation decided from values**, its cells
@@ -66,6 +73,15 @@ pub enum NamedCell {
     Tool {
         /// The tool node.
         input: RecipeNodeId,
+    },
+    /// A piece of the deciding profile itself: a junction's two
+    /// segments, each named by the piece it is (`names/README.md`, "N1,
+    /// the profile pieces").
+    Piece {
+        /// The profile node.
+        profile: RecipeNodeId,
+        /// The piece.
+        piece: ProfileEdgeRef,
     },
 }
 
@@ -113,6 +129,9 @@ pub enum Origin {
     /// A datum node's own plane: a split's tool, and every section face
     /// the split mints on it.
     Datum(RecipeNodeId),
+    /// A profile's piece: the step of that profile that drew it, and
+    /// its role there.
+    Piece(RecipeNodeId, ProfileEdgeRef),
 }
 
 /// **Why the walk reached no construction.** Each arm names the node
@@ -228,6 +247,10 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::SameOpposite => "rests on one carrier against",
         topo::Relation::OnCarrier => "lies on",
         topo::Relation::EqualAngles => "makes an equal angle at its turn with",
+        topo::Relation::Tangent { aligned: true } => "continues tangent into",
+        topo::Relation::Tangent { aligned: false } => "turns back tangent into",
+        topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
 
@@ -238,6 +261,11 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CarrierLadder => "a declared pair of carriers read as one",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
+        topo::DecisionSite::BatterySupportAxis => {
+            "a blend's two supports read as sharing the axis its band is minted on"
+        }
+        topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }
 
@@ -248,6 +276,10 @@ pub fn prove<P>(doc: &crate::doc::Doc<P>, row: &NamedCoincidence) -> Proof {
     let constructions = row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
         NamedCell::Tool { input } => datum(doc, *input, Vec::new()),
+        NamedCell::Piece { profile, piece } => Ok(Construction {
+            origin: Origin::Piece(*profile, *piece),
+            placed: Vec::new(),
+        }),
     });
     match &constructions {
         [Ok(a), Ok(b)] if a == b => Proof::Structural(Rung::SameConstruction),
@@ -466,4 +498,51 @@ pub(crate) fn name_rows(
             })
         })
         .collect()
+}
+
+/// **A profile's decided junctions, as rows** (D1's profile tangency):
+/// each tangent joint validation decided Zero that no constructor made,
+/// its two cells the pieces the arriving and leaving segments are. The
+/// rows come in canonical order: loops outer first, joints ascending.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] for a canonical segment `pieces` does not
+/// name: the pieces and the validated profile were built from one
+/// program by one pass, so this is a kernel bug.
+pub(crate) fn name_junctions<T: geom_core::Real>(
+    profile: RecipeNodeId,
+    validated: &profile::ValidatedProfile<T>,
+    pieces: &crate::eval::ProfilePieces,
+) -> Result<Vec<NamedCoincidence>, NamingError> {
+    const UNNAMED: &str = "a profile junction row names a segment the profile's pieces do not";
+    let mut rows = Vec::new();
+    for (loop_index, lp) in validated.loops().iter().enumerate() {
+        let n = lp.segments().len();
+        let piece = |segment: usize| -> Result<NamedCell, NamingError> {
+            pieces
+                .edges
+                .get(loop_index)
+                .and_then(|edges| edges.get(segment))
+                .map(|&piece| NamedCell::Piece { profile, piece })
+                .ok_or(NamingError::Emission { what: UNNAMED })
+        };
+        for decided in lp.decided_joints() {
+            let joint = decided.joint;
+            let relation = match decided.carriers {
+                profile::JointCarriers::Same => topo::Relation::SameOriented,
+                profile::JointCarriers::Tangent => topo::Relation::Tangent {
+                    aligned: !decided.reverses,
+                },
+            };
+            rows.push(NamedCoincidence {
+                cells: [piece((joint + n - 1) % n)?, piece(joint)?],
+                relation,
+                site: topo::DecisionSite::ProfileJunction,
+                margin: decided.margin,
+                discharge: topo::Discharge::Numeric,
+            });
+        }
+    }
+    Ok(rows)
 }

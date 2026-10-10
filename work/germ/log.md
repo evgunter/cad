@@ -805,3 +805,5 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - no fixed row pins the band boundary (the halved-lever mutant is caught only by the fuzz);
   - the `offset_derive` wrong answer is argued, not shown, and no boolean pose reaches the new branches.
   The fix pass is a cloud session, `session_01S4DYWEhPnoQLyGtK29uHHi`.
+- 2026-10-10 — PR 4484 (U-S5, a ring on a cone face) state-sync. DR-135 written last: a concurrent pair, 0 tallied, the pair found no MAJOR, fair, so the foot is unchanged. The fix pass took the union of findings; the headline is that the contractibility winding is now summed over edges and joints and decided against half a turn, which ends the 1e-12 refusals of correct bodies. Main merged at the sync, with no conflicts.
+- 2026-10-10 — PR 4478 (apex-point snap) state-sync. DR-136 written last: SEQUENTIAL (byte 109), one review with no MAJOR, so the M-tier count toward twenty goes to 17 (others added units meanwhile). At 20, rule 9 owes Ev a full readout. The item is closed. PR 4484 (U-S5) merged as DR-135, after main took DR-134 during the sync.

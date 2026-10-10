@@ -73,7 +73,6 @@ pub mod refusal;
 /// in it is derived from a drive.
 pub mod report;
 pub mod resolve;
-pub mod roots;
 pub mod sentence;
 pub mod spoken;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
@@ -129,9 +128,10 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, SlotValue, Took, apply,
-    apply_replayed, cascade_delete_order, regauge_then_mate,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome,
+    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
 };
+pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
@@ -168,11 +168,11 @@ pub use mate::{
     reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
-    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasurePrimitive,
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };
@@ -194,9 +194,9 @@ pub use names::{
 };
 pub use node::{
     AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, OutputPort, PartSelect,
-    PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
-    StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
+    StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
 pub use operand::{Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
@@ -210,8 +210,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
-    own_spaces, product, product_named, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, own_spaces,
+    product, product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
@@ -244,7 +244,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
+pub use var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
@@ -253,7 +253,6 @@ pub use resolve::{
     MeshPick, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
     PickTarget, pick_face,
 };
-pub use roots::RootFault;
 pub use stackup::{
     Chamber, ChamberSpan, DivergedAt, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
     SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,

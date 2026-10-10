@@ -2,11 +2,11 @@
 id: a-measured-part-is-not-a-product-root
 kind: issue
 title: A Measure reading a part's faces consumes it, so a document that asserts a requirement over its own part has no product
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
-blocked_on: [the-product-is-an-explicit-list]
+closed: 2026-10-08
 ---
 
 
@@ -70,3 +70,12 @@ Stage 5's quieting rule depends on this row's case: an assertion quiets
 an at-rest finding only when its measure reads the placed copies, so a
 measured part must stay placed (`docs/INTENT-STAGE5-SPEC.md` §9). No
 stage-5 work.
+
+## Closed
+
+By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch
+`intent/s2-c-world`): the product is the world, so a body is in it
+because a `PlaceInWorld` reads it, whatever else reads it. A measure
+over the placed part leaves it placed:
+`crates/editor-core/tests/intent_s2_c_world.rs`,
+`a_measured_and_asserted_block_placed_is_the_product`.

@@ -25,6 +25,7 @@ Scope: D10's **Operations** paragraph (`docs/DESIGN.md` §D10), as `work/intent/
   - Both axis datums define an `Axis`, and `Revolve` defines `body: Body` and `axis: Axis`.
   - A pose kind names its symmetry as the mates' `Subgroup` (A11 (1)): `Frame` the trivial group, `Plane` the planar, `Axis` the cylindrical. `Point` and `Direction` name none until a reader needs theirs.
 - **FORK-3** (#4222, approved): sets. A selection is a definition, not a node, stating its body once, and the selection kinds are `Face`, `Edge`, `Faces` and `Edges`.
+- **FORK-VTX** (#4505): a vertex is a selection. `Vertex` joins `Face` and `Edge` as a selection kind, with no `Vertices` set until a slot reads one. A measure reads the `Vertex` selection, as it reads a face or an edge; a pose reader reads `Point { of: v }` off it, as a face reads as a plane.
 - **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`, hits H1–H14) is applied: §11 maps each hit to the unit that retires it.
 
 D10's last paragraph retires two things here: **A10's sink rule** and **A12's reading edges**. Stage 2 also closes `a-measured-part-is-not-a-product-root` and `a-failed-requirement-refuses-the-whole-product`, and completes VR4's interim exception (a `Measure`'s arithmetic stays in the node "until stage 2 makes `Measure` an operation").
@@ -47,7 +48,7 @@ The state of these mechanisms at the baseline:
 | B | `operands-are-reads` | every operand field holds a `VarId` read of an output. `inputs()` is derived from reads. Kind-typed operand slots. Delete leaves readers unresolved | **reading is the only dependency** (for operands) | re-blessed: ids move. Roots and geometry unmoved |
 | C | `the-product-is-an-explicit-list` (id kept; the unit is "the product is the world") | `PlaceInWorld { body, pose }` and a derived product. `roots.rs` and A10's invariants and maintenance retire, and so do `PlacedUnderTwoRoots`/N4's once-per-product rule, D-2's consumer-ward closure (narrowed) and `InstanceConsumed` | **the product is the world** | re-blessed. A one-time migration check: one placement per body-denoting root, in root order |
 | D | `measure-is-an-operation` | one `Measure` is one primitive defining one *observed* scalar. Its arithmetic moves to a `Defined` variable, and `Assertion` reads a scalar variable. A construction slot reading an observed variable refuses | **VR4's exception closes** | re-blessed. Measured bits unmoved |
-| E | `select-defines-face-and-edge-variables` | `Face`/`Edge` kinds and `Select`. Fillet/chamfer/shell/face-frame/measure names become reads, and the eval-time ladder moves into `Select` | **a name reference is a read** (outside mates) | re-blessed. Geometry unmoved |
+| E | `select-defines-face-and-edge-variables` | `Face`/`Edge`/`Vertex` kinds and `Select`. Fillet/chamfer/shell/face-frame/measure names become reads, and the eval-time ladder moves into `Select` | **a name reference is a read** (outside mates) | re-blessed. Geometry unmoved |
 | F | `a-mate-reads-face-variables` | mate sides read `Face` variables. `reading_edges`, the mates-are-not-edges carve-out and A5's minting lift through consumers retire | **A12 retires** | re-blessed. Poses unmoved |
 
 Why this order:
@@ -78,7 +79,7 @@ Each intermediate state is a whole representation:
 
 **Kinds and definitions** (`var.rs`):
 
-- `VarKind` gains the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the shapes, which only an operation defines: `Body`, `Bodies` (an ordered list whose length is a `Count`) and `Profile`. It also gains the selections `Face`, `Edge`, `Faces` and `Edges` (FORK-3).
+- `VarKind` gains the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the shapes, which only an operation defines: `Body`, `Bodies` (an ordered list whose length is a `Count`) and `Profile`. It also gains the selections `Face`, `Edge`, `Vertex`, `Faces` and `Edges` (FORK-3, FORK-VTX).
 - A pose kind names its symmetry as the mates' `Subgroup` family: `Frame` → trivial, `Plane` → planar, `Axis` → cylindrical. `Point` and `Direction` name none, since the family has no entry for theirs yet.
 - `VarDef` gains `Output { node: RecipeNodeId, port: u8 }` and `Select { body, names }`. A selection is a definition, not a node.
 - A reference-kind variable has no free arm. It is never an analysis axis, has no unit and has no distribution.
@@ -136,7 +137,7 @@ Each intermediate state is a whole representation:
 
 **Measure** (D):
 
-- `Node::Measure { primitive: MeasurePrimitive<S> }` holds one `Distance`, `Angle`, `MinClearance` or `Gap`. Its operands are slots, which read `Face`/`Edge` variables after E.
+- `Node::Measure { primitive: MeasurePrimitive<S> }` holds one `Distance`, `Angle`, `MinClearance` or `Gap`. Its operands are slots, which read selection variables after E: one selection of the kinds its primitive admits, or a `Body` (`distance` a `Face`, `Edge` or `Vertex`; `angle` a `Face` or `Edge`; `min_clearance` a `Body` or `Face`; `gap` a `Face`).
 - It defines one scalar output of the primitive's dimension.
 - `MeasureExpr` and `MeasureKind` are deleted: arithmetic over measures is a `Defined` variable (`Expr` already has `Min`/`Max`).
 - `Assertion { value: S, bound: S, dir }` reads any scalar variable of the bound's dimension. `AssertionBoundFault::TargetNotMeasure` retires, and the dimension check stays.
@@ -145,7 +146,7 @@ Each intermediate state is a whole representation:
   - The load door refuses it in a new walk, `ObservedRead`.
   - Driven dimensions are deferred, not refused for good (Ev: "no need to support it now").
 
-**Select** (E; FORK-3): a selection variable (`Face`/`Edge`, or the sets `Faces`/`Edges` that #4222 writes) is defined by `VarDef::Select { body: VarId /* Body */, names }`, a definition, not a node. Evaluation runs `eval/wire.rs`'s three-rung ladder (`live` → `Tied` → `Absent`) **in the select and nowhere else**. A failed select poisons its readers with the `ResolveError`, and the post-evaluation diagnostic ladder (`resolve/mod.rs`) diagnoses that select.
+**Select** (E; FORK-3): a selection variable (`Face`/`Edge`/`Vertex`, or the sets `Faces`/`Edges` that #4222 writes) is defined by `VarDef::Select { body: VarId /* Body */, names }`, a definition, not a node. Evaluation runs `eval/wire.rs`'s three-rung ladder (`live` → `Tied` → `Absent`) **in the select and nowhere else**. A failed select poisons its readers with the `ResolveError`, and the post-evaluation diagnostic ladder (`resolve/mod.rs`) diagnoses that select.
 
 - Sets (FORK-3): `Fillet.selection` and `Chamfer.selection` read one `Edges` variable, and `Shell.open` reads one `Faces`, stating the body once. A selection authored at two sites is two variables, and the GUI offers the existing one.
 - `Datum::FaceFrame { at, face }` becomes `{ face: S }`, because the body is the select's.
@@ -265,7 +266,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
   - `NoBodyRoots` becomes `EmptyProduct { unplaced: Vec<VarId> }` at `product.rs:200`, `checks.rs:983`, `eval/parts.rs:483` and `assembly.rs:1186`. Its recourse is "place a body in the world".
   - The unplaced bodies are the live `Body` outputs no placement reads, listed in document order.
 - **Retired with the gather** (audit H9): `placed_under_two_roots` (`product.rs:1246–1257`), `ProductError::Naming`'s once-per-product refusal in `carry_names` (`:1487`), and N4's gather sentence in `names/README.md`. Each copy is its own output, so its names are qualified by the copy as a pattern copy's are.
-- **Instances** (A2 as rewritten by #4220; FORK-1 for the signature, recorded on the node when the part is pinned). `eval/parts.rs:719` takes the part's world: one `Body` output per world placement of the part, each at its world coordinates.
+- **Instances** (A2 as rewritten by #4220). An instance defines one `body` output: the part's product, as one body (`eval/parts.rs:719`), all its copies in one multi-solid value. The placement semantics are stage 3's: FORK-1's per-placement signature, and how an instance enters a document, are decided there (`work/intent/an-instance-defines-one-body-per-part-placement.md`).
 - **Export** (`pncad` `export.rs:63`, `:261`) writes the world. It refuses an empty world, naming the unplaced bodies, and a stranded placement (A11 (2), #3441 narrowed by #4220).
 - **Refactor** (`refactor.rs`; audit H3, H7, H8):
   - Split's anchor vote (`:2546`), `UnplaceableRoot` (`:2568`) and `NoMaterial` (`:2865`) read "the cut's world placements". "A cut of unplaced material alone refuses" (A4) stays, and is now the whole rule for a cut with no placement.
@@ -278,7 +279,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
 
 **Migration** (a one-time check, not a rule). Regenerating a pre-C corpus file writes one `PlaceInWorld` per body-denoting root of its A10 root list, in root order, with the identity pose.
 
-- There is one exception: a root `InstantiatePart` on the world gauge with no placing mate. Its offset moves into the placement's pose and the instance sits at the empty offset. The pose lives in the placement in stage 2, by Ev's residue 3; see Q9.
+- Every migrated placement is at the identity. A root `InstantiatePart` keeps its offset on the instance, so no pose is written for it; the pose has no reader but the gather and export, and stage 3 replaces it.
 - The check is test 6: the regenerated file's product equals the pre-C product, body for body and in order.
 - After that nothing preserves membership. A later edit's product is what its placements say.
 
@@ -322,12 +323,13 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
 
 ## 6. PR E — `select-defines-face-and-edge-variables` (cost H; ~200 files, 5–8k lines)
 
-- `VarKind::{Face, Edge}` and `Select` per FORK-3. Its evaluation is `named_entity` (`wire.rs:2317`) plus the kind check that `BlendSelectionKind`, `ShellOpenKind`, `FaceFrameKind` and `MeasureSelectionKind` each make today. That is four error families folded into one, `SelectKind { expected, found }`.
+- `VarKind::{Face, Edge, Vertex}` and `Select` per FORK-3 and FORK-VTX. Its evaluation is `named_entity` (`wire.rs:2317`) plus the kind check that `BlendSelectionKind`, `ShellOpenKind`, `FaceFrameKind` and `MeasureSelectionKind` each make today. That is four error families folded into one, `SelectKind { expected, found }`.
 - **Converted payloads:**
   - `Fillet`/`Chamfer.selection`: 12 src and 25 test non-empty sites, 25 in the viewer and 1 in the tour.
   - `Shell.open`: 11 src, 12 tests, 16 viewer, 4 tour and 1 py.
   - `Datum::FaceFrame.face`: 16 src, 37 tests and 10 viewer.
-  - Measure refs: 20 `SitedRef::` sites in src and 252 in the tests.
+  - Measure refs: 20 `SitedRef::` sites in src and 252 in the tests. A vertex ref becomes a `Vertex` select, as a face ref becomes a `Face` select.
+- **A measure operand's kind is checked at the door.** A selection's kind is fixed at minting, so each primitive's admitted kinds (`distance`: `Face`, `Edge`, `Vertex`; `angle`: `Face`, `Edge`; `min_clearance`: `Body`, `Face`; `gap`: `Face`) refuse as the ordinary `SlotVarKind`, at the edit door and the load door. So `MeasureSelectionKind`'s kind half is a door refusal rather than part of `SelectKind`, and `scope_of` (`wire.rs`) stops being `min_clearance`'s kind check. The carrier-class refusals (a cone face in `distance`) stay at evaluation, since a surface class is not a kind.
 - `StableName {` literals (266 in src, 341 in tests, 55 viewer, 9 tour) mostly stay: a select stores one.
 - The authored sugar `Formula::select(body, name)`, and a `Vec<StableName>` given to a selection slot, lower at the door to one selection definition: one set variable under #4222's sets, or one per name under singletons. That keeps the 41 + 12 + 20 `Node::fillet/chamfer/shell(` test sites unchanged.
 - **Not converted:** `Boolean.declare` and `Union.declare` (`DeclaredPair`, `node.rs:3192`; Q2).
@@ -335,7 +337,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
   - `resolve::resolve` and `resolve_with_prior` diagnose a failed select. Their callers are the appearance store (`appearance.rs:465`, `:495`, `:518`), the viewer's `session.rs:977` and `matetool.rs:575`, and `pncad-py` `value.rs:1610`.
 - **`Rebind`** (`edit.rs:377`, applied at `:5673`) rewrites selects. `rebind_payload_names` (`node.rs:3744`) shrinks to the declared pairs. Its refusals keep their names.
 - **SELECT-DESIGN.** The materializer doctrine stands: a select stores a name, never a query, and `select_where` still returns `Vec<StableName>` for the caller to store. §4's one-type rule ("a GUI selection is the `Vec<StableName>` a recipe stores") is FORK-3's to restate.
-- **Viewer.** Picks become select edits. The pick-to-name inversion (`hit.rs`, `pick.rs`) is unchanged.
+- **Viewer.** Picks become select edits, a vertex pick a `Vertex` select. The pick-to-name inversion (`hit.rs`, `pick.rs`) is unchanged.
 
 ## 7. PR F — `a-mate-reads-face-variables` (cost H; ~120 files, 3–5k lines)
 
@@ -401,7 +403,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
    - Deleting the extrude under a fillet is accepted, with one `Maintenance::Strand` naming the fillet's `target` slot.
    - Evaluation refuses the fillet `UnresolvedRead { slot: Target }`, and undo restores it bit-equal.
    - *Breaks if* `DeleteWouldDangle` survives (the delete refuses) or the reader is re-pointed (the fillet evaluates).
-6. **(C) The one-time migration.** For every corpus `.pncad` and `golden.cad` regenerated at C, the file holds one `PlaceInWorld` per body-denoting pre-C root, in root order, and `product_recorded`'s body digests and order equal pre-C's. *Breaks if* the migration orders by document order instead of root order, places a non-body root, or drops a world-gauge instance's offset instead of moving it into the pose (that digest moves).
+6. **(C) The one-time migration.** For every corpus `.pncad` and `golden.cad` regenerated at C, the file holds one `PlaceInWorld` per body-denoting pre-C root, in root order, and `product_recorded`'s body digests and order equal pre-C's. *Breaks if* the migration orders by document order instead of root order, places a non-body root, or drops a root instance's offset (that digest moves).
 7. **(C) The measured part stays.**
    - `cut_plate` (tour) with its web `Measure` and `Assertion`, its cut part placed: `product()` holds one body whose digest equals the cut part's, where pre-C refused `NoBodyRoots`.
    - *Breaks if* any code still derives membership from sinks.
@@ -459,7 +461,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 - **B's size.** It is about 2,500 match and construction sites. Compile-driven, it is H on volume, and the `From<RecipeNodeId>` sugar is what keeps it mechanical. The real hand edits are the 37 `inputs()` callers.
 - **The schedule** (narrowed by FORK-5). In D, an observed definition is the first variable whose value exists only mid-evaluation. Only assertions read it, so `Doc::var_env` (`doc.rs:1651`) and the construction lanes are untouched. The new machinery is binding observed definitions at the assertion, per lane (Interval, Dual, Sym).
 - **Scripts and fixtures that relied on an implicit product.** After C nothing appears unless placed. Every test, demo and guide example that reads `product()` without placing must call `doc.place` (Python, Rust façade) or author a `PlaceInWorld`. The viewer's 73 `combine_ops` and 38 `creation_ops` rows are restated to read the placements their gestures author. This is the largest mechanical part of C, and the migration check (test 6) only covers regenerated files.
-- **The pose moving into the placement** (Q9). An instance on the world gauge has its offset moved into its placement's pose. One posed by mates or by a non-world gauge keeps its pose until stage 3. That is two homes for a world pose in the interim, which Ev accepted as transient (#4220, residue 3).
+- **Where a world pose lives** (Q9). C moves no offset: every instance keeps its offset, gauge or mates, and is placed at the identity (§4's migration note). The world pose of an instance therefore lives on the instance, and the `PlaceInWorld` pose holds only what a script authors, a transient home Ev accepted (#4220, residue 3) that stage 3 replaces (`a-world-gauge-instance-offset-did-not-move-into-its-placement`).
 - **E's diagnosis parity.** The four error families folding into one select error must not lose the `Diagnosis` the viewer shows. Test 16 pins it, and `refusal_concision_chains` (12 sites) will move.
 - **F and the at-rest gate.** Today the gate resolves a mate's face against the *gathered product's* name table (instance-qualified), not against the member's body. The two tables agree only when the qualifier is carried faithfully through the read. Q8 states how, and tests 19 and 22 check it.
 - **Re-blessing four times** (B, D, E, F). Each PR states which pins moved and why, and f64 digests are the guard.
@@ -503,6 +505,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
   - distinct by authoring, with the GUI offering the existing one;
   - repair addressed by body and name (`Rebind { body, from, to }`).
 - **Ev chose sets** (`Faces`/`Edges`). The edges that sharing a variable replaces are dependency-graph edges.
+- A vertex is a selection too (FORK-VTX): `FaceFrame` and a mate side read one `Face`; a `Measure` operand reads one selection of the kinds its primitive admits, or a `Body`.
 - E builds it.
 
 **FORK-4 — Re-pointing an operand.** *Ruled* (#4221, merged; row `an-operand-slot-is-re-pointed-by-the-slot-door`).
@@ -531,8 +534,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
    - So there is one resolution, at the selection, and none against the product table.
    - A member no placement reads has no world copy, and the mate mints nothing.
 9. **Where a stage-2 world pose lives** (Ev's residue 3: in the placement).
-   - **Recommendation:** C's migration moves a world-gauge instance's offset into its `PlaceInWorld` pose, and the instance sits at the empty offset.
-   - An instance posed by placing mates, or by a non-world gauge, keeps that pose until stage 3, which retires gauges and makes placement the bundle of mates, and gets an identity world placement.
+   - **As built:** C moves no offset. Every instance keeps its pose (its offset, gauge or placing mates) until stage 3, which retires gauges and makes placement the bundle of mates, and gets an identity world placement (§4's migration note). Moving a world-gauge instance's offset into the `PlaceInWorld` pose would grow the home stage 3 replaces; it is filed as `a-world-gauge-instance-offset-did-not-move-into-its-placement`.
    - Moving every gauge chain now would rebuild A11 (2) one stage before it is deleted.
 
 **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`), mapped to this spec:

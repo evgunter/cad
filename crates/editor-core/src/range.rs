@@ -132,11 +132,11 @@ pub enum RangeField {
     /// A free variable of the document, boxed directly.
     Param(VarId),
     /// A continuous slot of one node, widened through the free variable
-    /// it reads. That variable may be shared — a named one, or an
-    /// anonymous one several slots read (D10: sharing is reading one
-    /// variable) — and widening it moves every reader, not only this
-    /// slot: the certified range is the variable's, reported against the
-    /// slot it was asked through.
+    /// it reads. That variable may be shared — a named one several
+    /// slots read (D10: sharing is reading one variable; VR2: a shared
+    /// variable is named) — and widening it moves every reader, not
+    /// only this slot: the certified range is the variable's, reported
+    /// against the slot it was asked through.
     Slot {
         /// The node owning the slot.
         node: RecipeNodeId,

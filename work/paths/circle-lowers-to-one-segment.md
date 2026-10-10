@@ -26,7 +26,7 @@ Unit 4 of the #3218 lowering. `circle(c, r)` lowers through `circle_split`'s ker
   construction, and owns showing it.
 - An extruded one-segment cylinder cut ACROSS its wall by a plane (a
   slab, a pocket floor) refuses `Join(SingleSiteSectionLoop)`
-  (`work/join/closed-in-face-section-loop-has-one-site.md`), where
+  (`work/sect/closed-in-face-section-loop-has-one-site.md`), where
   today's two-arc cylinder builds. That row is parked on D10.
 - `lift::lift_seamed` still refuses fewer than two vertices
   (`LiftRefusal::TooFewVertices`, "the chain vocabulary spells a loop
@@ -45,4 +45,4 @@ Unit 4 of the #3218 lowering. `circle(c, r)` lowers through `circle_split`'s ker
     `a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it`.
 - A washer, an annular one-segment tube through a plate, still refuses
   when its two wrap edges sit at different azimuths. That is filed as
-  `work/join/annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided.md`.
+  `annular-one-segment-tube-through-a-plate-refuses-section-loop-undecided` (JOIN, closed by PR 4397).

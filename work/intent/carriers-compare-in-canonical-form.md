@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [coincidences-are-recorded-at-one-door, a-computed-value-re-enters-as-a-constant]
+blocked_on: [a-computed-value-re-enters-as-a-constant]
 ---
 
 INTENT stage 4, PR C, which absorbs PR D

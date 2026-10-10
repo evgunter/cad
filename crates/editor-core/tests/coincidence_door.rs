@@ -7,13 +7,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ang, fname, insert, len, on_frame, scl, table};
+use crate::fixture::{ang, fname, insert, len, len2, on_frame, scl, table};
 
 use editor_core::{
     Advisory, BooleanCoincidence, BooleanOp, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum,
-    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, NamedCell, NamedCoincidence, Node,
-    PartSelect, ProfileDoc, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf,
-    StableName, ValuePayload, coincide,
+    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
+    NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
+    ValuePayload, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -607,7 +608,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
     let [Ok(a), Ok(b)] = caps.each_ref().map(|c| match c {
         NamedCell::Entity { input, name } => coincide::construction(&doc, *input, name),
-        NamedCell::Tool { .. } => unreachable!(),
+        NamedCell::Tool { .. } | NamedCell::Piece { .. } => unreachable!(),
     }) else {
         panic!("both caps walk")
     };
@@ -685,4 +686,257 @@ fn the_fallbacks_carry_the_declared_rows() {
         );
         assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
     }
+}
+
+/// A one-loop profile program on a fresh xy frame.
+fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(
+        doc,
+        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            frame: plane.into(),
+            loops: vec![steps],
+            ids: Vec::new(),
+        }),
+    )
+}
+
+/// **A profile junction no constructor made is a row on its profile**
+/// (§11 row 21, at the document). A line meets an arc at a turn
+/// `φ = √ε` the lattice reads as a corner (`sin φ · arm`, far past the
+/// band) and validation's carrier clearance (`r(1 − cos φ) ≈ ε/2`)
+/// reads Zero: the profile builds, its node holds one
+/// `Tangent { aligned: true }` row decided at `ProfileJunction` over
+/// the line's piece and the arc's, and the check reports it unproven,
+/// the two pieces being two constructions. A circle, whose joints its
+/// form constructs, holds none.
+///
+/// Red if the junction refuses, or its row is not carried onto the
+/// profile's value (no row), or a constructed joint is recorded (the
+/// circle has one).
+#[test]
+fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
+    let phi = Tol::witness().eps().sqrt();
+    let c = [1.0 - phi.sin(), phi.cos()];
+    let doc = ProfileDoc::empty_derived("g_profile_junction", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
+            ProgramStep::ArcTo(ProgramArcData::Center {
+                c: len2(c),
+                winding: profile::ArcSweep::Ccw,
+                target: ProgramTarget::Point(len2([c[0], c[1] + 1.0])),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]),
+    );
+    let (doc, circle) = profile_of(
+        doc,
+        LoopProgram::Circle {
+            centre: len2([0.0, 0.0]),
+            radius: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, p);
+    assert_eq!(got.len(), 1, "one decided junction: {got:?}");
+    assert_eq!(
+        (got[0].relation, got[0].site),
+        (
+            Relation::Tangent { aligned: true },
+            DecisionSite::ProfileJunction
+        )
+    );
+    match &got[0].cells {
+        [
+            NamedCell::Piece {
+                profile: a,
+                piece: line,
+            },
+            NamedCell::Piece {
+                profile: b,
+                piece: arc,
+            },
+        ] => {
+            assert_eq!((*a, *b), (p, p), "both cells are the profile's own pieces");
+            assert_ne!(line, arc, "the arriving and leaving pieces are two");
+        }
+        cells => panic!("a junction's cells are two pieces: {cells:?}"),
+    }
+    assert!(
+        rows(&ev, circle).is_empty(),
+        "a circle's joints are constructed"
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].subject, FindingSubject::Node(p));
+    let CheckEvidence::UnprovenCoincidence { row, .. } = &findings[0].evidence else {
+        panic!("{:?}", findings[0].evidence)
+    };
+    assert_eq!(**row, got[0]);
+    let said = spoken_by(&findings[0], &doc);
+    assert!(
+        said.contains("continues tangent into")
+            && said.contains("a profile junction no constructor made")
+            && said.contains("the two cells are two constructions"),
+        "{said}"
+    );
+}
+
+/// **A same-carrier junction no constructor made is recorded
+/// `SameOriented`**, carrier identity, not a tangency between two
+/// carriers. A leg of `ε/10` turns off the line by its whole length,
+/// so the lattice (`sin φ · arm` over the long arriving leg) reads a
+/// corner while validation, reading the short leg's far end against
+/// the line, reads one carrier continuing: the node holds one
+/// `SameOriented` row at `ProfileJunction`, and the check says so.
+///
+/// Red if the same-carrier arm is recorded as `Tangent`, or not at all.
+#[test]
+fn a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row() {
+    let rise = 0.1 * Tol::witness().eps();
+    let doc = ProfileDoc::empty_derived("g_profile_same_carrier", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Chain(vec![
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([10.0, 0.0]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, rise]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, 5.0]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]),
+    );
+    let ev = run(&doc);
+    let got = rows(&ev, p);
+    assert_eq!(
+        got.iter().map(|r| (r.relation, r.site)).collect::<Vec<_>>(),
+        [(Relation::SameOriented, DecisionSite::ProfileJunction)],
+        "{got:?}"
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    let said = spoken_by(&findings[0], &doc);
+    assert!(
+        said.contains("continues on one carrier with")
+            && said.contains("a profile junction no constructor made"),
+        "{said}"
+    );
+}
+
+/// The names of `node`'s edges with both ends at height `z`.
+fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName> {
+    let body = match &ev.value(node).expect("the node evaluated").payload {
+        ValuePayload::Body(b) => b.clone(),
+        other => panic!("expected a body, got {other:?}"),
+    };
+    let height = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
+    let mut rim: Vec<StableName> = table(ev, node)
+        .iter()
+        .filter_map(|(n, entry)| match entry {
+            Entry::Unique(r) => match r.key {
+                EntityKey::Edge(e) => {
+                    let he = body.get_edge(e).unwrap().he_plus;
+                    let ends = [
+                        body.get_half_edge(he).unwrap().start,
+                        body.half_edge_end(he).unwrap(),
+                    ];
+                    ends.iter()
+                        .all(|&v| (height(v) - z).abs() < 1e-12)
+                        .then(|| n.clone())
+                }
+                _ => None,
+            },
+            Entry::Tied(_) => None,
+        })
+        .collect();
+    rim.sort();
+    rim
+}
+
+/// **A blend's tangent joints and coaxial supports leave the battery**.
+/// A disc (a circle profile extruded) filleted along its top rim: the
+/// fillet holds one `Coaxial` row per rim link, decided at
+/// `BatterySupportAxis` over the cap and the wall, and one
+/// `Tangent { aligned: true }` row per junction, decided at
+/// `BatteryJoint` over the two rim edges meeting there, each named by
+/// the disc's own names. The cap and the wall are two constructions,
+/// so each coaxiality is unproven.
+///
+/// Red if either decision stops being recorded, or is not carried to
+/// the fillet's value.
+#[test]
+fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
+    let doc = ProfileDoc::empty_derived("coincide-disc", Tol::witness());
+    let (doc, p) = profile_of(
+        doc,
+        LoopProgram::Circle {
+            centre: len2([0.0, 0.0]),
+            radius: len(1.0),
+        },
+    );
+    let (doc, disc) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let ev = run(&doc);
+    let rim = rim_named(&ev, disc, 1.0);
+    let (doc, fillet) = insert(doc, Node::fillet(disc, len(0.1), rim.clone()));
+    let ev = run(&doc);
+    let got = rows(&ev, fillet);
+    assert_eq!(rim.len(), 2, "the circle's rim is two arcs");
+    assert_eq!(got.len(), 4, "two supports, two joints: {got:?}");
+    let (axes, joints) = got.split_at(2);
+    for row in axes {
+        assert_eq!(
+            (row.relation, row.site),
+            (Relation::Coaxial, DecisionSite::BatterySupportAxis)
+        );
+        let kinds = row.cells.each_ref().map(|cell| match cell {
+            NamedCell::Entity { input, name } if *input == disc => name.kind,
+            cell => panic!("a support is a face of the disc: {cell:?}"),
+        });
+        assert_eq!(kinds, [EntityKind::Face; 2], "{row:?}");
+    }
+    for row in joints {
+        assert_eq!(
+            (row.relation, row.site),
+            (
+                Relation::Tangent { aligned: true },
+                DecisionSite::BatteryJoint
+            )
+        );
+        let names = row.cells.each_ref().map(|cell| match cell {
+            NamedCell::Entity { input, name } if *input == disc => name,
+            cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
+        });
+        assert!(
+            names[0] != names[1] && names.iter().all(|n| rim.contains(n)),
+            "a joint names the disc's two rim edges: {row:?}"
+        );
+    }
+    assert!(
+        got.iter()
+            .all(|row| matches!(coincide::prove(&doc, row), Proof::Unproven { .. }))
+    );
+    let findings = unproven(&doc, &ev);
+    assert_eq!(findings.len(), 4, "{findings:?}");
+    let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
+    assert!(
+        said.iter().any(|s| s.contains("shares an axis with")),
+        "{said:?}"
+    );
+    assert!(
+        said.iter()
+            .any(|s| s.contains("a blend chain's joint read as tangent")),
+        "{said:?}"
+    );
 }

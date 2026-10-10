@@ -2,10 +2,12 @@
 id: the-blends-g1-and-coaxiality-verdicts-are-unrecorded-coincidences
 kind: issue
 title: The blend battery's chain-G1 and support-coaxiality Zero verdicts are coincidences decided from values that no stage-4 unit records
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: M
+closed: 2026-10-10
+branch: intent/blend-g1-coaxiality-recorded
 ---
 
 
@@ -39,3 +41,27 @@ arms of their own), carried on `Blended::coincidences` beside the turn
 rows. The cells are the two links' edges, or the two supports. No unit
 of `docs/INTENT-STAGE4-SPEC.md` names these sites: G covers profile
 junctions, E the boolean's. The orchestrator places it.
+
+## Closed
+
+Both Zero arms record a row, carried on `Blended::coincidences` after
+the coaxiality rows and before the turn rows
+(`BatteryVerdict::coincidences`):
+
+- `fillet3_chain_g1` at a junction: `Relation::Tangent { aligned }`
+  between the two links' edges, at `DecisionSite::BatteryJoint`
+  (`battery.rs` `chain_turns`, rows on `BatteryVerdict::joints`).
+  `aligned` reads the two tangents, both heading into the junction,
+  as opposed. A self-closed link's own seam is one cell, so it
+  records nothing.
+- `fillet3_support_coaxiality`: `Relation::Coaxial` (a shared axis,
+  the torus rows) or `Relation::CoRuled` (a shared ruling, the cylinder
+  rows), both new, between the link's two support faces, at
+  `DecisionSite::BatterySupportAxis`
+  (`resolve_link`, on `Link::support_axis`). The planar rows decide
+  none.
+
+The rows are named by the document like the turn rows, and the lint
+reports each one unproven. A filleted disc reports both kinds. Pins:
+`sweep/tests/blend_value_decided_rows.rs` and `editor-core`'s
+`coincidence_door::a_filleted_disc_records_its_coaxial_supports_and_tangent_joints`.

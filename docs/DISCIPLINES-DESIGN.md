@@ -47,8 +47,8 @@ machinery; they differ in everything upstream of it.
   discovery is never declaration (F1 — no scan-to-bless); in-band
   escalates, never guesses.
 - **The three shipped disciplines**, each hand-built: profile
-  tangency (#101 — `profile::validate::judge_joints`, PATHS declares
-  by construction), carrier equality (the four-rung ladder,
+  tangency (#101 — `profile::validate::judge_joints`, PATHS constructs,
+  validation derives the rest and records it, D1), carrier equality (the four-rung ladder,
   `topo/src/boolean/carrier_eq.rs` module docs), declared contact
   (CONTACT-DESIGN C4 — per-class verify tables, four typed failures).
 - **The verify-table shape** (CONTACT-DESIGN C4): must-verify-DEFINITE
@@ -83,7 +83,7 @@ Every shipped discipline is the same five-part shape:
    κ_rel for `TangentIntersection`, order ∞/structural for
    conformality — the C1 pattern);
 2. a **declaration vocabulary** (recipe data by stable name:
-   `tangent_joints`, a boolean's declared pairs, each with its class), each record
+   a boolean's declared pairs, each with its class), each record
    carrying a **provenance** (DS7's ladder: constructor-authored /
    user-stated / auto-recorded);
 3. a **verify table** (must-verify-definite / contradiction triggers
@@ -164,11 +164,11 @@ wedge legality, prefer-intrinsic) resolves from sampled geometry,
 not from the declaration.
 Classification-grade disciplines therefore satisfy DS3's severity
 invariant and are dial-eligible (DS7) **in principle**; profile
-tangency stays at the strictest dial position as the ratified thesis
-default, and its declarations have non-check consumers regardless of
-dial (`ValidatedLoop::blend_arcs` — the structural
-fillet-identification API — and loft joint carriage), so PATHS
-constructors keep authoring them at every position.
+tangency is recorded at the coincidence door (D10; D1: a junction
+decided Zero that no constructor made is a tangent joint all the same,
+recorded for the `unproven-coincidence` lint), and its derived set has non-check
+consumers at every position (`ValidatedLoop::blend_arcs` — the
+structural fillet-identification API — and loft joint carriage).
 
 The criterion is checkable, not a judgment call: name the merge the
 declaration licenses, or the discipline is classification-grade.
@@ -226,10 +226,10 @@ Full discipline shape (declarations in the recipe, verified never
 trusted, in-band escalates at `require`) — knob-eligible by DS2/DS3.
 Residents:
 
-- **Profile tangency (built; dial at `require` as the ratified
-  default).** Reclassified here from the mandatory grade by DS2's
-  criterion; nothing about its current behavior changes, and moving
-  its default is a design conversation this doc does not open.
+- **Profile tangency (built; recorded at the coincidence door, D10).**
+  Reclassified here from the mandatory grade by DS2's criterion; D1's
+  profile tangency derives the set and records each junction no
+  constructor made at the coincidence door (D10), per evaluation.
 - **Declared right angles (reserved, not built** — the GS-Q2
   convexity posture**).** Perpendicularity is intent-only by
   construction: convention 4 makes the kernel equivariant, so no
@@ -420,7 +420,7 @@ not sincerity):
 - **constructor-authored** — intent structural in the verb (PATHS
   `.fillet(r)` declaring the tangency it constructs; shipped
   precedent). Present at every dial position.
-- **user-stated** — a boolean's declared pairs, `tangent_joints`, the
+- **user-stated** — a boolean's declared pairs, the
   detect/declare sugar; findings passed through user-visible hands
   as values (GS-Q3).
 - **auto-recorded** — machine-written at a definite finding's first
@@ -581,7 +581,7 @@ Consequences, binding on the implementing unit when it comes:
 | Grade | Kind | Placement criterion | Knob | Residents (built / named) |
 |---|---|---|---|---|
 | 1 | identification discipline | declaration licenses a quotient (DS2) | none, ever | carrier equality, declared contact (built) |
-| 2 | classification discipline | same solid whenever it builds (DS3) | ignore / auto-record / require | profile tangency (built, `require`); right angles (reserved) |
+| 2 | classification discipline | same solid whenever it builds (DS3) | ignore / auto-record / require | profile tangency (built, recorded at the coincidence door: D10); right angles (reserved) |
 | 3 | recipe-layer discipline | parameter-space stratum; kernel never sees it | ignore / auto-record / require | parameter coincidence (named) |
 | 4 | advisory check | pure analysis, findings only | off/warn/error; error requires a waiver door (DS6) | connectedness (built, Warn); sliver, moldability, machinability (I1, parked) |
 
@@ -634,11 +634,11 @@ which is a matter of taste.
   stroke. Needs its own small design pass with the first dialed
   discipline; findings must be keyed by stable name for the diff to
   survive edits at all.
-- **DS-Q6 — Profile tangency's dial.** DS2 reclassifies it as
-  dial-eligible; whether to actually expose its dial (vs. leaving it
-  pinned at `require` as thesis) is deliberately not proposed here.
-  Its declarations feed non-check consumers (`blend_arcs`, loft
-  carriage) and constructors author them at every position, so the
-  dial degrades those queries' coverage rather than their
-  correctness — recorded so the exposure decision is made with that
-  cost named.
+- **DS-Q6 — Profile tangency's dial.** Settled by D1's profile
+  tangency ("The tangent-joint set is derived at lowering, from the
+  constructors and the junction verdicts, never stored"): there is no
+  stored tangency to put behind a dial. A junction decided Zero that
+  no constructor made is recorded at the coincidence door (D10) for the
+  `unproven-coincidence` lint, and the lint is a per-run selection that
+  changes no body. `blend_arcs` and loft carriage read the derived set,
+  so no position degrades their coverage.

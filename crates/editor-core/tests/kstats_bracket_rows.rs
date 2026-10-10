@@ -36,7 +36,8 @@ use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
 
-/// A one-solid part: a `side`-wide square extruded 1 tall.
+/// A one-solid part: a `side`-wide square extruded 1 tall, placed in
+/// its world.
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -46,7 +47,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -54,9 +55,10 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
+/// An assembly instantiating `refs` in order, each placed in the world.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -65,7 +67,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::place_all(doc, &ids), ids)
 }
 
 /// The part's one Profile node.
@@ -287,6 +289,9 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
             (order[0], FRAME_LOG),
             (order[1], PROFILE_LOG),
             (order[2], EXTRUDE_LOG),
+            // The world placement at the identity places by doing
+            // nothing, so it decides nothing.
+            (order[3], 0),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
     );

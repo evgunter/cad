@@ -797,8 +797,7 @@ fn a_full_period_azimuth_window_is_served_by_both_doors() {
 }
 
 /// **A sphere face with a straight edge refuses at both doors.** `kfmrh`'s
-/// band door re-homes the flat disc's loop as a RING of the sphere face
-/// — the one public operator that puts a ring on a curved face at all —
+/// band door re-homes the flat disc's loop as a RING of the sphere face,
 /// and that loop carries the disc's two radial LINES, which are no arcs
 /// of the sphere: the region reading has no crossing for them, and the
 /// typed remainder stands. The sphere face arrives minted, so the

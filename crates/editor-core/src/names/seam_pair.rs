@@ -51,7 +51,8 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::Instance { of: n, .. }
-        | RoleSeg::InPart { of: n } => Head::Through(n),
+        | RoleSeg::InPart { of: n }
+        | RoleSeg::Placed { of: n } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // A union member's entity is NOT seen through: its seam belongs
         // to the member, whose pair order no union reorders, and is read

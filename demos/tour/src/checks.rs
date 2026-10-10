@@ -87,8 +87,10 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> Re
     )
 }
 
-/// Builds and evaluates a one-boolean document; returns the document,
-/// the boolean root, and the evaluation.
+/// Builds and evaluates a one-boolean document with the boolean placed
+/// in the world; returns the document, the placement (the subject the
+/// connectedness resident keys its expectations by), and the
+/// evaluation.
 fn boolean_doc(
     label: &str,
     op: BooleanOp,
@@ -99,7 +101,7 @@ fn boolean_doc(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let a = slab(&mut doc, a.0, a.1, a.2, a.3, tol);
     let b = slab(&mut doc, b.0, b.1, b.2, b.3, tol);
-    let root = insert(
+    let boolean = insert(
         &mut doc,
         Node::Boolean {
             op,
@@ -109,6 +111,10 @@ fn boolean_doc(
         },
         tol,
     );
+    let placed = apply(&doc, &DocEdit::place(boolean, None), tol, &RefusingReach)
+        .expect("the boolean places");
+    doc = placed.doc;
+    let placement = placed.record.minted.expect("a placement mints an id");
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -116,7 +122,7 @@ fn boolean_doc(
         &EvalOptions::default(),
         tol,
     );
-    (doc, root, ev)
+    (doc, placement, ev)
 }
 
 /// This scene's recipe, as a document the GUI can open: the two-cube
@@ -139,7 +145,7 @@ pub fn gallery_document(tol: Tol) -> ProfileDoc {
 pub fn narration(tol: Tol) {
     // (a) Two unit cubes three units apart, deliberately united into
     // one body: the finding fires at the default expectation.
-    let (doc, root, ev) = boolean_doc(
+    let (doc, placement, ev) = boolean_doc(
         "pncad-demo-checks-disjoint",
         BooleanOp::Union,
         (0.0, 0.5, 0.0, 1.0),
@@ -170,7 +176,7 @@ pub fn narration(tol: Tol) {
 
     // (b) The same document with the disjointness stated as data.
     let acknowledged = ChecksConfig {
-        expected_components: BTreeMap::from([((root, 0), 2)]),
+        expected_components: BTreeMap::from([((placement, 0), 2)]),
         ..ChecksConfig::default()
     };
     let report = run_checks(&doc, &ev, &acknowledged, tol).expect("checks run");
@@ -180,7 +186,7 @@ pub fn narration(tol: Tol) {
 
     // (c) The void birth: A ∖ B with B strictly inside. Two shells,
     // ONE component — a cavity is boundary, not a component.
-    let (doc, _root, ev) = boolean_doc(
+    let (doc, _placement, ev) = boolean_doc(
         "pncad-demo-checks-voided",
         BooleanOp::Subtract,
         (0.0, 1.5, 0.0, 3.0),
