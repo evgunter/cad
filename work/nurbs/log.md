@@ -431,3 +431,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the cost is undisclosed: composite 2.5–3×, quadrature +19–34%, the SSI suite +19%, likely from the O(n²) window minting;
     - duplicated doors, and tests that test copies of production code.
   - The fix pass went to build A. (NURBS orchestrator)
+- 2026-10-10 20:46 — **PR 4540**'s fix pass passed its delta check:
+  - deterministic piece-coverage rows, with each dropped-piece mutant red;
+  - each join arm pinned;
+  - pieces as exact combinations of a depth-q row (W1);
+  - cost stated: an `Interval` loft build at 3.7–5.5× main;
+  - `chart_stretch_inf` filed on PCERT.
+
+  Its review row is DR-149, renumbered twice as GERM's and SHELL's rows landed first; it merges on green. Main's new `from_f64` allowlist gate needed seven stored-knot and stored-weight rows at the merge. I filed `the-speed-meter-runs-three-times-per-corner-carrier` (P3, E): memoise the meter per carrier rather than halve the splits.
+- **PR 4551's** blinded coding: tally 0, fair, matching the pre-note. Its fix pass and PR 4553's are both still running. (NURBS orchestrator)
