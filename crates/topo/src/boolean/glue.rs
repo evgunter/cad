@@ -12,7 +12,9 @@
 //! a `Tangent` contact or, its senses aligned, a seam. From there the
 //! pair takes the arm a verified declaration of that class opens, and
 //! the declaration door records the decision ([`crate::coincidence`]),
-//! so a declared and an undeclared scene are one body.
+//! so a declared and an undeclared scene are one body. The decision is
+//! kept only where the two faces meet ([`touched`]): the boxes offer a
+//! frame-dependent superset of the pairs that do.
 //!
 //! A pair whose coincidence does not decide (in band, or poisoned) is
 //! left to the stage that meets it, which refuses it there: two faces

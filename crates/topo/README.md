@@ -61,8 +61,9 @@ operands. Three objects carry the design:
   without one (D1 (ii)).
 
 The coincidence ladder (D10): at the Boolean, a margin decided Zero
-glues, declared or not, and the decision is recorded
-(`crate::coincidence`) for the document's `unproven-coincidence` lint;
+glues, declared or not, and the decision is recorded where the glue
+takes effect, the two faces meeting (`crate::coincidence`), for the
+document's `unproven-coincidence` lint;
 a declaration is verified, never trusted, and bridges a margin in band;
 structure is decided at the document's door, not here. At rest,
 certification runs both ways — a finding with no backing declaration is

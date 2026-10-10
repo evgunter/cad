@@ -42,6 +42,16 @@ with its margin threaded out, which is
 `value-decided-vertex-fusions-are-recorded-with-the-undeclared-glue`'s
 half for the undeclared glue; the cited record is this unit's.
 
+## Added from E's review (orchestrator, 2026-10-10)
+
+A face-pair row is kept only where the glue took effect: E's glue door
+records a row for every box-overlapping pair the ladder decides one
+carrier, so its rows followed the frame (two blocks apart: 0 rows
+axis-aligned, 2 turned 45°). B2 keeps a face-pair row, declared or
+not, only where the reduction placed a cell of one face on a cell of
+the other (`boolean::glue::touched`), the same rule as the vertex
+fusions. Pinned in `topo/tests/records_cite_their_decision.rs`.
+
 ## The sites that move
 
 A grep of `VvContact|VfContact|VeContact|EeContact|CurveContact|PatchContact|ContactRecords`

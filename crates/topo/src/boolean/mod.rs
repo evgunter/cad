@@ -1956,8 +1956,9 @@ pub struct BooleanReduction<T: Real> {
     /// Each point where the insertion hung runs at a turned run's copy
     /// ([`HungPoint`]).
     pub(crate) hung: Vec<HungPoint>,
-    /// The coincidences the declaration door decided from values, in
-    /// operand keys ([`crate::coincidence`]).
+    /// The coincidences the declaration door decided from values whose
+    /// faces the sweep found meeting ([`glue::touched`]), in operand
+    /// keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
     /// The vertex identities the sweep decided, in decision order: the
     /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names

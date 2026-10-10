@@ -13,9 +13,12 @@
 //! input's table and the row survives whatever the operation later
 //! does to those cells (a merge, a split into fragments).
 //!
-//! What is recorded is what a ladder decides from a margin. A pair on
-//! one surface key is structure and is not recorded, and an ON verdict
-//! that only places topology is not a coincidence (D1).
+//! What is recorded is what a ladder decides from a margin and the
+//! result holds. A pair on one surface key is structure and is not
+//! recorded, and an ON verdict that only places topology is not a
+//! coincidence (D1): a boolean's face-pair decision is recorded only
+//! where the two faces meet, and a vertex identity only where a record
+//! citing it survives.
 
 use geom_core::MarginDiag;
 
