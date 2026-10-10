@@ -816,9 +816,14 @@ fn conic_side<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let n = face_normal.vec();
+    let refused = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::ConicBend,
+        diag,
+    };
     let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
-    // A spiric section has no bend this reading certifies: it lifts
-    // nothing, and the margin below cannot clear.
+    // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
+    // no bend this reading certifies: it lifts nothing, and the margin
+    // below cannot clear.
     let (lift, l) = match bend.bounds {
         BendBounds::Planar {
             least,
@@ -836,7 +841,7 @@ fn conic_side<T: Decide>(
             let l = extent.min(T::pi() * T::from_f64(0.5) / most);
             let half_turn = (least * l * T::from_f64(0.5)).sin();
             (
-                normal_part.abs() * half_turn.powi(2) * T::from_f64(2.0) / least,
+                normal_part * half_turn.powi(2) * T::from_f64(2.0) / least,
                 l,
             )
         }
@@ -844,28 +849,19 @@ fn conic_side<T: Decide>(
     };
     crate::validate::decide_positive(
         "bool_conic_bend",
-        Margin::of(lift - rise(dir, n, l).abs()),
+        Margin::of(lift.abs() - rise(dir, n, l).abs()),
         band,
     )
-    .map_err(|diag| BooleanError::Escalated {
-        decision: BooleanDecision::ConicBend,
-        diag,
-    })?;
-    // The lift that cleared is at most the sagitta `½·|κ·n̂|·l²`
-    // (`|κ·n̂| ≥ least·|N̂·n̂|` and `2·sin²(x/2) ≤ x²/2`), so the
-    // sagitta's sign is decided wherever the lift's was.
-    match crate::validate::decide_nonzero(
-        "bool_conic_bend_side",
-        Margin::sagitta(bend.curvature.dot(n), l),
-        band,
-    ) {
+    .map_err(refused)?;
+    // The signed lift is the one that just cleared, so its sign is
+    // decided wherever the margin was; the arm refuses rather than
+    // trusting that.
+    match crate::validate::decide_nonzero("bool_conic_bend_side", Margin::of(lift), band) {
         // Same mapping as `enters_material`: into the material is
         // against the outward normal.
         Ok(NonzeroSign::Negative) => Ok(SideCode::In),
         Ok(NonzeroSign::Positive) => Ok(SideCode::Out),
-        Err(_) => unreachable!(
-            "a bend whose certified lift cleared the band has a sagitta at least as large"
-        ),
+        Err(diag) => Err(refused(diag)),
     }
 }
 

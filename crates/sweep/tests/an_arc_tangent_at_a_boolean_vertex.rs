@@ -418,12 +418,13 @@ fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
 /// **The tilted dip off the vertex-on-face pass, printed** (review probe,
 /// R1 of PR 4575): its rim vertex on the slab's top EDGE (`x ∈ [2, 5]`)
 /// and at a slab CORNER (`y ∈ [0, 6]`), and with the slab beside it
-/// (`x ∈ [0, 2]`). At the frozen head `edge` refuses
+/// (`x ∈ [0, 2]`). Measured at 5ca970782b, `edge` refuses
 /// `Join(UnpairedLooseEnds { count: 2 })`, the first-order signature
 /// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`);
 /// descending in `side_code` too moves it to `ClassificationInvariant`.
 /// `corner` and `beside-corner` refuse `CurvedPierceUnsupported`; `beside`
-/// answers. Run with `--ignored --nocapture`.
+/// answers. It asserts nothing. Run:
+/// `cargo test -p sweep --test all review_tilted_dip_off_the_vertex_on_face_pass -- --ignored --nocapture`
 #[test]
 #[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
 fn review_tilted_dip_off_the_vertex_on_face_pass() {

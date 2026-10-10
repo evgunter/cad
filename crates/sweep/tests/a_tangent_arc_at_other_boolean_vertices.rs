@@ -107,7 +107,8 @@ fn outcome(r: R) -> Result<f64, String> {
 /// through the rim vertex refuses every op `Join(UnpairedLooseEnds {
 /// count: 2 })`, the first-order arc's signature at the vertex-on-face
 /// pass before the PR, and every posture with a slab face at y = 0
-/// refuses `CurvedPierceUnsupported` first.
+/// refuses `CurvedPierceUnsupported` first. It asserts nothing. Run:
+/// `cargo test -p sweep --test all a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures -- --ignored --nocapture`
 #[test]
 #[ignore = "reviewer probe: prints; run with --ignored --nocapture"]
 fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {

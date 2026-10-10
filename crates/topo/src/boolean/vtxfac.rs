@@ -136,7 +136,8 @@ pub(super) fn pierced_and_paired(
 }
 
 /// The pierced face's oriented datum at a pierce point: its outward
-/// normal and the lever its side verdicts charge ([`side_code`]).
+/// normal, its shape, and the lever its side verdicts charge
+/// ([`super::sectors::pierce_side`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PierceDatum<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
@@ -471,7 +472,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         };
     // The pierced face's smallest radius of curvature within each
     // bound's reach — the lever the sector side verdicts charge their
-    // sagitta against (`side_code`'s argument), so it must bound the
+    // sagitta against (`pierce_side`'s argument), so it must bound the
     // tightest bend, not the chart's scale: on a fat torus those differ,
     // and on a cone the bend tightens toward the axis. A plane reports
     // `f64::MAX`, so its charge is vacuous and the planar lane's
@@ -884,6 +885,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         entries[(k + 1) % n].lumped = true;
     }
 
+    if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
+        return Err(refusal);
+    }
+
     // On-edge resolution (module docs; the deliberate divergence).
     for k in 0..n {
         if entries[k].class == SideCode::On && entries[(k + 1) % n].class == SideCode::On {
@@ -891,9 +896,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 what: "consecutive On entries after Eq. 15.3 lumping",
             });
         }
-    }
-    if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
-        return Err(refusal);
     }
     resolve_on_entries(&mut entries, band)?;
 
@@ -1268,11 +1270,12 @@ fn germ_order<T: Decide>(
 /// Delta 2's lumps.
 ///
 /// An edge entry's On is a real one for a LINE edge: its far vertex is
-/// within the band of the plane (`side_code`, `Reach::Chord`), so the
+/// within the band of the plane (`pierce_side`, `Reach::Chord`), so the
 /// edge lies in it to the tolerance and the resolution is ε-true of it.
-/// A conic edge's On against a plane is as real: its tangent and its
-/// bend both read within the band (`Reach::Conic`,
-/// `sectors::conic_side`). Against a curved face, and for a fitted
+/// A conic edge's On against a plane is as real: its height bound over
+/// the whole arc reads within the band (`Reach::Conic`,
+/// `sectors::conic_side`); a tie whose bend reads no side is lumped or
+/// refuses before this runs. Against a curved face, and for a fitted
 /// edge's chord (`Reach::Extent`), it is a first-order tie
 /// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
