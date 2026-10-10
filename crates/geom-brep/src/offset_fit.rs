@@ -2784,11 +2784,11 @@ mod tests {
     /// only thing that differs between them is the expression under
     /// test.
     ///
-    /// **On the cap grid the sup cell is one of a tie.** The cells
-    /// along `v` at `u = 21` agree to the digits pinned here (this
-    /// surface's weights are constant along `v`, so the `v` insertion
-    /// fold adds the weight channel no width), and which one carries
-    /// the sup is decided below them.
+    /// **The sup cell is one of a tie.** Cells across the grid agree
+    /// to the digits pinned here — on the `1e-3` grid `(0, 3)` and
+    /// `(21, 6)` to nine — and which one carries the sup is decided
+    /// below them, so the cell indices are pinned as the tie's winner,
+    /// not as a property of the fit.
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();
@@ -2815,7 +2815,7 @@ mod tests {
         assert_eq!((cert.rounds, cert.cells), (4, 308));
         let comp = Composite::build(&base, &fit, d).unwrap();
         let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
-        assert_eq!((su, sv), (21, 6));
+        assert_eq!((su, sv), (0, 3));
         assert!(near(sup, 1.7006e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
@@ -2862,7 +2862,7 @@ mod tests {
         assert_eq!((cert5.rounds, cert5.cells), (5, 364));
         let comp5 = Composite::build(&base, &fit5, d).unwrap();
         let (su5, sv5, sup5) = sup_cell(&comp5, reg.floor, d, ELow::Witness);
-        assert_eq!((su5, sv5), (21, 3));
+        assert_eq!((su5, sv5), (4, 3));
         let (dist5, tau5, t35, e_lo5, _) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Witness);
         // The SAME quantity `tests/offset_fit.rs`'s
         // `a_micron_scale_offset_certifies_and_names_its_limit` pins as
