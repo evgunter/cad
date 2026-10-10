@@ -10175,9 +10175,10 @@ mod fitted_lane_routing_tests {
     /// **A pairing the certificate is not written for refuses as that,
     /// ahead of a degenerate face's chart speeds.** Mending the face
     /// would still meet the routing boundary, so the boundary answers
-    /// first: a NURBS mate (whose limbs have no traced pcurve) and a
-    /// non-plane analytic mate of a NURBS face, each against the point
-    /// wall.
+    /// first: a NURBS mate of an analytic face (whose limbs have no
+    /// traced pcurve) and a non-plane analytic mate of a NURBS face, each
+    /// with the point wall. Two spline charts are no routing boundary:
+    /// they certify with the two-chart tube.
     #[test]
     fn the_routing_boundary_answers_before_the_chart_mint() {
         let lin = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -10203,8 +10204,8 @@ mod fitted_lane_routing_tests {
         let carrier = Curve3::Nurbs(Arc::new(carrier));
         for (name, surface, mate, want) in [
             (
-                "NURBS × NURBS",
-                point_wall(),
+                "NURBS × cylinder",
+                cylinder.clone(),
                 point_wall(),
                 NURBS_LIMBS_NEED_PCURVE,
             ),

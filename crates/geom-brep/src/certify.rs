@@ -339,13 +339,14 @@ pub enum CertifyError {
     /// module's), or a `Nurbs` carrier arrived under a conventional
     /// (`MappedCurve`/`Seam`) description.
     ///
-    /// TWO `Intersection` rungs certify, and this variant is what is
+    /// THREE `Intersection` rungs certify, and this variant is what is
     /// left over. The analytic rung: both operands analytic (M5 PR 9,
     /// C12.3 — the class the curved-boolean zip mints). The **plane ×
     /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
     /// wall, declare-and-check, through the [`NurbsLane`] — a caller
     /// with none in hand gets [`CertifyError::NurbsLaneNotSupplied`].
-    /// NURBS × NURBS has no certificate in this build.
+    /// The **NURBS × NURBS** rung: two spline charts, through the same
+    /// lane. A spline beside a curved analytic surface has none.
     Unimplemented,
     /// An `Intersection` of a PLANE and a described NURBS wall (M7-8)
     /// reached a door that supplied **no plane × NURBS lane**
@@ -538,8 +539,9 @@ impl core::fmt::Display for CertifyError {
                 "a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
                  carriers certify as the Intersection of two analytic surfaces, or of \
-                 one plane and one described NURBS wall through the declare-and-check \
-                 lane; NURBS x NURBS has no certificate"
+                 one plane and one described NURBS wall, or of two spline charts, through \
+                 the declare-and-check lane; a spline beside a curved analytic surface has \
+                 no certificate"
             ),
             Self::NurbsLaneNotSupplied => write!(
                 f,

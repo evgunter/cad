@@ -27,9 +27,9 @@
 //!   "marching finds it" never depends on luck.
 //! - [`enclose`] supplies every certified bound, in certification arithmetic only.
 //!
-//! # The two arms wired here (spec §5, minimal by rule)
+//! # The three arms wired here
 //!
-//! Exactly the surface pairs the M5 acceptance shapes need. Every other
+//! Every other
 //! rung-3 arm of the C5 table keeps its typed refusal **citing its
 //! unimplemented trace shape** — per-arm retirement, never wholesale
 //! (C12.1).
@@ -38,6 +38,7 @@
 //! |---|---|---|
 //! | [`cylinder_sphere_ssi`] | **ℝ³** implicit pair, 2×3 SVD | shape (iv)'s planted small loop and the σ₂-sliver row — **retired**, all three limbs (M5 PR 7) |
 //! | [`plane_nurbs_ssi`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b) |
+//! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
 //!
 //! # The plane×NURBS arm's retirement (M5 PR 7b)
 //!

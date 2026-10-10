@@ -4,9 +4,11 @@
 //! `S₁(u₁, v₁) = S₂(u₂, v₂)` over the product of the two knot
 //! rectangles, traced in ℝ⁴ on the state `(u₁, v₁, u₂, v₂)` by the same
 //! marcher, fit and C2 certificate the plane × NURBS lane uses, its
-//! limb 3 the two-chart tube ([`super::four`]). [`Section::of`] runs the
-//! boundary pass once and returns a handle; its two readings are one
-//! contract:
+//! limb 3 the two-chart tube ([`super::four`]). [`Section::of`] returns
+//! a handle that runs the boundary pass once, at the first reading that
+//! needs its crossings, so a seed refused before any trace (off both
+//! charts, or where they are tangent) costs no pass. Its two readings are
+//! one contract:
 //!
 //! - [`Section::branch_at`] answers the branch through a seed: a seed
 //!   that settles into a tube already certified is that branch; any
@@ -65,7 +67,8 @@ pub struct Section<'a> {
     domain: SsiDomain,
     band: Band,
     speeds: [f64; 4],
-    crossings: Vec<Crossing>,
+    /// The boundary pass's crossings, once it has run.
+    crossings: Option<Vec<Crossing>>,
     branches: Vec<SsiBranch>,
     tubes: Vec<Vec<Box4>>,
 }
@@ -73,7 +76,7 @@ pub struct Section<'a> {
 impl core::fmt::Debug for Section<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Section")
-            .field("crossings", &self.crossings.len())
+            .field("crossings", &self.crossings.as_ref().map(Vec::len))
             .field("branches", &self.branches.len())
             .finish_non_exhaustive()
     }
@@ -98,18 +101,17 @@ fn net_box(s: &NurbsSurface<f64>) -> Option<Box3> {
 }
 
 impl<'a> Section<'a> {
-    /// **The section of `s1` and `s2`**: the operands checked, both
-    /// charts' speeds minted, and the boundary pass run over the product
-    /// of their knot rectangles. `domain` names the feature extent and
+    /// **The section of `s1` and `s2`**: the operands checked and both
+    /// charts' speeds minted; the boundary pass over the product of their
+    /// knot rectangles runs once, at the first reading that needs it.
+    /// `domain` names the feature extent and
     /// the accounting floor's scale; its centre and half-extent, a
     /// window a plane needs, bound nothing here: the rectangles do.
     ///
     /// # Errors
     ///
     /// [`SsiError::OperandNotFinite`], [`SsiError::DomainUnusable`],
-    /// [`SsiError::ChartSpeed`], [`SsiError::SettlingUnresolvable`],
-    /// [`SsiError::PairBoundaryUnresolved`], and
-    /// [`SsiError::EndNotOnLocus`] for a crossing that will not settle.
+    /// [`SsiError::ChartSpeed`] and [`SsiError::SettlingUnresolvable`].
     pub fn of(
         s1: &'a NurbsSurface<f64>,
         s2: &'a NurbsSurface<f64>,
@@ -150,7 +152,7 @@ impl<'a> Section<'a> {
             a: Chart::Nurbs(s1),
             b: Chart::Nurbs(s2),
         };
-        let mut section = Self {
+        Ok(Self {
             a,
             b,
             sys,
@@ -158,12 +160,10 @@ impl<'a> Section<'a> {
             domain,
             band,
             speeds,
-            crossings: Vec::new(),
+            crossings: None,
             branches: Vec::new(),
             tubes: Vec::new(),
-        };
-        section.crossings = section.boundary_pass()?;
-        Ok(section)
+        })
     }
 
     /// The pair's boxes.
@@ -261,10 +261,26 @@ impl<'a> Section<'a> {
         })
     }
 
+    /// The boundary pass's crossings, the pass run here if no reading has
+    /// run it yet.
+    fn pass(&mut self) -> Result<Vec<Crossing>, SsiError> {
+        if let Some(c) = &self.crossings {
+            return Ok(c.clone());
+        }
+        let c = self.boundary_pass()?;
+        self.crossings = Some(c.clone());
+        Ok(c)
+    }
+
     /// The crossings the boundary pass found.
-    #[must_use]
-    pub fn crossings(&self) -> Vec<BoundaryPoint> {
-        self.crossings.iter().map(|c| c.at).collect()
+    ///
+    /// # Errors
+    ///
+    /// The boundary pass's refusals: [`SsiError::PairBoundaryUnresolved`],
+    /// and [`SsiError::EndNotOnLocus`] for a crossing that will not
+    /// settle.
+    pub fn crossings(&mut self) -> Result<Vec<BoundaryPoint>, SsiError> {
+        Ok(self.pass()?.iter().map(|c| c.at).collect())
     }
 
     /// The tube a certified branch proved, as ℝ⁴ boxes: the product of
@@ -304,7 +320,8 @@ impl<'a> Section<'a> {
     /// settles outside either rectangle (the section leaves the charts'
     /// windows there), the transversality decision at the settled state
     /// ([`SsiError::TransversalityBand`] where the two surfaces are
-    /// tangent there), any refusal of the trace, the fit or the
+    /// tangent there), the boundary pass's ([`Section::crossings`]), any
+    /// refusal of the trace, the fit or the
     /// certificate, and [`SsiError::SeedOutsideTube`] where the certified
     /// branch's tube does not hold the settled seed.
     pub fn branch_at(&mut self, seed: Point3<f64>) -> Result<&SsiBranch, SsiError> {
@@ -331,8 +348,9 @@ impl<'a> Section<'a> {
         if let Some(i) = self.holding(&x) {
             return Ok(&self.branches[i]);
         }
+        let crossings = self.pass()?;
         let ends = self.ends();
-        let (states, end) = ends.through_seed(x, &self.crossings)?;
+        let (states, end) = ends.through_seed(x, &crossings)?;
         let branch = ends.finish(&states, end)?;
         let i = self.bank(branch);
         if self.tubes[i].iter().any(|b| b.holds(&x)) {
@@ -350,27 +368,20 @@ impl<'a> Section<'a> {
     ///
     /// # Errors
     ///
-    /// Any refusal of the trace, the fit or the certificate on a branch
+    /// The boundary pass's ([`Section::crossings`]), any refusal of the
+    /// trace, the fit or the certificate on a branch
     /// between crossings, of a closed loop's march where no tube holds
     /// its seed, and the accounting's ([`SsiError::ExhaustivenessInconclusive`],
     /// [`SsiError::CellBudget`], [`SsiError::FloorUnresolvable`]).
     pub fn all(mut self) -> Result<SsiOutcome, SsiError> {
         let pair = self.boxes();
-        let r = root(self.a.surface(), self.b.surface());
-        let fastest = self.speeds.iter().copied().fold(0.0, f64::max);
-        let cell = PairCell {
-            b: r,
-            scale: self.speeds.map(|s| s / fastest),
-        };
-        let speed = SupSpeed::new(fastest);
-        let account_floor = SweepFloor::pair(
-            cell,
-            self.domain.floor(self.band),
+        let (root_cell, speed) = self.root_cell();
+        let seed_floor = SweepFloor::pair(
+            root_cell,
+            self.domain.seed_floor(),
             speed,
-            FloorKind::Accounting,
+            FloorKind::Seeding,
         )?;
-        let seed_floor =
-            SweepFloor::pair(cell, self.domain.seed_floor(), speed, FloorKind::Seeding)?;
 
         // ---- the open branches, between the crossings not yet ended ----
         let ended: Vec<BoundaryPoint> = self
@@ -383,9 +394,8 @@ impl<'a> Section<'a> {
             .flatten()
             .collect();
         let open: Vec<Crossing> = self
-            .crossings
-            .iter()
-            .copied()
+            .pass()?
+            .into_iter()
             .filter(|c| !ended.contains(&c.at))
             .collect();
         let found = self.ends().branches(&open)?;
@@ -431,21 +441,112 @@ impl<'a> Section<'a> {
             return Err(e);
         }
 
-        let tubes: Vec<PairCell> = self
-            .tubes
-            .iter()
-            .flatten()
-            .map(|&b| PairCell {
-                b,
-                scale: cell.scale,
-            })
-            .collect();
-        let exhaustiveness = exhaust::account_pair(&pair, &tubes, account_floor)?;
+        let exhaustiveness = self.account(&self.tubes)?;
         Ok(SsiOutcome {
             branches: self.branches,
             boundary: Vec::new(),
             exhaustiveness,
             seeds: seed_count,
         })
+    }
+
+    /// The product of the two knot rectangles as the pair lane's root
+    /// cell, and the fastest of the four chart speeds its floors are
+    /// stated at.
+    fn root_cell(&self) -> (PairCell, SupSpeed<f64>) {
+        let fastest = self.speeds.iter().copied().fold(0.0, f64::max);
+        let cell = PairCell {
+            b: root(self.a.surface(), self.b.surface()),
+            scale: self.speeds.map(|s| s / fastest),
+        };
+        (cell, SupSpeed::new(fastest))
+    }
+
+    /// **The accounting**: every cell of the product excluded or inside
+    /// one of `tubes`, at the domain's floor.
+    fn account(&self, tubes: &[Vec<Box4>]) -> Result<super::Exhaustiveness, SsiError> {
+        let (root_cell, speed) = self.root_cell();
+        let floor = SweepFloor::pair(
+            root_cell,
+            self.domain.floor(self.band),
+            speed,
+            FloorKind::Accounting,
+        )?;
+        let cells: Vec<PairCell> = tubes
+            .iter()
+            .flatten()
+            .map(|&b| PairCell {
+                b,
+                scale: root_cell.scale,
+            })
+            .collect();
+        exhaust::account_pair(&self.boxes(), &cells, floor)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3};
+
+    use super::Section;
+    use crate::ssi::{SsiDomain, SsiError};
+
+    /// `z = (x − ½)²` over the unit square, and the plane `z = 0.04 +
+    /// 0.05·y` over `[−0.2, 1.2]²` as a biquadratic: two branches.
+    fn pair() -> (NurbsSurface<f64>, NurbsSurface<f64>) {
+        let k = |(a, b): (f64, f64)| KnotVector::clamped(vec![a, a, a, b, b, b], 2).unwrap();
+        let net = |(x0, x1): (f64, f64), z: &dyn Fn(usize, usize) -> f64| {
+            let control = (0..9)
+                .map(|n| {
+                    let (i, j) = (n / 3, n % 3);
+                    let at = |t: usize| x0 + 0.5 * (x1 - x0) * t as f64;
+                    Point3::new(at(i), at(j), z(i, j))
+                })
+                .collect();
+            NurbsSurface::new(k((x0, x1)), k((x0, x1)), control, vec![1.0; 9]).unwrap()
+        };
+        let trough = net((0.0, 1.0), &|i, _| [0.25, -0.25, 0.25][i]);
+        let plane = net((-0.2, 1.2), &|_, j| 0.04 + 0.05 * (-0.2 + 0.7 * j as f64));
+        (trough, plane)
+    }
+
+    /// **The exhaustiveness receipt is red if a branch is dropped.** The
+    /// accounting `all` runs closes over both branches' tubes, and the
+    /// same accounting over one of them refuses at the floor: the other
+    /// branch's cells are neither excluded nor accounted.
+    #[test]
+    fn dropping_a_branch_reddens_the_accounting() {
+        let (s1, s2) = pair();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.5),
+            half_extent: 2.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let mut section = Section::of(&s1, &s2, domain, band).unwrap();
+        let y = 0.4;
+        let (z, r) = (0.04 + 0.05 * y, (0.04_f64 + 0.05 * y).sqrt());
+        for x in [0.5 - r, 0.5 + r] {
+            section.branch_at(Point3::new(x, y, z)).unwrap();
+        }
+        assert_eq!(section.tubes.len(), 2, "both branches certified");
+        let whole = section
+            .account(&section.tubes)
+            .expect("both tubes close it");
+        assert!(whole.accounted > 0, "{whole}");
+        for dropped in 0..2 {
+            let kept = vec![section.tubes[1 - dropped].clone()];
+            let e = section
+                .account(&kept)
+                .expect_err("one branch's cells are left unaccounted");
+            assert!(
+                matches!(e, SsiError::ExhaustivenessInconclusive(_)),
+                "dropping branch {dropped}: {e:?}"
+            );
+        }
     }
 }

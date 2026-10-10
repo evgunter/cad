@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, NurbsSurface};
+use geom_brep::offset_fit::approx_offset_surface_at;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::{BoundaryChart, Section, SsiDomain, SsiError, SsiTube};
 use geom_core::Point3;
@@ -115,6 +116,7 @@ fn two_bilinear_patches_cross_at_their_closed_form() {
     }
     let v1 = section
         .crossings()
+        .expect("the boundary pass")
         .into_iter()
         .find(|p| p.side.end == geom_brep::ChartEnd::High)
         .expect("the crossing on the saddle's v = 1 side");
@@ -278,6 +280,115 @@ fn a_near_tangent_pair_refuses_at_the_seed() {
     let e = section
         .branch_at(Point3::new(0.5, 0.5, 0.0))
         .expect_err("a seed where the two surfaces are tangent");
+    assert!(
+        matches!(
+            e,
+            SsiError::TransversalityBand { .. }
+                | SsiError::Escalated {
+                    decision: geom_brep::TraceDecision::Transversality
+                        | geom_brep::TraceDecision::TransversalityArm,
+                    ..
+                }
+        ),
+        "the seed's transversality refuses: {e:?}"
+    );
+}
+
+/// The offset fit of `base` at `d`, certified to the run's ε: the
+/// approximating surface the offset door mints, as its spline chart.
+fn fit(base: NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
+    let s = approx_offset_surface_at(std::sync::Arc::new(base), d, eps(), band())
+        .expect("the offset fit certifies");
+    s.spline_chart().expect("a fit has a spline chart").clone()
+}
+
+/// **Two fits crossing at a crease.** Two planar walls meeting at a right
+/// angle, `x = 0` and `y = 0`, each offset by `d` into the corner as the
+/// offset door mints it, a fit; the section of the two fits is the line
+/// `x = y = d`, and `branch_at` the old crease's middle certifies it
+/// there, from the first fit's `v = 0` side to its `v = 1` side.
+#[test]
+fn two_fits_cross_at_their_offset_crease() {
+    let d = 0.05;
+    let a = bilinear(
+        [
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0],
+        ],
+        (0.0, 1.0),
+        (0.0, 1.0),
+    );
+    // `S_u × S_v` is `−y` on the second wall, so `−d` moves it into the
+    // corner; it runs past the first in height, so the section's ends
+    // are the first fit's sides alone.
+    let b = bilinear(
+        [
+            [0.0, 0.0, -0.2],
+            [1.0, 0.0, -0.2],
+            [0.0, 0.0, 1.2],
+            [1.0, 0.0, 1.2],
+        ],
+        (0.0, 1.0),
+        (0.0, 1.0),
+    );
+    let (fa, fb) = (fit(a, d), fit(b, -d));
+    let mut section = Section::of(&fa, &fb, domain(), band()).expect("the section");
+    let branch = section
+        .branch_at(Point3::new(0.0, 0.0, 0.5))
+        .expect("the branch through the old crease's middle");
+    let (t0, t1) = branch.params;
+    let off = (0..=100)
+        .map(|i| {
+            let p = branch.carrier.eval(t0 + (t1 - t0) * f64::from(i) / 100.0);
+            (p.x - d).abs().max((p.y - d).abs())
+        })
+        .fold(0.0, f64::max);
+    assert!(off <= 2.0 * eps(), "the carrier is {off:e} m off x = y = d");
+    let (z0, z1) = (branch.carrier.eval(t0).z, branch.carrier.eval(t1).z);
+    assert!(
+        z0.min(z1).abs() <= eps() && (z0.max(z1) - 1.0).abs() <= eps(),
+        "it spans the first fit's height: z from {z0} to {z1}"
+    );
+}
+
+/// **Two fits sharing a smooth seam refuse at the seed, by the section's
+/// own transversality decision** — the case
+/// `work/shell/two-fits-sharing-a-smooth-seam-disagree-by-their-certificates.md`
+/// owns, in its plainest form: two coplanar walls, `z = 0` over
+/// `x ≤ 0` and over `x ≥ 0`, offset alike. Planar walls fit exactly, so
+/// the two fits meet along their shared offset row tangent to each
+/// other, and the seam's seed settles where the section's
+/// transversality is zero.
+#[test]
+fn two_fits_sharing_a_smooth_seam_refuse_at_the_seed() {
+    let d = 0.05;
+    let left = bilinear(
+        [
+            [-1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [-1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
+        (0.0, 1.0),
+        (0.0, 1.0),
+    );
+    let right = bilinear(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+        ],
+        (0.0, 1.0),
+        (0.0, 1.0),
+    );
+    let (fl, fr) = (fit(left, d), fit(right, d));
+    let mut section = Section::of(&fl, &fr, domain(), band()).expect("the section");
+    let e = section
+        .branch_at(Point3::new(0.0, 0.5, d))
+        .expect_err("two fits tangent along their seam");
     assert!(
         matches!(
             e,

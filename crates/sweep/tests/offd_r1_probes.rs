@@ -352,8 +352,8 @@ fn every_err_path_leaves_the_body_bit_untouched() {
             "d = {d} ({e}): the body must be bit-untouched on Err"
         );
     }
-    // The fitted wall's seam, both signs: it refuses AFTER the fit door
-    // ran but BEFORE any mutation.
+    // The fitted wall's seam with a held wall, both signs: it refuses
+    // AFTER the fit door ran but BEFORE any mutation.
     for d in [5e-10_f64, -5e-10] {
         let mut body = prism();
         let wall = body
@@ -369,16 +369,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         let before = dump(&body);
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("the fitted boundary refuses");
-        assert!(
-            matches!(
-                e,
-                ReplaceFaceError::NeighborPairUnroutable {
-                    kind: geom::SurfaceKind::Approx,
-                    ..
-                }
-            ),
-            "got {e}"
-        );
+        assert!(seam_refused(&e), "got {e}");
         assert_eq!(
             dump(&body),
             before,
@@ -437,11 +428,11 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
 /// The prism's walls are PLANAR splines; the twisted loft's saddle
 /// walls are genuinely curved, so this row runs the door on both: the
 /// fit door must still run (a fit refusal would surface as `Fit`) and
-/// the refusal must still be the structural one, at a seam with the
-/// next, unmoved spline wall. That seam is a row of the wall's own fit,
-/// but its neighbour is a distinct spline face, which does not move
-/// with it, so the edge is their section: `Approx × Nurbs`, which has
-/// no arm (`NeighborPairUnroutable`), pinned exactly per fixture.
+/// the refusal must be an edge's own refused section of the moved fit:
+/// a seam with the next, unmoved spline wall, whose section the
+/// NURBS × NURBS arm refuses along the fit's side ([`seam_refused`]), or
+/// on the loft the top rim, which leaves the fit's window and is
+/// reported first where the seams' refusals are deferred alike.
 ///
 /// **The curved fixture's outcome depends on ε, and on every ε row CI
 /// gates it is the structural arm.** The offset door's fit target is
@@ -489,11 +480,7 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
         let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
             .expect_err("the fitted boundary refuses");
         match e {
-            ReplaceFaceError::NeighborPairUnroutable {
-                kind: geom::SurfaceKind::Approx,
-                other_kind: geom::SurfaceKind::Nurbs,
-                ..
-            } => {}
+            ref e if section_refused(e) => {}
             // The fit could not reach this run's ε, so the structural
             // door was never reached. Legitimate only where the base is
             // genuinely curved AND the run's ε is tighter than what the
@@ -514,23 +501,24 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
                     Tol::witness().eps()
                 );
             }
-            other => panic!(
-                "{name}: expected the seam's unroutable pair or the fit's refusal, got {other}"
-            ),
+            other => panic!("{name}: expected a refused section or the fit's refusal, got {other}"),
         }
     }
 }
 
-/// **Moved together, the walls refuse at a seam between two moved fits.**
-/// The general simultaneous door moves every chart of the solid by
-/// `100·ε` — a move the door reads as one at every ε row (`5e-10` is
-/// decided zero at 1e-9), and small enough for the twisted wall's fit to
-/// certify wherever it does at `5e-10` — so a wall's seam with the next
-/// wall is no longer a row shared with a held neighbour: both walls
-/// move, the seam is the section of their two fits, and C5 has no arm
-/// for it.
+/// **Moved together outward, every edge leaves the fits' windows.** The
+/// general simultaneous door moves every chart of the solid by `100·ε` —
+/// a move the door reads as one at every ε row (`5e-10` is decided zero
+/// at 1e-9), and small enough for the twisted wall's fit to certify
+/// wherever it does at `5e-10`. A wall's seam with the next wall is then
+/// the section of their two moved fits, which the NURBS × NURBS arm
+/// takes; outward at a convex crease that section lies `d·cot(φ/2)`
+/// outside both fits' windows, the bases' own, so its seed settles off
+/// both charts and the seam refuses by that window verdict. Each moved
+/// cap plane misses its walls' fits the same way, and that rim's
+/// `NoBranch` is the refusal reported.
 #[test]
-fn moved_together_the_walls_refuse_at_a_seam_between_two_fits() {
+fn moved_together_outward_every_edge_leaves_the_fits_windows() {
     for (name, body, curved) in [
         ("planar prism", prism(), false),
         ("twisted loft", twisted_loft(0.3), true),
@@ -549,7 +537,7 @@ fn moved_together_the_walls_refuse_at_a_seam_between_two_fits() {
             common::approx::band(),
             Tol::witness(),
         )
-        .expect_err("a seam between two moved fits has no section");
+        .expect_err("a moved cap leaves the fits' windows");
         if curved && Tol::witness().eps() < CURVED_FIT_REACH {
             // The twisted wall's fit stops short of ε, and every surface
             // is minted before any edge is planned.
@@ -559,26 +547,25 @@ fn moved_together_the_walls_refuse_at_a_seam_between_two_fits() {
             );
             continue;
         }
-        let ReplaceFaceError::NeighborPairUnroutable {
+        let ReplaceFaceError::EdgeSection {
             edge,
-            kind: geom::SurfaceKind::Approx,
-            other_kind: geom::SurfaceKind::Approx,
+            verdict: topo::SectionVerdict::NoBranch,
+            ..
         } = e
         else {
-            panic!("{name}: expected the seam between two moved fits to refuse, got {e}");
+            panic!("{name}: expected a rim to leave the fits' window, got {e}");
         };
-        let data = body.get_edge(edge).expect("the seam resolves");
-        let walls = [data.he_plus, data.he_minus]
+        let data = body.get_edge(edge).expect("the rim resolves");
+        let kinds: Vec<geom::SurfaceKind> = [data.he_plus, data.he_minus]
             .into_iter()
             .filter_map(|he| body.face_of_half_edge(he))
-            .filter(|f| {
-                matches!(
-                    body.get_face(*f).and_then(|f| body.get_surface(f.surface)),
-                    Some(geom::Surface::Nurbs(_))
-                )
-            })
-            .count();
-        assert_eq!(walls, 2, "{name}: {edge:?} is a seam between two walls");
+            .filter_map(|f| body.get_face(f).and_then(|f| body.get_surface(f.surface)))
+            .map(geom::Surface::kind)
+            .collect();
+        assert!(
+            kinds.contains(&geom::SurfaceKind::Plane) && kinds.contains(&geom::SurfaceKind::Nurbs),
+            "{name}: {edge:?} is a rim between a cap and a wall, got {kinds:?}"
+        );
     }
 }
 
@@ -731,8 +718,8 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
 }
 
 /// **Each fitted wall edge's own verdict, read at its plan.** The door
-/// stops at the first edge that refuses, which on both fixtures is a
-/// seam, so the row above cannot see the rims behind it. Read per edge
+/// reports one edge's refusal, so the row above cannot see every edge.
+/// Read per edge
 /// (`topo::offset_edge_plans_for_tests`), moving one wall by the row
 /// above's `d = 5e-10`:
 /// - both rims of the prism's wall derive as the cap planes' sections
@@ -742,10 +729,8 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
 ///   base's own, stops short of the top cap plane on this twisted wall,
 ///   so the plane has no branch through it (`NoBranch`, at every ε ≥
 ///   1e-9); at 1e-12 the trace's tube refuses first, an `Ssi` verdict;
-/// - both seams route as `Approx × Nurbs`, which has no arm
-///   (`NeighborPairUnroutable`): the one that is a row of this fit too,
-///   since its neighbour is a distinct spline wall that does not move
-///   with it.
+/// - both seams are the NURBS × NURBS section of the fit and the held
+///   wall beside it, and both refuse there alike ([`seam_refused`]).
 #[test]
 fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
     use topo::SectionVerdict;
@@ -822,19 +807,43 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
         let [a, b] = seams.as_slice() else {
             panic!("{name}: the wall has two seams, got {}", seams.len());
         };
-        let unroutable = |v: &Result<_, ReplaceFaceError<f64>>| {
-            matches!(
-                v,
-                Err(ReplaceFaceError::NeighborPairUnroutable {
-                    kind: geom::SurfaceKind::Approx,
-                    other_kind: geom::SurfaceKind::Nurbs,
-                    ..
-                })
-            )
-        };
+        let outside = |v: &Result<Option<ReplaceFaceError<f64>>, ReplaceFaceError<f64>>| matches!(v, Ok(Some(e)) if seam_refused(e));
         assert!(
-            unroutable(a) && unroutable(b),
-            "{name}: both seams answer alike, unroutable; got {a:?}, {b:?}"
+            outside(a) && outside(b),
+            "{name}: both seams answer alike, refused at their section; got {a:?}, {b:?}"
         );
     }
+}
+
+/// **A moved wall's seam with a held neighbour refuses at its section.**
+/// The seam is the section of the moved fit and the held spline wall, a
+/// NURBS × NURBS section. On these walls it lies `d·cot φ` from the
+/// moved row (φ the interior dihedral), along or just outside the fit's
+/// window, the base's own, at the prism's right angle, so the arm
+/// refuses it typed by whichever reading meets that first: the seed
+/// settling outside the chart, the boundary pass finding the section
+/// along a side, or the march or the tube losing it there. A wall moved
+/// alone is not how `shell` moves walls (it moves them together).
+fn seam_refused(e: &ReplaceFaceError<f64>) -> bool {
+    matches!(
+        e,
+        ReplaceFaceError::EdgeSection {
+            kind: geom::SurfaceKind::Approx,
+            other_kind: geom::SurfaceKind::Nurbs,
+            verdict: topo::SectionVerdict::Ssi(_),
+            ..
+        }
+    )
+}
+
+/// A refused section of the moved fit with any neighbour: an edge's own
+/// verdict, deferred to the corners.
+fn section_refused(e: &ReplaceFaceError<f64>) -> bool {
+    matches!(
+        e,
+        ReplaceFaceError::EdgeSection {
+            kind: geom::SurfaceKind::Approx,
+            ..
+        }
+    )
 }

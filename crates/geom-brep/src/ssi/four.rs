@@ -129,6 +129,11 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
     /// An enclosure of `F`'s Jacobian over `x`: column `j` is `∂F/∂xⱼ`,
     /// rows the three components.
     pub(crate) fn jacobian(&self, x: Box4) -> [[Interval; 4]; 3] {
+        self.jacobian_read(x, true)
+    }
+
+    /// The Jacobian, each net cut to `x` or read whole.
+    fn jacobian_read(&self, x: Box4, cut: bool) -> [[Interval; 4]; 3] {
         let col = |b: Box3, s: f64| {
             [
                 b.x * Interval::point(s),
@@ -136,24 +141,21 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
                 b.z * Interval::point(s),
             ]
         };
+        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
+            w.map_or_else(refused_box, |w| {
+                if cut {
+                    n.deriv_box(w, u)
+                } else {
+                    n.cell_deriv_box(w, u)
+                }
+            })
+        };
         let (wa, wb) = (x.window_a(), x.window_b());
         let cols = [
-            col(
-                wa.map_or_else(refused_box, |w| self.a.deriv_box(w, true)),
-                1.0,
-            ),
-            col(
-                wa.map_or_else(refused_box, |w| self.a.deriv_box(w, false)),
-                1.0,
-            ),
-            col(
-                wb.map_or_else(refused_box, |w| self.b.deriv_box(w, true)),
-                -1.0,
-            ),
-            col(
-                wb.map_or_else(refused_box, |w| self.b.deriv_box(w, false)),
-                -1.0,
-            ),
+            col(read(&self.a, wa, true), 1.0),
+            col(read(&self.a, wa, false), 1.0),
+            col(read(&self.b, wb, true), -1.0),
+            col(read(&self.b, wb, false), -1.0),
         ];
         core::array::from_fn(|r| core::array::from_fn(|c| cols[c][r]))
     }
@@ -197,13 +199,78 @@ fn krawczyk<T: CertifiedBounds>(
     x: Box4,
     free: [usize; 3],
 ) -> Option<Krawczyk> {
+    let jac = pair.jacobian(x);
+    if mean_value_excludes(pair, x, free, &jac) {
+        return Some(Krawczyk::None);
+    }
+    krawczyk_with(pair, x, free, jac)
+}
+
+/// Whether the mean-value form `F(m) + J(x)·(x − m)` over the face piece
+/// `x` excludes zero along one of five fixed directions: the three
+/// coordinate axes, and each chart's normal at the piece's middle. Along
+/// a chart's normal its own columns of `J` are tangent, so they enter
+/// the form only through their variation over the piece: a side row
+/// passing near the other chart, nearly tangent to it, is cleared at
+/// the size its gap and the charts' curvature set, where separate boxes
+/// of the two charts would need pieces as narrow as the gap.
+fn mean_value_excludes<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    x: Box4,
+    free: [usize; 3],
+    jac: &[[Interval; 4]; 3],
+) -> bool {
     let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
     let mut m = x;
     for &k in &free {
         m = m.holding(k, mid(x.0[k]));
     }
     let f = pair.residual(m);
-    let jac = pair.jacobian(x);
+    let col = |c: usize| [0, 1, 2].map(|r| 0.5 * (jac[r][c].lo() + jac[r][c].hi()));
+    let cross = |a: [f64; 3], b: [f64; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let directions = [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        cross(col(0), col(1)),
+        cross(col(2), col(3)),
+    ];
+    directions.iter().any(|n| {
+        if !n.iter().all(|v| v.is_finite()) {
+            return false;
+        }
+        let dot = |v: [Interval; 3]| {
+            (0..3).fold(Interval::point(0.0), |acc, r| {
+                acc + Interval::point(n[r]) * v[r]
+            })
+        };
+        let v = free.iter().fold(dot(f), |acc, &k| {
+            acc + dot([jac[0][k], jac[1][k], jac[2][k]])
+                * (Interval::from_bounds(x.0[k].0, x.0[k].1) - Interval::point(mid(x.0[k])))
+        });
+        sign(v).is_some()
+    })
+}
+
+/// [`krawczyk`] with `jac` an enclosure of `F`'s Jacobian over `x`.
+fn krawczyk_with<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    x: Box4,
+    free: [usize; 3],
+    jac: [[Interval; 4]; 3],
+) -> Option<Krawczyk> {
+    let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
+    let mut m = x;
+    for &k in &free {
+        m = m.holding(k, mid(x.0[k]));
+    }
+    let f = pair.residual(m);
     let j: [[Interval; 3]; 3] = core::array::from_fn(|r| core::array::from_fn(|c| jac[r][free[c]]));
     let jm: [[f64; 3]; 3] = j.map(|row| row.map(|v| 0.5 * (v.lo() + v.hi())));
     let y = inverse3(jm)?;

@@ -292,8 +292,8 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
 /// the arm runs, some certificate vouched for the pair.
 #[test]
 fn probe_f_uncertifiable_pair_refuses_at_attachment() {
-    // ε-independent: a NURBS × NURBS pair has no certificate at any
-    // tolerance, so this row runs at every matrix cell.
+    // ε-independent: a surface paired with itself is no intersection at
+    // any tolerance, so this row runs at every matrix cell.
     let mut body = offset_square_prism();
     let (edge, _flat, bowed, _he) = flat_bowed_seam(&body);
     let (carrier, t0, t1) = {
@@ -320,6 +320,6 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             },
             Tol::witness(),
         )
-        .expect_err("a NURBS × NURBS pair has no certificate and must refuse at attachment");
+        .expect_err("a surface paired with itself must refuse at attachment");
     println!("P-F refusal: {err:?}");
 }

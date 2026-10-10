@@ -8,8 +8,9 @@
 //! the natural operand for the question "what does a shell of a
 //! spline-walled body cost at the run's ε", and these rows pin why that
 //! cost cannot be taken yet, at the thickness a user would ask for:
-//! `topo::shell` moves every chart at once and refuses at a wall, at its
-//! offset fit or at a seam between two moved fits.
+//! `topo::shell` moves every chart at once and refuses at a wall's
+//! offset fit, or, where the fit certifies, past every seam, at a top
+//! rim's at-rest certificate.
 //!
 //! A cap moved alone moves the cap's corners along the slanted seams:
 //! each corner is the moved plane's root along its seam, and each rim
@@ -158,10 +159,14 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 }
 
 /// The curved loft's shell moves every chart at once, so it mints every
-/// wall's offset fit before any edge, and refuses at a wall: its offset
-/// fit where ε is tighter than the fit reaches, and where the fit
-/// certifies, at a seam between two walls, which is the section of two
-/// moved fits and has no C5 arm.
+/// wall's offset fit before any edge. Where ε is tighter than the fit
+/// reaches it refuses at a wall's fit. Where the fit certifies, every
+/// wall–wall seam derives as the NURBS × NURBS section of its two moved
+/// fits, and the shell refuses at a top rim's at-rest certificate: the
+/// plane × fit lane's chart image of the rim is the degree-1 interpolant
+/// of its fixed foot schedule, and on this twisted wall its limb-2 bound
+/// lands in the band
+/// (`work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -174,15 +179,15 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
-    assert!(
-        is_spline_wall(&nurbs_walls(&body), *face),
-        "the refusing face is not a wall: {e}"
-    );
-    // Which wall door answers first depends on ε: the fit reaches about
+    // Which door answers first depends on ε: the fit reaches about
     // 4.1e-9 m in its round budget, so below that the fit refuses, and
-    // above it the fit certifies and the wall refuses at its seam.
+    // above it the fit certifies and the seams derive.
     let eps = Tol::witness().eps();
     if eps < 1e-8 {
+        assert!(
+            is_spline_wall(&nurbs_walls(&body), *face),
+            "the refusing face is not a wall: {e}"
+        );
         let ReplaceFaceError::Fit {
             error: geom_brep::OffsetFitError::BudgetExhausted { achieved, .. },
             ..
@@ -195,17 +200,21 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
         );
     } else {
-        // Both walls of a seam move, so the seam is the section of their
-        // two fits, which C5 does not route.
-        let ReplaceFaceError::NeighborPairUnroutable {
-            edge,
-            kind: geom::SurfaceKind::Approx,
-            other_kind: geom::SurfaceKind::Approx,
+        let ReplaceFaceError::Op {
+            error:
+                topo::EulerOpError::RechartFalsifies {
+                    error:
+                        geom_brep::CertifyError::Escalated {
+                            check: geom_brep::CertCheck::PlaneNurbsHull,
+                            ..
+                        },
+                    ..
+                },
+            ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected the seam between two moved fits to refuse, got {e}");
+            panic!("eps {eps:e}: expected a rim's at-rest limb 2 to refuse, got {e}");
         };
-        assert_wall_seam(&body, *edge, "the refused seam");
     }
 }
 

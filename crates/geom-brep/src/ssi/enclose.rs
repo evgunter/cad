@@ -671,7 +671,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// without the cut: the exhaustiveness sweep's derivative box, whose
     /// slack the sweep's seeding is pinned against
     /// (`work/ssiedge/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
-    fn cell_deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
+    pub(crate) fn cell_deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
         self.deriv_hull(w, along_u, false)
     }
 

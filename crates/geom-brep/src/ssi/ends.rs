@@ -1,7 +1,9 @@
-//! **The plane × NURBS lane's open branches, between known ends.**
+//! **The ℝ⁴ lanes' open branches, between known ends.**
 //!
-//! The boundary pass (`super::boundary`) hands over every crossing of
-//! the locus with the wall's knot rectangle, settled onto both surfaces.
+//! The boundary pass (`super::boundary` on the plane × NURBS lane,
+//! `super::pair` on the NURBS × NURBS lane) hands over every crossing of
+//! the locus with the knot rectangles it bounds, settled onto both
+//! surfaces.
 //! An open branch runs from one crossing to another, so its two ends are
 //! known before any march, at ε, whatever the caller's extent:
 //!
