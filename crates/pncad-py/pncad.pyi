@@ -286,6 +286,9 @@ class ValidationFinding:
       …). The branch that matters: an `edge_face_pierce` is
       interpenetration and cannot be declared, while an
       `edge_edge_overlap` can be.
+    - `crossing_side` — an `edge_edge_cross`'s side verdict:
+      `"same_side"` is interpenetration, `"opposite_sides"` a contact,
+      `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
       `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
@@ -315,6 +318,8 @@ class ValidationFinding:
     def entity_kind(self) -> Optional[str]: ...
     @property
     def contact_kind(self) -> Optional[str]: ...
+    @property
+    def crossing_side(self) -> Optional[str]: ...
     @property
     def stale_kind(self) -> Optional[str]: ...
     @property
@@ -6557,7 +6562,7 @@ class InterferenceFinding:
     that reads a `gap` directly over an opposed pair of the two copies'
     faces, admits only negative values (`<= b` or `= b`, `b`
     negative), whose two faces bound the overlap, and between whose
-    carriers every bounding face lies. Every other overlap is loud."""
+    carriers the overlap lies. Every other overlap is loud."""
 
     @property
     def a(self) -> Var:

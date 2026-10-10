@@ -396,16 +396,17 @@ census decided nothing about is refused as before.
 A finding is quiet when a holding assertion reads a `Gap`'s output
 directly over an opposed pair of faces of the two copies, admits only
 negative values (`≤ b` or `= b`, `b` decided negative), and its two
-faces bound the overlap, and every face bounding the overlap lies
-between their carriers. The last is the kernel's own boolean: the
+faces bound the overlap, and the overlap lies between their carriers.
+The last is the kernel's own boolean: the
 region past each asserted carrier, away from its copy's material, is
 built as a solid (a box past a plane, the solid cylinder inside a bore,
 the tube outside a pin) and intersected with the overlap, which lies
 between when neither intersection keeps any of it. A containment check
 that refuses leaves the finding `Unlocalized`. A quiet finding carries
 no verdict nothing checked: every `CensusUndecidable` on the pair must
-be a face pair bounding the quieted overlap. Every other overlap is
-loud. Between two solids of one copy an overlap stays the kernel's
+be a face pair bounding the quieted overlap, so an undecided pair
+beside it (a pin pressed into one bore and slipped into another) keeps
+it loud. Every other overlap is loud. Between two solids of one copy an overlap stays the kernel's
 typed error. The partition takes interference verdicts only: a press
 fit whose pin is flush with its plate also touches at the coplanar
 caps, an undeclared contact the census refuses, so that document

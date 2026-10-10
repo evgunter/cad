@@ -8,9 +8,10 @@
 //! (an overhanging seat, ordinary authoring) — while a TRANSVERSE
 //! crossing (material on ONE side) is interpenetration. The rung's
 //! side verdict is deliberately THREE-valued: opposite-sides backs
-//! (the seat certifies), same-side refuses NAMING the verdict (the
-//! C6 declared-interpenetration hook — a future class consumes it as
-//! admission evidence), undecided escalates typed. The first two arms
+//! (the seat certifies), same-side refuses carrying the verdict as
+//! the refusal's `side` field (between two copies at rest the editor's
+//! gate reads it as interference evidence, ASSEMBLY A5), undecided
+//! escalates typed. The first two arms
 //! are reached below; the THIRD is not reachable on this corpus, and
 //! that is a statement about the fix-pass screens rather than a
 //! coverage gap: undecided now requires a candidate that HOLDS the
@@ -34,9 +35,8 @@
 //! pins that reach where it still lives).
 //!
 //! `EdgeFacePierce` takes no rung at all: a transverse dive is
-//! interpenetration until C6's recorded gate-skips exist, and the
-//! MATE-4b staging defers that arm to C6's era BY NAME (stage 2).
-//! The pierce pin below holds that door shut.
+//! interpenetration, which no declaration admits (C6). The pierce pin
+//! below holds that door shut.
 //!
 //! The re-blessed (b) fence — the declared straddle seat certifying
 //! outright, and its bare control byte-pinned — lives with the
@@ -100,7 +100,6 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
-/// The `EdgeEdgeCross` refusals of a list, as `(finding, witness)`.
 /// A crossing's side verdict.
 fn side(contact: &CensusContact) -> Option<CrossingSideVerdict> {
     match contact {
@@ -109,6 +108,7 @@ fn side(contact: &CensusContact) -> Option<CrossingSideVerdict> {
     }
 }
 
+/// The `EdgeEdgeCross` refusals of a list, as `(finding, witness)`.
 fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
     errors
         .iter()
@@ -150,10 +150,9 @@ fn the_declared_crossing_seat_certifies_both_ways() {
 /// `z = 0.5`, so the seat is interpenetration, not rest. The declared
 /// pair holds both crossing points (the geometry is unchanged in
 /// plan), the side test answers SAME-SIDE, and the refusal carries
-/// the verdict by name — the declared-interpenetration hook: C6's
-/// future class consumes exactly this verdict as admission evidence,
-/// which is why the finding must never regress to a plain undeclared
-/// crossing. The lying declaration itself is `ContactContradicted`
+/// the verdict as its `side` — the interference evidence the at-rest
+/// gate reads between copies, which is why the finding must never
+/// regress to a plain undeclared crossing. The lying declaration itself is `ContactContradicted`
 /// (aligned senses), independently — both refusals stand, run both
 /// ways for the frame.
 #[test]
@@ -374,11 +373,9 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
 
 /// **The pierce pin.** `EdgeFacePierce` consults NO rung: a
 /// transverse dive through a face's interior is interpenetration
-/// however the seat is declared, and the vocabulary that could admit
-/// one — C6's recorded interference gate-skips — does not exist yet.
-/// The MATE-4b ruling defers that arm to C6's interference-fit era BY
-/// NAME (staging, stage 2); this unit lands stage 1 only, and issue
-/// 973 stays OPEN over the pierce arm. A tall post run through the
+/// however the seat is declared: no declaration admits one (C6), and
+/// between two copies at rest it is an interference finding, not a
+/// contact. A tall post run through the
 /// thin shelf pierces both shelf faces at its two sub-shelf corners'
 /// vertical edges; declaring the pierced face against the piercing
 /// edge's own side face changes not one pierce finding.
@@ -419,8 +416,7 @@ fn the_pierce_stays_categorical() {
     let with_declaration = pierces(&declared(&[(post.side_faces[0], shelf_bottom)]));
     assert_eq!(
         bare, with_declaration,
-        "no declaration reaches a pierce: the class is categorical \
-         until C6's era, by name"
+        "no declaration reaches a pierce: the class is categorical"
     );
 }
 

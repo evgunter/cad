@@ -1517,6 +1517,12 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
             "{}",
             badge.label()
         );
+        assert_eq!(
+            badge.label().starts_with("at rest: interference"),
+            loud > 0,
+            "a loud overlap leads the badge, and only a loud one: {}",
+            badge.label()
+        );
     }
 
     let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {

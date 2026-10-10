@@ -593,6 +593,102 @@ fn a_pin_pressed_into_a_bore_is_quiet_under_its_gap() {
     }
 }
 
+/// **(B, curved containment) A pin that bottoms through a blind bore
+/// stays loud.** The plate is a union of the holed plate and a floor
+/// slab under it, so the bore is blind at `z = 0`; the pin is pressed
+/// into it (radius 0.505) and runs on into the floor. The overlap is
+/// one solid, the annulus and the slug in the floor beneath the bore,
+/// and both asserted faces bound it, but the slug lies inside the
+/// bore's carrier, away from the plate's material: the region past the
+/// carrier keeps it, so the bore's own gap does not quiet the finding.
+#[test]
+fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
+    use crate::fixture::{frame, piece};
+    use editor_core::{BooleanOp, LoopProgram, ProfileProgram};
+    let circle = |r| LoopProgram::<Formula>::circle(0.0, 0.0, r).expect("a literal circle");
+    let prism = |doc: ProfileDoc, z, loops, h| {
+        let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                frame: plane.into(),
+                loops,
+                ids: Vec::new(),
+            }),
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(h),
+                side: ExtrudeSide::Along,
+            },
+        )
+    };
+    let outline = || {
+        crate::fixture::desc(RecipeNodeId::new(0, 0), vec![square(0.0, 0.0, 1.0)])
+            .loops
+            .remove(0)
+    };
+    let doc = ProfileDoc::empty_derived("intent-s5-b-blind", Tol::witness());
+    let (doc, holed) = prism(doc, 0.0, vec![outline(), circle(0.5)], 1.0);
+    let (doc, floor) = prism(doc, -0.5, vec![outline()], 0.5);
+    let (doc, plate) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: holed.into(),
+            b: floor.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, pin) = prism(doc, -0.2, vec![circle(0.505)], 1.7);
+    let (doc, p) = place(doc, plate);
+    let (doc, q) = place(doc, pin);
+    let lateral =
+        |doc: &ProfileDoc, node, l| fname(node, RoleSeg::Lateral(piece(doc, node, l, 0).into()));
+    let (bore, wall) = (lateral(&doc, holed, 1), lateral(&doc, pin, 0));
+    assert!(
+        only_finding(&doc).is_loud(),
+        "unasserted, the overlap is loud"
+    );
+    // The union spells the bore through its own descent, so the site
+    // is read off the finding: the plate copy's face whose name
+    // descends from the holed plate's bore.
+    let Overlap::Bounded { faces } = only_finding(&doc).overlap else {
+        panic!("the overlap is sited")
+    };
+    let bore_path = format!("{:?}", bore.path);
+    let site = faces
+        .iter()
+        .find(|site| format!("{:?}", site.face).contains(&bore_path))
+        .expect("the bore bounds the overlap")
+        .face
+        .clone();
+    let (doc, assertion) = asserted_gap(
+        doc,
+        [SitedRef::new(p, site), SitedRef::new(q, wall.in_copy(q))],
+        AssertionRelation::AtMost,
+        -0.001,
+    );
+    let run = corpus::eval::<f64>(&doc);
+    assert!(
+        matches!(
+            run.value(assertion).map(|v| &v.payload),
+            Some(editor_core::ValuePayload::Assertion(
+                editor_core::AssertionVerdict::Holds { .. }
+            ))
+        ),
+        "the bore's gap holds: {:?}",
+        run.node_error(assertion)
+    );
+    let finding = only_finding(&doc);
+    assert!(
+        finding.quiet.is_none() && matches!(finding.overlap, Overlap::Bounded { .. }),
+        "the slug past the bore's carrier keeps the finding loud and sited: {finding:?}"
+    );
+}
+
 /// **(B) A clearance fit the census cannot decide still refuses.** A
 /// pin of radius 0.49 in the same bore: the census decides no overlap
 /// and leaves the curved pairs undecided, and the gate refuses them as

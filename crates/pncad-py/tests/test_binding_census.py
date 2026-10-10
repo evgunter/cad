@@ -1202,6 +1202,7 @@ BOUND_AS = {
     # attribute is the contract, and a caller reads it the day a door
     # produces one.
     "CensusContact": "ValidationFinding.contact_kind",
+    "CrossingSideVerdict": "ValidationFinding.crossing_side",
     "CensusSubject": "ValidationFinding.subject_kind",
     "RingContact": "ValidationFinding.ring_contact_kind",
     # `ring_meets_ring`'s, the same words for the same shapes between

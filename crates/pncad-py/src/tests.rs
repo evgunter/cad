@@ -4103,6 +4103,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: Some("entity"),
             entity_kind: Some("edge"),
             contact_kind: None,
+            crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
         }
@@ -4121,6 +4122,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: Some("face_pair"),
             entity_kind: None,
             contact_kind: None,
+            crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
         }
@@ -4154,6 +4156,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             subject_kind: None,
             entity_kind: None,
             contact_kind: None,
+            crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
         }
@@ -5061,6 +5064,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "listed_with_count",
             "stepped_without_count",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "crossing_side_tag",
+        values: &["opposite_sides", "same_side", "undecided"],
         delegates: &[],
     },
     TagEntry {

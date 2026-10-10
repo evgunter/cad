@@ -2225,7 +2225,8 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
 /// news and there is nothing to act on, unless it reports a loud
-/// overlap between copies, which only the reader can answer. A
+/// overlap between copies, which only the reader can answer and which
+/// then leads the badge. A
 /// refusal is
 /// [`Tone::Actionable`] — it is the gate declining to certify the
 /// product on screen, and the reader is the only one who can answer
@@ -2241,19 +2242,29 @@ pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
             loud,
             quiet,
         } => {
-            let interference = match (loud, quiet) {
-                (0, 0) => String::new(),
-                (loud, quiet) => format!(", interference: {loud} loud, {quiet} quiet"),
+            // A loud overlap leads: it is what the reader acts on, and
+            // "certified" before it would read as nothing to do.
+            let (text, tone) = match (loud, quiet) {
+                (0, 0) => (
+                    format!("at rest: certified ({minted} declaration(s))"),
+                    Tone::Advisory,
+                ),
+                (0, quiet) => (
+                    format!(
+                        "at rest: certified ({minted} declaration(s), interference: 0 loud, \
+                         {quiet} quiet)"
+                    ),
+                    Tone::Advisory,
+                ),
+                (loud, quiet) => (
+                    format!(
+                        "at rest: interference: {loud} loud, {quiet} quiet \
+                         ({minted} declaration(s) certified)"
+                    ),
+                    Tone::Actionable,
+                ),
             };
-            Badge::read(
-                Subject::Document,
-                format!("at rest: certified ({minted} declaration(s){interference})"),
-                if *loud == 0 {
-                    Tone::Advisory
-                } else {
-                    Tone::Actionable
-                },
-            )
+            Badge::read(Subject::Document, text, tone)
         }
         AtRestBadge::Refused { message } => Badge::read(
             Subject::Document,

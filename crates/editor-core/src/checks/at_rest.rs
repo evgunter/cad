@@ -394,9 +394,11 @@ pub(crate) fn partition<T: LocalizeLane>(
     }
     // What the census left undecided between two copies it decided
     // interfere — a crossing standing on the pair, curved faces within
-    // reach of each other — is the same overlap, which the intersection
-    // below localizes. A pair it decided nothing about stays refused as
-    // it left it.
+    // reach of each other — rides the pair's findings as evidence: often
+    // the same overlap, but not always (a pin pressed into one bore and
+    // slipped into another), so a quiet finding requires each such
+    // verdict to lie on its own overlap (`covered`). A pair the census
+    // decided nothing about stays refused as it left it.
     let undecided_pair = |error: &ValidationError| match error {
         ValidationError::CensusUndecidable { a, b, .. } => {
             let (x, y) = (
