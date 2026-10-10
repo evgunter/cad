@@ -1113,7 +1113,7 @@ pub fn fit_offset_at(
     // The ladder is the meters' own (`OFFSET_METER_LADDER`).
     let (reg, coll) = meter_patch(base, d, band)?;
 
-    let (fit, report, round) = refine_rounds(
+    let (fit, report, round) = refine_rounds_at(
         seed_params(base),
         (reg.speed_u.get(), reg.speed_v.get()),
         d,
@@ -1139,14 +1139,16 @@ pub fn fit_offset_at(
 }
 
 /// The refinement loop `fit_offset_at` runs from the seed schedule
-/// `(us, vs)`: `round_at` fits and measures one schedule, and every
+/// `(us, vs)`, and so part of that numeric-target instrument (its
+/// chosen `tolerance` is the point): `round_at` fits and measures one
+/// schedule, and every
 /// decision about the next one — the certificate, the stall verdict
 /// before the budget test, the cap, the marking and its fallback — is
 /// taken here. Returns the certifying round's fit, report and round
 /// count. Generic over the fit so the loop's ordering can be driven by
 /// a scripted bound sequence (this module's tests), which no fixture
 /// grounded in the enclosure's width holds for long.
-fn refine_rounds<S>(
+fn refine_rounds_at<S>(
     (mut us, mut vs): (Vec<f64>, Vec<f64>),
     (speed_u, speed_v): (f64, f64),
     d: f64,
@@ -1985,7 +1987,7 @@ enum Refine {
 /// narrowed (the convex insertion form, then the Bézier cut from each
 /// segment's own row). So the loop's ordering — the verdict taken
 /// before the budget test, on the budget's round too — is pinned on
-/// scripted bound sequences driven through [`refine_rounds`] itself
+/// scripted bound sequences driven through [`refine_rounds_at`] itself
 /// (this module's `scripted_rounds` rows), which no narrowing moves.
 ///
 /// **`+∞` is not a failure to improve**, which is the other half of why
@@ -3655,7 +3657,7 @@ mod recourse_tests {
 }
 
 /// The refinement loop's ORDERING, driven by scripted bound sequences
-/// through [`refine_rounds`] itself: the stall verdict before the
+/// through [`refine_rounds_at`] itself: the stall verdict before the
 /// budget test, and the budget's face past a verdict that did not
 /// refuse. A fixture grounded in the enclosure's width stops stalling
 /// whenever the assembly narrows, so the ordering is pinned here, on
@@ -3663,7 +3665,7 @@ mod recourse_tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod scripted_rounds {
-    use super::{LastRound, OFFSET_FIT_BUDGET, OffsetFitError, Report, refine_rounds};
+    use super::{LastRound, OFFSET_FIT_BUDGET, OffsetFitError, Report, refine_rounds_at};
 
     /// Runs the loop from a 3 × 3 seed, round `k` reporting
     /// `bounds[k]` with one failing cell, the schedule's first, against
@@ -3672,7 +3674,7 @@ mod scripted_rounds {
     fn run(bounds: &[f64]) -> Result<usize, OffsetFitError> {
         let seed = (vec![0.0, 0.5, 1.0], vec![0.0, 0.5, 1.0]);
         let mut k = 0;
-        refine_rounds(seed, (1.0, 1.0), 0.1, 1.0, |us, vs| {
+        refine_rounds_at(seed, (1.0, 1.0), 0.1, 1.0, |us, vs| {
             let hull_sup = bounds[k];
             k += 1;
             Ok((
