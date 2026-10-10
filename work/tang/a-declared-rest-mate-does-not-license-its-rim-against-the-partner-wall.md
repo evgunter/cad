@@ -24,7 +24,7 @@ undeclared and with only the two end discs declared `Rest`:
 | hemisphere (G1, wedge π) | `CurvedPierceUnsupported` | same |
 | spherical dome ρ=√2 (transverse, 45°) | `CurvedPierceUnsupported` (`Escalated` at 1e-6) | same |
 | stacked cylinder, same carrier | `CurvedPierceUnsupported` | same |
-| 45° cone frustum | `CurvedPairUnsupported` at the operand gate (a cone × plane gate, separate) | same |
+| 45° cone frustum | `CurvedPairUnsupported` at the operand gate when measured; `CurvedPierceUnsupported` on the rim circle since the cone joined the roster (VERBS-CONE U7) | same |
 
 Raised by `topo::boolean::reduce::curved_face_arm`'s `frontier()`.
 The edge is always on the rim: the rim circle, a tube ruling that
@@ -113,7 +113,9 @@ the rim's semicircles as arcs (`rest::arcs_along`).
   (PR 3657). With the walls declared continuations it builds, 3π, both
   orders: the zip matches its rim's semicircles as arcs (evidence on
   REACH's `stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends`).
-- The cone stops at the operand gate.
+- The cone stopped at the operand gate; since VERBS-CONE U7 it stops
+  at the crossing layer on its rim circle
+  (`pi_seam_and_kiss_through_the_boolean.rs`).
 - Side effects: the torus dumbbell and its cylinder control, declared
   continuations at the waist, and the torus peg-in-socket build, and
   their rows are re-pinned to the bodies with their census.

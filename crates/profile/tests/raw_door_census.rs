@@ -305,8 +305,8 @@ pub(crate) fn is_writer(line: &str) -> bool {
         // Fully qualified: `<ProfileLoop as RawLoop>::new`.
         "RawLoop>::new",
         "RawLoop>::polygon",
-        // The declaration verb, on any receiver.
-        ".with_tangent_joints",
+        // The constructed-loop fixture door.
+        "ConstructedLoop::fixture",
         // The bulge-chain fixture helper, which reaches the lowering.
         "bulge_loop",
     ]
@@ -614,13 +614,7 @@ fn the_types_public_surface_mints_nothing() {
     // materialization door (a loop that already exists, at another
     // scalar); `reversed` derives from an existing loop. None of them
     // takes a vertex table.
-    let pinned = [
-        "map_scalar",
-        "reversed",
-        "segments",
-        "tangent_joints",
-        "vertices",
-    ];
+    let pinned = ["map_scalar", "reversed", "segments", "vertices"];
     assert_eq!(
         found, pinned,
         "the public surface of `ProfileLoop` moved.\n  \

@@ -495,7 +495,7 @@ const DOC_LABEL: &str = "die";
 pub fn corpus_text(tol: Tol) -> String {
     let die = build(tol);
     // Re-inserting as written reproduces the document only where no
-    // anonymous variable is shared or toleranced
+    // anonymous variable is read twice by its formula or toleranced
     // (`Node::written`'s precondition); the replay's ids, compared
     // below, rule out a value edited after its insert.
     assert_eq!(

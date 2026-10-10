@@ -16,7 +16,7 @@
 
 use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{ROD_FILLET, ROD_L, extruded, rod_chord_at, rod_creases};
 use topo::{Body, ContactRecords, FaceContainment, FaceKey, ValidationError, contfp};
@@ -174,15 +174,12 @@ fn a_slot_and_a_rounded_rectangle_answer_their_regions() {
     // The slot: centre segment x ∈ [−1, 1], radius 0.5.
     let slot = extruded(
         SketchPlane::xy(),
-        vec![
-            bulge_loop(vec![
-                (p2(-1.0, -0.5), 0.0),
-                (p2(1.0, -0.5), 1.0),
-                (p2(1.0, 0.5), 0.0),
-                (p2(-1.0, 0.5), 1.0),
-            ])
-            .with_tangent_joints(vec![0, 1, 2, 3]),
-        ],
+        vec![bulge_loop(vec![
+            (p2(-1.0, -0.5), 0.0),
+            (p2(1.0, -0.5), 1.0),
+            (p2(1.0, 0.5), 0.0),
+            (p2(-1.0, 0.5), 1.0),
+        ])],
         1.0,
         tol(),
     );
@@ -194,19 +191,16 @@ fn a_slot_and_a_rounded_rectangle_answer_their_regions() {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let rr = extruded(
         SketchPlane::xy(),
-        vec![
-            bulge_loop(vec![
-                (p2(-0.7, -0.6), 0.0),
-                (p2(0.7, -0.6), q),
-                (p2(1.0, -0.3), 0.0),
-                (p2(1.0, 0.3), q),
-                (p2(0.7, 0.6), 0.0),
-                (p2(-0.7, 0.6), q),
-                (p2(-1.0, 0.3), 0.0),
-                (p2(-1.0, -0.3), q),
-            ])
-            .with_tangent_joints((0..8).collect()),
-        ],
+        vec![bulge_loop(vec![
+            (p2(-0.7, -0.6), 0.0),
+            (p2(0.7, -0.6), q),
+            (p2(1.0, -0.3), 0.0),
+            (p2(1.0, 0.3), q),
+            (p2(0.7, 0.6), 0.0),
+            (p2(-0.7, 0.6), q),
+            (p2(-1.0, 0.3), 0.0),
+            (p2(-1.0, -0.3), q),
+        ])],
         1.0,
         tol(),
     );

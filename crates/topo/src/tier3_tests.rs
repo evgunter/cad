@@ -2796,7 +2796,7 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
     );
     let band = geom_core::Band::linear(tol).expect("a band");
     let probe = |shell, p: Point3<f64>| {
-        let sel = SolidFaces::of_shell(&body, shell).expect("a shell selection");
+        let sel = SolidFaces::of_shell(&body, shell);
         point_in_solid_faces(&body, &sel, p, band, tol).expect("the walk answers")
     };
     let in_cavity = Point3::new(0.43, 0.41, 0.47);
@@ -2867,7 +2867,7 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     refile_shells(&mut body, small, keeper);
 
     let band = geom_core::Band::linear(tol).expect("a band");
-    let sel = SolidFaces::of_shell(&body, big_void).expect("a selection");
+    let sel = SolidFaces::of_shell(&body, big_void);
     let first = body
         .faces()
         .find(|(_, f)| f.shell == small_void)

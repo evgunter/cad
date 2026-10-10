@@ -9,20 +9,16 @@ use core::f64::consts::PI;
 use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
-use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, SplitResult, split};
 use topo::{AtRestBody, Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
 
+/// The chain revolved about the y axis, finished.
 fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
-    revolved_with(chain, Vec::new())
-}
-
-/// [`revolved`] with the profile's tangent joints declared, finished.
-fn revolved_with(chain: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
     let body = revolve(
-        &validated(vec![bulge_loop(chain).with_tangent_joints(tangent_joints)]),
+        &validated(vec![bulge_loop(chain)]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
@@ -91,16 +87,13 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
 fn rounded_cylinder() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(1.0, 1.0), Point2::new(0.75, 1.25));
     let bulge = bulge_from_center(a, b, Point2::new(0.75, 1.0), ArcSweep::Ccw);
-    revolved_with(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (a, bulge),
-            (b, 0.0),
-            (Point2::new(0.0, 1.25), 0.0),
-        ],
-        vec![2, 3],
-    )
+    revolved(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (a, bulge),
+        (b, 0.0),
+        (Point2::new(0.0, 1.25), 0.0),
+    ])
 }
 
 /// The torus rounding's volume above `y = 1` by Pappus, every piece in

@@ -214,3 +214,22 @@ Each lane that builds locally costs 1–10 GB. From here, heavy lanes run CI-onl
 The first fix pass stored the restricted range in angle units and accepted up to 1.91× main's width on (½,1)-type chains, saying no single stored form keeps both ends flat. The delta review (APPROVE-WITH-FIXES) showed a form that does: keep `(u0, du)` in the original normalized parameter and apply the angle once at eval. Dyadic splits are then exact; it is ≤ main in every measured row and bit-identical on a whole range. My bar was "no worse than main", so the PR takes that form.
 
 The reauthor fix still stores a width from `R(−0)`'s documented subnormal dust at Interval (2.3e-13 far, where main stored 0). Moved starts on tilted far placements are 2.5–3× worse than main at f64 (the tilted_lune class). Both are required fixes, along with independent reference spellings in the width rows (the ratio row's comparison shared production eval and could not see an eval mutant). Second fix pass dispatched. A container restart lost the first delta reviewer; the redo reported. (NURBS orchestrator)
+## 2026-10-09 — PR 4438 merges: grid points clear knots by a fraction of the spacing
+
+The ruling above, built at all seven grid sites. A delta review of the fix pass approved it with fixes, and those are in. Changes after the review:
+- production and the tests share one `grid_clearance` helper;
+- the no-cliff rows take the production span counts;
+- the clearance doc states the trade as measured (about +0.2% width at large gaps, measured to g ≈ 1e-8) instead of "costs nothing";
+- m5_pr7's ratio bound was re-derived as `√G`.
+
+Walls 15 and 17 retired, so the lily's swept leaves are now cubic. A container restart killed the cleanup lane after it pushed; the redo found the work already on the branch and gated a fresh merge of main. (NURBS orchestrator)
+
+## 2026-10-10 — PR 4441 merges: restriction narrows a range in the sweep's own parameter
+
+The second fix pass adopted the delta review's form: the range is stored in the whole sweep's normalized parameter, and the angle is applied once at eval. Against main, every width row is at or below main, except two far interior chains at 1.06× and 1.03×, within the ≤1.25× allowance. Each of those chains moves the start inexactly at every split. End-anchored chains are flat from both ends. Unrestricted output is bit-identical at every scalar, so the `m10` ledger returns to main's.
+
+Reauthor: an unmoved start stores main's point (width 0). A turned start reads through main's composite (Interval equal to main; f64 `eval(0)` 1.2× at 1e3, and 3 ulps against 2 at 1e5, disclosed). The rows compare against a hand-written composed spelling that shares no code with production, and both the two-step-rotation mutant and the endpoint-form mutant turn them red.
+
+I accepted this without a third review: it implements the reviewer's own proposal, and every claim is measured against an independent reference.
+
+Friction: two container restarts each killed an in-container lane. Neither lost pushed work. The second-pass lane ran as its own cloud session and survived. Long lanes go to cloud sessions from now on. (NURBS orchestrator)

@@ -282,6 +282,13 @@ pub enum Refusal {
     ///
     /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
     NotOffered(SpokenVar),
+    /// [`SessionOp::SetSlotVariable`] carried a name for a variable
+    /// that already has one. A name is given to share an unnamed
+    /// variable (VR2); a named one is shared by the name it holds, and
+    /// accepting its offer renames nothing.
+    ///
+    /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
+    OfferIsNamed(SpokenVar),
     /// A variable's field was given a constant expression that does
     /// not evaluate to a value — a non-finite result, or a count past
     /// its range. Constant text typed as a value is folded here, before
@@ -455,6 +462,7 @@ impl Refusal {
             },
             Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
+            Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
             Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -502,6 +510,7 @@ impl Refusal {
             | Self::ConstantRefused { .. }
             | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
+            | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -545,6 +554,7 @@ impl Refusal {
             | Self::ConstantRefused { .. }
             | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
+            | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -820,6 +830,11 @@ impl core::fmt::Display for Refusal {
                 f,
                 "{var} is no longer offered here — type the value again to be offered \
                  the variables equal to it"
+            ),
+            Self::OfferIsNamed(var) => write!(
+                f,
+                "{var} already has a name, and the slot shares it by that name — accept \
+                 the offer without giving it another"
             ),
             Self::EmptyName => {
                 write!(
