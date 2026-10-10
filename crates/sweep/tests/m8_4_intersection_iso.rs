@@ -1225,3 +1225,91 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
         }
     }
 }
+
+/// REVIEW PROBE (PR 4479 delta): a carrier on the row's OWN knots,
+/// its net run back, on a row whose knots are symmetric only in
+/// decimal (`[0.1, 0.1, 0.2, 0.3, 0.3]`: `0.2 + 0.2 ≠ 0.1 + 0.3` in
+/// ℝ). `in_row_space` admits it on the equality arm; the derive's
+/// probe offers the backward row; the certificate's backward branch
+/// needs `is_reflection_of`, which is false. Prints what each stage says.
+#[test]
+fn review_probe_equal_knots_run_back_on_a_decimal_symmetric_row() {
+    let mut body = prism(1.0);
+    let (_, _, bowed, _) = flat_bowed_seam(&body, 1.0);
+    let n = chart_of(&body, bowed);
+    let nv = n.control_counts().1;
+    let ku = KnotVector::clamped(vec![0.1, 0.1, 0.2, 0.3, 0.3], 1).unwrap();
+    assert!(
+        !ku.is_reflection_of(&ku),
+        "the row is not exactly symmetric"
+    );
+    let (first, last) = (&n.control()[..nv], &n.control()[nv..]);
+    let mut control = last.to_vec();
+    control.extend((0..nv).map(|j| last[j] + (first[j] - last[j]) * 0.5));
+    control.extend_from_slice(first);
+    let (w_first, w_last) = (&n.weights()[..nv], &n.weights()[nv..]);
+    let weights = [w_last, w_last, w_first].concat();
+    let chart = NurbsSurface::new(ku.clone(), n.knots_v().clone(), control, weights).unwrap();
+    let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
+    let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
+    let (wall_face, _) = body.faces().find(|(_, f)| f.surface == wall).unwrap();
+    let (edge, he, cap) = body
+        .edges()
+        .find_map(|(ek, e)| {
+            [(e.he_plus, e.he_minus), (e.he_minus, e.he_plus)]
+                .into_iter()
+                .find_map(|(own, other)| {
+                    let lp = body.get_half_edge(own).unwrap().parent_loop;
+                    let cap = he_surface(&body, other);
+                    let on_cap = matches!(body.get_surface(cap), Some(Surface::Plane { .. }));
+                    let ends = [own, other]
+                        .map(|h| vertex_at(&body, body.get_half_edge(h).unwrap().start));
+                    (body.get_loop(lp).unwrap().face == wall_face
+                        && on_cap
+                        && ends.iter().all(|p| p.z == 2.0))
+                    .then_some((ek, own, cap))
+                })
+        })
+        .expect("the wall's top rim");
+    let same_knots_back = geom::NurbsCurve3::new(
+        ku.clone(),
+        row.control().iter().rev().copied().collect(),
+        row.weights().iter().rev().copied().collect(),
+    )
+    .unwrap();
+    let (t0, t1) = same_knots_back.domain();
+    let carrier = Curve3::Nurbs(Arc::new(same_knots_back));
+    body.set_edge_curve(
+        edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cap,
+                s2: wall,
+                witness: carrier.eval((t0 + t1) * 0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the rim takes the carrier: {e}"));
+    body.detach_pcurve(he);
+    let derived = topo::pcurve_of(&body, he, band());
+    eprintln!("PROBE derive: {derived:?}");
+    if let Ok(image) = derived {
+        let surface = Surface::Nurbs(Arc::new(chart.clone()));
+        let is_iso = matches!(image, Pcurve::IsoLine { .. });
+        let cert = geom_brep::PcurveCache::certify(image, t0, t1, &carrier, &surface, band());
+        eprintln!(
+            "PROBE certify: {:?}",
+            cert.as_ref().map(|_| "ok").map_err(|e| e.to_string())
+        );
+        if is_iso {
+            assert!(
+                cert.is_ok(),
+                "filter offered an iso row the certificate refuses"
+            );
+        }
+    }
+}
