@@ -7773,30 +7773,11 @@ mod tests {
             "a refuted cylinder declaration is stale typed: {errors:?}"
         );
     }
-    // ---- CERT-N2 R2 reviewer probes (not for merge) ----
+    // ---- A described net carrying poison: the reach and box lanes ----
 
-    /// The masquerade with the placeholder's own structure: every
-    /// control point poisoned in `x`, finite in `y`/`z`.
-    fn masquerade_like_placeholder() -> Surface<f64> {
-        let ph = geom::NurbsSurface::<f64>::placeholder();
-        let control = ph
-            .control()
-            .iter()
-            .enumerate()
-            .map(|(i, _)| Point3::new(f64::NAN, i as f64, 2.0))
-            .collect();
-        Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::new(
-                ph.knots_u().clone(),
-                ph.knots_v().clone(),
-                control,
-                ph.weights().to_vec(),
-            )
-            .unwrap(),
-        ))
-    }
-
-    fn swap_placeholders(body: &mut Body<f64>) -> Vec<FaceKey> {
+    /// Every mvfs placeholder seed face of `body`, its surface swapped
+    /// for `surface`.
+    fn swap_placeholders(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
         let seeds: Vec<FaceKey> = body
             .faces()
             .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Nurbs(p)) if p.is_placeholder()))
@@ -7807,7 +7788,7 @@ mod tests {
             body.set_face_surface_unvouched_for_tests(
                 f,
                 FaceSurface::New {
-                    surface: masquerade_like_placeholder(),
+                    surface: surface.clone(),
                     sense: true,
                 },
             )
@@ -7816,84 +7797,112 @@ mod tests {
         seeds
     }
 
-    /// A described net poisoned in one channel has no reach: the
-    /// backstop refuses every cross-solid pair naming it rather than
-    /// clearing one on the finite channels. The masquerade's `z` lane
-    /// sits at `2`, a kilometre below the other sheet, and would decide
-    /// that gap on its own.
+    /// A described net carrying poison has no reach: the backstop
+    /// refuses every cross-solid pair naming it, and arm 2 takes
+    /// neither solid as the container, rather than either clearing on
+    /// the finite channels. The net's `z` lane sits at `2`, a kilometre
+    /// below the other sheet, and would decide that gap on its own. Two
+    /// nets: `x` poisoned at every point, and at one point only.
     #[test]
     fn a_net_poisoned_in_one_channel_has_no_reach_and_clears_no_pair() {
-        let mut body = Body::<f64>::new();
-        let (wall_a, cyl) = unit_cyl_sheet(
-            &mut body,
-            None,
-            (0.2, 1.6),
-            (0.0, 1.0),
-            true,
-            Tol::witness(),
-        );
-        let (wall_b, _) = unit_cyl_sheet(
-            &mut body,
-            Some(cyl),
-            (1.0, 2.4),
-            (1000.3, 1000.7),
-            false,
-            Tol::witness(),
-        );
-        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let seeds = swap_placeholders(&mut body);
-        assert_eq!(seeds.len(), 2, "one seed face per sheet");
-        for &f in &seeds {
-            let reach = face_reach(&body, f, Band::linear(Tol::witness()).unwrap());
-            assert!(
-                reach.is_none(),
-                "{f:?}: a net poisoned in x bounds its locus on no axis, got {reach:?}"
+        for (what, poisoned) in [
+            ("every point", &(|_| true) as &dyn Fn(usize) -> bool),
+            ("point 0", &|i| i == 0),
+        ] {
+            let mut body = Body::<f64>::new();
+            let (wall_a, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
             );
-            // The boolean lane's answer for the same net: the poison box.
-            let boxed = crate::boolean::boxes::face_box(
-                &body,
-                f,
-                0.0,
-                Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap();
-            assert!(
-                [
-                    boxed.min_x,
-                    boxed.min_y,
-                    boxed.min_z,
-                    boxed.max_x,
-                    boxed.max_y,
-                    boxed.max_z
-                ]
-                .iter()
-                .all(|c| c.is_nan()),
-                "{f:?}: the boolean lane's box is poison on every axis, got {boxed:?}"
+            let (wall_b, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (1000.3, 1000.7),
+                false,
+                Tol::witness(),
             );
-        }
-        let errs = census_and_certify(
-            &body,
-            &ContactRecords::default(),
-            band(),
-            Tol::witness(),
-            Some(RegionLane::certified()),
-        );
-        let solid = |f: FaceKey| body.solid_of_face(f).unwrap();
-        for &seed in &seeds {
-            for other in [wall_a, wall_b].into_iter().chain(seeds.iter().copied()) {
-                if solid(other) == solid(seed) {
-                    continue;
-                }
-                let (x, y) = (EntityId::Face(seed), EntityId::Face(other));
+            crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+            let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(poisoned));
+            assert_eq!(seeds.len(), 2, "{what}: one seed face per sheet");
+            for &f in &seeds {
+                let reach = face_reach(&body, f, Band::linear(Tol::witness()).unwrap());
                 assert!(
-                    errs.iter().any(|e| matches!(
+                    reach.is_none(),
+                    "{what}, {f:?}: a net poisoned in x bounds its locus on no axis, got {reach:?}"
+                );
+                // The boolean lane's answer for the same net: the poison box.
+                let boxed = crate::boolean::boxes::face_box(
+                    &body,
+                    f,
+                    0.0,
+                    Band::linear(Tol::witness()).unwrap(),
+                )
+                .unwrap();
+                assert!(
+                    [
+                        boxed.min_x,
+                        boxed.min_y,
+                        boxed.min_z,
+                        boxed.max_x,
+                        boxed.max_y,
+                        boxed.max_z
+                    ]
+                    .iter()
+                    .all(|c| c.is_nan()),
+                    "{what}, {f:?}: the boolean lane's box is poison on every axis, got {boxed:?}"
+                );
+            }
+            let errs = census_and_certify(
+                &body,
+                &ContactRecords::default(),
+                band(),
+                Tol::witness(),
+                Some(RegionLane::certified()),
+            );
+            let refused = |x: EntityId, y: EntityId, why: Undecided, ordered: bool| {
+                errs.iter().any(|e| {
+                    matches!(
                         e,
                         ValidationError::CensusUndecidable { a, b, what }
-                            if ((*a, *b) == (x, y) || (*a, *b) == (y, x))
-                                && *what == Undecided::NoSoundReach.what()
-                    )),
-                    "{seed:?} x {other:?}: a poisoned net refuses as unclaimable, never \
-                     clears; census said {errs:#?}"
+                            if ((*a, *b) == (x, y) || (!ordered && (*a, *b) == (y, x)))
+                                && *what == why.what()
+                    )
+                })
+            };
+            let solid = |f: FaceKey| body.solid_of_face(f).unwrap();
+            for &seed in &seeds {
+                for other in [wall_a, wall_b].into_iter().chain(seeds.iter().copied()) {
+                    if solid(other) == solid(seed) {
+                        continue;
+                    }
+                    assert!(
+                        refused(
+                            EntityId::Face(seed),
+                            EntityId::Face(other),
+                            Undecided::NoSoundReach,
+                            false
+                        ),
+                        "{what}, {seed:?} x {other:?}: a poisoned net refuses as unclaimable, \
+                         never clears; census said {errs:#?}"
+                    );
+                }
+            }
+            // Arm 2: each solid carries a poisoned face, so neither has a
+            // claimable extent and both orderings refuse.
+            let (sa, sb) = (
+                EntityId::Solid(solid(wall_a)),
+                EntityId::Solid(solid(wall_b)),
+            );
+            for (outer, inner) in [(sa, sb), (sb, sa)] {
+                assert!(
+                    refused(outer, inner, Undecided::Unclaimable, true),
+                    "{what}, {outer:?} around {inner:?}: a solid with a poisoned face is \
+                     never the container; census said {errs:#?}"
                 );
             }
         }
@@ -7914,7 +7923,7 @@ mod tests {
             Tol::witness(),
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let seeds = swap_placeholders(&mut body);
+        let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(|_| true));
         let b = crate::boolean::boxes::face_box(
             &body,
             seeds[0],

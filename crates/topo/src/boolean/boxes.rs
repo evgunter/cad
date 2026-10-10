@@ -3532,9 +3532,8 @@ pub(crate) mod tests {
         // `census.rs` counts SEVEN: the pre-filter's `face_box` and
         // `edge_box` reads (`census::Trees::build`, the pruning door),
         // three rule reads of its own, and two that are not doors —
-        // the adopted CERT-N2 reviewer probes in its test module call
-        // `face_box` to execute what a partially poisoned control net
-        // answers there. The number is stated with that content rather
+        // two rows in its test module call `face_box` to pin what a
+        // described net carrying poison answers there. The number is stated with that content rather
         // than filtered, because this pin's protection is that an
         // occurrence cannot arrive, leave or move unnoticed — which it
         // still gives — while the module docs' DOOR list above stays a

@@ -1,5 +1,4 @@
-//! CERT-N2 R1 REVIEWER PROBES. Not part of the unit under review;
-//! committed to the reviewer's own branch only.
+//! CERT-N2 R1 reviewer probes, adopted as rows.
 //!
 //! What check 1 answers on the masquerading net — poison in one
 //! channel of every point — that the placeholder's widening newly
@@ -14,19 +13,8 @@
 
 use crate::euler::FaceSurface;
 use crate::fixtures::mvfs_state;
-use geom::{NurbsSurface, Surface};
-use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3};
-
-fn masquerading_surface() -> Surface<f64> {
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let control: Vec<Point3<f64>> = (0..4)
-        .map(|i| Point3::new(f64::NAN, f64::from(i), 2.0))
-        .collect();
-    Surface::Nurbs(std::sync::Arc::new(
-        NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
-    ))
-}
+use geom::Surface;
+use geom_core::Band;
 
 /// **`UncertifiableSurface` is the placeholder state's verdict and no
 /// other state's.** Check 1 reads a `Nurbs` payload's `NetState` and
@@ -78,7 +66,7 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
         .0
     };
     let with_placeholder = run(Surface::nurbs_placeholder());
-    let with_masquerade = run(masquerading_surface());
+    let with_masquerade = run(crate::fixtures::poisoned_net(|_| true));
     println!("PROBE class9 placeholder: {with_placeholder:?}");
     println!("PROBE class9 masquerade:  {with_masquerade:?}");
     assert!(
