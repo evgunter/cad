@@ -244,3 +244,97 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
         Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
     }
 }
+
+/// The foot is a function of the query point only through the selected
+/// parameter, which a numerical search produced: at `Sym<f64>`, with
+/// the query point's `x` a parameter, the foot and both residuals carry
+/// that parameter as an unknown and so re-value to no claim at all,
+/// never to the foot of the stale parameter. The interior query takes
+/// the cosine exit and the one past the end the stagnation exit.
+///
+/// The carrier is built inside the session: `revalue` answers `None`
+/// for a node the session never interned, so a carrier built outside it
+/// would pass this row on any code. The control (a point of the same
+/// carrier at a constant parameter re-values to a number) holds that.
+#[test]
+fn a_selected_parameter_enters_the_foot_as_an_unknown() {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let c = center();
+    let shift = ParamSymbol::new(1);
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for (label, (bx, by)) in [
+        ("interior foot", (3.0 * SQRT2_2, 3.0 * SQRT2_2)),
+        ("clamped end", (-3.0, 3.0)),
+    ] {
+        let ((control, revalued), _) = with_session(budget, || {
+            let arc = quarter_arc().map_scalar(S::from_f64);
+            let p = Point3::new(
+                S::from_f64(c.x + bx) + S::param(shift, 0.0),
+                S::from_f64(c.y + by),
+                S::from_f64(c.z),
+            );
+            let proj = arc.project(p).unwrap();
+            let at = |_: ParamSymbol| Some(0.25);
+            (
+                revalue(arc.eval(S::from_f64(0.5)).x.node(), &at),
+                (
+                    revalue(proj.foot.x.node(), &at),
+                    revalue(proj.distance.node(), &at),
+                    revalue(proj.orthogonality.node(), &at),
+                ),
+            )
+        });
+        assert!(
+            control.is_some(),
+            "{label}: the carrier's own nodes re-value, so a None below is the parameter's"
+        );
+        assert_eq!(
+            revalued,
+            (None, None, None),
+            "{label}: the foot and its residuals re-value through an unknown, not a constant parameter"
+        );
+    }
+}
+
+/// The `Opaque` unknowns the profiled sessions minted.
+fn opaques(profile: &geom_core::sym::profile::SymProfile) -> u64 {
+    profile.opaque_ids.iter().map(|s| s.len() as u64).sum()
+}
+
+/// The seeding sweep's samples feed only its `mid` comparisons, so no
+/// payload carries them; each still enters `T` as its own unknown, one
+/// atom per sample, which the session profile counts.
+#[test]
+fn the_seed_sweep_mints_one_unknown_per_sample() {
+    use geom::PROJECT_SEEDS_PER_SPAN;
+    use geom_core::sym::profile::{start_profile, take_profile};
+    use geom_core::sym::with_session;
+    use geom_core::{Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let c = center();
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    start_profile();
+    let _ = with_session(budget, || {
+        let arc = quarter_arc().map_scalar(S::from_f64);
+        arc.project_seed(Point3::new(
+            S::from_f64(c.x + 3.0),
+            S::from_f64(c.y + 3.0),
+            S::from_f64(c.z),
+        ))
+    });
+    let profile = take_profile();
+    assert_eq!(
+        opaques(&profile),
+        PROJECT_SEEDS_PER_SPAN as u64,
+        "the quarter arc is one span: one unknown per sweep sample"
+    );
+}
