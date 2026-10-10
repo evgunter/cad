@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::test_support::upper;
 use geom_core::{Dual64, Tol, Vec3};
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
 
@@ -363,8 +364,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                 error:
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::HullSup,
-                        value,
-                        ..
+                        margin,
                     }),
                 ..
             },
@@ -374,8 +374,8 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
         panic!("expected the rim certificate's limb-2 refusal, got {e}");
     };
     assert!(
-        *value > 1e2 * Tol::witness().eps(),
-        "limb 2 is far past the band, not at its edge: {value}"
+        upper(*margin) > 1e2 * Tol::witness().eps(),
+        "limb 2 is far past the band, not at its edge: {margin}"
     );
     let data = body.get_edge(*edge).expect("the rim resolves");
     let walls = nurbs_walls(&body);
@@ -468,12 +468,12 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         match error {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                 limb: geom_brep::ssi::SsiLimb::HullSup,
-                value,
-                ..
+                margin,
             }) => {
+                let value = upper(*margin);
                 assert!(
-                    micrometres.contains(value) && *value > 10.0 * eps,
-                    "eps {eps:e}, d {d}: limb 2 refused at {value:e}"
+                    micrometres.contains(&value) && value > 10.0 * eps,
+                    "eps {eps:e}, d {d}: limb 2 refused at {margin:e}"
                 );
             }
             geom_brep::CertifyError::Escalated { check, .. } => {

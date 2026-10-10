@@ -112,7 +112,6 @@ mod rows {
         cyl_wall_sheet(
             &mut y,
             CylFrame::canonical(1.0),
-            None,
             (0.0, FRAC_PI_2),
             (0.0, 1.0),
             tol,

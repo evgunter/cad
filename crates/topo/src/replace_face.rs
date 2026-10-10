@@ -2203,34 +2203,31 @@ fn plan_edge<T: Decide>(
             }
             let (row, fixed) = geom_brep::iso_boundary_row(approx.fit(), axis, at, band)
                 .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
-            // An edge laid against the row runs on the row reversed,
-            // `t ↦ lo + hi − t`, so its span runs forward on its carrier.
-            let (lo, hi) = row.knots().domain();
-            let flip = T::from_f64(lo + hi);
+            // An edge laid against the row runs on the row reflected
+            // through 0 (`geom_brep::reversed_column`), `t ↦ −t`, so its
+            // span runs forward on its carrier.
             let against = matches!(
                 decide("iso_row_runs_against", Margin::of(s1 - s0), band)
                     .map_err(|source| ReplaceFaceError::Escalated { source })?,
                 Sign::Negative
             );
             let (row, (s0, s1), along) = if against {
-                let reversed = geom_brep::reversed_column(&row)
-                    .map_err(|error| ReplaceFaceError::Structure { edge, error })?;
-                (reversed, (flip - s0, flip - s1), (flip, -T::one()))
+                (geom_brep::reversed_column(&row), (-s0, -s1), -T::one())
             } else {
-                (row, (s0, s1), (T::zero(), T::one()))
+                (row, (s0, s1), T::one())
             };
             let carrier = Curve3::Nurbs(Arc::new(row));
             let ends = Some((carrier.eval(s0), carrier.eval(s1)));
-            // The image is `(fixed, along)` or `(along, fixed)` with
-            // `along = along.0 + along.1·t`, the row's own parameter.
+            // The image is `(fixed, along·t)` or `(along·t, fixed)`: the
+            // row's own parameter, run back on a reflected carrier.
             let (p0, pl) = match axis {
                 geom_brep::ChartAxis::U => (
-                    geom_core::Point2::new(fixed, along.0),
-                    geom_core::Vec2::new(T::zero(), along.1),
+                    geom_core::Point2::new(fixed, T::zero()),
+                    geom_core::Vec2::new(T::zero(), along),
                 ),
                 geom_brep::ChartAxis::V => (
-                    geom_core::Point2::new(along.0, fixed),
-                    geom_core::Vec2::new(along.1, T::zero()),
+                    geom_core::Point2::new(T::zero(), fixed),
+                    geom_core::Vec2::new(along, T::zero()),
                 ),
             };
             let description = EdgeDescriptionSpec::Chart {
@@ -2398,8 +2395,7 @@ fn plan_edge<T: Decide>(
                 // every other variant is answered inside it and
                 // never returned.
                 other @ (geom_brep::SectionError::WrongLane { .. }
-                | geom_brep::SectionError::RadiusDeclarationContradicted
-                | geom_brep::SectionError::CoaxialDeclarationContradicted
+                | geom_brep::SectionError::UnequalRadii
                 | geom_brep::SectionError::DegenerateOperand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
@@ -2620,8 +2616,7 @@ fn derive_edge<T: Decide>(
         // As at `neighbour_section`: every other variant is answered
         // inside `route_pose` and never returned.
         other @ (geom_brep::SectionError::WrongLane { .. }
-        | geom_brep::SectionError::RadiusDeclarationContradicted
-        | geom_brep::SectionError::CoaxialDeclarationContradicted
+        | geom_brep::SectionError::UnequalRadii
         | geom_brep::SectionError::DegenerateOperand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces

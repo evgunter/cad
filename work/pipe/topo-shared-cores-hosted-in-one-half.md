@@ -9,7 +9,7 @@ refs: [690, S5, S173]
 priority: P1
 cost: H
 design: true
-blocked_on: [booleans-glue-on-zero, declared-pairs-retire]
+blocked_on: [declared-pairs-retire]
 ---
 
 ## From GitHub issue 695

@@ -383,9 +383,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "cyl_wall_sheet_keyed",
         "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
-         (asserting), places the cylinder key through `set_face_surface` and records it \
-         through `set_surface_source`, both on this list below for writing fields tier 1 \
-         does not constrain. Its rim planes go in through `add_surface`, which is on \
+         (asserting) and places the cylinder key through `set_face_surface`, on this list \
+         below for writing fields tier 1 does not constrain. Its rim planes go in through `add_surface`, which is on \
          NEITHER half: crate-internal raw insertion that makes no promise at all. What \
          covers it is the `mev` that follows — a plane is an orphan surface until the rim \
          edge naming it exists, and that operator's postcondition is taken over a body \
@@ -404,22 +403,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          and tier 1 does not see it; what asserts is the close, in the door that opened it",
     ),
     ("set_face_sense", "writes one `bool`; sense is tier 3's"),
-    ("set_surface_source", "GeomSource metadata, no arena key"),
-    ("set_curve_source", "GeomSource metadata, no arena key"),
-    ("set_point_source", "GeomSource metadata, no arena key"),
-    ("clear_geom_sources", "GeomSource metadata, no arena key"),
-    (
-        "mark_imported",
-        "origin metadata beside the GeomSource maps (`crate::GeomOrigin`), no arena key",
-    ),
-    (
-        "set_surface_field_source",
-        "ParamSource metadata, no arena key (a per-field side record beside the surface)",
-    ),
-    (
-        "set_surface_axis_source",
-        "axis-channel metadata, no arena key (a per-component side record beside the surface)",
-    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     (

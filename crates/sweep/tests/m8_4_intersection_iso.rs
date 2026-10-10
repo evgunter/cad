@@ -1102,6 +1102,139 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
         .unwrap_or_else(|e| panic!("E2: the General-imaged body's mesh is watertight: {e:?}"));
 }
 
+/// The bowed wall on `knots_u = [0.1, 0.1, 0.25, 0.3, 0.3]`, its `u`
+/// run the other way: the same point set, its straight `u` rows cut at
+/// a third control row placed three quarters along each (exact on the
+/// prism's dyadic net), on a domain whose `lo + hi` is not an `f64` —
+/// so the row's reflection about its domain is exact at `0.25 ↔ 0.15`
+/// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`.
+fn off_dyadic_u_chart(n: &NurbsSurface<f64>) -> NurbsSurface<f64> {
+    let (nu, nv) = n.control_counts();
+    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert!(
+        n.weights().iter().all(|w| *w == 1.0),
+        "a polynomial wall, so the new row lies on the old rows' segments"
+    );
+    let ku = KnotVector::clamped(vec![0.1, 0.1, 0.25, 0.3, 0.3], 1).unwrap();
+    let (first, last) = (&n.control()[..nv], &n.control()[nv..]);
+    let mut control = last.to_vec();
+    control.extend((0..nv).map(|j| last[j] + (first[j] - last[j]) * 0.75));
+    control.extend_from_slice(first);
+    let (w_first, w_last) = (&n.weights()[..nv], &n.weights()[nv..]);
+    let weights = [w_last, w_last, w_first].concat();
+    NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap()
+}
+
+/// The point a vertex sits at.
+fn vertex_at(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
+    body.vertex_points()
+        .find_map(|(k, p)| (k == v).then_some(p))
+        .unwrap()
+}
+
+/// The top rim of `wall`'s face: its edge, the half-edge on the wall,
+/// and the cap plane across it.
+fn top_rim(
+    body: &Body<f64>,
+    wall: topo::SurfaceKey,
+) -> (topo::EdgeKey, topo::HalfEdgeKey, topo::SurfaceKey) {
+    let (wall_face, _) = body.faces().find(|(_, f)| f.surface == wall).unwrap();
+    body.edges()
+        .find_map(|(ek, e)| {
+            [(e.he_plus, e.he_minus), (e.he_minus, e.he_plus)]
+                .into_iter()
+                .find_map(|(own, other)| {
+                    let lp = body.get_half_edge(own).unwrap().parent_loop;
+                    let cap = he_surface(body, other);
+                    let on_cap = matches!(body.get_surface(cap), Some(Surface::Plane { .. }));
+                    let ends =
+                        [own, other].map(|h| vertex_at(body, body.get_half_edge(h).unwrap().start));
+                    (body.get_loop(lp).unwrap().face == wall_face
+                        && on_cap
+                        && ends.iter().all(|p| p.z == 2.0))
+                    .then_some((ek, own, cap))
+                })
+        })
+        .expect("the wall's top rim")
+}
+
+/// **A cap rim run back along its wall's row certifies as that row**:
+/// derived through `pcurve_of` and certified at
+/// `PcurveCache::certify`, the closed-form door the mint calls, on a
+/// row whose reflection about its domain is exact only as an exact
+/// sum. Two carriers run the row back: the one the kernel's own
+/// `reversed_column` builds (reflected through 0), and one on the
+/// row's exact reflection about its domain. The intrinsic row
+/// candidate and the seam certificate decide one relation, so each is
+/// offered as the row, `u` moving, and certified there.
+#[test]
+fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
+    let mut body = prism(1.0);
+    let (_, _, bowed, _) = flat_bowed_seam(&body, 1.0);
+    let chart = off_dyadic_u_chart(&chart_of(&body, bowed));
+    let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
+    let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
+    let (u_lo, u_hi) = chart.knots_u().domain();
+    let (start, end) = (row.eval(u_lo), row.eval(u_hi));
+    assert!(
+        start.z == 2.0 && end.z == 2.0,
+        "the v = 1 row is the top rim"
+    );
+    let (edge, he, cap) = top_rim(&body, wall);
+    let plus = body.get_edge(edge).unwrap().he_plus;
+    let from = vertex_at(&body, body.get_half_edge(plus).unwrap().start);
+    assert!(
+        from.distance(end) == 0.0,
+        "the rim runs from the row's u = {u_hi} end to its u = {u_lo} end: starts at {from:?}"
+    );
+    // The row run back by the kernel's own door, and the row on its
+    // exact reflection about `[0.1, 0.3]`.
+    let exact = KnotVector::clamped(vec![0.1, 0.1, 0.15, 0.3, 0.3], 1).unwrap();
+    assert!(chart.knots_u().is_reflection_of(&exact));
+    let mirrored = geom::NurbsCurve3::new(
+        exact,
+        row.control().iter().rev().copied().collect(),
+        row.weights().iter().rev().copied().collect(),
+    )
+    .unwrap();
+    for (what, carrier) in [
+        ("reversed_column", geom_brep::reversed_column(&row)),
+        ("the exact reflection", mirrored),
+    ] {
+        let (t0, t1) = carrier.domain();
+        let carrier = Curve3::Nurbs(Arc::new(carrier));
+        body.set_edge_curve(
+            edge,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: cap,
+                    s2: wall,
+                    witness: carrier.eval((t0 + t1) * 0.5),
+                },
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the rim takes the carrier: {e}"));
+        body.detach_pcurve(he);
+        let image = match topo::pcurve_of(&body, he, band()) {
+            Ok(image @ Pcurve::IsoLine { p0, pl }) => {
+                assert_eq!(pl.y, 0.0, "{what}: a row holds v constant: {pl:?}");
+                assert_eq!(p0.y, 1.0, "{what}: on the v = 1 row: {p0:?}");
+                assert!(pl.x < 0.0, "{what}: run back, u falling: {pl:?}");
+                image
+            }
+            other => panic!("{what}: the rim derives as the row: {other:?}"),
+        };
+        let surface = Surface::Nurbs(Arc::new(chart.clone()));
+        if let Err(e) = geom_brep::PcurveCache::certify(image, t0, t1, &carrier, &surface, band()) {
+            panic!("{what}: the derived row certifies: {e}");
+        }
+    }
+}
+
 /// `surface_curve_residual`'s certified sup of `image` against the
 /// seam's carrier on the bowed wall, with `spans` uniform breaks
 /// injected the way the SSI hull injects its grid.
@@ -1224,4 +1357,78 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
         "refining the grid from 8 to 64 spans loosens the exact image's bound from \
          {coarse:e} to {fine:e} m"
     );
+}
+
+/// **A row symmetric only in decimal is not run back on its own knots.**
+/// On `knots_u = [0.1, 0.1, 0.2, 0.3, 0.3]`, `0.2 + 0.2` is not
+/// `0.1 + 0.3` in ℝ, so a carrier on the row's own knots with its net
+/// reversed is not the row run back: no row candidate is offered for
+/// it, and the rim falls through to the `General` image the wall's
+/// foot schedule measures, which certifies against the cap plane.
+/// (The shape a STEP file writes: decimal knots, a rim oriented
+/// against the row.)
+#[test]
+fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
+    let mut body = prism(1.0);
+    let (_, _, bowed, _) = flat_bowed_seam(&body, 1.0);
+    let n = chart_of(&body, bowed);
+    let nv = n.control_counts().1;
+    let ku = KnotVector::clamped(vec![0.1, 0.1, 0.2, 0.3, 0.3], 1).unwrap();
+    assert!(
+        !ku.is_reflection_of(&ku),
+        "the row is not exactly symmetric"
+    );
+    assert!(
+        n.weights().iter().all(|w| *w == 1.0),
+        "a polynomial wall, so the new row lies on the old rows' segments"
+    );
+    let (first, last) = (&n.control()[..nv], &n.control()[nv..]);
+    let mut control = last.to_vec();
+    control.extend((0..nv).map(|j| last[j] + (first[j] - last[j]) * 0.5));
+    control.extend_from_slice(first);
+    let chart =
+        NurbsSurface::new(ku.clone(), n.knots_v().clone(), control, vec![1.0; 3 * nv]).unwrap();
+    let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
+    let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
+    let (edge, he, cap) = top_rim(&body, wall);
+    let same_knots_back = geom::NurbsCurve3::new(
+        ku,
+        row.control().iter().rev().copied().collect(),
+        row.weights().iter().rev().copied().collect(),
+    )
+    .unwrap();
+    let (t0, t1) = same_knots_back.domain();
+    let carrier = Curve3::Nurbs(Arc::new(same_knots_back));
+    body.set_edge_curve(
+        edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cap,
+                s2: wall,
+                witness: carrier.eval((t0 + t1) * 0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the rim takes the carrier: {e}"));
+    body.detach_pcurve(he);
+    let image = match topo::pcurve_of(&body, he, band()) {
+        Ok(Pcurve::General(image)) => image,
+        other => panic!("the rim falls through to the General image: {other:?}"),
+    };
+    let mate = body.get_surface(cap).cloned().unwrap();
+    geom_brep::PcurveCache::certify_general(
+        image,
+        t0,
+        t1,
+        &carrier,
+        &Surface::Nurbs(Arc::new(chart)),
+        Some(&mate),
+        band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
+    )
+    .unwrap_or_else(|e| panic!("the General image certifies against the cap plane: {e}"));
 }

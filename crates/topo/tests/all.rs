@@ -67,8 +67,6 @@ mod probe_support;
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
 mod at_rest_pcurve_rows;
-#[path = "axis_source_rows.rs"]
-mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]
@@ -117,8 +115,6 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
-#[path = "geom_origin_rows.rs"]
-mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]

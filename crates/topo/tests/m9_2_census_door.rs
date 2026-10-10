@@ -192,7 +192,7 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         radius: 1.0,
         u_ref: Vec3::unit_z(),
     };
-    let TangentLocus::Line { origin, dir } =
+    let TangentLocus::Line { origin, dir, .. } =
         tangent_locus(&plane_at(0.0), &cyl, metre_patch(), band()).unwrap();
     assert!(
         origin.z.abs() < 1e-12 && origin.y.abs() < 1e-12,
@@ -238,13 +238,13 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
 #[test]
 fn parallel_cylinders_mint_the_external_and_internal_generators() {
     // External: radii 1 + 1, axes 2 apart in y — generator at y = 1.
-    let TangentLocus::Line { origin, dir } =
+    let TangentLocus::Line { origin, dir, .. } =
         tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), metre_patch(), band()).unwrap();
     assert!((origin.y - 1.0).abs() < 1e-12, "{origin:?}");
     assert!(dir.y.abs() < 1e-12 && dir.z.abs() < 1e-12, "{dir:?}");
     // Internal: r 1 inside r 3, axes 2 apart — generator at y = -1
     // (the small cylinder touches the big one on its far side).
-    let TangentLocus::Line { origin, dir: _ } =
+    let TangentLocus::Line { origin, .. } =
         tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 3.0), metre_patch(), band()).unwrap();
     assert!((origin.y - (-1.0)).abs() < 1e-12, "{origin:?}");
     // Definitely apart / definitely overlapping refuse.

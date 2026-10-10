@@ -16,7 +16,7 @@ use editor_core::{
     ResolveError, RoleSeg, SitedRef, StableName, ValuePayload, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
-pub(crate) use fixture::{flush_pairs, member_face};
+pub(crate) use fixture::{built_bits, flush_pairs, member_face};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -147,19 +147,19 @@ pub(crate) fn declared_union_classed(
 // A1 — the motivating case fuses.
 // ---------------------------------------------------------------------
 
-/// **Two flush placements of ONE prototype fuse when the contact is
-/// declared, and refuse naming both members when it is not.**
+/// **Two flush placements of ONE prototype fuse, declared or not, into
+/// one body.**
 ///
-/// This is DOCM-3's reviewer probe. Undeclared, the fold refuses the
-/// contact exactly as a pair boolean's operands would; declared in
-/// member space, the same document is one body of the fused volume.
+/// This is DOCM-3's reviewer probe. The margins decide the flush walls
+/// one carrier, so the fold glues them whether the contact is declared
+/// or not; declared in member space, the same document is the same
+/// body bit for bit.
 #[test]
-fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
+fn a_union_of_two_flush_placements_of_one_prototype_fuses_declared_or_not() {
     let doc = ProfileDoc::empty_derived("docm7_placements", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    // Undeclared: the refusal, naming both members.
     let (bare, plain) = insert(
         doc.clone(),
         Node::Union {
@@ -167,19 +167,16 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
             declare: Vec::new(),
         },
     );
-    let ev = run(&bare);
-    let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, plain) else {
-        panic!(
-            "expected the undeclared contact, got {:?}",
-            failure(&ev, plain)
-        );
-    };
-    let named: Vec<RecipeNodeId> = vec![finding.pair.0.at, finding.pair.1.at];
+    let undeclared = run(&bare);
     assert!(
-        named.contains(&m1) && named.contains(&m2),
-        "the refusal names both members: {named:?}"
+        failure(&undeclared, plain).is_none(),
+        "the undeclared union refused: {:?}",
+        failure(&undeclared, plain)
     );
-    // Declared at the members: the same two placements fuse.
+    let volume = topo::mass_properties(body_of(&undeclared, plain), Tol::witness())
+        .expect("the fused body has mass")
+        .volume;
+    assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
     let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
     let (doc, union) = declared_union(doc, &[m1, m2], pairs);
     let ev = run(&doc);
@@ -188,10 +185,11 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
         "the declared union refused: {:?}",
         failure(&ev, union)
     );
-    let volume = topo::mass_properties(body_of(&ev, union), Tol::witness())
-        .expect("the fused body has mass")
-        .volume;
-    assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
+    assert_eq!(
+        built_bits(&ev, union),
+        built_bits(&undeclared, plain),
+        "the declared union is the undeclared one's body"
+    );
 }
 
 /// **The pair boolean declares between two placements of one
@@ -347,13 +345,10 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
 ///
 /// **Description-level equality is the CEILING here**, and the
 /// comparison says so: it sorts the two bodies' descriptions and
-/// compares those, rather than asking for bit identity. Two bodies
-/// minted by two different nodes cannot be bit-identical — every
-/// minted description carries its own `GeomSource.node` (D1), which is
-/// the union's in one and the boolean's in the other — so a `bit_eq`
-/// between them would be measuring the node ids and failing on them.
-/// What is comparable is what the two verbs computed, and that is what
-/// is compared.
+/// compares those, rather than asking for bit identity: a `bit_eq`
+/// between bodies two different nodes built would also measure the
+/// order each built its arenas in. What is comparable is what the two
+/// verbs computed, and that is what is compared.
 #[test]
 fn a_declared_union_is_the_pair_booleans_body() {
     let doc = ProfileDoc::empty_derived("docm7_pair_eq", Tol::witness());
@@ -926,17 +921,17 @@ fn set_declare_refuses_a_node_that_declares_nothing_and_a_dead_id() {
     );
 }
 
-/// **An undeclared union is declared in place**: its refusal carries
-/// the candidate pair, `SetDeclare` on the live union with every pair
-/// it refused builds it, and an empty list clears the declaration
-/// back to the refusal. The accepted edit mints nothing.
+/// **A live union is declared in place**: `SetDeclare` with every pair
+/// the detector finds between its members mints nothing and keeps the
+/// node, the declared union is the undeclared one's body, and an empty
+/// list clears the declaration back to that same body.
 #[test]
-fn set_declare_on_a_live_union_answers_its_refusal() {
+fn set_declare_on_a_live_union_edits_it_in_place() {
     let doc = ProfileDoc::empty_derived("docm7_set_declare", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (mut doc, union) = insert(
+    let (doc, union) = insert(
         doc,
         Node::Union {
             members: vec![m1.into(), m2.into()],
@@ -944,35 +939,39 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
         },
     );
     let order = doc.ids().to_vec();
-    let mut pairs = Vec::new();
-    loop {
-        let ev = run(&doc);
-        match failure(&ev, union) {
-            None => break,
-            Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
-                pairs.push((finding.pair.clone(), finding.class));
-                assert!(pairs.len() <= 8, "{pairs:?}");
-            }
-            other => panic!("the refusal a caller can act on, got {other:?}"),
-        }
-        let applied = doc
-            .apply(
-                &DocEdit::SetDeclare {
-                    node: union,
-                    pairs: pairs.clone(),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .expect("the refused pairs declare");
-        assert_eq!(applied.record.minted, None, "a declaration mints nothing");
-        doc = applied.doc;
-    }
+    let undeclared = run(&doc);
+    assert!(
+        failure(&undeclared, union).is_none(),
+        "the undeclared union refused: {:?}",
+        failure(&undeclared, union)
+    );
+    let pairs = fixture::findings_declared(&undeclared, &[m1, m2]);
+    assert!(!pairs.is_empty(), "the flush placements have findings");
+    let applied = doc
+        .apply(
+            &DocEdit::SetDeclare { node: union, pairs },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the found pairs declare");
+    assert_eq!(applied.record.minted, None, "a declaration mints nothing");
+    let doc = applied.doc;
     assert_eq!(doc.ids(), &order[..], "the union was edited in place");
-    let volume = topo::mass_properties(body_of(&run(&doc), union), Tol::witness())
+    let declared = run(&doc);
+    assert!(
+        failure(&declared, union).is_none(),
+        "the declared union refused: {:?}",
+        failure(&declared, union)
+    );
+    let volume = topo::mass_properties(body_of(&declared, union), Tol::witness())
         .expect("the fused body has mass")
         .volume;
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
+    assert_eq!(
+        built_bits(&declared, union),
+        built_bits(&undeclared, union),
+        "the declared union is the undeclared one's body"
+    );
     let (cleared, _) = step(
         doc,
         DocEdit::SetDeclare {
@@ -980,12 +979,10 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
             pairs: Vec::new(),
         },
     );
-    assert!(
-        matches!(
-            failure(&run(&cleared), union),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "an empty list clears the declaration"
+    assert_eq!(
+        built_bits(&run(&cleared), union),
+        built_bits(&undeclared, union),
+        "an empty list clears the declaration back to the undeclared body"
     );
 }
 
@@ -1263,68 +1260,61 @@ fn a_declared_unions_document_replays_in_document_order() {
 // The refusal against a row the fold minted.
 // ---------------------------------------------------------------------
 
-/// **A union's undeclared contact against what the fold merges is
-/// refused between two MEMBERS, and declaring each refusal verbatim
-/// fuses the document.**
+/// **A member resting flush under a wall the fold merges fuses,
+/// declared or not, into one body.**
 ///
 /// Two placements of one prototype are declared flush, so their y=0
 /// walls fuse into one `Merged` row; a third block rests flush under
 /// that merged wall, undeclared. Contact is judged pairwise before the
-/// fold (DM4), so the refusal names a face of `m3` and a face of one
-/// placement, never the merged row, and carries no merged set. Each
-/// placement touches `m3`, so there are two refusals to answer; with
-/// both declared, each resolves to the merged row through the
-/// look-through at `m3`'s step.
+/// fold (DM4): the detector finds a resting pair between `m3` and each
+/// placement, and declaring every finding — each resolving to the
+/// merged row through the look-through at `m3`'s step — builds the
+/// undeclared union's body bit for bit.
 #[test]
-fn a_union_refusal_against_a_merged_wall_names_two_members() {
+fn a_member_flush_under_a_merged_wall_fuses_declared_or_not() {
     let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
     let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
-    let mut pairs: Vec<_> = flush_pairs(&doc, (m1, proto), (m2, proto))
+    let placements: Vec<_> = flush_pairs(&doc, (m1, proto), (m2, proto))
         .into_iter()
         .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
         .collect();
-    let mut refused = Vec::new();
-    loop {
-        let (docx, union) = declared_union_classed(doc.clone(), &[m1, m2, m3], pairs.clone());
-        let ev = run(&docx);
-        match failure(&ev, union) {
-            None => break,
-            Some(NodeErrorKind::UndeclaredCoincidence {
-                finding, merged, ..
-            }) => {
-                assert!(
-                    merged.0.is_empty() && merged.1.is_empty(),
-                    "a pairwise refusal carries no merged set: {merged:?}"
-                );
-                refused.push((finding.pair.0.at, finding.pair.1.at, finding.class));
-                assert!(refused.len() <= 8, "{refused:?}");
-                pairs.push((finding.pair.clone(), finding.class));
-            }
-            other => panic!("the refusal a caller can act on, got {other:?}"),
-        }
-    }
-    // Each pair is spelled lower id first, and refused in id order. The
-    // two contacts are the y = 0 rests; `m3`'s caps and end walls carry
-    // on flush from the placements' and are refused as continuations.
-    let by_id = |x: RecipeNodeId, y: RecipeNodeId| (x.min(y), x.max(y));
-    let contacts: Vec<_> = refused
-        .iter()
-        .filter(|r| r.2 == editor_core::BooleanCoincidence::REST)
-        .map(|&(x, y, _)| (x, y))
-        .collect();
-    let mut want = vec![by_id(m1, m3), by_id(m2, m3)];
-    want.sort();
-    assert_eq!(contacts, want, "{refused:?}");
+    let (bare, union) = declared_union_classed(doc.clone(), &[m1, m2, m3], placements.clone());
+    let undeclared = run(&bare);
     assert!(
-        refused
-            .iter()
-            .all(|r| r.2 == editor_core::BooleanCoincidence::REST
-                || r.2 == editor_core::BooleanCoincidence::Continuation),
-        "{refused:?}"
+        failure(&undeclared, union).is_none(),
+        "the union with m3 undeclared refused: {:?}",
+        failure(&undeclared, union)
+    );
+    let volume = topo::mass_properties(body_of(&undeclared, union), Tol::witness())
+        .expect("the fused body has mass")
+        .volume;
+    assert_eq!(volume, 3.0, "the placements' 1.5 and m3's 1.5");
+    let mut pairs = placements;
+    for m in [m1, m2] {
+        let found = fixture::findings_declared(&undeclared, &[m, m3]);
+        assert!(
+            found
+                .iter()
+                .any(|(_, class)| *class == editor_core::BooleanCoincidence::REST),
+            "{m:?} rests on m3 at y = 0: {found:?}"
+        );
+        pairs.extend(found);
+    }
+    let (doc, full) = declared_union_classed(doc, &[m1, m2, m3], pairs);
+    let declared = run(&doc);
+    assert!(
+        failure(&declared, full).is_none(),
+        "the fully declared union refused: {:?}",
+        failure(&declared, full)
+    );
+    assert_eq!(
+        built_bits(&declared, full),
+        built_bits(&undeclared, union),
+        "the declared union is the undeclared one's body"
     );
 }
 
