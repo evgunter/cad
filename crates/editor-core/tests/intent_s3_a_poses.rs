@@ -487,16 +487,53 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_normal: [f64; 3]) -> String {
     format!("{:?}", ev.value(ring).expect("the ring builds").payload)
 }
 
-/// **A `Meet`'s origin is a representative no reader sees** (the
-/// orchestrator's condition on the constructed poses): its point is
-/// "nearest `a`'s origin", and `a`'s origin is itself a plane's
-/// representative, so moving it within its plane moves the axis's
-/// point along the line and must move no outcome. A ring about the
-/// line builds bit-identically whichever representative `a` holds.
+/// The numbers in a value's printed form, and the text between them:
+/// two values have one outcome — one topology, one set of decisions —
+/// when the text agrees exactly and only the numbers may move.
+fn numbers_and_shape(printed: &str) -> (Vec<f64>, String) {
+    let mut numbers = Vec::new();
+    let mut shape = String::new();
+    let mut rest = printed;
+    while let Some(at) = rest.find(|c: char| c.is_ascii_digit() || c == '-') {
+        let tail = &rest[at..];
+        let len = tail
+            .find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | 'e' | '+')))
+            .unwrap_or(tail.len());
+        match tail[..len].parse::<f64>() {
+            Ok(x) if tail[..len].contains('.') => {
+                shape.push_str(&rest[..at]);
+                shape.push('#');
+                numbers.push(x);
+            }
+            _ => shape.push_str(&rest[..at + len.max(1)]),
+        }
+        rest = &tail[len.max(1)..];
+    }
+    shape.push_str(rest);
+    (numbers, shape)
+}
+
+/// **A `Meet`'s representative is a function of its definition, and no
+/// reader's outcome depends on it** (the orchestrator's ruling (a)):
+/// its point is "nearest `a`'s origin", and `a`'s origin is itself a
+/// plane's representative, so moving `a`'s origin within its plane
+/// moves the line's point along the line. A ring about the line keeps
+/// its outcome — every vertex, edge, face and decision — whichever
+/// point it is built about; its coordinates may differ at the rounding
+/// level, and nowhere more.
+///
+/// Along a world axis the rotation's pivot only slides along that axis
+/// and the arithmetic is exact, so the ring is bit-identical. Off the
+/// axes each coordinate of a copy is `R·(p − c) + c` for the pivot `c`:
+/// the two shifts each round at half an ulp of the larger of `|p|` and
+/// `|c|`, and the rotation's three-term dot products add about three
+/// ulps of `|p − c|`, so a coordinate moves by at most about 8 ulps of
+/// the scale `S = max(|p|, |c|)`. The row allows 16 ulps of `S`, with
+/// `S` the largest coordinate or pivot in play (here 6).
 #[test]
-fn a_meets_representative_point_moves_no_reader() {
+fn a_meets_representative_moves_no_readers_outcome() {
     // Planes x = 0 and y = 0 meet in the z axis; `a`'s origin slides
-    // along the plane x = 0, so the axis's point slides along z.
+    // within x = 0, so the line's point slides along z.
     let at_origin = ring_about_a_meet([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     for moved in [[0.0, 4.0, 8.0], [0.0, -0.75, 3.0], [0.0, 0.1, 0.3]] {
         assert_eq!(
@@ -505,13 +542,43 @@ fn a_meets_representative_point_moves_no_reader() {
             "a's origin at {moved:?}"
         );
     }
-    // Tilted: `a` is the plane through the z axis with normal (3, 4, 0)/5.
-    let tilted = ring_about_a_meet([0.0, 0.0, 0.0], [0.6, 0.8, 0.0]);
-    for moved in [[-0.8, 0.6, 2.0], [4.0, -3.0, -1.5], [0.08, -0.06, 0.7]] {
+    // Tilted: `a` has normal (0.6, 0, 0.8) and meets `y = 0` along
+    // (−0.8, 0, 0.6); its origin slides within `a`.
+    let normal = [0.6, 0.0, 0.8];
+    let (base, shape) = numbers_and_shape(&ring_about_a_meet([0.0; 3], normal));
+    let bound = 16.0 * f64::EPSILON * 6.0;
+    let mut moved_any = false;
+    for moved in [[0.8, 0.0, -0.6], [4.0, 1.0, -3.0], [1.2, 0.0, -0.9]] {
+        let (numbers, other) = numbers_and_shape(&ring_about_a_meet(moved, normal));
+        assert_eq!(other, shape, "a's origin at {moved:?}: the outcome moved");
+        assert_eq!(numbers.len(), base.len());
+        for (x, y) in numbers.iter().zip(&base) {
+            assert!(
+                (x - y).abs() <= bound,
+                "a's origin at {moved:?}: {x} against {y}"
+            );
+        }
+        moved_any |= numbers != base;
+    }
+    // The tilted case is where the rounding shows; a row that never saw
+    // it would not be measuring the bound.
+    assert!(
+        moved_any,
+        "off the axes the representative reaches the bits"
+    );
+}
+
+/// **A representative is deterministic** (D9: bits are a function of
+/// the reads): the same definition, built and evaluated twice, gives
+/// the ring bit for bit.
+#[test]
+fn a_meets_representative_is_a_function_of_its_definition() {
+    let normal = [0.6, 0.0, 0.8];
+    for origin in [[0.0; 3], [4.0, 1.0, -3.0]] {
         assert_eq!(
-            ring_about_a_meet(moved, [0.6, 0.8, 0.0]),
-            tilted,
-            "tilted, a's origin at {moved:?}"
+            ring_about_a_meet(origin, normal),
+            ring_about_a_meet(origin, normal),
+            "a's origin at {origin:?}"
         );
     }
 }

@@ -206,7 +206,11 @@ fn definition<T: Decide>(
                 .map_err(|e| degenerate(e, PoseConstruction::Meet))?;
             // The line's point nearest `a`'s origin: from it across `a`
             // along `d × na` to `b`. `nb · (d × na) = |d|²`, decided
-            // nonzero above.
+            // nonzero above. The point is a representative: a
+            // deterministic function of the definition (D9), and no
+            // reader's outcome — its category, its topology, any
+            // decision — depends on which one; its bits may differ at
+            // the rounding level (`intent_s3_a_poses`'s Meet rows).
             let across = d.cross(na.get());
             let reach = nb.get().dot(ob - oa) / d.norm_squared();
             PoseValue::Axis {
