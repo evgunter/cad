@@ -1327,8 +1327,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
 /// One document, built up: an intersect of two blocks that do not
 /// meet, first alone and then under a transform; a
 /// split whose tool plane clears the block, with a `Part` reading its
-/// empty side; a `Part` indexed past a pattern's count; and a revolve
-/// whose axis lives on another frame than its profile.
+/// empty side; and a `Part` indexed past a pattern's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     use pncad::document::{
@@ -1494,34 +1493,6 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         tol,
     );
 
-    // A revolve whose axis lives on a second frame, parallel to the
-    // profile's and a metre up.
-    let (doc, other_plane) = common::inserted(
-        &doc,
-        common::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        tol,
-    );
-    let (doc, stranger) = common::inserted(
-        &doc,
-        Node::Datum(Datum::AxisInPlane {
-            frame: other_plane.into(),
-            origin: [common::len(-0.01), common::len(0.0)],
-            direction: [common::scl(0.0), common::scl(1.0)],
-        }),
-        tol,
-    );
-    let (doc, section) =
-        common::inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.01, 0.01), tol);
-    let (doc, revolved) = common::inserted(
-        &doc,
-        Node::Revolve {
-            profile: section.into(),
-            axis: stranger.into(),
-            angle: common::ang(std::f64::consts::PI),
-        },
-        tol,
-    );
-
     let (ev, rows) = run(&doc);
     assert!(
         matches!(
@@ -1603,19 +1574,17 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "a split with two bodies says everything its value does"
     );
 
-    // The arm each row raised, among the four under test.
+    // The arm each row raised, among the three under test.
     let raised = |id| match ev.node_error(id).map(|error| &error.kind) {
         Some(NodeErrorKind::EmptyOperand { .. }) => Some("EmptyOperand"),
         Some(NodeErrorKind::EmptyHalf { .. }) => Some("EmptyHalf"),
         Some(NodeErrorKind::InstanceOutOfRange { .. }) => Some("InstanceOutOfRange"),
-        Some(NodeErrorKind::AxisInDifferentPlane { .. }) => Some("AxisInDifferentPlane"),
         _ => None,
     };
     let arms = [
         (moved, "EmptyOperand"),
         (above, "EmptyHalf"),
         (past, "InstanceOutOfRange"),
-        (revolved, "AxisInDifferentPlane"),
     ];
     for (id, arm) in arms {
         assert_eq!(

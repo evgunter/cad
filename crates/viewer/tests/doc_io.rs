@@ -251,8 +251,8 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
-        5,
-        "sketch frame, profile, axis datum, revolve and its placement"
+        4,
+        "sketch frame, profile, revolve and its placement"
     );
     assert!(
         !viewer::tree::has_faults(&rows),

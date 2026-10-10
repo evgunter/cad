@@ -278,7 +278,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddRevolve {
             profile: node,
-            axis: node,
+            axis_origin: common::len2([0.0, 0.0]),
+            axis_direction: common::scl2([0.0, 1.0]),
             angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {

@@ -305,12 +305,13 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "block",
     );
-    let axis = session_axis(&mut session, frame);
     run(
         &mut session,
         SessionOp::AddRevolve {
             profile,
-            axis,
+            // An axis written in the profile's own frame.
+            axis_origin: common::len2([0.03, 0.0]),
+            axis_direction: common::scl2([0.0, 1.0]),
             angle: ang(core::f64::consts::PI),
         },
         "turned",
@@ -431,20 +432,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "every creating op is sampled, and only those"
     );
     std::fs::remove_dir_all(&bench.dir).expect("the bench directory is removable");
-}
-
-/// An axis written in `frame`, for the revolve sample.
-fn session_axis(session: &mut DocSession, frame: RecipeNodeId) -> RecipeNodeId {
-    common::session_insert(
-        session,
-        SessionOp::AddDatum {
-            datum: viewer::session::DatumSpec::AxisInPlane {
-                plane: frame,
-                origin: common::len2([0.03, 0.0]),
-                direction: common::scl2([0.0, 1.0]),
-            },
-        },
-    )
 }
 
 /// **A failed row speaks its node as the document holds it now**: the

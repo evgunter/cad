@@ -93,15 +93,11 @@ vocabulary! {
     /// into a label list, because a consumer can match an enum and name
     /// every kind, and cannot do that with an index.
     ///
-    /// Two kinds need a PICK as well as numbers, and they pick from
-    /// different places. `AxisInPlane`'s frame is a document node,
-    /// chosen from the frames the document holds, and its origin and
-    /// direction are that frame's own 2-D coordinates; it is the only
-    /// node the revolve tool's axis seat admits. `FaceFrame`'s picks
+    /// One kind needs a PICK as well as numbers: `FaceFrame`'s picks
     /// are a face in the VIEWPORT and the body-denoting node the ray
     /// met, which no combo can list, so its seat is the selection
     /// itself ([`crate::session::face_frame_seat`] is the gate above
-    /// it). Each states the sentence its own unmet seat reads, at
+    /// it). It states the sentence its unmet seat reads, at
     /// [`DatumKindChoice::unmet_seat`].
     ///
     /// **`Choice` because `viewer::DatumKind` is a different type** —
@@ -109,13 +105,9 @@ vocabulary! {
     /// DRAWN, which partitions the datum VALUES rather than selecting
     /// among the specs. This crate already spells a form's choice
     /// apart from the thing chosen among that way
-    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]). The
-    /// two do not have the same members: an axis in a sketch is its
-    /// own choice here, because authoring one takes a frame pick, and
-    /// is drawn as the axis it is, so the draw tag has no member for
-    /// it. `ALL` is this side's alone in consequence: it is the radio
-    /// row's offering, in form order, and a drawing's tag claims no
-    /// such thing.
+    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]).
+    /// `ALL` is this side's alone: it is the radio row's offering, in
+    /// form order, and a drawing's tag claims no such thing.
     ///
     /// **Held to `DatumSpec` by a roster.** The direction the compiler
     /// already held is kind-to-spec: `Drafts::datum_spec`'s lowering
@@ -138,8 +130,7 @@ vocabulary! {
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
-    /// a stated direction on it — and the axis in a sketch sits next to
-    /// the axis for the same reason. The frame on a face sits next to
+    /// a stated direction on it. The frame on a face sits next to
     /// the frame by the same rule one step on: a frame you type and a
     /// frame you pick are the same choice, differently sourced.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,11 +156,9 @@ impl DatumKindChoice {
     /// a pick — the sentence the add-datum form shows over a held
     /// button, and `None` for a kind that has no pick to wait for.
     ///
-    /// One sentence per kind rather than one for the form: the two
-    /// picking kinds want different things from different places (a
-    /// frame from the document, a face from the viewport), so a single
-    /// sentence over the button is false of whichever kind is not
-    /// showing.
+    /// One sentence per kind rather than one for the form: a single
+    /// sentence over the button would be false of every kind that has
+    /// no pick to wait for.
     ///
     /// **The `Some` half is exactly the set `Drafts::datum_spec`
     /// answers `Ok(None)` for**, which is a fact about two functions in

@@ -47,7 +47,7 @@ impl RevolveTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::new([Seat::RevolveProfile]),
+            seats: Seats::one(Seat::RevolveProfile),
         }
     }
 

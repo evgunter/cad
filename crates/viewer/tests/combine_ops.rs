@@ -1517,19 +1517,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
         },
     );
-    // A node the seat's own `wants()` says it cannot hold — and one
-    // that is a legal node of SOME kind, so what the door refuses is
-    // the kind and never the absence.
-    let sketch_axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::AxisInPlane {
-                plane: sketch_frame,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
     // The two multi-body values the part selectors read. Each is a
     // legal node of SOME kind, so what the part seats refuse is the
     // kind and never the absence — and each is the OTHER's near miss.
@@ -1557,7 +1544,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         NodeKindWanted::Plane => plane,
         NodeKindWanted::Frame => sketch_frame,
         NodeKindWanted::Axis => axis,
-        NodeKindWanted::SketchAxis => sketch_axis,
         NodeKindWanted::Split => split,
         NodeKindWanted::Instances => pattern,
     };
@@ -1570,10 +1556,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         // distinction the frame pick exists for.
         NodeKindWanted::Frame => plane,
         NodeKindWanted::Axis => plane,
-        // The near miss a revolve's axis has is the WORLD axis: same
-        // word, different node kind, and the seat that used to take it
-        // is exactly the seat that must not any more.
-        NodeKindWanted::SketchAxis => axis,
         // The near miss each part selector has is the OTHER
         // multi-body value: both are several bodies, and which of
         // the two a selector reads is the whole of what the seat
@@ -1593,9 +1575,10 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             }
         };
         let op = match seat {
-            Seat::RevolveProfile | Seat::RevolveAxis => SessionOp::AddRevolve {
+            Seat::RevolveProfile => SessionOp::AddRevolve {
                 profile: filled(Seat::RevolveProfile),
-                axis: filled(Seat::RevolveAxis),
+                axis_origin: len2([0.0, 0.0]),
+                axis_direction: scl2([0.0, 1.0]),
                 angle: ang(core::f64::consts::TAU),
             },
             Seat::OperandA | Seat::OperandB => SessionOp::AddBoolean {
@@ -1961,7 +1944,8 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Revolve,
             SessionOp::AddRevolve {
                 profile: RecipeNodeId::new(0, tagged(1)),
-                axis: RecipeNodeId::new(0, tagged(2)),
+                axis_origin: len2([0.0, 0.0]),
+                axis_direction: scl2([0.0, 1.0]),
                 angle: ang(1.0),
             },
         ),
@@ -2051,21 +2035,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             frame: sketch_frame.into(),
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
-        }),
-        tol,
-    );
-    doc = next;
-    // The revolve candidate's axis. It is an in-plane axis and not the
-    // world `Datum::Axis` that used to sit here: a revolve turns a
-    // sketch about a line in its own plane, and the world axis this
-    // sweep no longer needs is a different node kind that no candidate
-    // below consumes (the pattern candidate's rule is Linear).
-    let (next, sketch_axis) = common::inserted(
-        &doc,
-        Node::Datum(Datum::AxisInPlane {
-            frame: sketch_frame.into(),
-            origin: [common::len(0.0), common::len(0.0)],
-            direction: [common::scl(0.0), common::scl(1.0)],
         }),
         tol,
     );
@@ -2198,7 +2167,10 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             "revolve",
             Node::Revolve {
                 profile: ring.into(),
-                axis: sketch_axis.into(),
+                // The revolve's axis is its own: a line in the ring's
+                // plane, its +y through (0, 0).
+                axis_origin: [common::len(0.0), common::len(0.0)],
+                axis_direction: [common::scl(0.0), common::scl(1.0)],
                 angle: common::ang(core::f64::consts::TAU),
             },
         ),

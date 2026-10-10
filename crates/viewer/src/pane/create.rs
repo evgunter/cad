@@ -772,12 +772,9 @@ impl ViewerBehavior<'_> {
     /// The add-datum form: one kind choice, the kind's fields, one
     /// [`SessionOp::AddDatum`] on commit.
     ///
-    /// Four of the six kinds are numbers alone. The two that are not
-    /// each take a PICK, from different places: an axis in a sketch
-    /// names the frame its coordinates are written in, picked from the
-    /// document's frames the way the add-profile form picks its plane,
-    /// and a frame on a face names the face itself, picked in the
-    /// viewport. Either way the button waits until the pick is in.
+    /// Four of the five kinds are numbers alone. The one that is not
+    /// takes a PICK: a frame on a face names the face itself, picked in
+    /// the viewport, and the button waits until the pick is in.
     pub(crate) fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("datum");
