@@ -383,19 +383,30 @@ two copies interfere: a vertex of one strictly inside the other's
 material (`ValidationError::InstanceInterference`), an edge piercing a
 face (`CensusContact::EdgeFacePierce`), or an in-plane crossing whose
 side test reads `SameSide`. The gate takes those verdicts out of its
-refusal, along with the containment arm's undecided verdict on a pair
-whose crossing is decided interference, and intersects the two copies.
-Each connected solid of the intersection is one `InterferenceFinding`
-on `Assembly::interference`, named by the faces of both copies that
-bound it. An intersection the kernel cannot form leaves one
+refusal, with every `CensusUndecidable` the census left on the same
+pair of copies, and intersects the two copies. Each connected solid of
+the intersection is one `InterferenceFinding` on
+`Assembly::interference`, named by the faces of both copies that bound
+it. An intersection the kernel cannot form leaves one
 `Overlap::Unlocalized` finding for the pair, which is loud and which
-nothing quiets. A finding is quiet when a holding assertion reads a
-`Gap`'s output directly over an opposed pair of faces of the two
-copies, admits only negative values (`≤ b` or `= b`, `b` decided
-negative), its two faces bound the overlap, and every face bounding the
-overlap lies between their carriers. Every other overlap is loud.
-Between two solids of one copy an overlap stays the kernel's typed
-error.
+nothing quiets; so does a decided overlap at an analysis scalar, which
+has no localizing lane (`LocalizeLane`: `f64` builds bodies). A pair the
+census decided nothing about is refused as before.
+
+A finding is quiet when a holding assertion reads a `Gap`'s output
+directly over an opposed pair of faces of the two copies, admits only
+negative values (`≤ b` or `= b`, `b` decided negative), and its two
+faces bound the overlap, and every face bounding the overlap lies
+between their carriers. The last is the kernel's own boolean: the
+region past each asserted carrier, away from its copy's material, is
+built as a solid (a box past a plane, the solid cylinder inside a bore,
+the tube outside a pin) and intersected with the overlap, which lies
+between when neither intersection keeps any of it. A containment check
+that refuses leaves the finding `Unlocalized`. A quiet finding carries
+no verdict nothing checked: every `CensusUndecidable` on the pair must
+be a face pair bounding the quieted overlap. Every other overlap is
+loud. Between two solids of one copy an overlap stays the kernel's
+typed error.
 
 ## Mirror
 

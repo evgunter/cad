@@ -8,17 +8,18 @@
 //! or an in-plane crossing whose side test reads `SameSide`); the gate
 //! then intersects the two copies, and each connected solid of the
 //! result is one [`InterferenceFinding`], named by the faces of the two
-//! copies that bound it. An intersection the kernel cannot form leaves
-//! one [`Overlap::Unlocalized`] finding for the pair, which is loud and
-//! which nothing quiets.
+//! copies that bound it. An overlap the kernel cannot bound is one
+//! [`Overlap::Unlocalized`] finding for the pair, loud, which nothing
+//! quiets.
 //!
-//! **What quiets one** ([`quieted_by`]): a holding assertion that reads
-//! a `Gap`'s output directly, over an opposed pair of faces of the two
-//! copies, admitting only negative values (`≤ b` or `= b`, `b` decided
-//! negative), whose two faces both bound the overlap, and between
-//! whose carriers every face bounding the overlap lies. The rule reads
-//! the assertion's verdict, never its measure's value, and an assertion
-//! speaks for nothing but its own site: every other overlap is loud.
+//! **What quiets one** (`quiet_verdicts`): a holding assertion that
+//! reads a `Gap`'s output directly, over an opposed pair of faces of
+//! the two copies, admitting only negative values (`≤ b` or `= b`, `b`
+//! decided negative), whose two faces both bound the overlap, and
+//! between whose carriers the overlap lies, which the kernel's boolean
+//! decides (`beyond`). The rule reads the assertion's verdict, never
+//! its measure's value, and an assertion speaks for nothing but its own
+//! site: every other overlap is loud.
 //!
 //! Inside one copy's body an overlap stays the kernel's typed error:
 //! only verdicts between solids of two different copies are findings.
@@ -106,7 +107,7 @@ pub enum Unlocalized {
 }
 
 /// **An overlap of two copies' material at rest** (D10): reported,
-/// never refused, and quiet only under the assertion [`quieted_by`]
+/// never refused, and quiet only under the assertion `quiet_verdicts`
 /// finds.
 #[derive(Debug, Clone)]
 pub struct InterferenceFinding {
@@ -134,7 +135,7 @@ impl InterferenceFinding {
 /// **An assertion that can quiet an interference**: it holds, it reads
 /// a `Gap`'s output directly over faces of two different copies, those
 /// faces are opposed, and it admits only negative values. Whether it
-/// quiets a given overlap is [`quieted_by`]'s.
+/// quiets a given overlap is `quiet_verdicts`'s.
 #[derive(Debug, Clone)]
 pub struct GapAssertion {
     /// The assertion.
