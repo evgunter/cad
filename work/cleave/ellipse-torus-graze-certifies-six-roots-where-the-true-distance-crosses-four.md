@@ -2,11 +2,13 @@
 id: ellipse-torus-graze-certifies-six-roots-where-the-true-distance-crosses-four
 kind: issue
 title: the ellipse x torus arm certifies 6 roots on a graze where the true distance crosses 4 times (fuzz seed 0xb471af1930331750, eps 1e-9, graze 91)
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
 branch: cleave/ellipse-torus-graze
+closed: 2026-10-10
+pr: 4552
 ---
 
 
@@ -49,3 +51,46 @@ reading) or the oracle misses a near-tangent pair of crossings on a
 graze. Decide which. Per implementer-discipline §8, pin this
 counterexample as an ordinary deterministic row (the ellipse, the
 torus and the window above) beside whichever fix it gets.
+
+## Built (branch `cleave/ellipse-torus-graze`)
+
+**The arm is right; the test's oracle was wrong.** Measured on `main`
+at `98a3817a1d`: the replay fails at every `CAD_TOLERANCE_EPS` row
+(default, 1e-6, 1e-12; the row walks its own ε ladder), certified 6 of
+4. A 50-digit mpmath evaluation of the stored pose finds SIX true
+crossings: the four the oracle read and a graze pair at
+`10.389850001893556` and `10.390414854663097`, 5.6e-4 rad apart about a
+bump 3.5e-8 m high. The turn about the arc's midpoint ends at
+`10.390444686707540`, 3e-5 rad past the pair, so the whole pair sat in
+the oracle's LAST 8000-sample cell, where its extremum scan
+(`for k in 1..n − 1`) never looks: neither end sample has an outer
+neighbour. The door's six roots lie within 1e-12 m of arc of the mpmath
+six. The repo's mpmath script (`scripts/oracles/ellipse_torus_mpmath.py`)
+had the same blind spot and read 4 on this pose too.
+
+- `torus_rows::certified_torus_answers_hold_against_the_true_distance`
+  reads the exact oracle (`conic_oracle::exact::truth`, double-double,
+  whole turn) in place of its own `f64` sampler; with it every
+  certified root's place is checked (the "unplaced" escape is gone).
+  Six random seeds at `CAD_FUZZ_EFFORT=10` (about 86,000 poses) pass.
+- `conic_oracle::crossings` and `extremes` (the shared sampler) search
+  the first and last cells like the rest, pinned in closed form by
+  `conic_oracle::the_end_cells_are_searched`.
+- The mpmath script searches its end cells too; it reads 6 on this pose.
+- `conic_quadric::ellipse_rows::fuzz_rows` reads the exact oracle for
+  its count (now equality, was a floor) and its `Miss` arm, which a
+  sampler could pass on a graze pair inside one cell.
+- Pinned: `torus_rows::a_graze_pair_at_the_seam_is_two_crossings`, the
+  drawn pose with its arc and seven others that put the seam before,
+  inside and past the pair, at ε 1e-6, 1e-9 and 1e-12, against the
+  mpmath roots.
+
+Filed: `work/cleave/ray-torus-probe-oracles-cannot-see-a-graze-pair-inside-one-sample-cell.md`.
+
+## Closed (PR 4552, 2026-10-10)
+
+The certificate was sound: an independent 50-digit evaluation finds 6 true crossings. The test's
+sampled oracle never searched its first and last cells, and the graze pair sat in the last one. The
+torus and ellipse fuzz rows now read `conic_oracle::exact::truth`, the shared sampler and the mpmath
+script search the end cells, and the seam-graze pose is pinned across arcs. The ray × torus probe
+oracles' blind spot is filed (P3).
