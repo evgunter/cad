@@ -123,8 +123,8 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
             if let Some(Node::Fillet { target, .. }) = doc.doc.node(id) {
                 found = Some((
                     id,
-                    doc.doc.operation_of(*target).expect("a live target"),
-                    *target,
+                    doc.doc.operation_of(target.read).expect("a live target"),
+                    target.read,
                 ));
             }
         }

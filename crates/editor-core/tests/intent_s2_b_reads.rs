@@ -84,7 +84,10 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![Operand::Var(read), extrude.into()]),
+                members: editor_core::Bodies::Spelled(vec![
+                    Operand::Var(read).into(),
+                    extrude.into(),
+                ]),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -522,7 +525,7 @@ fn a_split_port_read_is_its_half() {
     let (doc, _, other) = block_at(doc, 0.3);
     let (port_read, part_read) = (fixture::out(&doc, split), fixture::out(&doc, part));
     let boolean = |a: Operand| Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a, other.into()]),
+        members: editor_core::Bodies::Spelled(vec![a.into(), other.into()]),
         declare: Vec::new(),
     };
     let (doc, by_port) = insert(
@@ -627,7 +630,10 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![Operand::output(split, 0), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                far.into(),
+            ]),
             declare: Vec::new(),
         },
     );
@@ -857,7 +863,10 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
     let (doc, boolean) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![Operand::output(split, 0), far.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                far.into(),
+            ]),
             declare: Vec::new(),
         },
     );
@@ -908,8 +917,8 @@ fn dm5_is_over_the_variables_read() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
-                Operand::output(split, 0),
-                Operand::output(split, 1),
+                Operand::output(split, 0).into(),
+                Operand::output(split, 1).into(),
             ]),
             declare: Vec::new(),
         },
@@ -945,8 +954,8 @@ fn dm5_is_over_the_variables_read() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
-                Operand::output(split, 0),
-                Operand::output(split, 0),
+                Operand::output(split, 0).into(),
+                Operand::output(split, 0).into(),
             ]),
             declare: Vec::new(),
         },
@@ -1011,7 +1020,7 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
     let target = doc
         .operation_of(doc.output(split, 0).expect("the upper half"))
         .and_then(|_| match doc.node(split) {
-            Some(Node::Split { target, .. }) => doc.operation_of(*target),
+            Some(Node::Split { target, .. }) => doc.operation_of(target.read),
             _ => None,
         })
         .expect("the split's target");
@@ -1023,7 +1032,7 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
         .find(|name| name.kind == editor_core::EntityKind::Face && cut.lookup(name).is_none())
         .expect("a wall the cut renamed");
     let section = |side| crate::corpus::part_select::section_face(split, side);
-    let half = |h: editor_core::SplitHalf| Operand::output(split, h.port());
+    let half = |h: editor_core::SplitHalf| Operand::output(split, h.port()).into();
     let read = |h: editor_core::SplitHalf| doc.output(split, h.port()).expect("a half's read");
     let pair = |(h0, first), (h1, second)| {
         editor_core::declare_rest(vec![(
@@ -1041,14 +1050,14 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
             half(editor_core::SplitHalf::Above),
             half(editor_core::SplitHalf::Below),
         ]),
-        declare: declare,
+        declare,
     };
     let union = |declare| Node::Union {
         members: editor_core::Bodies::Spelled(vec![
             half(editor_core::SplitHalf::Below),
             half(editor_core::SplitHalf::Above),
         ]),
-        declare: declare,
+        declare,
     };
     let joined_pairs = pair((down, below.clone()), (up, above.clone()));
     let flipped_pairs = pair((up, above.clone()), (down, below.clone()));

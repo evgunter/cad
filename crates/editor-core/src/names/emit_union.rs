@@ -3466,7 +3466,7 @@ mod tests {
     #[test]
     fn an_unglued_twin_refuses_as_a_duplicate_name() {
         let union = RecipeNodeId::new(0, 9);
-        let cell = |i: u64| EntityRef {
+        let cell = |i: u64| crate::EntityRef {
             body: 0,
             key: EntityKey::Face(topo::FaceKey::from(slotmap::KeyData::from_ffi(i))),
         };

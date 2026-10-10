@@ -316,7 +316,7 @@ pub(super) fn walk<'r, P>(
                 let [RoleSeg::From { read, of }] = name.path.as_slice() else {
                     return Err(at);
                 };
-                if !members.reads().any(|m| m == read) {
+                if !members.reads().any(|m| m.read == *read) {
                     return Err(at);
                 }
                 part = None;

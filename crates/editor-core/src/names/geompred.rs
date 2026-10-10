@@ -349,11 +349,7 @@ impl crate::spoken::Say for SelectRefusal {
                     name.kind.noun()
                 )?;
                 named(f, name)?;
-                write!(
-                    f,
-                    "): {}",
-                    source.under(geom_core::NO_DECLARATION_RECOURSE)
-                )
+                write!(f, "): {}", source.under(geom_core::NO_DECLARATION_RECOURSE))
             }
             Self::TiedDisagrees {
                 name,

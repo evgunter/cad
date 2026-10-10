@@ -481,7 +481,7 @@ fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, R
     insert(
         doc,
         Node::Fillet {
-            target: editor_core::Operand::output(revolve, 0),
+            target: editor_core::Operand::output(revolve, 0).into(),
             radius,
             selection: vec![mouth],
         },

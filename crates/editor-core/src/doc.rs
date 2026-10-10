@@ -1072,7 +1072,7 @@ impl<P> Doc<P> {
             .nodes
             .values()
             .filter_map(|node| match node {
-                Node::PlaceInWorld { body, .. } => Some(*body),
+                Node::PlaceInWorld { body, .. } if !body.is_indexed() => Some(body.read),
                 _ => None,
             })
             .collect();
@@ -2650,8 +2650,8 @@ mod tests {
             RecipeNodeId::new(0, 0),
             Node::Union {
                 members: crate::Bodies::Spelled(vec![
-                    crate::VarId::new(0, 98),
-                    crate::VarId::new(0, 99),
+                    crate::VarId::new(0, 98).into(),
+                    crate::VarId::new(0, 99).into(),
                 ]),
                 declare: vec![(
                     (
@@ -2666,8 +2666,8 @@ mod tests {
             RecipeNodeId::new(0, 1),
             Node::Union {
                 members: crate::Bodies::Spelled(vec![
-                    crate::VarId::new(0, 98),
-                    crate::VarId::new(0, 99),
+                    crate::VarId::new(0, 98).into(),
+                    crate::VarId::new(0, 99).into(),
                 ]),
                 declare: vec![(
                     (

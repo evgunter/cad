@@ -14,9 +14,9 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionDir, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula,
-    Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
+    Alignment, AssertionDir, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, Datum,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame,
+    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
     NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, SplitHalf, Step,
     StepArg, TubeWindow, ValuePayload, VarName, evaluate,

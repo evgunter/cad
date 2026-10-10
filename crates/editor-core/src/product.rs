@@ -971,7 +971,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let placements = doc.placements();
     for &placement in &placements {
         if let Some(crate::node::Node::PlaceInWorld { body, .. }) = doc.node(placement)
-            && doc.operation_of(*body).is_none()
+            && doc.operation_of(body.read).is_none()
         {
             return Err(ProductError::StrandedPlacement { placement });
         }

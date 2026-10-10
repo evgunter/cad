@@ -175,9 +175,7 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 
 /// Each wall pair as the continuation it is: the fixtures' walls carry
 /// on into one another with aligned senses.
-fn continuations(
-    pairs: &[(SitedRef<VarId>, SitedRef<VarId>)],
-) -> Vec<((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence)> {
+fn continuations(pairs: &[(SitedRef<VarId>, SitedRef<VarId>)]) -> Vec<editor_core::DeclaredPair> {
     pairs
         .iter()
         .map(|p| (p.clone(), BooleanCoincidence::Continuation))
@@ -196,7 +194,7 @@ fn continuations(
 fn every_order(
     doc: &ProfileDoc,
     members: &[(&str, RecipeNodeId)],
-    pairs: &[((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence)],
+    pairs: &[editor_core::DeclaredPair],
     fused_volume: f64,
     want: &[(&str, Seen)],
 ) {
@@ -254,13 +252,10 @@ fn every_order(
 /// declared wall pair into one merged face, so the step after it meets
 /// no coplanar pair inside one operand, and no fold step judges a
 /// contact the pairwise pre-pass did not.
-fn area_overlap_fixture(
-    doc: ProfileDoc,
-) -> (
-    ProfileDoc,
-    [RecipeNodeId; 3],
-    Vec<(SitedRef<VarId>, SitedRef<VarId>)>,
-) {
+/// Two sited references, one pair.
+type SitedPair = (SitedRef<VarId>, SitedRef<VarId>);
+
+fn area_overlap_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3], Vec<SitedPair>) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     let (doc, big) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);

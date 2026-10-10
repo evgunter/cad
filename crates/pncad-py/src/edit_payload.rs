@@ -362,6 +362,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             first: Some(*at),
             ..none
         },
+        EditError::IndexedRead { node, .. } => EditPayload {
+            node: Some(node.id()),
+            ..none
+        },
         // An operand's slot rides `slot` in the slot vocabulary, its
         // field's word, and a section's or a member's position rides
         // `index`.

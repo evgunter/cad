@@ -181,6 +181,33 @@ class TestTheUnion(unittest.TestCase):
             doc.insert(Node.union([family, a]))
         self.assertEqual(caught.exception.variant, "slot_var_kind")
 
+    def test_a_family_spelled_by_index_is_the_family_read_whole(self):
+        """`family[i]` reads one member of the family: the union of the
+        members spelled by index builds and names as the family read
+        whole, and a member read by index sits at any body seat."""
+        doc = Doc()
+        a, _b, _c = self.members(doc)
+        family = doc.insert(
+            Node.pattern(
+                a,
+                Formula.count(2),
+                PatternKind.linear(
+                    (Formula.literal(1.0), Formula.literal(0.5), Formula.literal(0.25)),
+                    Formula.length_in(math.sqrt(1.3125), m),
+                ),
+            )
+        )
+        whole = doc.insert(Node.union(family))
+        spelled = doc.insert(Node.union([family[0], family[1]]))
+        self.assertAlmostEqual(measured(doc, spelled).volume, AB_VOLUME, delta=1e-9)
+        ev = evaluate(doc)
+        self.assertEqual(len(ev.all_faces(whole)), len(ev.all_faces(spelled)))
+        second = doc.insert(Node.subtract(family[1], a))
+        assert_volume(self, measured(doc, second), A_MINUS_B)
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.subtract(a[0], family[1]))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
+
 
 class TestIntersectAndSubtract(unittest.TestCase):
     def test_the_intersect_keeps_the_common_material(self):

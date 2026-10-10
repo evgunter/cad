@@ -216,7 +216,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         panic!("one union node: {:?}", doc.node(union));
     };
     assert_eq!(
-        members.iter().map(|m| Some(*m)).collect::<Vec<_>>(),
+        members.iter().map(|m| Some(m.read)).collect::<Vec<_>>(),
         [a, b, c].map(|n| doc.output(n, 0)),
         "three spelled members, the picks' reads in pick order"
     );

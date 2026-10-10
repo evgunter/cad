@@ -138,10 +138,7 @@ pub(crate) fn declared_union(
 pub(crate) fn declared_union_classed(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
-    pairs: Vec<(
-        (SitedRef<VarId>, SitedRef<VarId>),
-        editor_core::BooleanCoincidence,
-    )>,
+    pairs: Vec<editor_core::DeclaredPair>,
 ) -> (ProfileDoc, RecipeNodeId) {
     crate::fixture::union_over(doc, members, pairs)
 }
@@ -255,7 +252,7 @@ fn a_site_that_is_neither_operand_refuses() {
     )]);
     let boolean = |declare| Node::Union {
         members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
-        declare: declare,
+        declare,
     };
     let inserted = doc.apply(
         &DocEdit::InsertNode {

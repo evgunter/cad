@@ -102,7 +102,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             matches!(
                 doc.node(copy),
                 Some(Node::PlaceInWorld { body, pose })
-                    if Some(*body) == doc.output(instance, 0) && pose.steps.is_empty()
+                    if Some(body.read) == doc.output(instance, 0) && pose.steps.is_empty()
             ),
             "the instance's identity placement"
         );

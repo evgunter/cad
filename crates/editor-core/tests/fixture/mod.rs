@@ -627,7 +627,9 @@ pub fn with_placements(
     let mut out = cut.clone();
     for placement in doc.placements() {
         if let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement)
-            && doc.operation_of(*body).is_some_and(|at| cut.contains(&at))
+            && doc
+                .operation_of(body.read)
+                .is_some_and(|at| cut.contains(&at))
         {
             out.insert(placement);
         }

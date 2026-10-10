@@ -4389,12 +4389,18 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // program's expression is reached by a loop index, a step
             // index and an argument role, a later placement step's by a
             // step index and a component, a mate offset's by a side, a
-            // step index and a component, and a list's entry by its
-            // position, none of which the word carries.
+            // step index and a component, a list's entry by its
+            // position, and an indexed read's index by its seat, none
+            // of which the word carries.
             None => assert!(
                 matches!(
                     *word,
-                    "program" | "placement_step" | "mate_frame_step" | "section" | "member"
+                    "program"
+                        | "placement_step"
+                        | "mate_frame_step"
+                        | "section"
+                        | "member"
+                        | "index"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5108,6 +5114,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_not_live",
             "gauge_on_non_placed",
             "improper_placement",
+            "indexed_read",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
@@ -5191,6 +5198,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_mismatch_tag",
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "input_fault_tag",
             "mate_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -5371,6 +5379,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],
+    },
+    TagEntry {
+        function: "input_fault_tag",
+        values: &[
+            "index_rank",
+            "indexed_family",
+            "repeated_designation",
+            "selection_not_canonical",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "interface_crossing_tag",
@@ -6104,6 +6122,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "direction_y",
             "direction_z",
             "distance",
+            "index",
             "instance",
             "mate_frame_step",
             "normal_x",
@@ -6700,9 +6719,14 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a slot reads a world
     // placement's copy.
     ("reads_world_copy", 2),
+    // One fact: the edit refusal that carries an `InputFault` is named
+    // as the fault is (`input_fault_tag`).
+    ("repeated_designation", 2),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
+    // As `repeated_designation`.
+    ("selection_not_canonical", 2),
     // One fact (VR2) at the edit and load doors: a variable with no
     // name that more than one reader reads.
     ("shared_var_needs_name", 2),

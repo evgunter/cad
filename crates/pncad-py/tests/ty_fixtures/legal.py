@@ -8,6 +8,7 @@ the guide's own executed blocks.
 
 from pncad import (
     Var,
+    IndexedRead,
     MeasurePrimitive,
     Placement,
     Measured,
@@ -551,6 +552,12 @@ one_copy: NodeId = doc.insert(Node.part(family, by_index))
 whole_family: Node = Node.union(family)
 common: Node = Node.intersect([plate, one_copy], declare=[])
 named_cut: Node = Node.subtract(from_=plate, tool=hole)
+# One member of a family is `family[i]`, taken at every body seat: in a
+# spelled list, at a subtract's seats, at a blend's target.
+members: IndexedRead = family[2]
+spelled_family: Node = Node.union([family[0], family[1], family[2]])
+member_cut: Node = Node.subtract(from_=family[1], tool=hole)
+member_blend: Node = Node.fillet(family[1], Formula.length_in(0.01, m), [])
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
 by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
 upper_half: NodeId = doc.insert(Node.part(cut, by_half))

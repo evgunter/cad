@@ -29,9 +29,9 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasurePrimitive, Node,
-    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
+    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId,
+    EntityKind, Maintenance, MateFrame, MatePrimitive, MeasurePrimitive, Node, ProfileDoc,
+    RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{ang, flush_pairs, fname, insert, len, wall};
 use geom_core::Tol;

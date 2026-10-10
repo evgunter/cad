@@ -285,3 +285,282 @@ impl<R> Bodies<R> {
         })
     }
 }
+
+/// **A read at a body seat** (REFERENCES DM3): the variable read, and
+/// one `Count` index per index of the family it reads (VR4) when the
+/// read picks one member. `xs[i]` is `BodyRead { read: xs, at: [i] }`;
+/// a plain read carries no index. An indexed read is not a variable:
+/// it reads the family `xs`, and an operation keys the member's names
+/// by `xs` (DM4).
+///
+/// `S` is the node's slot form, so the stored read holds the family's
+/// [`VarId`] and each index's variable, and the authored one an
+/// [`Operand`] and each index's [`crate::Formula`]. Each index is a
+/// slot of its node ([`crate::SlotId::Index`]).
+///
+/// Serialized as the bare read when it carries no index, and as
+/// `{"read": …, "at": [...]}` otherwise, and debug-printed the same
+/// way: a plain read as its read.
+#[derive(Clone, PartialEq)]
+pub struct BodyRead<S: crate::expr::Slot> {
+    /// The variable read: a body, or for an indexed read the family.
+    pub read: S::Read,
+    /// One `Count` per index of the family, empty for a plain read.
+    pub at: Vec<S>,
+}
+
+impl<S: crate::expr::Slot> BodyRead<S> {
+    /// A plain read of `read`.
+    #[must_use]
+    pub fn plain(read: impl Into<S::Read>) -> Self {
+        Self {
+            read: read.into(),
+            at: Vec::new(),
+        }
+    }
+
+    /// One member of the family `read`, at one index per index of the
+    /// family: `xs[i]` is `BodyRead::indexed(xs, vec![i])`.
+    #[must_use]
+    pub fn indexed(read: impl Into<S::Read>, at: Vec<S>) -> Self {
+        Self {
+            read: read.into(),
+            at,
+        }
+    }
+
+    /// Whether the read picks one member of a family.
+    #[must_use]
+    pub fn is_indexed(&self) -> bool {
+        !self.at.is_empty()
+    }
+
+    /// The kinds the variable read may have at `seat`: the seat's own
+    /// for a plain read, a family for an indexed one.
+    #[must_use]
+    pub fn kind(&self, seat: OperandSlot) -> SlotKind {
+        if self.is_indexed() {
+            SlotKind::Is(VarKind::Bodies)
+        } else {
+            seat.kind()
+        }
+    }
+
+    /// The indices, each with its position, shared.
+    pub fn rows(&self) -> Vec<(u8, &S)> {
+        self.at
+            .iter()
+            .enumerate()
+            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
+            .collect()
+    }
+
+    /// The indices, each with its position, exclusive.
+    pub fn rows_mut(&mut self) -> Vec<(u8, &mut S)> {
+        self.at
+            .iter_mut()
+            .enumerate()
+            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
+            .collect()
+    }
+
+    /// This read in another slot form: the read by `read` (handed its
+    /// seat), each index by `f`.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of `read` or `f`.
+    pub fn try_map<S2: crate::expr::Slot, E>(
+        &self,
+        seat: OperandSlot,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+        read: &mut impl FnMut(OperandSlot, &S::Read) -> Result<S2::Read, E>,
+    ) -> Result<BodyRead<S2>, E> {
+        Ok(BodyRead {
+            read: read(seat, &self.read)?,
+            at: self.at.iter().map(&mut *f).collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl<S: crate::expr::Slot> core::fmt::Debug for BodyRead<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.at.is_empty() {
+            return self.read.fmt(f);
+        }
+        f.debug_struct("BodyRead")
+            .field("read", &self.read)
+            .field("at", &self.at)
+            .finish()
+    }
+}
+
+impl<S: crate::expr::Slot> From<VarId> for BodyRead<S>
+where
+    S::Read: From<VarId>,
+{
+    fn from(var: VarId) -> Self {
+        Self::plain(var)
+    }
+}
+
+impl<S: crate::expr::Slot> From<RecipeNodeId> for BodyRead<S>
+where
+    S::Read: From<RecipeNodeId>,
+{
+    fn from(node: RecipeNodeId) -> Self {
+        Self::plain(node)
+    }
+}
+
+impl<S: crate::expr::Slot> From<&RecipeNodeId> for BodyRead<S>
+where
+    S::Read: From<RecipeNodeId>,
+{
+    fn from(node: &RecipeNodeId) -> Self {
+        Self::plain(*node)
+    }
+}
+
+impl<S: crate::expr::Slot> From<Operand> for BodyRead<S>
+where
+    S::Read: From<Operand>,
+{
+    fn from(read: Operand) -> Self {
+        Self::plain(read)
+    }
+}
+
+impl<S: crate::expr::Slot> serde::Serialize for BodyRead<S> {
+    fn serialize<Z: serde::Serializer>(&self, ser: Z) -> Result<Z::Ok, Z::Error> {
+        use serde::ser::SerializeStruct as _;
+        if self.at.is_empty() {
+            return self.read.serialize(ser);
+        }
+        let mut st = ser.serialize_struct("BodyRead", 2)?;
+        st.serialize_field("read", &self.read)?;
+        st.serialize_field("at", &self.at)?;
+        st.end()
+    }
+}
+
+impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        use serde::de::value::{MapAccessDeserializer, StringDeserializer};
+        use serde::de::{Error as _, MapAccess, Visitor};
+
+        /// A map whose first key was read to tell the two forms apart,
+        /// handed on whole to the bare read's own deserializer.
+        struct Prepended<A> {
+            first: Option<String>,
+            rest: A,
+        }
+
+        impl<'de, A: MapAccess<'de>> MapAccess<'de> for Prepended<A> {
+            type Error = A::Error;
+            fn next_key_seed<K: serde::de::DeserializeSeed<'de>>(
+                &mut self,
+                seed: K,
+            ) -> Result<Option<K::Value>, A::Error> {
+                match self.first.take() {
+                    Some(key) => seed
+                        .deserialize(StringDeserializer::<A::Error>::new(key))
+                        .map(Some),
+                    None => self.rest.next_key_seed(seed),
+                }
+            }
+            fn next_value_seed<V: serde::de::DeserializeSeed<'de>>(
+                &mut self,
+                seed: V,
+            ) -> Result<V::Value, A::Error> {
+                self.rest.next_value_seed(seed)
+            }
+        }
+
+        /// A bare read spelled as a string, handed on to the read's own
+        /// deserializer: a newtype around a string (a [`VarId`]) reads
+        /// through it as the string.
+        struct Spelled<'a, E>(&'a str, core::marker::PhantomData<E>);
+
+        impl<'de, E: serde::de::Error> serde::Deserializer<'de> for Spelled<'_, E> {
+            type Error = E;
+            fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, E> {
+                visitor.visit_str(self.0)
+            }
+            fn deserialize_newtype_struct<V: Visitor<'de>>(
+                self,
+                _name: &'static str,
+                visitor: V,
+            ) -> Result<V::Value, E> {
+                visitor.visit_newtype_struct(self)
+            }
+            serde::forward_to_deserialize_any! {
+                bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+                bytes byte_buf option unit unit_struct seq tuple
+                tuple_struct map struct enum identifier ignored_any
+            }
+        }
+
+        struct Either<S>(core::marker::PhantomData<S>);
+
+        impl<'de, S: crate::expr::Slot> Visitor<'de> for Either<S> {
+            type Value = BodyRead<S>;
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str("a read, or a read and its indices (`{\"read\": …, \"at\": [...]}`)")
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                Ok(BodyRead {
+                    read: <S::Read as serde::Deserialize<'de>>::deserialize(Spelled::<E>(
+                        v,
+                        core::marker::PhantomData,
+                    ))?,
+                    at: Vec::new(),
+                })
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let Some(first) = map.next_key::<String>()? else {
+                    return Ok(BodyRead {
+                        read: <S::Read as serde::Deserialize<'de>>::deserialize(
+                            MapAccessDeserializer::new(map),
+                        )?,
+                        at: Vec::new(),
+                    });
+                };
+                if first != "read" && first != "at" {
+                    let rest = Prepended {
+                        first: Some(first),
+                        rest: map,
+                    };
+                    return Ok(BodyRead {
+                        read: <S::Read as serde::Deserialize<'de>>::deserialize(
+                            MapAccessDeserializer::new(rest),
+                        )?,
+                        at: Vec::new(),
+                    });
+                }
+                let (mut read, mut at) = (None, None);
+                let mut key = Some(first);
+                while let Some(k) = key {
+                    match k.as_str() {
+                        "read" if read.is_none() => read = Some(map.next_value::<S::Read>()?),
+                        "at" if at.is_none() => at = Some(map.next_value::<Vec<S>>()?),
+                        "read" | "at" => return Err(A::Error::duplicate_field("read or at")),
+                        other => return Err(A::Error::unknown_field(other, &["read", "at"])),
+                    }
+                    key = map.next_key::<String>()?;
+                }
+                let read = read.ok_or_else(|| A::Error::missing_field("read"))?;
+                let at: Vec<S> = at.ok_or_else(|| A::Error::missing_field("at"))?;
+                if at.is_empty() {
+                    return Err(A::Error::invalid_length(
+                        0,
+                        &"at least one index (a plain read is written bare)",
+                    ));
+                }
+                Ok(BodyRead { read, at })
+            }
+        }
+
+        de.deserialize_any(Either(core::marker::PhantomData))
+    }
+}

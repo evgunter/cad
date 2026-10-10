@@ -726,13 +726,13 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 // file keeps (DM7), the reader's refusal at evaluation.
                 let held = snapshot.var(var)?;
                 Some(
-                    match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
+                    match snapshot.read_fault(held, node.seat_kind(slot), node.selected_half())? {
                         crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
                             node: snapshot.spoken(id),
                             slot: SlotId::Operand(slot),
                             var: Box::new(snapshot.spoken_var(var)),
                             found,
-                            expected: slot.kind(),
+                            expected: node.seat_kind(slot),
                         },
                         crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
                             node: snapshot.spoken(id),

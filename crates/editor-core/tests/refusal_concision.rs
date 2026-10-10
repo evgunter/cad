@@ -49,7 +49,7 @@ fn cone_block_union_refusal() -> String {
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
-            editor_core::Operand::output(cone, 0),
+            editor_core::Operand::output(cone, 0).into(),
             block.into(),
         ]),
         declare: Vec::new(),

@@ -419,9 +419,9 @@ fn the_door_lowers_names_before_it_mints() {
     else {
         panic!("a fillet");
     };
-    let by_name = Node::fillet(target, named("w"), selection.clone());
+    let by_name = Node::fillet(target.read, named("w"), selection.clone());
     let by_id = Node::fillet(
-        target,
+        target.read,
         Formula::var(w, Dimension::Length),
         selection.clone(),
     );

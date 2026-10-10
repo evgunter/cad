@@ -621,7 +621,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(match doc.defined_by(*at) {
+        Node::Datum(Datum::FaceFrame { at, .. }) => Some(match doc.defined_by(at.read) {
             Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
             None => "on a face of a deleted body".to_owned(),
         }),

@@ -104,7 +104,7 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .into_iter()
         .filter(|&p| match doc.node(p) {
             Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(*body)
+                .operation_of(body.read)
                 .and_then(|picked| doc.node(picked))
                 .is_some_and(|picked| {
                     matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))

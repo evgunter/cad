@@ -89,7 +89,8 @@ fn fillet_and_target(
         if let Some(Node::Fillet { target, .. }) = doc.node(id) {
             return (
                 id,
-                doc.operation_of(*target).expect("the target read is live"),
+                doc.operation_of(target.read)
+                    .expect("the target read is live"),
             );
         }
     }
@@ -102,7 +103,7 @@ fn target_read(
     fillet: editor_core::RecipeNodeId,
 ) -> editor_core::VarId {
     match doc.node(fillet) {
-        Some(Node::Fillet { target, .. }) => *target,
+        Some(Node::Fillet { target, .. }) => target.read,
         other => panic!("{fillet} is a fillet, got {other:?}"),
     }
 }
@@ -114,7 +115,7 @@ fn tool_read(
     subtract: editor_core::RecipeNodeId,
 ) -> editor_core::VarId {
     match doc.node(subtract) {
-        Some(Node::Subtract { tool, .. }) => *tool,
+        Some(Node::Subtract { tool, .. }) => tool.read,
         other => panic!("{subtract} is a subtract, got {other:?}"),
     }
 }

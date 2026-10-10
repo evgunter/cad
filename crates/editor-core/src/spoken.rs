@@ -671,7 +671,7 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
         Some(match self.node(id)? {
             Node::Union { .. } => Carry::Union,
             Node::Intersect { .. } => Carry::Intersect,
-            Node::Subtract { from, .. } => Carry::Subtract { from: *from },
+            Node::Subtract { from, .. } => Carry::Subtract { from: from.read },
             Node::Fillet { .. } | Node::Chamfer { .. } | Node::Shell { .. } => Carry::Continued,
             _ => return None,
         })

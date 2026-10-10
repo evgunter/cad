@@ -158,7 +158,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let (base, tr) = placed(base, b0, 0.5);
     let boolean = |declare| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
-        declare: declare,
+        declare,
     };
     // Sited at the minting node, which is not an operand.
     let decl = editor_core::declare_continuation(vec![(

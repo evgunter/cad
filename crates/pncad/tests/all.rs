@@ -2157,7 +2157,7 @@ fn box_doc(
 /// one placing door, `DocEdit::place` — returning the placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
-    body: impl Into<pncad::document::Operand>,
+    body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
@@ -2181,7 +2181,7 @@ fn placement_of(
         .find(|&placement| {
             matches!(
                 doc.node(placement),
-                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(*body) == output
+                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(body.read) == output
             )
         })
         .expect("the node is placed")
@@ -3619,7 +3619,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         .placements()
         .into_iter()
         .map(|placement| match doc.node(placement) {
-            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(*body),
+            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(body.read),
             _ => None,
         })
         .collect();
@@ -4902,7 +4902,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 96] = [
+const NOT_CARRIED: [&str; 97] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4981,6 +4981,7 @@ const NOT_CARRIED: [&str; 96] = [
     "body_name",
     "certified_range",
     "derivation_nodes",
+    "derivation_reads",
     "diff_summaries",
     "diff_verdicts",
     "enrich_appearance_loss",

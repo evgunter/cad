@@ -481,7 +481,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     };
     let read = inlined
         .doc
-        .operation_of(members[0])
+        .operation_of(members[0].read)
         .expect("the boolean's read is live");
     assert!(
         matches!(inlined.doc.node(read), Some(Node::Extrude { .. })),
@@ -507,7 +507,7 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
         .output(placement, 0)
         .expect("the placement defines its copy");
     let boolean = |a: editor_core::Operand| Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a, b.into()]),
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     };
     let refused_naming_placement =

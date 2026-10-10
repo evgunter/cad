@@ -175,7 +175,7 @@ fn a_declared_union_survives_a_split_and_an_inline() {
                     && declare
                         .iter()
                         .flat_map(|((one, two), _)| [one.at, two.at])
-                        .all(|at| members.reads().any(|&m| m == at))
+                        .all(|at| members.reads().any(|m| m.read == at))
             }
             _ => false,
         })

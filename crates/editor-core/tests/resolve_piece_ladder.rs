@@ -449,7 +449,7 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
         let Some(Node::Subtract { from: plate, .. }) = s.doc.node(s.cut) else {
             panic!("the cut is a subtract")
         };
-        let plate = *plate;
+        let plate = plate.read;
         let pieces: Vec<StableName> = ev1
             .value(s.cut)
             .expect("the cut evaluates")

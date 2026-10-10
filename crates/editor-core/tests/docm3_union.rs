@@ -325,9 +325,9 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
         };
         members
             .reads()
-            .map(|&m| {
+            .map(|m| {
                 loaded
-                    .operation_of(m)
+                    .operation_of(m.read)
                     .expect("a member reads a live output")
             })
             .collect()
@@ -454,7 +454,9 @@ fn set_members_accepts_one_member_and_none() {
         doc.apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(members),
+                members: editor_core::Bodies::Spelled(
+                    members.into_iter().map(Into::into).collect(),
+                ),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -524,10 +526,10 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     };
     let members: Vec<RecipeNodeId> = members
         .reads()
-        .map(|&m| {
+        .map(|m| {
             loaded
                 .doc
-                .operation_of(m)
+                .operation_of(m.read)
                 .expect("a member reads a live output")
         })
         .collect();
@@ -690,7 +692,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let member_reads: Vec<editor_core::VarId> = members.reads().copied().collect();
+    let member_reads: Vec<editor_core::VarId> = members.reads().map(|m| m.read).collect();
     let members: Vec<RecipeNodeId> = member_reads
         .iter()
         .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
@@ -701,14 +703,14 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let rim_blend = match doc.placements().as_slice() {
         [placement] => match doc.node(*placement) {
             Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(*body)
+                .operation_of(body.read)
                 .expect("the placement reads the die"),
             other => panic!("a placement, got {other:?}"),
         },
         other => panic!("the tour places the die alone, got {other:?}"),
     };
     let box_blend = match doc.node(rim_blend) {
-        Some(Node::Fillet { target, .. }) => doc.operation_of(*target).expect("a live target"),
+        Some(Node::Fillet { target, .. }) => doc.operation_of(target.read).expect("a live target"),
         other => panic!("the die is its rim blend, got {other:?}"),
     };
     assert!(
@@ -864,7 +866,10 @@ fn the_dies_union_is_the_chain_it_replaced() {
     };
     let members: Vec<RecipeNodeId> = members
         .reads()
-        .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+        .map(|m| {
+            doc.operation_of(m.read)
+                .expect("a member reads a live output")
+        })
         .collect();
     // The chain this replaced, re-authored over the same members.
     let (doc, chain) = members.iter().skip(1).fold(
@@ -1283,20 +1288,21 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
 /// with no list. The test-side twin of the retired `Node::list_input`.
 fn list_input(
     node: &editor_core::Node<editor_core::ProfileProgram>,
-) -> Option<editor_core::Bodies<editor_core::Operand>> {
+) -> Option<editor_core::Bodies<editor_core::BodyRead<editor_core::Formula>>> {
     match node {
         Node::Union { members, .. } | Node::Intersect { members, .. } => Some(
             members
-                .try_map(|_, &m| Ok::<_, std::convert::Infallible>(editor_core::Operand::from(m)))
+                .try_map(|_, m| {
+                    Ok::<_, std::convert::Infallible>(editor_core::BodyRead::plain(m.read))
+                })
                 .unwrap_or_else(|never| match never {}),
         ),
         Node::Loft { profiles, .. } => Some(editor_core::Bodies::Spelled(
             profiles
                 .iter()
-                .map(|&m| editor_core::Operand::from(m))
+                .map(|&m| editor_core::BodyRead::plain(m))
                 .collect(),
         )),
         _ => None,
     }
 }
-

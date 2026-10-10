@@ -327,7 +327,7 @@ pub fn construction<P>(
                     *input
                 }
                 Node::Part { of, .. } => *of,
-                Node::Split { target, .. } => *target,
+                Node::Split { target, .. } => target.read,
                 _ => return Err(Unwalked::Through(at)),
             };
             at = operation(doc, at, read)?;
@@ -400,7 +400,7 @@ fn carried_read<P>(
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
         // Every other carried segment is a split's, carried from its
         // target.
-        (_, Node::Split { target, .. }) => Ok(*target),
+        (_, Node::Split { target, .. }) => Ok(target.read),
         _ => Err(misplaced),
     }
 }

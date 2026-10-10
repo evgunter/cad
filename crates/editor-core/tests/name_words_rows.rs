@@ -33,10 +33,9 @@ use std::time::Instant;
 use crate::corpus::Recorder;
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanCoincidence, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions,
-    ExtrudeSide, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole,
-    ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf, StableName,
-    StepId, VarId,
+    BooleanCoincidence, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide,
+    MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole, ProfileEdgeRef,
+    Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf, StableName, StepId, VarId,
 };
 use test_utils::fuzz;
 
@@ -705,7 +704,8 @@ fn a_resolve_row_names_the_slot_that_failed() {
             editor_core::Operand::Output {
                 node: split,
                 port: 0,
-            },
+            }
+            .into(),
         ]),
         declare: vec![(
             (

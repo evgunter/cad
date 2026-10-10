@@ -454,7 +454,7 @@ fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNod
     Node::Datum(Datum::FaceFrame {
         // Port 0: the body, whether `at` is a revolve (body and axis)
         // or a node with one output.
-        at: editor_core::Operand::output(at, 0),
+        at: editor_core::Operand::output(at, 0).into(),
         face,
         spin: ang(spin),
     })
@@ -809,7 +809,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
         .ids()
         .iter()
         .filter_map(|id| match loaded.doc.node(*id) {
-            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
+            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((at.read, face.clone())),
             _ => None,
         })
         .collect();
@@ -818,7 +818,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
         .ids()
         .iter()
         .filter_map(|id| match cd.doc.node(*id) {
-            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
+            Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((at.read, face.clone())),
             _ => None,
         })
         .collect();

@@ -95,12 +95,7 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
 /// with `h`, `h`'s x = 1.0 wall resting on `a`'s x = 1 wall (a `Rest`).
 /// `b` covers that contact, and it is a contact of the pair all the
 /// same (DM4).
-fn declared(
-    f: &Fixture,
-) -> Vec<(
-    (SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>),
-    BooleanCoincidence,
-)> {
+fn declared(f: &Fixture) -> Vec<editor_core::DeclaredPair> {
     let mut pairs: Vec<_> = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b))
         .into_iter()
         .map(|p| (p, BooleanCoincidence::Continuation))

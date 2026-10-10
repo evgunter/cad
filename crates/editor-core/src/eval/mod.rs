@@ -1395,6 +1395,9 @@ pub enum StepTurns {
     Unresolved,
 }
 
+/// Sited references, one row each ([`NodeErrorKind`]'s merged rows).
+type SitedRows = Vec<crate::node::SitedRef<crate::VarId>>;
+
 /// The closed set of node-evaluation failures. Kernel errors are
 /// carried UNALTERED (spec D2: no stringification).
 #[derive(Debug)]
@@ -1921,10 +1924,7 @@ pub enum NodeErrorKind {
         /// boolean's operands are nodes, so their rows are their own,
         /// and a union's contact against an unmerged member face is
         /// that member's.
-        merged: Box<(
-            Vec<crate::node::SitedRef<crate::VarId>>,
-            Vec<crate::node::SitedRef<crate::VarId>>,
-        )>,
+        merged: Box<(SitedRows, SitedRows)>,
         /// The refusing predicate's diagnostics, unaltered.
         diag: Indeterminate,
     },
@@ -4996,6 +4996,14 @@ mod tag {
             FAMILY = 1,
             SPELLED = 2,
         }
+        /// The word before a node's indexed reads ([`crate::BodyRead`]),
+        /// written only by a node holding one, so a node of plain reads
+        /// keeps its stream; then each indexed read's place among the
+        /// node's body seats and its number of indices. The index
+        /// values are slots, fed with the slot values.
+        index {
+            READS = 1,
+        }
         /// The mate's fault flag, read after its role word: whether the
         /// solve recorded a fault against the node.
         fault {
@@ -6085,6 +6093,21 @@ where
             placement,
         } => {
             feed_placement_shape(&mut h, placement);
+        }
+    }
+    let indexed: Vec<(usize, usize)> = node
+        .body_reads()
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, read))| read.is_indexed())
+        .map(|(place, (_, read))| (place, read.at.len()))
+        .collect();
+    if !indexed.is_empty() {
+        h.write_tag(tag::index::READS);
+        h.write_u64(indexed.len() as u64);
+        for (place, rank) in indexed {
+            h.write_u64(place as u64);
+            h.write_u64(rank as u64);
         }
     }
     // Evaluated slot values, in the node's deterministic slot order,

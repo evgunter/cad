@@ -77,7 +77,7 @@ fn is_empty(ev: &Evaluation<f64>, id: RecipeNodeId) -> bool {
     )
 }
 
-fn spelled(reads: &[RecipeNodeId]) -> Bodies<Operand> {
+fn spelled(reads: &[RecipeNodeId]) -> Bodies<editor_core::BodyRead<editor_core::Formula>> {
     Bodies::Spelled(reads.iter().map(|&r| r.into()).collect())
 }
 
@@ -249,7 +249,10 @@ fn the_union_of_a_splits_two_halves_builds_the_block() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![Operand::output(split, 0), Operand::output(split, 1)]),
+            members: Bodies::Spelled(vec![
+                Operand::output(split, 0).into(),
+                Operand::output(split, 1).into(),
+            ]),
             declare,
         },
     );

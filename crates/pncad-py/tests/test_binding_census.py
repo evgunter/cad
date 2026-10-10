@@ -2291,6 +2291,9 @@ NOT_BOUND = {
     # a sequence of operands or as one family read (`Node.union`'s
     # `members`), and the kernel's two arms are those two shapes.
     "Bodies": SHAPE,
+    # A read at a body seat: Python writes a plain one as a `NodeId` or
+    # a `Var` and an indexed one as `op[i]` (`IndexedRead`).
+    "BodyRead": SHAPE,
     # The kernel's operator choice: Python picks the node instead —
     # `Node.union`, `Node.intersect`, `Node.subtract` — so there is no
     # operator value to pass.
@@ -3661,6 +3664,7 @@ MEMBERS_BOUND_AS = {
     "EditError::WouldCycle": "EditError.variant",
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
+    "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",

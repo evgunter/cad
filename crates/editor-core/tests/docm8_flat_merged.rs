@@ -67,7 +67,7 @@ fn chain_merged(
 ) -> StableName {
     let mut set: Vec<StableName> = chain
         .iter()
-        .map(|&m| member_face(union, fixture::out(&doc, m), fname(m, family(doc, m, fam))))
+        .map(|&m| member_face(union, fixture::out(doc, m), fname(m, family(doc, m, fam))))
         .collect();
     set.sort();
     StableName {
@@ -252,11 +252,14 @@ fn recorded_block(rec: &mut Recorder, (x0, x1): (f64, f64)) -> RecipeNodeId {
 /// `i` of a union, or a subtract's `from` (0) / `tool` (1).
 fn operand_read(doc: &ProfileDoc, node: RecipeNodeId, i: usize) -> editor_core::VarId {
     match doc.node(node) {
-        Some(Node::Union { members, .. } | Node::Intersect { members, .. }) => *members
-            .reads()
-            .nth(i)
-            .unwrap_or_else(|| panic!("{node} has no member {i}")),
-        Some(Node::Subtract { from, tool, .. }) => [*from, *tool][i],
+        Some(Node::Union { members, .. } | Node::Intersect { members, .. }) => {
+            members
+                .reads()
+                .nth(i)
+                .unwrap_or_else(|| panic!("{node} has no member {i}"))
+                .read
+        }
+        Some(Node::Subtract { from, tool, .. }) => [from.read, tool.read][i],
         other => panic!("{node} is not a boolean: {other:?}"),
     }
 }
@@ -730,13 +733,10 @@ fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
 /// R1's split fixture: `a` and `c` meet flush along x; `s` sits on
 /// `a`'s top cap across its whole depth, declared against `a`'s two
 /// y-walls, so folding `s` in fragments that cap.
-pub(crate) fn split_fixture(
-    doc: ProfileDoc,
-) -> (
-    ProfileDoc,
-    [RecipeNodeId; 3],
-    Vec<(SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>)>,
-) {
+/// Two sited references, one pair.
+type SitedPair = (SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>);
+
+pub(crate) fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3], Vec<SitedPair>) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);

@@ -19,12 +19,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
-    MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
-    SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
-    select_where,
+    AssertionDir, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit, DocumentId, EntityKind,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram, MeasurePrimitive,
+    NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SnapshotError,
+    StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate, select_where,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;

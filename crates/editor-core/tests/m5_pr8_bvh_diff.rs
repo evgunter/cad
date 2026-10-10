@@ -151,7 +151,7 @@ fn corpus_boolean_operands_superset_pin() {
                     .operation_of(read)
                     .expect("a boolean reads live operands")
             };
-            let (body_a, body_b) = (body_of(&ev, at(*a)), body_of(&ev, at(*b)));
+            let (body_a, body_b) = (body_of(&ev, at(a.read)), body_of(&ev, at(b.read)));
             let (r_ab, r_ba) = sweep_traces(
                 body_a,
                 body_b,

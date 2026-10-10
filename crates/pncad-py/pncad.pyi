@@ -1844,6 +1844,22 @@ class NodeId:
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+    def __getitem__(self, index: _CountArg) -> IndexedRead:
+        """One member of the family this node's output is (a pattern's),
+        at `index`: `xs[i]`, taken at every body seat."""
+
+class IndexedRead:
+    """One member of a family, read by index: `xs[i]`, written on the
+    family's operand (`NodeId` or `Var`) with a count. It reads the
+    family, not a variable: an operation reading it names the member's
+    entities by the family's read, so `Node.union(xs)` and
+    `Node.union([xs[0], xs[1], xs[2]])` name alike. Every body seat
+    takes one; reading a node that is not a family refuses
+    `slot_var_kind` at `Doc.insert`, and an index outside the family
+    refuses `instance_out_of_range` at `evaluate`. The index is a
+    structural slot of the reading node (slot word `index`)."""
+
+    def __repr__(self) -> str: ...
 
 class ExtrudeSide:
     """Which side of its sketch plane a `Node.extrude` goes toward:
@@ -2281,7 +2297,7 @@ class Node:
     @staticmethod
     def loft(profiles: Sequence[_Operand], v_degree: _CountArg) -> Node: ...
     @staticmethod
-    def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
+    def chamfer(target: _BodyArg, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2294,7 +2310,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: _Operand, thickness: _LengthArg, open: list[str]) -> Node:
+    def shell(target: _BodyArg, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2346,7 +2362,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: _Operand, face: str, spin: _AngleArg) -> Node:
+    def datum_face_frame(at: _BodyArg, face: str, spin: _AngleArg) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2393,7 +2409,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: _Operand, radius: _LengthArg, selection: list[str]) -> Node:
+    def fillet(target: _BodyArg, radius: _LengthArg, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2408,7 +2424,7 @@ class Node:
         """
 
     @staticmethod
-    def split(target: _Operand, tool: _Operand) -> Node:
+    def split(target: _BodyArg, tool: _Operand) -> Node:
         """Split `target` by `tool` (a `datum_plane`). The value is a
         split — read it with `Value.split()`, not `Value.body()`."""
 
@@ -2433,7 +2449,7 @@ class Node:
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
-    def place_in_world(body: _Operand, pose: Optional[Placement] = None) -> Node:
+    def place_in_world(body: _BodyArg, pose: Optional[Placement] = None) -> Node:
         """One copy of `body` in the world at `pose`, the identity when
         `None`: the operation whose output is a product copy. Inserting
         it is `Doc.place`. The pose is a `Placement` chain, checked as
@@ -2441,14 +2457,15 @@ class Node:
 
     @staticmethod
     def union(
-        members: Sequence[_Operand] | _Operand, declare: list[FlushFinding] = []
+        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
     ) -> Node:
         """The UNION: the material in any member, folded into ONE body
         in the members' order.
 
-        `members` is a sequence of operands, each read on its own, or
-        ONE operand reading a whole family — a pattern's output — whose
-        bodies are the members in index order. Any count is a union:
+        `members` is a sequence of reads, each on its own (an operand,
+        or one member of a family, `xs[i]`), or ONE operand reading a
+        whole family — a pattern's output — whose bodies are the
+        members in index order. Any count is a union:
         one member is that body, none is the typed empty body, and a
         read listed twice is the same material twice (`[a, a]` is
         `a`). A family read beside single reads in one list refuses at
@@ -2480,7 +2497,7 @@ class Node:
 
     @staticmethod
     def intersect(
-        members: Sequence[_Operand] | _Operand, declare: list[FlushFinding] = []
+        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
     ) -> Node:
         """The INTERSECT: the material in every member, folded in the
         members' order.
@@ -2494,7 +2511,7 @@ class Node:
 
     @staticmethod
     def subtract(
-        from_: _Operand, tool: _Operand, declare: list[FlushFinding] = []
+        from_: _BodyArg, tool: _BodyArg, declare: list[FlushFinding] = []
     ) -> Node:
         """The SUBTRACT: `from_` with the material of `tool` cut away.
 
@@ -2730,6 +2747,9 @@ several, a revolve's body and axis or a split's two halves, refuses
 `ambiguous_output`: read its port with `Doc.output(node, port)`), or a
 variable — an output by `Doc.output`, or a named one. The slot admits
 one kind, and a read of another refuses `slot_var_kind`."""
+_BodyArg: TypeAlias = NodeId | Var | IndexedRead
+"""What a body seat takes: an operand, or one member of a family
+(`xs[i]`, `IndexedRead`)."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -2904,6 +2924,8 @@ class Var:
         where the document held no such variable."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+    def __getitem__(self, index: _CountArg) -> IndexedRead:
+        """One member of the family this variable holds, at `index`."""
 
 # --- parameter uncertainty and the analysis lane ----------------------
 # ERROR-DESIGN E1/E2. A distribution is inert document metadata: it
@@ -3375,7 +3397,7 @@ class DocEdit:
         document does not hold (`unknown_node`) or an edit that would
         leave the label as it is (`label_unchanged`)."""
     @staticmethod
-    def set_members(node: NodeId, members: Sequence[_Operand] | _Operand) -> DocEdit:
+    def set_members(node: NodeId, members: Sequence[_BodyArg] | _Operand) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s or a
         `Node.intersect`'s members, a `Node.loft`'s sections — with the
         list stated in full. `members` takes `Node.union`'s shape: a
@@ -3993,7 +4015,7 @@ class Doc:
 
     def place(
         self,
-        body: _Operand,
+        body: _BodyArg,
         pose: Optional[Placement] = None,
         *,
         label: Optional[str] = None,

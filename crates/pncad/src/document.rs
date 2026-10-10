@@ -108,9 +108,9 @@ pub use editor_core::cascade_delete_order;
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, Bodies, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
     declare_continuation, declare_rest,
 };
 

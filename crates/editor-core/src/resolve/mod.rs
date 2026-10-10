@@ -1801,7 +1801,7 @@ fn group_resized<U: Decide, T: Decide>(
             &base,
             prior_value.fragment_groups.is_folded(),
             match doc.node(name.node) {
-                Some(crate::node::Node::Subtract { from, .. }) => Some(*from),
+                Some(crate::node::Node::Subtract { from, .. }) => Some(from.read),
                 _ => None,
             },
             was.parents > 1 || now.parents > 1,

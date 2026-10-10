@@ -203,7 +203,7 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         panic!("the door minted a fillet");
     };
     assert_eq!(
-        Some(*stored_target),
+        Some(stored_target.read),
         session.committed_doc().output(target, 0)
     );
     assert!(
@@ -263,7 +263,7 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
         panic!("the door minted a chamfer");
     };
     assert_eq!(
-        Some(*stored_target),
+        Some(stored_target.read),
         session.committed_doc().output(target, 0)
     );
     assert_eq!(
@@ -428,7 +428,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
     assert!(matches!(
         session.committed_doc().node(fillet),
         Some(Node::Fillet { target, .. })
-            if session.committed_doc().output(first, 0) == Some(*target)
+            if session.committed_doc().output(first, 0) == Some(target.read)
     ));
 }
 

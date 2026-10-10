@@ -468,6 +468,16 @@ pub enum SlotId {
     /// It has a kind and no dimension ([`SlotId::kind`],
     /// [`SlotId::dimension`]).
     Operand(crate::OperandSlot),
+    /// Index `k` of the indexed read at body seat `seat`
+    /// ([`crate::BodyRead`], REFERENCES DM3): a `Count`, so STRUCTURAL
+    /// (which member is read is structure, as [`SlotId::Instance`]'s
+    /// index is). A plain read carries no index slot.
+    Index {
+        /// The body seat whose read it indexes.
+        seat: crate::OperandSlot,
+        /// Which of the family's indices, from 0.
+        k: u8,
+    },
     /// One expression inside a profile PROGRAM (LIB-SWITCH §4c): loop
     /// index, step index, argument role. The LOOP coordinate is a VQ3
     /// sharpening of the design's `(step, arg)` sketch — a profile is
@@ -696,7 +706,9 @@ impl SlotId {
             | Self::Step
             | Self::TubeWindowStart
             | Self::TubeWindowEnd => Dimension::Angle,
-            Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
+            Self::Count | Self::VDegree | Self::Stations | Self::Instance | Self::Index { .. } => {
+                Dimension::Count
+            }
             // A later step's component has its step-0 twin's dimension.
             Self::PlacementStep { arg, .. } | Self::MateFrameStep { arg, .. } => {
                 return SlotId::rigid(0, arg).dimension();
@@ -781,6 +793,8 @@ impl SlotId {
             Self::VDegree => "v degree".to_owned(),
             Self::Stations => "stations".to_owned(),
             Self::Operand(operand) => operand.label(),
+            Self::Index { seat, k: 0 } => format!("{} index", seat.label()),
+            Self::Index { seat, k } => format!("{} index {}", seat.label(), u32::from(k) + 1),
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
@@ -860,6 +874,7 @@ impl SlotId {
             | Self::VDegree
             | Self::Stations
             | Self::Operand(_)
+            | Self::Index { .. }
             | Self::Profile { .. } => None,
         }
     }
@@ -1029,7 +1044,7 @@ pub enum Datum<S: Slot = crate::VarId> {
         /// The body the face is read out of
         /// ([`crate::OperandSlot::At`]), read as
         /// [`Datum::AxisInPlane::plane`] is.
-        at: S::Read,
+        at: crate::BodyRead<S>,
         /// The face, as a frozen name resolved through `at`'s value
         /// under the N5 ladder ([`Node::payload_names`] lists it, so
         /// the insert door's liveness check and `Rebind` reach it).
@@ -1672,6 +1687,19 @@ pub enum InputFault {
         /// carries the one that is data.
         at: usize,
     },
+    /// A union's or an intersect's family argument carries an index
+    /// ([`crate::BodyRead`]): the argument reads the family whole, and
+    /// one member read by index is a `Body`, spelled in a list.
+    IndexedFamily,
+    /// An indexed read carries a number of indices other than its
+    /// family's rank: every family is indexed by one `Count`
+    /// (REFERENCES DM3).
+    IndexRank {
+        /// The body seat whose read it is.
+        seat: crate::OperandSlot,
+        /// How many indices it carries.
+        found: usize,
+    },
 }
 
 // The ONE prose vocabulary for this fault, forwarded by every door
@@ -1691,6 +1719,15 @@ impl core::fmt::Display for InputFault {
                  entry {}) — a selection is stored sorted and deduplicated, so the same edges \
                  always make the same recipe",
                 at + 1
+            ),
+            Self::IndexedFamily => f.write_str(
+                "the family argument carries an index — a family argument reads every member, \
+                 and one member read by index is a body, spelled in a list",
+            ),
+            Self::IndexRank { seat, found } => write!(
+                f,
+                "the read at its {seat} carries {found} indices — a family is indexed by one \
+                 count"
             ),
         }
     }
@@ -1712,6 +1749,15 @@ pub enum ListFault {
         /// The entry that does not sort strictly before its successor.
         at: usize,
     },
+    /// [`InputFault::IndexedFamily`].
+    IndexedFamily,
+    /// [`InputFault::IndexRank`].
+    IndexRank {
+        /// The body seat whose read it is.
+        seat: crate::OperandSlot,
+        /// How many indices it carries.
+        found: usize,
+    },
 }
 
 impl InputFault {
@@ -1723,6 +1769,8 @@ impl InputFault {
                 ListFault::RepeatedDesignation { first, again }
             }
             Self::SelectionNotCanonical { at } => ListFault::SelectionNotCanonical { at },
+            Self::IndexedFamily => ListFault::IndexedFamily,
+            Self::IndexRank { seat, found } => ListFault::IndexRank { seat, found },
         }
     }
 }
@@ -1734,6 +1782,8 @@ impl From<ListFault> for InputFault {
                 Self::RepeatedDesignation { first, again }
             }
             ListFault::SelectionNotCanonical { at } => Self::SelectionNotCanonical { at },
+            ListFault::IndexedFamily => Self::IndexedFamily,
+            ListFault::IndexRank { seat, found } => Self::IndexRank { seat, found },
         }
     }
 }
@@ -2156,7 +2206,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// node's content key behind the caller's back.
     Fillet {
         /// The body whose edges are blended.
-        target: S::Read,
+        target: crate::BodyRead<S>,
         /// The constant blend radius ([`SlotId::Radius`]).
         radius: S,
         /// The edges to blend, by stable name — canonical (sorted,
@@ -2199,7 +2249,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// (RECIPE-DOORS D3), so the two must be different nodes.
     Chamfer {
         /// The body whose edges are chamfered.
-        target: S::Read,
+        target: crate::BodyRead<S>,
         /// The setback along both supports
         /// ([`SlotId::ChamferDistance`]).
         distance: S,
@@ -2253,7 +2303,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// typed ([`crate::eval::NodeErrorKind::ShellOpenKind`]).
     Shell {
         /// The body hollowed.
-        target: S::Read,
+        target: crate::BodyRead<S>,
         /// The wall thickness — a magnitude
         /// ([`SlotId::ShellThickness`], Length).
         thickness: S,
@@ -2264,7 +2314,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// Split a target body by a tool.
     Split {
         /// The body split.
-        target: S::Read,
+        target: crate::BodyRead<S>,
         /// The splitting tool.
         tool: S::Read,
     },
@@ -2316,7 +2366,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Union {
         /// The members, in fold order (D9: the order is the list's, and
         /// the list is data).
-        members: Bodies<S::Read>,
+        members: Bodies<crate::BodyRead<S>>,
         /// The declared contact pairs. [`crate::DocEdit::SetMembers`]
         /// leaves it as it was.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
@@ -2327,7 +2377,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// is. An empty fold step is the typed empty result.
     Intersect {
         /// The members, in fold order.
-        members: Bodies<S::Read>,
+        members: Bodies<crate::BodyRead<S>>,
         /// The declared contact pairs, as [`Node::Union`]'s.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
         declare: Vec<DeclaredPair>,
@@ -2337,9 +2387,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// are `Subtract { from, tool: Union([tools…]) }`.
     Subtract {
         /// The body cut.
-        from: S::Read,
+        from: crate::BodyRead<S>,
         /// The body cut away.
-        tool: S::Read,
+        tool: crate::BodyRead<S>,
         /// The declared contact pairs ([`DeclaredPair`]); empty is
         /// undeclared. Set on a live node by
         /// [`crate::DocEdit::SetDeclare`].
@@ -2371,7 +2421,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// ([`crate::names::RoleSeg::Placed`]).
     PlaceInWorld {
         /// The body placed.
-        body: S::Read,
+        body: crate::BodyRead<S>,
         /// Where the copy sits: a rigid chain, as [`Node::Transform`]
         /// holds; the identity when empty.
         pose: crate::placement::Placement<S>,
@@ -2754,8 +2804,20 @@ macro_rules! tube_rows {
 /// variant's fields, with `_` for the ones that are not slots (input
 /// edges, recipe payload the content key feeds by hand), so a field
 /// added to a node does not compile until it is stated a slot or not.
+/// **The index slots of one body seat's read** ([`SlotId::Index`]),
+/// in index order: none for a plain read.
+macro_rules! index_rows {
+    ($seat:expr, $read:expr, $rows:ident, $out:expr) => {{
+        let seat = $seat;
+        for (k, e) in $read.$rows() {
+            $out.push((SlotId::Index { seat, k }, e));
+        }
+    }};
+}
+
 macro_rules! node_rows {
     ($node:expr, $rows:ident, $out:expr) => {{
+        use crate::OperandSlot as O;
         use SlotId as S;
         match $node {
             Node::Datum(Datum::Plane { origin, normal }) => {
@@ -2784,11 +2846,10 @@ macro_rules! node_rows {
             }
             // Origin and normal come off the face; the spin is the
             // one number an author chooses.
-            Node::Datum(Datum::FaceFrame {
-                at: _,
-                face: _,
-                spin,
-            }) => $out.push((S::Spin, spin)),
+            Node::Datum(Datum::FaceFrame { at, face: _, spin }) => {
+                $out.push((S::Spin, spin));
+                index_rows!(O::At, at, $rows, $out);
+            }
             // A profile's slots are its program's. The payload keys its
             // rows by program address, so it answers `S::Profile` and
             // no other slot.
@@ -2805,20 +2866,29 @@ macro_rules! node_rows {
                 side: _,
             } => $out.push((S::Distance, distance)),
             Node::Fillet {
-                target: _,
+                target,
                 radius,
                 selection: _,
-            } => $out.push((S::Radius, radius)),
+            } => {
+                $out.push((S::Radius, radius));
+                index_rows!(O::Target, target, $rows, $out);
+            }
             Node::Chamfer {
-                target: _,
+                target,
                 distance,
                 selection: _,
-            } => $out.push((S::ChamferDistance, distance)),
+            } => {
+                $out.push((S::ChamferDistance, distance));
+                index_rows!(O::Target, target, $rows, $out);
+            }
             Node::Shell {
-                target: _,
+                target,
                 thickness,
                 open: _,
-            } => $out.push((S::ShellThickness, thickness)),
+            } => {
+                $out.push((S::ShellThickness, thickness));
+                index_rows!(O::Target, target, $rows, $out);
+            }
             Node::Revolve {
                 profile: _,
                 axis: _,
@@ -2857,14 +2927,14 @@ macro_rules! node_rows {
                 input: _,
                 placement,
             }
-            | Node::PlaceInWorld {
-                body: _,
-                pose: placement,
-            }
             | Node::Gauge {
                 parent: _,
                 placement,
             } => $out.extend(placement.$rows()),
+            Node::PlaceInWorld { body, pose } => {
+                $out.extend(pose.$rows());
+                index_rows!(O::Body, body, $rows, $out);
+            }
             // The offset's rigid steps are the instance's slots; the
             // reference itself takes no arguments (AQ4 — the referenced
             // document evaluates at its OWN parameters).
@@ -2900,20 +2970,27 @@ macro_rules! node_rows {
                 PartSelect::SplitHalf(_) => {}
                 PartSelect::Instance(index) => $out.push((S::Instance, index)),
             },
-            Node::Split { target: _, tool: _ }
-            | Node::Subtract {
-                from: _,
-                tool: _,
+            Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
+            Node::Subtract {
+                from,
+                tool,
                 declare: _,
+            } => {
+                index_rows!(O::From, from, $rows, $out);
+                index_rows!(O::Cut, tool, $rows, $out);
             }
-            | Node::Union {
-                members: _,
+            Node::Union {
+                members,
                 declare: _,
             }
             | Node::Intersect {
-                members: _,
+                members,
                 declare: _,
-            } => {}
+            } => {
+                for (seat, member) in members.$rows() {
+                    index_rows!(seat, member, $rows, $out);
+                }
+            }
             // A mate's slots are its two frame offsets' rigid steps,
             // each addressed by its side; the rest of the alignment
             // datum is authored numbers, not slots.
@@ -3232,7 +3309,7 @@ impl<P> Node<P> {
                 origin: _,
                 direction: _,
             }) => vec![(O::Frame, *plane)],
-            Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => vec![(O::At, *at)],
+            Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => vec![(O::At, at.read)],
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3325,13 +3402,13 @@ impl<P> Node<P> {
                 target,
                 thickness: _,
                 open: _,
-            } => vec![(O::Target, *target)],
-            Node::Split { target, tool } => vec![(O::Target, *target), (O::Tool, *tool)],
+            } => vec![(O::Target, target.read)],
+            Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, *tool)],
             Node::Subtract {
                 from,
                 tool,
                 declare: _,
-            } => vec![(O::From, *from), (O::Cut, *tool)],
+            } => vec![(O::From, from.read), (O::Cut, tool.read)],
             // In LIST ORDER: the order is the fold's (D9).
             Node::Union {
                 members,
@@ -3340,12 +3417,12 @@ impl<P> Node<P> {
             | Node::Intersect {
                 members,
                 declare: _,
-            } => members.rows().into_iter().map(|(o, r)| (o, *r)).collect(),
+            } => members.rows().into_iter().map(|(o, r)| (o, r.read)).collect(),
             Node::Transform {
                 input,
                 placement: _,
             } => vec![(O::Input, *input)],
-            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, *body)],
+            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, body.read)],
             Node::Part { of, select: _ } => vec![(O::Of, *of)],
             Node::Pattern {
                 input,
@@ -3392,7 +3469,7 @@ impl<P> Node<P> {
                 at,
                 face: _,
                 spin: _,
-            }) => vec![(O::At, at)],
+            }) => vec![(O::At, &mut at.read)],
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3483,13 +3560,13 @@ impl<P> Node<P> {
                 target,
                 thickness: _,
                 open: _,
-            } => vec![(O::Target, target)],
-            Node::Split { target, tool } => vec![(O::Target, target), (O::Tool, tool)],
+            } => vec![(O::Target, &mut target.read)],
+            Node::Split { target, tool } => vec![(O::Target, &mut target.read), (O::Tool, tool)],
             Node::Subtract {
                 from,
                 tool,
                 declare: _,
-            } => vec![(O::From, from), (O::Cut, tool)],
+            } => vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)],
             Node::Union {
                 members,
                 declare: _,
@@ -3497,12 +3574,16 @@ impl<P> Node<P> {
             | Node::Intersect {
                 members,
                 declare: _,
-            } => members.rows_mut(),
+            } => members
+                .rows_mut()
+                .into_iter()
+                .map(|(o, r)| (o, &mut r.read))
+                .collect(),
             Node::Transform {
                 input,
                 placement: _,
             } => vec![(O::Input, input)],
-            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, body)],
+            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, &mut body.read)],
             Node::Part { of, select: _ } => vec![(O::Of, of)],
             Node::Pattern {
                 input,
@@ -3621,7 +3702,20 @@ impl<P> Node<P> {
         {
             return Some(InputFault::SelectionNotCanonical { at });
         }
-        None
+        // An indexed read carries its family's rank of indices, and a
+        // family argument none.
+        if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
+            && let crate::Bodies::Family(read) = members
+            && read.is_indexed()
+        {
+            return Some(InputFault::IndexedFamily);
+        }
+        self.body_reads().into_iter().find_map(|(seat, read)| {
+            (read.at.len() > 1).then_some(InputFault::IndexRank {
+                seat,
+                found: read.at.len(),
+            })
+        })
     }
 
     /// Rewrites every payload reference EXACTLY equal to `from` into
@@ -3973,7 +4067,7 @@ impl<S: Slot> Datum<S> {
                 direction: map_array(direction, f)?,
             },
             Datum::FaceFrame { at, face, spin } => Datum::FaceFrame {
-                at: read(crate::OperandSlot::At, at)?,
+                at: at.try_map(crate::OperandSlot::At, f, read)?,
                 face: face.clone(),
                 spin: f(spin)?,
             },
@@ -4242,7 +4336,7 @@ impl<P, S: Slot> Node<P, S> {
                 radius,
                 selection,
             } => Node::Fillet {
-                target: read(O::Target, target)?,
+                target: target.try_map(O::Target, f, read)?,
                 radius: f(radius)?,
                 selection: selection.clone(),
             },
@@ -4251,7 +4345,7 @@ impl<P, S: Slot> Node<P, S> {
                 distance,
                 selection,
             } => Node::Chamfer {
-                target: read(O::Target, target)?,
+                target: target.try_map(O::Target, f, read)?,
                 distance: f(distance)?,
                 selection: selection.clone(),
             },
@@ -4260,12 +4354,12 @@ impl<P, S: Slot> Node<P, S> {
                 thickness,
                 open,
             } => Node::Shell {
-                target: read(O::Target, target)?,
+                target: target.try_map(O::Target, f, read)?,
                 thickness: f(thickness)?,
                 open: open.clone(),
             },
             Node::Split { target, tool } => Node::Split {
-                target: read(O::Target, target)?,
+                target: target.try_map(O::Target, f, read)?,
                 tool: read(O::Tool, tool)?,
             },
             Node::Subtract {
@@ -4273,16 +4367,16 @@ impl<P, S: Slot> Node<P, S> {
                 tool,
                 declare,
             } => Node::Subtract {
-                from: read(O::From, from)?,
-                tool: read(O::Cut, tool)?,
+                from: from.try_map(O::From, f, read)?,
+                tool: tool.try_map(O::Cut, f, read)?,
                 declare: declare.clone(),
             },
             Node::Union { members, declare } => Node::Union {
-                members: members.try_map(|o, r| read(o, r))?,
+                members: members.try_map(|o, r| r.try_map(o, f, read))?,
                 declare: declare.clone(),
             },
             Node::Intersect { members, declare } => Node::Intersect {
-                members: members.try_map(|o, r| read(o, r))?,
+                members: members.try_map(|o, r| r.try_map(o, f, read))?,
                 declare: declare.clone(),
             },
             Node::Transform { input, placement } => Node::Transform {
@@ -4290,7 +4384,7 @@ impl<P, S: Slot> Node<P, S> {
                 placement: placement.try_map_slots(f)?,
             },
             Node::PlaceInWorld { body, pose } => Node::PlaceInWorld {
-                body: read(O::Body, body)?,
+                body: body.try_map(O::Body, f, read)?,
                 pose: pose.try_map_slots(f)?,
             },
             Node::Pattern { input, count, kind } => Node::Pattern {
@@ -4342,6 +4436,64 @@ impl<P, S: Slot> Node<P, S> {
                 dir: *dir,
             },
         })
+    }
+}
+
+impl<P, S: Slot> Node<P, S> {
+    /// **The reads at this node's body seats** (REFERENCES DM3), each
+    /// at its address, in field order: the seats a read may index
+    /// ([`crate::BodyRead`]), and no other operand.
+    pub fn body_reads(&self) -> Vec<(crate::OperandSlot, &crate::BodyRead<S>)> {
+        use crate::OperandSlot as O;
+        match self {
+            Node::Datum(Datum::FaceFrame { at, .. }) => vec![(O::At, at)],
+            Node::Fillet { target, .. }
+            | Node::Chamfer { target, .. }
+            | Node::Shell { target, .. }
+            | Node::Split { target, .. } => vec![(O::Target, target)],
+            Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
+            Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
+            Node::PlaceInWorld { body, .. } => vec![(O::Body, body)],
+            Node::Datum(
+                Datum::Plane { .. }
+                | Datum::Axis { .. }
+                | Datum::Point { .. }
+                | Datum::Frame { .. }
+                | Datum::AxisInPlane { .. },
+            )
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => Vec::new(),
+        }
+    }
+
+    /// The read at body seat `seat`, `None` where the node has no such
+    /// body seat.
+    pub fn body_read(&self, seat: crate::OperandSlot) -> Option<&crate::BodyRead<S>> {
+        find_row(self.body_reads(), seat)
+    }
+
+    /// **The kinds the variable read at operand `seat` may have**: the
+    /// seat's own ([`crate::OperandSlot::kind`]), except at a body seat
+    /// whose read is indexed, where the variable read is the family
+    /// ([`crate::BodyRead::kind`]). Every door that writes or loads a
+    /// read asks this.
+    pub fn seat_kind(&self, seat: crate::OperandSlot) -> crate::SlotKind {
+        self.body_read(seat)
+            .map_or_else(|| seat.kind(), |read| read.kind(seat))
     }
 }
 
@@ -4859,7 +5011,7 @@ impl<P, S: Slot> Node<P, S> {
     /// Builds a [`Node::PlaceInWorld`] of `body` at `pose`: one copy of
     /// the body in the world.
     pub fn place_in_world(
-        body: impl Into<S::Read>,
+        body: impl Into<crate::BodyRead<S>>,
         pose: impl Into<crate::placement::Placement<S>>,
     ) -> Self {
         Node::PlaceInWorld {
@@ -4887,7 +5039,11 @@ impl<P, S: Slot> Node<P, S> {
     /// do not depend on the order a user clicked in. The form comes
     /// from [`canonicalize_selection`], which every site that
     /// establishes it shares.
-    pub fn fillet(target: impl Into<S::Read>, radius: S, selection: Vec<StableName>) -> Self {
+    pub fn fillet(
+        target: impl Into<crate::BodyRead<S>>,
+        radius: S,
+        selection: Vec<StableName>,
+    ) -> Self {
         let mut selection = selection;
         canonicalize_selection(&mut selection);
         Node::Fillet {
@@ -4901,7 +5057,11 @@ impl<P, S: Slot> Node<P, S> {
     /// deduplicated) — the one construction door, for the reason
     /// [`Node::fillet`] is: a recipe's bits must not depend on the
     /// order a user clicked in.
-    pub fn chamfer(target: impl Into<S::Read>, distance: S, selection: Vec<StableName>) -> Self {
+    pub fn chamfer(
+        target: impl Into<crate::BodyRead<S>>,
+        distance: S,
+        selection: Vec<StableName>,
+    ) -> Self {
         let mut selection = selection;
         canonicalize_selection(&mut selection);
         Node::Chamfer {
@@ -4918,7 +5078,11 @@ impl<P, S: Slot> Node<P, S> {
     /// carries the rim's identity (the variant docs), so the order is
     /// authored data the kernel reads, and sorting it would silently
     /// move a rim from one face to another.
-    pub fn shell(target: impl Into<S::Read>, thickness: S, open: Vec<StableName>) -> Self {
+    pub fn shell(
+        target: impl Into<crate::BodyRead<S>>,
+        thickness: S,
+        open: Vec<StableName>,
+    ) -> Self {
         let mut open = open;
         dedup_keeping_first(&mut open);
         Node::Shell {

@@ -520,7 +520,7 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
         .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, doc.operation_of(*target)?)),
+            Some(Node::Fillet { target, .. }) => Some((*id, doc.operation_of(target.read)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");
@@ -533,11 +533,11 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
     };
     // The tool is the pip, a Transform of the ball; the ball's names
     // ride it through unchanged, so the names carry the revolve's id.
-    let ball = match doc.node(operand(*tool)) {
+    let ball = match doc.node(operand(tool.read)) {
         Some(Node::Transform { input, .. }) => operand(*input),
         other => panic!("the die's tool is the placed ball, got {other:?}"),
     };
-    (operand(*from), ball, pipped)
+    (operand(from.read), ball, pipped)
 }
 
 /// **THE ACCEPTANCE (LIB-SEL1 §2.4).** `die_composed`'s fourteen

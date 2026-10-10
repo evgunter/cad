@@ -249,12 +249,12 @@ where
     let projected = if per_operand {
         None
     } else {
-        split_ports_projected(node, &reads_of(node), doc, results)?
+        reads_projected(node, &node.operand_rows(), doc, results, vals)?
     };
     let results = projected.as_ref().unwrap_or(results);
-    let project_each = |vars: &[crate::VarId]| {
-        vars.iter()
-            .map(|&var| split_ports_projected(node, &[var], doc, unprojected))
+    let project_each = |rows: &[(O, crate::VarId)]| {
+        rows.iter()
+            .map(|&row| reads_projected(node, &[row], doc, unprojected, vals))
             .collect::<Result<Vec<_>, _>>()
     };
     // An operand reads an output; the op reads the operation's value.
@@ -328,7 +328,7 @@ where
         } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
-            (*target, at(O::Target, *target)?),
+            (target.read, at(O::Target, target.read)?),
             selection,
             doc,
             results,
@@ -341,7 +341,7 @@ where
         } => wire_blend(
             &crate::verbs::blend::chamfer(),
             id,
-            (*target, at(O::Target, *target)?),
+            (target.read, at(O::Target, target.read)?),
             selection,
             doc,
             results,
@@ -352,7 +352,7 @@ where
         Node::Shell { target, open, .. } => wire_shell(
             &crate::verbs::shell::shell(),
             id,
-            (*target, at(O::Target, *target)?),
+            (target.read, at(O::Target, target.read)?),
             open,
             doc,
             results,
@@ -363,7 +363,7 @@ where
         Node::Split { target, tool } => wire_split(
             &crate::verbs::split::split(),
             id,
-            (*target, at(O::Target, *target)?),
+            (target.read, at(O::Target, target.read)?),
             (*tool, at(O::Tool, *tool)?),
             results,
             tol,
@@ -373,13 +373,13 @@ where
             tool,
             declare,
         } => {
-            let each = project_each(&[*from, *tool])?;
+            let each = project_each(&[(O::From, from.read), (O::Cut, tool.read)])?;
             let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
             wire_subtract(
                 &crate::verbs::boolean::boolean(),
                 id,
-                (*from, at(O::From, *from)?, ra),
-                (*tool, at(O::Cut, *tool)?, rb),
+                (from.read, at(O::From, from.read)?, ra),
+                (tool.read, at(O::Cut, tool.read)?, rb),
                 declare,
                 doc,
                 env.boolean_sweep,
@@ -392,7 +392,7 @@ where
             } else {
                 BooleanOp::Intersect
             };
-            let members = combine_members(node, members, doc, unprojected, tol)?;
+            let members = combine_members(node, members, doc, unprojected, vals, tol)?;
             wire_combine(
                 &crate::verbs::boolean::boolean(),
                 op,
@@ -408,8 +408,8 @@ where
             wire_transform(id, at(O::Input, *input)?, placement, results, vals, tol)
         }
         Node::PlaceInWorld { body, pose } => {
-            let at = at(O::Body, *body)?;
-            let port = doc.defined_by(*body).map_or(0, |(_, port)| port);
+            let at = at(O::Body, body.read)?;
+            let port = doc.defined_by(body.read).map_or(0, |(_, port)| port);
             wire_place_in_world(id, at, port, pose, results, vals, tol)
         }
         Node::Pattern { input, kind, .. } => {
@@ -1486,7 +1486,7 @@ fn wire_datum<T: Decide>(
         // stored fact copied out or an N5 resolution; nothing here
         // decides a number.
         Datum::FaceFrame { at, face, .. } => {
-            let at = super::read_at(doc, crate::OperandSlot::At, *at)?;
+            let at = super::read_at(doc, crate::OperandSlot::At, at.read)?;
             let body = read_body(results, at)?;
             let table = &value_of(results, at)?.name_table;
             // The fillet's ladder: rung 1 against the document, rungs
@@ -2820,6 +2820,30 @@ fn wire_part<T: Decide>(
     Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)).carrying(value.parts))
 }
 
+/// **The instance of `of`'s `Instances` value the count in `slot`
+/// picks**, with its index. The index is into the value's FLAT list
+/// (`j·M + i`, the layout `wire_pattern` fixes); a negative index and
+/// one past the end refuse alike ([`NodeErrorKind::InstanceOutOfRange`]).
+/// A count past u32 is the pattern's own emission bug, refused before
+/// any index is judged against it.
+fn instance_of<T: Decide>(
+    of: RecipeNodeId,
+    instances: &[Arc<Body<T>>],
+    vals: &SlotValues<T>,
+    slot: SlotId,
+) -> Result<(Arc<Body<T>>, u32), NodeErrorKind> {
+    let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
+    let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
+    let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
+        NodeErrorKind::InstanceOutOfRange {
+            input: of,
+            index,
+            count: instances.len(),
+        },
+    )?;
+    Ok((Arc::clone(&instances[ix as usize]), ix))
+}
+
 /// One half of a split's value, or [`NodeErrorKind::EmptyHalf`].
 fn split_side<T: Decide>(
     of: RecipeNodeId,
@@ -2836,36 +2860,88 @@ fn split_side<T: Decide>(
     }
 }
 
-/// The variables `node`'s operands read, in field order.
-fn reads_of(node: &Node<ProfileProgram>) -> Vec<crate::VarId> {
-    node.operand_rows()
-        .into_iter()
-        .map(|(_, var)| var)
-        .collect()
-}
-
-/// **A read of a split's port is that half** (FORK-1: a split defines
-/// two bodies): `results` with each split `reads` names by port
-/// replaced by the half the port is, projected exactly as
-/// [`wire_part`] projects `Part { SplitHalf }` — the half's body, the
-/// table's rows for that output, the split's part count — so the two
-/// spellings give one value. `None` when `node` reads no split by port.
-/// A part projection reads the split whole: its selector is the half.
-fn split_ports_projected<T: Decide>(
+/// **The value a read at a seat is**, where that is not the value of
+/// the operation it reads: a split's port is that half (FORK-1: a
+/// split defines two bodies), projected exactly as [`wire_part`]
+/// projects `Part { SplitHalf }`; an indexed read at a body seat
+/// ([`crate::BodyRead`], DM3) is the family's member its index picks
+/// ([`instance_of`]). Either is the body alone, its table the
+/// operation's projected onto it ([`NameTable::project`]) and the
+/// operation's part count, so a read and the `Part` spelling of it give
+/// one value. `results` with each such operation's entry replaced, or
+/// `None` when no read in `rows` is either. A part projection reads a
+/// split whole: its selector is the half.
+///
+/// Every body seat resolves through here: the one-body nodes over all
+/// their reads at once, a subtract, a union and an intersect read by
+/// read (two reads of one operation are two bodies, which one map
+/// keyed by the operation cannot hold).
+fn reads_projected<T: Decide>(
     node: &Node<ProfileProgram>,
-    reads: &[crate::VarId],
+    rows: &[(crate::OperandSlot, crate::VarId)],
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
+    vals: &SlotValues<T>,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
-    if matches!(node, Node::Part { .. }) {
-        return Ok(None);
+    let mut replaced: Vec<(RecipeNodeId, super::NodeValue<T>)> = Vec::new();
+    for &(seat, var) in rows {
+        let projected = |of: RecipeNodeId,
+                         value: &super::NodeValue<T>,
+                         body: Arc<Body<T>>,
+                         index: u32|
+         -> Result<_, NodeErrorKind> {
+            let table = value
+                .name_table
+                .project(index)
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+            names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+            Ok((
+                of,
+                super::NodeValue {
+                    payload: ValuePayload::Body(body),
+                    name_table: Arc::new(table),
+                    fragment_groups: Arc::default(),
+                    contacts: Arc::default(),
+                    carried: Arc::default(),
+                    ..value.clone()
+                },
+            ))
+        };
+        if node
+            .body_read(seat)
+            .is_some_and(crate::BodyRead::is_indexed)
+        {
+            let family = super::read_at(doc, seat, var)?;
+            let value = value_of(results, family)?;
+            let ValuePayload::Instances(instances) = &value.payload else {
+                return Err(wrong_operand(value, family, super::family::INSTANCES));
+            };
+            let (body, index) = instance_of(family, instances, vals, SlotId::Index { seat, k: 0 })?;
+            replaced.push(projected(family, value, body, index)?);
+            continue;
+        }
+        if matches!(node, Node::Part { .. }) {
+            continue;
+        }
+        let Some((split, port)) = doc
+            .var(var)
+            .and_then(|held| held.def().output())
+            .filter(|(split, _)| matches!(doc.node(*split), Some(Node::Split { .. })))
+        else {
+            continue;
+        };
+        let half = SplitHalf::ALL
+            .into_iter()
+            .find(|h| h.output_body() == u32::from(port))
+            .unwrap_or_else(|| unreachable!("a split defines a port per half"));
+        let value = value_of(results, split)?;
+        let ValuePayload::Split { above, below } = &value.payload else {
+            unreachable!("a split evaluates to its two sides")
+        };
+        let body = split_side(split, half, above, below)?;
+        replaced.push(projected(split, value, body, half.output_body())?);
     }
-    let ports: Vec<(RecipeNodeId, u8)> = reads
-        .iter()
-        .filter_map(|&var| doc.var(var)?.def().output())
-        .filter(|(split, _)| matches!(doc.node(*split), Some(Node::Split { .. })))
-        .collect();
-    if ports.is_empty() {
+    if replaced.is_empty() {
         return Ok(None);
     }
     // The values this op can read: every entry that stands, cloned (a
@@ -2882,30 +2958,8 @@ fn split_ports_projected<T: Decide>(
             _ => None,
         })
         .collect();
-    for (split, port) in ports {
-        let half = SplitHalf::ALL
-            .into_iter()
-            .find(|h| h.output_body() == u32::from(port))
-            .unwrap_or_else(|| unreachable!("a split defines a port per half"));
-        let value = value_of(results, split)?;
-        let ValuePayload::Split { above, below } = &value.payload else {
-            unreachable!("a split evaluates to its two sides")
-        };
-        let body = split_side(split, half, above, below)?;
-        let table = value
-            .name_table
-            .project(half.output_body())
-            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-        names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
-        let projected = super::NodeValue {
-            payload: ValuePayload::Body(body),
-            name_table: Arc::new(table),
-            fragment_groups: Arc::default(),
-            contacts: Arc::default(),
-            carried: Arc::default(),
-            ..value.clone()
-        };
-        local.insert(split, NodeResult::Ok(projected));
+    for (at, value) in replaced {
+        local.insert(at, NodeResult::Ok(value));
     }
     Ok(Some(local))
 }
@@ -2926,9 +2980,10 @@ struct Member<T: Decide> {
 /// order, its table the family's rows for that member.
 fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     node: &Node<ProfileProgram>,
-    members: &crate::Bodies<crate::VarId>,
+    members: &crate::Bodies<crate::BodyRead<crate::VarId>>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
+    vals: &SlotValues<T>,
     tol: Tol,
 ) -> Result<Vec<Member<T>>, NodeErrorKind> {
     use crate::OperandSlot as O;
@@ -2936,10 +2991,11 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         crate::Bodies::Spelled(reads) => reads
             .iter()
             .enumerate()
-            .map(|(i, &read)| {
+            .map(|(i, member)| {
+                let read = member.read;
                 let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
                 let at = super::read_at(doc, slot, read)?;
-                let projected = split_ports_projected(node, &[read], doc, results)?;
+                let projected = reads_projected(node, &[(slot, read)], doc, results, vals)?;
                 let results = projected.as_ref().unwrap_or(results);
                 Ok(Member {
                     read,
@@ -2948,7 +3004,7 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 })
             })
             .collect(),
-        crate::Bodies::Family(read) => {
+        crate::Bodies::Family(crate::BodyRead { read, at: _ }) => {
             let at = super::read_at(doc, O::Members, *read)?;
             let value = value_of(results, at)?;
             let ValuePayload::Instances(bodies) = &value.payload else {

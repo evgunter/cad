@@ -532,6 +532,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "program",
         SlotId::Operand(operand) => operand_slot_tag(operand),
+        SlotId::Index { .. } => "index",
         SlotId::PlacementStep { .. } => "placement_step",
         SlotId::MateFrameStep { .. } => "mate_frame_step",
     }
@@ -578,6 +579,18 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
     }
 }
 
+/// The stable tag for what is wrong with an admitted node's inputs
+/// (`InputFault`).
+pub fn input_fault_tag(fault: &pncad::document::InputFault) -> &'static str {
+    use pncad::document::InputFault as F;
+    match fault {
+        F::RepeatedDesignation { .. } => "repeated_designation",
+        F::SelectionNotCanonical { .. } => "selection_not_canonical",
+        F::IndexedFamily => "indexed_family",
+        F::IndexRank { .. } => "index_rank",
+    }
+}
+
 /// The stable tag for an edit refusal.
 ///
 /// Its variable-kind words are the ones [`snapshot_error_tag`] mints,
@@ -592,6 +605,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::WouldCycle { .. } => "would_cycle",
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
+        EditError::IndexedRead { .. } => "indexed_read",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
@@ -1280,6 +1294,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::WouldCycle { .. } => None,
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
+        EditError::IndexedRead { fault, .. } => Some(input_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
         EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetDeclareOnNonDeclaring { .. } => None,

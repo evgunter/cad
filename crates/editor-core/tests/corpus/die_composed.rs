@@ -207,7 +207,7 @@ pub fn excluded_meridians(
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
     let tool = match doc.node(pipped) {
-        Some(Node::Subtract { tool, .. }) => *tool,
+        Some(Node::Subtract { tool, .. }) => tool.read,
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
     [MeridianEnd::Seam, MeridianEnd::Pi]

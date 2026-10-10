@@ -19,7 +19,7 @@ use pncad::prelude::StableName;
 /// live world placement.
 pub fn placed_var(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Option<VarId> {
     match doc.node(placement)? {
-        Node::PlaceInWorld { body, .. } => Some(*body),
+        Node::PlaceInWorld { body, .. } => Some(body.read),
         _ => None,
     }
 }

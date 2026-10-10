@@ -181,7 +181,7 @@ fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: editor_core::Operand::output(revolve, 0),
+            target: editor_core::Operand::output(revolve, 0).into(),
             radius: len(0.04),
             selection: vec![rim],
         },

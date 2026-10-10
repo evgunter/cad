@@ -198,7 +198,7 @@ pub use node::{
     PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
     StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use operand::{Bodies, Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{

@@ -10,7 +10,7 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    Bodies, Datum, DeclaredPair, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId,
+    Bodies, Datum, DeclaredPair, Dimension, DimensionError, Formula, Node, RecipeNodeId,
 };
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
@@ -314,7 +314,7 @@ impl BooleanSpec {
     /// Lower to the node, carrying `declare` as its declared pairs.
     pub fn node(&self, declare: Vec<DeclaredPair>) -> AuthoredNode {
         let spelled =
-            |members: &[RecipeNodeId]| Bodies::Spelled(members.iter().map(Operand::from).collect());
+            |members: &[RecipeNodeId]| Bodies::Spelled(members.iter().map(Into::into).collect());
         match self {
             Self::Union(members) => Node::Union {
                 members: spelled(members),

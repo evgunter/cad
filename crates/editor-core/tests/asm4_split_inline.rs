@@ -124,7 +124,9 @@ fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body: read, .. }) => doc.operation_of(*read) == Some(body),
+            Some(Node::PlaceInWorld { body: read, .. }) => {
+                doc.operation_of(read.read) == Some(body)
+            }
             _ => false,
         })
         .collect();
@@ -140,9 +142,9 @@ fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
     doc.placements()
         .into_iter()
         .map(|p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body, .. }) => {
-                doc.operation_of(*body).expect("a placement reads a body")
-            }
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(body.read)
+                .expect("a placement reads a body"),
             other => panic!("a placement, got {other:?}"),
         })
         .collect()

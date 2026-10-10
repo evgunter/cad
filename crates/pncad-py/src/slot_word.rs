@@ -28,7 +28,9 @@
 //! index; `mate_frame_step` names one expression of a mate side's frame
 //! offset, completed by the side, a step index and a component; a
 //! loft's `section` and a union's `member` name one entry of a list,
-//! completed by its position. There is nothing to answer with, so each
+//! completed by its position; `index` names one index of an indexed
+//! read, completed by the seat it reads at and the index's position.
+//! There is nothing to answer with, so each
 //! answers nothing —
 //! the same stop the forward map makes one level out, where the word
 //! says which kind of slot it is and the rest of the address is in the

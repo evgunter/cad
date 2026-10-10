@@ -1883,7 +1883,7 @@ pub(crate) fn lift<P>(
             .into_iter()
             .collect(),
         Node::Split { target, tool } => [
-            seat(*target, Lift::Spelled(name.clone())),
+            seat(target.read, Lift::Spelled(name.clone())),
             seat(*tool, Lift::Dropped),
         ]
         .into_iter()
@@ -1898,14 +1898,17 @@ pub(crate) fn lift<P>(
             declare: _,
         } => members
             .reads()
-            .filter(|&&m| reads(m))
-            .map(|&m| under(m))
+            .filter(|m| reads(m.read))
+            .map(|m| under(m.read))
             .collect(),
         Node::Subtract {
             from,
             tool,
             declare: _,
-        } => [seat(*from, under(*from)), seat(*tool, under(*tool))]
+        } => [
+            seat(from.read, under(from.read)),
+            seat(tool.read, under(tool.read)),
+        ]
             .into_iter()
             .flatten()
             .collect(),
@@ -1923,7 +1926,7 @@ pub(crate) fn lift<P>(
             target,
             thickness: _,
             open: _,
-        } => seat(*target, under(*target)).into_iter().collect(),
+        } => seat(target.read, under(target.read)).into_iter().collect(),
         Node::Transform {
             input: placed,
             placement: _,
@@ -1932,7 +1935,7 @@ pub(crate) fn lift<P>(
         // pose puts it is the product's geometry, and the copy's name
         // reaches it there.
         Node::PlaceInWorld { body, pose: _ } => seat(
-            *body,
+            body.read,
             Lift::Spelled(StableName {
                 kind: name.kind,
                 node: consumer,
@@ -1957,7 +1960,7 @@ pub(crate) fn lift<P>(
             .flatten()
             .collect(),
         Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
-            seat(*at, Lift::Dropped).into_iter().collect()
+            seat(at.read, Lift::Dropped).into_iter().collect()
         }
         Node::Datum(Datum::AxisInPlane {
             frame: plane,

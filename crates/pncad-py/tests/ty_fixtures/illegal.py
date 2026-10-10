@@ -145,6 +145,11 @@ solid: NodeId = doc.insert(
 # dimensionless, so it is not a length.
 Node.extrude(solid, 1.0)  # ty: error
 
+# An index reads one member of a family, which is a body: no seat but a
+# body seat takes one, and an index is a count.
+Node.extrude(solid[0], Formula.length_in(1, m))  # ty: error
+solid[0.5]  # ty: error
+
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
 Node.fillet(solid, Formula.length_in(1, m), [solid])  # ty: error

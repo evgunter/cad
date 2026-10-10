@@ -798,6 +798,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
                 "`{word}` addresses one entry of a list a node reads, and its position is not \
              carried by the word: `DocEdit.set_members` writes the list whole"
             )
+        } else if word == "index" {
+            "`index` addresses one index of a read of a family's member, and the rest of that \
+         address — the seat the read sits at and which index — is not carried by the word: \
+         the member read is re-authored"
+                .to_owned()
         } else if word == "mate_frame_step" {
             "`mate_frame_step` addresses one expression of a mate side's frame offset, and the \
          rest of that address — the side, the step index and which component — is not \
@@ -862,26 +867,82 @@ impl OperandArg {
     }
 }
 
+/// **One member of a family, read by index** (REFERENCES DM3): `xs[i]`,
+/// written `op[i]` on the family's operand — a node or a variable —
+/// with one count per index. It is a read of the family, not a
+/// variable: an operation reading it keys the member's names by the
+/// family's read. Every body seat takes one; an index out of the
+/// family's range refuses `instance_out_of_range` at `evaluate`.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct IndexedRead {
+    read: OperandArg,
+    at: Vec<d::Formula>,
+}
+
+impl IndexedRead {
+    /// `read` at the one index `index`, read as a count.
+    fn of(py: Python<'_>, read: OperandArg, index: &super::expr::SlotArg) -> PyResult<Self> {
+        Ok(Self {
+            read,
+            at: vec![index.formula(py, d::Dimension::Count)?],
+        })
+    }
+}
+
+#[pymethods]
+impl IndexedRead {
+    fn __repr__(&self) -> String {
+        let read = match self.read {
+            OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
+            OperandArg::Var(var) => format!("Var({})", var.0.full()),
+        };
+        let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
+        format!("{read}[{}]", at.join(", "))
+    }
+}
+
+/// **A read at a body seat as Python writes it**: an operand read
+/// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum BodyArg {
+    /// One member of a family.
+    Indexed(IndexedRead),
+    /// An operand, read plainly.
+    Read(OperandArg),
+}
+
+impl BodyArg {
+    /// The authored read.
+    pub(crate) fn read(self) -> d::BodyRead<d::Formula> {
+        match self {
+            Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
+            Self::Read(read) => d::BodyRead::plain(read.read()),
+        }
+    }
+}
+
 /// **A union's or an intersect's members as Python writes them**: ONE
 /// operand, a family read whole (a pattern's output), or a sequence of
-/// operands, each read on its own — the kernel's `Bodies`. Whether a
-/// read in a sequence is itself a family is the kernel's question at
-/// the door (`slot_var_kind`), not this one's.
+/// reads, each on its own (an operand, or a member `op[i]`) — the
+/// kernel's `Bodies`. Whether a read in a sequence is itself a family
+/// is the kernel's question at the door (`slot_var_kind`), not this
+/// one's.
 #[derive(FromPyObject)]
 pub(crate) enum MembersArg {
-    /// One operand: the family it reads, whole.
-    Family(OperandArg),
-    /// A sequence of operands, in the order written.
-    Spelled(Vec<OperandArg>),
+    /// One read: the family it reads, whole.
+    Family(BodyArg),
+    /// A sequence of reads, in the order written.
+    Spelled(Vec<BodyArg>),
 }
 
 impl MembersArg {
     /// The authored argument.
-    pub(crate) fn bodies(self) -> d::Bodies<d::Operand> {
+    pub(crate) fn bodies(self) -> d::Bodies<d::BodyRead<d::Formula>> {
         match self {
             Self::Family(read) => d::Bodies::Family(read.read()),
             Self::Spelled(reads) => {
-                d::Bodies::Spelled(reads.into_iter().map(OperandArg::read).collect())
+                d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
             }
         }
     }
@@ -891,6 +952,12 @@ impl MembersArg {
 impl NodeId {
     fn __repr__(&self) -> String {
         format!("NodeId({})", self.0.full())
+    }
+
+    /// One member of the family this node's output is, at `index`
+    /// ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+        IndexedRead::of(py, OperandArg::Node(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -1574,12 +1641,12 @@ impl Doc {
     fn place(
         &mut self,
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         pose: Option<super::place::Placement>,
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
-        Node::place_in_world(py, body, pose.clone())?;
+        Node::place_in_world(py, body.clone(), pose.clone())?;
         self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
             .map_err(|err| edit_err(py, &err))
     }
@@ -2722,7 +2789,7 @@ impl Node {
     #[staticmethod]
     fn datum_face_frame(
         py: Python<'_>,
-        at: OperandArg,
+        at: BodyArg,
         face: &str,
         spin: super::expr::SlotArg,
     ) -> PyResult<Self> {
@@ -2887,7 +2954,7 @@ impl Node {
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -2930,7 +2997,7 @@ impl Node {
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -2984,7 +3051,7 @@ impl Node {
     #[staticmethod]
     fn shell(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {
@@ -3005,7 +3072,7 @@ impl Node {
     /// A tool that is not a splitting surface, or a cut that produces
     /// nothing, refuses typed at `evaluate`.
     #[staticmethod]
-    fn split(target: OperandArg, tool: OperandArg) -> Self {
+    fn split(target: BodyArg, tool: OperandArg) -> Self {
         Self {
             inner: d::Node::Split {
                 target: target.read(),
@@ -3082,7 +3149,7 @@ impl Node {
     #[pyo3(signature = (body, pose=None))]
     fn place_in_world(
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         pose: Option<super::place::Placement>,
     ) -> PyResult<Self> {
         let inner = d::Node::place_in_world(
@@ -3169,8 +3236,8 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (from_, tool, declare=Vec::new()))]
     fn subtract(
-        from_: OperandArg,
-        tool: OperandArg,
+        from_: BodyArg,
+        tool: BodyArg,
         declare: Vec<super::flush::FlushFinding>,
     ) -> PyResult<Self> {
         Ok(Self {
@@ -3634,6 +3701,12 @@ impl Var {
 
     fn __repr__(&self) -> String {
         format!("Var({})", self.0.full())
+    }
+
+    /// One member of the family this variable holds, at `index`
+    /// ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+        IndexedRead::of(py, OperandArg::Var(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -5053,6 +5126,7 @@ const fn _binds_every_kernel_window(kernel: &d::TubeWindow<d::Formula>) -> &'sta
 /// Register the document surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
+    m.add_class::<IndexedRead>()?;
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
     m.add_class::<VarName>()?;

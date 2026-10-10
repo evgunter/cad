@@ -137,8 +137,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node whose list is replaced.
         node: RecipeNodeId,
         /// The whole new argument, in order (D9: the order is data),
-        /// each read lowered as [`DocEdit::SetParam`]'s read is.
-        members: crate::Bodies<crate::Operand>,
+        /// each read lowered as [`DocEdit::SetParam`]'s read is, and
+        /// each index of an indexed member as a slot's formula.
+        members: crate::Bodies<crate::BodyRead<Formula>>,
     },
     /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
     /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
@@ -680,7 +681,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// `None`. Nothing places but this; Python's `Doc.place` is the
     /// same edit.
     pub fn place(
-        body: impl Into<crate::Operand>,
+        body: impl Into<crate::BodyRead<Formula>>,
         pose: Option<crate::placement::Placement<Formula>>,
     ) -> Self {
         Self::InsertNode {
@@ -1179,7 +1180,7 @@ fn lower_reads<P: crate::ProfilePayload>(
         &mut |slot, read| {
             let expected = match (slot, fixed) {
                 (crate::OperandSlot::Input, Some(kind)) => crate::SlotKind::Is(kind),
-                _ => slot.kind(),
+                _ => node.seat_kind(slot),
             };
             let var = lower_operand(doc, spoken, SlotId::Operand(slot), read, half, expected)?;
             reads.push(var);
@@ -1806,6 +1807,15 @@ pub enum EditError {
         /// The position of the entry that does not sort strictly
         /// before the one after it.
         at: usize,
+    },
+    /// The node this edit writes carries an indexed read its family
+    /// cannot take ([`crate::node::InputFault::IndexedFamily`],
+    /// [`crate::node::InputFault::IndexRank`]).
+    IndexedRead {
+        /// The node whose read it is.
+        node: SpokenNode,
+        /// What is wrong with the read.
+        fault: crate::node::InputFault,
     },
     /// `SetMembers` aimed at a node that has no list input — a
     /// subtract's operands are named slots,
@@ -2924,6 +2934,7 @@ impl EditError {
                 again: _,
             }
             | Self::SelectionNotCanonical { node, at: _ }
+            | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
             | Self::LoftSectionsSpelled { node }
             | Self::SetDeclareOnNonDeclaring { node }
@@ -3291,6 +3302,16 @@ impl EditError {
                     f,
                     format_args!(
                         "build it through `Node::shell`, which keeps the first occurrence"
+                    ),
+                )
+            }
+            Self::IndexedRead { node, fault } => {
+                write!(f, "{node} cannot read that member: {fault}")?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "read the family whole, or spell its members in a list with one index \
+                         each"
                     ),
                 )
             }
@@ -5413,6 +5434,12 @@ fn check_node_inputs<P: crate::ProfilePayload>(
         crate::node::InputFault::SelectionNotCanonical { at } => {
             EditError::SelectionNotCanonical { node: subject, at }
         }
+        crate::node::InputFault::IndexedFamily | crate::node::InputFault::IndexRank { .. } => {
+            EditError::IndexedRead {
+                node: subject,
+                fault,
+            }
+        }
     })
 }
 
@@ -5627,7 +5654,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     let half = current.selected_half();
     let expected = match (current, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
-        _ => slot.kind(),
+        _ => current.seat_kind(slot),
     };
     let spoken = || doc.spoken(node);
     let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, half, expected)?;
@@ -6311,20 +6338,41 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = || doc.spoken(*node);
-            let mut lower = |slot: crate::OperandSlot, member: &crate::Operand| {
-                lower_operand(
-                    new,
-                    &spoken,
-                    SlotId::Operand(slot),
-                    member,
-                    None,
-                    slot.kind(),
-                )
-            };
+            let lower =
+                |new: &Doc<P>, slot: crate::OperandSlot, member: &crate::BodyRead<Formula>| {
+                    lower_operand(
+                        new,
+                        &spoken,
+                        SlotId::Operand(slot),
+                        &member.read,
+                        None,
+                        member.kind(slot),
+                    )
+                };
             let mut rewritten = current.clone();
             match &mut rewritten {
                 Node::Union { members: list, .. } | Node::Intersect { members: list, .. } => {
-                    *list = members.try_map(&mut lower)?;
+                    let reads = members.try_map(|slot, member| lower(new, slot, member))?;
+                    let mut indices = Vec::new();
+                    for (seat, member) in members.rows() {
+                        let mut at = Vec::new();
+                        for (k, formula) in member.rows() {
+                            at.push(lower_index(
+                                new,
+                                &spoken(),
+                                SlotId::Index { seat, k },
+                                formula,
+                            )?);
+                        }
+                        indices.push(at);
+                    }
+                    let mut indices = indices.into_iter();
+                    *list = reads.try_map(|_, &read| {
+                        Ok::<_, EditError>(crate::BodyRead {
+                            read,
+                            at: indices.next().unwrap_or_default(),
+                        })
+                    })?;
                 }
                 Node::Loft { profiles, .. } => {
                     let crate::Bodies::Spelled(sections) = members else {
@@ -6334,10 +6382,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .iter()
                         .enumerate()
                         .map(|(i, section)| {
-                            lower(
-                                crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX)),
-                                section,
-                            )
+                            let slot =
+                                crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX));
+                            if section.is_indexed() {
+                                return Err(EditError::UnknownSlot {
+                                    id: spoken(),
+                                    slot: SlotId::Index { seat: slot, k: 0 },
+                                });
+                            }
+                            lower(new, slot, section)
                         })
                         .collect::<Result<_, _>>()?;
                 }
@@ -7624,6 +7677,39 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
 /// matches, the formula lowers and its reads hold — then the slot
 /// stores the variable it lowers to (VR4), its fresh table minted
 /// first.
+/// **One index of an indexed read as the door writes it**
+/// ([`SlotId::Index`]): a `Count` formula, lowered as a slot's is and
+/// held to the reads a slot's are.
+fn lower_index<P>(
+    new: &mut Doc<P>,
+    spoken: &SpokenNode,
+    slot: SlotId,
+    formula: &Formula,
+) -> Result<VarId, EditError> {
+    if let Some(SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    }) = slot.dimension_fault(formula)
+    {
+        return Err(EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        });
+    }
+    let var = Lowering::none()
+        .slot(new, formula)
+        .map_err(|fault| fault.at(new, spoken.clone(), ExprSite::Slot(slot)))?;
+    check_reads(
+        new,
+        spoken,
+        ExprSite::Slot(slot),
+        &Expr::var(var, slot.expr_dimension()),
+    )?;
+    Ok(var)
+}
+
 fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     before: &Doc<P>,

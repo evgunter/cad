@@ -1863,6 +1863,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::WouldCycle { .. }
             | EditError::RepeatedDesignation { .. }
             | EditError::SelectionNotCanonical { .. }
+            | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetDeclareOnNonDeclaring { .. }
             | EditError::DeclaredSiteNotAnOperand { .. }
@@ -2324,6 +2325,14 @@ fn remap_node(
             missing,
         })
     };
+    // A body seat's read crosses through `rd`; its indices are slots,
+    // which cross as every slot does.
+    let br = |seat: crate::OperandSlot, read: &crate::BodyRead<VarId>| {
+        Ok::<_, RemapMiss>(crate::BodyRead {
+            read: rd(seat, read.read)?,
+            at: read.at.clone(),
+        })
+    };
     Ok(match node {
         // **An in-plane axis is not a leaf**: its frame is an input,
         // and a clone would carry the OTHER document's node number
@@ -2345,7 +2354,7 @@ fn remap_node(
         // selection.
         Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
             Node::Datum(crate::Datum::FaceFrame {
-                at: rd(crate::OperandSlot::At, *at)?,
+                at: br(crate::OperandSlot::At, at)?,
                 face: nm(face)?,
                 spin: *spin,
             })
@@ -2438,7 +2447,7 @@ fn remap_node(
             radius,
             selection,
         } => Node::fillet(
-            rd(crate::OperandSlot::Target, *target)?,
+            br(crate::OperandSlot::Target, target)?,
             *radius,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
@@ -2447,7 +2456,7 @@ fn remap_node(
             distance,
             selection,
         } => Node::chamfer(
-            rd(crate::OperandSlot::Target, *target)?,
+            br(crate::OperandSlot::Target, target)?,
             *distance,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
@@ -2459,12 +2468,12 @@ fn remap_node(
             thickness,
             open,
         } => Node::shell(
-            rd(crate::OperandSlot::Target, *target)?,
+            br(crate::OperandSlot::Target, target)?,
             *thickness,
             open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
-            target: rd(crate::OperandSlot::Target, *target)?,
+            target: br(crate::OperandSlot::Target, target)?,
             tool: rd(crate::OperandSlot::Tool, *tool)?,
         },
         Node::Subtract {
@@ -2472,16 +2481,16 @@ fn remap_node(
             tool,
             declare,
         } => Node::Subtract {
-            from: rd(crate::OperandSlot::From, *from)?,
-            tool: rd(crate::OperandSlot::Cut, *tool)?,
+            from: br(crate::OperandSlot::From, from)?,
+            tool: br(crate::OperandSlot::Cut, tool)?,
             declare: remap_declared(declare, rd, &nm)?,
         },
         Node::Union { members, declare } => Node::Union {
-            members: members.try_map(|slot, &m| rd(slot, m))?,
+            members: members.try_map(&br)?,
             declare: remap_declared(declare, rd, &nm)?,
         },
         Node::Intersect { members, declare } => Node::Intersect {
-            members: members.try_map(|slot, &m| rd(slot, m))?,
+            members: members.try_map(&br)?,
             declare: remap_declared(declare, rd, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
@@ -2489,7 +2498,7 @@ fn remap_node(
             placement: placement.clone(),
         },
         Node::PlaceInWorld { body, pose } => Node::PlaceInWorld {
-            body: rd(crate::OperandSlot::Body, *body)?,
+            body: br(crate::OperandSlot::Body, body)?,
             pose: pose.clone(),
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
@@ -2916,7 +2925,7 @@ pub fn split(
     let cut_placed: BTreeSet<VarId> = cut
         .iter()
         .filter_map(|&id| match doc.node(id) {
-            Some(Node::PlaceInWorld { body, .. }) => Some(*body),
+            Some(Node::PlaceInWorld { body, .. }) if !body.is_indexed() => Some(body.read),
             _ => None,
         })
         .collect();
@@ -3526,7 +3535,7 @@ pub fn split(
         };
         let mut placing = in_order.iter().copied().filter(|&p| {
             matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
-                if holds(doc.operation_of(*body)))
+                if holds(doc.operation_of(body.read)))
         });
         let (Some(placement), None) = (placing.next(), placing.next()) else {
             return Err(SplitError::NameOutsidePartWorld {
@@ -3782,7 +3791,7 @@ fn places_an_instance(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
         Some(Node::PlaceInWorld { body, .. }) => {
             places_at_identity(doc, placement)
                 && matches!(
-                    doc.operation_of(*body).and_then(|at| doc.node(at)),
+                    doc.operation_of(body.read).and_then(|at| doc.node(at)),
                     Some(Node::InstantiatePart { .. })
                 )
         }
@@ -4059,7 +4068,7 @@ pub fn inline(
         _ => None,
     };
     let part_heir = |placement: RecipeNodeId| match part.node(placement) {
-        Some(Node::PlaceInWorld { body, .. }) => Some(*body),
+        Some(Node::PlaceInWorld { body, .. }) if !body.is_indexed() => Some(body.read),
         _ => None,
     };
     if let Some(&placement) = posed.first() {
@@ -4692,7 +4701,10 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     fn a_payload_miss_carries_both_the_name_and_the_node() {
         let name = nested(EntityKind::Edge);
         let node = Node::Union {
-            members: crate::Bodies::Spelled(vec![crate::VarId::new(0, 1), crate::VarId::new(0, 2)]),
+            members: crate::Bodies::Spelled(vec![
+                crate::VarId::new(0, 1).into(),
+                crate::VarId::new(0, 2).into(),
+            ]),
             declare: crate::declare_rest(vec![(
                 SitedRef::new(crate::VarId::new(0, 1), name.clone()),
                 SitedRef::new(crate::VarId::new(0, 2), name.clone()),
