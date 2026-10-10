@@ -130,6 +130,9 @@ pub enum Unwalked {
     Misplaced(RecipeNodeId),
     /// The document holds no node by this id.
     Absent(RecipeNodeId),
+    /// This node's operand reads a variable no live operation defines
+    /// (D10: a delete leaves its readers unresolved).
+    Unresolved(RecipeNodeId),
 }
 
 impl fmt::Display for Unwalked {
@@ -149,6 +152,10 @@ impl fmt::Display for Unwalked {
                 )
             }
             Self::Absent(node) => write!(f, "the document holds no {node}"),
+            Self::Unresolved(node) => write!(
+                f,
+                "its read passes {node}, whose operand reads what no live operation defines"
+            ),
         }
     }
 }
@@ -276,7 +283,7 @@ pub fn construction<P>(
     let (mut at, mut name) = (read, name.clone());
     loop {
         while at != name.node {
-            at = match node(at)? {
+            let read = match node(at)? {
                 Node::Transform { input, .. } => {
                     placed.push(Placed::Transform(at));
                     *input
@@ -285,13 +292,14 @@ pub fn construction<P>(
                 Node::Split { target, .. } => *target,
                 _ => return Err(Unwalked::Through(at)),
             };
+            at = operation(doc, at, read)?;
         }
         let seg = name.path.first().ok_or(Unwalked::Unclassified(at))?;
         let of = match origin(seg) {
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
                     (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => {
-                        datum(doc, *tool, placed)
+                        datum(doc, operation(doc, at, *tool)?, placed)
                     }
                     (RoleSeg::SectionFace { .. }, _) => Err(Unwalked::Misplaced(at)),
                     _ => {
@@ -309,9 +317,22 @@ pub fn construction<P>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        at = carried_input(seg, node(at)?, at, &mut placed)?;
+        at = carried_input(doc, seg, node(at)?, at, &mut placed)?;
         name = of;
     }
+}
+
+/// **The operation `at`'s operand `read` reads** (D10).
+///
+/// # Errors
+///
+/// [`Unwalked::Unresolved`] where no live operation defines it.
+fn operation<P>(
+    doc: &crate::doc::Doc<P>,
+    at: RecipeNodeId,
+    read: crate::VarId,
+) -> Result<RecipeNodeId, Unwalked> {
+    doc.operation_of(read).ok_or(Unwalked::Unresolved(at))
 }
 
 /// **The input a carried segment at `at` names its entity in**, by the
@@ -320,8 +341,10 @@ pub fn construction<P>(
 ///
 /// # Errors
 ///
-/// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
+/// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry,
+/// [`Unwalked::Unresolved`] for an operand no live operation defines.
 fn carried_input<P>(
+    doc: &crate::doc::Doc<P>,
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
@@ -329,8 +352,8 @@ fn carried_input<P>(
 ) -> Result<RecipeNodeId, Unwalked> {
     let misplaced = Unwalked::Misplaced(at);
     match (seg, node) {
-        (RoleSeg::FromA(_), Node::Boolean { a, .. }) => Ok(*a),
-        (RoleSeg::FromB(_), Node::Boolean { b, .. }) => Ok(*b),
+        (RoleSeg::FromA(_), Node::Boolean { a, .. }) => operation(doc, at, *a),
+        (RoleSeg::FromB(_), Node::Boolean { b, .. }) => operation(doc, at, *b),
         (RoleSeg::FromA(_) | RoleSeg::FromB(_), _) => Err(misplaced),
         (RoleSeg::FromMember { member, .. }, Node::Union { .. }) => Ok(*member),
         (RoleSeg::FromMember { .. }, _) => Err(misplaced),
@@ -339,7 +362,7 @@ fn carried_input<P>(
             Node::Pattern { input, .. } | Node::PlacedUnion { input, .. },
         ) => {
             placed.push(Placed::Instance(at, *i));
-            Ok(*input)
+            operation(doc, at, *input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
         // Every other carried segment is a one-body operation's, carried
@@ -350,7 +373,7 @@ fn carried_input<P>(
             | Node::Chamfer { target, .. }
             | Node::Shell { target, .. }
             | Node::Split { target, .. },
-        ) => Ok(*target),
+        ) => operation(doc, at, *target),
         _ => Err(misplaced),
     }
 }
@@ -367,7 +390,7 @@ fn datum<P>(
         match doc.node(at).ok_or(Unwalked::Absent(at))? {
             Node::Transform { input, .. } => {
                 placed.push(Placed::Transform(at));
-                at = *input;
+                at = operation(doc, at, *input)?;
             }
             _ => {
                 return Ok(Construction {

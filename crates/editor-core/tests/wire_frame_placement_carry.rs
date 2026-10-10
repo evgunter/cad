@@ -172,7 +172,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
     let (doc, extrude) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: first,
+            profile: first.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -284,7 +284,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: base,
+            profile: base.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -292,7 +292,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, derived) = fixture::insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: cube,
+            at: cube.into(),
             face: fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
             spin: fixture::ang(0.0),
         }),
@@ -307,7 +307,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, up) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: boss,
+            profile: boss.into(),
             distance: fixture::len(0.5),
             side: ExtrudeSide::Along,
         },

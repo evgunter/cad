@@ -43,7 +43,7 @@ fn block(doc: ProfileDoc, (x0, x1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -60,8 +60,8 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );

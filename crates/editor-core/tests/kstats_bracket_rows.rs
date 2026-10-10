@@ -49,7 +49,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -595,7 +595,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         [len(0.0), len(0.25)],
     ]);
     let program = ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
@@ -606,7 +606,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -669,7 +669,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             .expect("a length over a scalar")
     };
     let program = ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [over(), len(0.0)],

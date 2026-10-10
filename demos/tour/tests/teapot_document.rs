@@ -134,7 +134,7 @@ fn sharp_lid_in(
     let axis = insert(
         &mut doc,
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -143,7 +143,7 @@ fn sharp_lid_in(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),
@@ -152,8 +152,8 @@ fn sharp_lid_in(
     let lid = insert(
         &mut doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(TAU),
         },
         tol,
@@ -204,7 +204,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfileP
     let Some(Node::Revolve { profile, .. }) = doc.node(lid) else {
         panic!("the lid is a revolve");
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
         panic!("a revolve's operand is a profile");
     };
     program
@@ -241,7 +241,11 @@ fn rolled_lid(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (mut doc, lid) = sharp_lid(tol);
     let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(roll), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(roll), sel),
+        tol,
+    );
     (doc, lid, rolled)
 }
 
@@ -362,7 +366,15 @@ fn one_request_builds_the_kernels_body() {
         .iter()
         .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
         .collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel.clone()), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(
+            pncad::document::Operand::output(lid, 0),
+            len(ROLL),
+            sel.clone(),
+        ),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),
@@ -442,7 +454,7 @@ fn the_rolled_names_are_one_set_at_two_radii() {
             &DocEdit::SetParam {
                 node: rolled,
                 slot: pncad::document::SlotId::Radius,
-                expr: len(roll),
+                value: len(roll).into(),
                 fresh: Vec::new(),
             },
             tol,
@@ -676,7 +688,11 @@ fn a_split_carries_a_held_slits_band() {
     );
     let (mut doc, lid) = sharp_lid_in(doc, R_VENT, tol);
     let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(ROLL), sel),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),

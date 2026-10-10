@@ -14,7 +14,7 @@ use geom_brep::{
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
-use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
+use topo::{Body, DihedralReading, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
 use geom_core::Tol;
@@ -90,15 +90,15 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// certification schedule's interior stations, in its one home), and a
 /// station the rule reads transverse refuses
 /// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
-/// error built by `sliver`, at the first-order classification and at
-/// the rule alike.
+/// error built by `sliver` from the reading that escalated, at the
+/// first-order classification and at the rule alike.
 pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     s1: SurfaceKey,
     s2: SurfaceKey,
     band: Band,
-    sliver: impl FnOnce(geom_core::Indeterminate) -> RevolveError,
+    sliver: impl FnOnce(DihedralReading, geom_core::Indeterminate) -> RevolveError,
     tol: Tol,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
@@ -148,7 +148,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             // arm's premise, and the edge refuses rather than store a
             // description neither reading chose.
             let refused = |refusal| match refusal {
-                MustCarryRefusal::InBand(source) => sliver(source.diag()),
+                MustCarryRefusal::InBand(escalation) => {
+                    let (reading, source) = DihedralReading::of_must_carry(escalation);
+                    sliver(reading, source)
+                }
                 MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
             };
             match must_carry_over_edge(
@@ -173,8 +176,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     body.set_edge_curve(edge, spec, tol)?;
                 }
                 MustCarryDescription::Conventional => {
-                    // The surfaces UNDER-determine the locus, so the
-                    // description stays CONVENTIONAL — but the edge is
+                    // No intrinsic tangency is demanded (a zero-side
+                    // station, or an all-positive pair outside the
+                    // certificate's lane), so the description stays
+                    // CONVENTIONAL — but the edge is
                     // at rest between two faces now, so it says where
                     // it rests: an image in `s1`'s chart (D3's
                     // transience fence). The pushforward it was
@@ -186,7 +191,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(escalation) => Err(sliver(escalation.diag())),
+        Err(escalation) => {
+            let (reading, source) = DihedralReading::of_lever(escalation);
+            Err(sliver(reading, source))
+        }
     }
 }
 

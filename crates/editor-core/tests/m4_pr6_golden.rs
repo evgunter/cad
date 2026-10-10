@@ -128,7 +128,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: arc_profile,
+                profile: arc_profile.into(),
                 distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -167,7 +167,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![bracket],
                 ids: Vec::new(),
             })),
@@ -198,7 +198,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![fillet_loop],
                 ids: Vec::new(),
             })),
@@ -235,7 +235,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: square,
+                profile: square.into(),
                 distance: len(0.5),
                 side: ExtrudeSide::Along,
             }),
@@ -330,7 +330,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
                 // The `Measure` pushed immediately above.
-                measure,
+                measure: measure.into(),
                 bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
@@ -356,9 +356,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(editor_core::Datum::Axis {
+            node: Box::new(Node::Datum(editor_core::Datum::Frame {
                 origin: [len0(), len0(), len0()],
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
+                u: [scl(1.0), scl(0.0), scl(0.0)],
+                v: [scl(0.0), scl(1.0), scl(0.0)],
             })),
             fresh: Vec::new(),
         },
@@ -368,8 +369,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -381,8 +381,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Arc {
                     t0: ang(0.0),
@@ -418,7 +417,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: box_profile,
+                profile: box_profile.into(),
                 distance: len(0.5),
                 side: ExtrudeSide::Along,
             }),
@@ -448,8 +447,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let edits = vec![DocEdit::SetParam {
         node: bulged,
         slot: editor_core::SlotId::Distance,
-        expr: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
-            .expect("golden unit literal"),
+        value: editor_core::parse_formula("500 mm", &std::collections::BTreeMap::new())
+            .expect("golden unit literal")
+            .into(),
         fresh: Vec::new(),
     }];
     (doc, edits)

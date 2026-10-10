@@ -168,7 +168,7 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 
 /// With its caps derived, the curved loft's shell moves on to the walls
 /// and refuses at the first one: its offset fit where ε is tighter than
-/// the fit reaches, its fitted edge with the cap where the fit
+/// the fit reaches, its seam with the next wall where the fit
 /// certifies.
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
@@ -188,8 +188,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     );
     // Which wall door answers first depends on ε: the fit reaches about
     // 4.1e-9 m in its round budget, so below that the fit refuses, and
-    // above it the fit certifies and the fitted wall's own edge with the
-    // cap refuses (a plane × fitted-surface section C5 does not route).
+    // above it the fit certifies and the wall refuses at its seam.
     let eps = Tol::witness().eps();
     if eps < 1e-8 {
         let ReplaceFaceError::Fit {
@@ -204,13 +203,14 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
         );
     } else {
-        assert!(
-            matches!(
-                error.as_ref(),
-                ReplaceFaceError::FittedBoundaryUnsupported { .. }
-            ),
-            "eps {eps:e}: expected the fitted wall's cap edge to refuse, got {e}"
-        );
+        // The wall's rims with the caps derive as the plane × fit
+        // sections; its seam with the next wall is one of the fit's own
+        // rows, shared with that unmoved spline wall, and refuses.
+        let ReplaceFaceError::FittedBoundaryUnsupported { edge, what } = error.as_ref() else {
+            panic!("eps {eps:e}: expected the fitted wall's seam to refuse, got {e}");
+        };
+        assert_eq!(*what, "a row of this fit shared with a spline face");
+        assert_wall_seam(&body, *edge, "the refused seam");
     }
 }
 
@@ -335,7 +335,10 @@ fn vase() -> Body<f64> {
 /// is not exact structure as a row (its skinned weights differ along
 /// the stacking by an ulp), so the door marches it. The plane × NURBS
 /// certificate then refuses the marched rim on its rational wall, by
-/// its own limb-2 bound, as the door re-charts the cap.
+/// its own limb-2 bound, as the door re-charts the cap: the shell
+/// refuses at a cap before any wall moves, so the walls' smooth seams
+/// are never reached. A wall moved alone refuses at its fit instead:
+/// its net carries a C⁰ crease the fit's Taylor bound cannot cross.
 #[test]
 fn shelling_the_vase_refuses_at_its_rims_certificate() {
     let body = vase();
@@ -357,6 +360,7 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
                     geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::HullSup,
                         value,
+                        ..
                     }),
                 ..
             },
@@ -377,6 +381,22 @@ fn shelling_the_vase_refuses_at_its_rims_certificate() {
             .filter_map(|he| body.face_of_half_edge(he))
             .any(|f| is_spline_wall(&walls, f)),
         "the refused rim bounds a spline wall"
+    );
+    let (wall, _) = walls[0];
+    let mut alone = body.clone();
+    let e = topo::replace_face_offset(&mut alone, wall, -THICKNESS, Tol::witness())
+        .expect_err("a vase wall does not move alone today");
+    assert!(
+        matches!(
+            e,
+            ReplaceFaceError::Fit {
+                error: geom_brep::OffsetFitError::PatchBound(
+                    geom_brep::patch_bound::PatchBoundError::Crease
+                ),
+                ..
+            }
+        ),
+        "expected the wall's fit to refuse at its crease, got {e}"
     );
 }
 
@@ -445,6 +465,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                 limb: geom_brep::ssi::SsiLimb::HullSup,
                 value,
+                ..
             }) => {
                 assert!(
                     micrometres.contains(value) && *value > 10.0 * eps,
@@ -508,4 +529,170 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
         panic!("expected the section lane's refusal at interval");
     };
     assert_eq!(scalar, <Interval as Real>::NAME);
+}
+
+/// **The edge a fitted face meets a moved plane along is their section
+/// over the fit, certified at rest.** The box whose cap wears a
+/// certified `Approx` (`common::approx::box_with_approx_cap`; no public
+/// door builds a fitted face bounded by planes) has one side wall moved:
+/// the side's edge with the fitted cap is derived as the moved plane's
+/// section of the fit, stored as their `Intersection` with the plane
+/// first and a spline carrier, and the body passes tier 3's structural
+/// phase, whose plane × NURBS certificate reads the cap as its fit.
+///
+/// The fit itself does not move here: a moved fitted face's corners
+/// have no root yet
+/// (`work/shell/a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section.md`).
+#[test]
+fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
+    use crate::common::approx::box_with_approx_cap;
+    let (body, cap) = box_with_approx_cap(0.05, Tol::witness().eps());
+    let cap_key = body.get_face(cap).expect("the cap resolves").surface;
+    let side = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Plane { normal, origin, .. })
+                    if normal.x.abs() > 0.5 && origin.x > 1.0
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the box has an x = 2 side");
+    let side_key = body.get_face(side).expect("the side resolves").surface;
+    let mut moved = body.clone();
+    topo::replace_face_offset(&mut moved, side, -THICKNESS, Tol::witness())
+        .expect("the side moves against the fitted cap");
+    let new_side = moved.get_face(side).expect("the side survives").surface;
+    assert_ne!(new_side, side_key, "the side wears its moved plane");
+    let sections: Vec<_> = moved
+        .edges()
+        .filter_map(|(_, e)| {
+            moved
+                .get_curve_geom(e.curve)
+                .and_then(topo::CurveGeom::certified)
+        })
+        .filter(|c| {
+            matches!(
+                *c.description(),
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+                    if s1 == new_side && s2 == cap_key
+            )
+        })
+        .collect();
+    assert_eq!(
+        sections.len(),
+        1,
+        "one edge is the moved side's section of the fitted cap, plane first"
+    );
+    let section = sections[0];
+    assert!(
+        matches!(section.carrier(), geom::Curve3::Nurbs(_)),
+        "the section's carrier is the plane × fit trace"
+    );
+    let (t0, t1) = section.params();
+    for t in [t0, 0.5 * (t0 + t1), t1] {
+        let p = section.carrier().eval(t);
+        assert!(
+            (p.x - (2.0 - THICKNESS)).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9,
+            "the section lies on the moved side and the cap, at {p:?}"
+        );
+    }
+    // Tier 3 recertifies every edge in its structural phase, the
+    // section through the plane × NURBS lane over the fit, and reaches
+    // its volume check only on a body that passed that phase. The volume
+    // is not taken yet: the fitted cap's trimmed region is past the
+    // exact quadrature window
+    // (`work/quad/a-fitted-face-trimmed-by-a-section-has-no-volume-rule.md`).
+    let refusals = topo::validate_geometric(&moved, Tol::witness())
+        .expect_err("the fitted cap's quadrature is not built");
+    assert!(
+        matches!(
+            refusals.as_slice(),
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    face,
+                    source: geom_brep::PropsError::QuadratureUnsupported { what },
+                    ..
+                },
+                ..
+            }] if *face == cap && what.starts_with("trimmed exact lane's Newton–Cotes window")
+        ),
+        "expected only the fitted cap's quadrature refusal, got {refusals:?}"
+    );
+}
+
+/// **A section with a plane names the plane first, whichever seat
+/// either surface held before.** The box with the fitted cap has a side
+/// moved once, giving the side's edge with the cap as
+/// `Intersection { moved side, cap }`; that edge is re-stated with the
+/// seats swapped (`Intersection { cap, moved side }`, the same locus,
+/// which certifies in either order), and the side moved again. The
+/// re-derived edge names the newly moved plane first and the held fit
+/// second.
+#[test]
+fn a_moved_planes_section_with_a_held_fit_names_the_plane_first() {
+    use crate::common::approx::box_with_approx_cap;
+    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+    let (mut body, cap) = box_with_approx_cap(0.05, Tol::witness().eps());
+    let cap_key = body.get_face(cap).expect("the cap resolves").surface;
+    let side = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Plane { normal, origin, .. })
+                    if normal.x.abs() > 0.5 && origin.x > 1.0
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the box has an x = 2 side");
+    let section_of = |body: &topo::Body<f64>, s1, s2| {
+        body.edges()
+            .find(|(_, e)| {
+                body.get_curve_geom(e.curve)
+                    .and_then(topo::CurveGeom::certified)
+                    .is_some_and(|c| {
+                        matches!(
+                            *c.description(),
+                            EdgeDescription::Intersection { s1: a, s2: b, .. } if a == s1 && b == s2
+                        )
+                    })
+            })
+            .map(|(k, _)| k)
+    };
+    let step = -0.5 * THICKNESS;
+    topo::replace_face_offset(&mut body, side, step, Tol::witness())
+        .expect("the side moves against the fitted cap");
+    let once = body.get_face(side).expect("the side survives").surface;
+    let edge = section_of(&body, once, cap_key).expect("the side's section, plane first");
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .expect("the section is certified");
+    let (t0, t1) = curve.params();
+    let swapped = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: cap_key,
+            s2: once,
+            witness: curve.carrier().eval(0.5 * (t0 + t1)),
+        },
+        carrier: curve.carrier().clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    body.set_edge_curve(edge, swapped, Tol::witness())
+        .expect("the swapped seats certify");
+    assert_eq!(
+        section_of(&body, cap_key, once),
+        Some(edge),
+        "the fit now holds s1"
+    );
+    topo::replace_face_offset(&mut body, side, step, Tol::witness()).expect("the side moves again");
+    let twice = body.get_face(side).expect("the side survives").surface;
+    assert_eq!(
+        section_of(&body, twice, cap_key),
+        Some(edge),
+        "the re-derived section names the moved plane first"
+    );
 }

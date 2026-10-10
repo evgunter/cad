@@ -1375,7 +1375,7 @@ type SidePair = (SideCode, SideCode);
 
 /// The four side codes of a sector pair: each sector's bounds against
 /// the other's face.
-fn pair_codes<T: Decide>(
+pub(super) fn pair_codes<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
     band: Band,

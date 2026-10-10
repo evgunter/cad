@@ -627,7 +627,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// The expression a node SLOT takes, refused at the door when its
 /// dimension is not the slot's.
 ///
-/// The dimension a slot requires is [`d::SlotId::dimension`] — the
+/// The dimension a slot requires is [`d::SlotId::expr_dimension`] — the
 /// kernel's own table, read rather than restated — and the refusal is
 /// the kernel's own `EditError`, the one `apply` raises for the same
 /// expression in the same slot. So an angle handed to a length slot
@@ -638,7 +638,7 @@ pub(crate) fn slot_expr(
     slot: d::SlotId,
     expr: &super::expr::SlotArg,
 ) -> PyResult<d::Formula> {
-    let expected = slot.dimension();
+    let expected = slot.expr_dimension();
     let formula = expr.formula(py, expected)?;
     let found = formula.dim();
     if found == expected {
@@ -648,7 +648,7 @@ pub(crate) fn slot_expr(
         py,
         &d::EditError::SlotDimensionMismatch {
             slot,
-            expected,
+            expected: slot.kind(),
             found,
         },
     ))
@@ -784,8 +784,8 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
         return Ok(slot);
     }
     Err(pyo3::exceptions::PyValueError::new_err(
-        if word == "profile" {
-            "`profile` addresses one expression inside a profile program, and the rest of \
+        if word == "program" {
+            "`program` addresses one expression inside a profile program, and the rest of \
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
                 .to_owned()
@@ -794,6 +794,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
          placement, and the rest of that address — the step index and which component — \
          is an integer the word does not carry, so no slot word here writes at it"
                 .to_owned()
+        } else if word == "section" || word == "member" {
+            format!(
+                "`{word}` addresses one entry of a list a node reads, and its position is not \
+             carried by the word: `DocEdit.set_members` writes the list whole"
+            )
         } else if word == "mate_frame_step" {
             "`mate_frame_step` addresses one expression of a mate side's frame offset, and the \
          rest of that address — the side, the step index and which component — is not \
@@ -824,6 +829,39 @@ pub(crate) fn seam(
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
+
+/// **What `DocEdit.set_param` writes**: a node, read through its
+/// output, or anything a slot argument is — a variable, a formula, a
+/// value.
+#[derive(FromPyObject)]
+pub(crate) enum SlotValueArg {
+    /// A node, read through its one output.
+    Node(NodeId),
+    /// A variable, a formula or a value.
+    Slot(super::expr::SlotArg),
+}
+
+/// **An operand as Python writes it**: a node, read at its one output
+/// (a node with several, a revolve or a split, refuses
+/// `ambiguous_output`: its port is read by `Doc.output`), or a variable
+/// — an output by `Doc.output`, or a name's.
+#[derive(FromPyObject, Clone, Copy)]
+pub(crate) enum OperandArg {
+    /// A node, read at its one output.
+    Node(NodeId),
+    /// A variable, read as itself.
+    Var(Var),
+}
+
+impl OperandArg {
+    /// The authored read.
+    pub(crate) fn read(self) -> d::Operand {
+        match self {
+            Self::Node(node) => d::Operand::Node(node.0),
+            Self::Var(var) => d::Operand::Var(var.0),
+        }
+    }
+}
 
 #[pymethods]
 impl NodeId {
@@ -2193,9 +2231,9 @@ impl Node {
     fn polygon(
         py: Python<'_>,
         points: Vec<(super::expr::SlotArg, super::expr::SlotArg)>,
-        plane: NodeId,
+        plane: OperandArg,
     ) -> PyResult<Self> {
-        let plane = plane.0;
+        let plane = plane.read();
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition). The expansion
         // itself is `LoopProgram::polygon_expr`'s, not this door's:
@@ -2224,7 +2262,7 @@ impl Node {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
             }),
@@ -2252,12 +2290,12 @@ impl Node {
     /// typed refusal at `evaluate`. The binding's only job is that the
     /// loops arrive in the order they were written.
     #[staticmethod]
-    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: NodeId) -> PyResult<Self> {
-        let plane = plane.0;
+    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: OperandArg) -> PyResult<Self> {
+        let plane = plane.read();
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops,
                 ids: Vec::new(),
             }),
@@ -2278,14 +2316,14 @@ impl Node {
     #[pyo3(signature = (profile, distance, side = ExtrudeSide::Along))]
     fn extrude(
         py: Python<'_>,
-        profile: &NodeId,
+        profile: OperandArg,
         distance: super::expr::SlotArg,
         side: ExtrudeSide,
     ) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
-                profile: profile.0,
+                profile: profile.read(),
                 distance,
                 side: side.to_document(),
             },
@@ -2300,15 +2338,15 @@ impl Node {
     #[staticmethod]
     fn revolve(
         py: Python<'_>,
-        profile: &NodeId,
-        axis: &NodeId,
+        profile: OperandArg,
+        axis: OperandArg,
         angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
-                profile: profile.0,
-                axis: axis.0,
+                profile: profile.read(),
+                axis: axis.read(),
                 angle,
             },
         })
@@ -2317,12 +2355,10 @@ impl Node {
     /// **A solid tube** — a ring torus, or an elbow of one, from its
     /// INTENT parameters.
     ///
-    /// `spine` is a `Node.datum_axis`: its origin is the tube's
-    /// centre and its direction is the spine axis, both used, both
-    /// stored EXACTLY. `u_ref` is the reference direction the
-    /// window's angles are measured from — a dimensionless triple,
-    /// matching `SlotId::Direction`, exactly as `Node.datum_axis`
-    /// takes its own direction.
+    /// `frame` is a `Node.datum_frame` (or a variable holding one): its
+    /// origin is the tube's centre, its normal (`u × v`) the spine
+    /// axis, and its `u` the reference direction the window's angles
+    /// are measured from.
     ///
     /// # This is not `Node.revolve` of a circle
     ///
@@ -2338,38 +2374,24 @@ impl Node {
     /// convention `R > r > 0` — each is the kernel's own typed refusal
     /// at `evaluate`, tagged `tube`.
     ///
-    /// NEITHER DIRECTION HAS TO BE UNIT. `spine` is a
-    /// `Node.datum_axis`, and a datum axis normalizes its direction
-    /// when it evaluates — exactly as it does for `Node.revolve`, so
-    /// `datum_axis` given `(0, 0, 2)` is the unit z axis. `u_ref` is a
-    /// bare triple that passes through no datum, and the evaluator
-    /// mints the tube's FRAME from the two: `u_ref` normalized as the
-    /// frame's reference radial, the axis as its third axis, and the
-    /// second axis their exact cross product. So `u_ref` need not be
-    /// unit and need not be perpendicular — only OFF THE AXIS LINE. A
-    /// `u_ref` along the axis, or of zero or non-finite length,
-    /// refuses as `degenerate_direction` (or its format siblings)
-    /// naming the role `tube reference direction`.
+    /// NEITHER FRAME DIRECTION HAS TO BE UNIT. The frame's own door
+    /// orthonormalizes `u` and `v` and refuses a degenerate or
+    /// parallel pair at the frame, one node upstream; what the tube
+    /// reads is always unit and perpendicular.
     ///
     /// There is no wall argument: a tube with a wall is
     /// `Node.hollow_tube`, a different node kind.
     #[staticmethod]
     fn tube(
         py: Python<'_>,
-        spine: &NodeId,
-        u_ref: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
+        frame: OperandArg,
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
         minor_radius: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
-                spine: spine.0,
-                u_ref: u_ref_expr(py, u_ref)?,
+                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2396,7 +2418,7 @@ impl Node {
     /// # Nothing is pre-checked, and the wall least of all
     ///
     /// Everything `Node.tube` refuses, this refuses identically — the
-    /// axis normalizes at the datum here too — plus
+    /// frame orthonormalizes at the datum here too — plus
     /// three verdicts only this door can raise: the thickness is not
     /// positive at tolerance, `minor_radius - wall` is not a bore,
     /// and — the one neither of the others can see — the gap between
@@ -2407,12 +2429,7 @@ impl Node {
     #[staticmethod]
     fn hollow_tube(
         py: Python<'_>,
-        spine: &NodeId,
-        u_ref: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
+        frame: OperandArg,
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
         minor_radius: super::expr::SlotArg,
@@ -2420,8 +2437,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
-                spine: spine.0,
-                u_ref: u_ref_expr(py, u_ref)?,
+                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2457,12 +2473,12 @@ impl Node {
     #[staticmethod]
     fn loft(
         py: Python<'_>,
-        profiles: Vec<NodeId>,
+        profiles: Vec<OperandArg>,
         v_degree: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
-                profiles: profiles.iter().map(|p| p.0).collect(),
+                profiles: profiles.iter().map(|p| p.read()).collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
         })
@@ -2559,13 +2575,13 @@ impl Node {
     #[staticmethod]
     fn datum_axis_in_plane(
         py: Python<'_>,
-        plane: NodeId,
+        plane: OperandArg,
         origin: (super::expr::SlotArg, super::expr::SlotArg),
         direction: (super::expr::SlotArg, super::expr::SlotArg),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::AxisInPlane {
-                plane: plane.0,
+                frame: plane.read(),
                 origin: [
                     slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
                     slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,
@@ -2612,14 +2628,14 @@ impl Node {
     #[staticmethod]
     fn datum_face_frame(
         py: Python<'_>,
-        at: &NodeId,
+        at: OperandArg,
         face: &str,
         spin: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let spin = slot_expr(py, d::SlotId::Spin, &spin)?;
         Ok(Self {
             inner: d::Node::Datum(d::Datum::FaceFrame {
-                at: at.0,
+                at: at.read(),
                 face: name_from_text(face)?,
                 spin,
             }),
@@ -2777,7 +2793,7 @@ impl Node {
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
-        target: &NodeId,
+        target: OperandArg,
         radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -2787,7 +2803,7 @@ impl Node {
             .map(|text| name_from_text(text))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
-            inner: d::Node::fillet(target.0, radius, selection),
+            inner: d::Node::fillet(target.read(), radius, selection),
         })
     }
 
@@ -2820,7 +2836,7 @@ impl Node {
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
-        target: &NodeId,
+        target: OperandArg,
         distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -2830,7 +2846,7 @@ impl Node {
             .map(|text| name_from_text(text))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
-            inner: d::Node::chamfer(target.0, distance, selection),
+            inner: d::Node::chamfer(target.read(), distance, selection),
         })
     }
 
@@ -2874,7 +2890,7 @@ impl Node {
     #[staticmethod]
     fn shell(
         py: Python<'_>,
-        target: &NodeId,
+        target: OperandArg,
         thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {
@@ -2884,7 +2900,7 @@ impl Node {
             .map(|text| name_from_text(text))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
-            inner: d::Node::shell(target.0, thickness, open),
+            inner: d::Node::shell(target.read(), thickness, open),
         })
     }
 
@@ -2895,11 +2911,11 @@ impl Node {
     /// A tool that is not a splitting surface, or a cut that produces
     /// nothing, refuses typed at `evaluate`.
     #[staticmethod]
-    fn split(target: &NodeId, tool: &NodeId) -> Self {
+    fn split(target: OperandArg, tool: OperandArg) -> Self {
         Self {
             inner: d::Node::Split {
-                target: target.0,
-                tool: tool.0,
+                target: target.read(),
+                tool: tool.read(),
             },
         }
     }
@@ -2923,7 +2939,7 @@ impl Node {
     #[staticmethod]
     fn transform(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         translation: (
             super::expr::SlotArg,
             super::expr::SlotArg,
@@ -2953,10 +2969,10 @@ impl Node {
     #[staticmethod]
     fn transform_by(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         placement: &super::place::Placement,
     ) -> PyResult<Self> {
-        let inner = d::Node::transform(input.0, placement.0.clone());
+        let inner = d::Node::transform(input.read(), placement.0.clone());
         for slot in inner.slots() {
             if let Some(expr) = inner.expr(slot) {
                 slot_expr(
@@ -2985,15 +3001,15 @@ impl Node {
     #[pyo3(signature = (op, a, b, declare=Vec::new()))]
     fn boolean(
         op: BooleanOp,
-        a: &NodeId,
-        b: &NodeId,
+        a: OperandArg,
+        b: OperandArg,
         declare: Vec<super::flush::FlushFinding>,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Boolean {
                 op: op.to_document(),
-                a: a.0,
-                b: b.0,
+                a: a.read(),
+                b: b.read(),
                 declare: declared_pairs(declare),
             },
         })
@@ -3026,10 +3042,10 @@ impl Node {
     /// `evaluate`, as it is at every other operand seat.
     #[staticmethod]
     #[pyo3(signature = (members, declare=Vec::new()))]
-    fn union(members: Vec<NodeId>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+    fn union(members: Vec<OperandArg>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Union {
-                members: members.iter().map(|m| m.0).collect(),
+                members: members.iter().map(|m| m.read()).collect(),
                 declare: declared_pairs(declare),
             },
         })
@@ -3067,13 +3083,13 @@ impl Node {
     #[staticmethod]
     fn pattern(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         count: super::expr::SlotArg,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Pattern {
-                input: input.0,
+                input: input.read(),
                 count: slot_expr(py, d::SlotId::Count, &count)?,
                 kind: kind.0.clone(),
             },
@@ -3104,10 +3120,10 @@ impl Node {
     /// material, and `instance_out_of_range` for an index outside
     /// `0 .. count`.
     #[staticmethod]
-    fn part(of: &NodeId, select: &PartSelect) -> Self {
+    fn part(of: OperandArg, select: &PartSelect) -> Self {
         Self {
             inner: d::Node::Part {
-                of: of.0,
+                of: of.read(),
                 select: select.0.clone(),
             },
         }
@@ -3141,12 +3157,12 @@ impl Node {
     #[staticmethod]
     fn placed_union(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         count: super::expr::SlotArg,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         let count = slot_expr(py, d::SlotId::Count, &count)?;
-        let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
+        let node = d::Node::placed_union(input.read(), count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
                 BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
@@ -3169,9 +3185,12 @@ impl Node {
     /// does a non-finite (`non_finite_placement`) or improper
     /// (`improper_placement`) frame.
     #[staticmethod]
-    fn placed_union_at(input: &NodeId, frames: Vec<super::place::Frame>) -> Self {
+    fn placed_union_at(input: OperandArg, frames: Vec<super::place::Frame>) -> Self {
         Self {
-            inner: d::Node::placed_union_at(input.0, frames.into_iter().map(|f| f.0).collect()),
+            inner: d::Node::placed_union_at(
+                input.read(),
+                frames.into_iter().map(|f| f.0).collect(),
+            ),
         }
     }
 
@@ -3331,8 +3350,8 @@ impl Node {
     /// **The references ARE dag edges**, unlike a boolean's declared
     /// pairs or a `Node.mate`'s names: a measure resolves its own against
     /// values that must already exist, so the referenced nodes are its
-    /// data dependencies and deleting one is refused at the delete
-    /// door (`delete_would_dangle`) like any other consumer's input.
+    /// data dependencies, and deleting one is accepted and reported as
+    /// a `strand` on the measure, like any other reader's.
     ///
     /// Every index is checked HERE, through Rust's `Node::measure` —
     /// the one construction door — so an expression whose leaf points
@@ -3391,13 +3410,13 @@ impl Node {
     /// because one is `Violated`. Read it with `Value.assertion`.
     #[staticmethod]
     fn assertion(
-        measure: &NodeId,
+        measure: OperandArg,
         dir: super::measure::AssertionDir,
         bound: &super::expr::Formula,
     ) -> Self {
         Self {
             inner: d::Node::Assertion {
-                measure: measure.0,
+                measure: measure.read(),
                 bound: bound.0.clone(),
                 dir: dir.to_kernel(),
             },
@@ -4073,11 +4092,11 @@ impl DocEdit {
     /// for free and this edit does not. A node carrying no list at all
     /// refuses `set_members_on_non_list`.
     #[staticmethod]
-    fn set_members(node: &NodeId, members: Vec<NodeId>) -> Self {
+    fn set_members(node: &NodeId, members: Vec<OperandArg>) -> Self {
         Self {
             inner: d::DocEdit::SetMembers {
                 node: node.0,
-                members: members.iter().map(|m| m.0).collect(),
+                members: members.iter().map(|m| m.read()).collect(),
             },
         }
     }
@@ -4131,25 +4150,41 @@ impl DocEdit {
     /// than quietly crossing the divide the edit vocabulary keeps
     /// unlosable. The `bind_*_param` trio is where they are edited.
     ///
+    /// **An operand is a slot too** (D10, one door): at an operand's
+    /// word — an extrude's `profile`, a boolean's `a`, a transform's
+    /// `input` — the value is a read, a `NodeId` (its output in that
+    /// seat) or a `Var`, and the node reads it from then on. At a
+    /// scalar slot a node is read through its output, as a `Var` is.
+    ///
     /// Refuses typed on `EditError`: `unknown_node`, `unknown_slot`
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
-    /// wrong dimension (carrying the required and offered pair), and
-    /// `slot_unknown_var_name` / `slot_var_kind` for a
-    /// parameter reference the document does not answer.
+    /// wrong dimension, or any expression at an operand (carrying the
+    /// required and offered pair), and `slot_unknown_var_name` /
+    /// `slot_var_kind` for a read the slot does not take; at an operand
+    /// also `operand_unresolved`, `ambiguous_output`,
+    /// `defines_nothing`, `would_cycle` and `duplicate_input`.
     #[staticmethod]
-    fn set_param(
-        py: Python<'_>,
-        node: &NodeId,
-        slot: &str,
-        expr: super::expr::SlotArg,
-    ) -> PyResult<Self> {
+    fn set_param(py: Python<'_>, node: &NodeId, slot: &str, value: SlotValueArg) -> PyResult<Self> {
         let slot = slot_from_text(slot)?;
+        let value = match (value, slot.dimension()) {
+            (SlotValueArg::Node(node), _) => d::SlotValue::Read(d::Operand::Node(node.0)),
+            (SlotValueArg::Slot(super::expr::SlotArg::Var(var)), None) => {
+                d::SlotValue::Read(d::Operand::Var(var.0))
+            }
+            (SlotValueArg::Slot(arg), Some(dim)) => d::SlotValue::Formula(arg.formula(py, dim)?),
+            // An expression at an operand is the kernel's refusal to
+            // make, with the dimension it was offered: written at its
+            // own dimension, a variable's read at its kind's.
+            (SlotValueArg::Slot(arg), None) => {
+                d::SlotValue::Formula(arg.formula(py, arg.own_dimension())?)
+            }
+        };
         Ok(Self {
             inner: d::DocEdit::SetParam {
                 node: node.0,
                 slot,
-                expr: expr.formula(py, slot.dimension())?,
+                value,
                 fresh: Vec::new(),
             },
         })
@@ -4572,10 +4607,9 @@ impl DocEdit {
     /// dependent takes the gauge's label, and otherwise the label goes,
     /// reported as `label_dropped` maintenance.
     ///
-    /// Refuses typed on `EditError`: `fold_on_non_gauge`,
-    /// `fold_would_dangle` (`referenced_by` reads the gauge as an
-    /// input), and `fold_would_start_placing` (`input` is the mate that
-    /// would start placing).
+    /// Refuses typed on `EditError`: `fold_on_non_gauge` and
+    /// `fold_would_start_placing` (`input` is the mate that would start
+    /// placing).
     #[staticmethod]
     #[pyo3(signature = (gauge))]
     fn fold(gauge: &NodeId) -> Self {
@@ -4796,20 +4830,6 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
         doc: loaded.doc,
         edit_count: loaded.edits.len(),
     })
-}
-
-/// A reference direction's three components, each checked against the
-/// direction slot it lands in — the spelling `Node.datum_axis` gives
-/// its own direction, shared so the two cannot drift.
-fn u_ref_expr(
-    py: Python<'_>,
-    u: (
-        super::expr::SlotArg,
-        super::expr::SlotArg,
-        super::expr::SlotArg,
-    ),
-) -> PyResult<[d::Formula; 3]> {
-    direction_expr(py, d::VectorSlot::Direction, &u)
 }
 
 /// A vector slot's three components, each checked against its own

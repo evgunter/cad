@@ -24,7 +24,7 @@ fn two_extrudes() -> (DocSession, RecipeNodeId, RecipeNodeId, VarId, VarId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-variables", tol);
     let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let extrude = |distance: f64| Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: common::len(distance),
         side: ExtrudeSide::Along,
     };

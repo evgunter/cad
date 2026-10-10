@@ -46,8 +46,9 @@ numerically solved mates (SE(3) witnesses under the witness contract in
 instantiate node resolves its `DocRef` through the evaluation's
 `PartResolver` (`EvalOptions::resolver`; with none, instantiate nodes
 refuse typed), evaluates the pinned document at the ambient ε, takes its
-world (A10), one `Body` per world placement at its world coordinates,
-and materializes it through `topo::transform_rigid`
+world (A10), one `Body` per world placement, all in one space (no body
+has world coordinates: the world sets only the coordinates export
+writes), and materializes it through `topo::transform_rigid`
 (rigidity re-decided, every carrier re-certified) and the disjoint
 graft. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. `PartCache` memoizes per `(DocRef, ε)`
@@ -149,8 +150,9 @@ row `pair-doors-outside-the-three-do-not-check-document-identity`.
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface, gauge, offset }`
 instantiates a pinned document; it names its gauge and may carry an
-offset in it (A11 (2)). `Node::Pattern` replicates an instance by
-`PatternKind::Linear`, `Circular` or `Explicit`.
+offset in it (A11 (2)). Repetition is an index variable (D10,
+Repetition): a placement whose reads reach an index places one copy per
+value of it, and no node is a pattern.
 
 `Node::Mate { a, b, class, alignment }` is one contact declaration that
 also places:
@@ -188,7 +190,7 @@ and unbuilt `Fit { gap }`, refuses at the solve door.
 contributes a *reading edge* to the member its operand resolves to: the
 walk's minting instance, whatever the depth of the copy chain above it.
 Reading edges are recomputed by `reading_edges`, never stored, and are
-not operand edges: `inputs()` stays empty. A9's partition runs over
+not operand reads: a mate reads no operand. A9's partition runs over
 operand ∪ reading edges and A11's groups over placing mates. A mate
 places nothing in the world, so it is never in the product (A10).
 
@@ -382,11 +384,13 @@ implemented.
 part so an improper frame (det = −1) is representable, and it is refused
 wherever a document admits a frame, by one predicate
 (`Frame::admission_fault`): a literal step of an instance's offset, a
-gauge's placement or a transform's chain, and an explicit placement
-rule's listed frames, refuse `EditError::ImproperPlacement` for det ≤ 0,
-naming which frame, and the load validator refuses the same. Mirrored
-instances are not implemented; STEP import refuses a mirroring
-placement.
+gauge's placement or a transform's chain refuse
+`EditError::ImproperPlacement` for det ≤ 0, naming which frame, and the
+load validator refuses the same. A mirror is not a placement: a
+reflection is not a pose, so a mirrored body is the construction
+`Mirror { body, plane }`, which defines a new `Body` (MIRROR-DESIGN
+P1–P4), and no placement needs an improper frame. STEP import refuses a
+mirroring placement.
 
 ## Interchange
 
@@ -420,7 +424,9 @@ never persisted (`crates/viewer/src/display.rs`).
 document's world placements define, in the document order of those
 placements. A world placement (`PlaceInWorld`) is an operation reading
 one `Body` and defining its copy as an output, so two placements of one
-body are two copies. Nothing else places: no edit places or unplaces as
+body are two copies. Its pose relates the copy to the world, and only
+the gather and export read it: it sets the coordinates export writes,
+and no construction, measure or check reads it. Nothing else places: no edit places or unplaces as
 a side effect, and nothing derives a placement from what reads what. An
 empty world is a valid document with an empty product; a door needing a
 product refuses `EmptyProduct`, naming the unplaced bodies. A placement
@@ -490,7 +496,7 @@ supplies.
 **(3) Roots.** A group's tree is rooted at its earliest member carrying
 an offset when its gauge chain is live, and at its earliest instance in
 document order otherwise, a convention that decides nothing a user
-placed. Pattern-placed instances are root-ineligible.
+placed.
 
 **(4) Tree mates determine; the rest declare.** `solve_document` takes
 the deterministic spanning tree rooted at the group's root. Tree mates

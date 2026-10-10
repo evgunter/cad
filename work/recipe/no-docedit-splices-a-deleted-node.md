@@ -1,13 +1,32 @@
 ---
 id: no-docedit-splices-a-deleted-node
 kind: issue
-title: Deleting a feature from the middle of a chain is impossible: no DocEdit rewires a live node's inputs, so delete can only cascade
+title: Deleting a feature from the middle of a chain takes one re-point per reader and then a delete; no single edit splices, and "primary input" is still unruled
 status: deferred
 opened: 2026-08-31
 github: 1324
 priority: P0
 cost: D
 ---
+
+## Restated (2026-10-08, INTENT stage 2 unit B)
+
+The premise below — that no `DocEdit` rewires a live node's inputs and
+that `DeleteNode` refuses `DeleteWouldDangle` — no longer holds. Since
+unit B (`work/intent/operands-are-reads.md`) every operand is a read,
+and `DocEdit::SetParam` at an operand slot (`SlotValue::Read`) re-points
+it under the insert door's own checks; `DeleteNode` is accepted, and
+each reader it leaves is reported (`Maintenance::StrandedRead`) and
+refuses `UnresolvedRead` at evaluation. So a splice is expressible
+today, by hand: re-point every reader of `N` at what `N` read, then
+delete `N`. What stays open is the convenience and its policy — one edit
+(or one viewer action) that does it, and which input survives
+(§1 below: for a boolean, a split or a loft there is no intrinsic
+answer). The names-layer consequence (§2) is unchanged: a re-point
+that takes a carried name out of reach is reported as
+`Maintenance::Strand` with `Took::Reach`, never refused.
+
+The text below is the issue as filed.
 
 ## From GitHub issue 1324
 

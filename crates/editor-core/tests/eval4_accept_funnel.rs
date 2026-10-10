@@ -40,7 +40,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -60,7 +60,7 @@ fn local_block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, BTreeSet<RecipeNodeId>,
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

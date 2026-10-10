@@ -274,8 +274,8 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: ab[0],
-            b: ab[1],
+            a: ab[0].into(),
+            b: ab[1].into(),
             declare: editor_core::declare_continuation(flush_pairs(
                 &doc,
                 (ab[0], ab[0]),
@@ -428,7 +428,7 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
     let (d1, fillet) = insert(
         d1,
         Node::Fillet {
-            target: u1,
+            target: u1.into(),
             radius: crate::fixture::len(0.1),
             selection: vec![corner_name],
         },

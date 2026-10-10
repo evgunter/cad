@@ -101,7 +101,7 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(t),
             side: ExtrudeSide::Along,
         },
@@ -130,7 +130,7 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, pattern) = inserted(
         &doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -912,8 +912,12 @@ fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
     let Some(Node::Transform { input: extrude, .. }) = session.doc().node(drawn.node) else {
         panic!("the right placement is a transform of the extrude");
     };
+    let (extrude, _) = session
+        .doc()
+        .defined_by(*extrude)
+        .expect("the transform reads a live extrude");
     let face = FaceSelection {
-        node: *extrude,
+        node: extrude,
         ..drawn.clone()
     };
     assert_eq!(

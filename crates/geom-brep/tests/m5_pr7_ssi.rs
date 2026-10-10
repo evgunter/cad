@@ -422,7 +422,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let n = carrier.control().len() / 2;
     let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value }) => {
+        Err(SsiError::CertificateLimb { limb, value, .. }) => {
             assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
         }
         other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
@@ -448,6 +448,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             Err(SsiError::CertificateLimb {
                 limb: SsiLimb::HullSup,
                 value,
+                ..
             }) => {
                 found = Some((d, value));
                 break;
@@ -1130,6 +1131,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
             value,
+            ..
         } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
         other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
     }
@@ -4825,7 +4827,7 @@ fn rounds_at_the_wall(
         "{at}: refused at the round that would overrun it: {samples} samples"
     );
     let last = match **refusal {
-        SsiError::CertificateLimb { limb, value } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateLimb { limb, value, .. } => (limb, RoundMargin::Over(value)),
         SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
         ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
     };
@@ -4879,12 +4881,18 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
 /// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
-/// 0.2` arc in band at 1.6–1.8e-14 m whatever its samples: the enclosure's
+/// 0.2` arc in band at 1.3–1.6e-14 m whatever its samples: the enclosure's
 /// width, not a between-sample error, so halving every refused gap
 /// doubles the samples and leaves the margin where it was. The rounds
 /// run from about 4 250 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
 /// and the refusal is the wall's, its ending naming the floor.
+///
+/// "The same width" is read against what the alternative would show: a
+/// between-sample error falls at least as fast as the gaps, so over a
+/// sample growth `G ≥ 3` its spread `hi/lo` is at least `G`. The row
+/// puts the line at `√G`, the geometric midpoint between flat (`1`) and
+/// that (`G`); measured `hi/lo` is about 1.18 against `√G ≥ 1.73`.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4922,11 +4930,13 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
             _ => panic!("limb 2 in band every round: {rounds:?}"),
         })
         .collect();
+    #[allow(clippy::cast_precision_loss)]
+    let growth = last as f64 / first as f64;
     let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {
         (lo.min(*m), hi.max(*m))
     });
     assert!(
-        (1.4e-14..2.0e-14).contains(&lo) && hi < 1.2 * lo,
+        (1.2e-14..1.5e-14).contains(&lo) && hi / lo < growth.sqrt(),
         "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
     );
 }

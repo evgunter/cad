@@ -22,7 +22,7 @@ against 30 with its six charter rows closed. Nothing dispatched.
 | P4 | `line-quadric-root-code-and-the-cone-form-have-several-homes` | M | Line × quadric root code has two homes, the cone's quadric form three spellings, and ConicHarmonics carries two cone-only knobs |
 | P4 | `sphere-chart-trim-folds-any-number-of-rim-levels` | E | sphere_chart_trim reads a trimmed sphere face as the latitude window its rim levels span however many levels there are, so a stepped outline (three or more rim latitudes) is misread; no door builds one today |
 | P4 | `split-insert-crossings-second-edge-clears-arm-is-unpinned` | E | the split's insert_crossings re-checks edge_clears for an unlaned carrier behind gate_operand's identical check, and no row pins the copy |
-| P4 | `the-sweep-preamble-and-the-cone-extreme-read-are-copied` | E | sweep_split_admitting_cones is a third copy of the gate → clone → sweep_and_settle preamble, and conic_clearance's cone arm re-spells first_harmonic_arm's extreme read |
+| P4 | `the-sweep-preamble-and-the-cone-extreme-read-are-copied` | E | sweep_split is a third copy of the gate → clone → sweep_and_settle preamble, and conic_clearance's cone arm re-spells first_harmonic_arm's extreme read |
 
 ## Order
 

@@ -166,9 +166,9 @@ Node.shell(solid, Formula.length_in(0.01, m), [solid])  # ty: error
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
 # three ways a caller reaches for the shape this vocabulary refuses to
 # have.
-Node.tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), 0.2, TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
-Node.tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), (0 * rad, 1 * rad), Formula.length_in(0.05, m))  # ty: error
-Node.hollow_tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
+Node.tube(solid, 0.2, TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
+Node.tube(solid, Formula.length_in(0.2, m), (0 * rad, 1 * rad), Formula.length_in(0.05, m))  # ty: error
+Node.hollow_tube(solid, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
 
 # Every one of a transform's slots is a `Formula` — the translation, the
 # axis and the angle alike — so a quantity handed over raw is refused

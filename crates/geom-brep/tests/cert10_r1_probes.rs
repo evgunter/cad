@@ -497,7 +497,9 @@ fn cert10r1_cell_windows_cover_the_net_at_every_admissible_multiplicity() {
                     continue; // empty span: no cell is emitted for it
                 }
                 nonempty += 1;
-                let span = kvv.span_at(0.5 * (ks[s] + ks[s + 1]));
+                let span = kvv
+                    .span_at(0.5 * (ks[s] + ks[s + 1]))
+                    .expect("a numeric midpoint");
                 assert_eq!(span.index(), s, "span lookup disagreed at p={p} m={m}");
                 for i in span.window() {
                     if let Some(c) = cover_val.get_mut(i) {

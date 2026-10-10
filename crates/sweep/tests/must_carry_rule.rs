@@ -3,9 +3,9 @@
 //! `geom_brep::must_carry_over_edge` is the one home of the rule a
 //! constructor applies to a definitely-smooth join: read the
 //! certification schedule's interior stations — each first-order,
-//! then second-order where the jet certificate's lane admits the
-//! pair — and answer
-//! jet-determinate (store the intrinsic `TangentIntersection`),
+//! then second-order — and answer
+//! jet-determinate where the jet certificate's lane admits the pair
+//! (store the intrinsic `TangentIntersection`),
 //! under-determined (store the conventional chart image), in-band
 //! (refuse TYPED) or transverse (the join is a corner, not the smooth
 //! join the caller took it for). These rows hold
@@ -299,7 +299,16 @@ fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_descript
 #[test]
 fn an_extrude_strut_with_an_in_band_margin_refuses_typed() {
     match filleted_block(free_length_for(in_band_margin())) {
-        Err(ExtrudeError::SliverJoin { source, .. }) => assert_in_band_payload(source),
+        Err(ExtrudeError::SliverJoin {
+            reading, source, ..
+        }) => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Bend,
+                "the strut's in-band station is the second-order bend's"
+            );
+            assert_in_band_payload(source);
+        }
         Err(other) => panic!("the in-band strut must refuse as a sliver JOIN, not {other}"),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
@@ -351,7 +360,16 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
 #[test]
 fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
     match bored_ring(free_length_for(in_band_margin())) {
-        Err(sweep::RevolveError::SliverJoin { source, .. }) => assert_in_band_payload(source),
+        Err(sweep::RevolveError::SliverJoin {
+            reading, source, ..
+        }) => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Bend,
+                "the latitude join's in-band station is the second-order bend's"
+            );
+            assert_in_band_payload(source);
+        }
         Err(other) => panic!("the in-band latitude join must refuse as a sliver JOIN, not {other}"),
         Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
@@ -361,13 +379,15 @@ fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
 // The lane gate.
 // ---------------------------------------------------------------
 
-/// A smooth out-of-lane pair answers "conventional" without a
-/// second-order reading: the certificate cannot store an intrinsic
-/// tangency on a carrier/surface triple it refuses to bound, so a jet
-/// reading there decides nothing. The pair below is second-order
-/// definite if it is metered — a cone against its tangent plane along
-/// a ruling — and the lane is what keeps the answer under-determined
-/// anyway, in both surface orders.
+/// A smooth out-of-lane pair whose second order reads definite answers
+/// "conventional": the certificate cannot store an intrinsic tangency
+/// on a carrier/surface triple it refuses to bound, so a definitely
+/// positive jet demands nothing there. The pair below is a cone
+/// against its tangent plane along a ruling, definitely separated
+/// second-order, and the lane is what keeps the answer under-determined
+/// in both surface orders. An in-band reading out of lane escalates
+/// instead (`geom_brep`'s
+/// `an_out_of_lane_in_band_sagitta_escalates_and_a_definite_one_is_under_determined`).
 #[test]
 fn a_smooth_out_of_lane_pair_is_under_determined() {
     let (plane, cone, carrier) = out_of_lane_triple();
@@ -383,7 +403,7 @@ fn a_smooth_out_of_lane_pair_is_under_determined() {
         ),
         "a smooth out-of-lane pair answers conventional in both orders"
     );
-    // That no station was read SECOND-order is the K-stream row's
+    // That every station was read SECOND-order is the K-stream row's
     // claim, which counts samples rather than reading a field the
     // answer does not carry.
 }
@@ -411,8 +431,8 @@ fn a_transverse_out_of_lane_pair_reads_transverse_in_both_orders() {
 }
 
 /// A cone tangent to a plane along one ruling, and that ruling as the
-/// carrier. The tangency is exact, so a metered reading would be
-/// definite; the lane gate is the only thing that answers.
+/// carrier. The tangency is exact and the sagitta definite, so the lane
+/// gate is the only thing that withholds the demand.
 fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let half = core::f64::consts::FRAC_PI_4;
     let cone = Surface::Cone {
@@ -717,14 +737,15 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
 /// spends `CERT_SAMPLES − 2` samples of `tangent_second_order`, an
 /// under-determined one spends the deciding station's index — one here,
 /// where the first station decides (the walk exits there) — and an
-/// out-of-lane one spends none: the lane gates the second-order
-/// reading. Its first-order reading is metered like any pair's, one
-/// `dihedral_arm` and one `dihedral_wedge` per interior station, a
-/// crossing's included: every station is classified first-order before
-/// the walk decides.
+/// out-of-lane one is metered exactly as in lane: the lane gates the
+/// demand, not the reading, so its smooth pair spends every interior
+/// station second-order and its crossing none. The first-order reading
+/// is metered like any pair's, one `dihedral_arm` and one
+/// `dihedral_wedge` per interior station, a crossing's included: every
+/// station is classified first-order before the walk decides.
 #[cfg(feature = "probe")]
 #[test]
-fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second_order() {
+fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
     use geom_core::k_stats::{self, Probe};
     let interior = usize::try_from(geom_brep::CERT_SAMPLES - 2).expect("a small count");
     let count = |samples: Vec<geom_core::k_stats::MarginSample>| {
@@ -797,18 +818,19 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
         "the first station decides an under-determined join, and the walk stops there"
     );
 
-    // Out of lane: no second-order sample, and the first-order pass
-    // metered as in lane, every station for the smooth pair and the
-    // crossing alike.
+    // Out of lane: the first-order pass metered as in lane, every
+    // station for the smooth pair and the crossing alike, and the
+    // second-order pass read on the smooth pair only.
     let first_order = |samples: &[geom_core::k_stats::MarginSample]| {
         ["dihedral_arm", "dihedral_wedge"]
             .map(|name| samples.iter().filter(|s| s.predicate == name).count())
     };
-    for (label, (s1, s2, carrier), verdict, stations) in [
+    for (label, (s1, s2, carrier), verdict, stations, second) in [
         (
             "the smooth out-of-lane pair",
             out_of_lane_triple(),
             MustCarryVerdict::UnderDetermined,
+            interior,
             interior,
         ),
         (
@@ -816,6 +838,7 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
             out_of_lane_crossing(),
             MustCarryVerdict::Transverse,
             interior,
+            0,
         ),
     ] {
         let (s1, s2, carrier) = (
@@ -841,9 +864,15 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second
             "{label}: one arm and one wedge per station read: {after:?}"
         );
         assert_eq!(
-            after.len(),
-            2 * stations,
-            "{label}: the lane admits no second-order sample: {after:?}"
+            (
+                after
+                    .iter()
+                    .filter(|s| s.predicate == "tangent_second_order")
+                    .count(),
+                after.len()
+            ),
+            (second, 2 * stations + second),
+            "{label}: second-order samples, then every sample: {after:?}"
         );
     }
 }

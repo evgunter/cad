@@ -339,6 +339,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             value: 1e-7,
+            margin: MarginDiag::value(1e-7),
         },
         PlaneNurbsRefusal::TubeStraddles {
             verdict: Refused::Zero(Classified {
@@ -497,6 +498,7 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             operand: geom::SurfaceKind::Plane,
             limb: geom_brep::SsiLimb::HullSup,
             value: 7.5e-5,
+            margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
@@ -1655,4 +1657,35 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &ring_pair_contacts(),
     ));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    /// **Every certification refusal ends alike at rest and at the import
+    /// door but for the file's ε_in** (D4 ¶1: one recourse per decision,
+    /// wherever it is read): the door's ending departs from the at-rest
+    /// one only through its ε_in sentences, which name ε_in. The roster is
+    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
+    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
+    /// variant. Red where the door's ending departs from the at-rest one
+    /// without naming ε_in.
+    #[test]
+    fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
+        let file = FileCoincidence::new(1e-6);
+        let split: Vec<String> = super::certify_errors()
+            .iter()
+            .filter(|e| {
+                let door = e.ending(file);
+                e.ending(Reading::AtRest) != door && !door.is_some_and(|d| d.contains("ε_in"))
+            })
+            .map(|e| format!("{e:?}"))
+            .collect();
+        assert!(
+            split.is_empty(),
+            "the doors end apart, beyond the file's ε_in: {split:#?}"
+        );
+    }
 }

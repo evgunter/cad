@@ -139,7 +139,7 @@ impl GestureTarget {
     /// variable's from its declaration.
     fn dimension(&self) -> Dimension {
         match self {
-            Self::Slot { slot, .. } => slot.dimension(),
+            Self::Slot { slot, .. } => slot.expr_dimension(),
             Self::Variable { dimension, .. } => *dimension,
         }
     }
@@ -326,7 +326,7 @@ fn carry_unmoved(
         .collect();
     let old = Node::Profile(current.clone());
     let mut new = Node::Profile(ProfileProgram {
-        plane: current.plane,
+        frame: current.frame.into(),
         loops,
         ids: Vec::new(),
     });
@@ -2059,7 +2059,7 @@ impl DocSession {
             DocEdit::SetParam {
                 node,
                 slot,
-                expr,
+                value: expr.into(),
                 fresh: Vec::new(),
             }
         };
@@ -2618,7 +2618,7 @@ impl DocSession {
         };
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             })),
@@ -2644,7 +2644,7 @@ impl DocSession {
         self.commit_run(|run| {
             let plane = run.insert(frame)?;
             run.insert(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops,
                 ids: Vec::new(),
             }))?;
@@ -2739,7 +2739,7 @@ impl DocSession {
         // The carried loops read each unmoved argument's variable, so
         // they are compared with the program re-authored.
         let authored = ProfileProgram {
-            plane: current.plane,
+            frame: current.frame.into(),
             loops: current.loops.iter().map(LoopProgram::authored).collect(),
             ids: current.ids.clone(),
         };
@@ -2760,7 +2760,7 @@ impl DocSession {
         }
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance,
                 side: ExtrudeSide::Along,
             }),
@@ -2784,8 +2784,8 @@ impl DocSession {
         }
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Revolve {
-                profile,
-                axis,
+                profile: profile.into(),
+                axis: axis.into(),
                 angle,
             }),
             fresh: Vec::new(),
@@ -2820,8 +2820,8 @@ impl DocSession {
         let staged = self.stage_run(|run| {
             run.insert(Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: pairs,
             })
         });
@@ -2858,7 +2858,10 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
-            node: Box::new(Node::Split { target, tool }),
+            node: Box::new(Node::Split {
+                target: target.into(),
+                tool: tool.into(),
+            }),
             fresh: Vec::new(),
         })
     }
@@ -3045,7 +3048,7 @@ impl DocSession {
     /// nothing of that kind there to consume".
     fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
         let doc = self.committed_doc();
-        if admits(doc.node(node), wanted) {
+        if admits(doc, node, wanted) {
             Ok(())
         } else {
             Err(Refusal::WrongNodeKind {
@@ -3087,13 +3090,23 @@ impl DocSession {
             // compared as written, its name leaves read as the variables
             // they name, since the slot's written form reads ids.
             DocEdit::SetParam {
-                node, slot, expr, ..
+                node,
+                slot,
+                value: pncad::document::SlotValue::Formula(expr),
+                ..
             }
             | DocEdit::SetStructuralParam {
                 node, slot, expr, ..
             } => doc
                 .resolve(expr)
                 .is_ok_and(|offered| doc.slot_expansion(*node, *slot) == Some(offered)),
+            // A read is lowered by the door, against the document it
+            // enters; no panel offers one, so it is never a field's
+            // standing value.
+            DocEdit::SetParam {
+                value: pncad::document::SlotValue::Read(_),
+                ..
+            } => false,
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
             // the edit is a redeclaration and the door refuses it.
@@ -3505,7 +3518,7 @@ mod tests {
         let outcome = session.commit_run(|run| {
             let plane = run.insert(frame())?;
             let _ = run.insert(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: Vec::new(),
                 ids: Vec::new(),
             }));

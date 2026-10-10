@@ -1917,6 +1917,175 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
+/// **Check 4 and the shared-rim routing spell no second-order reading
+/// of their own.** Both read the second-order margin through
+/// `geom_brep::second_order_walk` once, with the material reads in
+/// `validate::MaterialStations`; the validator takes its stations from
+/// `geom_brep::interior_stations`. So the rows that pin the walk and
+/// the hook speak for both: a loop, a `"tangent_second_order"` decide
+/// or a material read inlined back into either file's production code
+/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
+/// asserting a predicate name is not a second spelling.
+#[test]
+fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+    // The code-and-literals view with every `#[cfg(test)] mod … { … }`
+    // blanked, carved on the code-only view where every bracket is real.
+    let production = |text: &str| {
+        use test_utils::source::{balanced_end, code_and_literals, code_only, skip_ws, word_at};
+        let code = code_only(text);
+        let mut kept = code_and_literals(text).into_bytes();
+        assert_eq!(code.len(), kept.len(), "the two views align byte for byte");
+        let mut from = 0;
+        while let Some(at) = code[from..].find("#[cfg(test)]").map(|i| i + from) {
+            let mut item = skip_ws(&code, at + "#[cfg(test)]".len());
+            while code[item..].starts_with("#[") {
+                let attr_end = balanced_end(&code, item + 1).expect("an attribute closes");
+                item = skip_ws(&code, attr_end + 1);
+            }
+            from = item;
+            if !word_at(&code, item, "mod") {
+                continue;
+            }
+            let open = item + code[item..].find('{').expect("a test module has a body");
+            let close = balanced_end(&code, open).expect("a test module closes");
+            kept[at..=close].fill(b' ');
+            from = close;
+        }
+        String::from_utf8(kept).expect("only ASCII spans are blanked")
+    };
+    let scan = |file: &str, calls: &[(&str, usize)], spellings: &[&str]| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        let source = production(&std::fs::read_to_string(path).unwrap());
+        for &(call, count) in calls {
+            assert_eq!(
+                source.matches(call).count(),
+                count,
+                "`{file}` calls `{call}` {count} time(s)"
+            );
+        }
+        for spelling in spellings {
+            assert!(
+                !source.contains(spelling),
+                "`{file}` spells `{spelling}` beside the walk"
+            );
+        }
+    };
+    let walk = [
+        "\"tangent_second_order\"",
+        "tangent_second_order(",
+        "tangent_jet(",
+    ];
+    let material = [
+        "\"material_cusp_side\"",
+        "\"material_wedge_side\"",
+        "classify_material_pairing(",
+        "material_kappa_rel(",
+        "folded_lever_arm(",
+    ];
+    scan(
+        "src/validate.rs",
+        &[("second_order_walk(", 1), ("interior_stations(", 1)],
+        &walk,
+    );
+    scan(
+        "src/boolean/rim_wedge.rs",
+        &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+        &[walk.as_slice(), material.as_slice()].concat(),
+    );
+}
+
+/// **Row: the must-carry rule and tier 3 read one second-order walk.**
+/// The family above, asked of both callers of
+/// `geom_brep::second_order_walk` at once: the rule a constructor asks
+/// (`geom_brep::must_carry_over_edge`) and tier 3's check 4. Each pair
+/// below is one radius read by both, so a change to the walk's decision
+/// moves both halves of a row together.
+#[test]
+fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
+    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    let tol = Tol::witness();
+    let eps = tol.get().eps;
+    let band = geom_core::Band::linear(tol).expect("the witness band");
+    let cylinder = |radius: f64| Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, radius),
+        axis: Vec3::unit_y(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    };
+    let carrier = geom::Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::unit_y(),
+    };
+    let extent = geom_brep::edge_extent(&carrier, 0.0, 1.0, 1.0);
+    let rule = |r2: f64| {
+        must_carry_over_edge(
+            &cylinder(1.0),
+            &cylinder(r2),
+            &carrier,
+            0.0,
+            1.0,
+            extent,
+            band,
+        )
+    };
+
+    let (tier3, [seg, split]) = kissing_cylinder_pillow(tol, 2.0);
+    assert_eq!(
+        (rule(2.0), tier3),
+        (
+            MustCarryVerdict::JetDeterminate,
+            vec![
+                ValidationError::TangentNotIntrinsic { edge: seg },
+                ValidationError::TangentNotIntrinsic { edge: split },
+            ]
+        ),
+        "determinate: the rule demands the intrinsic tangency and tier 3 refuses its absence"
+    );
+
+    let (tier3, _) = kissing_cylinder_pillow(tol, 1.0);
+    assert_eq!(
+        rule(1.0),
+        MustCarryVerdict::UnderDetermined,
+        "osculating: the rule"
+    );
+    assert!(
+        !tier3.is_empty()
+            && tier3
+                .iter()
+                .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+        "osculating: tier 3 reads the same under-determination as a lamina: {tier3:?}"
+    );
+
+    let r2 = 1.0 / (1.0 - 6.0 * eps);
+    let (tier3, _) = kissing_cylinder_pillow(tol, r2);
+    assert!(
+        matches!(
+            rule(r2),
+            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(Indeterminate {
+                predicate: Some("tangent_second_order"),
+                ..
+            }))
+        ),
+        "in band: the rule escalates second-order: {:?}",
+        rule(r2)
+    );
+    assert!(
+        !tier3.is_empty()
+            && tier3.iter().all(|e| matches!(
+                e,
+                ValidationError::SliverDihedral {
+                    check: crate::validate::WedgeCheck::SecondOrder,
+                    cause: Indeterminate {
+                        predicate: Some("tangent_second_order"),
+                        ..
+                    },
+                    ..
+                }
+            )),
+        "in band: tier 3 escalates second-order: {tier3:?}"
+    );
+}
+
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
 /// 3′ with no records, and a curve record naming its edge — which the
@@ -2627,7 +2796,7 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
     );
     let band = geom_core::Band::linear(tol).expect("a band");
     let probe = |shell, p: Point3<f64>| {
-        let sel = SolidFaces::of_shell(&body, shell).expect("a shell selection");
+        let sel = SolidFaces::of_shell(&body, shell);
         point_in_solid_faces(&body, &sel, p, band, tol).expect("the walk answers")
     };
     let in_cavity = Point3::new(0.43, 0.41, 0.47);
@@ -2698,7 +2867,7 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     refile_shells(&mut body, small, keeper);
 
     let band = geom_core::Band::linear(tol).expect("a band");
-    let sel = SolidFaces::of_shell(&body, big_void).expect("a selection");
+    let sel = SolidFaces::of_shell(&body, big_void);
     let first = body
         .faces()
         .find(|(_, f)| f.shell == small_void)

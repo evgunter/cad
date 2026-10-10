@@ -1316,7 +1316,17 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverJoin(bend)",
+            E::SliverJoin {
+                loop_index: 0,
+                vertex_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1324,7 +1334,17 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverRim(bend)",
+            E::SliverRim {
+                loop_index: 0,
+                segment_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1440,7 +1460,17 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverJoin(bend)",
+            E::SliverJoin {
+                loop_index: 0,
+                vertex_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -1448,7 +1478,17 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                source: diag(),
+                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                source: named("dihedral_wedge"),
+            },
+        ),
+        (
+            "SliverRim(bend)",
+            E::SliverRim {
+                loop_index: 0,
+                segment_index: 3,
+                reading: topo::DihedralReading::Bend,
+                source: named("tangent_second_order"),
             },
         ),
         (
@@ -2532,6 +2572,22 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 site: BlendSite::Joint { vertex },
                 decision: BlendDecision::ChainG1,
                 source: escalated("fillet3_chain_g1"),
+            },
+        ),
+        (
+            "Escalated(contact-arm)",
+            E::Escalated {
+                site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactArm,
+                source: escalated("dihedral_arm"),
+            },
+        ),
+        (
+            "Escalated(contact-wedge)",
+            E::Escalated {
+                site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactWedge,
+                source: escalated("dihedral_wedge"),
             },
         ),
         (
@@ -3771,7 +3827,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         let (doc, body) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -3783,7 +3839,7 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         let (doc, block) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -3798,8 +3854,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
         let (doc, _) = insert(
             doc,
             Node::Split {
-                target: block,
-                tool: plane,
+                target: block.into(),
+                tool: plane.into(),
             },
         );
         moved(doc, block, 2.0)
@@ -4344,7 +4400,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "FittedBoundaryUnsupported",
                 R::FittedBoundaryUnsupported {
                     edge,
-                    what: "a seam shared with another fitted face",
+                    what: "a row of this fit shared with another fitted face",
                 },
             ),
             (
@@ -4633,7 +4689,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -4646,7 +4702,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body,
+            at: body.into(),
             face: edge,
             spin: ang(0.0),
         }),

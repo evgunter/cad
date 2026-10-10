@@ -379,6 +379,7 @@
 //! other scaffolding shapes).
 
 use core::fmt;
+use core::ops::ControlFlow;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
@@ -390,7 +391,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
 };
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
 use crate::attach::Named;
@@ -2380,18 +2381,20 @@ impl WedgeCheck {
     /// What could not be decided, in the words of a person at the viewer.
     fn lead(self) -> &'static str {
         match self {
-            Self::Arm => concat!(
+            Self::Arm => geom_core::undecided!(concat!(
                 "whether an edge is ",
-                geom_brep::dihedral_arm_clause!(),
-                " is too close to call at this tolerance"
-            ),
+                geom_brep::dihedral_arm_clause!()
+            )),
             Self::Dihedral => {
-                "the angle between two faces at an edge is too close to call at this \
-                 tolerance (a sliver)"
+                concat!(
+                    geom_core::undecided!("the angle between two faces at an edge"),
+                    " (a sliver)"
+                )
             }
             Self::SecondOrder => {
-                "whether two faces meeting smoothly at an edge curve apart there is too \
-                 close to call at this tolerance"
+                geom_core::undecided!(
+                    "whether two faces meeting smoothly at an edge curve apart there"
+                )
             }
             Self::MaterialSide => {
                 "which side of an edge the material of its two smoothly meeting faces lies \
@@ -2446,9 +2449,6 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The recourse for a shape the kernel cannot check yet.
-const NOT_YET: &str = "There is no way through yet";
-
 /// The recourse for a tolerance that forms no usable band.
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
@@ -2491,11 +2491,11 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
 /// of its site's decisions it is: no lever, since none is known to reach
 /// it, and for a poisoned margin what that may mean.
 fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
-    if margin.is_invalid() {
-        format!("{NOT_YET}: {UNREADABLE_MARGIN_NOTE}").into()
-    } else {
-        NOT_YET.into()
-    }
+    geom_core::noted(
+        NOT_YET_ENDING,
+        margin.is_invalid().then_some(UNREADABLE_MARGIN_NOTE),
+    )
+    .into()
 }
 
 /// `unnamed`'s words, held to `geom_brep::recourse::not_yet`'s — the one
@@ -2750,7 +2750,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
             | CertifyError::AnalyticRung3(A::NoOffsetBound { .. } | A::Unsupported { .. }) => {
-                NOT_YET
+                NOT_YET_ENDING
             }
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
@@ -2794,21 +2794,17 @@ fn certify_undecided(check: CertCheck) -> &'static str {
     match check {
         CertCheck::ParamSpan => "its length is too close to zero to decide at this tolerance",
         CertCheck::ParamSpanMeter => {
-            "whether its spline has a measurable length is too close to call at this tolerance"
+            geom_core::undecided!("whether its spline has a measurable length")
         }
         CertCheck::ParamWinding => {
-            "whether its arc stays short of a full turn is too close to call at this tolerance"
+            geom_core::undecided!("whether its arc stays short of a full turn")
         }
         CertCheck::Transversality => {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
-        // Its siblings' "too close to call at this tolerance" would carry
-        // the arm's longer clause past the viewer's word budget at rest.
-        CertCheck::TransversalityArm => concat!(
-            "whether it is ",
-            geom_brep::dihedral_arm_clause!(),
-            " is undecided"
-        ),
+        CertCheck::TransversalityArm => {
+            geom_core::undecided!(concat!("whether it is ", geom_brep::dihedral_arm_clause!()))
+        }
         CertCheck::TangentPlanes => {
             "a face's tangent plane is undefined at a point of it, so there is no angle between \
              its faces to measure there"
@@ -2817,7 +2813,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "its faces curve apart too little to decide where it runs at this tolerance"
         }
         CertCheck::ChartImage => {
-            "where it sits on its face's parameter chart is too close to call at this tolerance"
+            geom_core::undecided!("where it sits on its face's parameter chart")
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
@@ -2832,14 +2828,13 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
         | CertCheck::PlaneNurbsHull => {
-            "whether it lies where its description says is too close to call at this tolerance"
+            geom_core::undecided!("whether it lies where its description says")
         }
         CertCheck::PlaneNurbsReportedTransversality => {
             "the check's own summary of how clearly its faces cross came out unreadable"
         }
         CertCheck::PlaneNurbsChartSpeed | CertCheck::PlaneNurbsChartSpeedBound => {
-            "how fast its spline face moves along a parameter direction is too close to call \
-             at this tolerance"
+            geom_core::undecided!("how fast its spline face moves along a parameter direction")
         }
     }
 }
@@ -2886,7 +2881,7 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             use geom_brep::recourse::Refused as R;
             let why = match m {
                 M::Escalated { .. } => {
-                    "whether this face can be offset is too close to call at this tolerance"
+                    geom_core::undecided!("whether this face can be offset")
                 }
                 M::NormalFloor {
                     verdict: R::Zero(_),
@@ -2987,8 +2982,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                         "a stored boundary edge may not lie on its own face's surface"
                     }
                     PropsCheck::Inventory => {
-                        "a face's contribution is too close to call at \
-                                              this tolerance"
+                        geom_core::undecided!("a face's contribution")
                     }
                     PropsCheck::Extent => {
                         "a face's area could not be certified positive at this tolerance"
@@ -3014,7 +3008,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             | P::NotOneChartBranch { .. }
             | P::QuadratureUnsupported { .. } => reading(
                 "the kernel cannot yet measure a face of this kind",
-                NOT_YET.into(),
+                NOT_YET_ENDING.into(),
                 false,
             ),
             // An edge that does not lie on its own face's surface: a
@@ -3044,14 +3038,14 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::DegenerateFace => reading(
                 "a face's area could not be certified positive at this tolerance",
                 geom_brep::props::FACE_EXTENT
-                    .recourse(RefusedArm::SignCertain, Reading::AtRest)
+                    .recourse(RefusedArm::SignCertain(None), Reading::AtRest)
                     .into(),
                 false,
             ),
         },
         M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
             false,
         ),
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
@@ -3065,7 +3059,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     use geom_brep::PcurveCertifyError as C;
     const WRONG: &str = "the stored boundary does not match the face";
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
-    const CLOSE: &str = "the boundary is too close to call at this tolerance";
+    const CLOSE: &str = geom_core::undecided!("the boundary");
     let (why, recourse) = match e {
         M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
@@ -3081,15 +3075,15 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // or general image: unminted, or uncovered by every lane yet.
         M::UncertifiedImage { .. } => (
             "a face's boundary has no certified description yet",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         M::OuterSpansPeriod | M::LoopWraps { .. } => (
             "the face wraps all the way round its surface, which the kernel cannot yet map",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         // Never produced at rest: only the face description raises it.
-        M::JointWithoutRoom { .. } => (CLOSE, NOT_YET),
+        M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.
@@ -3115,7 +3109,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::BranchOutOfReach
-                | C::FittedMateMissing => (KIND, NOT_YET),
+                | C::FittedMateMissing => (KIND, NOT_YET_ENDING),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
@@ -3178,7 +3172,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
         ),
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
-        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET.into()),
+        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
     }
 }
 
@@ -3246,7 +3240,7 @@ fn classify_point_in_solid(
         S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY.into()),
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
-            (uncrossable(u), NOT_YET.into())
+            (uncrossable(u), NOT_YET_ENDING.into())
         }
         S::Loop(L::OffPlane(o)) => (
             match o.cause {
@@ -3282,7 +3276,7 @@ fn classify_point_in_solid(
         S::VolumeUncertified => (
             "a solid's volume cannot be certified, so which side of it is inside cannot be read"
                 .into(),
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -3290,14 +3284,14 @@ fn classify_point_in_solid(
                 crate::boolean::kind_word(*kind)
             )
             .into(),
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
         ),
         S::PartialSphereFace { .. }
         | S::PartialConeFace { .. }
         | S::PartialTorusFace { .. }
         | S::WallOutlineUnsupported { .. } => (
             "a curved face's trim is one the check cannot yet read".into(),
-            NOT_YET.into(),
+            NOT_YET_ENDING.into(),
         ),
     }
 }
@@ -3307,11 +3301,11 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::ChartDivergence { .. } => (
             "the two faces lie on separately described surfaces, which the check cannot \
              compare",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         ChartRegionError::NonPlanarTrim { .. } => (
             "a face's boundary is curved in a way the check cannot yet measure",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
         // Where a round surface's seam falls is set by the part's
         // placement, so turning a part about its axis moves the seam
@@ -3336,7 +3330,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "Recourse: move the edges clearly apart or clearly across each other",
         ),
         ChartRegionError::Escalated(diag) => (
-            "their overlap is too close to call at this tolerance",
+            geom_core::undecided!("their overlap"),
             too_close(Some(&diag.margin)),
         ),
         // The rays are the check's own: no coincidence to declare, and no
@@ -3374,7 +3368,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
         ),
         ContactRefusal::NotCertifiable { .. } => (
             "the kernel cannot yet check a contact between faces of these kinds",
-            NOT_YET,
+            NOT_YET_ENDING,
         ),
     }
 }
@@ -3463,8 +3457,12 @@ impl fmt::Display for ValidationError {
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
                 f,
-                "whether a torus face's tube radius is smaller than its ring radius is too \
-                 close to call at this tolerance. {}",
+                concat!(
+                    geom_core::undecided!(
+                        "whether a torus face's tube radius is smaller than its ring radius"
+                    ),
+                    ". {}"
+                ),
                 RING_TORUS.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
@@ -3534,23 +3532,27 @@ impl fmt::Display for ValidationError {
             Self::PlanarFaceResidual { .. } => write!(
                 f,
                 "a corner of a flat face lies off that face's plane. {}",
-                PLANAR_CORNER.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                PLANAR_CORNER.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
             ),
             Self::PlanarFaceEscalated { cause, .. } => write!(
                 f,
-                "whether a corner of a flat face lies on its plane is too close to call at \
-                 this tolerance. {}",
+                concat!(
+                    geom_core::undecided!("whether a corner of a flat face lies on its plane"),
+                    ". {}"
+                ),
                 PLANAR_CORNER.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
                 "an edge of a flat face leaves that face's plane between its ends. {}",
-                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                PLANAR_BOUNDARY.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
             ),
             Self::PlanarBoundaryEscalated { cause, .. } => write!(
                 f,
-                "whether an edge of a flat face stays on its plane is too close to call at \
-                 this tolerance. {}",
+                concat!(
+                    geom_core::undecided!("whether an edge of a flat face stays on its plane"),
+                    ". {}"
+                ),
                 PLANAR_BOUNDARY.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::SliverDihedral { check, cause, .. } => {
@@ -3646,8 +3648,10 @@ impl fmt::Display for ValidationError {
             ),
             Self::RingContactEscalated { source, .. } => write!(
                 f,
-                "whether a hole in a face touches the face's outline is too close to call at \
-                 this tolerance. {}",
+                concat!(
+                    geom_core::undecided!("whether a hole in a face touches the face's outline"),
+                    ". {}"
+                ),
                 own_close(&source.margin, HOLE_INSIDE)
             ),
             Self::RingOutsideOuter { .. } => write!(
@@ -3673,7 +3677,10 @@ impl fmt::Display for ValidationError {
             ),
             Self::RingPairContactEscalated { source, .. } => write!(
                 f,
-                "whether two holes in a face touch is too close to call at this tolerance. {}",
+                concat!(
+                    geom_core::undecided!("whether two holes in a face touch"),
+                    ". {}"
+                ),
                 own_close(&source.margin, HOLES_APART)
             ),
             Self::PinchCornerCrossed { .. } => write!(
@@ -3683,8 +3690,12 @@ impl fmt::Display for ValidationError {
             ),
             Self::PinchCornerEscalated { source, .. } => write!(
                 f,
-                "whether a face's boundary crosses itself at a point it passes twice is too \
-                 close to call at this tolerance. {}",
+                concat!(
+                    geom_core::undecided!(
+                        "whether a face's boundary crosses itself at a point it passes twice"
+                    ),
+                    ". {}"
+                ),
                 own_close(&source.margin, DEFECT)
             ),
             Self::RingNestingUndecided { source, .. } => {
@@ -3747,8 +3758,10 @@ impl fmt::Display for ValidationError {
             ),
             Self::CensusEscalated { cause } => write!(
                 f,
-                "whether two parts of the body touch is too close to call at \
-                 this tolerance. {}",
+                concat!(
+                    geom_core::undecided!("whether two parts of the body touch"),
+                    ". {}"
+                ),
                 too_close(Some(&cause.margin))
             ),
             Self::CensusUnsupported { subject, cause } => {
@@ -5235,38 +5248,23 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
         if record.shells.len() < 2 {
             continue;
         }
-        let mut undecided = false;
-        let reads: Vec<Option<ShellRead>> = record
-            .shells
-            .iter()
-            .map(
-                |&shell| match ShellRead::of(body, shell, band, tol, quad)? {
-                    Ok(read) => Some(read),
-                    Err(error) => {
-                        errors.push(ValidationError::ShellRoleUndecided { solid, error });
-                        undecided = true;
-                        None
-                    }
-                },
-            )
-            .collect();
+        let mut reads = Vec::with_capacity(record.shells.len());
+        for &shell in &record.shells {
+            match ShellRead::of(body, shell, band, tol, quad) {
+                Ok(read) => reads.push(read),
+                Err(error) => errors.push(ValidationError::ShellRoleUndecided { solid, error }),
+            }
+        }
         // A shell whose role does not read leaves the solid's winding
         // unknowable; its refusal is the solid's verdict.
-        if undecided {
+        if reads.len() < record.shells.len() {
             continue;
         }
-        let outer = reads
-            .iter()
-            .flatten()
-            .filter(|r| r.role == ShellRole::Outer)
-            .count();
+        let outer = reads.iter().filter(|r| r.role == ShellRole::Outer).count();
         if outer > 1 {
             errors.push(ValidationError::SolidOuterShells { solid, outer });
             continue;
         }
-        let Some(reads) = reads.into_iter().collect::<Option<Vec<ShellRead>>>() else {
-            continue;
-        };
         for (i, read) in reads.iter().enumerate() {
             let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
             else {
@@ -5494,20 +5492,122 @@ pub(crate) enum MaterialArmOutcome {
     },
 }
 
-/// The material arm's fold: the flags one edge's sample loop
-/// accumulates, resolved into the ONE outcome that edge earns.
+/// **The material arm's per-station reads**, taken inside the
+/// second-order walk ([`geom_brep::second_order_walk`]): the faces'
+/// material pairing before each station's second-order decision, and
+/// the wedge end after a `Positive` one. A read that escalates stops
+/// the walk with its cause, which the caller reports.
 ///
-/// **Two callers accumulate those flags on two different sample
-/// schedules, deliberately.** This pass walks an EDGE — an open arc
-/// whose endpoints are vertices other rules already classify — so it
-/// samples the interior, `1..CERT_SAMPLES-1`. `boolean::rim_wedge`
-/// walks a cross-operand RIM, a closed circle with no endpoint to
-/// exclude, so every station is interior to it and it takes all
-/// `CERT_SAMPLES` at uniform phase. The fold itself is schedule-blind —
-/// it reads flags, not samples — which is what lets one function serve
-/// both; the divergence is in what "interior" means for an arc versus a
-/// circle, and it is named at both ends so neither can drift into
-/// looking like the other's bug.
+/// The one home of those reads: check 4 walks an edge's
+/// [`geom_brep::interior_stations`] with it and reports a stop as
+/// `SliverDihedral`; `boolean::rim_wedge` walks a closed rim's every
+/// uniform phase with it and returns a stop through `?`. Both fold the
+/// flags through [`MaterialStations::outcome`].
+pub(crate) struct MaterialStations<'s, T: Real> {
+    s_plus: &'s Surface<T>,
+    sense_plus: bool,
+    s_minus: &'s Surface<T>,
+    sense_minus: bool,
+    band: Band,
+    opposed: bool,
+    aligned: bool,
+    side: Option<MaterialWedge>,
+    side_mixed: bool,
+}
+
+impl<'s, T: Real> MaterialStations<'s, T> {
+    /// No station read yet: both pairings still possible, no end seen.
+    pub(crate) fn new(
+        s_plus: &'s Surface<T>,
+        sense_plus: bool,
+        s_minus: &'s Surface<T>,
+        sense_minus: bool,
+        band: Band,
+    ) -> Self {
+        Self {
+            s_plus,
+            sense_plus,
+            s_minus,
+            sense_minus,
+            band,
+            opposed: true,
+            aligned: true,
+            side: None,
+            side_mixed: false,
+        }
+    }
+
+    /// The stations' flags folded by [`material_arm_outcome`], given
+    /// whether the walk found the contact jet-determinate.
+    pub(crate) fn outcome(&self, jet_determinate: bool) -> MaterialArmOutcome {
+        material_arm_outcome(
+            self.aligned,
+            self.opposed,
+            jet_determinate,
+            self.side,
+            self.side_mixed,
+        )
+    }
+}
+
+impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
+    type Break = Indeterminate;
+
+    fn before_decision(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
+        match classify_material_pairing(
+            self.s_plus,
+            self.sense_plus,
+            self.s_minus,
+            self.sense_minus,
+            station.p,
+            station.arm,
+            self.band,
+        ) {
+            Ok(MaterialPairing::Aligned) => self.opposed = false,
+            Ok(MaterialPairing::Opposed) => self.aligned = false,
+            Err(cause) => return ControlFlow::Break(cause),
+        }
+        ControlFlow::Continue(())
+    }
+
+    /// Which end, decided only where it is asked: the SIGN, in the
+    /// material frame, of the quantity whose magnitude just classified
+    /// definitely positive — so neither `Zero` nor an escalation is
+    /// reachable through a margin the run can read. Both are announced
+    /// anyway, as an escalation: a state that cannot occur is reported,
+    /// never swallowed, and a validator's "I cannot say" is an error in
+    /// its vector, not a panic.
+    fn after_positive(&mut self, station: &geom_brep::Station<T>) -> ControlFlow<Indeterminate> {
+        let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
+        let this = match decide(
+            "material_cusp_side",
+            Margin::sagitta(signed, station.arm),
+            self.band,
+        ) {
+            Ok(Sign::Positive) => MaterialWedge::Cusp,
+            Ok(Sign::Negative) => MaterialWedge::Slit,
+            Ok(Sign::Zero) => {
+                return ControlFlow::Break(Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band: self.band,
+                    predicate: Some("material_cusp_side"),
+                    terminal_sliver: false,
+                });
+            }
+            Err(cause) => return ControlFlow::Break(cause),
+        };
+        match self.side {
+            Some(seen) if seen != this => self.side_mixed = true,
+            _ => self.side = Some(this),
+        }
+        ControlFlow::Continue(())
+    }
+}
+
+/// The material arm's fold: the flags [`MaterialStations`]
+/// accumulates over one contact's stations, resolved into the ONE
+/// outcome that contact earns. Schedule-blind: it reads flags, not
+/// samples.
 ///
 /// Total and pure, which is the point. Two of its input states —
 /// a pairing that split (`aligned == opposed`) and a wedge end that
@@ -6415,11 +6515,10 @@ pub(crate) fn tier3_local_checks_marked<
         let chord = p_start.distance(p_end);
         let (t0, t1) = curve.params();
         let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord);
-        // The interior schedule samples, evaluated once (D9: the same
-        // parameters certification used) and shared by checks 4 and 5.
-        let samples: Vec<_> = (1..(geom_brep::CERT_SAMPLES - 1))
-            .map(|i| curve.carrier().eval(curve.sample_param(i)))
-            .collect();
+        // The interior schedule's stations, evaluated once (D9: the same
+        // parameters certification used) and shared by checks 4 and 5
+        // and check 4's second-order walk.
+        let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
         // (D2; ratified 2026-07-19): reusing the SAME per-sample
         // classifications (never classifying twice), an edge whose
@@ -6453,7 +6552,7 @@ pub(crate) fn tier3_local_checks_marked<
         let mut all_transverse = true;
         let mut all_smooth = true;
         if !nurbs_adjacent {
-            for &p in &samples {
+            for &(p, _) in &samples {
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
@@ -6555,120 +6654,43 @@ pub(crate) fn tier3_local_checks_marked<
                 Some(face) => face.sense,
                 None => continue, // unreachable on tier-1 input
             };
-            let mut jet_determinate = true;
-            let mut jet_escalated = false;
-            let mut opposed = true;
-            let mut aligned = true;
-            let mut side: Option<MaterialWedge> = None;
-            let mut side_mixed = false;
-            for i in 1..(geom_brep::CERT_SAMPLES - 1) {
-                let t = curve.sample_param(i);
-                let (p, tau) = curve.carrier().ders1(t);
-                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, tau);
-                let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
-                match classify_material_pairing(
-                    s_plus,
-                    sense_plus,
-                    s_minus,
-                    sense_minus,
-                    p,
-                    arm,
-                    band,
-                ) {
-                    Ok(MaterialPairing::Aligned) => opposed = false,
-                    Ok(MaterialPairing::Opposed) => aligned = false,
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::MaterialSide,
-                            cause,
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
+            let mut stations =
+                MaterialStations::new(s_plus, sense_plus, s_minus, sense_minus, band);
+            let walk = geom_brep::second_order_walk(
+                s_plus,
+                s_minus,
+                samples.iter().copied(),
+                extent,
+                band,
+                &mut stations,
+            );
+            let (jet_determinate, escalation) = match walk {
+                geom_brep::SecondOrderWalk::Determinate => (true, None),
+                // One zero-side station denies the WHOLE edge its
+                // determinacy — on the opposed arm, the lamina refusal:
+                // a wedge end is legal only where the surfaces determine
+                // the locus along the edge, the rule the mark follows
+                // too (`SmoothUnderdetermined`). ε-tightening makes
+                // zero-side verdicts rarer, so it can only remove this
+                // refusal, never introduce one.
+                geom_brep::SecondOrderWalk::UnderDetermined => (false, None),
+                geom_brep::SecondOrderWalk::InBand(cause) => {
+                    (true, Some((WedgeCheck::SecondOrder, cause)))
                 }
-                let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
-                match decide("tangent_second_order", margin, band) {
-                    Ok(Sign::Positive) => {}
-                    // ONE zero-side sample ends the edge's determinacy
-                    // — and on the opposed arm that is the lamina
-                    // refusal for the WHOLE edge, on the strength of a
-                    // single sample. Deliberate, and conservative in
-                    // the direction the ε rule cares about: a wedge end
-                    // is legal where the surfaces determine the locus
-                    // ALONG the edge, so one place they do not is
-                    // enough to deny it (the same rule
-                    // the mark already follows — any zero-side sample
-                    // marks `SmoothUnderdetermined`). ε-tightening
-                    // makes zero-side verdicts RARER, so it can only
-                    // remove this refusal, never introduce one.
-                    Ok(Sign::Zero | Sign::Negative) => {
-                        jet_determinate = false;
-                        break;
-                    }
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::SecondOrder,
-                            cause,
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
+                geom_brep::SecondOrderWalk::Stopped(cause) => {
+                    (true, Some((WedgeCheck::MaterialSide, cause)))
                 }
-                // Which end, decided only where it is asked: the
-                // magnitude just classified definitely positive, so
-                // this reads the SIGN of the same quantity in the
-                // material frame and cannot honestly land on Zero.
-                let signed = geom_brep::material_kappa_rel(jet.kappa_rel, sense_plus);
-                let this = match decide("material_cusp_side", Margin::sagitta(signed, arm), band) {
-                    Ok(Sign::Positive) => MaterialWedge::Cusp,
-                    Ok(Sign::Negative) => MaterialWedge::Slit,
-                    // Neither outcome is reachable through a margin
-                    // the run can read: this is the SAME quantity
-                    // whose magnitude classified definitely positive
-                    // one decision above. Announced anyway — a state
-                    // that cannot occur is reported, never swallowed —
-                    // and as an escalation rather than a panic,
-                    // because a validator's answer to "I cannot say"
-                    // is an error in its vector.
-                    Ok(Sign::Zero) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::MaterialSide,
-                            cause: Indeterminate {
-                                margin: geom_core::MarginDiag::INVALID,
-                                band,
-                                predicate: Some("material_cusp_side"),
-                                terminal_sliver: false,
-                            },
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
-                    Err(cause) => {
-                        errors.push(ValidationError::SliverDihedral {
-                            edge: edge_key,
-                            check: WedgeCheck::MaterialSide,
-                            cause,
-                        });
-                        jet_escalated = true;
-                        break;
-                    }
-                };
-                match side {
-                    Some(seen) if seen != this => side_mixed = true,
-                    _ => side = Some(this),
-                }
+            };
+            let jet_escalated = escalation.is_some();
+            if let Some((check, cause)) = escalation {
+                errors.push(ValidationError::SliverDihedral {
+                    edge: edge_key,
+                    check,
+                    cause,
+                });
             }
             if !jet_escalated {
-                arm = Some(material_arm_outcome(
-                    aligned,
-                    opposed,
-                    jet_determinate,
-                    side,
-                    side_mixed,
-                ));
+                arm = Some(stations.outcome(jet_determinate));
             }
             if jet_escalated {
                 ContactMark::Unmarked
@@ -6712,7 +6734,7 @@ pub(crate) fn tier3_local_checks_marked<
             else {
                 continue;
             };
-            for &p in &samples {
+            for &(p, _) in &samples {
                 let residual = (p - origin).dot(normal);
                 match decide("planar_boundary_residual", Margin::of(residual), band) {
                     Ok(Sign::Zero) => continue,
@@ -10993,9 +11015,9 @@ mod tests {
             face,
             kind: geom::SurfaceKind::Nurbs,
         });
-        assert_eq!(spline.1, super::NOT_YET);
+        assert_eq!(spline.1, super::NOT_YET_ENDING);
         assert!(spline.0.contains("spline (NURBS) surface"), "{}", spline.0);
-        assert_eq!(read(S::VolumeUncertified).1, super::NOT_YET);
+        assert_eq!(read(S::VolumeUncertified).1, super::NOT_YET_ENDING);
         for e in [
             S::PartialSphereFace { face },
             S::PartialConeFace { face },
@@ -11006,7 +11028,7 @@ mod tests {
                 read(e.clone()),
                 (
                     "a curved face's trim is one the check cannot yet read".into(),
-                    super::NOT_YET.into()
+                    super::NOT_YET_ENDING.into()
                 ),
                 "{e:?}"
             );
@@ -11105,7 +11127,7 @@ mod tests {
             (
                 "wedge, in band",
                 sliver(WedgeCheck::Dihedral, in_band),
-                "the angle between two faces at an edge is too close to call at this tolerance \
+                "the angle between two faces at an edge is undecided \
                  (a sliver). Recourse: move the geometry so the faces meet either clearly \
                  creased or clearly smooth, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
@@ -11115,7 +11137,7 @@ mod tests {
                 "wedge arm, in band",
                 sliver(WedgeCheck::Arm, in_band),
                 "whether an edge is long enough, for how its faces curve, to measure their \
-                 angle is too close to call at this tolerance. Recourse: move the geometry so \
+                 angle is undecided. Recourse: move the geometry so \
                  that edge is clearly longer and no face curves tightly there, or, if this length \
                  or the gap its faces open is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
@@ -11167,8 +11189,8 @@ mod tests {
             (
                 "second order, in band",
                 sliver(WedgeCheck::SecondOrder, in_band),
-                "whether two faces meeting smoothly at an edge curve apart there is too close to \
-                 call at this tolerance. Recourse: move the geometry so the faces either \
+                "whether two faces meeting smoothly at an edge curve apart there is undecided. \
+                 Recourse: move the geometry so the faces either \
                  clearly curve apart where they touch or clearly share their curvature there, \
                  or, if this curvature difference is intended, tighten the tolerance below \
                  5e-10 m"
@@ -11306,8 +11328,7 @@ mod tests {
                         cause: in_band,
                     },
                 },
-                "the boundary is too close to call at this tolerance. There is no way through yet"
-                    .to_owned(),
+                "the boundary is undecided. There is no way through yet".to_owned(),
             ),
             (
                 "pcurve mint, poisoned",
@@ -11317,7 +11338,7 @@ mod tests {
                         cause: diag(MarginDiag::INVALID),
                     },
                 },
-                format!("There is no way through yet: {UNREADABLE_MARGIN_NOTE}"),
+                format!("There is no way through yet; {UNREADABLE_MARGIN_NOTE}"),
             ),
             (
                 "pcurve fitted certificate, in band",
@@ -11336,7 +11357,7 @@ mod tests {
     /// through [`dihedral_finding`] as the edge loop takes them. An
     /// in-band arm is a sliver of the arm's decision; the cone apex's
     /// arm is decided zero, so it is the definite `NoDihedralArm`, never
-    /// "too close to call"; both name the edge's length and bend, never
+    /// "undecided"; both name the edge's length and bend, never
     /// an angle, and neither says the margin was unreadable. A
     /// near-tangent wedge keeps the angle.
     #[test]
@@ -15544,7 +15565,7 @@ mod offset_fit_door_rows {
                 terminal_sliver: false,
             },
         };
-        let close = "whether this face can be offset is too close to call at this tolerance";
+        let close = "whether this face can be offset is undecided";
         let wide = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let rows = [
             (
@@ -15755,23 +15776,23 @@ mod certify_escalation_rows {
             ),
             (
                 escalated(CertCheck::EndpointStart, in_band),
-                "whether it lies where its description says is too close to call at this \
-                 tolerance. There is no way through: this is a kernel defect or a damaged \
+                "whether it lies where its description says is undecided. There is no way \
+                 through: this is a kernel defect or a damaged \
                  file; report it",
             ),
             (
                 escalated(CertCheck::Surface1Residual, MarginDiag::INVALID),
-                "whether it lies where its description says is too close to call at this \
-                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
-                 indicate a kernel bug worth reporting",
+                "whether it lies where its description says is undecided. There is no way \
+                 through: this is a kernel defect or a damaged \
+                 file; report it",
             ),
             (
                 escalated(
                     CertCheck::ChartImage,
                     MarginDiag::enclosure(-2.0e-9, 4.0e-9),
                 ),
-                "where it sits on its face's parameter chart is too close to call at this \
-                 tolerance. There is no way through: this is a kernel defect or a damaged \
+                "where it sits on its face's parameter chart is undecided. There is no way \
+                 through: this is a kernel defect or a damaged \
                  file; report it",
             ),
             // A zero verdict where zero does not pass is band-decided
@@ -15837,6 +15858,7 @@ mod certify_escalation_rows {
                     geom_brep::PlaneNurbsRefusal::Limb {
                         limb: geom_brep::ssi::SsiLimb::OnLocus,
                         value: 2.0e-8,
+                        margin: geom_core::MarginDiag::value(2.0e-8),
                     },
                 )),
                 "its stored description does not match its geometry. There is no way through: \

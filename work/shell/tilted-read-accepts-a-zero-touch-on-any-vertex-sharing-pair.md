@@ -2,11 +2,12 @@
 id: tilted-read-accepts-a-zero-touch-on-any-vertex-sharing-pair
 kind: issue
 title: moved_walls_cross accepts a Zero overlap on any pair that shares a vertex, wherever along their common line the touch is
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P3
 cost: E
 refs: [shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel]
+branch: shell/tilted-read-gaps
 ---
 
 
