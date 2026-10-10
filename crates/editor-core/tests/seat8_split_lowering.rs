@@ -112,12 +112,12 @@ fn the_corpus_has_no_split_with_an_empty_side() {
 }
 
 /// **The wire format is untouched**: `part_select` — a split with BOTH
-/// halves projected off it by `Node::Part` and unioned — saves, loads
-/// and re-saves byte-identically. The corpus-wide round-trip covers the
+/// halves read by port and unioned — saves, loads and re-saves
+/// byte-identically. The corpus-wide round-trip covers the
 /// same bytes; this is the per-document form beside the digest rows,
 /// so a red here names the split rather than the registry.
 #[test]
-fn a_split_document_with_projections_round_trips_byte_identical() {
+fn a_split_document_read_by_port_round_trips_byte_identical() {
     let doc = corpus::documents()
         .into_iter()
         .find(|d| d.name == "part_select")

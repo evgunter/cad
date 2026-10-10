@@ -216,8 +216,8 @@ pub(crate) enum Walk {
     PayloadRead,
     /// [`first_operand_read_fault`] over every operand's read (D10): it
     /// names a minted variable, and a live one of a kind its seat
-    /// admits; a part projection over a split reads its own half. A
-    /// read of an output deleted since is legal — its reader is
+    /// admits that is no world placement's copy. A read of an output
+    /// deleted since is legal — its reader is
     /// stranded, refused at evaluation. Snapshot only.
     OperandRead,
     /// [`first_unnamed_reader_fault`] over the variable table: a

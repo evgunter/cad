@@ -435,9 +435,10 @@ impl std::fmt::Display for Emptiness {
     }
 }
 
-/// The word for a half of the KERNEL's [`SplitHalf`]: the part form's
-/// radio row draws one button per entry of `SplitHalf::ALL` with it,
-/// and an empty half's readout ([`Emptiness`]) names the half with it.
+/// The word for a half of the KERNEL's [`SplitHalf`]: a body seat
+/// holding a split draws one button per entry of `SplitHalf::ALL` with
+/// it, and an empty half's readout ([`Emptiness`]) names the half with
+/// it.
 ///
 /// **A match, not a table**, for the reason `forms::boolean_op_label`
 /// is: the enum is declared in `topo`, so no list written here can be
