@@ -35,8 +35,9 @@
 //!
 //! **The residue is that margin and NOTHING else**, which is a claim
 //! about code and is enforced by its shape: the on-surface residual
-//! and the opposed-senses test return `Escalated` from an in-band
-//! margin whether or not a declaration is in hand, and so does the
+//! (in band, or on the surface at a sample whose span bound is wider
+//! than the band) and the opposed-senses test return `Escalated`
+//! whether or not a declaration is in hand, and so does the
 //! first-order parallelism test — those three are C4's
 //! must-verify-DEFINITE list, and a list you may bridge is not a
 //! must-verify list. Only the second-order arm consults `declared`.
@@ -393,15 +394,9 @@ pub fn tangent_locus_relation<T: Decide>(
         let (second_order, second_order_log) = geom_core::k_stats::detached(|| {
             crate::validate::decide("contact_tangent_second_order", so, band)
         });
-        let second_order_definite = match second_order {
-            Ok(Sign::Positive) => Some(true),
-            // An exact zero is the #175 neutral point: definite,
-            // and definitely NOT a usable lever.
-            Ok(Sign::Zero | Sign::Negative) => Some(false),
-            Err(_) => None,
-        };
-        // (3) First-order tangency. With a definite κ_rel the lever is
-        // C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
+        // (3) First-order tangency. With a definitely positive κ_rel
+        // (an exact zero is the #175 neutral point: definite, and NOT a
+        // usable lever) the lever is C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
         // certifier uses). Without one the derived angle is unbounded,
         // which would make the test vacuous, so the margin falls back
         // to the ordinary angular door: the defect metered at the
@@ -412,7 +407,7 @@ pub fn tangent_locus_relation<T: Decide>(
         // it reads only after the second-order margin has refused and
         // only a definite defect names that refusal, while here it is
         // the first-order verdict itself, so an in-band reading escalates.
-        let parallel = if second_order_definite == Some(true) {
+        let parallel = if matches!(second_order, Ok(Sign::Positive)) {
             Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
         } else {
             Margin::levered(jet.sin_theta, arm)
@@ -424,7 +419,7 @@ pub fn tangent_locus_relation<T: Decide>(
         // first-order reading refuses on its own: a definite defect
         // contradicts, and an in-band one is the escalation returned.
         // Only a verified first order leaves the outcome resting on it.
-        if second_order_definite.is_none() && !matches!(first_order, Ok(Sign::Zero)) {
+        if second_order.is_err() && !matches!(first_order, Ok(Sign::Zero)) {
             geom_core::k_stats::splice_superseded(second_order_log);
         } else {
             geom_core::k_stats::splice(second_order_log);
@@ -487,9 +482,12 @@ pub fn tangent_locus_relation<T: Decide>(
 ///   every sample bounds every point of the locus;
 /// - contradicted by the sample itself, `r` definitely nonzero (`off`):
 ///   a measured point of the locus off the surface is a miss whatever
-///   the spans do, so the sag does not shrink it;
-/// - escalated between: an in-band far side, or a sample on the surface
-///   whose spans are not known to be (a shorter span decides it).
+///   the spans do, so the sag does not shrink it. The refusal carries
+///   the `off` reading;
+/// - escalated between. An in-band far side is its own escalation. A
+///   far side decided beyond the band beside a sample decided on the
+///   surface rests on the sag, so the refusal carries the `on` reading
+///   and its margin; an in-band sample carries its own.
 ///
 /// MUST-VERIFY-DEFINITE (C4): "the locus on both surfaces within ε".
 /// The in-band residual is not the bridged residue — that list holds
@@ -500,22 +498,31 @@ fn on_surface<T: Decide>(
     sag: T,
     band: Band,
 ) -> Result<(), ContactRefusal> {
-    match geom_core::k_stats::decide_magnitude(on, Margin::of(r.abs() + sag), band) {
-        Ok(Magnitude::Zero) => Ok(()),
-        Ok(Magnitude::Positive) => {
-            match crate::validate::decide_nonzero(off, Margin::of(r), band) {
-                Ok(_) => Err(ContactRefusal::Contradicted {
-                    diag: Indeterminate {
-                        margin: geom_core::MarginDiag::INVALID,
-                        band,
-                        predicate: Some(on),
-                        terminal_sliver: false,
-                    },
-                    steer: Some(FIT_DEFERRAL),
-                }),
-                Err(diag) => Err(ContactRefusal::Escalated { diag }),
-            }
-        }
+    let reading = |predicate, margin| Indeterminate {
+        margin,
+        band,
+        predicate: Some(predicate),
+        terminal_sliver: false,
+    };
+    let far = geom_core::k_stats::decide_magnitude_reported(on, Margin::of(r.abs() + sag), band);
+    let far_margin = match far {
+        Ok((Magnitude::Zero, _)) => return Ok(()),
+        Ok((Magnitude::Positive, margin)) => margin,
+        Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+    };
+    match crate::validate::decide_reported(off, Margin::of(r), band) {
+        Ok(geom_core::Decided {
+            sign: Sign::Positive | Sign::Negative,
+            margin,
+        }) => Err(ContactRefusal::Contradicted {
+            diag: reading(off, margin),
+            steer: Some(FIT_DEFERRAL),
+        }),
+        Ok(geom_core::Decided {
+            sign: Sign::Zero, ..
+        }) => Err(ContactRefusal::Escalated {
+            diag: reading(on, far_margin),
+        }),
         Err(diag) => Err(ContactRefusal::Escalated { diag }),
     }
 }
@@ -754,9 +761,16 @@ mod tests {
         ] {
             let got = match on_surface(["probe_on", "probe_off"], r, sag, b) {
                 Ok(()) => Want::On,
-                Err(ContactRefusal::Escalated { .. }) => Want::Escalated,
+                Err(ContactRefusal::Escalated { diag }) => {
+                    // The sample decided on the surface: the sag is the cause.
+                    if r == 0.0 {
+                        assert_eq!(diag.predicate, Some("probe_on"), "{why}");
+                    }
+                    Want::Escalated
+                }
                 Err(ContactRefusal::Contradicted { diag, .. }) => {
-                    assert_eq!(diag.predicate, Some("probe_on"), "{why}");
+                    assert_eq!(diag.predicate, Some("probe_off"), "{why}");
+                    assert!(!diag.margin.is_invalid(), "{why}: the measured margin");
                     Want::Contradicted
                 }
                 Err(other) => panic!("{why}: {other:?}"),
