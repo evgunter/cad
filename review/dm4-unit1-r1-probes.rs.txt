@@ -1,0 +1,438 @@
+//! r1 review probes (not for commit).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
+
+use crate::eval6_placers_over_instances::{cube_doc, linear};
+use crate::fixture;
+use editor_core::{
+    Bodies, BodyRead, BooleanValue, EntityKind, ExtrudeSide, Formula, Node, NodeResult,
+    ProfileDoc, RecipeNodeId, StableName, ValuePayload, VarId,
+};
+use fixture::{insert, len, on_frame, run, table};
+use geom_core::Tol;
+
+fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
+    run(doc, &editor_core::EvalOptions::default())
+}
+fn names(ev: &editor_core::Evaluation<f64>, at: RecipeNodeId) -> Vec<StableName> {
+    let mut n: Vec<StableName> = table(ev, at).iter().map(|(n, _)| n.clone()).collect();
+    n.sort();
+    n
+}
+fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
+    topo::mass_properties(crate::corpus::body_of(ev, id), Tol::witness())
+        .expect("mass")
+        .volume
+}
+fn is_empty(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> bool {
+    matches!(
+        ev.value(id).map(|v| &v.payload),
+        Some(ValuePayload::Boolean(BooleanValue::Empty))
+    )
+}
+fn status(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> String {
+    match ev.nodes.get(&id) {
+        Some(NodeResult::Ok(_)) => "ok".into(),
+        other => format!("{other:?}"),
+    }
+}
+fn no_fold_sentinel(ev: &editor_core::Evaluation<f64>, at: RecipeNodeId) {
+    let a = serde_json::to_string(&VarId::new(0, 0)).unwrap();
+    let b = serde_json::to_string(&VarId::new(0, 1)).unwrap();
+    for n in names(ev, at) {
+        let s = serde_json::to_string(&n).unwrap();
+        assert!(!s.contains(&a) && !s.contains(&b), "fold sentinel leaked in {at}: {s}");
+    }
+}
+fn block_at(doc: ProfileDoc, o: [f64; 3], w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        o,
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(h),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+fn sp(r: &[RecipeNodeId]) -> Bodies<BodyRead<Formula>> {
+    Bodies::Spelled(r.iter().map(|&x| x.into()).collect())
+}
+fn union(doc: ProfileDoc, m: Bodies<BodyRead<Formula>>) -> (ProfileDoc, RecipeNodeId) {
+    insert(doc, Node::Union { members: m, declare: Vec::new() })
+}
+fn inter(doc: ProfileDoc, m: Bodies<BodyRead<Formula>>) -> (ProfileDoc, RecipeNodeId) {
+    insert(doc, Node::Intersect { members: m, declare: Vec::new() })
+}
+/// names of `at` with the node `at` replaced by `to`
+fn renamed(ev: &editor_core::Evaluation<f64>, at: RecipeNodeId, to: RecipeNodeId) -> Vec<StableName> {
+    let (fa, ta) = (serde_json::to_string(&at).unwrap(), serde_json::to_string(&to).unwrap());
+    let mut v: Vec<_> = names(ev, at).iter().map(|n| serde_json::from_str(&serde_json::to_string(n).unwrap().replace(&fa, &ta)).unwrap()).collect();
+    v.sort();
+    v
+}
+
+/// A union of two overlapping non-coplanar blocks: a body with seams.
+fn complex(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, b) = block_at(doc, [0.5, 0.5, 0.25], 1.0, 1.0);
+    let (doc, u) = union(doc, sp(&[a, b]));
+    (doc, u)
+}
+
+#[test]
+fn p01_complex_builds() {
+    let (doc, u) = complex("r1-p01");
+    let ev = eval(&doc);
+    eprintln!("P01 complex: {} vol {}", status(&ev, u), volume(&ev, u));
+    no_fold_sentinel(&ev, u);
+}
+
+#[test]
+fn p02_repeat_of_a_complex_body_glues() {
+    let (doc, u) = complex("r1-p02");
+    let (doc, uu) = union(doc, sp(&[u, u]));
+    let (doc, one) = union(doc, sp(&[u]));
+    let (doc, ii) = inter(doc, sp(&[u, u]));
+    let (doc, ss) = insert(doc, Node::Subtract { from: u.into(), tool: u.into(), declare: vec![] });
+    let ev = eval(&doc);
+    eprintln!("P02 uu {} ii {} ss {}", status(&ev, uu), status(&ev, ii), status(&ev, ss));
+    assert!(ev.value(uu).is_some(), "uu {}", status(&ev, uu));
+    assert!((volume(&ev, uu) - volume(&ev, u)).abs() < 1e-9);
+    assert_eq!(renamed(&ev, uu, one), names(&ev, one), "A∪A names as [A]");
+    assert!(ev.value(ii).is_some(), "ii {}", status(&ev, ii));
+    assert_eq!(renamed(&ev, ii, one), names(&ev, one), "A∩A names as [A]");
+    assert!(is_empty(&ev, ss), "ss {}", status(&ev, ss));
+    no_fold_sentinel(&ev, uu);
+    no_fold_sentinel(&ev, ii);
+}
+
+#[test]
+fn p03_triple_and_nonadjacent_repeats() {
+    let doc = ProfileDoc::empty_derived("r1-p03", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, far) = block_at(doc, [5.0, 5.0, 5.0], 1.0, 1.0);
+    let (doc, over) = block_at(doc, [0.5, 0.5, 0.25], 1.0, 1.0);
+    let (doc, aaa) = union(doc, sp(&[a, a, a]));
+    let (doc, aba) = union(doc, sp(&[a, far, a]));
+    let (doc, ab) = union(doc, sp(&[a, far]));
+    let (doc, iaoa) = inter(doc, sp(&[a, over, a]));
+    let (doc, iao) = inter(doc, sp(&[a, over]));
+    let (doc, uaoa) = union(doc, sp(&[a, over, a]));
+    let (doc, uao) = union(doc, sp(&[a, over]));
+    let (doc, one) = union(doc, sp(&[a]));
+    let ev = eval(&doc);
+    for (l, id) in [("aaa", aaa), ("aba", aba), ("iaoa", iaoa), ("uaoa", uaoa)] {
+        eprintln!("P03 {l}: {}", status(&ev, id));
+    }
+    let mut fail = Vec::new();
+    if ev.value(aaa).is_none() || renamed(&ev, aaa, one) != names(&ev, one) { fail.push("aaa"); }
+    if ev.value(aba).is_none() || renamed(&ev, aba, ab) != names(&ev, ab) { fail.push("aba"); }
+    if ev.value(iaoa).is_none() || renamed(&ev, iaoa, iao) != names(&ev, iao) { fail.push("iaoa"); }
+    if ev.value(uaoa).is_none() || renamed(&ev, uaoa, uao) != names(&ev, uao) { fail.push("uaoa"); }
+    for id in [aaa, aba, iaoa, uaoa] { if ev.value(id).is_some() { no_fold_sentinel(&ev, id); } }
+    assert!(fail.is_empty(), "repeat did not glue to the unrepeated table: {fail:?}");
+}
+
+#[test]
+fn p04_repeated_indexed_read_and_family_of_one() {
+    let (doc, _cube) = cube_doc("r1-p04");
+    let (doc, xs) = insert(doc, linear(_cube, [1.0, 0.0, 0.0], 2.0, 3));
+    let (doc, x1) = insert(doc, linear(_cube, [1.0, 0.0, 0.0], 2.0, 1));
+    let m = |i| BodyRead::indexed(xs, vec![Formula::count(i)]);
+    let (doc, rep) = union(doc, Bodies::Spelled(vec![m(1), m(1)]));
+    let (doc, lone) = union(doc, Bodies::Spelled(vec![m(1)]));
+    let (doc, fam1) = union(doc, Bodies::Family(x1.into()));
+    let (doc, fam1s) = union(doc, Bodies::Spelled(vec![BodyRead::indexed(x1, vec![Formula::count(0)])]));
+    let (doc, sub) = insert(doc, Node::Subtract { from: m(2), tool: m(2), declare: vec![] });
+    let (doc, ifam) = inter(doc, Bodies::Family(xs.into()));
+    let ev = eval(&doc);
+    eprintln!("P04 rep {} lone {} fam1 {} fam1s {} sub {} ifam {}", status(&ev, rep), status(&ev, lone), status(&ev, fam1), status(&ev, fam1s), status(&ev, sub), status(&ev, ifam));
+    assert!(ev.value(rep).is_some());
+    assert_eq!(renamed(&ev, rep, lone), names(&ev, lone));
+    assert_eq!(renamed(&ev, fam1, fam1s), names(&ev, fam1s), "family of one vs its member spelled");
+    assert!(is_empty(&ev, sub));
+    assert!(is_empty(&ev, ifam), "disjoint family intersect empty: {}", status(&ev, ifam));
+}
+
+/// Two placements of one body, overlapping: identical inner tables,
+/// told apart only by the read.
+#[test]
+fn p05_two_placements_of_one_body_overlapping() {
+    let doc = ProfileDoc::empty_derived("r1-p05", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, t1) = insert(doc, fixture::xform(a, [0.3, 0.2, 0.1], [1.0, 1.0, 1.0], 0.4));
+    let (doc, t2) = insert(doc, fixture::xform(a, [0.1, 0.35, 0.2], [1.0, -1.0, 0.5], 0.9));
+    let (doc, u) = union(doc, sp(&[t1, t2]));
+    let (doc, i) = inter(doc, sp(&[t1, t2]));
+    let (doc, s) = insert(doc, Node::Subtract { from: t1.into(), tool: t2.into(), declare: vec![] });
+    let ev = eval(&doc);
+    eprintln!("P05 u {} i {} s {}", status(&ev, u), status(&ev, i), status(&ev, s));
+    for id in [u, i, s] {
+        assert!(ev.value(id).is_some(), "{}", status(&ev, id));
+        no_fold_sentinel(&ev, id);
+    }
+}
+
+/// Union(xs) vs Union(Family(xs[0])) — door.
+#[test]
+fn p06_family_with_index_refused() {
+    let (doc, cube) = cube_doc("r1-p06");
+    let (doc, xs) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, 3));
+    let e = fixture::insert_refused(&doc, Node::Union {
+        members: Bodies::Family(BodyRead::indexed(xs, vec![Formula::count(0)])),
+        declare: vec![],
+    });
+    eprintln!("P06 {e:?}");
+    let e = fixture::insert_refused(&doc, Node::Union {
+        members: Bodies::Spelled(vec![xs.into(), cube.into()]),
+        declare: vec![],
+    });
+    eprintln!("P06 mix {e:?}");
+    let e = fixture::insert_refused(&doc, Node::Subtract {
+        from: BodyRead::indexed(cube, vec![Formula::count(0)]),
+        tool: cube.into(),
+        declare: vec![],
+    });
+    eprintln!("P06 index on body {e:?}");
+}
+
+fn short(n: &StableName) -> String {
+    let s = serde_json::to_string(n).unwrap();
+    s
+}
+#[test]
+fn p07_diff_aoa() {
+    let doc = ProfileDoc::empty_derived("r1-p07", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, over) = block_at(doc, [0.5, 0.5, 0.25], 1.0, 1.0);
+    let (doc, uaoa) = union(doc, sp(&[a, over, a]));
+    let (doc, uao) = union(doc, sp(&[a, over]));
+    let (doc, uoa) = union(doc, sp(&[over, a]));
+    let (doc, uaao) = union(doc, sp(&[a, a, over]));
+    let ev = eval(&doc);
+    let x = renamed(&ev, uaoa, uao);
+    let y = names(&ev, uao);
+    eprintln!("P07 counts aoa {} ao {} oa {} aao {}", x.len(), y.len(), names(&ev, uoa).len(), names(&ev, uaao).len());
+    eprintln!("P07 aao==ao {}", renamed(&ev, uaao, uao) == y);
+    eprintln!("P07 oa==ao {}", renamed(&ev, uoa, uao) == y);
+    for n in x.iter().filter(|n| !y.contains(n)) { eprintln!("P07 only-in-aoa {}", short(n)); }
+    for n in y.iter().filter(|n| !x.contains(n)) { eprintln!("P07 only-in-ao  {}", short(n)); }
+}
+
+fn box3(doc: ProfileDoc, (x0, x1): (f64, f64), (y0, y1): (f64, f64), (z0, z1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+    );
+    insert(doc, Node::Extrude { profile: p.into(), distance: len(z1 - z0), side: ExtrudeSide::Along })
+}
+
+fn multiset(v: &[geom_core::k_stats::Verdict]) -> std::collections::BTreeMap<(&'static str, String), usize> {
+    let mut m = std::collections::BTreeMap::new();
+    for x in v { *m.entry((x.predicate, format!("{:?}", x.sign))).or_insert(0) += 1; }
+    m
+}
+
+/// A and C touch at x = 1 (declared); M covers that contact, so the
+/// fold consumes A's contact face at step 1 and never meets the pair.
+#[test]
+fn p08_judgement_log_of_a_covered_declared_contact() {
+    let doc = ProfileDoc::empty_derived("r1-p08", Tol::witness());
+    let (doc, a) = box3(doc, (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let (doc, m) = box3(doc, (0.5, 1.5), (-0.5, 1.5), (-0.5, 1.5));
+    let (doc, c) = box3(doc, (1.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+    let ev = eval(&doc);
+    let flush = editor_core::find_flush_candidates(&ev, &doc, a, c, Tol::witness()).expect("definite");
+    let declare = editor_core::declared_pairs(&flush);
+    eprintln!("P08 declared {}", declare.len());
+    let (doc, ac) = insert(doc, Node::Union { members: sp(&[a, c]), declare: declare.clone() });
+    let (doc, amc) = insert(doc, Node::Union { members: sp(&[a, m, c]), declare: declare.clone() });
+    let (doc, am) = insert(doc, Node::Union { members: sp(&[a, m]), declare: vec![] });
+    let (doc, amc0) = insert(doc, Node::Union { members: sp(&[a, m, c]), declare: vec![] });
+    let ev = eval(&doc);
+    eprintln!("P08 ac {} amc {} am {} amc-undeclared {}", status(&ev, ac), status(&ev, amc), status(&ev, am), status(&ev, amc0).chars().take(200).collect::<String>());
+    let log = |id| ev.value(id).map(|v| v.verdicts.as_ref().clone()).unwrap_or_default();
+    let (lac, lamc) = (multiset(&log(ac)), multiset(&log(amc)));
+    eprintln!("P08 |ac| {} |amc| {} |am| {}", log(ac).len(), log(amc).len(), log(am).len());
+    let missing: Vec<_> = lac.iter().filter(|(k, n)| lamc.get(*k).copied().unwrap_or(0) < **n).collect();
+    eprintln!("P08 A-C judgement verdicts absent from [A,M,C]'s log: {missing:?}");
+}
+
+#[test]
+fn p09_covered_declared_contact_orders() {
+    let doc = ProfileDoc::empty_derived("r1-p09", Tol::witness());
+    let (doc, a) = box3(doc, (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let (doc, m) = box3(doc, (0.5, 1.5), (-0.5, 1.5), (-0.5, 1.5));
+    let (doc, c) = box3(doc, (1.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+    let ev = eval(&doc);
+    let declare = editor_core::declared_pairs(&editor_core::find_flush_candidates(&ev, &doc, a, c, Tol::witness()).expect("definite"));
+    let mut doc = doc;
+    let mut ids = Vec::new();
+    for (l, o) in [("amc", [a, m, c]), ("acm", [a, c, m]), ("mac", [m, a, c]), ("cma", [c, m, a]), ("mca", [m, c, a]), ("cam", [c, a, m])] {
+        let (d, id) = insert(doc, Node::Union { members: sp(&o), declare: declare.clone() });
+        doc = d;
+        ids.push((l, id));
+    }
+    let ev = eval(&doc);
+    for (l, id) in ids {
+        let s = status(&ev, id);
+        let k = s.find("kind:").map(|i| &s[i..]).unwrap_or(&s);
+        eprintln!("P09 {l}: {}", k.chars().take(160).collect::<String>());
+    }
+}
+
+fn alike(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) -> Vec<String> {
+    use std::collections::BTreeMap;
+    let full = editor_core::Speaker::of(doc);
+    let scoped = full.within(ev);
+    let mut out = Vec::new();
+    for id in doc.ids() {
+        let Some(value) = ev.value(id) else { continue };
+        let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
+        for (name, _) in value.name_table.iter() {
+            *groups[0].entry(full.name(name).to_string()).or_default() += 1;
+            *groups[1].entry(name.to_string()).or_default() += 1;
+            *groups[2].entry(scoped.name(name).to_string()).or_default() += 1;
+        }
+        for (form, g) in ["full", "tag", "scoped"].iter().zip(&groups) {
+            out.extend(g.iter().filter(|(_, n)| **n > 1).map(|(s, n)| format!("{form} x{n}: {s}")));
+        }
+    }
+    out
+}
+
+#[test]
+fn p10_words_read_apart_on_adversarial_documents() {
+    let doc = ProfileDoc::empty_derived("r1-p10", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, t1) = insert(doc, fixture::xform(a, [0.3, 0.2, 0.1], [1.0, 1.0, 1.0], 0.4));
+    let (doc, t2) = insert(doc, fixture::xform(a, [0.1, 0.35, 0.2], [1.0, -1.0, 0.5], 0.9));
+    let (doc, _u) = union(doc, sp(&[t1, t2]));
+    let (doc, _i) = inter(doc, sp(&[t1, t2]));
+    let (doc, _s) = insert(doc, Node::Subtract { from: t1.into(), tool: t2.into(), declare: vec![] });
+    let (doc, _s2) = insert(doc, Node::Subtract { from: t2.into(), tool: t1.into(), declare: vec![] });
+    let (doc, xs) = insert(doc, linear(a, [1.0, 0.7, 0.4], 0.6, 3));
+    let (doc, _f) = union(doc, Bodies::Family(xs.into()));
+    let m = |i| BodyRead::indexed(xs, vec![Formula::count(i)]);
+    let (doc, _fs) = union(doc, Bodies::Spelled(vec![m(0), m(1), m(2)]));
+    let (doc, _fi) = inter(doc, Bodies::Spelled(vec![m(0), m(1)]));
+    let (doc, _fsub) = insert(doc, Node::Subtract { from: m(0), tool: m(1), declare: vec![] });
+    let (doc, _aa) = union(doc, sp(&[t1, t1]));
+    let ev = eval(&doc);
+    for id in doc.ids() {
+        if let Some(NodeResult::Failed(e)) = ev.nodes.get(&id) { eprintln!("P10 failed {id}: {:?} node {:?}", e.kind, doc.node(id)); }
+    }
+    let al = alike(&doc, &ev);
+    for s in &al { eprintln!("P10 ALIKE {}", s.chars().take(400).collect::<String>()); }
+    assert!(al.is_empty());
+}
+
+#[test]
+fn p11_family_vs_spelled_overlapping() {
+    let doc = ProfileDoc::empty_derived("r1-p11", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, xs) = insert(doc, linear(a, [1.0, 0.7, 0.4], 0.6, 3));
+    let m = |i| BodyRead::indexed(xs, vec![Formula::count(i)]);
+    let (doc, f) = union(doc, Bodies::Family(xs.into()));
+    let (doc, s) = union(doc, Bodies::Spelled(vec![m(0), m(1), m(2)]));
+    let (doc, fi) = inter(doc, Bodies::Family(xs.into()));
+    let (doc, si) = inter(doc, Bodies::Spelled(vec![m(0), m(1), m(2)]));
+    let ev = eval(&doc);
+    eprintln!("P11 f {} s {} fi {} si {}", status(&ev, f), status(&ev, s), status(&ev, fi), status(&ev, si));
+    assert_eq!(renamed(&ev, f, s), names(&ev, s), "union family vs spelled");
+    assert_eq!(renamed(&ev, fi, si), names(&ev, si), "intersect family vs spelled");
+    eprintln!("P11 union rows {} intersect rows {} vol {} {}", names(&ev, s).len(), names(&ev, si).len(), volume(&ev, s), volume(&ev, si));
+}
+
+#[test]
+fn p12_subtract_of_two_members_of_one_family() {
+    let doc = ProfileDoc::empty_derived("r1-p12", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, xs) = insert(doc, linear(a, [1.0, 0.7, 0.4], 0.6, 3));
+    let m = |i| BodyRead::indexed(xs, vec![Formula::count(i)]);
+    let (doc, idx01) = insert(doc, Node::Subtract { from: m(0), tool: m(1), declare: vec![] });
+    let (doc, idx10) = insert(doc, Node::Subtract { from: m(1), tool: m(0), declare: vec![] });
+    let (doc, p0) = insert(doc, crate::eval6_placers_over_instances::part(xs, 0));
+    let (doc, p1) = insert(doc, crate::eval6_placers_over_instances::part(xs, 1));
+    let (doc, part01) = insert(doc, Node::Subtract { from: p0.into(), tool: p1.into(), declare: vec![] });
+    // the same geometry by two transforms
+    let (doc, t0) = insert(doc, fixture::xform(a, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, t1) = insert(doc, fixture::xform(a, [0.6 / (1.0f64 + 0.49 + 0.16).sqrt(), 0.42 / (1.65f64).sqrt(), 0.24 / (1.65f64).sqrt()], [0.0, 0.0, 1.0], 0.0));
+    let (doc, tr01) = insert(doc, Node::Subtract { from: t0.into(), tool: t1.into(), declare: vec![] });
+    let (doc, u01) = union(doc, Bodies::Spelled(vec![m(0), m(1)]));
+    let (doc, i01) = inter(doc, Bodies::Spelled(vec![m(0), m(1)]));
+    let (doc, ip01) = inter(doc, sp(&[p0, p1]));
+    let ev = eval(&doc);
+    for (l, id) in [("idx01", idx01), ("idx10", idx10), ("part01", part01), ("tr01", tr01), ("u01", u01), ("i01", i01), ("ip01", ip01)] {
+        let s = status(&ev, id);
+        let k = s.find("kind:").map(|i| &s[i..]).unwrap_or(&s);
+        let v = if ev.value(id).is_some() { format!(" vol {:.6}", volume(&ev, id)) } else { String::new() };
+        eprintln!("P12 {l}: {}{v}", k.chars().take(140).collect::<String>());
+    }
+}
+
+#[test]
+fn p13_judgement_log_of_a_covered_declared_contact_that_builds() {
+    for (label, mx) in [("thin", (0.9, 1.1)), ("mid", (0.75, 1.25)), ("wide", (0.5, 1.5))] {
+        let doc = ProfileDoc::empty_derived("r1-p13", Tol::witness());
+        let (doc, a) = box3(doc, (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+        let (doc, m) = box3(doc, mx, (-0.5, 1.5), (-0.5, 1.5));
+        let (doc, c) = box3(doc, (1.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+        let ev = eval(&doc);
+        let declare = editor_core::declared_pairs(&editor_core::find_flush_candidates(&ev, &doc, a, c, Tol::witness()).expect("definite"));
+        let (doc, ac) = insert(doc, Node::Union { members: sp(&[a, c]), declare: declare.clone() });
+        let (doc, amc) = insert(doc, Node::Union { members: sp(&[a, m, c]), declare: declare.clone() });
+        let (doc, am) = insert(doc, Node::Union { members: sp(&[a, m]), declare: vec![] });
+        let (doc, amc_nodecl) = insert(doc, Node::Union { members: sp(&[a, m, c]), declare: vec![] });
+        let ev = eval(&doc);
+        let st = |id| { let s = status(&ev, id); s.find("kind:").map(|i| s[i..].chars().take(90).collect()).unwrap_or(s) };
+        let log = |id| ev.value(id).map(|v| v.verdicts.as_ref().clone()).unwrap_or_default();
+        let (lac, lamc) = (multiset(&log(ac)), multiset(&log(amc)));
+        let missing: usize = lac.iter().map(|(k, n)| n.saturating_sub(lamc.get(k).copied().unwrap_or(0))).sum();
+        eprintln!("P13 {label}: amc {} | undeclared amc {} | |ac| {} |am| {} |amc| {} | A–C verdict instances absent from [A,M,C]: {missing}", st(amc), st(amc_nodecl), log(ac).len(), log(am).len(), log(amc).len());
+    }
+}
+
+#[test]
+fn p14_subtract_of_one_family_shapes() {
+    for (label, dir, sp_) in [("disjoint", [1.0, 0.0, 0.0], 2.0), ("touching", [1.0, 0.0, 0.0], 1.0), ("overlap-axis", [1.0, 0.0, 0.0], 0.5), ("overlap-diag", [1.0, 0.7, 0.4], 0.6)] {
+        let doc = ProfileDoc::empty_derived("r1-p14", Tol::witness());
+        let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+        let (doc, xs) = insert(doc, linear(a, dir, sp_, 2));
+        let m = |i| BodyRead::indexed(xs, vec![Formula::count(i)]);
+        let (doc, s) = insert(doc, Node::Subtract { from: m(0), tool: m(1), declare: vec![] });
+        let ev = eval(&doc);
+        let st = status(&ev, s);
+        let k = st.find("kind:").map(|i| st[i..].chars().take(260).collect()).unwrap_or(st);
+        eprintln!("P14 {label}: {k}");
+    }
+}
+
+#[test]
+fn p15_split_halves_words() {
+    let doc = ProfileDoc::empty_derived("r1-p15", Tol::witness());
+    let (doc, a) = block_at(doc, [0.0, 0.0, 0.0], 1.0, 1.0);
+    let (doc, plane) = insert(doc, Node::Datum(editor_core::Datum::Plane { origin: [len(0.0), len(0.0), len(0.5)], normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)] }));
+    let (doc, split) = insert(doc, Node::Split { target: a.into(), tool: plane.into() });
+    let (above, below) = (doc.output(split, 0).unwrap(), doc.output(split, 1).unwrap());
+    let sec = |side| StableName { kind: EntityKind::Face, node: split, path: vec![editor_core::RoleSeg::SectionFace { side, section: 0 }] };
+    let declare = editor_core::declare_rest(vec![(editor_core::SitedRef::new(above, sec(editor_core::SplitHalf::Above)), editor_core::SitedRef::new(below, sec(editor_core::SplitHalf::Below)))]);
+    let (doc, u) = insert(doc, Node::Union { members: Bodies::Spelled(vec![editor_core::Operand::output(split, 0).into(), editor_core::Operand::output(split, 1).into()]), declare });
+    let ev = eval(&doc);
+    eprintln!("P15 u {}", status(&ev, u));
+    let full = editor_core::Speaker::of(&doc);
+    for (n, _) in table(&ev, u).iter().take(4) { eprintln!("P15 said: {}", full.name(n)); }
+    let al = alike(&doc, &ev);
+    for s in &al { eprintln!("P15 ALIKE {}", s.chars().take(300).collect::<String>()); }
+    assert!(al.is_empty());
+}

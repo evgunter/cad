@@ -1,0 +1,34 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
+use crate::fixture;
+use editor_core::{ExtrudeSide, Node, NodeResult, ProfileDoc, RecipeNodeId};
+use fixture::{insert, len, on_frame, run};
+use geom_core::Tol;
+
+fn box3(doc: ProfileDoc, (x0, x1): (f64, f64), (y0, y1): (f64, f64), (z0, z1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(doc, [0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]]);
+    insert(doc, Node::Extrude { profile: p.into(), distance: len(z1 - z0), side: ExtrudeSide::Along })
+}
+
+#[test]
+fn base_p09_covered_declared_contact_orders() {
+    let doc = ProfileDoc::empty_derived("r1-p09", Tol::witness());
+    let (doc, a) = box3(doc, (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let (doc, m) = box3(doc, (0.5, 1.5), (-0.5, 1.5), (-0.5, 1.5));
+    let (doc, c) = box3(doc, (1.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+    let ev = run(&doc, &editor_core::EvalOptions::default());
+    let declare = editor_core::declared_pairs(&editor_core::find_flush_candidates(&ev, a, c, Tol::witness()).expect("definite"));
+    let mut doc = doc;
+    let mut ids = Vec::new();
+    for (l, o) in [("amc", [a, m, c]), ("acm", [a, c, m]), ("mac", [m, a, c]), ("cma", [c, m, a]), ("mca", [m, c, a]), ("cam", [c, a, m])] {
+        let (d, id) = insert(doc, Node::Union { members: o.iter().map(|&x| x.into()).collect(), declare: declare.clone() });
+        doc = d;
+        ids.push((l, id));
+    }
+    let ev = run(&doc, &editor_core::EvalOptions::default());
+    for (l, id) in ids {
+        let s = match ev.nodes.get(&id) { Some(NodeResult::Ok(_)) => "ok".to_string(), o => format!("{o:?}") };
+        let k = s.find("kind:").map(|i| &s[i..]).unwrap_or(&s);
+        eprintln!("BASEP09 {l}: {}", k.chars().take(160).collect::<String>());
+    }
+}
