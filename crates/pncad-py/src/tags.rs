@@ -3466,7 +3466,7 @@ pub fn interface_crossing_tag(crossing: &InterfaceCrossing) -> &'static str {
 
 /// **A selection's shape fault, as Python spells it** — the inner word
 /// of `selection_shape`.
-pub(crate) fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static str {
+pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static str {
     use pncad::document::SelectionFault as F;
     match fault {
         F::NotASelection { .. } => "not_a_selection",

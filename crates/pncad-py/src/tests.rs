@@ -4412,7 +4412,12 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             None => assert!(
                 matches!(
                     *word,
-                    "program" | "placement_step" | "mate_frame_step" | "section" | "member"
+                    "program"
+                        | "placement_step"
+                        | "mate_frame_step"
+                        | "section"
+                        | "member"
+                        | "measured"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
@@ -5216,6 +5221,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
+            "selection_fault_tag",
             "step_id_fault_tag",
         ],
     },
@@ -5678,9 +5684,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "replay_error_tag",
             "resolve_error_tag",
             "resolve_error_tag",
-            "resolve_error_tag",
-            "resolve_error_tag",
-            "resolve_error_tag",
             "revolve_error_tag",
             "seed_error_tag",
             "shell_error_tag",
@@ -6072,6 +6075,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unreadable",
         ],
         delegates: &["band_error_tag", "unmirrored_select_tag"],
+    },
+    TagEntry {
+        function: "selection_fault_tag",
+        values: &[
+            "not_a_selection",
+            "not_canonical",
+            "repeated",
+            "seat",
+            "singleton",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "shell_classify_error_tag",
@@ -6657,7 +6671,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
-    ("face", 3),
+    // `face` is also the face frame's operand slot (`operand_slot_tag`):
+    // the seat that reads one face, the entity's own word.
+    ("face", 4),
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
@@ -6730,6 +6746,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a slot reads a world
     // placement's copy.
     ("reads_world_copy", 2),
+    // One fact: a list that names one entry twice, a selection's face
+    // set (`selection_fault_tag`) as a profile's kept step ids.
+    ("repeated", 2),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
@@ -8433,18 +8452,18 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "slot_kind_tag",
-        literals: 1,
+        literals: 2,
         held_by: &[Holder::Test {
             name: "slot_kind_tags_are_stable",
-            holds: "its own word, and a kind's word as `var_kind_tag`'s",
+            holds: "its own two words, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {
         owner: "var_kind_tag",
-        literals: 8,
+        literals: 13,
         held_by: &[Holder::Test {
             name: "var_kind_tags_are_stable",
-            holds: "the eight words, and the scalar kinds against `dimension_tag`",
+            holds: "the thirteen words, and the scalar kinds against `dimension_tag`",
         }],
     },
 ];
