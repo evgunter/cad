@@ -24,6 +24,31 @@ dropped (its item closed 2026-09-08; `work.py lint` was already warning
 on it). The row waits on `#757` alone. No other change; PIPE decides
 whether it re-homes or closes. Signed (TOPO orchestrator).
 
+## 2026-10-10 — the described-net routing pass is done (orchestrator's read)
+
+The routing lane re-found the thirteen sites, and a second pass shaped at
+the first one's blind spot found nine more. Its table is in the row's
+`## Closed (routing pass)` section.
+
+- **One site is wrong, and latent.** `transform.rs`'s NURBS arms map a
+  poisoned net instead of refusing it, and a rotation can turn it into
+  the placeholder (probe-confirmed). Filed on SHELF as
+  `transform-rigid-maps-a-poisoned-net-into-the-placeholder` (P3, E).
+- **The `±∞` note is a real but narrow gap.** Filed on FLUX as
+  `net-state-reads-an-infinite-net-as-described` (P3, M, design).
+- **Every other site refuses or escalates downstream.** Two exceptions:
+  the census reach arm, which is S350's lane, and census arm 1, which is
+  correct once S350 lands.
+- `r2_probes.rs`'s stale header was fixed as a drive-by.
+
+The lane's stated blind spots:
+- 137 `Surface::Nurbs` arms were triaged, not traced one by one.
+- Curve-side nets were not covered (`NurbsCurve3` has no `net_state`).
+- `props/quad_lane` was judged by reading only.
+
+The curve-side gap is a class, so it is filed on FLUX as
+`nurbs-curve-has-no-net-state-door` (P3, M). The other two are
+triage depth, not known instances.
 ## 2026-10-10 — picked up; the D10 hold checked; the slate re-read
 
 A PIPE orchestrator holds the track (`status: active`).
