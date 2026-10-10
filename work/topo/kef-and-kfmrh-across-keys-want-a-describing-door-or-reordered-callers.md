@@ -164,7 +164,7 @@ What waits:
   (`crates/topo/src/boolean/ops.rs`) derives after the zip and merge,
   where the dihedral decides `Intersection`, `TangentIntersection` or
   a chart image. Deriving that at the kill is the restatement deriving
-  kind, `restatement-derives-each-moved-edges-kind`, held on D10.
+  kind, `restatement-derives-each-moved-edges-kind`, released from the D10 hold by INTENT stage 4 E (2026-10-09) for a designer pass.
 - **The coplanar merge refuses the twin on curved survivors.**
   `merge_group` through `kef_describing` with
   `kef_carried_redescriptions` certifies every planar kill, and
@@ -215,6 +215,29 @@ What waits:
   face's key (a chart image on the other face: a change of kind, the
   D10-held restatement), or a chartless arm that also leaves a strand
   on a chartless face unasked mid-op. Which is a design question.
+- **The open fork (PR 4562, 2026-10-10).** Every caller stays on
+  `_minting` (option (c) of both questions below) until the fork is
+  ruled. Both questions ask how an edge a kill moves gets described,
+  so they go to the designers with `restatement-derives-each-moved-edges-kind`:
+  - **F1, the merge on curved survivors.** (a) `merge_group` lists a
+    re-derived `Chart(kept key)` for each same-key chart image, which
+    settles 60 of the 115 calls. The other 55 wait on the zip's
+    retiring kills being described. (b) Planar survivors take the twin
+    and curved ones keep `_minting` as a named, counted residue.
+    (c) It stays on `_minting`.
+  - **F2, chartless transients against the strand rule.** (a) The
+    chartless arm also leaves unasked a strand onto or off a chartless
+    face mid-op, and agreed part 3's scope-close check catches it at
+    rest. This reverses the ordering PR 4204 pinned and narrows ruling
+    1's "refuse a strand". (b) While a face is transient, the edges it
+    borders are described as chart images on the neighbour: a change
+    of kind at mint, which is the restatement. (c) `cut_core`, the
+    blend, the zip's fuse and `split_side` stay on `_minting`.
+  - Two smaller moves are measured and not built. `split_side`
+    certifies through the twin with carried restatements on 24 of 24
+    calls. `fuse_by_joint`'s hole arm is a same-key `kfmrh` (no ci row
+    reaches it), so `kfmrh_describing(face, divided, &[], tol)` would
+    be the same move.
 - Field privacy and the vouched-move module, and tier 1's naming check
   with D1's text, need every operator to refuse a strand, so they
   follow the absorption.
