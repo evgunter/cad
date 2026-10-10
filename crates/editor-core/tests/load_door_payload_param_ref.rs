@@ -1,9 +1,8 @@
 //! **A PAYLOAD expression reads a minted variable, and a live one at
 //! its kind, at EVERY door** (spec D6, `Doc::var_read_faults`).
 //!
-//! The expressions no slot addresses — a `Node::Measure`'s
-//! `MeasureExpr` value leaves and a `Node::Assertion`'s bound
-//! (`node::payload_exprs`) — ask the same one predicate the slot
+//! The expressions no slot addresses — a `Node::Assertion`'s value and
+//! its bound (`node::payload_exprs`) — ask the same one predicate the slot
 //! expressions ask. The two doors only name its answer: the edit door
 //! as `EditError::PayloadUnknownVarName` (a name it cannot lower) and
 //! `EditError::PayloadVarKind`, the load door as
@@ -15,12 +14,12 @@
 //! predicate dropped at either door reds the fact's row and the panic
 //! says which door let the document through.
 //!
-//! What is NOT here: the payload expressions' DIMENSIONS, which are
-//! fixed at construction — a `MeasureExpr` runs the F1 checker at every
-//! constructor, and an assertion's bound is checked against its
-//! measure's dimension (`Node::assertion_bound_fault`, the load door's
+//! What is NOT here, beyond the one row that meets it: the payload
+//! expressions' DIMENSIONS — an assertion reads its value and its bound
+//! at their variables' kinds, and the two are checked against each
+//! other (`Node::assertion_bound_fault`, the load door's
 //! `SnapshotError::AssertionBound`). This suite is the param TABLE's
-//! half of the same address, and nothing here re-checks those.
+//! half of the same address.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -29,8 +28,8 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
-    RecipeNodeId, SlotId, SnapshotError, VarName, apply, load, save,
+    Dimension, DocEdit, EditError, Formula, FreeVar, Node, PersistError, ProfileDoc, RecipeNodeId,
+    SlotId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
@@ -81,31 +80,26 @@ fn with_depth() -> (ProfileDoc, VarName) {
     (doc, name)
 }
 
-/// [`with_depth`] plus a measure whose expression reads `depth` — and
-/// carries a LITERAL beside it, `-0.0`.
+/// [`with_depth`] plus an assertion whose value reads `depth` — and
+/// whose bound is a LITERAL, `-0.0`.
 ///
 /// The literal is what gives the round-trip row something only
 /// `bit_eq` can see: `-0.0 == 0.0` is true in IEEE arithmetic and the
 /// two have different bits, so a payload channel whose comparison had
 /// silently degraded to `==`, or a writer that normalised the sign of
 /// zero on the way out, passes on every other value and fails on this
-/// one. `MeasureExpr::add` keeps both leaves at `Length`, so the F1
-/// checker admits it and the value the measure reports is unchanged.
-fn measuring_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
+/// one.
+fn asserting_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, name) = with_depth();
-    let expr = MeasureExpr::add(
-        MeasureExpr::value(Formula::named(name.clone(), Dimension::Length)),
-        MeasureExpr::value(len(-0.0)),
-    )
-    .expect("two length leaves add");
-    let (doc, measure) = insert(
+    let (doc, assertion) = insert(
         doc,
-        Node::Measure {
-            expr,
-            refs: Vec::new(),
+        Node::Assertion {
+            value: Formula::named(name.clone(), Dimension::Length),
+            bound: len(-0.0),
+            dir: editor_core::AssertionDir::AtLeast,
         },
     );
-    (doc, name, measure)
+    (doc, name, assertion)
 }
 
 /// The variable removed from the wire and from its mint log, out from
@@ -130,7 +124,7 @@ fn retype_to_angle(text: &str, name: &VarName) -> String {
     })
 }
 
-/// **A measured expression reading an undeclared parameter — both
+/// **An assertion's value reading an undeclared parameter — both
 /// doors.** The edit door refuses the node as it is written; the load
 /// door refuses the file whose declaration is gone from under it.
 ///
@@ -140,17 +134,18 @@ fn retype_to_angle(text: &str, name: &VarName) -> String {
 /// the same node, and this is that sentence with the load door's
 /// answer in it.
 #[test]
-fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
-    let (doc, name, measure) = measuring_depth();
+fn an_assertion_value_reading_an_undeclared_parameter_refuses_to_load() {
+    let (doc, name, measure) = asserting_depth();
 
     // The edit door, over the node as written.
     let missing = VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Measure {
-                expr: MeasureExpr::value(Formula::named(missing.clone(), Dimension::Length)),
-                refs: Vec::new(),
+            node: Box::new(Node::Assertion {
+                value: Formula::named(missing.clone(), Dimension::Length),
+                bound: len(0.0),
+                dir: editor_core::AssertionDir::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -172,14 +167,14 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     }
 }
 
-/// **A measured expression reading a parameter at another dimension
-/// than it is declared with — both doors.** The edit door cannot write
-/// the pairing at all: a variable's kind is fixed, so the retyping is
-/// what it refuses; the load door reads the broken pairing off a file
-/// whose declaration was retyped after the fact.
+/// **An assertion's value retyped under its bound — both doors.** The
+/// edit door cannot write it at all: a variable's kind is fixed, so the
+/// retyping is what it refuses; the load door reads the value at its
+/// new kind against a bound of the old one off a file whose declaration
+/// was retyped after the fact.
 #[test]
-fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_load() {
-    let (doc, name, measure) = measuring_depth();
+fn an_assertion_value_retyped_under_its_bound_refuses_to_load() {
+    let (doc, name, measure) = asserting_depth();
 
     match apply(
         &doc,
@@ -203,17 +198,13 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     match load(&retype_to_angle(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
+        Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             node,
-            var,
-            declared,
-            referenced,
+            measured,
+            bound,
         })) => {
-            assert_eq!((node.id(), var.id()), (measure, id_of(&doc, &name)));
-            assert_eq!(
-                (declared, referenced),
-                (editor_core::VarKind::Angle, Dimension::Length)
-            );
+            assert_eq!(node.id(), measure);
+            assert_eq!((measured, bound), (Dimension::Angle, Dimension::Length));
         }
         other => panic!("the load door must refuse the broken pairing, got {other:?}"),
     }
@@ -225,15 +216,8 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
 #[test]
 fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     let (doc, name) = with_depth();
-    let (doc, measure) = insert(
-        doc,
-        Node::Measure {
-            expr: MeasureExpr::value(len(1.0)),
-            refs: Vec::new(),
-        },
-    );
     let bound = |n: &VarName| Node::Assertion {
-        measure: measure.into(),
+        value: len(1.0),
         bound: Formula::named(n.clone(), Dimension::Length),
         dir: editor_core::AssertionDir::AtLeast,
     };
@@ -264,11 +248,11 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
 }
 
 /// **A well-formed payload reference round-trips.** The walk refuses a
-/// broken pairing and nothing else: a measure reading a declared
+/// broken pairing and nothing else: an assertion reading a declared
 /// parameter at its declared dimension saves, loads, and comes back
 /// bit for bit.
 ///
-/// The payload carries `-0.0` beside the reference ([`measuring_depth`])
+/// The payload carries `-0.0` beside the reference ([`asserting_depth`])
 /// so that the BITS are what this row reads. Signed zero is the one
 /// f64 value for which `==` and bit equality disagree, so a `bit_eq`
 /// that had degraded to `==` on the payload channel — or a writer that
@@ -277,7 +261,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
 /// so the panic says WHICH half broke.
 #[test]
 fn a_payload_reference_the_table_answers_round_trips() {
-    let (doc, _, measure) = measuring_depth();
+    let (doc, _, measure) = asserting_depth();
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let loaded = load(&text, Tol::witness()).expect("the fixture loads").doc;
     assert!(
@@ -290,12 +274,12 @@ fn a_payload_reference_the_table_answers_round_trips() {
     );
 }
 
-/// Whether the measure node's payload still carries a NEGATIVE zero —
+/// Whether the assertion's payload still carries a NEGATIVE zero —
 /// read off the loaded document rather than off the wire, because the
 /// claim is about the value that reaches memory, and by BITS, which is
 /// the only comparison that can tell `-0.0` from `0.0`.
 fn signed_zero_leaf(doc: &editor_core::ProfileDoc, measure: RecipeNodeId) -> bool {
-    let node = doc.node(measure).expect("the measure survived");
+    let node = doc.node(measure).expect("the assertion survived");
     editor_core::node::payload_exprs(node)
         .into_iter()
         .flatten()
@@ -332,9 +316,10 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
     .doc;
     let (doc, _) = insert(
         doc,
-        Node::Measure {
-            expr: MeasureExpr::value(Formula::named(name.clone(), Dimension::Length)),
-            refs: Vec::new(),
+        Node::Assertion {
+            value: Formula::named(name.clone(), Dimension::Length),
+            bound: len(1.0),
+            dir: editor_core::AssertionDir::AtLeast,
         },
     );
 
@@ -353,37 +338,19 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
     }
 }
 
-/// **The walk order again, at the other edge**: a node broken in a
-/// PAYLOAD expression and STRUCTURALLY at once reads the PAYLOAD
-/// refusal, because both param-ref walks run before
-/// `persist::check::Walk::OperandRead` and `Walk::Snapshot`.
-///
-/// The fixture is an assertion whose bound reads `depth` and whose
-/// target is the EXTRUDE's body — not a measured value, which the
-/// operand walk refuses by kind as `SnapshotError::SlotVarKind` —
-/// with `depth` undeclared in the same file. Both faults are real and only one sentence comes back;
-/// this row says which, so moving the payload walk behind the
-/// structural walk changes a diagnosis with a row on it rather than
-/// silently.
-///
-/// It also says the edit door could not have produced the file: the
-/// same assertion offered to `InsertNode` is refused, at the target's
-/// kind.
+/// **An assertion's value that is no value at all — both doors**: a
+/// body is read at the bound's dimension, which it does not have, so
+/// the edit door refuses the node and the load door refuses a file
+/// whose value was forged to the extrude's body.
 #[test]
-fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
+fn an_assertion_value_that_is_a_body_refuses() {
     let (doc, name, extrude) = with_depth_and_extrude();
-    let (doc, measure) = insert(
-        doc,
-        Node::Measure {
-            expr: MeasureExpr::value(len(1.0)),
-            refs: Vec::new(),
-        },
-    );
+    let body = doc.output(extrude, 0).expect("a body");
     let (doc, assertion) = insert(
         doc,
         Node::Assertion {
-            measure: measure.into(),
-            bound: Formula::named(name.clone(), Dimension::Length),
+            value: Formula::named(name.clone(), Dimension::Length),
+            bound: len(1.0),
             dir: editor_core::AssertionDir::AtLeast,
         },
     );
@@ -393,8 +360,8 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: extrude.into(),
-                bound: Formula::named(name.clone(), Dimension::Length),
+                value: Formula::var(body, Dimension::Length),
+                bound: len(1.0),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
             fresh: Vec::new(),
@@ -402,36 +369,24 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::SlotVarKind {
-            expected: editor_core::SlotKind::Measured,
-            ..
-        }) => {}
-        other => panic!("the edit door must refuse an assertion on a non-measure, got {other:?}"),
+        Err(EditError::PayloadVarKind { .. }) => {}
+        other => panic!("the edit door must refuse a body as a value, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
-        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
         assert_eq!(
             *field,
-            serde_json::json!(
-                doc.output(measure, 0)
-                    .expect("a measure defines its value")
-                    .0
-            ),
-            "the surgery is aimed at the assertion's target"
+            serde_json::json!(id_of(&doc, &name).0),
+            "the surgery is aimed at the assertion's value"
         );
-        *field = serde_json::json!(doc.output(extrude, 0).expect("a body").0);
-        crate::wire::wire_unmint(wire, name.as_str());
+        *field = serde_json::json!(body.0);
     });
-
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
-            assert_eq!((node.id(), var), (assertion, id_of(&doc, &name)));
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind { node, var, .. })) => {
+            assert_eq!((node.id(), var.id()), (assertion, body));
         }
-        other => panic!(
-            "a node broken in a payload AND structurally must read the PAYLOAD walk's refusal — \
-             both read walks run before the operand and structural walks. Got {other:?}"
-        ),
+        other => panic!("the load door must refuse a body as a value, got {other:?}"),
     }
 }

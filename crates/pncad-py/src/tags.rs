@@ -133,12 +133,11 @@ use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
-    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck,
-    ParseError, PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
-    ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
-    Subgroup, Unplaced, UpdateError,
+    Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
+    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -569,8 +568,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Member(_) => "member",
         S::Input => "input",
         S::Of => "of",
-        S::Measure => "measure",
         S::At => "at",
+        S::Body => "body",
     }
 }
 
@@ -608,6 +607,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
         EditError::PartHalfPort { .. } => "part_half_port",
+        EditError::ReadsWorldCopy { .. } => "reads_world_copy",
+        EditError::MeasuresWorldCopy { .. } => "measures_world_copy",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -620,8 +621,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadVarKind { .. } => "payload_var_kind",
         EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
         EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
-        EditError::MeasureMalformed { .. } => "measure_malformed",
-        EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::ConstructionReadsObserved { .. } => "construction_reads_observed",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
         EditError::UnknownVar { .. } => "unknown_var",
@@ -674,7 +674,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // The product-root invariants tag per FAULT,
         // not per wrapper: which invariant broke is what a caller
         // branches on.
-        EditError::Roots(fault) => root_fault_tag(fault),
         EditError::OffsetOnNonInstance { .. } => "offset_on_non_instance",
         EditError::GaugeOnNonPlaced { .. } => "gauge_on_non_placed",
         EditError::GaugeNotLive { .. } => "gauge_not_live",
@@ -785,25 +784,6 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
         McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
         McRefusal::NoSamples => "no_samples",
         McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
-    }
-}
-
-/// The stable tag for a measured expression the construction door
-/// refuses.
-///
-/// One arm today, and the tag exists anyway for the reason every tag
-/// here does: `ref_index_out_of_range` is what a caller branches on,
-/// and a second arm added kernel-side breaks this match rather than
-/// arriving in Python untagged.
-///
-/// The SAME fault reaches the edit door as
-/// `EditError::MeasureMalformed`, which carries its own tag
-/// (`measure_malformed`) because what refused there is the EDIT and
-/// the fault is its payload. Two tags for one fault, and they answer
-/// different questions: which door said no, and what was wrong.
-pub fn measure_node_fault_tag(fault: &MeasureNodeFault) -> &'static str {
-    match fault {
-        MeasureNodeFault::RefIndexOutOfRange { .. } => "ref_index_out_of_range",
     }
 }
 
@@ -928,17 +908,6 @@ pub fn band_field_tag(field: &BandField) -> &'static str {
     }
 }
 
-/// The stable tag for a product-root invariant refusal — shared by
-/// every door that carries a `RootFault`.
-pub fn root_fault_tag(fault: &RootFault) -> &'static str {
-    match fault {
-        RootFault::NotLive { .. } => "root_not_live",
-        RootFault::Duplicate { .. } => "root_duplicate",
-        RootFault::Ancestor { .. } => "root_ancestor",
-        RootFault::Uncovered { .. } => "root_uncovered",
-    }
-}
-
 /// The stable tag for a node's evaluation refusal: one word per
 /// [`NodeErrorClass`], so the word is read off the class a refusal
 /// projects to and never off its payload.
@@ -986,7 +955,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        C::MeasureMalformed => "measure_malformed",
         // Its own tag rather than `measure_unsupported`'s: the
         // recourse is "select a body or a face", not "this carrier
         // pair has no closed form".
@@ -1278,7 +1246,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // kernel mints; neither is an arm of an enum this file can
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
-        NodeErrorKind::MeasureMalformed(inner) => Some(measure_node_fault_tag(inner)),
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
@@ -1293,12 +1260,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
 /// `EditError.inner_variant`, beside [`edit_error_tag`]'s `variant`.
 ///
 /// [`node_inner_kind_tag`]'s rule at the other carrier, and the same
-/// `None`s: an arm with no inner refusal, and `Roots`, whose word is
-/// already the fault's through [`root_fault_tag`].
+/// `None`: an arm with no inner refusal.
 pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
     match err {
         EditError::ProfileProgramRefused { refusal, .. } => Some(program_refusal_tag(refusal)),
-        EditError::MeasureMalformed { fault, .. } => Some(measure_node_fault_tag(fault)),
         EditError::Dimension(inner) => Some(expr_dimension_error_tag(inner)),
         EditError::InvalidDistribution { fault, .. } => Some(distribution_fault_tag(fault)),
         // The direction door's refusal is a whole `NodeErrorKind`, so
@@ -1312,7 +1277,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // so its word is the fault's — the recourse a caller branches
         // on is the mate fault's own.
         EditError::MateRefused { fault, .. } => Some(mate_fault_tag(fault)),
-        EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
@@ -1332,6 +1296,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
         EditError::PartHalfPort { .. } => None,
+        EditError::ReadsWorldCopy { .. } => None,
+        EditError::MeasuresWorldCopy { .. } => None,
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -1339,7 +1305,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SlotUnknownVarName { .. } => None,
         EditError::PayloadUnknownVarName { .. } => None,
         EditError::PayloadVarKind { .. } => None,
-        EditError::AssertionTarget { .. } => None,
+        EditError::ConstructionReadsObserved { .. } => None,
         EditError::AssertionDimension { .. } => None,
         EditError::SlotVarKind { .. } => None,
         EditError::ContinuousVarCannotBeCount { .. } => None,
@@ -2079,6 +2045,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
         SnapshotError::PartHalfPort { .. } => "part_half_port",
+        SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
+        SnapshotError::MeasuresWorldCopy { .. } => "measures_world_copy",
         SnapshotError::ReadCycle { .. } => "read_cycle",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
@@ -2098,10 +2066,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DefinitionCycle { .. } => "definition_cycle",
         SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
-        // The product-root list's own invariant vocabulary, carried
-        // through: a root fault is the same fact here as at the edit
-        // door, so it keeps the tag it has there.
-        SnapshotError::Roots(fault) => root_fault_tag(fault),
         // A gauge reference naming a live non-gauge, or a gauge that
         // would sit on itself — the edit door's two words for it.
         SnapshotError::NotAGauge { .. } => "not_a_gauge",
@@ -2111,10 +2075,9 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
-        SnapshotError::MeasureRefs { .. } => "measure_refs",
         SnapshotError::InputList { .. } => "input_list",
         SnapshotError::DuplicateInput { .. } => "duplicate_input",
-        SnapshotError::AssertionTarget { .. } => "assertion_target",
+        SnapshotError::ObservedRead { .. } => "observed_read",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
     }
@@ -2329,13 +2292,12 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::UnknownNode => "unknown_node",
         K::RootFailed => "root_failed",
         K::RootPoisoned => "root_poisoned",
-        K::PlacedUnderTwoRoots => "placed_under_two_roots",
-        K::NoBodyRoots => "no_body_roots",
+        K::EmptyProduct => "empty_product",
+        K::StrandedPlacement => "stranded_placement",
         K::Unplaced => "unplaced",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
-        K::Naming => "product_naming",
         K::ContactLineage => "contact_lineage",
     }
 }
@@ -2543,7 +2505,7 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 /// collapsing every gather refusal to one tag: a caller branching on
 /// "why did my assembly not gather" wants the gather's own answer,
 /// and the wrapper adds nothing they can act on. The two namespaces
-/// do not collide — the gather's tags are bare (`no_body_roots`), the
+/// do not collide — the gather's tags are bare (`empty_product`), the
 /// gate's carry their own words.
 ///
 /// The two MINT arms each carry a LIST, so neither can delegate: a
@@ -2643,6 +2605,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UnknownCutNode { .. } => "unknown_cut_node",
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
         SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornGroup { .. } => "torn_group",
         SplitError::SeveredGauge { .. } => "severed_gauge",
@@ -2661,6 +2624,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
+        SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
@@ -2678,7 +2642,8 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
     match err {
         InlineError::UnknownNode { .. } => "unknown_node",
         InlineError::NotAnInstance { .. } => "not_an_instance",
-        InlineError::InstanceConsumed { .. } => "instance_consumed",
+        InlineError::PlacementPoseCrosses { .. } => "placement_pose_crosses",
+        InlineError::InstanceReadUncarried { .. } => "instance_read_uncarried",
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",

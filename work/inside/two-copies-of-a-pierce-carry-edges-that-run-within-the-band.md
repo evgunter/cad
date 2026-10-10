@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P1
 cost: M
-refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start, near-tangent-boolean-results-ship-with-an-escalated-tier-3-census, a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start, 4335, 4026]
 ---
 
 

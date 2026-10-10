@@ -176,26 +176,34 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
 /// the old one once the new run has landed.
 #[test]
 fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
-    use pncad::document::{Dimension, Formula, FreeVar, MeasureExpr, VarName};
+    use pncad::document::{Dimension, MeasurePrimitive, Node, SitedRef};
+    use pncad::prelude::StableName;
+    use pncad::select::{CapEnd, EntityKind, RoleSeg};
     use viewer::props::{Computed, SlotValue};
     use viewer::session::{DocSession, SessionOp};
     use viewer::tree::Readout;
 
     let tol = Tol::witness();
-    let gap = VarName::from_static("gap");
-    let mut doc = common::declared(
-        "measure-landed",
-        &gap,
-        FreeVar::continuous(Dimension::Length, 0.01),
-        tol,
-    );
+    // The plate is `thickness / 2` deep, and the measure reads it back.
+    let (mut doc, _, extrude) = common::parametric_plate(tol);
+    let cap = |end| {
+        SitedRef::new(
+            extrude,
+            StableName {
+                kind: EntityKind::Face,
+                node: extrude,
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
+    };
     let measure = common::insert_into(
         &mut doc,
-        Node::measure(
-            MeasureExpr::value(Formula::named(gap.clone(), Dimension::Length)),
-            Vec::new(),
-        )
-        .expect("a value measure references nothing"),
+        Node::Measure {
+            primitive: MeasurePrimitive::Distance {
+                a: cap(CapEnd::Start),
+                b: cap(CapEnd::End),
+            },
+        },
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -211,11 +219,11 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
             dimension: Dimension::Length,
         }))
     };
-    let landed = reading(0.01);
+    let landed = reading(0.004);
     assert_eq!(measured(&session), landed);
 
     session.perform(SessionOp::SetVariable {
-        var: common::var_of(session.committed_doc(), gap.as_str()),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.012),
     });
     assert!(session.busy(), "the premise: the document has moved on");
@@ -225,5 +233,5 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
         "the row is the landed picture's until the next one lands"
     );
     session.pump();
-    assert_eq!(measured(&session), reading(0.012));
+    assert_eq!(measured(&session), reading(0.006));
 }

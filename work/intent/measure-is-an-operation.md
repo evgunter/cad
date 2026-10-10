@@ -2,12 +2,14 @@
 id: measure-is-an-operation
 kind: issue
 title: D10 stage 2 PR D: a Measure is one primitive defining one observed scalar; its arithmetic is a Defined variable, an Assertion reads a scalar variable, and a construction reading an observed variable refuses
-status: parked
+status: closed
 opened: 2026-10-07
 priority: P0
 cost: M
-blocked_on: [the-product-is-an-explicit-list]
 refs: [a-construction-reads-a-measured-value, error-design-e3-calls-a-measure-a-sink]
+pr: 4355
+branch: intent/s2-d-measure
+closed: 2026-10-10
 ---
 
 INTENT stage 2, PR D. Spec: `docs/INTENT-STAGE2-SPEC.md` §5.
@@ -22,4 +24,4 @@ A measure's output is observed. Only an assertion reads an observed variable, di
 
 ## Carried from unit B (PR 4342)
 
-Fold `NodeErrorKind::UnresolvedSite` into `UnresolvedRead` when a measure's `at` becomes a read.
+Fold `NodeErrorKind::UnresolvedSite` into `UnresolvedRead` when a measure's `at` becomes a read. Moved to unit E (`select-defines-face-and-edge-variables`): a measure's refs stay `SitedRef` until E (spec §5), so in D a site is still a node, not a read.

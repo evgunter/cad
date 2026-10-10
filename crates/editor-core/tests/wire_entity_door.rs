@@ -41,7 +41,7 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use editor_core::measure::{MeasureExpr, MeasurePrimitive};
+use editor_core::measure::MeasurePrimitive;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SitedRef, StableName, evaluate,
@@ -216,13 +216,10 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
         } else {
             vertex
         };
-        let (doc, measure) = insert(
-            doc,
-            Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-                vec![SitedRef::at_mint(name), SitedRef::at_mint(face)],
-            )
-            .expect("both indices in range"),
+        let (doc, measure) = crate::fixture::measure_node(
+            &doc,
+            MeasurePrimitive::MinClearance { a: 0, b: 1 },
+            vec![SitedRef::at_mint(name), SitedRef::at_mint(face)],
         );
         let got = refusal(&doc, measure);
         assert!(

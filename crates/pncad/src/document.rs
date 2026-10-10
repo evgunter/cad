@@ -110,8 +110,8 @@ pub use editor_core::cascade_delete_order;
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
+    PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
     declare_continuation, declare_rest,
 };
 
@@ -133,10 +133,13 @@ pub use editor_core::{Label, LabelFault};
 pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
-// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
-// built from, so a caller who cannot spell them cannot author one at
-// all; `AssertionDir` is a field of `Node::Assertion` for the same
-// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
+// `Recording::measure`) records one measure per primitive and answers
+// their outputs as `Measured` (in a `MeasureOutcome`). A caller who
+// cannot spell them cannot author one at all; `AssertionDir` is a field
+// of `Node::Assertion` for the same reason. `Observed` and
+// `ObservedRefusal` are what `Evaluation::reading` answers a measured
+// value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
@@ -157,8 +160,9 @@ pub use editor_core::{Placement, Step};
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
+    MeasureUnavailableAt, Measured, NotAFaceName, Observed, ObservedRefusal, SitedFace, SitedRef,
+    UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.
@@ -364,16 +368,17 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
-// Explicit product roots: the ordered root list is read through
-// `Doc::roots` and set through
-// `DocEdit::SetRoots`; `product` is the whole-document gather those
-// roots name, and `RootFault` is the shared invariant refusal both
-// the edit and persistence doors carry. `OwnSpace` is one unplaced
-// group's own space, which a `Product` carries beside the world for
-// the at-rest gate to check, and `own_spaces` gathers every one.
+// The world (A10): the product is every copy a world placement
+// (`Node::PlaceInWorld`) defines, in the placements' document order,
+// read through `Doc::placements` and authored by `DocEdit::place` —
+// the one door that places, and the one Python's `Doc.place` is.
+// `product` is the whole-document gather of those copies. `OwnSpace`
+// is one unplaced group's own space, which a `Product` carries beside
+// the world for the at-rest gate to check, and `own_spaces` gathers
+// every one.
 pub use editor_core::{
-    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    RootFault, SourceFinding, own_spaces, product, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
+    own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -402,8 +407,7 @@ pub use editor_core::{
 // offset `Placement` — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
-// — the typed refusal every door carries, the way `RootFault` is
-// carried above. `member_of` is A11's member vocabulary itself, which
+// — the typed refusal every door carries. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
 // solve places (`Member` is its answer); `member_reading` is the same
 // walk with the name it reached at the member's instance, and
