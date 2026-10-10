@@ -3277,6 +3277,12 @@ mod wiring_rows {
         ) {
             return Err("analytic_rung3 is not `edge_nurbs::analytic_rung3`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.pair,
+            crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("pair is not `edge_nurbs::nurbs_pair_limbs`");
+        }
         Ok(())
     }
 
@@ -3285,7 +3291,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `seeded_foot` and `analytic_rung3`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `seeded_foot` and `analytic_rung3`"
         );
     }
 
@@ -3296,7 +3302,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than its four routines"
         );
     }
 
@@ -3306,7 +3312,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Probe>(),
             Ok(()),
-            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<Probe>::certified()` holds something other than its four routines"
         );
     }
 
@@ -3315,7 +3321,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
+            "`NurbsLane::<Interval>::certified()` holds something other than its four routines"
         );
     }
 }
