@@ -90,7 +90,13 @@ fn widths_along(mut c: MappedCurve<Interval>, name: &str) -> Vec<f64> {
 /// **A segment's split chain stays at one evaluation's width**, for a
 /// line and an arc, near and far, over 64 nested splits of three
 /// chains: each ceiling is 4× the worst width this form measures over
-/// its chain, rounded up. A segment re-derived through its own
+/// its chain, rounded up, and the width's growth with the split count
+/// is bounded too (flat far out, linear near the origin).
+///
+/// Eight rows are evidence: re-deriving the stored ends at each split
+/// fails them. Four are regression guards that the re-derived form also
+/// passed: the line's dyadic `(0, ½)` chain near and far (exact either
+/// way) and the near arc's `(0.3, 0.7)` and `(a, 1)` chains. A segment re-derived through its own
 /// evaluation at each split compounds: the line's `lerp` re-reads both
 /// ends, so its width multiplies per split (9e-11 after 8 `(0.3, 0.7)`
 /// splits far out, metres after 64), and the arc's re-turned start adds
@@ -125,8 +131,43 @@ fn nested_segment_splits_stay_at_one_evaluations_width() {
                  {ceiling:e}"
             );
         }
+        // Growth with the split count, which a ceiling at N ≤ 64 alone
+        // does not see: far out the width stays at the coordinates' one
+        // rounding, so 64 splits are within 2× of 8 (floored at that
+        // rounding, where an exact dyadic chain is still 0 at 8); near
+        // the origin it grows at most linearly from the first split, by
+        // the range start's one rounding per split levered by the
+        // segment's scale.
+        if at == FAR {
+            let floor = ONE_ROUNDING_FAR.max(widths[8]);
+            assert!(
+                widths[64] <= 2.0 * floor,
+                "{kind} at {at:?}: {name} grew from {:e} at 8 splits to {:e} at 64",
+                widths[8],
+                widths[64]
+            );
+        } else {
+            for (n, &w) in widths.iter().enumerate().skip(1) {
+                #[allow(clippy::cast_precision_loss)]
+                let linear = widths[1].max(widths[0]) + PER_SPLIT_NEAR * (n - 1) as f64;
+                assert!(
+                    w <= linear,
+                    "{kind} at {at:?}: after {n} splits of {name} the width {w:e} is over the \
+                     linear bound {linear:e}"
+                );
+            }
+        }
     }
 }
+
+/// The coordinates' one rounding a thousand metres out: two ulps of
+/// 1000, the width a single evaluation there carries.
+const ONE_ROUNDING_FAR: f64 = 2.3e-13;
+
+/// The near rows' per-split growth ceiling: 1.5e-15, about twice the
+/// steepest measured slope (the arc's `(a, 1)` chain, 6.9e-16 per
+/// split).
+const PER_SPLIT_NEAR: f64 = 1.5e-15;
 
 /// Every whole source at `lift`'s scalar, each beside the unrestricted
 /// form main evaluated it in, spelled out here: a placed segment is
@@ -249,4 +290,55 @@ fn a_whole_range_evaluates_as_the_unrestricted_source_bit_for_bit() {
         )
     });
     assert!(at_sym.is_empty(), "Sym<Interval>: {at_sym:?}");
+}
+
+/// **An extension composes in the range as a restriction does.** A
+/// split child `[0.2, 0.6]` extended forward (`s1 > 1`) or backward
+/// (`s0 < 0`), as `edge_join` restricts a kept edge over a joined span,
+/// evaluates as the whole source at the composed parameter.
+#[test]
+fn extensions_compose_in_the_range() {
+    let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.0));
+    let sources = [
+        SketchSegment::Line {
+            a: Point2::new(1.0, 0.0),
+            b: Point2::new(-1.0, 0.5),
+        },
+        SketchSegment::Arc {
+            a: Point2::new(1.0, 0.0),
+            b: Point2::new(-1.0, 0.0),
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: PI,
+            },
+        },
+    ];
+    for segment in sources {
+        let whole = MappedCurve::whole(MappedSource::PlacedSegment { segment, place });
+        let child = whole.restrict(0.2, 0.6);
+        // Joined with [0.6, 0.8]: s1 = 1.5. Joined with [0, 0.2]: s0 = −0.5.
+        let forward = child.restrict(0.0, 1.5);
+        let backward = child.restrict(-0.5, 1.0);
+        for i in 0..=8 {
+            let s = f64::from(i) / 8.0;
+            let d = forward.eval(s).distance(whole.eval(0.2 + 0.6 * s));
+            assert!(d < 1e-15, "forward s = {s}: {d:e}");
+            let d = backward.eval(s).distance(whole.eval(0.6 * s));
+            assert!(d < 1e-15, "backward s = {s}: {d:e}");
+        }
+        assert_eq!(
+            forward.range.start(),
+            Some(0.2),
+            "forward keeps the child's start"
+        );
+        let start = backward
+            .range
+            .start()
+            .expect("a restricted range has a start");
+        assert!(
+            start.abs() < 1e-16,
+            "backward reaches the whole's start: {start:e}"
+        );
+    }
 }

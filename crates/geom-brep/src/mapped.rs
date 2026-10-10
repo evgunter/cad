@@ -109,7 +109,11 @@ impl<T: Real> SketchSegment<T> {
     ///
     /// Line: `lerp(a, b, s)`. Arc: `a` rotated about the centre by
     /// `s·sweep`, [`Arc2::point_from`] — exact at `s = 0`, within the
-    /// rotation's rounding of `b` at `s = 1`. Endpoint authority is
+    /// rotation's rounding of `b` at `s = 1`. Those are the AUTHORED
+    /// ends: a split edge evaluates this at its range's `u`
+    /// ([`MappedCurve::eval`]), so its own ends carry that parameter's
+    /// rounding (`work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`).
+    /// Endpoint authority is
     /// held elsewhere: the topology's endpoints are the vertices, never
     /// this evaluation, and certification meters the evaluation
     /// against the carrier at every sample, `s = 1` included.

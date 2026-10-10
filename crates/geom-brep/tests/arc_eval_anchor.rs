@@ -5,9 +5,9 @@
 //! f64 row can tell them apart; what separates them is the enclosure
 //! at `T = Interval`. The center-anchored form mentions the center
 //! twice and interval arithmetic cannot cancel it, so the result
-//! carries `2·width(center)`. `restrict` re-derives its endpoints
-//! through `eval`, so an evaluation's width is stored back into the
-//! description and successive splits compound it.
+//! carries `2·width(center)`. A split edge stores no evaluation — it
+//! narrows the description's range and evaluates the authored arc —
+//! so this width is paid once per evaluation, never compounded.
 //!
 //! The row below is the guard: on a short arc whose centre is derived
 //! from its own short chord (so the centre is wide), the

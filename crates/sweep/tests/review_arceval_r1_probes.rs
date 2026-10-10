@@ -50,7 +50,10 @@ mod certified {
 
     use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
-    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
+    use crate::common::sphere_recut::{
+        RECUT_DECIDES_FROM, RECUT_HI_PER_EPS, RECUT_MAPPED_ENCLOSURE_HI, RECUT_PIN_EPS, plate,
+        recut_ball,
+    };
     use sweep::test_support::{ball_poled_y, finished};
     use topo::{AtRestBody, mass_properties};
 
@@ -107,14 +110,14 @@ mod certified {
         );
     }
 
-    /// E2: the m5_s12 sphere-recut fixture, re-run; below the constant
-    /// the escalation's `hi` must be *at* the measured value — a
+    /// E2: the m5_s12 sphere-recut fixture, re-run; in the escalation
+    /// arm, at the pin's ε, the escalation's `hi` must be *at* the measured value — a
     /// tightening of the arc chain that moves it is loud here even when
     /// it does not cross the band (the shipped row's silent window).
     #[test]
     fn e2_recut_escalation_hi_is_pinned_to_the_measured_constant() {
-        if Tol::witness().eps() >= RECUT_MAPPED_ENCLOSURE_HI {
-            // Above the constant the row's DEFINITE arm owns the claim.
+        if Tol::witness().eps() >= RECUT_DECIDES_FROM {
+            // From there up the m5 row's DEFINITE arm owns the claim.
             return;
         }
         // The m5_s12 fixture itself: its 3x3x0.8 plate, minus the unit
@@ -142,18 +145,23 @@ mod certified {
             "e2: eps={:e}  escalation hi={hi:e}  constant={RECUT_MAPPED_ENCLOSURE_HI:e}",
             Tol::witness().eps()
         );
-        // Pinned EXACTLY: measured bit-reproducible at eps = 1e-12
-        // (hi == the constant, digit for digit — the escalating sample
-        // is the schedule max). Any chain change that moves the
-        // enclosure, in either direction, is loud here — including the
-        // partial tightenings that land between the band and the
-        // constant, which the shipped row's `hi ≤ 2·constant` ceiling
-        // admits silently.
-        assert!(
-            hi == RECUT_MAPPED_ENCLOSURE_HI,
-            "the escalation hi {hi:e} is not the measured constant \
-             {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved and the m5 row's constant \
-             is stale (re-measure and re-state)"
-        );
+        // Pinned EXACTLY at the ε it was measured at: any chain change
+        // that moves the enclosure, in either direction, is loud here —
+        // including the partial tightenings that land between the band
+        // and the constant. Elsewhere in the arm it tracks ε.
+        let eps = Tol::witness().eps();
+        if eps == RECUT_PIN_EPS {
+            assert!(
+                hi == RECUT_MAPPED_ENCLOSURE_HI,
+                "the escalation hi {hi:e} is not the measured constant \
+                 {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved and the constant is stale \
+                 (re-measure and re-state)"
+            );
+        } else {
+            assert!(
+                hi <= RECUT_HI_PER_EPS * eps,
+                "the escalation hi {hi:e} is over {RECUT_HI_PER_EPS}·ε at ε = {eps:e}"
+            );
+        }
     }
 }
