@@ -12,7 +12,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
 use pncad::prelude::StableName;
 
 /// **The body `placement` places**, or `None` for a node that is not a
@@ -92,12 +92,43 @@ pub fn seat_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
         .unwrap_or(node)
 }
 
+/// **The read a seat takes for a pick on `node`**: the operation and
+/// port whose body a world placement places, or `node` itself with the
+/// output a viewport pick hit (`body`). The port is kept only for an
+/// operation that defines several outputs (a split's halves); one with
+/// a single output is read by naming it alone.
+pub fn seat_read(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    body: Option<u32>,
+) -> (RecipeNodeId, Option<u8>) {
+    let (node, port) = match placed_var(doc, node).and_then(|var| doc.defined_by(var)) {
+        Some((operation, port)) => (operation, Some(port)),
+        None => (node, body.and_then(|b| u8::try_from(b).ok())),
+    };
+    let several = doc.outputs(node).len() > 1;
+    (node, port.filter(|_| several))
+}
+
 /// **What a feature gesture's result takes over**: the read `target`
 /// denotes in a body seat, and the world placements reading it. Empty
 /// for a target nothing places, which places nothing.
 pub fn placements_of_target(doc: &Doc<ProfileProgram>, target: RecipeNodeId) -> Vec<RecipeNodeId> {
     doc.read_of_node(target)
         .map(|var| placements_of_var(doc, var))
+        .unwrap_or_default()
+}
+
+/// **The world placements reading the body `read` names**: a node
+/// named alone reads its one output, a port the output it names.
+pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {
+    let var = match read {
+        Operand::Node(node) => doc.read_of_node(*node),
+        Operand::Output { node, port } => doc.output(*node, *port),
+        Operand::Var(var) => Some(*var),
+        Operand::Name(name) => doc.var_named(name.as_str()),
+    };
+    var.map(|var| placements_of_var(doc, var))
         .unwrap_or_default()
 }
 

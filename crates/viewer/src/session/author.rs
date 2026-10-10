@@ -12,7 +12,6 @@ use pncad::document::AuthoredNode;
 use pncad::document::{Datum, Dimension, DimensionError, Formula, Node, RecipeNodeId};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
-use pncad::select::SplitHalf;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -238,7 +237,7 @@ pub enum PatternRuleSpec {
     },
 }
 
-/// **Which body of a multi-body value one part form selects** — the
+/// **Which copy of a pattern one part form selects** — the
 /// authoring counterpart of [`pncad::document::PartSelect`], beside
 /// [`PatternRuleSpec`] for its reason: it names what a form authors,
 /// in the numbers a form holds.
@@ -254,13 +253,8 @@ pub enum PatternRuleSpec {
 /// the same division of labour [`super::SessionOp::AddPattern`]'s
 /// count already takes.
 ///
-/// One shape for BOTH selections rather than two ops, because the two
-/// arms differ in what is selected and in nothing else — the pick, the
-/// door and the node are one apiece.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartSelectSpec {
-    /// The named half of a `Node::Split` value.
-    SplitHalf(SplitHalf),
     /// The `i`-th instance of a `Node::Pattern` value.
     Instance(i64),
 }

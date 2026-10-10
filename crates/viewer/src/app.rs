@@ -5097,7 +5097,7 @@ mod properties_pane_tests {
         };
         assert!(!said(&mut driven), "a drawn held face is not refused");
         driven.perform(SessionOp::AddTransform {
-            input: extrude(),
+            input: extrude().into(),
             translation: [len(0.05), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),

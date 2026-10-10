@@ -23,8 +23,8 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, PartSelect, PatternKind,
-    ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
+    BooleanOp, Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, PartSelect,
+    PatternKind, ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
@@ -80,6 +80,17 @@ impl BooleanTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty both seats.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -108,8 +119,8 @@ impl BooleanTool {
     pub fn op(&self, op: BooleanOp) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddBoolean {
             op,
-            a: self.seats.require(0)?,
-            b: self.seats.require(1)?,
+            a: self.seats.require_read(0)?,
+            b: self.seats.require_read(1)?,
             declare: Vec::new(),
         })
     }
@@ -162,6 +173,17 @@ impl SplitTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty both seats.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -184,7 +206,7 @@ impl SplitTool {
     /// [`SeatError::Empty`] until both seats are filled.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddSplit {
-            target: self.seats.require(0)?,
+            target: self.seats.require_read(0)?,
             tool: self.seats.require(1)?,
         })
     }
@@ -228,6 +250,17 @@ impl TransformTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -255,7 +288,7 @@ impl TransformTool {
         rotation_angle: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddTransform {
-            input: self.seats.require(0)?,
+            input: self.seats.require_read(0)?,
             translation,
             rotation_axis,
             rotation_angle,
@@ -356,6 +389,17 @@ impl PatternTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty both seats.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -388,7 +432,7 @@ impl PatternTool {
     ) -> Result<SessionOp, SeatError> {
         Ok(pattern_op(
             output,
-            self.seats.require(0)?,
+            self.seats.require_read(0)?,
             count,
             PatternRuleSpec::Linear { direction, spacing },
         ))
@@ -408,7 +452,7 @@ impl PatternTool {
     ) -> Result<SessionOp, SeatError> {
         // The BODY seat first, so an empty form names the pick a user
         // makes first rather than the one this rule adds.
-        let input = self.seats.require(0)?;
+        let input = self.seats.require_read(0)?;
         let rule = PatternRuleSpec::Circular {
             axis: self.seats.require(1)?,
             step,
@@ -422,7 +466,7 @@ impl PatternTool {
 /// about it.
 fn pattern_op(
     output: PatternOutputChoice,
-    input: RecipeNodeId,
+    input: Operand,
     count: i64,
     rule: PatternRuleSpec,
 ) -> SessionOp {
@@ -448,9 +492,9 @@ fn pattern_op(
 /// slot it lands in is the edit door's question
 /// (`EditError::SlotDimensionMismatch`), asked of authored and
 /// hand-written documents alike.
-pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
+pub fn pattern_node(input: Operand, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::Pattern {
-        input: input.into(),
+        input,
         count: Formula::count(count),
         kind: rule_kind(rule),
     }
@@ -471,9 +515,9 @@ pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> A
 /// edit door's question. Whether the placements are DISJOINT is not
 /// asked here either — that certificate is evaluation's, reported on
 /// the node's own badge.
-pub fn placed_union_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
+pub fn placed_union_node(input: Operand, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::PlacedUnion {
-        input: input.into(),
+        input,
         count: Some(Formula::count(count)),
         kind: rule_kind(rule),
     }
@@ -493,19 +537,9 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind<Formula> {
     }
 }
 
-/// **The part tool**: one pick of a multi-body value, committing one
-/// [`SessionOp::AddPart`].
-///
-/// **Two seats for one pick**, which is the seat vocabulary's routing
-/// rule doing the work rather than a second gate: a half is read out
-/// of a `Node::Split` and an index out of a `Node::Pattern`, so the
-/// two selections want different KINDS. A user clicks the thing they
-/// mean and [`Seats::pick`] puts it in the seat only it can fill; the
-/// form's selector then picks the commit door, exactly as the pattern
-/// form's rule choice does. The alternative — one seat admitting
-/// either, and the half-against-a-pattern pairing checked somewhere
-/// below — would be a second authority on a question the seat already
-/// answers.
+/// **The part tool**: one pick of a pattern, committing one
+/// [`SessionOp::AddPart`] of one of its copies. A split's halves need
+/// no tool: each is an output of the split, which a body seat reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartTool {
     seats: Seats,
@@ -521,7 +555,7 @@ impl PartTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::new([Seat::PartSplit, Seat::PartInstance]),
+            seats: Seats::one(Seat::PartInstance),
         }
     }
 
@@ -531,19 +565,25 @@ impl PartTool {
         &self.seats
     }
 
-    /// The held split, if one was picked.
-    pub fn split(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
-    }
-
     /// The held pattern, if one was picked.
     pub fn pattern(&self) -> Option<RecipeNodeId> {
-        self.seats.held(1)
+        self.seats.held(0)
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
+    }
+
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
     }
 
     /// Empty both seats.
@@ -561,18 +601,6 @@ impl PartTool {
         self.seats.respeak(doc);
     }
 
-    /// **The one committed edit**, selecting a split's named half.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a split is picked.
-    pub fn half_op(&self, half: SplitHalf) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddPart {
-            of: self.seats.require(0)?,
-            select: PartSelectSpec::SplitHalf(half),
-        })
-    }
-
     /// **The one committed edit**, selecting one instance of a
     /// pattern.
     ///
@@ -586,7 +614,7 @@ impl PartTool {
     /// a non-positive pattern count already takes.
     pub fn instance_op(&self, index: i64) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddPart {
-            of: self.seats.require(1)?,
+            of: self.seats.require(0)?,
             select: PartSelectSpec::Instance(index),
         })
     }
@@ -639,6 +667,17 @@ impl DuplicateTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -661,7 +700,7 @@ impl DuplicateTool {
     /// [`SeatError::Empty`] until a body is picked.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::Duplicate {
-            input: self.seats.require(0)?,
+            input: self.seats.require_read(0)?,
         })
     }
 }
@@ -832,17 +871,42 @@ impl core::error::Error for DuplicateFault {}
 pub fn duplicate_step(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
-    input: RecipeNodeId,
+    input: &Operand,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let value = eval.usable(input).map_err(|standing| {
+    let (node, port) = match input {
+        Operand::Output { node, port } => (*node, Some(*port)),
+        Operand::Node(node) => (*node, None),
+        Operand::Var(_) | Operand::Name(_) => {
+            unreachable!("a seat holds a node or one of its ports")
+        }
+    };
+    let value = eval.usable(node).map_err(|standing| {
         let standing = crate::tree::standing_as_drawn(standing, eval);
         let held = held_by(&standing, doc);
         DuplicateFault::NoValue { standing, held }
     })?;
-    let spoken = || doc.spoken(input);
-    let body =
-        one_body(&value.payload).ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
+    let spoken = || doc.spoken(node);
+    let half = |port: u8| {
+        match &value.payload {
+            pncad::document::ValuePayload::Split { above, below } => {
+                Some(match SplitHalf::of_output_body(u32::from(port))? {
+                    SplitHalf::Above => above,
+                    SplitHalf::Below => below,
+                })
+            }
+            _ => None,
+        }
+        .and_then(|side| match side {
+            pncad::document::SplitSide::Body(body) => Some(body.as_ref()),
+            pncad::document::SplitSide::Empty => None,
+        })
+    };
+    let body = match port {
+        Some(port) => half(port),
+        None => one_body(&value.payload),
+    }
+    .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body, chord, tol).map_err(|error| DuplicateFault::Unmeasured {
             input: spoken(),
@@ -946,17 +1010,10 @@ pub const DUPLICATE_COUNT: i64 = 2;
 /// the value it reads is evaluation's question, asked of authored and
 /// hand-written documents alike.
 pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
-    // A split's half is its port (spec Q5: a split named alone is two
-    // outputs, so the read names which).
-    match select {
-        PartSelectSpec::SplitHalf(half) => Node::Part {
-            of: pncad::document::Operand::output(of, half.port()),
-            select: PartSelect::SplitHalf(half),
-        },
-        PartSelectSpec::Instance(index) => Node::Part {
-            of: of.into(),
-            select: PartSelect::Instance(Formula::count(index)),
-        },
+    let PartSelectSpec::Instance(index) = select;
+    Node::Part {
+        of: of.into(),
+        select: PartSelect::Instance(Formula::count(index)),
     }
 }
 

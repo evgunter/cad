@@ -99,7 +99,7 @@ pub use op::{
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
-    VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
+    VersionOffer, admits, admits_read, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -2825,12 +2825,12 @@ impl DocSession {
     fn add_boolean(
         &mut self,
         op: BooleanOp,
-        a: RecipeNodeId,
-        b: RecipeNodeId,
+        a: Operand,
+        b: Operand,
         declare: Vec<FlushFinding>,
     ) -> OpOutcome {
-        for seat in [a, b] {
-            if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
+        for seat in [&a, &b] {
+            if let Err(refusal) = self.require_read(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
             }
         }
@@ -2847,11 +2847,11 @@ impl DocSession {
         let staged = self.stage_run(|run| {
             let node = run.insert(Node::Boolean {
                 op,
-                a: a.into(),
-                b: b.into(),
+                a: a.clone(),
+                b: b.clone(),
                 declare: pairs,
             })?;
-            combine_in_world(run, [a, b], node)?;
+            combine_in_world(run, [&a, &b], node)?;
             Ok(node)
         });
         let (staged, node) = match staged {
@@ -2879,8 +2879,8 @@ impl DocSession {
 
     /// Insert one split of an existing body by an existing datum plane
     /// ([`SessionOp::AddSplit`]).
-    fn add_split(&mut self, target: RecipeNodeId, tool: RecipeNodeId) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+    fn add_split(&mut self, target: Operand, tool: RecipeNodeId) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         if let Err(refusal) = self.require_kind(tool, NodeKindWanted::Plane) {
@@ -2888,7 +2888,7 @@ impl DocSession {
         }
         self.commit(DocEdit::InsertNode {
             node: Box::new(Node::Split {
-                target: target.into(),
+                target,
                 tool: tool.into(),
             }),
             fresh: Vec::new(),
@@ -2899,18 +2899,18 @@ impl DocSession {
     /// ([`SessionOp::AddTransform`]).
     fn add_transform(
         &mut self,
-        input: RecipeNodeId,
+        input: Operand,
         translation: [Formula; 3],
         rotation_axis: [Formula; 3],
         rotation_angle: Formula,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         // Total, as the other lowerings are: slot dimensions are the
         // edit door's question.
         self.feature_over(
-            self.placements_of(input),
+            self.placements_of(&input),
             Node::transform(
                 input,
                 pncad::document::Step::Rigid {
@@ -2932,12 +2932,12 @@ impl DocSession {
     /// where a reader can see the pair side by side.
     fn add_pattern(
         &mut self,
-        input: RecipeNodeId,
+        input: Operand,
         count: i64,
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         if let PatternRuleSpec::Circular { axis, .. } = rule
@@ -2954,27 +2954,16 @@ impl DocSession {
                 fresh: Vec::new(),
             }),
             PatternOutputChoice::Fused => self.feature_over(
-                self.placements_of(input),
+                self.placements_of(&input),
                 combine::placed_union_node(input, count, rule),
             ),
         }
     }
 
-    /// Insert one projection of a multi-body value
+    /// Insert one projection of a pattern's copies
     /// ([`SessionOp::AddPart`]).
-    ///
-    /// **The seat is the SELECTION's**, not one kind for both arms: a
-    /// half reads a split and an index reads a pattern, and which of
-    /// the two a node is, is a fact about the committed document. The
-    /// refusal therefore names the kind the chosen selector wanted,
-    /// which is what a user can act on — "that is a pattern, and a
-    /// half comes out of a split".
     fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
-        let wanted = match select {
-            PartSelectSpec::SplitHalf(_) => NodeKindWanted::Split,
-            PartSelectSpec::Instance(_) => NodeKindWanted::Instances,
-        };
-        if let Err(refusal) = self.require_kind(of, wanted) {
+        if let Err(refusal) = self.require_kind(of, NodeKindWanted::Instances) {
             return OpOutcome::refused(refusal);
         }
         self.create_placed(combine::part_node(of, select))
@@ -2989,8 +2978,8 @@ impl DocSession {
     /// it is placed where the person can see it, and it is a body of
     /// its own — a feature authored on it re-points the copy's
     /// placement alone.
-    fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+    fn add_duplicate(&mut self, input: Operand) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         // The kind gate above is the document's; this is the VALUE's —
@@ -3003,7 +2992,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, &input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -3113,10 +3102,29 @@ impl DocSession {
         })
     }
 
-    /// The world placements of `target` ([`crate::world::placements_of_target`]),
-    /// in the committed document.
-    fn placements_of(&self, target: RecipeNodeId) -> Vec<RecipeNodeId> {
-        crate::world::placements_of_target(self.committed_doc(), target)
+    /// The world placements of the body `target` reads
+    /// ([`crate::world::placements_of_read`]), in the committed document.
+    fn placements_of(&self, target: &Operand) -> Vec<RecipeNodeId> {
+        crate::world::placements_of_read(self.committed_doc(), target)
+    }
+
+    /// [`Self::require_kind`] of a seat's read: a node named alone, or
+    /// one of its ports ([`admits_read`]).
+    fn require_read(&self, read: &Operand, wanted: NodeKindWanted) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        if admits_read(doc, read, wanted) {
+            return Ok(());
+        }
+        let node = match read {
+            Operand::Node(node) | Operand::Output { node, .. } => *node,
+            Operand::Var(_) | Operand::Name(_) => {
+                unreachable!("a seat holds a node or one of its ports")
+            }
+        };
+        Err(Refusal::WrongNodeKind {
+            node: doc.spoken(node),
+            wanted,
+        })
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -3463,11 +3471,11 @@ fn repoint(
 /// nothing places place nothing.
 fn combine_in_world(
     run: &mut Recording<'_, ProfileProgram>,
-    operands: [RecipeNodeId; 2],
+    operands: [&Operand; 2],
     result: RecipeNodeId,
 ) -> Result<(), EditError> {
     let mut placed = operands
-        .map(|operand| crate::world::placements_of_target(run.doc(), operand))
+        .map(|operand| crate::world::placements_of_read(run.doc(), operand))
         .into_iter()
         .filter(|placements| !placements.is_empty());
     let Some(first) = placed.next() else {

@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
-    Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    Maintenance, Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -647,24 +647,24 @@ pub enum SessionOp {
         /// carries unconverted.
         op: BooleanOp,
         /// The first operand: the body a subtraction keeps.
-        a: RecipeNodeId,
+        a: Operand,
         /// The second operand: the body a subtraction removes.
-        b: RecipeNodeId,
+        b: Operand,
         /// The contacts declared, in the refusals' own finding shape.
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
     /// plane — the split tool's one committed edit. A split defines two
-    /// bodies, and it changes nothing in the world: the target's
-    /// placements keep reading the target, and a half reaches the world
-    /// through its projection (`SessionOp::AddPart`).
+    /// bodies, its `above` and `below` outputs, and it changes nothing
+    /// in the world: the target's placements keep reading the target,
+    /// and a half is read by its port wherever a body seat takes one.
     ///
     /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
     /// operand is the plane the cut is taken on. Both seats refuse
     /// [`Refusal::WrongNodeKind`] for the wrong kind.
     AddSplit {
         /// The body split.
-        target: RecipeNodeId,
+        target: Operand,
         /// The `Datum::Plane` node it is cut by.
         tool: RecipeNodeId,
     },
@@ -674,7 +674,7 @@ pub enum SessionOp {
     /// the editor for every slot afterwards.
     AddTransform {
         /// The body placed.
-        input: RecipeNodeId,
+        input: Operand,
         /// Translation components (`Length`).
         translation: [Formula; 3],
         /// Rotation-axis components (`Scalar`).
@@ -696,7 +696,7 @@ pub enum SessionOp {
     /// hand-written documents.
     AddPattern {
         /// The body replicated.
-        input: RecipeNodeId,
+        input: Operand,
         /// Instance count.
         count: i64,
         /// The replication rule, with the axis a circular rule was
@@ -735,7 +735,7 @@ pub enum SessionOp {
     /// node says whether it can be built.
     AddPlacedUnion {
         /// The prototype placed at every placement.
-        input: RecipeNodeId,
+        input: Operand,
         /// Placement count.
         count: i64,
         /// The placement rule, with the axis a circular rule was
@@ -855,7 +855,7 @@ pub enum SessionOp {
     /// in the property panel afterwards.
     Duplicate {
         /// The body duplicated.
-        input: RecipeNodeId,
+        input: Operand,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second

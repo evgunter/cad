@@ -290,7 +290,7 @@ fn the_parametric_living_walk() {
     let tower_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: tower,
+            input: tower.into(),
             // 0.025 deliberately equals `height - embed` today, so the
             // part is coherent before the drive lands; a literal that
             // stayed driving would be caught by the stage-9/11 ripples.
@@ -309,8 +309,8 @@ fn the_parametric_living_walk() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: base,
-            b: tower_up,
+            a: base.into(),
+            b: tower_up.into(),
             declare: Vec::new(),
         },
     );
@@ -365,7 +365,7 @@ fn the_parametric_living_walk() {
     let lamp_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: lamp,
+            input: lamp.into(),
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
             // be caught by the stage-9/11 variable ripples.
@@ -384,8 +384,8 @@ fn the_parametric_living_walk() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: hull,
-            b: lamp_up,
+            a: hull.into(),
+            b: lamp_up.into(),
             declare: Vec::new(),
         },
     );

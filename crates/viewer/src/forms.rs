@@ -220,27 +220,6 @@ partial_mirror! {
     absent [],
 }
 
-vocabulary! {
-    /// The part form's selector choice — which of
-    /// [`crate::session::PartSelectSpec`]'s two arms the commit button
-    /// authors, an enum for the reason [`PatternKindChoice`] is one.
-    ///
-    /// It also says which SEAT the commit reads: a half comes out of
-    /// the split seat and an index out of the pattern seat, so the
-    /// choice picks the door exactly as the pattern form's rule choice
-    /// does.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum PartSelectChoice {
-        /// A named half of the picked split.
-        Half = "half of a split",
-        /// One instance of the picked pattern, by index.
-        Instance = "instance of a pattern",
-    }
-
-    /// Both selectors with their radio labels, in form order.
-    pub(crate) const ALL;
-}
-
 pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {

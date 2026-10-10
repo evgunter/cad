@@ -989,8 +989,8 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
 
     let outcome = session.perform(SessionOp::AddBoolean {
         op: pncad::document::BooleanOp::Union,
-        a: bench.post_b,
-        b: bench.post_a,
+        a: bench.post_b.into(),
+        b: bench.post_a.into(),
         declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

@@ -427,8 +427,8 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: bench.post_a,
-            b: bench.shelf_i,
+            a: bench.post_a.into(),
+            b: bench.shelf_i.into(),
             declare: Vec::new(),
         },
     );
@@ -525,8 +525,8 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: bench.post_a,
-            b: bench.shelf_i,
+            a: bench.post_a.into(),
+            b: bench.shelf_i.into(),
             declare: Vec::new(),
         },
     );
@@ -643,13 +643,13 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         }
         other => panic!("the seat refuses on the standing, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(doc, ev, bench.post_a, tol) {
+    match viewer::combine::duplicate_step(doc, ev, &bench.post_a.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
         }
         other => panic!("the duplicate door refuses post_a, got {other:?}"),
     }
-    match viewer::combine::duplicate_step(doc, ev, boolean, tol) {
+    match viewer::combine::duplicate_step(doc, ev, &boolean.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, two_hop, "the duplicate door, the boolean");
         }
@@ -1423,7 +1423,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
 
     // A tool plane above the block: the split's above side is empty,
-    // and a `Part` reading it refuses `EmptyHalf`.
+    // and a transform reading it refuses `EmptyHalf`.
     let (doc, tool) = common::inserted(
         &doc,
         Node::Datum(Datum::Plane {
@@ -1442,10 +1442,14 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
     let (doc, above) = common::inserted(
         &doc,
-        Node::Part {
-            of: pncad::document::Operand::output(split, SplitHalf::Above.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
+        Node::transform(
+            pncad::document::Operand::output(split, SplitHalf::Above.port()),
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
 

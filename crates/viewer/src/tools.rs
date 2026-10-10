@@ -36,6 +36,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Speaker};
+use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
@@ -357,6 +358,14 @@ fn on_node_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId)) {
     }
 }
 
+/// [`on_node_pick`] with the output body a viewport pick hit, which a
+/// body seat reads by port when the node defines several.
+fn on_body_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId, Option<u32>)) {
+    if let Some(node) = selection.seat_node() {
+        pick(node, selection.seat_body());
+    }
+}
+
 /// The modal tools as one value: at most one is open, and the open one
 /// is the only one the selection stream reaches.
 ///
@@ -570,22 +579,22 @@ impl Tools {
                     on_node_pick(selection, |node| tool.pick(doc, node));
                 }
                 Some(OpenTool::Boolean(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Split(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Transform(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Pattern(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Part(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Duplicate(tool)) => {
-                    on_node_pick(selection, |node| tool.pick(doc, node));
+                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
             }
         }
@@ -609,6 +618,23 @@ impl Tools {
             Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
+        }
+    }
+
+    /// **The half seat `seat` of the open tool reads**, when it holds a
+    /// split picked alone ([`crate::seats::Seats::choose_half`]); a
+    /// no-op for a tool without body seats.
+    pub fn choose_half(&mut self, seat: usize, half: SplitHalf) {
+        match &mut self.open {
+            None
+            | Some(
+                OpenTool::Mate(_) | OpenTool::Blend(_) | OpenTool::Revolve(_) | OpenTool::Part(_),
+            ) => {}
+            Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Transform(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Pattern(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Duplicate(tool)) => tool.choose_half(seat, half),
         }
     }
 

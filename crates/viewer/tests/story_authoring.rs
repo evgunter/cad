@@ -238,8 +238,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let states = session.history().len();
     let mispick = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Union,
-        a: softened,
-        b: softened,
+        a: softened.into(),
+        b: softened.into(),
         declare: Vec::new(),
     });
     let rendered = mispick
@@ -261,8 +261,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: softened,
-            b: base,
+            a: softened.into(),
+            b: base.into(),
             declare: Vec::new(),
         },
     );
@@ -288,8 +288,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: u1,
-            b: shaft,
+            a: u1.into(),
+            b: shaft.into(),
             declare: Vec::new(),
         },
     );
@@ -310,8 +310,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: u2,
-            b: drum,
+            a: u2.into(),
+            b: drum.into(),
             declare: Vec::new(),
         },
     );
@@ -333,8 +333,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
-            a: u3,
-            b: cutter,
+            a: u3.into(),
+            b: cutter.into(),
             declare: Vec::new(),
         },
     );
@@ -346,7 +346,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let cutter2 = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: cutter,
+            input: cutter.into(),
             translation: len3([0.0, 0.0, CUT2_LIFT]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(FRAC_PI_2),
@@ -356,8 +356,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
-            a: cut1,
-            b: cutter2,
+            a: cut1.into(),
+            b: cutter2.into(),
             declare: Vec::new(),
         },
     );
@@ -399,7 +399,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
-            input: block,
+            input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
@@ -423,8 +423,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Union,
-        a: carved,
-        b: pattern,
+        a: carved.into(),
+        b: pattern.into(),
         declare: Vec::new(),
     });
     assert!(
@@ -445,7 +445,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let merlons = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
-            input: block,
+            input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
@@ -471,8 +471,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
-            a: carved,
-            b: merlons,
+            a: carved.into(),
+            b: merlons.into(),
             declare: Vec::new(),
         },
     );

@@ -87,7 +87,8 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::select::SplitHalf;
 
 use crate::session::{NodeKindWanted, admits};
 use crate::vocab::vocabulary;
@@ -116,8 +117,6 @@ vocabulary! {
         PatternBody,
         /// The datum axis a circular pattern steps around.
         PatternAxis,
-        /// The split a part projects one half of.
-        PartSplit,
         /// The pattern a part projects one instance of.
         PartInstance,
         /// The body a duplicate copies.
@@ -152,7 +151,6 @@ impl Seat {
             Self::RevolveAxis => NodeKindWanted::SketchAxis,
             Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
-            Self::PartSplit => NodeKindWanted::Split,
             Self::PartInstance => NodeKindWanted::Instances,
             Self::OperandA
             | Self::OperandB
@@ -175,7 +173,6 @@ impl Seat {
             Self::TransformBody => "transformed body",
             Self::PatternBody => "patterned body",
             Self::PatternAxis => "pattern axis",
-            Self::PartSplit => "split to project",
             Self::PartInstance => "pattern to project",
             Self::DuplicateBody => "duplicated body",
         }
@@ -190,12 +187,25 @@ pub enum SeatError {
         /// Which one.
         seat: Seat,
     },
+    /// A seat holds a split picked in the tree, and which of its two
+    /// halves it reads is not chosen yet.
+    HalfUnchosen {
+        /// Which one.
+        seat: Seat,
+    },
 }
 
 impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
+            Self::HalfUnchosen { seat } => {
+                write!(
+                    f,
+                    "the {} is a split: choose its above or below half",
+                    seat.name()
+                )
+            }
         }
     }
 }
@@ -249,9 +259,22 @@ impl core::fmt::Display for SeatEvent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
-    /// Each seat's pick, as the document last spoke it
+    /// Each seat's pick, its node as the document last spoke it
     /// ([`Seats::respeak`]).
     held: [Option<SpokenNode>; 2],
+    /// Which output of its node each seat reads.
+    ports: [Port; 2],
+}
+
+/// **Which output of its node a seat reads.**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Port {
+    /// The node read alone: its one output.
+    Alone,
+    /// The output at this port — a split's half.
+    At(u8),
+    /// A split picked in the tree, its half not chosen yet.
+    HalfPending,
 }
 
 impl Seats {
@@ -260,6 +283,7 @@ impl Seats {
         Self {
             roles,
             held: [None, None],
+            ports: [Port::Alone, Port::Alone],
         }
     }
 
@@ -270,9 +294,46 @@ impl Seats {
         Self::new([role, role])
     }
 
-    /// The pick in seat `i` (0 or 1).
+    /// The pick in seat `i` (0 or 1): the node whose output it reads.
     pub fn held(&self, i: usize) -> Option<RecipeNodeId> {
         self.held.get(i)?.as_ref().map(SpokenNode::id)
+    }
+
+    /// **The read seat `i` holds**: its node's port where the pick
+    /// named one (a split's half), else the node read alone.
+    pub fn read(&self, i: usize) -> Option<Operand> {
+        let node = self.held(i)?;
+        Some(match self.ports[i] {
+            Port::At(port) => Operand::output(node, port),
+            Port::Alone | Port::HalfPending => Operand::Node(node),
+        })
+    }
+
+    /// **The half a seat holding a split reads**, chosen after a tree
+    /// pick named the split alone; a no-op on a seat holding anything
+    /// else.
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        if self.ports[i] == Port::HalfPending {
+            self.ports[i] = Port::At(half.port());
+        }
+    }
+
+    /// Whether seat `i` holds a split whose half is still to choose.
+    pub fn awaits_half(&self, i: usize) -> bool {
+        self.ports[i] == Port::HalfPending
+    }
+
+    /// The half seat `i` reads, when it reads one.
+    pub fn half(&self, i: usize) -> Option<SplitHalf> {
+        match self.ports[i] {
+            Port::At(port) => SplitHalf::of_output_body(u32::from(port)),
+            Port::Alone | Port::HalfPending => None,
+        }
+    }
+
+    /// Seat `i`'s role.
+    pub fn role(&self, i: usize) -> Seat {
+        self.roles[i]
     }
 
     /// Whether any seat holds a pick.
@@ -307,11 +368,25 @@ impl Seats {
     /// wanting to re-target the body is the only thing the click can
     /// have meant.
     ///
-    /// **A pick on a copy seats its body** ([`crate::world::seat_of`]):
+    /// **A pick on a copy seats its body** ([`crate::world::seat_read`]):
     /// a world placement's row, or the copy it draws, is a pick of the
-    /// body it places, which is what a tool authors against.
+    /// body it places, which is what a tool authors against — a split's
+    /// half by its port. `body` is the output a viewport pick hit; a
+    /// tree pick names none, and a split picked so waits for its half
+    /// ([`Seats::choose_half`]).
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        let node = crate::world::seat_of(doc, node);
+        self.pick_at(doc, node, None);
+    }
+
+    /// [`Seats::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        let (node, port) = crate::world::seat_read(doc, node, body);
+        let split = matches!(doc.node(node), Some(Node::Split { .. }));
+        let state = |seat: Seat| match port {
+            Some(port) => Port::At(port),
+            None if split && seat.wants() == NodeKindWanted::Body => Port::HalfPending,
+            None => Port::Alone,
+        };
         // **A one-seat tool has one seat, and its role names itself
         // twice to say so** (`Seats::one`) — so a pick can only
         // land in the first slot, and the second is not a seat to
@@ -324,18 +399,19 @@ impl Seats {
         let said = Some(doc.spoken(node));
         if self.arity() == 1 {
             self.held[0] = said;
+            self.ports[0] = state(self.roles[0]);
             return;
         }
         let plain = usize::from(self.held[0].is_some());
         let other = 1 - plain;
-        let seat = if admits(doc, node, self.roles[other].wants())
-            && !admits(doc, node, self.roles[plain].wants())
-        {
+        let fits = |seat: usize| admits_pick(doc, node, port, self.roles[seat].wants());
+        let seat = if fits(other) && !fits(plain) {
             other
         } else {
             plain
         };
         self.held[seat] = said;
+        self.ports[seat] = state(self.roles[seat]);
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
@@ -350,6 +426,7 @@ impl Seats {
     /// without touching this value.
     pub fn clear(&mut self) {
         self.held = [None, None];
+        self.ports = [Port::Alone, Port::Alone];
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the shown
@@ -371,6 +448,7 @@ impl Seats {
                 .is_some_and(|node| doc.node(node.id()).is_none())
                 && let Some(node) = self.held[i].take()
             {
+                self.ports[i] = Port::Alone;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
@@ -389,6 +467,45 @@ impl Seats {
         self.held(i).ok_or(SeatError::Empty {
             seat: self.roles[i],
         })
+    }
+
+    /// Seat `i`'s read, or the typed refusal naming it: still empty, or
+    /// a split whose half is not chosen.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] when that seat holds nothing,
+    /// [`SeatError::HalfUnchosen`] when it holds a split read alone.
+    pub fn require_read(&self, i: usize) -> Result<Operand, SeatError> {
+        self.require(i)?;
+        if self.awaits_half(i) {
+            return Err(SeatError::HalfUnchosen {
+                seat: self.roles[i],
+            });
+        }
+        self.read(i).ok_or(SeatError::Empty {
+            seat: self.roles[i],
+        })
+    }
+}
+
+/// **Whether a seat wanting `wanted` can hold this pick**, for routing
+/// only ([`Seats::pick`]): a port read is the variable it names, and a
+/// split read alone may still become either half, so a body seat can
+/// hold it until its half is chosen.
+fn admits_pick(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    port: Option<u8>,
+    wanted: NodeKindWanted,
+) -> bool {
+    match port {
+        Some(port) => crate::session::admits_read(doc, &Operand::output(node, port), wanted),
+        None => {
+            admits(doc, node, wanted)
+                || (wanted == NodeKindWanted::Body
+                    && matches!(doc.node(node), Some(Node::Split { .. })))
+        }
     }
 }
 
@@ -414,11 +531,17 @@ pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfilePro
 /// speaks it, so the panel and the notice about the same pick call it
 /// one thing.
 pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
-    picks_line(
-        seats
-            .each()
-            .map(|(seat, held)| (seat.name(), held.map(|node| doc.spoken(node).to_string()))),
-    )
+    picks_line((0..seats.arity()).map(|i| {
+        let said = seats.held(i).map(|node| {
+            let node_said = doc.spoken(node).to_string();
+            match seats.half(i) {
+                Some(half) => format!("{node_said}, {} half", half.name()),
+                None if seats.awaits_half(i) => format!("{node_said}, half not chosen"),
+                None => node_said,
+            }
+        });
+        (seats.roles[i].name(), said)
+    }))
 }
 
 /// **The composition of the seated tools' and the mate tool's

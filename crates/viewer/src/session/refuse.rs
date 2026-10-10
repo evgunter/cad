@@ -16,7 +16,7 @@
 
 use pncad::document::{
     BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
+    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, Operand, ParseError, ProfileProgram,
     RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
     held_by,
 };
@@ -64,18 +64,11 @@ pub enum NodeKindWanted {
     /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
     /// — what a profile is drawn on. Both evaluate to a frame value.
     Frame,
-    /// A node whose value is ONE body — the combining seats' kind
-    /// ([`combine::denotes_body`] carries the admissible set and why a
-    /// split's sides and a pattern's instances are not in it).
+    /// A read of ONE body — the combining seats' kind: a node whose one
+    /// output is a body ([`combine::denotes_body`] carries the
+    /// admissible set and why a pattern's instances are not in it), or
+    /// a split's half read by its port ([`admits_read`]).
     Body,
-    /// A `Node::Split` — the value a [`pncad::document::PartSelect::
-    /// SplitHalf`] reads a half out of.
-    ///
-    /// The node kind IS the family here, with no placer to walk
-    /// through: `eval::wire`'s placeable operand door refuses a split
-    /// value outright, so a transform over a split is a failed node
-    /// and never a second way to hold one.
-    Split,
     /// A node whose value is a pattern's INSTANCES — what a
     /// [`pncad::document::PartSelect::Instance`] indexes: read alone,
     /// it defines a `Bodies` variable, a pattern's or a transform's of
@@ -109,13 +102,37 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
         | NodeKindWanted::Axis
         | NodeKindWanted::SketchAxis
         | NodeKindWanted::Plane
-        | NodeKindWanted::Frame
-        | NodeKindWanted::Split => held.and_then(seat_kind) == Some(wanted),
+        | NodeKindWanted::Frame => held.and_then(seat_kind) == Some(wanted),
     }
 }
 
+/// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
+/// node named alone, and for a port the kind of the variable it names
+/// (a split's half is a body) — the gate every body seat's commit asks
+/// of the read it holds.
+pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
+    use pncad::document::{SlotKind, VarKind};
+    let var = match read {
+        Operand::Node(node) => return admits(doc, *node, wanted),
+        Operand::Output { node, port } => doc.output(*node, *port),
+        Operand::Var(var) => Some(*var),
+        Operand::Name(name) => doc.var_named(name.as_str()),
+    };
+    let kind = match wanted {
+        NodeKindWanted::Body => VarKind::Body,
+        NodeKindWanted::Instances => VarKind::Bodies,
+        NodeKindWanted::Profile
+        | NodeKindWanted::Axis
+        | NodeKindWanted::SketchAxis
+        | NodeKindWanted::Plane
+        | NodeKindWanted::Frame => return false,
+    };
+    var.and_then(|var| doc.var(var))
+        .is_some_and(|var| SlotKind::Is(kind).admits(var))
+}
+
 /// **Which seat kind a node is by its kind alone**, or `None` for a
-/// node no profile, axis, plane, frame or split seat takes — the one
+/// node no profile, axis, plane or frame seat takes — the one
 /// classification [`admits`] reads for every kind but the two read off
 /// the variable a node named alone defines ([`NodeKindWanted::Body`],
 /// [`NodeKindWanted::Instances`]).
@@ -133,8 +150,8 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
             // No seat asks for a point.
             Datum::Point { .. } => None,
         },
-        Node::Split { .. } => Some(NodeKindWanted::Split),
-        Node::Pattern { .. }
+        Node::Split { .. }
+        | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -168,7 +185,6 @@ impl NodeKindWanted {
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",
-            Self::Split => "a split",
             Self::Instances => "a pattern",
         }
     }
@@ -895,8 +911,8 @@ impl core::error::Error for Refusal {}
 #[derive(Debug)]
 pub struct RefusedBoolean {
     op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    a: Operand,
+    b: Operand,
     declared: Vec<FlushFinding>,
     at: Generation,
     /// Always the kernel's `NodeErrorKind::UndeclaredCoincidence`: the one
@@ -923,7 +939,7 @@ impl RefusedBoolean {
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         node: RecipeNodeId,
-        attempt: (BooleanOp, [RecipeNodeId; 2]),
+        attempt: (BooleanOp, [Operand; 2]),
         declared: Vec<FlushFinding>,
         at: Generation,
     ) -> Option<Self> {
@@ -941,7 +957,7 @@ impl RefusedBoolean {
     fn of(
         doc: &Doc<ProfileProgram>,
         refused: &NodeErrorKind,
-        (op, [a, b]): (BooleanOp, [RecipeNodeId; 2]),
+        (op, [a, b]): (BooleanOp, [Operand; 2]),
         declared: Vec<FlushFinding>,
         at: Generation,
     ) -> Option<Self> {
@@ -953,7 +969,9 @@ impl RefusedBoolean {
         else {
             return None;
         };
-        if finding.pair.0.at == finding.pair.1.at {
+        // Two operands read out of one operation (a split's halves)
+        // share its site, and a pair across them is sided by table.
+        if finding.pair.0.at == finding.pair.1.at && operation(&a) != operation(&b) {
             return None;
         }
         Some(Self {
@@ -1004,8 +1022,8 @@ impl RefusedBoolean {
         (!self.re_raised()).then(|| DeclareOffer {
             at: self.at,
             op: self.op,
-            a: self.a,
-            b: self.b,
+            a: self.a.clone(),
+            b: self.b.clone(),
             findings: self
                 .declared
                 .iter()
@@ -1034,6 +1052,14 @@ impl core::fmt::Display for RefusedBoolean {
     }
 }
 
+/// The operation a seat's read names.
+fn operation(read: &Operand) -> Option<RecipeNodeId> {
+    match read {
+        Operand::Node(node) | Operand::Output { node, .. } => Some(*node),
+        Operand::Var(_) | Operand::Name(_) => None,
+    }
+}
+
 /// **The offer a [`RefusedBoolean`] makes** — a value, so the panel
 /// shows every pair accepting it declares before anything is
 /// committed.
@@ -1045,8 +1071,8 @@ impl core::fmt::Display for RefusedBoolean {
 pub struct DeclareOffer {
     at: Generation,
     op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    a: Operand,
+    b: Operand,
     findings: Vec<FlushFinding>,
 }
 
@@ -1072,10 +1098,13 @@ impl DeclareOffer {
         &self,
         now: Generation,
         op: BooleanOp,
-        a: Option<RecipeNodeId>,
-        b: Option<RecipeNodeId>,
+        a: Option<Operand>,
+        b: Option<Operand>,
     ) -> bool {
-        self.at == now && self.op == op && a == Some(self.a) && b == Some(self.b)
+        self.at == now
+            && self.op == op
+            && a.as_ref() == Some(&self.a)
+            && b.as_ref() == Some(&self.b)
     }
 
     /// **Accepting the offer**: the boolean again, declaring every
@@ -1083,8 +1112,8 @@ impl DeclareOffer {
     pub fn accept(&self) -> SessionOp {
         SessionOp::AddBoolean {
             op: self.op,
-            a: self.a,
-            b: self.b,
+            a: self.a.clone(),
+            b: self.b.clone(),
             declare: self.findings.clone(),
         }
     }
@@ -1486,7 +1515,10 @@ mod refused_boolean {
             let first = RefusedBoolean::of(
                 doc,
                 kind,
-                (BooleanOp::Union, operands),
+                (
+                    BooleanOp::Union,
+                    operands.map(pncad::document::Operand::from),
+                ),
                 Vec::new(),
                 Generation::FIRST,
             )
@@ -1495,7 +1527,10 @@ mod refused_boolean {
             let again = RefusedBoolean::of(
                 doc,
                 kind,
-                (BooleanOp::Union, operands),
+                (
+                    BooleanOp::Union,
+                    operands.map(pncad::document::Operand::from),
+                ),
                 vec![first.finding().clone()],
                 Generation::FIRST,
             )
@@ -1533,7 +1568,10 @@ mod refused_boolean {
                 RefusedBoolean::of(
                     doc,
                     &one_operand,
-                    (BooleanOp::Union, operands),
+                    (
+                        BooleanOp::Union,
+                        operands.map(pncad::document::Operand::from)
+                    ),
                     Vec::new(),
                     Generation::FIRST
                 )

@@ -21,11 +21,10 @@ use pncad::document::{
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
-use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::Notation;
 use crate::seats::SeatError;
@@ -238,11 +237,6 @@ pub(crate) struct Drafts {
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
-    /// The part form's selector choice — which of the two commit
-    /// doors the button calls, and so which seat it reads.
-    pub(crate) part_select: PartSelectChoice,
-    /// Which half of a split the part form projects.
-    pub(crate) part_half: SplitHalf,
     /// Which instance of a pattern it projects — an INTEGER all the
     /// way from the field, for [`Drafts::pattern_count`]'s reason: the
     /// slot it lands in is Count-typed and a number rounded on the way
@@ -708,8 +702,6 @@ impl Default for Drafts {
             pattern_direction: crate::combine::STEP_DIRECTION,
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
-            part_select: PartSelectChoice::Half,
-            part_half: SplitHalf::Above,
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
@@ -1451,12 +1443,11 @@ mod tests {
                 // Made by the add-profile form and by the ops that
                 // produce bodies, not by this one.
                 //
-                // The two part selectors read a split and a pattern,
-                // which no datum form authors either.
-                NodeKindWanted::Profile
-                | NodeKindWanted::Body
-                | NodeKindWanted::Split
-                | NodeKindWanted::Instances => continue,
+                // The part selector reads a pattern, which no datum
+                // form authors either.
+                NodeKindWanted::Profile | NodeKindWanted::Body | NodeKindWanted::Instances => {
+                    continue;
+                }
                 NodeKindWanted::Axis
                 | NodeKindWanted::SketchAxis
                 | NodeKindWanted::Plane
