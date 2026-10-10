@@ -354,3 +354,164 @@ fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
         }
     }
 }
+
+/// A placed unit prism the split rows cut out: its frame, profile,
+/// extrude and world placement, and the extrude's walls and an edge.
+struct Cut {
+    nodes: std::collections::BTreeSet<RecipeNodeId>,
+    extrude: RecipeNodeId,
+    faces: [StableName; 2],
+    edge: StableName,
+}
+
+fn placed_prism(doc: ProfileDoc) -> (ProfileDoc, Cut) {
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 1.0)],
+    );
+    let frame = doc.ids()[doc.ids().len() - 2];
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, placed) = fixture::place(doc, extrude);
+    let faces = [
+        fname(extrude, wall(&doc, extrude, 0)),
+        fname(extrude, wall(&doc, extrude, 2)),
+    ];
+    let edge = fixture::prism_edges(&doc, extrude, 4).remove(2);
+    let cut = Cut {
+        nodes: [frame, profile, extrude, placed].into(),
+        extrude,
+        faces,
+        edge,
+    };
+    (doc, cut)
+}
+
+/// **A split keeps a named selection one variable.** Two measures in
+/// the remainder read one named selection of the cut body; after the
+/// split they still read one variable, under the same name, now a
+/// selection of the instance's body, and no selection of the dead cut
+/// body is left behind.
+#[test]
+fn a_split_keeps_a_named_crossing_selection_shared() {
+    let (doc, p) = placed_prism(ProfileDoc::empty(
+        editor_core::DocumentId::derive("s2e-split-shared"),
+        Tol::witness(),
+    ));
+    let (doc, q) = prism(doc, 4.0);
+    let (doc, m1) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::at_mint(p.faces[0].clone()),
+            SitedRef::at_mint(q.faces[0].clone()),
+        ],
+    );
+    let first = |doc: &ProfileDoc, m| doc.node(m).expect("a measure").operand_rows()[0].1;
+    let s = VarName::from_static("s");
+    let doc = push(
+        &doc,
+        &DocEdit::RenameVar {
+            var: editor_core::VarRef::Id(first(&doc, m1)),
+            name: Some(s.clone()),
+        },
+    );
+    let (doc, m2) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            Operand::Name(s.clone()),
+            Operand::from(SitedRef::at_mint(q.faces[1].clone())),
+        ],
+    );
+    let out = editor_core::split(
+        &doc,
+        &p.nodes,
+        editor_core::DocumentId::derive("s2e-split-shared-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect("the placed prism splits out");
+    let rem = &out.remainder;
+    let (r1, r2) = (first(rem, m1), first(rem, m2));
+    assert_eq!(r1, r2, "the two measures still read one selection");
+    assert_eq!(rem.var_named(s.as_str()), Some(r1), "under its name");
+    assert_eq!(
+        rem.selection(r1).map(|select| select.body),
+        rem.output(out.instance, 0),
+        "a selection of the instance's body"
+    );
+    assert!(
+        rem.vars()
+            .values()
+            .filter_map(|var| var.def().select())
+            .all(|select| rem.operation_of(select.body).is_some()),
+        "no selection of a dead body is left behind"
+    );
+}
+
+/// **Inline re-hosts a selection downstream of the instance.** A
+/// remainder fillet selects the cut's edge on a union of the instance
+/// and a local prism; inlining the instance re-anchors that selection's
+/// name to the spliced node, so split then inline round-trips.
+#[test]
+fn inline_rehosts_a_selection_downstream_of_the_instance() {
+    use crate::fixture::resolver::PartStore;
+    use editor_core::BooleanOp;
+    use std::sync::Arc;
+    let (doc, p) = placed_prism(ProfileDoc::empty(
+        editor_core::DocumentId::derive("s2e-inline-downstream"),
+        Tol::witness(),
+    ));
+    let (doc, q) = prism(doc, 0.5);
+    let (doc, union) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: p.extrude.into(),
+            b: q.node.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, fillet) = insert(doc, Node::fillet(union, len(0.05), vec![p.edge.clone()]));
+    let (doc, _) = fixture::place(doc, fillet);
+    let out = editor_core::split(
+        &doc,
+        &p.nodes,
+        editor_core::DocumentId::derive("s2e-inline-downstream-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect("the placed prism splits out");
+    let mut store = PartStore::new();
+    store.insert(out.part.clone(), Tol::witness());
+    let inlined = editor_core::inline(
+        &out.remainder,
+        out.instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("the instance inlines");
+    let names = fixture::selected(&inlined.doc, fixture::selection_read(&inlined.doc, fillet));
+    assert!(
+        names.iter().all(|n| inlined.doc.node(n.node).is_some()),
+        "every selected name is minted by a live node: {names:?}"
+    );
+    assert!(
+        !inlined
+            .maintenance
+            .iter()
+            .any(|row| matches!(row, editor_core::Maintenance::StrandedSelection { .. })),
+        "nothing is stranded: {:?}",
+        inlined.maintenance
+    );
+}

@@ -162,7 +162,7 @@ use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
 use crate::sentence::{Recourse, Staged};
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDecl, VarDef, VarId};
+use crate::var::{VarDecl, VarDef, VarId};
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -411,7 +411,7 @@ fn carry<E>(
                         })
                         .collect::<Result<Vec<_>, _>>()
                         .map_err(&refuse)?;
-                    let kind = source.var(var).map_or(crate::VarKind::Faces, Var::kind);
+                    let kind = selection_kind(source, var);
                     crate::Operand::select(
                         crate::Operand::Var(body),
                         crate::var::Select::canonical(kind, names),
@@ -3715,14 +3715,18 @@ pub fn split(
             }],
         })
     };
+    // A selection of the cut body is authored afresh in the instance's
+    // body, each name the cut minted read through it, once per
+    // selection: its first reader authors it, and a named one keeps its
+    // name on the new variable, which every other reader then reads.
+    let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
     for &(node, slot, var) in &crossing_reads {
-        // A selection of the cut body is authored afresh in the
-        // instance's body, each name the cut minted read through it.
-        let read = match doc.selection(var) {
-            Some(select) => crate::Operand::select(
+        let read = match (doc.selection(var), reauthored.get(&var)) {
+            (Some(_), Some(&fresh)) => crate::Operand::Var(fresh),
+            (Some(select), None) => crate::Operand::select(
                 crate::Operand::Var(instance_body),
                 crate::var::Select::canonical(
-                    doc.var(var).map_or(crate::VarKind::Faces, Var::kind),
+                    selection_kind(doc, var),
                     select
                         .names
                         .iter()
@@ -3730,7 +3734,7 @@ pub fn split(
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             ),
-            None => crate::Operand::Var(instance_body),
+            (None, _) => crate::Operand::Var(instance_body),
         };
         rem_apply(
             &mut remainder,
@@ -3741,6 +3745,20 @@ pub fn split(
                 fresh: Vec::new(),
             },
         )?;
+        if doc.selection(var).is_some() && !reauthored.contains_key(&var) {
+            let fresh = read_at(remainder.doc(), node, slot);
+            reauthored.insert(var, fresh);
+            if let Some(name) = doc.var_name(var) {
+                rem_apply(&mut remainder, DocEdit::DeleteVar { var: var.into() })?;
+                rem_apply(
+                    &mut remainder,
+                    DocEdit::RenameVar {
+                        var: fresh.into(),
+                        name: Some(name.clone()),
+                    },
+                )?;
+            }
+        }
     }
     for from in &rebinds {
         let to = in_part(from)?;
@@ -3878,6 +3896,40 @@ enum Landing {
     /// On a gauge minted under the instance's gauge holding its offset:
     /// a promote of the instance ([`DocEdit::Promote`]).
     Gauge,
+}
+
+/// The kind of the selection `var` holds in `doc`.
+///
+/// # Panics
+///
+/// If `doc` holds no variable `var`: every caller asks of a variable it
+/// just read as a selection.
+fn selection_kind<P>(doc: &Doc<P>, var: VarId) -> crate::VarKind {
+    let Some(held) = doc.var(var) else {
+        unreachable!("a selection the document holds is a variable it holds")
+    };
+    held.kind()
+}
+
+/// The variable `node` reads at `slot` in `doc`.
+///
+/// # Panics
+///
+/// If `node` holds no read at `slot`: every caller asks right after
+/// writing it.
+fn read_at<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    slot: crate::OperandSlot,
+) -> VarId {
+    let Some(var) = doc
+        .node(node)
+        .and_then(|n| n.operand_rows().into_iter().find(|(at, _)| *at == slot))
+        .map(|(_, var)| var)
+    else {
+        unreachable!("the read was just written")
+    };
+    var
 }
 
 /// Splices the document `instance` references into `doc` and deletes
@@ -4483,16 +4535,31 @@ pub fn inline(
         })?
     };
     // The selections of the instance's body are authored afresh on the
-    // inlined body below; every other carrier is repaired here.
+    // inlined body below; every other carrier is repaired here, a
+    // selection of a body downstream of the instance by its body.
     for from in &wrapped {
-        let unbodied = current.doc().name_carriers().any(|carrier| {
-            carrier.name() == from && !matches!(carrier, NameCarrier::Select { .. })
-        });
-        if unbodied {
+        let mut bodies: BTreeSet<VarId> = BTreeSet::new();
+        let mut unbodied = false;
+        for carrier in current.doc().name_carriers() {
+            if carrier.name() != from {
+                continue;
+            }
+            match carrier {
+                NameCarrier::Select { var, .. } => {
+                    if let Some(select) = current.doc().selection(var)
+                        && current.doc().operation_of(select.body) != Some(instance)
+                    {
+                        bodies.insert(select.body);
+                    }
+                }
+                NameCarrier::Payload { .. } | NameCarrier::Store { .. } => unbodied = true,
+            }
+        }
+        for body in bodies.into_iter().map(Some).chain(unbodied.then_some(None)) {
             step(
                 &mut current,
                 DocEdit::Rebind {
-                    body: None,
+                    body,
                     from: from.clone(),
                     to: rehost(from)?,
                 },
@@ -4514,12 +4581,16 @@ pub fn inline(
     // The readers of the instance read the inlined body, and its host
     // placements at the identity go with it.
     if let Some(heir) = heir(current.doc()) {
+        // Once per selection, as split authors them: a named one keeps
+        // its name on the new variable, which every other reader reads.
+        let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
         for &(node, slot, var) in &readers {
-            let read = match doc.selection(var) {
-                Some(select) => crate::Operand::select(
+            let read = match (doc.selection(var), reauthored.get(&var)) {
+                (Some(_), Some(&fresh)) => crate::Operand::Var(fresh),
+                (Some(select), None) => crate::Operand::select(
                     crate::Operand::Var(heir),
                     crate::var::Select::canonical(
-                        doc.var(var).map_or(crate::VarKind::Faces, Var::kind),
+                        selection_kind(doc, var),
                         select
                             .names
                             .iter()
@@ -4533,7 +4604,7 @@ pub fn inline(
                             .collect::<Result<Vec<_>, _>>()?,
                     ),
                 ),
-                None => crate::Operand::Var(heir),
+                (None, _) => crate::Operand::Var(heir),
             };
             step(
                 &mut current,
@@ -4544,6 +4615,20 @@ pub fn inline(
                     fresh: Vec::new(),
                 },
             )?;
+            if doc.selection(var).is_some() && !reauthored.contains_key(&var) {
+                let fresh = read_at(current.doc(), node, slot);
+                reauthored.insert(var, fresh);
+                if let Some(name) = doc.var_name(var) {
+                    step(&mut current, DocEdit::DeleteVar { var: var.into() })?;
+                    step(
+                        &mut current,
+                        DocEdit::RenameVar {
+                            var: fresh.into(),
+                            name: Some(name.clone()),
+                        },
+                    )?;
+                }
+            }
         }
         for &placement in &posed {
             step(
