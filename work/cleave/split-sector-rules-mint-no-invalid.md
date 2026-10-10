@@ -2,12 +2,14 @@
 id: split-sector-rules-mint-no-invalid
 kind: unit
 title: split's sector rules and conic graze mint INVALID after a decided sign: route each through its door and keep its ending (mints C1-C5)
-status: open
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [split-escalations-end-a-poisoned-margin-in-the-plane-lever]
+closed: 2026-10-10
+pr: 4571
 ---
 
 Unit 1 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -134,3 +136,16 @@ Census over `crates/topo/src/splitting/`, production code only:
   `order.rs` `split_join_frame_axis` from `f56de98848`, filed on unit 2's
   row.
 - **Pass 2** (`terminal_sliver:`): 0 before and 0 after.
+
+## Closed (PR 4571, 2026-10-10)
+
+C1–C5 are off `INVALID`:
+- **C1:** the unreachable collapsed extent is an `unreachable!` with its values.
+- **C2 and C3's Tangent arm:** the gate's parallel verdict reaches the sense as geom-brep's
+  `ParallelNormal` proof, through one door (`normal_alignment`).
+- **C3's Exits arm:** `GrazeAgainstNeighbours { margin }`.
+- **C4:** `SmoothEdgeDisagrees`, carrying both readings.
+- **C5:** `decide_nonzero` keeps `D`, tagged.
+
+`SliverSector` carries its `SectorReading` and ends through `LeverOnly`. The K-dependence of
+`GrazeAgainstNeighbours` and the C5 offer at K < 2 are P3 rows.
