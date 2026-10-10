@@ -15,7 +15,8 @@
     clippy::float_cmp
 )]
 
-use super::section_cert_rows::{LEVER, band, classify, cylinder, p, tangent, unit_cone, v};
+use super::search_kit::band;
+use super::section_cert_rows::{LEVER, classify, cylinder, p, tangent, unit_cone, v};
 use super::*;
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI};
 use geom::Surface;

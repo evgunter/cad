@@ -64,10 +64,10 @@ a spiric. That payload is named in all five elbow rows (`torax_axial`,
 sealed arm).
 
 `verbs_shell`'s opened arm (`shell_open`) instead stops at SHELL's lift
-stage: `ShellError::Lift { … ReanchorOffCarrier … }`. The lift's door
-does not classify the lifted solid as axial, so it falls to the
-per-chart door, which misses at a curved junction. That is SHELL's
-ground and is filed there
+stage: `ShellError::Lift { … ReanchorOffCarrier … }`. At this walk the
+lift's door did not classify the lifted solid as axial, so it fell to
+the per-chart door, which missed at a curved junction. That was SHELL's
+ground and was filed there, and is closed
 (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
 The criterion is met in the form CURVED can meet it. Ev may read the
 opened arm as an unmet half.

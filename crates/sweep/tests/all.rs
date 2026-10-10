@@ -233,6 +233,8 @@ mod torax_interval;
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
 mod trim_3_chart_bound_bodies;
+#[path = "tube_rim_touch_rows.rs"]
+mod tube_rim_touch_rows;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
@@ -588,6 +590,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "shell_general_door.rs"]
+mod shell_general_door;
 #[path = "strut_cover_on_cylinder_pairs.rs"]
 mod strut_cover_on_cylinder_pairs;
 
@@ -724,6 +728,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_radial_hole.rs"]
+mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
 #[path = "germ_tilted_rod.rs"]

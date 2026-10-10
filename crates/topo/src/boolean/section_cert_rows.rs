@@ -14,6 +14,7 @@
     clippy::float_cmp
 )]
 
+use super::search_kit::band;
 use super::*;
 use crate::boolean::ops;
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
@@ -23,11 +24,7 @@ use crate::{
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_core::{Band, Point3, Tol, Vec3};
-
-pub(super) fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Tol, Vec3};
 
 pub(super) const LEVER: f64 = 5.0;
 
@@ -1415,7 +1412,7 @@ fn a_far_origin_does_not_move_a_pins_offset() {
         Section::Components { parts, .. } => {
             assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
         }
-        Section::Tangent(_) | Section::Intractable => {}
+        Section::Tangent(_) | Section::Unordered(_) | Section::Intractable => {}
         Section::Touch(t) => assert!(
             (t.at - p(2.5 - 8e-8, 0.0, 0.0)).norm() < 1e-9,
             "the touch is read off the pivot: {t:?}"
@@ -2900,7 +2897,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
 /// either operand order answers passes [`touch_holds`]. Mutants, each
 /// red here: the plane's or the sphere's elliptic margin taken as `abs`
 /// (a touch on the hyperbolic half), the sphere's extreme margin
-/// dropped, and [`super::square_to`] as `v − a·(a·v)`.
+/// dropped, and [`super::perp_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
     use super::super::conic_oracle::unit;
