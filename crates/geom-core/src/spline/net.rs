@@ -73,7 +73,7 @@ use core::ops::RangeInclusive;
 
 use std::borrow::Cow;
 
-use super::algebra::{CurvePlan, KnotAlgebraError, refine_plan_homogeneous};
+use super::algebra::{CurvePlan, KnotAlgebraError, equal_split_plan};
 use super::knots::KnotVector;
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
@@ -600,31 +600,30 @@ impl<const C: usize> TensorChannels<'_, C> {
         })
     }
 
-    /// **Every channel refined** by inserting `at_u` along `u` and
-    /// `at_v` along `v`, IN INTERVAL ARITHMETIC ([`TensorNet::refine_u`]),
-    /// paired with the refined vectors. The insertion chains are built
-    /// here, from these vectors, so no other vector's chain can reach
-    /// the nets — the refined pair is a proof about what it holds.
+    /// **Every channel refined** by cutting every nonempty span of each
+    /// direction into `splits` equal pieces ([`equal_split_plan`]), IN
+    /// INTERVAL ARITHMETIC ([`TensorNet::refine_u`]), paired with the
+    /// refined vectors. The insertion chains are built here, from these
+    /// vectors, so no other vector's chain can reach the nets — the
+    /// refined pair is a proof about what it holds.
     ///
     /// # Errors
     ///
-    /// [`KnotAlgebraError`] when an insertion chain refuses
-    /// ([`refine_plan_homogeneous`]).
-    pub fn refine(
+    /// [`KnotAlgebraError`] when an insertion chain refuses.
+    pub fn refine_equal_split(
         &self,
-        at_u: &[f64],
-        at_v: &[f64],
+        splits: usize,
     ) -> Result<TensorChannels<'_, C>, KnotAlgebraError> {
-        let plans_u = refine_plan_homogeneous(&self.ku, at_u)?;
-        let plans_v = refine_plan_homogeneous(&self.kv, at_v)?;
-        let last = |plans: &[CurvePlan], kv: &KnotVector| {
+        let plans_u = equal_split_plan(&self.ku, splits)?;
+        let plans_v = equal_split_plan(&self.kv, splits)?;
+        fn last<'k>(plans: &[CurvePlan], kv: &'k KnotVector) -> Cow<'k, KnotVector> {
             plans
                 .last()
-                .map_or_else(|| kv.clone(), |p| p.knots().clone())
-        };
+                .map_or(Cow::Borrowed(kv), |p| Cow::Owned(p.knots().clone()))
+        }
         Ok(TensorChannels {
-            ku: Cow::Owned(last(&plans_u, &self.ku)),
-            kv: Cow::Owned(last(&plans_v, &self.kv)),
+            ku: last(&plans_u, &self.ku),
+            kv: last(&plans_v, &self.kv),
             nets: core::array::from_fn(|c| self.nets[c].refine_u(&plans_u).refine_v(&plans_v)),
         })
     }
@@ -798,23 +797,22 @@ mod tests {
 
     /// **Refinement builds its chains from the pair's own vectors**: the
     /// refined channels are the nets refined by those chains, bit for
-    /// bit, beside the chains' final vectors — the only vectors a
-    /// caller handing in points can land on.
+    /// bit, beside the chains' final vectors — the only vectors the door
+    /// can land on.
     #[test]
     fn refine_pairs_the_nets_with_their_own_refined_vectors() {
         let k2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let line = [0.0, 0.0, 1.0];
         let t = TensorChannels::<1>::from_fn(&k2, &k2, |i, j| [pt(line[i] + line[j])]);
-        let r = t.refine(&[0.5], &[0.25, 0.75]).unwrap();
-        let plans_u = crate::spline::algebra::refine_plan_homogeneous(&k2, &[0.5]).unwrap();
-        let plans_v = crate::spline::algebra::refine_plan_homogeneous(&k2, &[0.25, 0.75]).unwrap();
-        assert_eq!(r.knots_u().knots(), plans_u.last().unwrap().knots().knots());
-        assert_eq!(r.knots_v().knots(), plans_v.last().unwrap().knots().knots());
+        let r = t.refine_equal_split(3).unwrap();
+        let plans = chain(&k2, 3);
+        assert_eq!(r.knots_u().knots(), plans.last().unwrap().knots().knots());
+        assert_eq!(r.knots_v().knots(), plans.last().unwrap().knots().knots());
         let [src] = t.channels();
-        let want = src.net().refine_u(&plans_u).refine_v(&plans_v);
+        let want = src.net().refine_u(&plans).refine_v(&plans);
         let [got] = r.channels();
-        assert_eq!((got.net().nu(), got.net().nv()), (4, 5));
-        for i in 0..4 {
+        assert_eq!((got.net().nu(), got.net().nv()), (5, 5));
+        for i in 0..5 {
             for j in 0..5 {
                 let (a, b) = (got.net().get(i, j), want.get(i, j));
                 assert!(a.is_certified(), "({i}, {j}) refused");
@@ -824,9 +822,11 @@ mod tests {
                 );
             }
         }
-        // No points: the same vectors, the same nets.
-        let same = t.refine(&[], &[]).unwrap();
-        assert_eq!(same.knots_u().knots(), k2.knots());
+        // One piece per span: the same vectors.
+        assert_eq!(
+            t.refine_equal_split(1).unwrap().knots_u().knots(),
+            k2.knots()
+        );
     }
 
     /// The derivative pair holds the derived vector beside the

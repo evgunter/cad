@@ -906,7 +906,7 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
-/// The recurrence [`de_boor`] and the [`Dir::Raw`] evaluators share:
+/// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
@@ -953,45 +953,25 @@ fn range_hull(pair: SplineCoeffs<'_, Interval>, range: ParamRange) -> Interval {
 }
 
 /// One level of a [`DerivLadder`]: the derivative's coefficients with
-/// the knot structure they are a proof about. The three cases are the
-/// three things a derivative of a clamped spline can be, and they differ
-/// in what lies BELOW them, which is why they are kept apart.
+/// the knot structure they are a proof about — a clamped vector, or the
+/// [`Loose`] structure no clamped vector spells, which is the same
+/// structure the patch lanes' [`Dir::Loose`] carries.
 enum Level {
     /// A clamped spline of degree ≥ 1: differentiated again through its
     /// own vector.
     Spline(SplineCoeffsBuf<Interval>),
-    /// A spline of degree ≥ 1 whose derivative vector is NOT clamped —
-    /// an interior knot of multiplicity equal to the parent's degree
-    /// makes it discontinuous there — held on its raw knot list (the
-    /// [`Dir::Raw`] structure, one dimension down). It is still a
-    /// polynomial of that degree on every span, so it has a derivative
-    /// below it; reading that as zero would be wrong by O(1).
-    Raw {
-        knots: Vec<f64>,
-        degree: usize,
-        coeffs: Vec<Interval>,
-    },
-    /// Per-span constants (a degree-1 parent's derivative): the
-    /// derivative below is an in-span zero, so there is no level below.
-    Constants(Vec<Interval>),
+    /// A discontinuous derivative ([`Loose::Raw`], which has a level
+    /// below it) or per-span constants ([`Loose::Const`], which has
+    /// none), with its coefficients.
+    Loose(Loose, Vec<Interval>),
 }
 
 impl Level {
     /// The derivative of `pair`, as a level.
     fn of(pair: SplineCoeffs<'_, Interval>) -> Self {
-        if let Some(buf) = pair.derivative() {
-            return Self::Spline(buf);
-        }
-        let kv = pair.knots();
-        let coeffs = pair.derivative_coeffs();
-        if kv.degree() >= 2 {
-            Self::Raw {
-                knots: kv.derivative_knot_slice().to_vec(),
-                degree: kv.degree() - 1,
-                coeffs,
-            }
-        } else {
-            Self::Constants(coeffs)
+        match pair.derivative() {
+            Some(buf) => Self::Spline(buf),
+            None => Self::Loose(Loose::below(pair.knots()), pair.derivative_coeffs()),
         }
     }
 
@@ -999,24 +979,10 @@ impl Level {
     fn next(&self) -> Option<Self> {
         match self {
             Self::Spline(buf) => Some(Self::of(buf.pair())),
-            Self::Raw {
-                knots,
-                degree,
-                coeffs,
-            } => {
-                let coeffs = raw_deriv(knots, *degree, coeffs);
-                let knots = derivative_knot_slice(knots).to_vec();
-                Some(if *degree >= 2 {
-                    Self::Raw {
-                        knots,
-                        degree: degree - 1,
-                        coeffs,
-                    }
-                } else {
-                    Self::Constants(coeffs)
-                })
+            Self::Loose(dir, coeffs) => {
+                let (below, take) = dir.step()?;
+                Some(Self::Loose(below, take(coeffs)))
             }
-            Self::Constants(_) => None,
         }
     }
 
@@ -1024,13 +990,11 @@ impl Level {
     fn hull(&self, range: ParamRange) -> Interval {
         match self {
             Self::Spline(buf) => range_hull(buf.pair(), range),
-            Self::Raw {
-                knots,
-                degree,
-                coeffs,
-            } => raw_range_hull(knots, *degree, coeffs, range),
+            Self::Loose(Loose::Raw { knots, degree }, coeffs) => {
+                raw_range_hull(knots, *degree, coeffs, range)
+            }
             // The whole-domain coefficient hull: sound for any range.
-            Self::Constants(q) => {
+            Self::Loose(Loose::Const { .. }, q) => {
                 let mut acc = Interval::refused();
                 for (n, c) in q.iter().enumerate() {
                     acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
@@ -1042,7 +1006,7 @@ impl Level {
 }
 
 /// The derivative ladder of one nonrational channel, up to third
-/// order. A level is missing only below [`Level::Constants`], where the
+/// order. A level is missing only below a [`Loose::Const`] one, where the
 /// degree is exhausted: the missing order is an **in-span polynomial
 /// zero** — a degree-p span polynomial has vanishing derivatives beyond
 /// order p — which is sound only on knot-free pieces, and each composite rule
@@ -1056,7 +1020,7 @@ struct DerivLadder {
     /// The first derivative — every channel has one, its vector having
     /// at least two coefficients.
     d1: Level,
-    /// Orders 2 and 3; `None` below a [`Level::Constants`].
+    /// Orders 2 and 3; `None` below a [`Loose::Const`] level.
     higher: [Option<Level>; 2],
 }
 
@@ -1181,12 +1145,10 @@ pub fn bspline_green_integral(
         let fm = eval_at(u, m)
             * match &v_ladder.d1 {
                 Level::Spline(v1) => eval_at(v1.pair(), m),
-                Level::Raw {
-                    knots,
-                    degree,
-                    coeffs,
-                } => raw_eval(knots, *degree, coeffs, m),
-                Level::Constants(_) => v1h,
+                Level::Loose(Loose::Raw { knots, degree }, coeffs) => {
+                    raw_eval(knots, *degree, coeffs, m)
+                }
+                Level::Loose(Loose::Const { .. }, _) => v1h,
             };
         // f\'\' = u\'\'·v\' + 2·u\'·v\'\' + u·v\'\'\' over the knot-free piece.
         let f2 = u_ladder.hull(2, piece) * v1h
@@ -1308,34 +1270,73 @@ enum Collapse<'a> {
 }
 
 /// One direction's knot structure: a real knot vector, or the
-/// degree-0 remnant a derivative ladder bottoms out at (coefficients
-/// are per-span constants over `knots[i]..knots[i+1]` — the parent's
-/// interior knot list, kept so span-LOCAL collapse stays exact; the
-/// 1-D ladder's whole-domain hull would lose the per-span constancy
-/// the Newton–Cotes lane depends on).
+/// [`Loose`] structure of a derivative no clamped vector spells.
 #[derive(Clone)]
 enum Dir {
     Kv(KnotVector),
-    /// A derivative direction whose knot vector is **not representable**
-    /// as a [`KnotVector`]: an interior knot of multiplicity equal to
-    /// the parent's degree (the standard rational-arc structure) makes
-    /// the derivative genuinely DISCONTINUOUS there, and the clamped
-    /// invariant refuses interior multiplicity above the degree.
+    Loose(Loose),
+}
+
+/// A derivative direction whose knot vector is **not representable** as
+/// a [`KnotVector`] — shared by the patch lanes' [`Dir`] and the 1-D
+/// [`Level`].
+#[derive(Clone)]
+enum Loose {
+    /// A derivative of degree ≥ 1 on a raw knot list: an interior knot
+    /// of multiplicity equal to the parent's degree (the standard
+    /// rational-arc structure) makes the derivative genuinely
+    /// DISCONTINUOUS there, and the clamped invariant refuses interior
+    /// multiplicity above the degree.
     ///
-    /// Before M8-3 this case fell through to [`Dir::Const`], which
+    /// Before M8-3 this case fell through to [`Loose::Const`], which
     /// silently read the FIRST derivative of a degree-2 spline as a
     /// per-span constant — wrong by O(1), and reachable from the
     /// integral lane's composite fallback too. Evaluated span-locally
     /// on the raw knots instead; the discontinuity is honest, and no
     /// patch cell spans it — the composite cells are cut on the
     /// interior knots ([`knot_aligned_cuts`]).
-    Raw {
-        knots: Vec<f64>,
-        degree: usize,
-    },
-    Const {
-        knots: Vec<f64>,
-    },
+    Raw { knots: Vec<f64>, degree: usize },
+    /// The degree-0 remnant a derivative ladder bottoms out at:
+    /// coefficients are per-span constants over `knots[i]..knots[i+1]`
+    /// — the parent's interior knot list, kept so span-LOCAL collapse
+    /// stays exact; the 1-D ladder's whole-domain hull would lose the
+    /// per-span constancy the Newton–Cotes lane depends on.
+    Const { knots: Vec<f64> },
+}
+
+impl Loose {
+    /// The structure of a derivative of degree `degree` on the raw knot
+    /// list `knots`, where no clamped vector spells it: [`Loose::Raw`]
+    /// at degree ≥ 1, [`Loose::Const`] at 0. The one place that is
+    /// decided.
+    fn of(knots: Vec<f64>, degree: usize) -> Self {
+        if degree >= 1 {
+            Self::Raw { knots, degree }
+        } else {
+            Self::Const { knots }
+        }
+    }
+
+    /// The derivative structure of `kv` where [`KnotVector::derivative`]
+    /// has none.
+    fn below(kv: &KnotVector) -> Self {
+        Self::of(kv.derivative_knot_slice().to_vec(), kv.degree() - 1)
+    }
+
+    /// The structure one derivative down and the line step onto it, or
+    /// `None` at per-span constants (the ladder's outer-None).
+    fn step(&self) -> Option<(Self, DerivTake)> {
+        match self {
+            Self::Raw { knots, degree } => {
+                let (knots, degree) = (knots.clone(), *degree);
+                Some((
+                    Self::of(derivative_knot_slice(&knots).to_vec(), degree - 1),
+                    Box::new(move |c: &[Interval]| raw_deriv(&knots, degree, c)),
+                ))
+            }
+            Self::Const { .. } => None,
+        }
+    }
 }
 
 /// The span index of `t` in a raw knot slice: the last nonempty span
@@ -1364,7 +1365,7 @@ fn raw_span(knots: &[f64], degree: usize, count: usize, t: Param) -> usize {
     i
 }
 
-/// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
+/// In-span de Boor on a raw knot slice (the [`Loose::Raw`] evaluator).
 ///
 /// `coeffs` is the direction's line, built at [`Dir::count`]
 /// (`knots.len() − degree − 1 ≥ degree + 1`) by `collapse_1d`.
@@ -1376,7 +1377,7 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interv
 }
 
 /// In-span de Boor at an ENCLOSED parameter on a raw knot slice (the
-/// [`Dir::Raw`] counterpart of [`de_boor`]): the node lies in the
+/// [`Loose::Raw`] counterpart of [`de_boor`]): the node lies in the
 /// closure of `mid`'s span, and the span polynomial is what the rule
 /// integrates.
 fn raw_eval_in_span(
@@ -1406,7 +1407,7 @@ fn raw_de_boor(
     de_boor_on(knots, degree, first, &coeffs[first..=span], t)
 }
 
-/// Hull of a [`Dir::Raw`] spline over `range`: the local control
+/// Hull of a [`Loose::Raw`] spline over `range`: the local control
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses), over a line built as [`raw_eval`]'s is.
 fn raw_range_hull(
@@ -1423,10 +1424,8 @@ fn raw_range_hull(
     let mut acc = Interval::refused();
     let mut seeded = false;
     for span in s0..=s1 {
-        for j in 0..=degree {
-            let Some(c) = coeffs.get(span - degree + j) else {
-                continue;
-            };
+        // `raw_span` answers within `degree ..= count − 1`.
+        for c in &coeffs[span - degree..=span] {
             acc = if seeded { Interval::hull(acc, *c) } else { *c };
             seeded = true;
         }
@@ -1436,7 +1435,7 @@ fn raw_range_hull(
 
 /// Derivative coefficients on a raw knot slice. `degree ≥ 1` and the
 /// line holds the direction's `knots.len() − degree − 1 ≥ 2`
-/// coefficients, by the construction of [`Dir::Raw`] and [`Level::Raw`],
+/// coefficients, by the construction of [`Loose::Raw`] and [`Level::Loose`],
 /// so every index below is in range.
 fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval> {
     #[allow(clippy::cast_precision_loss)]
@@ -1469,8 +1468,8 @@ impl Dir {
     fn count(&self) -> usize {
         match self {
             Self::Kv(kv) => kv.control_count(),
-            Self::Raw { knots, degree } => knots.len() - degree - 1,
-            Self::Const { knots } => knots.len() - 1,
+            Self::Loose(Loose::Raw { knots, degree }) => knots.len() - degree - 1,
+            Self::Loose(Loose::Const { knots }) => knots.len() - 1,
         }
     }
 
@@ -1504,7 +1503,7 @@ fn row_major<'n>(net: &'n [RVec3], kv_v: &KnotVector) -> impl Fn(usize, usize) -
 /// One (possibly derivative-exhausted) tensor grid of a vector
 /// channel triple, three [`TensorNet`]s over one shared extent — the
 /// 2-D counterpart of
-/// [`DerivLadder`]'s levels: a [`Dir::Const`] direction holds
+/// [`DerivLadder`]'s levels: a [`Loose::Const`] direction holds
 /// per-span constants, and a grid that differentiates to nothing at
 /// all is `Option<PatchGrid> = None`, read as identically zero — sound
 /// on a KNOT-FREE cell, where the piece really is one polynomial of
@@ -1515,7 +1514,7 @@ fn row_major<'n>(net: &'n [RVec3], kv_v: &KnotVector) -> impl Fn(usize, usize) -
 /// [`TensorChannels`] at its two vectors' extents and each derivative
 /// shrinks the direction it differences by one, as its `Dir` does. It
 /// is not itself a [`TensorChannels`]: a derivative direction may be
-/// [`Dir::Raw`] or [`Dir::Const`], which no clamped vector can spell,
+/// [`Loose::Raw`] or [`Loose::Const`], which no clamped vector can spell,
 /// and the grid carries those beside the nets as the tensor pair
 /// carries its vectors.
 struct PatchGrid {
@@ -1534,59 +1533,25 @@ impl PatchGrid {
         }
     }
 
-    /// The derivative direction structure of a knot vector: a real
-    /// vector while the degree allows, the per-span-constant remnant
-    /// at degree 0.
-    fn deriv_dir(kv: &KnotVector) -> Dir {
-        if let Some(k) = kv.derivative() {
-            return Dir::Kv(k);
-        }
-        let knots = kv.derivative_knot_slice().to_vec();
-        // Degree ≥ 2 with an unrepresentable derivative structure is the
-        // DISCONTINUOUS-derivative case, not the per-span-constant one
-        // (see `Dir::Raw`).
-        if kv.degree() >= 2 {
-            Dir::Raw {
-                knots,
-                degree: kv.degree() - 1,
-            }
-        } else {
-            Dir::Const { knots }
-        }
-    }
-
     /// This direction's derivative structure and its line step, or
     /// `None` at a per-span constant (the ladder's outer-None).
     fn step(dir: &Dir) -> Option<(Dir, DerivTake)> {
         match dir {
             Dir::Kv(kv) => {
+                let below = kv
+                    .derivative()
+                    .map_or_else(|| Dir::Loose(Loose::below(kv)), Dir::Kv);
                 let kv = kv.clone();
+                // The one knot-vector step (`TensorCoeffs`'s too).
                 Some((
-                    Self::deriv_dir(&kv),
-                    // The one knot-vector step (`TensorCoeffs`'s too).
+                    below,
                     Box::new(move |c: &[Interval]| kv.difference_coeffs(c)),
                 ))
             }
-            // A `Raw` direction differentiates too — its own
-            // derivative is `Raw` one degree down, or the honest
-            // per-span constant at degree 1.
-            Dir::Raw { knots, degree } => {
-                let (knots, degree) = (knots.clone(), *degree);
-                let inner = derivative_knot_slice(&knots).to_vec();
-                let next = if degree >= 2 {
-                    Dir::Raw {
-                        knots: inner,
-                        degree: degree - 1,
-                    }
-                } else {
-                    Dir::Const { knots: inner }
-                };
-                Some((
-                    next,
-                    Box::new(move |c: &[Interval]| raw_deriv(&knots, degree, c)),
-                ))
+            Dir::Loose(loose) => {
+                let (below, take) = loose.step()?;
+                Some((Dir::Loose(below), take))
             }
-            Dir::Const { .. } => None,
         }
     }
 
@@ -1639,12 +1604,12 @@ impl PatchGrid {
                     Collapse::Over(range) => range_hull(pair, range),
                 }
             }
-            Dir::Raw { knots, degree } => match op {
+            Dir::Loose(Loose::Raw { knots, degree }) => match op {
                 Collapse::At(t) => raw_eval(knots, *degree, line, t),
                 Collapse::AtSpan { mid, t } => raw_eval_in_span(knots, *degree, line, mid, t),
                 Collapse::Over(range) => raw_range_hull(knots, *degree, line, range),
             },
-            Dir::Const { knots } => {
+            Dir::Loose(Loose::Const { knots }) => {
                 match op {
                     // A non-finite point refuses, as the `Kv` and `Raw`
                     // point arms beside it do.
@@ -6280,6 +6245,28 @@ mod tests {
         }
     }
 
+    /// **A discontinuous SECOND derivative keeps the order below it.**
+    /// `v` cubic with a double knot at ½ (multiplicity `p − 1`: `v'` is
+    /// continuous, `v''` jumps, so `v'`'s derivative vector is not
+    /// clamped) and coefficients `[0, 0, 0, 1, 0, 0]`, beside `u ≡ 1`:
+    /// `∫ u·v' dt = v(1) − v(0) = 0`. Reading the third derivative as
+    /// an in-span zero answered a thin bracket that excludes it.
+    #[test]
+    fn a_discontinuous_second_derivative_does_not_zero_the_third() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let u = [1.0, 1.0].map(pt);
+        let v = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0].map(pt);
+        let (u, v) = (ku.with_coeffs(&u).unwrap(), kv.with_coeffs(&v).unwrap());
+        let out = bspline_green_integral(u, v, 0.0, 1.0, 64).unwrap();
+        assert!(
+            out.lo() <= 0.0 && 0.0 <= out.hi(),
+            "{:?} must bracket 0",
+            (out.lo(), out.hi())
+        );
+    }
+
     /// **A discontinuous first derivative keeps the orders below it.**
     /// `u` of degree 2 with a double knot at ½ — `u'` jumps there, so
     /// its derivative vector is not a clamped one — and coefficients
@@ -7658,12 +7645,12 @@ mod tests {
             ("Kv", Dir::Kv(kv)),
             (
                 "Raw",
-                Dir::Raw {
+                Dir::Loose(Loose::Raw {
                     knots: knots.clone(),
                     degree: 2,
-                },
+                }),
             ),
-            ("Const", Dir::Const { knots }),
+            ("Const", Dir::Loose(Loose::Const { knots })),
         ];
         let t = pt(0.5);
         for (name, dir) in &dirs {
