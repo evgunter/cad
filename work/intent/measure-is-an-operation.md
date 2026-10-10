@@ -2,12 +2,12 @@
 id: measure-is-an-operation
 kind: issue
 title: D10 stage 2 PR D: a Measure is one primitive defining one observed scalar; its arithmetic is a Defined variable, an Assertion reads a scalar variable, and a construction reading an observed variable refuses
-status: review
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: M
-blocked_on: [the-product-is-an-explicit-list]
 refs: [a-construction-reads-a-measured-value, error-design-e3-calls-a-measure-a-sink]
+pr: 4355
 branch: intent/s2-d-measure
 ---
 

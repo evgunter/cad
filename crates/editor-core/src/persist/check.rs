@@ -1504,7 +1504,7 @@ fn frame_refusal(
 
 // The document layer's prose for a corrupt snapshot: each arm states
 // WHAT is wrong and WHERE, and forwards the payload's own `Display`
-// wherever the payload has one (`RootFault`, `PlacementRuleFault`,
+// wherever the payload has one (`PlacementRuleFault`,
 // `MetaVersionError`) — a site that re-states a payload it holds
 // invents a second vocabulary for a refusal that already has one. A
 // node or a name renders through its spoken `Display` (`SpokenNode`,
