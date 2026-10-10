@@ -68,3 +68,5 @@ above are unchanged by the move.
 ## Closed 2026-10-10
 
 PR 4486. Each type has one face per cap. `WitnessOutcome::{SegmentCapExceeded { segments }, CellCapExceeded { segments, cells }}` maps to `ChartRegionError::{WitnessSegmentCapExceeded, WitnessCellCapExceeded}`. The levers are `WITNESS_SEGMENT_CAP` / `WITNESS_CELL_CAP`, replacing `WITNESS_BUDGET` / `WitnessBudget`. Display names each face's own cap. Every consumer is updated, and the census and validate mappings keep one answer for both. Both arms are reached by P5 / P7, `every_chart_region_arm_names_a_recourse` and `each_witness_cap_refusal_names_its_own_cap`. The sweep still finds this as the only hit; the PR body has the receipt.
+
+The review fix pass changed the cell face's `cells` to the probes actually made (the cap, not cap + 1).
