@@ -77,6 +77,10 @@ struct Found {
     mode: Option<Move>,
     /// Every predicate the `p0` build decided, with its count.
     seen: BTreeMap<&'static str, usize>,
+    /// Where the two builds parted, when the census compared only the
+    /// decisions before it: (decisions in common, decisions at `p0`,
+    /// the `p0` predicate at the first difference).
+    parted: Option<(usize, usize, &'static str)>,
 }
 
 fn continuous_vars(doc: &ProfileDoc) -> Vec<(VarId, f64)> {
@@ -113,10 +117,23 @@ fn options(offsets: &BTreeMap<VarId, f64>) -> EvalOptions {
     }
 }
 
+/// A session at the shipped budget, or, under `REVALUE_TIER=off`, at a
+/// zero-term budget: the identity tier switched off, which re-valuation
+/// does not read (it walks the DAG, which a session records at any
+/// budget). The census takes it for the documents whose discharge walks
+/// at `Sym<f64>`, with every variable a symbol, outrun a run.
 fn session<R>(f: impl FnOnce() -> R) -> R {
-    let budget = SymBudget {
-        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    let off = std::env::var("REVALUE_TIER").is_ok_and(|v| v == "off");
+    let budget = if off {
+        SymBudget {
+            max_terms: 0,
+            max_degree: 0,
+        }
+    } else {
+        SymBudget {
+            max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+        }
     };
     with_session_rules(budget, SymRules::shipped(), f).0
 }
@@ -133,8 +150,8 @@ fn build(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<Decision> {
 /// The comparison under [`Move::Apart`], or under [`Move::InStep`]
 /// where the first moves a branch.
 fn compare(name: &str, doc: &ProfileDoc) -> Found {
-    compare_moved(doc, Move::Apart)
-        .or_else(|| compare_moved(doc, Move::InStep))
+    compare_moved(doc, Move::Apart, false)
+        .or_else(|| compare_moved(doc, Move::InStep, false))
         .unwrap_or_else(|| {
             panic!(
                 "{name}: the builds at p0 and p1 took different decisions under both moves — \
@@ -143,8 +160,20 @@ fn compare(name: &str, doc: &ProfileDoc) -> Found {
         })
 }
 
-/// `None` when the two builds did not take the same decisions.
-fn compare_moved(doc: &ProfileDoc, mode: Move) -> Option<Found> {
+/// The census's reading of a document whose branches both moves
+/// change: the decisions before the first difference, which the two
+/// builds took along one path, under whichever move keeps more of them.
+/// Weaker than [`compare`] — a branch taken without a decision before
+/// that point would show here as a laundering — and never a gating row.
+fn compare_prefix(doc: &ProfileDoc) -> Found {
+    let a = compare_moved(doc, Move::Apart, true).expect("a prefix comparison always answers");
+    let b = compare_moved(doc, Move::InStep, true).expect("a prefix comparison always answers");
+    if a.compared >= b.compared { a } else { b }
+}
+
+/// `None` when the two builds did not take the same decisions, unless
+/// `prefix`, which compares the decisions before the first difference.
+fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
     let vars = continuous_vars(doc);
     let at_p1 = offsets(&vars, mode);
     let at_p0: BTreeMap<VarId, f64> = at_p1.keys().map(|id| (*id, 0.0)).collect();
@@ -156,14 +185,18 @@ fn compare_moved(doc: &ProfileDoc, mode: Move) -> Option<Found> {
     session(|| {
         let p0 = build(doc, &options(&at_p0));
         let predicates = |d: &[Decision]| d.iter().map(|x| x.predicate).collect::<Vec<_>>();
-        if predicates(&p0) != predicates(&p1) {
+        let (n0, n1) = (predicates(&p0), predicates(&p1));
+        let common = n0.iter().zip(&n1).take_while(|(a, b)| a == b).count();
+        if n0 != n1 && !prefix {
             return None;
         }
         let mut found = Found {
             mode: Some(mode),
+            parted: (n0 != n1)
+                .then(|| (common, n0.len(), n0.get(common).copied().unwrap_or("<end>"))),
             ..Found::default()
         };
-        for (a, b) in p0.iter().zip(&p1) {
+        for (a, b) in p0.iter().zip(&p1).take(common) {
             found.compared += 1;
             *found.seen.entry(a.predicate).or_default() += 1;
             let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
@@ -173,7 +206,13 @@ fn compare_moved(doc: &ProfileDoc, mode: Move) -> Option<Found> {
             match revalue(a.node, &|s| env.get(&s).copied()) {
                 None => found.opaque += 1,
                 Some(r) if r.to_bits() == v1.to_bits() || (r.is_nan() && v1.is_nan()) => {}
-                Some(_) => {
+                Some(r) => {
+                    if std::env::var_os("REVALUE_DETAIL").is_some() {
+                        eprintln!(
+                            "  laundered #{} {}: p0 {v0:e}, re-valued {r:e}, p1 {v1:e}",
+                            found.compared, a.predicate
+                        );
+                    }
                     found.laundered.insert(a.predicate);
                 }
             }
@@ -236,12 +275,22 @@ rows! {
 #[ignore = "evidence: REVALUE_DOC=<name> cargo nextest run -p editor-core --run-ignored only -E 'test(revalue_census)' --no-capture"]
 fn revalue_census() {
     let only = std::env::var("REVALUE_DOC").ok();
-    for cd in corpus::documents() {
+    let docs = corpus::documents();
+    if let Some(o) = only.as_deref() {
+        let names: Vec<&str> = docs.iter().map(|cd| cd.name).collect();
+        assert!(
+            names.contains(&o),
+            "REVALUE_DOC={o} is not a corpus document: {names:?}"
+        );
+    }
+    for cd in docs {
         if only.as_deref().is_some_and(|o| o != cd.name) {
             continue;
         }
         let t = std::time::Instant::now();
-        let found = compare(cd.name, &cd.doc);
+        let found = compare_moved(&cd.doc, Move::Apart, false)
+            .or_else(|| compare_moved(&cd.doc, Move::InStep, false))
+            .unwrap_or_else(|| compare_prefix(&cd.doc));
         let Found {
             compared,
             moved,
@@ -249,10 +298,11 @@ fn revalue_census() {
             laundered,
             mode,
             seen,
+            parted,
         } = &found;
         eprintln!(
             "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, opaque {opaque}, \
-             laundered {laundered:?}",
+             laundered {laundered:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
         );
