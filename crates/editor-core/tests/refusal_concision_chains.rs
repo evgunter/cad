@@ -1772,6 +1772,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeEscalated { edge, diag: diag() },
         ),
         (
+            "DescribeSideEscalated",
+            F::DescribeSideEscalated { edge, diag: diag() },
+        ),
+        (
             "DescribeBendEscalated",
             F::DescribeBendEscalated { edge, diag: diag() },
         ),

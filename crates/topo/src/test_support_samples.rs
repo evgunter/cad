@@ -1332,6 +1332,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             WedgeCheck::Arm,
             WedgeCheck::Dihedral,
             WedgeCheck::SecondOrder,
+            WedgeCheck::MaterialPairing,
             WedgeCheck::MaterialSide,
         ] {
             s.push((
