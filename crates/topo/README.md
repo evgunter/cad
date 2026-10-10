@@ -110,8 +110,11 @@ separation/crossing by geometry, in-band ⇒ escalate. The exclusion step
 is `census::sweep_cross_solid_backstop`. A cross-solid pair with a curved
 side clears only
 
-- on a definitely-positive separation margin from certified reach boxes
-  (`face_reach`), or
+- on a definitely-positive separation margin between certified reach boxes
+  (`face_reach_in`), read along each world axis and then along the
+  directions that turn with the pair: the axis between the two faces'
+  anchors, and either face's normal where it is planar
+  (`boolean::separating::apart`), or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and
