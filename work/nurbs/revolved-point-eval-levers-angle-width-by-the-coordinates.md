@@ -2,8 +2,11 @@
 id: revolved-point-eval-levers-angle-width-by-the-coordinates
 kind: issue
 title: RevolvedPoint::eval's anchored rotation carries an angle's interval width to the point times the coordinates' magnitude, so restrictions with an inexact start still grow at a far placement; the radius-levered spellings cost f64 agreement on origin-axis geometry
-status: open
+status: closed
 opened: 2026-10-09
+closed: 2026-10-10
+branch: nurbs/revolved-point-axis-anchored
+pr: 4518
 refs: [mapped-curve-restrict-composes-placements-per-split]
 priority: P2
 cost: M
@@ -108,3 +111,46 @@ rounding of the coordinates) a thousand metres out
 figures are 1.2–1.35× what re-deriving the endpoints stored at the same
 counts (2.3e-14 / 4.0e-14), the far ones 44–51× under it. A spelling
 chosen for `RevolvedPoint::eval` here does not reach the segment arm.
+
+## Closed
+
+Decided by W1 (`crates/geom-core/README.md`): a revolved point
+evaluates as `q + R·(p − q)`, through
+`Affine3::rotate_point_about_axis`, and `offset_axial::reauthor` reads
+a turned corner back as `place⁻¹(q + R(−θ)·(p − q))`, its azimuth
+test included.
+
+- **The mechanism is gone.** An angle's width reaches the point times
+  the radius about the axis. Over every chain of the table above at
+  N = 1 / 8 / 64, a thousand metres out every chain with exact split
+  parameters sits at 2.3e-13 – 3.4e-13 (one to three ulps of the
+  coordinates) at every count, where the anchored rotation read up to
+  1.9e-10; at 1e5 out, 1.5e-11 – 2.9e-11 against up to 1.9e-8. Near
+  the origin every chain is a quarter of what it was. `(0.3, 0.7)` far
+  and its quotient form, the two that sat over the composed placement,
+  are at 0.002× of the anchored rotation and 0.01× of the composed
+  placement.
+- **The read-back.** On the tilted far placement, with the turned
+  corner built by the same spelling, the stored sketch point is
+  2.3e-11 – 3.9e-11 wide at `Interval` against the composite's
+  3.5e-7 – 5.2e-7 (which no longer fits the ordinary band), and at
+  `f64` the start sample lands 2.3e-13 (1e3) and 1.5e-11 (1e5) from
+  its corner, within four ulps of the coordinates; reading back
+  through the composite against this evaluation lands 8.0e-13 and
+  5.8e-11.
+- **What it gave up** is the start sample's independence from the
+  axis: an axis `w` wide reaches every sample at up to `2·w`
+  (`revolved_point_anchor.rs`
+  `an_uncertain_axis_reaches_the_start_sample_at_most_twice_over`).
+  No producer hands an axis wider than its point.
+- **The segment arm's near 1.2–1.35×** is `Arc2::point_from`'s
+  anchoring, not this evaluation, and is no defect under W1: it scales
+  with the radius times the sweep and stays flat in N
+  (`sketch_segment_restriction.rs`
+  `nested_segment_splits_stay_at_one_evaluations_width`), and the
+  spelling it is measured against is the retired re-derivation. No row
+  is opened for it.
+- **`tilted_lune`** evaluates on an axis through the origin, where the
+  new spelling is the old one's `R·p`; it stays green at 1e-6, 1e-9
+  and 1e-12.
+

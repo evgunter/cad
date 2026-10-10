@@ -3081,8 +3081,7 @@ mod tests {
     /// `rim`'s placed point turned `theta` about its own axis — a start
     /// corner an offset moved round the axis.
     fn turned<T: Decide>(rim: &Rim<T>, theta: T) -> Point3<T> {
-        Affine3::rotation_about_axis(rim.axis_origin, rim.axis_dir, theta)
-            .transform_point(placed(rim))
+        Affine3::rotate_point_about_axis(rim.axis_origin, rim.axis_dir, theta, placed(rim))
     }
 
     /// The turn main read off a moved start: the azimuth about the axis
@@ -3209,13 +3208,13 @@ mod tests {
     /// ulps of the coordinates of its corner.** At `f64`, over 200 turns
     /// in `[−3, 3]`, the re-authored description's start sample — the
     /// corner turned back on its offset from the axis, read through
-    /// `place⁻¹`, placed and turned again — sits 3.4e-13 from the corner
-    /// at 1e3 (three ulps) and 1.5e-11 at 1e5 (one). Reading the corner
-    /// back through the composite `(R(φ)·place)⁻¹` instead lands 1.0e-12
-    /// and 5.8e-11 off, nine and four ulps: the read-back and the
+    /// `place⁻¹`, placed and turned again — sits 2.3e-13 from the corner
+    /// at 1e3 (two ulps) and 1.5e-11 at 1e5 (one). Reading the corner
+    /// back through the composite `(R(φ)·place)⁻¹` instead lands 8.0e-13
+    /// and 5.8e-11 off, seven and four ulps: the read-back and the
     /// description's own evaluation then turn the corner by two
     /// different spellings. (Read and placed through that composite
-    /// alone, the corner lands 5.7e-13 and 2.9e-11 off, printed beside.)
+    /// alone, the corner lands 6.8e-13 and 2.9e-11 off, printed beside.)
     #[test]
     fn a_turned_start_on_a_tilted_far_placement_lands_within_ulps_of_its_corner() {
         let mut worst = Vec::new();
@@ -3249,13 +3248,13 @@ mod tests {
 
     /// **At `Interval` a turned start stores a thousand times tighter
     /// than composing the turn into the placement.** On the tilted far
-    /// placement, at four turns, the stored sketch point is 1.1e-10 to
-    /// 3.7e-10 wide, the turn's width times the radius, where the
-    /// composite `(R(φ)·place)⁻¹` reads the same corner 1.1e-6 to
-    /// 2.8e-6 wide, the turn's width times the coordinates. The corner
+    /// placement, at four turns, the stored sketch point is 2.3e-11 to
+    /// 3.9e-11 wide, the turn's width times the radius, where the
+    /// composite `(R(φ)·place)⁻¹` reads the same corner 3.5e-7 to
+    /// 5.2e-7 wide, the turn's width times the coordinates. The corner
     /// is read at the ordinary band: its out-of-plane coordinate, read
-    /// on the turned offset, fits inside it, where the composite's needed
-    /// a band of 1e-5.
+    /// on the turned offset, fits inside it, where the composite's does
+    /// not and the re-authoring escalates.
     #[test]
     fn a_turned_start_on_a_tilted_far_placement_stores_far_tighter_than_composing() {
         let iv = Interval::from_f64;
