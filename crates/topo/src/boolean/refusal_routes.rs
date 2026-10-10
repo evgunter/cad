@@ -1773,7 +1773,7 @@ pub(in crate::boolean) mod tests {
                 SplitReduceError::CrossingInsertion {
                     edge,
                     endpoints: (VertexKey::default(), VertexKey::default()),
-                    source: raise().0,
+                    source: Box::new(raise().0),
                 }
                 .to_string(),
             ),

@@ -311,7 +311,7 @@ fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): 
 }
 
 /// Adaptive Simpson on `[a, b]`.
-fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+pub fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
     /// One panel `(a, b)`, its end and middle values, and its estimate.
     fn step(
         f: &dyn Fn(f64) -> f64,
