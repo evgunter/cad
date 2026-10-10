@@ -55,7 +55,8 @@ fn l_profile() -> ValidatedProfile<f64> {
 /// prefer-intrinsic pass runs. The sub-arc over param fractions
 /// [s0, s1] keeps the authored segment and its placement bit for bit
 /// and narrows only its range, to start s0 and span EXACTLY s1 - s0;
-/// its ends evaluate as the parent does at s0 and s1 bitwise; and the
+/// its ends evaluate bitwise as the parent does at the range's own
+/// parameters; and the
 /// reparameterization law restrict(s0, s1).eval(s) ~= eval(s0 + (s1 -
 /// s0) * s) holds.
 #[test]
@@ -128,7 +129,9 @@ fn arc_restriction_formula_derived_independently() {
         (Some(s0), Some(s1 - s0)),
         "the range starts at s0 and spans s1 - s0"
     );
-    for (s, at) in [(0.0, s0), (1.0, s1)] {
+    // Each end is the parent at the range's own `u`: `s0` exactly at
+    // s = 0, and `s0 + (s1 − s0)` — within an ulp of `s1` — at s = 1.
+    for (s, at) in [(0.0, s0), (1.0, s0 + (s1 - s0))] {
         let (got, want) = (sub.eval(s), whole.eval(at));
         assert_eq!(
             (got.x.to_bits(), got.y.to_bits(), got.z.to_bits()),
@@ -136,6 +139,7 @@ fn arc_restriction_formula_derived_independently() {
             "the sub-arc's end at s = {s} is the parent's at {at}"
         );
     }
+    assert!(sub.eval(1.0).distance(whole.eval(s1)) < 1e-15);
     // Reparameterization law, sampled densely (float slack only).
     for i in 0..=16 {
         let s = f64::from(i) / 16.0;
