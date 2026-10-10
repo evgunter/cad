@@ -133,7 +133,7 @@ fn decide_3_no_predicate_loses_a_decision() {
             // `[96, 0, 0, 12] -> [92, 0, 8, 8]`, which sums to the old
             // `_1` (`[108, 0, 0, 0]` on both sides) plus the old `_2`,
             // and the document totals did not move
-            // (`work/carve/certify-residual-predicates-still-name-a-slot`).
+            // (`work/carverest/certify-residual-predicates-still-name-a-slot`).
             //
             // The decision read no longer answers any of this
             // document's theorems first (DECIDE-9's early zero arm), so

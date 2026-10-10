@@ -9,7 +9,7 @@ priority: P0
 cost: M
 branch: carve/surface-pair-is-unordered
 pr: 4189
-closed: 2026-10-07
+closed: 2026-10-10
 ---
 
 

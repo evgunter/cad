@@ -497,3 +497,21 @@ The plan gives the next sitting's order. The reflected placement comes
 first, because it is the one row that builds a wrong body silently.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-10 — sitting closed; CARVE handed back
+
+PR 4189 merges with this state sync, which closes six of the seven P0
+rows. Its two filed rows moved to CARVEREST. Reaching a mergeable head
+took the PR more than a dozen merges of main after its review. The last one
+conflicted only in `.config/nextest.toml`'s slow set, which nearly every
+PR edits, so that merge was verified locally on the merged tree against
+exactly the delta: clippy, the two incoming PRs' rows, and the census
+goldens. It was then merged without another hosted round, which a slow
+set touched by every PR would never have let converge. The PR carries
+the evidence.
+
+`self-overlapping-spines-build-and-validate` stays parked on the
+clearance certificate. CARVE goes to `ready`, with no orchestrator; the
+plan gives the next sitting's order.
+
+Signed: (CARVE orchestrator)
