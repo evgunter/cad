@@ -69,27 +69,44 @@ a refused enclosure)":
 
 Per site:
 
-- **C1** goes through `decide_magnitude_reported`. A decided Zero is
-  `SectorReading::Collapsed(Classified)`, which carries the face extent
-  and the band.
+- **C1** goes through `decide_magnitude_reported`. A decided Zero is an
+  `unreachable!` (D9 row 4) that names the face, the vertex, the margin
+  and the band: `sector_shape` has already decided the sector's shorter
+  chord past the band, and the extent is at least that chord. The pin is
+  a `should_panic`.
 - **C2** asks of the same data (`n_face`, `n_SP`, the face extent) twice.
   `Tangent` re-answered the parallelism gate's own question.
-  - The gate's Zero arm now mints `rules::Parallel`. The sense is then
-    read through `geom_brep::enters_material_parallel`, which uses the
-    nonzero gate and has no `Tangent`.
-  - A decided zero is the gate's tagged rejection. It means the face is
-    too short to read its sense.
+  - `geom_brep::normal_alignment` now decides the gate and returns
+    `NormalAlignment::{Oblique(sine), Parallel(ParallelNormal)}`.
+  - `ParallelNormal` is a proof that only the gate can mint. It carries
+    the direction, the arm, the band and the sine margin.
+  - Its `sense()` reads through the nonzero gate and has no `Tangent`.
+    `enters_material` and `sense()` share one core, `sense_margin`.
+  - In `rules`, `ParallelFace` wraps the proof. A decided zero sense is
+    the gate's tagged rejection: the face is too short to read it.
 - **C3** has two arms.
-  - `Tangent` is C2's double read and takes the same door. `Parallel`
-    now reaches `wall_graze` in place of a `bool`.
+  - `Tangent` is C2's double read and takes the same door. Rule (a)
+    hands rule (b) a `WallReading::{Grazed, Clear(sine), InPlane}` per
+    entry.
   - `Exits` does not read the same data: the wall's outward normal
     against the neighbours' sides, which other reads decided. It is
-    `SectorReading::GrazeAgainstNeighbours`, a disagreement, and not a
-    contradiction.
-- **C4** is a straddle: one tilt of the plane, read over two faces'
-  extents (F11), lands on both sides of the band. It is
-  `SectorReading::TangencyStraddle`.
-- **C5** goes through `decide_nonzero`. The rejection carries `D`.
+    `SectorReading::GrazeAgainstNeighbours { margin }`, carrying the
+    sense margin, and not a contradiction.
+  - Whether it can be reached at large K is on
+    `graze-against-neighbours-is-unreached-on-a-gated-body-only-for-line-neighbours-at-k-over-four`.
+    That row holds the derivation; it holds for line neighbours at K > 4
+    and is not proven for conic neighbours, so there is no
+    `debug_assert!`.
+- **C4** is two decided readings that disagree: `split_sector_coplanar`'s
+  sine, read over the grazed face's extent (zero) and over the other
+  face's extent (past the band). D4 ¶1's parallelism arm is read per
+  face. It is `SectorReading::SmoothEdgeDisagrees(TangencyReadings
+  { tangent, clear, band })`. A `WallReading::InPlane` reaching
+  `wall_graze` is an `unreachable!`, because rule (a) takes both entries
+  of a coplanar plane's sector off the plane.
+- **C5** goes through `decide_nonzero`. The rejection carries `D`. The
+  offer at K < 2 is on
+  `graze-side-tighten-offer-at-k-under-two-recurs-in-band`.
 
 The endings, before → after:
 

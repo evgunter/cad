@@ -52,12 +52,12 @@ This moves mints, so `agreed_section`, `rules:197` and `rules:319` wait on `topo
 ## Built in part (branch `cleave/split-rules-mint-no-invalid`)
 
 `SplitReduceError::SliverSector` is done. It carries
-`SectorReading::{Escalated, Collapsed, GrazeAgainstNeighbours,
-TangencyStraddle}` in place of an `Indeterminate`, and ends through
+`SectorReading::{Escalated, GrazeAgainstNeighbours,
+SmoothEdgeDisagrees}` in place of an `Indeterminate`, and ends through
 `LeverOnly` at `Reading::Build`:
 
-- the lever alone on a read margin, a collapsed face, a disagreement or
-  a straddle;
+- the lever alone on a read margin, or on either of the two decided
+  disagreements, which carry their margins;
 - the lever plus `UNREADABLE_MARGIN_NOTE` on a poisoned funnel margin.
 
 No `SliverSector` arm is a decided contradiction any more, so none

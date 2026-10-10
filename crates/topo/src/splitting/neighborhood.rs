@@ -341,8 +341,8 @@ pub fn classify_neighborhood<T: Decide>(
         }
     }
 
-    let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
+    let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
+    rules::apply_rule_b(body, vertex, &mut entries, &readings, band)?;
     Ok(entries)
 }
 

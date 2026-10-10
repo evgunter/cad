@@ -887,18 +887,18 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
 }
 
 /// **A plane tangent to a rounded end and tilted off the long flat
-/// beside it refuses as a straddle.** A bar `20K` long and 1 wide, its
-/// near end a half-round, the flat and the wall meeting along a smooth
-/// edge, cut by a plane through that edge tilted by `sin θ ∈ {0.1, 0.3,
-/// 0.6}·ε` off the flat, at either smooth edge, under either normal.
-/// Over the wall's own extent (√2) the tilt reads tangent and the wall
-/// grazed; over the flat's (past `20K`) it reads clear. Rule (b) meets
-/// the edge between them with both neighbours on the wall's material
-/// side, and the two faces' readings of one tilt straddle the band
-/// ([`topo::SectorReading::TangencyStraddle`]), which the split's lever
-/// reaches. At every ε row.
+/// beside it refuses: the two faces' readings disagree.** A bar `20K`
+/// long and 1 wide, its near end a half-round, the flat and the wall
+/// meeting along a smooth edge, cut by a plane through that edge tilted
+/// by `sin θ ∈ {0.1, 0.3, 0.6}·ε` off the flat, at either smooth edge,
+/// under either normal. Over the wall's own extent (√2) the tilt reads
+/// tangent and the wall grazed; over the flat's (past `20K`) it reads
+/// clear. Rule (b) meets the edge between them with both neighbours on
+/// the wall's material side, and the two decided readings disagree
+/// ([`topo::SectorReading::SmoothEdgeDisagrees`]), carrying both sine
+/// margins and ending in the split's lever. At every ε row.
 #[test]
-fn a_plane_tangent_to_a_rounded_end_tilted_off_its_flat_refuses_as_a_straddle() {
+fn a_plane_tangent_to_a_rounded_end_tilted_off_its_flat_refuses_its_disagreement() {
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
     let l = 20.0 * k;
@@ -918,10 +918,21 @@ fn a_plane_tangent_to_a_rounded_end_tilted_off_its_flat_refuses_as_a_straddle() 
                 match split(&bar, &p, tol) {
                     Err(
                         e @ SplitError::Reduce(SplitReduceError::SliverSector {
-                            reading: topo::SectorReading::TangencyStraddle,
+                            reading: topo::SectorReading::SmoothEdgeDisagrees(readings),
                             ..
                         }),
                     ) => {
+                        let value =
+                            |m: geom_core::MarginDiag| match m.diagnostic_f64_for_error_text() {
+                                geom_core::ErrorTextReading::Value(v) => v,
+                                other => panic!("{label}: a point margin: {other:?}"),
+                            };
+                        let (tangent, clear) = (value(readings.tangent), value(readings.clear));
+                        assert!(
+                            tangent.abs() <= eps && clear >= k * eps,
+                            "{label}: tangent {tangent:e} over the wall, clear {clear:e} over \
+                             the flat"
+                        );
                         let text = e.to_string();
                         assert!(
                             text.ends_with(&format!(

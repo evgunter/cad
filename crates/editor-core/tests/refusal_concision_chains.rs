@@ -1613,30 +1613,25 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "SliverSector/Collapsed",
-            R::SliverSector {
-                vertex,
-                face,
-                reading: topo::SectorReading::Collapsed(geom_brep::recourse::Classified {
-                    margin: geom_core::MarginDiag::value(3.0e-10),
-                    band: band(),
-                }),
-            },
-        ),
-        (
             "SliverSector/GrazeAgainstNeighbours",
             R::SliverSector {
                 vertex,
                 face,
-                reading: topo::SectorReading::GrazeAgainstNeighbours,
+                reading: topo::SectorReading::GrazeAgainstNeighbours {
+                    margin: geom_core::MarginDiag::value(-3.0e-8),
+                },
             },
         ),
         (
-            "SliverSector/TangencyStraddle",
+            "SliverSector/SmoothEdgeDisagrees",
             R::SliverSector {
                 vertex,
                 face,
-                reading: topo::SectorReading::TangencyStraddle,
+                reading: topo::SectorReading::SmoothEdgeDisagrees(topo::TangencyReadings {
+                    tangent: geom_core::MarginDiag::value(3.0e-10),
+                    clear: geom_core::MarginDiag::value(3.0e-8),
+                    band: band(),
+                }),
             },
         ),
         (

@@ -23,7 +23,7 @@
 //! going Above leaves the material — the material is Below, so both
 //! bounding edges of the sector reclassify **Below**; `Enters` ⇒
 //! **Above**. The parallelism gate's verdict is that read's input
-//! ([`geom_brep::enters_material_parallel`]), so it has no `Tangent`: a
+//! ([`geom_brep::ParallelNormal::sense`]), so it has no `Tangent`: a
 //! sense decided zero is a face too short to read it at this ε, and
 //! escalates. This reproduces the
 //! book's printed `dot(feq, SP) > 0 ⇒ BELOW`, which TOG §2's
@@ -58,8 +58,10 @@
 //! | `S`-ON-`S` | convex edge | `S` |
 //! | `S`-ON-`S` | reflex edge | opposite `S` |
 //! | `S`-ON-`S` | smooth edge or duplicate, convex graze | `S` |
+//! | `S`-ON-`S` | smooth edge or duplicate, convex graze, material across from `S` | refused, [`SectorReading::GrazeAgainstNeighbours`] |
 //! | `S`-ON-`S` | smooth edge or duplicate, concave graze | refused by rule (a), [`SplitReduceError::KnifeEdge`] |
 //! | `S`-ON-`S` | smooth edge or duplicate, no graze | opposite `S` (a safety default) |
+//! | `S`-ON-`S` | smooth edge, one face grazed and the other clear | refused, [`SectorReading::SmoothEdgeDisagrees`] |
 //! | `A`-ON-`B`, `B`-ON-`A` | any | `Below` |
 //! | | in the band | refused, [`SplitReduceError::SliverSector`] |
 //!
@@ -127,6 +129,10 @@
 //!   on the same wall) and refuses as a sliver
 //!   ([`SectorReading::GrazeAgainstNeighbours`]); a wall that osculates
 //!   its tangent plane is [`SplitReduceError::TangencyUnsupported`].
+//! - At a smooth edge each face's parallelism is read over its own face
+//!   extent, so one tilt of the plane can read tangent over one face and
+//!   clear over the other; the two decided readings disagree and refuse
+//!   ([`SectorReading::SmoothEdgeDisagrees`]).
 //!
 //! Anywhere else — a plane face, or a curved one not tangent to the
 //! plane — opposite `S` stays a safety default, not a derivation: it
@@ -142,15 +148,14 @@
 //! manifold results; `Below` is kept for both witnesses' agreement and
 //! for rule (a)'s Fig. 14.8 coplanar-edge-goes-below choice.
 
-use geom_brep::recourse::Classified;
-use geom_brep::{EntersMaterial, OutwardNormal, ParallelSense, WallBend, enters_material};
+use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
     KnifeEdge, KnifeEdgeSite, PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane,
-    SplitReduceError,
+    SplitReduceError, TangencyReadings,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -164,12 +169,12 @@ use crate::validate::decide;
 /// coplanar faces — a maximal-faces violation; deterministic
 /// last-wins, as the book).
 ///
-/// Returns, per entry, the parallelism verdict on its sector's face where
-/// that face is a curved wall the plane grazes from outside (tangent at
-/// the vertex, definitely bending into its material), which rule (b)
-/// reads rather than deciding the tangency again. A wall that bends away
-/// from its material is a knife edge, refused here
-/// ([`SplitReduceError::KnifeEdge`]).
+/// Returns, per entry, what it read of its sector's face
+/// ([`WallReading`]): a curved wall the plane grazes from outside
+/// (tangent at the vertex, definitely bending into its material) with its
+/// parallelism verdict, which rule (b) reads rather than deciding the
+/// tangency again. A wall that bends away from its material is a knife
+/// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 ///
 /// A wall's rows read its face extent over its edges' spans alone,
 /// while the split's chords through the same wall read the agreed
@@ -181,9 +186,9 @@ pub(super) fn apply_rule_a<T: Decide>(
     vertex: VertexKey,
     entries: &mut [SectorEntry],
     band: Band,
-) -> Result<Vec<Option<Parallel<T>>>, SplitReduceError> {
+) -> Result<Vec<WallReading<T>>, SplitReduceError> {
     let n = entries.len();
-    let mut grazes = vec![None; n];
+    let mut readings = Vec::with_capacity(n);
     // The edges lying in the plane, as classified before this rule
     // rewrites any entry: where a knife edge's contact runs.
     let in_plane: Vec<bool> = entries
@@ -203,14 +208,18 @@ pub(super) fn apply_rule_a<T: Decide>(
         // (the shorter-chord arm): this margin is the FACE extent.
         // Still lane-prefixed, and correctly so — the boolean lane has
         // no counterpart to it, so #652's pooling does not reach it.
+        // `sector_shape` decided this sector's shorter chord past the band
+        // before this rule runs, and the face's extent from the vertex is
+        // at least that chord: a zero here is a kernel bug (D9 row 4).
         match decide_magnitude_reported("split_sector_extent", Margin::of(extent), band) {
             Ok((Magnitude::Positive, _)) => {}
-            Ok((Magnitude::Zero, margin)) => {
-                return Err(refuse(SectorReading::Collapsed(Classified {
-                    margin,
-                    band,
-                })));
-            }
+            Ok((Magnitude::Zero, margin)) => unreachable!(
+                "face {face:?}'s extent from vertex {vertex:?} decided zero (margin {margin:e}, \
+                 band ({:e}, {:e})), past which `sector_shape` decided the sector's shorter \
+                 chord, an arm the extent bounds",
+                band.zero(),
+                band.escalate()
+            ),
             Err(diag) => return Err(sliver(diag)),
         }
         // Oriented parallelism, part 1: are the normals parallel at
@@ -220,11 +229,17 @@ pub(super) fn apply_rule_a<T: Decide>(
         // coplanar with the split plane, so a parallel local normal is
         // a **tangent contact** — C7 territory, refused typed (never
         // marched into); the arm for that pair moves at M5 PR 9.
-        let parallel_margin =
-            Margin::levered(n_face.vec().cross(plane.normal.get()).norm(), extent);
-        let parallel = match decide("split_sector_coplanar", parallel_margin, band) {
-            Ok(Sign::Zero) => {
-                let parallel = Parallel { n_face, extent };
+        let alignment = geom_brep::normal_alignment(
+            "split_sector_coplanar",
+            plane.normal.get(),
+            n_face,
+            extent,
+            band,
+        )
+        .map_err(sliver)?;
+        let parallel = match alignment {
+            NormalAlignment::Parallel(parallel) => {
+                let parallel = ParallelFace(parallel);
                 if !is_plane {
                     // A plane-parallel LOCAL normal on a curved face
                     // is a tangent CONTACT, not a coplanar sector.
@@ -263,7 +278,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                             })?;
                             match bend {
                                 WallBend::IntoMaterial => {
-                                    grazes[k] = Some(parallel);
+                                    readings.push(WallReading::Grazed(parallel));
                                     continue;
                                 }
                                 WallBend::OutOfMaterial => {
@@ -306,47 +321,62 @@ pub(super) fn apply_rule_a<T: Decide>(
                 }
                 parallel
             }
-            Ok(_) => continue, // definitely not coplanar: rule (a) silent
-            Err(diag) => return Err(sliver(diag)),
+            // Definitely not coplanar: rule (a) is silent.
+            NormalAlignment::Oblique(sine) => {
+                readings.push(WallReading::Clear(sine));
+                continue;
+            }
         };
         // Part 2, the material sense of the face part 1 decided
         // parallel ([`Parallel::material_side`]).
-        let class = parallel.material_side(plane, band).map_err(sliver)?;
+        let (class, _) = parallel.material_side().map_err(sliver)?;
+        readings.push(WallReading::InPlane);
         entries[k].class = class;
         entries[(k + 1) % n].class = class;
     }
-    Ok(grazes)
+    Ok(readings)
 }
 
-/// A face rule (a) decided parallel to the split plane over its face
-/// extent (`split_sector_coplanar` decided zero): the verdict, carried to
-/// the one question a parallel face still poses, which side of the plane
-/// its material lies on. Minted only there.
+/// What rule (a) read of an entry's face against the split plane, for
+/// rule (b).
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Parallel<T: Real> {
-    n_face: OutwardNormal<T>,
-    extent: T,
+pub(super) enum WallReading<T: Real> {
+    /// A curved wall the plane grazes from outside: parallel to it at the
+    /// vertex, and bending into its material.
+    Grazed(ParallelFace<T>),
+    /// A face read definitely not parallel to the plane, with the sine
+    /// margin it was read on.
+    Clear(MarginDiag),
+    /// A plane face lying in the plane, both of whose sector's entries this
+    /// rule reclassified, so neither reaches rule (b).
+    InPlane,
 }
 
-impl<T: Decide> Parallel<T> {
-    /// Which side of `plane` the face's material lies on: the F3 sense of
-    /// `dir = +n_SP` against the face (module docs), `Exits` ⇒ Below.
+/// A face whose outward normal rule (a) decided parallel to the split
+/// plane's over its face extent (`split_sector_coplanar` decided zero),
+/// carrying that verdict with the plane normal and band it was decided
+/// against ([`geom_brep::ParallelNormal`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ParallelFace<T: Real>(geom_brep::ParallelNormal<T>);
+
+impl<T: Decide> ParallelFace<T> {
+    /// Which side of the plane the face's material lies on, with the sense
+    /// margin it was decided on: the F3 sense of `dir = +n_SP` against the
+    /// face (module docs), `Exits` ⇒ Below.
     ///
     /// Exactly one of the two vectors carries an orientation (S10), and
-    /// the types say which. `n_face` is the FACE's outward normal, minted
-    /// from chart × sense in `neighborhood::sector_face`, so the verdict
-    /// inverts on a reversed face. `plane.normal` is the SPLIT PLANE's:
-    /// an operation input that DEFINES the Above/Below convention and
-    /// carries no sense to thread, so it travels as a bare vector in the
-    /// `dir` slot.
-    fn material_side(self, plane: &SplitPlane<T>, band: Band) -> Result<PlaneSide, Indeterminate> {
-        let sense =
-            geom_brep::enters_material_parallel(plane.normal.get(), self.n_face, self.extent, band)
-                .map_err(|escalation| escalation.diag())?;
-        Ok(match sense {
+    /// the types say which. The face's normal is its outward normal,
+    /// minted from chart × sense in `neighborhood::sector_face`, so the
+    /// verdict inverts on a reversed face. The split plane's normal
+    /// DEFINES the Above/Below convention and carries no sense to thread,
+    /// so it travels as a bare vector in the `dir` slot.
+    fn material_side(self) -> Result<(PlaneSide, MarginDiag), Indeterminate> {
+        let (sense, margin) = self.0.sense().map_err(|escalation| escalation.diag())?;
+        let side = match sense {
             ParallelSense::Exits => PlaneSide::Below,
             ParallelSense::Enters => PlaneSide::Above,
-        })
+        };
+        Ok((side, margin))
     }
 }
 
@@ -364,14 +394,13 @@ fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
 /// neighbours and, where both sit on one side, by the convexity of the
 /// in-plane edge between its two flanking faces — the derived table
 /// (module docs). Checks the no-consecutive-ONs invariant loudly first
-/// (the book assumes it; we refuse if it fails). `grazes` is rule (a)'s
-/// per-entry report of the curved walls the plane grazes.
+/// (the book assumes it; we refuse if it fails). `readings` is rule
+/// (a)'s per-entry report of what it read of each face.
 pub(super) fn apply_rule_b<T: Decide>(
     body: &Body<T>,
-    plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
-    grazes: &[Option<Parallel<T>>],
+    readings: &[WallReading<T>],
     band: Band,
 ) -> Result<(), SplitReduceError> {
     let n = entries.len();
@@ -393,25 +422,18 @@ pub(super) fn apply_rule_b<T: Decide>(
                 // more, so it has no edge to read: its face's wall
                 // decides, as both faces' walls do at a smooth edge.
                 match entries[k].kind {
-                    SectorEntryKind::WideBisector => wall_graze(
-                        body,
-                        plane,
-                        vertex,
-                        &[(entries[k].he, grazes[k])],
-                        side,
-                        band,
-                    )?,
+                    SectorEntryKind::WideBisector => {
+                        wall_graze(body, vertex, &[(entries[k].he, readings[k])], side)?
+                    }
                     SectorEntryKind::Edge => {
                         match edge_wedge(body, vertex, prev.he, entries[k].he, band)? {
                             Some(true) => side,
                             Some(false) => side.opposite(),
                             None => wall_graze(
                                 body,
-                                plane,
                                 vertex,
-                                &[(prev.he, grazes[k_prev]), (entries[k].he, grazes[k])],
+                                &[(prev.he, readings[k_prev]), (entries[k].he, readings[k])],
                                 side,
-                                band,
                             )?,
                         }
                     }
@@ -478,49 +500,74 @@ fn edge_wedge<T: Decide>(
 /// Where an `S`-ON-`S` entry with no corner to read goes (module docs,
 /// "Smooth edges and duplicates"): a duplicate inside one face's wide
 /// sector (`sectors` holds its orbit half-edge), or a smooth edge (the
-/// orbit half-edges of both its faces' sectors), each with rule (a)'s
-/// parallelism verdict where the plane grazes that face. Each face is
-/// read over its face extent, the arm rule (a) reads it over (ledger
-/// F11). A grazed wall whose material lies across from `S` refuses
-/// ([`SectorReading::GrazeAgainstNeighbours`]), and so do two faces whose
-/// verdicts differ: only one reads the plane tangent
-/// ([`SectorReading::TangencyStraddle`]).
+/// orbit half-edges of both its faces' sectors), each with what rule (a)
+/// read of that face. A grazed wall whose material lies across from `S`
+/// refuses ([`SectorReading::GrazeAgainstNeighbours`]). At a smooth edge,
+/// each face's parallelism is read over its own face extent (D4 ¶1's
+/// parallelism arm), so one tilt of the plane can read tangent over one
+/// face and clear over the other; the two decided readings then disagree
+/// ([`SectorReading::SmoothEdgeDisagrees`]).
 fn wall_graze<T: Decide>(
     body: &Body<T>,
-    plane: &SplitPlane<T>,
     vertex: VertexKey,
-    sectors: &[(HalfEdgeKey, Option<Parallel<T>>)],
+    sectors: &[(HalfEdgeKey, WallReading<T>)],
     side: PlaneSide,
-    band: Band,
 ) -> Result<PlaneSide, SplitReduceError> {
-    let mut verdict = None;
-    for &(he, graze) in sectors {
+    let mut verdict: Option<(PlaneSide, WallReading<T>)> = None;
+    for &(he, reading) in sectors {
         let (face, _, _) = sector_face(body, vertex, he)?;
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
             reading,
         };
-        let this = match graze {
+        let this = match reading {
             // Rule (a) read this wall bending into its material, so its
             // material lies on the side it leaves the plane toward.
-            Some(parallel) => {
-                let material = parallel
-                    .material_side(plane, band)
+            WallReading::Grazed(wall) => {
+                let (material, margin) = wall
+                    .material_side()
                     .map_err(|diag| refuse(SectorReading::Escalated(diag)))?;
                 if material != side {
-                    return Err(refuse(SectorReading::GrazeAgainstNeighbours));
+                    return Err(refuse(SectorReading::GrazeAgainstNeighbours { margin }));
                 }
                 side
             }
-            None => side.opposite(),
+            WallReading::Clear(_) => side.opposite(),
+            WallReading::InPlane => unreachable!(
+                "face {face:?} lies in the plane at vertex {vertex:?}, so rule (a) took both \
+                 entries of its sector off the plane and rule (b) does not read it"
+            ),
         };
         match verdict {
-            Some(v) if v != this => return Err(refuse(SectorReading::TangencyStraddle)),
-            _ => verdict = Some(this),
+            Some((v, first)) if v != this => {
+                return Err(refuse(SectorReading::SmoothEdgeDisagrees(
+                    tangency_readings(first, reading),
+                )));
+            }
+            Some(_) => {}
+            None => verdict = Some((this, reading)),
         }
     }
-    Ok(verdict.unwrap_or_else(|| unreachable!("rule (b) hands wall_graze at least one sector")))
+    Ok(verdict
+        .unwrap_or_else(|| unreachable!("rule (b) hands wall_graze at least one sector"))
+        .0)
+}
+
+/// The readings of a smooth edge's two faces whose verdicts differ: one
+/// grazed, read tangent over its extent, and one clear over its own.
+fn tangency_readings<T: Decide>(a: WallReading<T>, b: WallReading<T>) -> TangencyReadings {
+    match (a, b) {
+        (WallReading::Grazed(wall), WallReading::Clear(clear))
+        | (WallReading::Clear(clear), WallReading::Grazed(wall)) => TangencyReadings {
+            tangent: wall.0.margin(),
+            clear,
+            band: wall.0.band(),
+        },
+        (a, b) => unreachable!(
+            "two faces' verdicts differ only where one is grazed and the other clear: {a:?}, {b:?}"
+        ),
+    }
 }
 
 /// The face-extent lever arm for the coplanarity/sense predicates: the
@@ -1031,14 +1078,8 @@ mod tests {
         let mut e = entries(&[O, O, B]);
         let body = Body::<f64>::new();
         let band = Band::linear(Tol::witness()).unwrap();
-        let plane = crate::test_support_fixtures::split_plane(
-            geom_core::Point3::origin(),
-            geom_core::Vec3::unit_z(),
-            Tol::witness(),
-        );
-        let grazes = vec![None; e.len()];
-        let err =
-            apply_rule_b(&body, &plane, VertexKey::default(), &mut e, &grazes, band).unwrap_err();
+        let readings = vec![WallReading::<f64>::InPlane; e.len()];
+        let err = apply_rule_b(&body, VertexKey::default(), &mut e, &readings, band).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 
@@ -1156,23 +1197,36 @@ mod tests {
     }
 
     /// The orbit half-edge whose sector's face has outward normal `n`,
-    /// with that face's parallelism verdict as rule (a) mints it.
-    fn graze(
+    /// with that normal.
+    fn face_he(
         body: &Body<f64>,
         vertex: VertexKey,
         orbit: &[HalfEdgeKey],
         n: geom_core::Vec3<f64>,
-    ) -> (HalfEdgeKey, Parallel<f64>) {
+    ) -> (HalfEdgeKey, geom_brep::OutwardNormal<f64>) {
         orbit
             .iter()
             .find_map(|&he| {
-                let (face, n_face, _) = sector_face(body, vertex, he).unwrap();
-                ((n_face.vec() - n).norm() == 0.0).then(|| {
-                    let extent = face_extent(body, vertex, face).unwrap();
-                    (he, Parallel { n_face, extent })
-                })
+                let (_, n_face, _) = sector_face(body, vertex, he).unwrap();
+                ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")
+    }
+
+    /// What rule (a) reads of a face with outward normal `n` over `arm`
+    /// against `plane` at `band`: grazed where parallel, clear otherwise.
+    fn reading(
+        plane: &SplitPlane<f64>,
+        n: geom_brep::OutwardNormal<f64>,
+        arm: f64,
+        band: Band,
+    ) -> WallReading<f64> {
+        match geom_brep::normal_alignment("split_sector_coplanar", plane.normal.get(), n, arm, band)
+            .unwrap()
+        {
+            NormalAlignment::Parallel(p) => WallReading::Grazed(ParallelFace(p)),
+            NormalAlignment::Oblique(sine) => WallReading::Clear(sine),
+        }
     }
 
     /// A refusal's ending is the split's lever alone, after a payload
@@ -1192,48 +1246,22 @@ mod tests {
         );
     }
 
-    /// **A face whose extent decides zero refuses carrying that extent.**
-    /// At every band whose zero threshold holds the cube's √2 face extent,
-    /// rule (a) refuses the first face it reads as collapsed onto the
-    /// corner, with the extent it decided and the band, ending in the
-    /// split's lever.
+    /// **A face extent decided zero is a kernel bug.** `sector_shape`
+    /// decides each sector's shorter chord past the band before rule (a),
+    /// and the extent bounds it; handed a band whose zero holds the cube's
+    /// √2 extent directly, rule (a) panics naming the face and margin.
     #[test]
-    fn a_collapsed_face_refuses_carrying_its_extent() {
+    #[should_panic(expected = "decided zero (margin 1.414")]
+    fn a_face_extent_decided_zero_panics() {
         let (body, vertex, orbit) = cube_corner();
-        for zero in [1.5, 2.0, 10.0, 1e6] {
-            let band = Band::new(zero, 2.0 * zero).unwrap();
-            for n in [(1.0, 1.0, 0.0), (0.0, 0.0, 1.0), (-1.0, 2.0, 3.0)] {
-                let label = format!("zero {zero:e}, normal {n:?}");
-                let got = apply_rule_a(
-                    &body,
-                    &corner_plane(n),
-                    vertex,
-                    &mut on_entries(&orbit),
-                    band,
-                );
-                let Err(e) = got else {
-                    panic!("{label}: answered");
-                };
-                let SplitReduceError::SliverSector {
-                    reading:
-                        SectorReading::Collapsed(Classified {
-                            margin,
-                            band: decided,
-                        }),
-                    ..
-                } = &e
-                else {
-                    panic!("{label}: {e:?}");
-                };
-                assert_eq!(*decided, band, "{label}: the band that decided it");
-                assert_eq!(
-                    margin.diagnostic_f64_for_error_text(),
-                    geom_core::ErrorTextReading::Value(2.0f64.sqrt()),
-                    "{label}: the face's extent from the corner"
-                );
-                ends_in_the_lever(&label, &e);
-            }
-        }
+        let band = Band::new(2.0, 4.0).unwrap();
+        let _ = apply_rule_a(
+            &body,
+            &corner_plane((0.0, 0.0, 1.0)),
+            vertex,
+            &mut on_entries(&orbit),
+            band,
+        );
     }
 
     /// The diagonal normals: each lies at 45° to two of the corner's faces
@@ -1286,9 +1314,9 @@ mod tests {
     /// sense.** At K < √2 a face can read both parallel and square to the
     /// plane over one arm: the corner's faces reach √2, and at 45° the
     /// sine and the cosine there are both 1, inside a zero band of 1.1
-    /// whose escalation threshold 1.3 the extent passes. Rule (a) takes
-    /// the parallel verdict as the sense's input, so it refuses through
-    /// the nonzero gate, keeping the margin, at every diagonal normal.
+    /// whose escalation threshold 1.3 the extent passes. Rule (a) reads
+    /// the sense from the parallel verdict, so it refuses through the
+    /// nonzero gate, keeping the margin, at every diagonal normal.
     #[test]
     fn a_plane_face_too_short_to_read_its_sense_escalates_its_zero() {
         let (body, vertex, orbit) = cube_corner();
@@ -1310,34 +1338,36 @@ mod tests {
 
     /// **A grazed wall's material, its neighbours' side, and a smooth
     /// edge's two faces, each refused by how its reading stands.** Read
-    /// through `wall_graze` with rule (a)'s verdicts handed in, on the
-    /// cube corner's face `x = 0` (outward `−x`) and face `y = 0`:
+    /// through `wall_graze` with rule (a)'s readings handed in, at the
+    /// cube corner, naming its faces `x = 0` (outward `−x`) and `y = 0`:
     ///
     /// - a wall too short to read its sense escalates through the nonzero
     ///   gate, at every diagonal normal that tilts it 45°;
     /// - a wall whose material lies on its neighbours' side answers that
     ///   side, and one whose material lies across refuses as
-    ///   [`SectorReading::GrazeAgainstNeighbours`], under either normal;
+    ///   [`SectorReading::GrazeAgainstNeighbours`] with the sense margin
+    ///   `±√2`, under either normal;
     /// - two faces of which only one is grazed refuse as
-    ///   [`SectorReading::TangencyStraddle`], in either order; two grazed
-    ///   faces and two clear ones answer.
+    ///   [`SectorReading::SmoothEdgeDisagrees`] with both sine margins, in
+    ///   either order; two grazed faces (one over an arm of √2, the other
+    ///   of 3) and two clear ones answer.
     #[test]
     fn a_grazed_walls_reading_refuses_by_how_it_stands() {
         use geom_core::Vec3;
         let (body, vertex, orbit) = cube_corner();
-        let (hx, px) = graze(&body, vertex, &orbit, Vec3::new(-1.0, 0.0, 0.0));
-        let (hy, _) = graze(&body, vertex, &orbit, Vec3::new(0.0, -1.0, 0.0));
+        let (hx, nx) = face_he(&body, vertex, &orbit, Vec3::new(-1.0, 0.0, 0.0));
+        let (hy, ny) = face_he(&body, vertex, &orbit, Vec3::new(0.0, -1.0, 0.0));
+        let root2 = 2.0f64.sqrt();
         let short = Band::new(1.1, 1.3).unwrap();
         for n in DIAGONALS.into_iter().filter(|n| n.0 != 0.0) {
+            let plane = corner_plane(n);
             for side in [PlaneSide::Above, PlaneSide::Below] {
                 let label = format!("normal {n:?}, {side:?}");
                 let got = wall_graze(
                     &body,
-                    &corner_plane(n),
                     vertex,
-                    &[(hx, Some(px))],
+                    &[(hx, reading(&plane, nx, root2, short))],
                     side,
-                    short,
                 );
                 match got {
                     Err(e) => too_short_to_read(&label, &e),
@@ -1356,7 +1386,14 @@ mod tests {
                     PlaneSide::Below
                 };
                 let label = format!("zero {zero:e}, normal {s}·x");
-                let one = |side| wall_graze(&body, &plane, vertex, &[(hx, Some(px))], side, band);
+                let (gx, gx3, cy) = (
+                    reading(&plane, nx, root2, band),
+                    reading(&plane, nx, 3.0, band),
+                    reading(&plane, ny, root2, band),
+                );
+                assert!(matches!(gx, WallReading::Grazed(_)), "{label}");
+                assert!(matches!(cy, WallReading::Clear(_)), "{label}");
+                let one = |side| wall_graze(&body, vertex, &[(hx, gx)], side);
                 assert_eq!(
                     one(material).ok(),
                     Some(material),
@@ -1365,32 +1402,45 @@ mod tests {
                 match one(material.opposite()) {
                     Err(
                         e @ SplitReduceError::SliverSector {
-                            reading: SectorReading::GrazeAgainstNeighbours,
+                            reading: SectorReading::GrazeAgainstNeighbours { margin },
                             ..
                         },
-                    ) => ends_in_the_lever(&label, &e),
+                    ) => {
+                        assert_eq!(margin, MarginDiag::value(-s * root2), "{label}");
+                        ends_in_the_lever(&label, &e);
+                    }
                     other => panic!("{label}: against its neighbours: {other:?}"),
                 }
-                for sectors in [[(hx, Some(px)), (hy, None)], [(hy, None), (hx, Some(px))]] {
-                    match wall_graze(&body, &plane, vertex, &sectors, material, band) {
+                for sectors in [[(hx, gx), (hy, cy)], [(hy, cy), (hx, gx)]] {
+                    match wall_graze(&body, vertex, &sectors, material) {
                         Err(
                             e @ SplitReduceError::SliverSector {
-                                reading: SectorReading::TangencyStraddle,
+                                reading: SectorReading::SmoothEdgeDisagrees(readings),
                                 ..
                             },
-                        ) => ends_in_the_lever(&label, &e),
+                        ) => {
+                            assert_eq!(
+                                readings,
+                                TangencyReadings {
+                                    tangent: MarginDiag::value(0.0),
+                                    clear: MarginDiag::value(root2),
+                                    band,
+                                },
+                                "{label}"
+                            );
+                            ends_in_the_lever(&label, &e);
+                        }
                         other => panic!("{label}: one face grazed: {other:?}"),
                     }
                 }
-                let both = [(hx, Some(px)), (hx, Some(px))];
                 assert_eq!(
-                    wall_graze(&body, &plane, vertex, &both, material, band).ok(),
+                    wall_graze(&body, vertex, &[(hx, gx), (hy, gx3)], material).ok(),
                     Some(material),
                     "{label}: both grazed"
                 );
-                let neither = [(hx, None), (hy, None)];
+                let cx = reading(&corner_plane((0.0, s, 0.0)), nx, root2, band);
                 assert_eq!(
-                    wall_graze(&body, &plane, vertex, &neither, material, band).ok(),
+                    wall_graze(&body, vertex, &[(hx, cx), (hy, cy)], material).ok(),
                     Some(material.opposite()),
                     "{label}: neither grazed"
                 );
@@ -1420,19 +1470,21 @@ mod tests {
             ("poisoned", SectorReading::Escalated(poisoned), &noted),
             ("in band", SectorReading::Escalated(read), &lever),
             (
-                "collapsed",
-                SectorReading::Collapsed(Classified {
-                    margin: geom_core::MarginDiag::value(5e-10),
+                "against its neighbours",
+                SectorReading::GrazeAgainstNeighbours {
+                    margin: MarginDiag::value(-0.5),
+                },
+                &lever,
+            ),
+            (
+                "disagreeing",
+                SectorReading::SmoothEdgeDisagrees(TangencyReadings {
+                    tangent: MarginDiag::value(5e-10),
+                    clear: MarginDiag::value(2e-8),
                     band,
                 }),
                 &lever,
             ),
-            (
-                "against its neighbours",
-                SectorReading::GrazeAgainstNeighbours,
-                &lever,
-            ),
-            ("straddling", SectorReading::TangencyStraddle, &lever),
         ] {
             assert_eq!(&reading.ending(), want, "{label}");
             let text = SplitReduceError::SliverSector {

@@ -89,8 +89,8 @@ mod section;
 mod section_loops;
 pub(crate) mod spiric_arc;
 
-use geom_brep::recourse::{Classified, LeverOnly, Reading, RefusedArm};
-use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -480,19 +480,31 @@ pub enum SectorReading {
     /// unreadable, or a gate's rejection of the sign it decided
     /// ([`geom_core::MarginDiag::rejected_sign`]).
     Escalated(Indeterminate),
-    /// The face's extent from the vertex decided zero
-    /// (`split_sector_extent`): the face collapses onto the vertex at this
-    /// ε, and no angle across it can be metered.
-    Collapsed(Classified),
     /// A wall the plane grazes holds its material across from the edges
-    /// beside it in the vertex's cycle: the wall's outward normal over
-    /// its face extent and those edges' own sides, decided apart.
-    GrazeAgainstNeighbours,
+    /// beside it in the vertex's cycle: the wall's outward normal over its
+    /// face extent and those edges' own sides, decided apart.
+    GrazeAgainstNeighbours {
+        /// The sense margin the wall's material side was decided on.
+        margin: MarginDiag,
+    },
     /// At a smooth edge in the plane, one face reads the plane tangent
-    /// over its face extent and the other reads it clear over its own
-    /// (ledger F11): one tilt of the plane, read over two arms, on both
-    /// sides of the band.
-    TangencyStraddle,
+    /// over its own face extent and the other reads it clear over its own:
+    /// two decided readings of the plane's tilt, over two arms, that
+    /// disagree.
+    SmoothEdgeDisagrees(TangencyReadings),
+}
+
+/// The two decided readings a [`SectorReading::SmoothEdgeDisagrees`]
+/// holds: `split_sector_coplanar`'s sine margins, each over its face's
+/// extent.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TangencyReadings {
+    /// The grazed face's, decided zero.
+    pub tangent: MarginDiag,
+    /// The other face's, decided past the band.
+    pub clear: MarginDiag,
+    /// The band both were decided against.
+    pub band: Band,
 }
 
 impl SectorReading {
@@ -501,9 +513,10 @@ impl SectorReading {
     pub fn arm(&self) -> RefusedArm<'_> {
         match self {
             Self::Escalated(diag) => RefusedArm::Undecided(diag),
-            Self::Collapsed(classified) => RefusedArm::Zero(*classified),
-            Self::GrazeAgainstNeighbours => RefusedArm::SignCertain(None),
-            Self::TangencyStraddle => RefusedArm::Straddle,
+            Self::GrazeAgainstNeighbours { margin } => RefusedArm::SignCertain(Some(*margin)),
+            Self::SmoothEdgeDisagrees(TangencyReadings { clear, .. }) => {
+                RefusedArm::SignCertain(Some(*clear))
+            }
         }
     }
 
@@ -521,20 +534,15 @@ impl core::fmt::Display for SectorReading {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Escalated(diag) => diag.payload().fmt(f),
-            Self::Collapsed(Classified { margin, band }) => write!(
+            Self::GrazeAgainstNeighbours { margin } => write!(
                 f,
-                "the face's extent from the vertex, {margin:e}, lies within the zero band \
-                 (±{:e})",
-                band.zero()
+                "a wall the plane grazes holds its material across from the edges beside it \
+                 (margin {margin:e})"
             ),
-            Self::GrazeAgainstNeighbours => write!(
+            Self::SmoothEdgeDisagrees(TangencyReadings { tangent, clear, .. }) => write!(
                 f,
-                "a wall the plane grazes holds its material across from the edges beside it"
-            ),
-            Self::TangencyStraddle => write!(
-                f,
-                "the two faces at a smooth edge in the plane read it tangent and clear of \
-                 tangency, each over its own extent"
+                "the faces at a smooth edge in the plane read it tangent (margin {tangent:e}) and \
+                 clear (margin {clear:e}), each over its own extent"
             ),
         }
     }
