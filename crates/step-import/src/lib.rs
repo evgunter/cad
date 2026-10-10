@@ -485,7 +485,7 @@ pub struct ImportOptions {
     /// **The import-side declaration channel** (M9-2, D7 step 4's
     /// residue): contact declarations the adopting CALLER attaches to
     /// this import, resolved against the assembled body and certified
-    /// by the SAME tier-3′ gate a native declared-contact body runs —
+    /// by the SAME tier-3′ gate a native body's contact records run —
     /// there is no import-only validity path (the #276/#260 one-gate
     /// ruling). A file has no arena keys to declare with, so the
     /// channel is POSITION-anchored; an anchor that does not resolve
@@ -880,7 +880,7 @@ pub fn import_step(
             // **The 3′ form, with the import-side declaration
             // channel resolved** (M9-2, D7 step 4 executed): the
             // aggregate body is held to `validate_pseudomanifold` —
-            // the SAME gate a native declared-contact body runs,
+            // the SAME gate a native body's contact records run,
             // against exactly the records the adopting caller's
             // declarations resolve to (empty when none were given).
             // Consequence, stated plainly: an imported assembly whose
@@ -938,8 +938,9 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 }
 
 /// The aggregate subject's gate: the tier-3′ form over the resolved
-/// declaration records — the same function a native declared-contact
-/// body's caller runs, with the same no-opinion contract as [`gate`] —
+/// declaration records — the same function a caller runs over a
+/// native body's contact records, with the same no-opinion contract as
+/// [`gate`] —
 /// followed by the measurement the reader ships.
 ///
 /// The gate returns the certificate its check 7 decided on: each
