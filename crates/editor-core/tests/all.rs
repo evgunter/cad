@@ -208,6 +208,8 @@ mod refusal_concision_at_rest;
 mod refusal_concision_chains;
 #[path = "refusal_concision_refactor.rs"]
 mod refusal_concision_refactor;
+#[path = "revalue_corpus.rs"]
+mod revalue_corpus;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
 #[path = "resolve_cited_line.rs"]

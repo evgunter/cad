@@ -1058,6 +1058,10 @@ mod manifest;
 pub mod memo;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// The re-valuation instrument: a decision's DAG evaluated at another
+/// parameter point, against the build there (test-only).
+#[cfg(feature = "sym-revalue-testing")]
+pub mod revalue;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -5266,6 +5270,8 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
+        #[cfg(feature = "sym-revalue-testing")]
+        revalue::note(self.node, &self.value);
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]

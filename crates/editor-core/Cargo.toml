@@ -163,10 +163,12 @@ slotmap = { workspace = true }
 # on; the ordinary `geom-core` edge above does not carry it.
 # `sym-profile-testing` rides the same edge for the same reason: the
 # symbolic tier's cost profile (`geom_core::sym::profile`) is read by
-# evidence rows under `tests/m10_*` and by nothing shipped.
+# evidence rows under `tests/m10_*` and by nothing shipped, and
+# `sym-revalue-testing` by the re-valuation row (`revalue_corpus.rs`).
 geom-core = { path = "../geom-core", features = [
     "identity-pass-testing",
     "sym-profile-testing",
+    "sym-revalue-testing",
 ] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
