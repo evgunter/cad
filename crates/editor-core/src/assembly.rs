@@ -2050,8 +2050,8 @@ mod attribution {
         let causes = || {
             [
                 topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
-                // One past each cap, derived: the state each guard
-                // answers, and it moves when the cap does.
+                // Each cap's state as its guard answers it, derived
+                // so it moves when the cap does.
                 topo::CensusUnsupportedCause::ChartRegion(
                     topo::ChartRegionError::WitnessSegmentCapExceeded {
                         segments: topo::WITNESS_SEGMENT_CAP + 1,
@@ -2060,7 +2060,7 @@ mod attribution {
                 topo::CensusUnsupportedCause::ChartRegion(
                     topo::ChartRegionError::WitnessCellCapExceeded {
                         segments: topo::WITNESS_SEGMENT_CAP,
-                        cells: topo::WITNESS_CELL_CAP + 1,
+                        cells: topo::WITNESS_CELL_CAP,
                     },
                 ),
                 topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {

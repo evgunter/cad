@@ -320,20 +320,24 @@ pub enum ChartRegionError {
         /// [`WITNESS_SEGMENT_CAP`].
         segments: usize,
     },
-    /// The interior-witness schedule was cut off mid-walk: it probed
-    /// more cell centres than [`WITNESS_CELL_CAP`] without certifying
-    /// one. The pair was under [`WITNESS_SEGMENT_CAP`], so the
-    /// arrangement was built; the cells it did not reach were never
-    /// offered, so nothing was ruled out.
+    /// The interior-witness schedule stopped at its cell cap: it
+    /// probed [`WITNESS_CELL_CAP`] cell centres without certifying one,
+    /// and the arrangement had more. The pair was within
+    /// [`WITNESS_SEGMENT_CAP`], so the arrangement was built; the
+    /// cells past the cap were never offered, so nothing was ruled
+    /// out.
     ///
-    /// Distinct from [`Self::TouchingBoundary`] for the reason
-    /// [`Self::WitnessSegmentCapExceeded`] is, and from that face
-    /// because its lever is the other cap.
+    /// Distinct from [`Self::TouchingBoundary`] because a probe that
+    /// fails to certify measures nothing against the overlap: this
+    /// says the search stopped, on a pair whose overlap may be fat and
+    /// decidable in a cell the walk did not reach. Distinct from
+    /// [`Self::WitnessSegmentCapExceeded`] because its lever is the
+    /// other cap, and the work was partly done.
     WitnessCellCapExceeded {
-        /// The pair's boundary-segment count, under
+        /// The pair's boundary-segment count, within
         /// [`WITNESS_SEGMENT_CAP`].
         segments: usize,
-        /// Cell centres probed when the cap stopped the walk.
+        /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
     /// The topology could not be walked, or the crossing walk
@@ -437,11 +441,12 @@ impl core::fmt::Display for ChartRegionError {
             ),
             Self::WitnessCellCapExceeded { segments, cells } => write!(
                 f,
-                "chart-region: the interior-witness schedule stopped on a \
-                 {segments}-segment trim pair after {cells} cell probe(s), over \
-                 its cell cap of {WITNESS_CELL_CAP} — the search stopped, so the \
-                 overlap is neither certified nor ruled out; simplify the pair's \
-                 trims, or read it on a chart whose boundaries meet in fewer places"
+                "chart-region: the interior-witness schedule stopped at its cell \
+                 cap of {WITNESS_CELL_CAP} on a {segments}-segment trim pair, after \
+                 {cells} cell probe(s) certified nothing — the search stopped, so \
+                 the overlap is neither certified nor ruled out; simplify the \
+                 pair's trims, or read it on a chart whose boundaries meet in fewer \
+                 places"
             ),
             Self::Corrupt => write!(
                 f,
@@ -1906,8 +1911,8 @@ fn interior_witness<T: Decide + Bounds>(
 /// the work and not a statement about the geometry, and gets its own
 /// refusal per cap ([`ChartRegionError::WitnessSegmentCapExceeded`],
 /// [`ChartRegionError::WitnessCellCapExceeded`]). Collapsing the two
-/// into one `bool` makes a fat, decidable overlap that overran the
-/// budget indistinguishable from an overlap too thin to certify.
+/// into one `bool` makes a fat, decidable overlap that hit a cap
+/// indistinguishable from an overlap too thin to certify.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WitnessOutcome {
     /// A point was certified strictly interior to both trims: the
@@ -1921,64 +1926,66 @@ enum WitnessOutcome {
         /// The pair's boundary-segment count.
         segments: usize,
     },
-    /// [`WITNESS_CELL_CAP`] cut the walk off.
+    /// [`WITNESS_CELL_CAP`] stopped the walk with cells left.
     CellCapExceeded {
         /// The pair's boundary-segment count.
         segments: usize,
-        /// Cell centres probed at the cut-off.
+        /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
 }
 
-/// The interior-witness schedule's two caps: [`WITNESS_SEGMENT_CAP`],
-/// the most boundary segments [`decomposition_witness`] will
-/// decompose, and [`WITNESS_CELL_CAP`], the most cell centres it
-/// probes. Each refusal names its own: a caller resolving one reads
-/// the cap it ran into, and a fixture asserting it DERIVES its
-/// over-cap value from here rather than restating a literal that
-/// drifts the day the cap moves.
+/// The most boundary segments [`decomposition_witness`] will
+/// decompose. A trim pair with more is refused before the arrangement
+/// is built, rather than half-searched, because the decomposition is
+/// quadratic in that count.
 ///
-/// Both are the honest half of "complete or honest": inside them the
-/// schedule is complete in the sense argued at
-/// [`decomposition_witness`], and outside them it declines and the
-/// region walk's own typed refusal stands. A trim pair with more than
-/// `segments` boundary segments is refused rather than half-searched
-/// because the decomposition is quadratic in that count.
+/// This and [`WITNESS_CELL_CAP`] are the honest half of "complete or
+/// honest": within them the schedule is complete in the sense argued
+/// at [`decomposition_witness`], and past either it stops and says
+/// which. Each is public because its refusal is: a caller resolving
+/// one reads the cap it ran into, and a fixture asserting it DERIVES
+/// its over-cap value from here rather than restating a literal that
+/// drifts the day the cap moves.
 ///
 /// # What these limits cost, stated rather than implied
 ///
-/// **Neither is out of reach, and `cells` is reachable INSIDE
-/// `segments`.** A comb of 56 stacked horizontal runs against one
-/// tilted crosser carries 118 boundary segments — comfortably under
-/// the segment cap — and overruns 4096 cells, so "large enough never
-/// to bind" is not a claim these constants make. What it is is a bound
-/// on the work, chosen so that the trim pairs this rung is actually
-/// reached with (the seats in the suite carry twelve segments) search
-/// exhaustively.
+/// **Neither is out of reach, and the cell cap is reachable WITHIN
+/// the segment cap.** A comb of 56 stacked horizontal runs against
+/// one tilted crosser carries 118 boundary segments — comfortably
+/// under this cap — and its arrangement has more than 4096 cells, so
+/// "large enough never to bind" is not a claim these constants make.
+/// What they are is a bound on the work, chosen so that the trim
+/// pairs this rung is actually reached with (the seats in the suite
+/// carry twelve segments) search exhaustively.
 ///
-/// The row `r2p7_cell_budget_is_reachable_inside_the_segment_cap`
+/// The row `r2p7_cell_cap_is_reachable_inside_the_segment_cap`
 /// builds that pair, and the number it READS is the segment count:
-/// the cell figure is structurally forced, because the walk returns
-/// the instant it has spent more than [`WITNESS_CELL_CAP`], so every pair that reaches the cap
-/// reports exactly `WITNESS_CELL_CAP + 1`. What the row pins is that 118
-/// segments suffice — and it is a TIGHT witness, not a comfortable
-/// one: one tooth fewer walks its arrangement to the end.
+/// the cell figure is structurally forced, because the walk stops
+/// once it has probed [`WITNESS_CELL_CAP`] cells and meets another,
+/// so every pair that reaches the cap reports exactly the cap. What
+/// the row pins is that 118 segments suffice — and it is a TIGHT
+/// witness, not a comfortable one: one tooth fewer walks its
+/// arrangement to the end.
 ///
-/// **An exhausted cap is its own refusal, one per cap.** The segment
-/// cap answers [`ChartRegionError::WitnessSegmentCapExceeded`] with
-/// the segment count and nothing else, because nothing was probed; the
+/// **An exhausted cap is its own refusal, one per cap.** This cap
+/// answers [`ChartRegionError::WitnessSegmentCapExceeded`] with the
+/// segment count and nothing else, because nothing was probed; the
 /// cell cap answers [`ChartRegionError::WitnessCellCapExceeded`] with
-/// the segment count and the probes spent. Neither is the carried
+/// the segment count and the probes made. Neither is the carried
 /// [`ChartRegionError::TouchingBoundary`], which says the overlap is
 /// undecidably thin and would be a statement about the geometry that
-/// nothing measured. A fat, decidable overlap over the segment cap is
-/// the case that separates them: it is refused with zero probes
-/// issued.
+/// nothing measured. A fat, decidable overlap over this cap is the
+/// case that separates them: it is refused with zero probes issued.
 pub const WITNESS_SEGMENT_CAP: usize = 128;
 
-/// The interior-witness schedule's cell-probe cap: the walk stops the
-/// instant it has probed more cell centres than this.
-/// [`WITNESS_SEGMENT_CAP`] carries the two caps' shared argument.
+/// The most cell centres [`decomposition_witness`] probes. Within
+/// [`WITNESS_SEGMENT_CAP`] an arrangement can still have more cells
+/// than the rung should pay for — each probe is a pair of
+/// point-in-region reads — so the walk stops once it has probed this
+/// many and meets another cell, and refuses
+/// [`ChartRegionError::WitnessCellCapExceeded`]. It is reachable inside
+/// the segment cap ([`WITNESS_SEGMENT_CAP`]'s doc has the witness).
 pub const WITNESS_CELL_CAP: usize = 4096;
 
 /// **The completion of the witness schedule**: the cell centres of the
@@ -2050,11 +2057,11 @@ fn decomposition_witness<T: Decide + Bounds>(
     };
     // Decline cause 2: no arrangement to build. One segment bounds no
     // cell, and the rung's own extraction refuses loops under three
-    // vertices, so this is the empty-trim guard rather than a budget.
+    // vertices, so this is the empty-trim guard rather than a cap.
     if segments.len() < 2 {
         return WitnessOutcome::Declined;
     }
-    // Cause 3 is the segment budget, and it is an EXHAUSTION rather
+    // Cause 3 is the segment cap, and it is an EXHAUSTION rather
     // than a decline: the arrangement is never walked, so nothing was
     // looked at and no probe was issued.
     if segments.len() > WITNESS_SEGMENT_CAP {
@@ -2077,13 +2084,13 @@ fn decomposition_witness<T: Decide + Bounds>(
             if !(y > cell[0] && y < cell[1]) {
                 continue;
             }
-            spent += 1;
-            if spent > WITNESS_CELL_CAP {
+            if spent == WITNESS_CELL_CAP {
                 return WitnessOutcome::CellCapExceeded {
                     segments: segments.len(),
                     cells: spent,
                 };
             }
+            spent += 1;
             if probe(x, y) {
                 return WitnessOutcome::Certified;
             }
@@ -3614,7 +3621,7 @@ mod tests {
             },
             ChartRegionError::WitnessCellCapExceeded {
                 segments: WITNESS_SEGMENT_CAP,
-                cells: WITNESS_CELL_CAP + 1,
+                cells: WITNESS_CELL_CAP,
             },
             ChartRegionError::Corrupt,
         ];
@@ -3636,9 +3643,11 @@ mod tests {
         }
     }
 
-    /// Each witness-cap face names its own lever and not the other's:
-    /// the segment cap's refusal reports no probes because none were
-    /// issued, and the cell cap's reports the probes it spent.
+    /// Each witness-cap face's text names its own cap. The variants
+    /// and payloads are the walk's, pinned where the walk reaches them
+    /// (`r2p5_segment_cap_exhausts_on_a_fat_decidable_overlap`,
+    /// `r2p7_cell_cap_is_reachable_inside_the_segment_cap`); this row
+    /// checks only that the two texts do not trade levers.
     #[test]
     fn each_witness_cap_refusal_names_its_own_cap() {
         let segment = ChartRegionError::WitnessSegmentCapExceeded {
@@ -3647,24 +3656,17 @@ mod tests {
         .to_string();
         let cell = ChartRegionError::WitnessCellCapExceeded {
             segments: WITNESS_SEGMENT_CAP,
-            cells: WITNESS_CELL_CAP + 1,
+            cells: WITNESS_CELL_CAP,
         }
         .to_string();
+        let names = |msg: &str, cap: &str, n: usize| msg.contains(&format!("{cap} cap of {n}"));
         assert!(
-            segment.contains(&format!("segment cap of {WITNESS_SEGMENT_CAP}")),
-            "{segment}"
+            names(&segment, "segment", WITNESS_SEGMENT_CAP)
+                && !segment.contains("cell cap")
+                && names(&cell, "cell", WITNESS_CELL_CAP)
+                && !cell.contains("segment cap"),
+            "segment face: {segment}\ncell face: {cell}"
         );
-        assert!(!segment.contains("cell cap"), "{segment}");
-        assert!(!segment.contains("probe(s)"), "{segment}");
-        assert!(
-            cell.contains(&format!("cell cap of {WITNESS_CELL_CAP}")),
-            "{cell}"
-        );
-        assert!(
-            cell.contains(&format!("after {} cell probe(s)", WITNESS_CELL_CAP + 1)),
-            "{cell}"
-        );
-        assert!(!cell.contains("segment cap"), "{cell}");
     }
 
     /// Exact coordinate equality (Point2 carries no PartialEq).
@@ -5352,7 +5354,7 @@ mod inf_arms_interval {
 mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
-    //! its budget guard. Probe-branch only; not part of the unit.
+    //! its cap guards. Probe-branch only; not part of the unit.
     use super::tests::{rect, uv};
     use super::*;
 
@@ -5486,14 +5488,14 @@ mod r2_mate8_probes {
         );
     }
 
-    /// P5 — the SEGMENT budget: two 70-gon "discs" in fat, decidable
+    /// P5 — the SEGMENT cap: two 70-gon "discs" in fat, decidable
     /// overlap carry 140 > 128 segments, and the schedule stops
     /// WITHOUT PROBING AT ALL. The outcome is the segment cap's
     /// exhaustion, carrying the segment count, not a decline: the overlap here is not thin, and
     /// the caller must not spell this as the `TouchingBoundary` that
     /// says it is.
     #[test]
-    fn r2p5_segment_budget_exhausts_on_a_fat_decidable_overlap() {
+    fn r2p5_segment_cap_exhausts_on_a_fat_decidable_overlap() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5516,7 +5518,7 @@ mod r2_mate8_probes {
         );
         assert_eq!(calls, 0, "and it stops before offering anything");
         // The same pair one segment under the cap certifies fine —
-        // the exhaustion above is the budget's, not the geometry's.
+        // the exhaustion above is the cap's, not the geometry's.
         let a64 = uv(ngon(0.0, 64), vec![]);
         let b64 = uv(ngon(1.0, 64), vec![]);
         assert_eq!(
@@ -5527,11 +5529,11 @@ mod r2_mate8_probes {
         );
     }
 
-    /// P6 — the CELL budget is a hard cap on probe calls (structural
+    /// P6 — the CELL cap is a hard cap on probe calls (structural
     /// companion to P5): an always-false probe on a busy pair is
     /// called at most [`WITNESS_CELL_CAP`] times.
     #[test]
-    fn r2p6_cell_budget_caps_probe_calls() {
+    fn r2p6_cell_cap_caps_probe_calls() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5557,12 +5559,12 @@ mod r2_mate8_probes {
     /// it cannot say "large enough never to bind". A comb of 28 teeth
     /// (56 stacked horizontal runs, 114 segments) against one thin
     /// tilted crosser (4 segments) is 118 segments — under the
-    /// 128-segment cap — and its arrangement overruns 4096 cells.
+    /// 128-segment cap — and its arrangement has more than 4096 cells.
     ///
     /// The load-bearing number is the SEGMENT count. The cell figure
-    /// is forced: the walk returns the instant it has spent more than
-    /// [`WITNESS_CELL_CAP`], so any pair reaching the cap reports
-    /// exactly `WITNESS_CELL_CAP + 1` and that
+    /// is forced: the walk stops once it has probed
+    /// [`WITNESS_CELL_CAP`] cells and meets another, so any pair
+    /// reaching the cap reports exactly the cap and that
     /// assertion says nothing about this fixture. What is specific to
     /// the fixture is 118 and its tightness — 27 teeth carries 114
     /// segments, spends 3970 cells and walks its arrangement to the
@@ -5581,7 +5583,7 @@ mod r2_mate8_probes {
     /// two spanning sides whatever its shape — which is why the factor
     /// is structural rather than a property of this fixture.
     #[test]
-    fn r2p7_cell_budget_is_reachable_inside_the_segment_cap() {
+    fn r2p7_cell_cap_is_reachable_inside_the_segment_cap() {
         // A comb, walked as a simple polygon: up the spine, out along
         // each tooth's underside, back along its top.
         let teeth = 28usize;
@@ -5617,7 +5619,7 @@ mod r2_mate8_probes {
             found,
             WitnessOutcome::CellCapExceeded {
                 segments,
-                cells: WITNESS_CELL_CAP + 1
+                cells: WITNESS_CELL_CAP
             },
             "{segments} segments, {calls} probes"
         );

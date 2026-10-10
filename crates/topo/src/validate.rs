@@ -15176,9 +15176,9 @@ mod tests {
         let thin = says(CensusUnsupportedCause::ChartRegion(
             ChartRegionError::TouchingBoundary,
         ));
-        // One past each cap: the state each guard actually answers,
-        // and it moves when the cap moves. Both caps keep the one
-        // census answer.
+        // Each cap's state as its guard answers it, derived so it
+        // moves when the cap moves. Both caps keep the one census
+        // answer.
         use crate::chart_region::{WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP};
         let not_run = says(CensusUnsupportedCause::ChartRegion(
             ChartRegionError::WitnessSegmentCapExceeded {
@@ -15188,7 +15188,7 @@ mod tests {
         let stopped = says(CensusUnsupportedCause::ChartRegion(
             ChartRegionError::WitnessCellCapExceeded {
                 segments: WITNESS_SEGMENT_CAP,
-                cells: WITNESS_CELL_CAP + 1,
+                cells: WITNESS_CELL_CAP,
             },
         ));
         for capped in [&not_run, &stopped] {

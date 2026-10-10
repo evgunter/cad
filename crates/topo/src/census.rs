@@ -3250,7 +3250,9 @@ fn boundary_axial<T: Decide>(
                 ) {
                     // No axial-span closed form is written for the
                     // spiric (the boolean lane's own reading).
-                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
+                        AxialCarrier::Unclaimable
+                    }
                     EdgeBoxRule::Chord => AxialCarrier::Chord,
                     EdgeBoxRule::ConicAmplitude {
                         center,
@@ -3259,6 +3261,7 @@ fn boundary_axial<T: Decide>(
                         semi_v,
                         u_ref,
                         params,
+                        ..
                     } => AxialCarrier::Conic {
                         center: SpanBox::point(center),
                         u_ref: SpanBox::vector(u_ref),
@@ -3344,9 +3347,7 @@ fn edge_reach_of<T: Decide>(
         Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
         Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
     );
-    let certified = body.edge_curve_linked(ek, e).certified();
-    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-    match crate::boolean::boxes::edge_box_rule(certified) {
+    match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
         crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
         crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
         // The spiric's whole-period amplitude box at this lane's
@@ -3361,25 +3362,22 @@ fn edge_reach_of<T: Decide>(
         // the census), so the arm is exercised by the box module's
         // hand-built sector row (`boolean/boxes.rs`,
         // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
-        crate::boolean::boxes::EdgeBoxRule::Spiric => {
-            let Some(geom::Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            }) = carrier
-            else {
-                return None;
-            };
-            let m = frame.vector(axis.cross(*u_ref));
-            let (f_min, f_max) = geom::spiric_f_range(*major_radius, *minor_radius, *offset);
-            let base = frame.point(*center + *u_ref * *offset);
-            let axis = frame.vector(*axis);
+        crate::boolean::boxes::EdgeBoxRule::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let m = frame.vector(axis.cross(u_ref));
+            let (f_min, f_max) = geom::spiric_f_range(major_radius, minor_radius, offset);
+            let base = frame.point(center + u_ref * offset);
+            let axis = frame.vector(axis);
             let per = |b: T, me: T, ae: T| {
                 let (p, q) = (me * f_min, me * f_max);
-                let amp = ae.abs() * *minor_radius;
+                let amp = ae.abs() * minor_radius;
                 (b + p.min(q) - amp, b + p.max(q) + amp)
             };
             let (xl, xh) = per(base.x, m.x, axis.x);
@@ -3397,6 +3395,7 @@ fn edge_reach_of<T: Decide>(
             semi_v,
             u_ref,
             params: (t0, t1),
+            ..
         } => {
             let (center, u_ref, v_ref) = (
                 frame.point(center),

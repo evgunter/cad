@@ -153,7 +153,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
         },
         ChartRegionError::WitnessCellCapExceeded {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP,
-            cells: crate::chart_region::WITNESS_CELL_CAP + 1,
+            cells: crate::chart_region::WITNESS_CELL_CAP,
         },
         ChartRegionError::Corrupt,
     ];

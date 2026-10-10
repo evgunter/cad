@@ -499,9 +499,9 @@ pub(crate) enum AxialCarrier<T> {
     Unclaimable,
     /// The locus IS the chord between the two ends.
     Chord,
-    /// A full conic: its centre, the two in-plane reference
-    /// directions and the matching semi-axes, in the reading lane's
-    /// own spans.
+    /// A conic arc: its centre, the two in-plane reference
+    /// directions, the matching semi-axes and the certified span, in
+    /// the reading lane's own spans.
     Conic {
         /// The conic's centre.
         center: SpanBox<T>,
@@ -1872,7 +1872,9 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                         // No axial-span closed form is written
                         // for the spiric; a box that cannot
                         // claim is the honest answer.
-                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
+                            AxialCarrier::Unclaimable
+                        }
                         EdgeBoxRule::Chord => AxialCarrier::Chord,
                         EdgeBoxRule::ConicAmplitude {
                             center,
@@ -1881,6 +1883,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                             semi_v,
                             u_ref,
                             params: (t0, t1),
+                            ..
                         } => AxialCarrier::Conic {
                             center: bracket_point(center),
                             u_ref: bracket_vector(u_ref),
@@ -2227,14 +2230,18 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   Claiming nothing is already the conservative answer, so nothing
 ///   is unsound while it waits. (It also carries the same trim ⊆ knot
 ///   domain premise the surface arm states.)
-pub(crate) enum EdgeBoxRule<T: Real> {
+pub(crate) enum EdgeBoxRule<'c, T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,
-    /// The full conic's amplitude box, hulled with the chord — see the
-    /// type docs. The payload is read by the census lane and by the
-    /// axial projection ([`AxialCarrier::Conic`]); [`edge_box`] matches
-    /// the arm and re-reads the certified carrier for `geom`'s door.
+    /// The conic ARC's box over its certified span, hulled with the
+    /// chord — see the type docs. [`edge_box`] hands `carrier` and
+    /// `params` to `geom`'s exact door; the census lane and the axial
+    /// projection ([`AxialCarrier::Conic`]) read the decomposed fields.
     ConicAmplitude {
+        /// The certified carrier the fields below were read from — a
+        /// `Circle` or an `Ellipse`, which `geom`'s exact arc door
+        /// takes whole.
+        carrier: &'c geom::Curve3<T>,
         /// The conic's centre.
         center: Point3<T>,
         /// The plane normal of the conic.
@@ -2259,8 +2266,26 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// because the operand gate refuses the kind. Past the gate, the
     /// sweep's soundness on a spiric edge rests on this box: a face it
     /// prunes is one the arc cannot reach, and a face it meets sends the
-    /// edge to a crossing arm that refuses it typed.
-    Spiric,
+    /// edge to a crossing arm that refuses it typed. [`edge_box`] hands
+    /// `carrier` to that door; the census lane reads the decomposed
+    /// fields.
+    Spiric {
+        /// The certified `Spiric` carrier the fields below were read
+        /// from.
+        carrier: &'c geom::Curve3<T>,
+        /// The spiric's centre.
+        center: Point3<T>,
+        /// The axis of the torus it lies on.
+        axis: Vec3<T>,
+        /// The cutting plane's in-plane reference direction.
+        u_ref: Vec3<T>,
+        /// The torus's major radius.
+        major_radius: T,
+        /// The torus's minor radius.
+        minor_radius: T,
+        /// The cutting plane's offset along `u_ref`.
+        offset: T,
+    },
 }
 
 /// The [`EdgeBoxRule`] for an edge's certified curve — the single
@@ -2269,12 +2294,13 @@ pub(crate) enum EdgeBoxRule<T: Real> {
 /// on [`EdgeBoxRule::NoSoundBox`] only by being written here.
 pub(crate) fn edge_box_rule<T: Real>(
     certified: Option<&geom_brep::EdgeCurve<T>>,
-) -> EdgeBoxRule<T> {
+) -> EdgeBoxRule<'_, T> {
     let Some(curve) = certified else {
         return EdgeBoxRule::NoSoundBox;
     };
     let params = curve.params();
-    match curve.carrier() {
+    let carrier = curve.carrier();
+    match carrier {
         geom::Curve3::Line { .. } => EdgeBoxRule::Chord,
         geom::Curve3::Circle {
             center,
@@ -2282,6 +2308,7 @@ pub(crate) fn edge_box_rule<T: Real>(
             radius,
             u_ref,
         } => EdgeBoxRule::ConicAmplitude {
+            carrier,
             center: *center,
             axis: *axis,
             semi_u: *radius,
@@ -2296,6 +2323,7 @@ pub(crate) fn edge_box_rule<T: Real>(
             minor,
             u_ref,
         } => EdgeBoxRule::ConicAmplitude {
+            carrier,
             center: *center,
             axis: *axis,
             semi_u: *major,
@@ -2303,7 +2331,22 @@ pub(crate) fn edge_box_rule<T: Real>(
             u_ref: *u_ref,
             params,
         },
-        geom::Curve3::Spiric { .. } => EdgeBoxRule::Spiric,
+        geom::Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => EdgeBoxRule::Spiric {
+            carrier,
+            center: *center,
+            axis: *axis,
+            u_ref: *u_ref,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            offset: *offset,
+        },
         geom::Curve3::Nurbs(_) => EdgeBoxRule::NoSoundBox,
     }
 }
@@ -2345,42 +2388,25 @@ pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f
     let boxed = match edge_box_rule(certified) {
         EdgeBoxRule::NoSoundBox => return Aabb::poison(),
         EdgeBoxRule::Chord => chord,
-        EdgeBoxRule::Spiric => certified
-            .and_then(|curve| {
-                let (t0, t1) = curve.params();
-                geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
-            })
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "edge box: the spiric rule is minted only from a certified Spiric \
-                     carrier, and the exact arc door answers for it"
-                )
-            }),
-        EdgeBoxRule::ConicAmplitude { .. } => {
-            // The exact arc box, read from its one home one crate down:
-            // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
-            // enters exactly when its angle lies in the certified span,
-            // and the endpoint hull bounds the monotone pieces between.
-            // A bracketed radius or frame (the `Interval` scalar) enters
-            // that door as its whole bracket, so the box dominates every
-            // realization; poison flows to the poison box.
-            //
-            // `certified` is `Some` here — the rule names this arm only
-            // for a certified conic carrier — and the door answers for
-            // every conic kind, so the remaining arm is a kernel bug
-            // that says so (D2 addendum row 4).
-            certified
-                .and_then(|curve| {
-                    let (t0, t1) = curve.params();
-                    geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
-                })
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "edge box: the conic rule is minted only from a certified Circle \
-                         or Ellipse carrier, and the exact arc door answers for both"
-                    )
-                })
-        }
+        // `geom`'s exact doors answer for every kind these two rules
+        // are minted from, so a `None` is a kernel bug that says so
+        // (D2 addendum row 4).
+        EdgeBoxRule::Spiric { carrier, .. } => geom::curves::boxes::spiric_arc_aabb(carrier, a, b)
+            .unwrap_or_else(|| unreachable!("edge box: the spiric rule carries a Spiric carrier")),
+        // The exact arc box, read from its one home one crate down:
+        // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
+        // enters exactly when its angle lies in the certified span,
+        // and the endpoint hull bounds the monotone pieces between.
+        // A bracketed radius or frame (the `Interval` scalar) enters
+        // that door as its whole bracket, so the box dominates every
+        // realization; poison flows to the poison box.
+        EdgeBoxRule::ConicAmplitude {
+            carrier,
+            params: (t0, t1),
+            ..
+        } => geom::curves::boxes::conic_arc_aabb(carrier, t0, t1, a, b).unwrap_or_else(|| {
+            unreachable!("edge box: the conic rule carries a Circle or Ellipse carrier")
+        }),
     };
     boxed.padded(pad)
 }
