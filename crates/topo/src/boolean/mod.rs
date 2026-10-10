@@ -2638,19 +2638,6 @@ pub enum BooleanError {
         /// wants a parameter inverse).
         closed: bool,
     },
-    /// **A record whose edge rests on a face's interior, the edge or
-    /// the face curved.** A record carried through a join or a merge
-    /// that lands on an edge and a face is consumed as structure only
-    /// on a line and a plane, which meet by lying one in the other or
-    /// by a pierce the boolean cut; a circle can rest on a plane at
-    /// one point, which no record kind stores
-    /// (`work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses`).
-    CurvedRestUnrecorded {
-        /// The edge.
-        edge: EdgeKey,
-        /// The face it rests on.
-        face: FaceKey,
-    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -2938,8 +2925,6 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
-    /// [`BooleanError::CurvedRestUnrecorded`].
-    CurvedRestUnrecorded,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::TornComponent`].
@@ -3157,7 +3142,6 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
-            Self::CurvedRestUnrecorded { .. } => BooleanErrorKind::CurvedRestUnrecorded,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3715,12 +3699,6 @@ impl core::fmt::Display for BooleanError {
                 } else {
                     "through the other edge's far end"
                 }
-            ),
-            Self::CurvedRestUnrecorded { edge, face } => write!(
-                f,
-                "the Boolean cannot yet record edge {edge:?} resting on the interior of face \
-                 {face:?} where one of them is curved: no contact record stores such a rest \
-                 (work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses)"
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -5175,6 +5153,69 @@ impl Tangency {
             class: self.coincidence(),
         }
     }
+}
+
+/// **A face–face record on two carriers, confirmed at rest** (C3): the
+/// jet schedule ([`contact_verify::tangent_locus_relation`], the
+/// declared posture, the record standing as the declaration) along the
+/// closed-form locus the carriers derive ([`geom_brep::tangent_locus`],
+/// the lane a `Tangent` declaration is verified along), over both faces'
+/// extents along it.
+///
+/// # Errors
+///
+/// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
+/// definitely not tangent, labelled with the row that refused it, or
+/// the table contradicts it; `Escalated` where a margin is in band; and
+/// `NotCertifiable` where no closed-form locus derives or a face's
+/// extent cannot be read: no sampled locus, ever.
+pub(crate) fn tangent_pair_at_rest<T: Decide>(
+    body: &Body<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    band: Band,
+) -> Result<(), crate::contact::ContactRefusal> {
+    use crate::contact::ContactRefusal;
+    let unread = || ContactRefusal::NotCertifiable {
+        what: "a face of the face-face record has no surface or extent to read",
+    };
+    let surface = |f| {
+        let face = body.get_face(f)?;
+        Some((body.get_surface(face.surface)?.clone(), face.sense))
+    };
+    let ((sa, sense_a), (sb, sense_b)) = surface(fa).zip(surface(fb)).ok_or_else(unread)?;
+    let reach = carrier_pair::pair_extent(body, fa, body, fb, band)
+        .map_err(|_| unread())?
+        .reach;
+    let (carrier, t0, t1) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { origin, dir, .. }) => {
+            let ((t0, t1), _) =
+                witness_span(body, fa, body, fb, origin, dir).map_err(|_| unread())?;
+            (geom::Curve3::Line { origin, dir }, t0, t1)
+        }
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
+            return Err(ContactRefusal::Escalated { diag });
+        }
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(ContactRefusal::Contradicted {
+                diag: Indeterminate {
+                    margin: MarginDiag::INVALID,
+                    band,
+                    predicate: Some(predicate),
+                    terminal_sliver: false,
+                },
+                steer: None,
+            });
+        }
+        Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
+            return Err(ContactRefusal::NotCertifiable {
+                what: "a face-face record on two carriers with no closed-form tangent locus \
+                       (plane x cylinder along a ruling, parallel cylinders)",
+            });
+        }
+    };
+    contact_verify::tangent_locus_relation(&sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band)
+        .map(|_| ())
 }
 
 /// The `Tangent` door alone, for the unit rows that drive it.
@@ -6715,7 +6756,6 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
-                BooleanErrorKind::CurvedRestUnrecorded => "CurvedRestUnrecorded",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

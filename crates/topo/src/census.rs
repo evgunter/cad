@@ -743,7 +743,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let geo = snapshot(body);
-    let declared = Declared::index(contacts);
+    let declared = Declared::index(body, contacts);
     let cands = Candidates::build(body, &geo, band, strategy, plant);
     sweep_vertex_vertex(
         &geo,
@@ -819,7 +819,7 @@ struct Declared {
 }
 
 impl Declared {
-    fn index(contacts: &ContactRecords) -> Self {
+    fn index<T: Real>(body: &Body<T>, contacts: &ContactRecords) -> Self {
         let mut out = Self {
             vv: BTreeSet::new(),
             vf: BTreeSet::new(),
@@ -845,9 +845,18 @@ impl Declared {
                     out.ee.insert((a, b));
                     out.ee.insert((b, a));
                 }
-                // An edge–face record backs no event: its confirm pass
-                // refuses it ([`confirm_declarations`]).
-                ContactKind::EdgeFace(..) => {}
+                // An edge–face record backs the vertex-on-face event at
+                // each conventional vertex of its edge, a point of the
+                // edge's interior: what a vertex-on-face record of that
+                // vertex backed before the carry wrote it on the edge.
+                // Its overlap is certified from its bounds, as an
+                // unrecorded edge resting in a face is, so a straight
+                // edge in a plane backs no event of its own.
+                ContactKind::EdgeFace(e, f) => {
+                    for v in conventional_vertices(body, e) {
+                        out.vf.insert((v, f));
+                    }
+                }
                 ContactKind::FaceFace(a, b) => {
                     out.faces.insert((a, b));
                     out.faces.insert((b, a));
@@ -1350,6 +1359,12 @@ pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
 /// contradiction holds: everywhere. It reads after "contradicted" in
 /// [`ValidationError::ContactContradicted`]'s `Display`.
 pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both faces";
+
+/// The witness of a face–face record on two carriers the confirm pass
+/// contradicts: the closed-form line their tangency would run along.
+/// It reads after "contradicted" in
+/// [`ValidationError::ContactContradicted`]'s `Display`.
+pub(crate) const TANGENT_LOCUS_WITNESS: &str = "along their tangent line";
 
 /// A gap margin as a trilean coincidence verdict: `Some(true)`
 /// coincident, `Some(false)` apart, `None` escalated (already pushed).
@@ -6213,17 +6228,8 @@ fn confirm_declarations<T: Decide>(
             ContactKind::VertexEdge(v, e) => confirm_vertex_on_edge(body, geo, v, e, band, errors),
             ContactKind::VertexFace(v, f) => confirm_vertex_on_face(body, geo, v, f, band, errors),
             ContactKind::EdgeEdge(a, b) => confirm_edge_edge(body, geo, a, b, band, errors),
-            ContactKind::EdgeFace(edge, _) => {
-                errors.push(ValidationError::CensusUnsupported {
-                    subject: CensusSubject::Entity(EntityId::Edge(edge)),
-                    cause: CensusUnsupportedCause::ContactLane(
-                        crate::contact::ContactRefusal::NotCertifiable {
-                            what: "an edge-face record, which the census confirms on no lane",
-                        },
-                    ),
-                });
-            }
-            ContactKind::FaceFace(a, b) => confirm_patch(body, a, b, band, region, errors),
+            ContactKind::EdgeFace(e, f) => confirm_edge_face(body, geo, e, f, band, errors),
+            ContactKind::FaceFace(a, b) => confirm_face_pair(body, a, b, band, region, errors),
         }
     }
 }
@@ -6247,6 +6253,194 @@ fn confirm_vertex_vertex<T: Decide>(
     match gap_is_zero("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
         Some(true) | None => {}
         Some(false) => errors.push(stale),
+    }
+}
+
+/// The conventional vertices of `edge`: points of its interior that
+/// the topology keeps as vertices.
+fn conventional_vertices<T: Real>(body: &Body<T>, edge: EdgeKey) -> Vec<VertexKey> {
+    let Some(e) = body.get_edge(edge) else {
+        return Vec::new();
+    };
+    let mut out: Vec<VertexKey> = [e.he_plus, e.he_minus]
+        .into_iter()
+        .filter_map(|h| body.get_half_edge(h).map(|h| h.start))
+        .filter(|&v| crate::boolean::is_conventional_vertex(body, v))
+        .collect();
+    out.dedup();
+    out
+}
+
+/// One edge–face record's witness, read from the two cells' carriers:
+/// both cells live and their interiors meeting.
+///
+/// - **A straight edge in a plane** is confirmed by reconstruction: both
+///   its ends on the face's plane, and a cell of its span inside the
+///   face's region ([`ef_overlap_cells`], the overlap pass 4 reports).
+///   Off the plane or outside the region, the record is stale.
+/// - **Otherwise** the touch is read where the record holds a point of
+///   the edge's interior: a conventional vertex, inside the face
+///   ([`confirm_vertex_on_face`]'s two readings). A curve touch along
+///   the edge's carrier away from such a point is refused typed: the
+///   census builds no lane for it.
+fn confirm_edge_face<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    edge: EdgeKey,
+    face: FaceKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::EdgeFace { edge, face },
+    };
+    if body.get_edge(edge).is_none() || body.get_face(face).is_none() {
+        errors.push(stale);
+        return;
+    }
+    let line = geo.edges.iter().find(|e| e.key == edge);
+    let plane = geo.faces.iter().find(|f| f.key == face);
+    if let (Some(e), Some(f)) = (line, plane) {
+        for p in [e.p0, e.p0 + e.dir * e.len] {
+            match signed_is_zero(
+                "pm_census_confirm_ef",
+                Margin::of((p - f.origin).dot(f.normal)),
+                band,
+                errors,
+            ) {
+                Some(true) => {}
+                Some(false) => {
+                    errors.push(stale);
+                    return;
+                }
+                None => return,
+            }
+        }
+        let before = errors.len();
+        let cells = ef_overlap_cells(body, e, f, geo, band, errors);
+        if cells.is_empty() && errors.len() == before {
+            errors.push(stale);
+        }
+        return;
+    }
+    for v in conventional_vertices(body, edge) {
+        let mut read = Vec::new();
+        confirm_vertex_on_face(body, geo, v, face, band, &mut read);
+        if read.is_empty() {
+            return;
+        }
+        if read.iter().any(|e| {
+            !matches!(
+                e,
+                ValidationError::StaleContactDeclaration {
+                    declaration: StaleDeclaration::VertexOnFace { .. }
+                }
+            )
+        }) {
+            errors.extend(read);
+            return;
+        }
+    }
+    errors.push(ValidationError::CensusUnsupported {
+        subject: CensusSubject::Entity(EntityId::Edge(edge)),
+        cause: CensusUnsupportedCause::ContactLane(
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: "an edge resting on a face off a line and a plane, away from a \
+                       conventional vertex: the census builds no curve-touch lane along an \
+                       edge's carrier",
+            },
+        ),
+    });
+}
+
+/// One face–face record's witness, read from the two faces' carriers:
+/// on one carrier, or on two planes, a patch ([`confirm_patch`], whose
+/// carrier door contradicts two distinct planes); on two other
+/// carriers, a curve touch along the closed-form locus they derive
+/// ([`crate::boolean::tangent_pair_at_rest`]), refused typed where none
+/// derives.
+fn confirm_face_pair<T: Decide>(
+    body: &Body<T>,
+    a: FaceKey,
+    b: FaceKey,
+    band: Band,
+    region: Option<RegionLane<T>>,
+    errors: &mut Vec<ValidationError>,
+) {
+    if body.get_face(a).is_none() || body.get_face(b).is_none() {
+        errors.push(ValidationError::StaleContactDeclaration {
+            declaration: StaleDeclaration::Patch {
+                face_a: a,
+                face_b: b,
+            },
+        });
+        return;
+    }
+    // Two planes have no curve touch: a pair of them is a patch or
+    // nothing, and the patch door's own reading says which.
+    let planar = |f: FaceKey| {
+        body.get_face(f)
+            .and_then(|face| body.get_surface(face.surface))
+            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
+    };
+    if planar(a) && planar(b) {
+        confirm_patch(body, a, b, band, region, errors);
+        return;
+    }
+    // Otherwise the detector posture reads which: a carrier the ladder
+    // calls one, or one within the band (the record then stands as the
+    // declaration the patch door's rung 3 reads), is a patch.
+    match crate::boolean::carrier_pair_relation(body, a, body, b, false, band) {
+        Ok(Ok(crate::boolean::CarrierRelation::Distinct))
+        | Err(crate::boolean::PairUnread::OutsideInventory) => {}
+        Ok(Ok(_) | Err(crate::boolean::CarrierEqError::Undecided { .. })) => {
+            confirm_patch(body, a, b, band, region, errors);
+            return;
+        }
+        Ok(Err(
+            crate::boolean::CarrierEqError::Escalated { diag, .. }
+            | crate::boolean::CarrierEqError::Contradicted { diag, .. }
+            | crate::boolean::CarrierEqError::Unsettled { diag },
+        )) => {
+            errors.push(ValidationError::CensusEscalated { cause: diag });
+            return;
+        }
+        Err(crate::boolean::PairUnread::Extent(_)) => {
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::FacePair(a, b),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a face of the face-face record has no extent to read",
+                    },
+                ),
+            });
+            return;
+        }
+    }
+    match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
+        Ok(()) => {}
+        Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
+            errors.push(ValidationError::ContactContradicted {
+                declaration: crate::contact::DeclaredContact {
+                    a,
+                    b,
+                    class: crate::contact::ContactClass::Tangent,
+                },
+                witness: TANGENT_LOCUS_WITNESS.to_owned(),
+                margin: diag,
+                steer,
+            });
+        }
+        Err(
+            crate::contact::ContactRefusal::Escalated { diag }
+            | crate::contact::ContactRefusal::Undeclared { diag },
+        ) => errors.push(ValidationError::CensusEscalated { cause: diag }),
+        Err(refusal @ crate::contact::ContactRefusal::NotCertifiable { .. }) => {
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::FacePair(a, b),
+                cause: CensusUnsupportedCause::ContactLane(refusal),
+            });
+        }
     }
 }
 
@@ -7467,7 +7661,7 @@ mod tests {
             .unwrap(),
             crate::Cites::decided(0),
         ));
-        let declared = Declared::index(&records);
+        let declared = Declared::index(&seat.body, &records);
         let geo = snapshot(&seat.body);
         let on = |e: &&EdgeGeo<f64>, pick: fn(Point3<f64>) -> bool| {
             [e.p0, e.p0 + e.dir * e.len]

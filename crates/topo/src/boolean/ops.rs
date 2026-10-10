@@ -77,8 +77,7 @@
 //! edge it then dropped. A record leaves only where its cell left the
 //! result with no such row (a contact between A and B is only
 //! meaningful in a result holding both sides), or where its two cells
-//! became one, incident, or a pair no record kind stores, which is
-//! structure ([`record`]'s arms say which and why).
+//! became one or incident, which is structure ([`record`]).
 //!
 //! # Known limitations (PR 5.5 — the honest envelope)
 //!
@@ -132,8 +131,8 @@ use super::voids;
 use super::zip::{Fusions, SeamCorrespondence, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell, Contact,
-    ContactKind, ContactRecords, EeContact, FacePairDeclaration, Operand, ReductionContacts,
-    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    ContactRecords, EeContact, FacePairDeclaration, Operand, ReductionContacts, SelfCheck,
+    SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -3310,8 +3309,7 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// chord the join minted along it ([`Descendants::live`]). A record is
 /// never re-derived from geometry, and leaves only where its cell left
 /// the result with no such row (a discarded fragment), or where its two
-/// cells became one, incident, or a pair no record kind stores, which
-/// is structure ([`record`]).
+/// cells became one or incident, which is structure ([`record`]).
 ///
 /// **Vertex records are carried as groups.** Records that share a
 /// vertex end, discovered and carried alike, are one group, closed
@@ -3322,9 +3320,8 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// recorded, though no single record named that pair: what the ops'
 /// own coincidences imply, read from keys and never from positions.
 /// A pair landing on two edges is an edge-edge record (two joined
-/// vertices that coincided: the edges cross or overlap there). A pair
-/// landing on an edge and a face has no stored kind: an edge resting in
-/// a face overlaps it, which the census certifies from its bounds.
+/// vertices that coincided: the edges cross or overlap there), and one
+/// landing on an edge and a face an edge-face record.
 ///
 /// **A vertex a zip fused** sits on the seam, on the boundary of the
 /// face a vertex-on-face record named: the substituted pair is an
@@ -3755,7 +3752,7 @@ fn carry_rows<T: Real>(
                     what: "two cells of one vertex group have no chain of records between them",
                 });
             };
-            record(body, &mut out, *x, *y, cites)?;
+            record(body, &mut out, *x, *y, cites);
         }
     }
     // Vertex-on-face records: the vertex's own key, the face chased.
@@ -3772,7 +3769,7 @@ fn carry_rows<T: Real>(
             desc.live(body, vs, view(vs), vc)?,
             desc.live(body, fs, view(fs), fc)?,
         ) {
-            record(body, &mut out, (vs, x), (fs, y), cites.clone())?;
+            record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
     // Records of two edges or faces: the joins' (no reduction mints
@@ -3782,30 +3779,19 @@ fn carry_rows<T: Real>(
             desc.live(body, xs, view(xs), xc)?,
             desc.live(body, ys, view(ys), yc)?,
         ) {
-            record(body, &mut out, (xs, x), (ys, y), cites.clone())?;
+            record(body, &mut out, (xs, x), (ys, y), cites.clone());
         }
     }
     Ok(out)
 }
 
 /// Records the cell pair `x`, `y` (result keys), once, backed by
-/// `cites` (a second record of the pair adds its citations): two cells
+/// `cites` (a second record of the pair adds its citations). Two cells
 /// that are one, or one of which bounds the other, are structure and
-/// record nothing ([`Contact::new`]), and so does a pair whose arm says
-/// why it is structure (module docs of [`carry`]).
-///
-/// # Errors
-///
-/// [`BooleanError::CurvedRestUnrecorded`] where an edge rests on a
-/// face's interior and either is curved: the planar argument that
-/// consumes the pair does not hold.
-fn record<T: Real>(
-    body: &Body<T>,
-    out: &mut ContactRecords,
-    x: End,
-    y: End,
-    cites: Cites,
-) -> Result<(), BooleanError> {
+/// record nothing ([`Contact::new`]); every other pair is recorded,
+/// whatever its kind: how the census confirms it is read from its two
+/// cells' carriers, not decided here.
+fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End, cites: Cites) {
     // A conventional vertex has no identity of its own: a record at its
     // point is a record on its closed edge's interior.
     let cell = |c: Cell| match c {
@@ -3816,45 +3802,9 @@ fn record<T: Real>(
             .map_or(c, |h| Cell::Edge(h.edge)),
         _ => c,
     };
-    let Ok(contact) = Contact::new(body, cell(x.1), cell(y.1)) else {
-        return Ok(());
-    };
-    match contact.kind() {
-        ContactKind::VertexVertex(..)
-        | ContactKind::VertexEdge(..)
-        | ContactKind::VertexFace(..)
-        | ContactKind::EdgeEdge(..) => out.push(Cited::new(contact, cites)),
-        // An edge resting on a face: a vertex-on-face record whose vertex
-        // was joined away (PR 3881's ruling), or a vertex-on-edge or
-        // edge-edge record one of whose cells the merge swallowed into a
-        // face. On a plane it is structure: a line meeting a plane
-        // either lies in it or pierces it, and a pierce is a crossing
-        // the boolean already cut, so the edge lies in the face (the
-        // joined vertex's two edges did), and its rest there is backed
-        // at its own bounds. Consumed: a wrong drop is the census's
-        // `EdgeFaceOverlap` unbacked, or its `EdgeFacePierce`, both
-        // loud. The argument is a line's and a plane's alone, so a
-        // curved edge or face refuses typed: a circle can rest on a
-        // plane at one point.
-        ContactKind::EdgeFace(edge, face) => {
-            let f = proven(&body.faces, face, EntityId::Face);
-            let e = proven(&body.edges, edge, EntityId::Edge);
-            if !matches!(
-                body.face_surface_linked(face, f),
-                geom::Surface::Plane { .. }
-            ) || super::edge_join::certified_line(body, edge, e).is_none()
-            {
-                return Err(BooleanError::CurvedRestUnrecorded { edge, face });
-            }
-        }
-        // A point record both of whose cells a merge absorbed into two
-        // faces: a point on both faces' interiors, a face-face rest (two
-        // shells touching across coincident faces) that the census
-        // checks at face granularity against its face-face record or
-        // declared pair. Consumed.
-        ContactKind::FaceFace(..) => {}
+    if let Ok(contact) = Contact::new(body, cell(x.1), cell(y.1)) {
+        out.push(Cited::new(contact, cites));
     }
-    Ok(())
 }
 
 /// The declared face pairs lowered to SURVIVING result SURFACE pairs
@@ -5688,14 +5638,13 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    /// **An edge resting on a face's interior is consumed only on a
-    /// line and a plane** ([`super::record`]): a brick's edge on a
-    /// brick's face records nothing, a cylinder sheet's edges on its own
-    /// wall are structure, and its edges on another sheet's curved wall
-    /// refuse typed, naming the pair.
+    /// **Every pair of distinct, non-incident cells is recorded**
+    /// ([`super::record`]): a brick's edge against each face it does not
+    /// bound, and a cylinder sheet's edges against another sheet's
+    /// curved wall; a sheet's edges against its own wall are structure.
     #[test]
-    fn an_edge_on_a_face_is_structure_only_on_a_line_and_a_plane() {
-        use crate::boolean::{BooleanError, Cell, ContactRecords, Operand};
+    fn every_non_incident_edge_face_pair_is_recorded_whatever_its_carriers() {
+        use crate::boolean::{Cell, ContactRecords, Operand};
         use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
         let tol = geom_core::Tol::witness();
         let block = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
@@ -5708,14 +5657,13 @@ mod tests {
                     (Operand::A, Cell::Edge(e)),
                     (Operand::B, Cell::Face(f)),
                     crate::Cites::decided(0),
-                )
-                .unwrap();
+                );
             }
         }
         assert_eq!(
-            out,
-            ContactRecords::default(),
-            "a line on a plane is structure"
+            out.edge_face().count(),
+            12 * 4,
+            "each edge against the four faces it does not bound"
         );
         let mut sheet = crate::Body::<f64>::new();
         let wall = cyl_wall_sheet(
@@ -5726,17 +5674,19 @@ mod tests {
             tol,
         );
         let own: Vec<crate::EdgeKey> = sheet.edges().map(|(e, _)| e).collect();
-        for &edge in &own {
+        let mut out = ContactRecords::default();
+        let mut put = |sheet: &crate::Body<f64>, edge| {
             super::record(
-                &sheet,
+                sheet,
                 &mut out,
                 (Operand::A, Cell::Edge(edge)),
                 (Operand::B, Cell::Face(wall)),
                 crate::Cites::decided(0),
-            )
-            .unwrap();
+            );
+        };
+        for &edge in &own {
+            put(&sheet, edge);
         }
-        assert!(out.is_empty(), "an edge bounding the face is structure");
         cyl_wall_sheet(
             &mut sheet,
             CylFrame::canonical(1.0),
@@ -5749,20 +5699,14 @@ mod tests {
             .map(|(e, _)| e)
             .filter(|e| !own.contains(e))
             .collect();
-        assert!(!other.is_empty(), "the second sheet has edges");
-        for edge in other {
-            let r = super::record(
-                &sheet,
-                &mut out,
-                (Operand::A, Cell::Edge(edge)),
-                (Operand::B, Cell::Face(wall)),
-                crate::Cites::decided(0),
-            );
-            assert!(
-                matches!(r, Err(BooleanError::CurvedRestUnrecorded { edge: e, face }) if e == edge && face == wall),
-                "{r:?}"
-            );
+        for &edge in &other {
+            put(&sheet, edge);
         }
+        assert_eq!(
+            out.edge_face().map(|(e, _)| e).collect::<Vec<_>>(),
+            other,
+            "the other sheet's edges are recorded and the wall's own are not"
+        );
     }
     /// The door over discovered records alone.
     fn found<T: geom_core::Real>(
@@ -7075,14 +7019,23 @@ mod tests {
             Some(Cell::Face(kept)),
             "the chase through the fusion lands too"
         );
-        for cited in [bend, fused_in] {
-            assert_eq!(
-                remap(&records(cited)),
-                [ContactKind::VertexFace(survivor, kept)],
-                "{cited:?}: the partner rests on the face that swallowed it, \
-                 and a dead vertex's own rest has no vertex left"
-            );
-        }
+        // The fused vertex's own rest is the zip's incidence and drops;
+        // the key fused into it, chased onto the kept face, leaves the
+        // two faces meeting at its point.
+        assert_eq!(
+            remap(&records(bend)),
+            [ContactKind::VertexFace(survivor, kept)],
+            "{bend:?}: the partner rests on the face that swallowed it"
+        );
+        assert_eq!(
+            remap(&records(fused_in)),
+            [
+                ContactKind::VertexFace(survivor, kept),
+                ContactKind::FaceFace(kept.min(face), kept.max(face)),
+            ],
+            "{fused_in:?}: the partner rests on the face that swallowed it, and the \
+             chased rest is the two faces meeting there"
+        );
         // The control: the same records on a live vertex carry.
         let other = body
             .vertices()
