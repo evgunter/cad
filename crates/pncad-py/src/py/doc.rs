@@ -932,7 +932,7 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
-                    d::VarDef::Output { .. } => held.kind().dimension(),
+                    d::VarDef::Output { .. } | d::VarDef::Select(_) => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -3478,9 +3478,7 @@ impl Node {
     #[staticmethod]
     fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
         Self {
-            inner: d::Node::Measure {
-                primitive: primitive.0.clone(),
-            },
+            inner: d::Node::measure(&primitive.0),
         }
     }
 

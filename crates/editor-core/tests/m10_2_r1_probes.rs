@@ -1027,11 +1027,30 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude.
-    let target = format!("\"node\": \"{}\",", extrude.0);
-    let n = text.matches(&target).count();
-    assert!(n >= 1, "the measure's refs name the extrude");
-    let corrupt = text.replacen(&target, "\"node\": \"0:000000000000004d\",", 1);
+    // the names the measure's selections hold, minted by the extrude.
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("a JSON body");
+    let selects: Vec<String> = wire["snapshot"]["vars"]
+        .as_object()
+        .expect("a variable table")
+        .iter()
+        .filter(|(_, var)| var["def"].get("Select").is_some())
+        .map(|(id, _)| id.clone())
+        .collect();
+    let Some(select) = selects.first() else {
+        panic!("the measure reads its references through selections")
+    };
+    let name = &mut wire["snapshot"]["vars"][select.as_str()]["def"]["Select"]["names"][0];
+    assert_eq!(
+        name["node"],
+        serde_json::json!(extrude.0.to_string()),
+        "the measure's refs name the extrude"
+    );
+    name["node"] = serde_json::json!("0:000000000000004d");
+    let corrupt = format!(
+        "{header}\n{}",
+        serde_json::to_string(&wire).expect("re-emit")
+    );
     match load(&corrupt, Tol::witness()) {
         // The mint-log check owns this corruption: 77 was never
         // minted, which is a loud load-door refusal, the claim.

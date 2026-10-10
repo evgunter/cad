@@ -141,6 +141,14 @@ fn sans_epsilon(t: &str) -> String {
 /// a definition the assertion reads, so the measure's mint preimage,
 /// its id and its saved text moved; every other row held its word, and
 /// the id-masked geometry fence held untouched.
+///
+/// **Re-pinned for INTENT stage 2 PR E** (a selection is a variable):
+/// the seven documents that blend, shell, frame on a face or measure —
+/// `measured_web`, `die_fillet`, `die_chamfer`, `face_sketch`,
+/// `die_composed`, `die_composed_tour` and `reshaped_rod` — now mint a
+/// selection variable each such node reads, so their node ids moved and
+/// every row naming them; every other row held its word, and the
+/// id-masked geometry fence held untouched.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x62b07c7daae52838, 0x3c90ffcf06c6a15a),
     ("corner_table", 0x78adcd98aa349293, 0xf9103519a6680b71),
@@ -160,25 +168,25 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
     ("kitchen_sink", 0x4d54a9f813f26bc2, 0x5afd76e9573a1531),
     ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
-    ("measured_web", 0x90c3725f430fd5f8, 0x05c58c8d758afab4),
+    ("measured_web", 0x687e7d83e3b0d6f0, 0x9bd3a69736aa997b),
     ("boss_union", 0x563816ac9f7adc7e, 0x405ba395ed713022),
-    ("die_fillet", 0x2b071b9218e6bd30, 0x15261a579edae7b5),
-    ("die_chamfer", 0xacc58f812a61da8c, 0x6c4a019ce8bee6b2),
+    ("die_fillet", 0xa3879e5204227d32, 0xcc827f4ab84ab2f7),
+    ("die_chamfer", 0xbcfdc711a014ba7e, 0x955720216d75cf9a),
     ("die_pips", 0x650ac6623aa79fa7, 0xde8030f8ad79858a),
     ("heat_sink_fins", 0x248682fac9898b5a, 0xbdeed2f79c7c0af9),
     ("die_tool", 0xd27c69b347ec03b8, 0x59c24a20b944e29b),
-    ("face_sketch", 0x380d595523d5b0af, 0xacdc1a2b07152fd4),
+    ("face_sketch", 0x25f0c5c4ab521837, 0x6ff3c25647b7831b),
     ("part_select", 0x2a314c6b9084180d, 0x29cf3119e30ba70a),
     ("loft_prism", 0x9f15f3e0cf1e8ace, 0xc7ef1ffc56e06ac4),
-    ("die_composed", 0x5092c8f1618d461b, 0xa976d2f860d6ca55),
-    ("die_composed_tour", 0x028e90c688a032c6, 0x5ebcf53a585edd12),
+    ("die_composed", 0xf31d891c2ec31d07, 0xeca44d3772d9a79e),
+    ("die_composed_tour", 0xe2039e28c41853bf, 0x3004f878021c8d9c),
     ("plate_param", 0x0ec32bf52511b5ea, 0x7fc1f8539afd08a0),
     ("kiss_carry", 0x471eeeaa3049eeab, 0xb459cc9e8e51d5d2),
     ("tube_ring", 0x33da3ceb7454021f, 0x9a8176ec901ca54c),
     ("tube_arc", 0xebcfe2751352a77e, 0xe780b5fe37d515b4),
     ("hollow_tube_elbow", 0xb1be521411cf3616, 0x27d7a90771dfe921),
     ("hollow_tube_ring", 0x46f61613d1f6a156, 0x39c2fbc857b67ef1),
-    ("reshaped_rod", 0x3aba9d6be1401cb1, 0x1bf75f321a768b78),
+    ("reshaped_rod", 0xf8c2a29b88e6a24a, 0xf096667c4f3cb66c),
 ];
 
 #[test]

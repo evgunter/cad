@@ -155,6 +155,11 @@ fn var_kind_tags_are_stable() {
             VarKind::Body,
             VarKind::Bodies,
             VarKind::Profile,
+            VarKind::Face,
+            VarKind::Edge,
+            VarKind::Vertex,
+            VarKind::Faces,
+            VarKind::Edges,
         ]
         .map(var_kind_tag),
         [
@@ -165,13 +170,18 @@ fn var_kind_tags_are_stable() {
             "frame",
             "body",
             "bodies",
-            "profile"
+            "profile",
+            "face",
+            "edge",
+            "vertex",
+            "faces",
+            "edges"
         ]
     );
 }
 
 /// What an operand slot admits is a kind's own word, or the one word
-/// of its own: the placers' `placeable`.
+/// of its own: the placers' `placeable`, a measure's `measured`.
 #[test]
 fn slot_kind_tags_are_stable() {
     use pncad::document::{SlotKind, VarKind};
@@ -182,6 +192,10 @@ fn slot_kind_tags_are_stable() {
     assert_eq!(
         crate::errors::slot_kind_tag(SlotKind::Placeable),
         "placeable"
+    );
+    assert_eq!(
+        crate::errors::slot_kind_tag(SlotKind::Measured),
+        "measured"
     );
 }
 
@@ -5447,6 +5461,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "strand",
             "stranded_appearance",
             "stranded_read",
+            "stranded_selection",
         ],
         delegates: &[],
     },
@@ -5708,8 +5723,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "at", "axis", "b", "body", "frame", "input", "member", "of", "path", "profile",
-            "section", "target", "tool",
+            "a", "axis", "b", "body", "face", "frame", "input", "measured", "member", "of", "open",
+            "path", "profile", "section", "selection", "target", "tool",
         ],
         delegates: &[],
     },

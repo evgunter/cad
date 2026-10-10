@@ -562,13 +562,16 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Axis => "axis",
         S::Frame => "frame",
         S::Target => "target",
+        S::Selection => "selection",
+        S::Open => "open",
+        S::Face => "face",
+        S::Measured(_) => "measured",
         S::Tool => "tool",
         S::A => "a",
         S::B => "b",
         S::Member(_) => "member",
         S::Input => "input",
         S::Of => "of",
-        S::At => "at",
         S::Body => "body",
     }
 }
@@ -3407,6 +3410,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
+        Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::LabelDropped { .. } => "label_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }

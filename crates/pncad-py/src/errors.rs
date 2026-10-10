@@ -119,17 +119,24 @@ pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
         VarKind::Body => "body",
         VarKind::Bodies => "bodies",
         VarKind::Profile => "profile",
+        VarKind::Face => "face",
+        VarKind::Edge => "edge",
+        VarKind::Vertex => "vertex",
+        VarKind::Faces => "faces",
+        VarKind::Edges => "edges",
     }
 }
 
 /// The stable tag for what an operand slot admits: a kind's own word
-/// ([`var_kind_tag`]), or `placeable` (a body or a list
-/// of bodies).
+/// ([`var_kind_tag`]), `placeable` (a body or a list of bodies), or
+/// `measured` (what a measure's reference reads: a body, a face, an
+/// edge or a vertex).
 pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
     use pncad::document::SlotKind as K;
     match kind {
         K::Is(kind) => var_kind_tag(kind),
         K::Placeable => "placeable",
+        K::Measured => "measured",
     }
 }
 

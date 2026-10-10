@@ -108,6 +108,15 @@
 //! `measured_web`'s row and no other, and the id-masked geometry fence
 //! below did not move: no body's point moved anywhere.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN A SELECTION BECAME A VARIABLE**
+//! (INTENT stage 2 PR E), through the seven documents that blend,
+//! shell, frame on a face or measure. Each such node now reads a
+//! selection variable its insert mints, so its id moved, and every id
+//! minted after it in the document. `lib_g16_corpus_name_digests`
+//! moved those seven rows and no other, and the id-masked geometry
+//! fence below did not move: no outcome flipped and no body's point
+//! moved anywhere.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -814,7 +823,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
+        (0xc6fe_4669_3e91_fdc2, 0xb1a0_6ffb_7feb_12f6),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -840,7 +849,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xee4f_5451_968a_f210, 0x5d4d_eba3_ca25_5ccc),
+        (0x1ec7_9943_cba0_f042, 0x8a3f_88a0_8a45_728e),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -864,7 +873,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x428d_d9b4_60e2_9a04, 0x0fc9_d33a_f30e_43f8),
+        (0xc6fe_4669_3e91_fdc2, 0xb1a0_6ffb_7feb_12f6),
         "the corpus's Probe evaluation moved"
     );
 }

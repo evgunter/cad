@@ -225,12 +225,18 @@ fn both_blends_evaluate_in_one_document() {
 /// digest walks holds those copies. What each document delivers did
 /// not move: `intent_s2_c_world`'s migration check holds each product
 /// to its pre-C digest.
+///
+/// RE-BLESSED for INTENT stage 2 PR E (a selection is a variable): each
+/// blend reads a selection variable its insert mints, so the blend's id
+/// moved and every name it mints with it. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x1e58_cc60_87b0_f207u64),
-        ("die_chamfer", 0x6ff9_7da9_d32f_236d),
+        ("die_fillet", 0xa9e9_db77_959b_dfa9u64),
+        ("die_chamfer", 0xe596_65e7_5f59_eb7d),
     ] {
         let doc = corpus::documents()
             .into_iter()

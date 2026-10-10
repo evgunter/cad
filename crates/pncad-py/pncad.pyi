@@ -6285,6 +6285,11 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    A `stranded_selection` is the same loss in a selection: a selection
+    that survived the edit names `name`, whose referent the edit took.
+    `node` is the selection's first reader, which refuses at evaluation
+    until `DocEdit.rebind` with `body=` the selection's body repairs it.
+
     A `stranded_read` names, on `node`, a node whose operand reads an
     output the delete removed with its operation: the delete is legal,
     and the node refuses `unresolved_read` at evaluation until the
@@ -6298,7 +6303,8 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`offset_cleared`, `strand`, `stranded_read`,
-        `stranded_appearance`, or `label_dropped`."""
+        `stranded_selection`, `stranded_appearance`, or
+        `label_dropped`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
