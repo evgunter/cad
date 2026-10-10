@@ -590,6 +590,7 @@ Signed (CLEAVE orchestrator).
   row file was absent at that branch's head, so the status flip failed silently). Closed here.
 - **Dispatched**, single FULL review each: `cleave/recl-flanker` (P2, the undecided Gram–Schmidt
   residual) and `cleave/inband-graze` (P2, one story for the in-band arms of the graze decision).
+- **PR 4181 merged** (the frustum apex P1; single FULL review, fix pass done). Its row is closed.
 - **PR 4158 merged** (the seam-ruling P0, closed). **Dispatched** `cleave/frustum-apex`
   (`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section`, P1: a plane through a
   cone's apex pairs the wall's crossings top↔top). Review tier: single FULL.
@@ -648,3 +649,6 @@ Signed (CLEAVE orchestrator).
   (`cleave/rim-touch`) and `interval-steep-cut-through-cylinder-caps-refuses-order-escalated`
   (`cleave/interval-join-order`). Review tier for each: single FULL if code moves, orchestrator read
   if not.
+- **PR 4223 merged** (rim-touch; test and tracker only, orchestrator read). PR 4179 had already
+  fixed it, and the witnesses are pinned. Filed: a plane touching a bore rim splits into a pinched
+  side or refuses (P3; its answer is D10 coincidence work, so it waits on the hold).

@@ -52,6 +52,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
 use crate::common::charts::hollow_moves;
+use crate::common::latitude_seam::latitude_on_partial_wall;
 use crate::common::poses::torax_pose;
 use crate::common::torus_walls::{klein_elbow, props_door, torus_barrel, torus_belly};
 use sweep::test_support::finished;
@@ -576,8 +577,10 @@ fn torax_the_klein_elbow_hollows_to_the_props_door() {
 }
 
 /// **A two-arc lune's equator seam re-authors, certifies, and the
-/// hollow measures as the plain lune's does.** The half-disc's arc
-/// is split at the equator, so its vertex revolves into a
+/// hollow measures as the plain lune's does.** The half-disc's arc is
+/// split at the equator; the revolve builds the run as one sphere wall,
+/// so the seam its vertex would revolve into is cut by hand
+/// (`common::latitude_seam::latitude_on_partial_wall`): a
 /// `RevolvedPoint`-declared chart seam between two sphere faces, and
 /// the moved meridian caps turn both of its ends off their old sketch
 /// planes about the axis. The rims here are circles (a plane cuts a
@@ -611,6 +614,26 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     )
     .expect("the two-arc lune revolves")
     .body;
+    let mut body = body;
+    let sphere = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        })
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall(
+        &mut body,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let walls = body.faces().filter(|(_, f)| f.surface == sphere).count();
+    assert_eq!(walls, 2, "the seam splits the sphere wall in two");
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     assert_hollow_lune("the two-arc lune", &body, r, 0.05);
 }

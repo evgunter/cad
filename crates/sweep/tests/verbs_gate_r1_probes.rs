@@ -397,14 +397,26 @@ fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
 /// **Row 4 — the cone at a TILTED axis**: the cone-relabelled brick
 /// does not finish, so no probe meets its face's box at the boolean.
 /// The at-rest gate refuses it on the relabelled face: its four lines
-/// lie off the cone, and its loop's pcurves do not close on the cone's
-/// chart (a loop discontinuity).
+/// lie off the cone, and a line's chart image does not map back onto
+/// the line (check 4's map residual). The loop walk decides each joint's
+/// element as integers and leaves the joint's coincidence to the rows'
+/// certificates, so the certificate, not a chart-space gap, is what
+/// refuses it.
 #[test]
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
     let (a, face) = tilted_cone_brick();
     let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        matches!(finding, topo::PcurveMintError::LoopDiscontinuity { .. }),
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
         "{finding:?}"
     );
 }
@@ -450,7 +462,16 @@ fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
     let (a, face) = tilted_cone_brick();
     let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        matches!(finding, topo::PcurveMintError::LoopDiscontinuity { .. }),
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
         "{finding:?}"
     );
 }

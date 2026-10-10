@@ -216,6 +216,7 @@ before each is the reading at the commit before the merge.
 | #3981 `6d1cef94cf` check 5's escape | sz +8, num −8 | sg +8, num −8 | sz +4, num −4 | sg +8, num −8 | sz +4, num −4 | sz +4, num −4 | `Study` (plate, link, pad) |
 | #4037 `201239b0e4` joint elements | num +14 | num +14 | num +7 | num +14 | num +10 | num +10 | **not credited** |
 | #4187 (CARVE) `cap_plane_orientation`, one decision per extruded cap | num +6 | num +4 | num +3, frozen +2 | num +4 | num +2 | num +4, frozen +48 | both rows, at the PR |
+| #3945 PCERT chart-angle unit (after this item closed) | sz −56, num −56 | sz −24, num −24 | sz −28, num −28 | sz −24, num −24 | sz −28, num −28 | sz −84, num −84, frozen −15 | `Study`, both rows: the loop's chart-space angle comparisons and check 5 are retired, so their decisions are gone; the same at ε = 1e-6 and 1e-12 |
 
 Every other stretch reads the same at both ends. #4011 (INTENT-VARS-1
 PR 2) moves nothing past the ceiling. #3804 (SYM-15, `810bc55336`)

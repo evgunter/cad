@@ -43,11 +43,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1103, 0, 710, 612]),
-    ("r1_annulus", [588, 0, 455, 804]),
-    ("r2_link", [373, 9, 287, 486]),
-    ("r2_filleted_bracket", [644, 0, 520, 806]),
-    ("r2_rounded_pad", [368, 0, 304, 302]),
+    ("two_hole_plate", [1047, 0, 654, 612]),
+    ("r1_annulus", [564, 0, 399, 804]),
+    ("r2_link", [345, 9, 259, 486]),
+    ("r2_filleted_bracket", [620, 0, 464, 806]),
+    ("r2_rounded_pad", [340, 0, 276, 302]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
