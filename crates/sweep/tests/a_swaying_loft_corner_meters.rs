@@ -42,49 +42,55 @@ fn min_speed_ceiling(c: &geom::NurbsCurve3<f64>) -> f64 {
 }
 
 /// The family the meter used to refuse: `a ≥ 0.75` at v-degree 2, and
-/// `a = 0.5` at v-degree 3. Each body builds and certifies at both
-/// scalars (the build runs certification) and is closed, and each
-/// corner's meter is positive and under its speed.
+/// `a = 0.5` at v-degree 3. At both scalars each body builds and
+/// certifies (the build runs certification), validates and is closed,
+/// and each corner's meter is positive and under its speed — at the
+/// interval scalar, its certified floor.
 #[test]
 fn a_swaying_loft_builds_closed() {
     for (v_degree, a) in [(2, 0.75), (2, 1.0), (2, 1.5), (2, 2.0), (3, 0.5)] {
         let (sections, places) = swaying(a);
+        let at = format!("v-degree {v_degree}, a = {a}");
         let lofted = loft_body::<f64>(&sections, &places, v_degree, Tol::witness())
-            .unwrap_or_else(|e| panic!("v-degree {v_degree}, a = {a}: {e:?}"));
-        let body = &lofted.body;
-        assert_eq!(
-            topo::validate(body),
-            Ok(()),
-            "v-degree {v_degree}, a = {a}: tier 1"
-        );
-        assert_eq!(
-            topo::validate_closed(body),
-            Ok(()),
-            "v-degree {v_degree}, a = {a}: closed"
-        );
-        let mut corners = 0_usize;
-        for (_, edge) in body.edges() {
-            let topo::CurveGeom::Certified(curve) =
-                body.get_curve_geom(edge.curve).expect("curve key resolves")
-            else {
-                panic!("a finished body has no null scaffolding");
-            };
-            if let geom::Curve3::Nurbs(c) = curve.carrier() {
-                let m = c.speed_lower_bound().get();
-                let reference = min_speed_ceiling(c);
+            .unwrap_or_else(|e| panic!("{at}: {e:?}"));
+        let lofted_i = loft_body::<Interval>(&sections, &places, v_degree, Tol::witness())
+            .unwrap_or_else(|e| panic!("{at}: at the interval scalar: {e:?}"));
+        let f64_meters = corner_meters(&lofted.body, &at, |c| c.speed_lower_bound().get());
+        let interval_meters =
+            corner_meters(&lofted_i.body, &at, |c| c.speed_lower_bound().get().lo());
+        for (scalar, meters) in [("f64", f64_meters), ("interval", interval_meters)] {
+            for (m, reference) in meters {
                 assert!(
                     m > 0.0 && m <= reference,
-                    "v-degree {v_degree}, a = {a}: corner meter {m}, speed ceiling {reference}"
+                    "{at}, {scalar}: corner meter {m}, speed ceiling {reference}"
                 );
-                corners += 1;
             }
         }
-        assert_eq!(
-            corners, 4,
-            "v-degree {v_degree}, a = {a}: four corner edges"
-        );
-        loft_body::<Interval>(&sections, &places, v_degree, Tol::witness()).unwrap_or_else(|e| {
-            panic!("v-degree {v_degree}, a = {a}: at the interval scalar: {e:?}")
-        });
     }
+}
+
+/// Validates `body` as closed and reads `meter` off each of its four
+/// NURBS corner carriers, beside that carrier's speed ceiling (read on
+/// its `f64` midpoint net).
+fn corner_meters<T: geom_core::Decide + Bounds>(
+    body: &topo::Body<T>,
+    at: &str,
+    meter: impl Fn(&geom::NurbsCurve3<T>) -> f64,
+) -> Vec<(f64, f64)> {
+    assert_eq!(topo::validate(body), Ok(()), "{at}: tier 1");
+    assert_eq!(topo::validate_closed(body), Ok(()), "{at}: closed");
+    let mut out = Vec::new();
+    for (_, edge) in body.edges() {
+        let topo::CurveGeom::Certified(curve) =
+            body.get_curve_geom(edge.curve).expect("curve key resolves")
+        else {
+            panic!("a finished body has no null scaffolding");
+        };
+        if let geom::Curve3::Nurbs(c) = curve.carrier() {
+            let mid = c.map_scalar(|x| 0.5 * (x.lo() + x.hi()));
+            out.push((meter(c), min_speed_ceiling(&mid)));
+        }
+    }
+    assert_eq!(out.len(), 4, "{at}: four corner edges");
+    out
 }

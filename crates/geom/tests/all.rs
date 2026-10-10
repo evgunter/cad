@@ -121,6 +121,8 @@ mod curves_nurbs_interval;
 mod curves_param_near;
 #[path = "curves/param_near_interval.rs"]
 mod curves_param_near_interval;
+#[path = "curves/piece_coverage_meter.rs"]
+mod curves_piece_coverage_meter;
 #[path = "curves/projection.rs"]
 mod curves_projection;
 #[path = "curves/r2_lt_probes.rs"]

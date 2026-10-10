@@ -406,7 +406,7 @@ fn r1_join_abstention_logic() {
     );
 
     // (4) Poison INPUT (non-finite interior control point, finite
-    // ends): both assemblies must transmit poison — no laundering.
+    // ends): every assembly must transmit poison — no laundering.
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let c = NurbsCurve3::<f64>::new(
         kv,
