@@ -309,9 +309,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Q1/Q2, `Loose::Const` read whole-domain in `Level` vs per span in `Dir`.
 
   These are refactors of a sound structure, worth noting but not blocking.
-- Pre-existing NOTEs carried to the user, not filed yet:
-  - `nurbs_patch_face`'s A2 area-gauge `debug_assert` panics on a caller perimeter below the truth;
-  - `offset_fit` refuses `DerivedKnots` on any degree-1 base direction.
+- Pre-existing NOTEs filed:
+  - on QUAD, `patch-face-area-gauge-panics-on-random-bicubic-faces`;
+  - on ENCL, `offset-fit-refuses-every-degree-1-base-direction`.
 - Recorded:
   - DR-140: tally 1, R1's ladder zeroing, which predates the PR;
   - the row is closed in the PR.
