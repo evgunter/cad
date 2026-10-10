@@ -7,6 +7,7 @@ opened: 2026-10-10
 priority: P0
 cost: E
 refs: [select-defines-face-and-edge-variables, a-selection-is-a-definition-of-a-body-s-faces-or-edges]
+pr: 4523
 branch: intent/s2-e-select
 closed: 2026-10-10
 ---

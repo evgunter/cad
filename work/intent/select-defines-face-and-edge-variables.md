@@ -7,6 +7,7 @@ opened: 2026-10-07
 priority: P0
 cost: H
 blocked_on: [measure-is-an-operation]
+pr: 4523
 branch: intent/s2-e-select
 closed: 2026-10-10
 ---
