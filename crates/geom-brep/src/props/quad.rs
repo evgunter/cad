@@ -5763,6 +5763,46 @@ mod tests {
         );
     }
 
+    /// REVIEW PROBE (PR 4557): a face of negative sense (outer clockwise,
+    /// ring counter-clockwise) — `side = −1` — measures `−(2 − 0.09π)`.
+    #[test]
+    fn review_probe_negative_sense_face() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [mut outer, ring] = ringed_rectangle(false, 0.0);
+        outer.reverse();
+        for e in &mut outer { e.forward = !e.forward; }
+        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band)
+            .expect("negative-sense ringed rectangle converges");
+        let exact = 2.0 - 0.09 * core::f64::consts::PI;
+        eprintln!("NEG flux {:?} area {:?}", out.flux, out.area);
+        assert!(out.flux.lo() <= -exact && -exact <= out.flux.hi());
+        assert!(out.area.lo() <= exact && exact <= out.area.hi());
+    }
+
+    /// REVIEW PROBE (PR 4557): a window that ends before convergence
+    /// returns an `Open` enclosure for a ring wound WITH its face, with
+    /// no refusal — the winding gate runs only at convergence.
+    #[test]
+    fn review_probe_open_window_skips_the_winding_gate() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [outer, ring] = ringed_rectangle(false, 0.0);
+        for r in 0..4 {
+            let got = cylinder_cut_face_rounds::<f64>(
+                pt(1.0), Interval::zero(), &[&outer, &ring], eps, band, RoundWindow::at(r));
+            eprintln!("OPEN round {r}: {got:?}");
+            if let Ok(RoundOutcome::Open { bounds, refusal: None, .. }) = got {
+                let wrong = 2.0 + 0.09 * core::f64::consts::PI;
+                let right = 2.0 - 0.09 * core::f64::consts::PI;
+                assert!(bounds.flux.lo() <= wrong && wrong <= bounds.flux.hi());
+                assert!(!(bounds.flux.lo() <= right && right <= bounds.flux.hi()),
+                    "the Open enclosure excludes the ringed face's true flux");
+                panic!("REACHED: round {r} returns Open {{ refusal: None }} bracketing the ring-ADDED value {wrong}: {:?}", bounds.flux);
+            }
+        }
+    }
+
     /// Endpoint ignorance that no refinement narrows cannot converge:
     /// the engine refuses typed at the budget, never returns a silently
     /// wide bracket. The loop is the unit circle of the chart,

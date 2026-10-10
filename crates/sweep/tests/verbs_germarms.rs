@@ -764,3 +764,95 @@ fn a_wall_ringed_by_ellipse_arcs_measures() {
         }
     }
 }
+
+/// REVIEW PROBE (PR 4557): the ringed-wall rows under a whole-scene rigid
+/// tilt + offset, near-seam placements and a tiny ring. Prints, panics
+/// only at the end with every miss.
+#[test]
+fn review_probe_4557_frames() {
+    let tol = Tol::witness();
+    let v_pipe = 4.0 * PI;
+    let mut misses = Vec::new();
+    // (theta, yc, half-a, half-b, rigid)
+    let tilt = Affine3::rotation_about_axis(
+        geom_core::Point3::new(0.4, -0.7, 0.3),
+        Vec3::new(0.3, 0.5, 0.8),
+        0.9,
+    );
+    let shift = Affine3::translation(Vec3::new(1.7, -2.3, 0.6));
+    let rig = shift * tilt;
+    for (label, theta, yc, ha, hb, rigid) in [
+        ("base", 0.7, 0.45, 0.25, 0.15, None),
+        ("tilted+offset", 0.7, 0.45, 0.25, 0.15, Some(rig)),
+        ("tilted+offset θ1.3", 1.3, 0.45, 0.25, 0.15, Some(rig)),
+        ("seam? yc=0", 0.7, 0.0, 0.25, 0.15, None),
+        ("yc=-0.45", 0.7, -0.45, 0.25, 0.15, None),
+        ("tiny ring", 0.7, 0.45, 0.01, 0.01, None),
+        ("tiny ring tilted", 0.7, 0.45, 0.01, 0.01, Some(rig)),
+        ("hair ring", 0.7, 0.45, 1e-3, 1e-3, None),
+    ] {
+        let pipe0 = pipe_at((0.0, 0.0));
+        let bar = brick((-1.1, 1.1), (yc - ha, yc + ha), (-hb, hb), tol);
+        let bar = topo::transform_rigid(
+            &bar,
+            &Affine3::rotation_about_axis(
+                geom_core::Point3::new(0.0, yc, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                theta,
+            ),
+            tol,
+        )
+        .expect("a rigid pose");
+        let bar = finished("the turned bar", bar, tol);
+        let (pipe, bar) = match rigid {
+            None => (pipe0, bar),
+            Some(m) => (
+                finished("pipe", topo::transform_rigid(&pipe0, &m, tol).unwrap(), tol),
+                finished("bar", topo::transform_rigid(&bar, &m, tol).unwrap(), tol),
+            ),
+        };
+        let v_bar = 2.2 * (2.0 * ha) * (2.0 * hb);
+        let (c, s) = (f64::cos(theta), f64::sin(theta));
+        let v_cap = gauss_2d(
+            |a, b| {
+                let y = yc + a * c - b * s;
+                2.0 * (1.0 - y * y).sqrt()
+            },
+            (-ha, ha),
+            (-hb, hb),
+        );
+        for (op, out, exact) in [
+            ("∩", topo::intersect(&pipe, &bar, tol), v_cap),
+            ("∪", topo::union(&pipe, &bar, tol), v_pipe + v_bar - v_cap),
+            ("pipe ∖ bar", topo::subtract(&pipe, &bar, tol), v_pipe - v_cap),
+            ("bar ∖ pipe", topo::subtract(&bar, &pipe, tol), v_bar - v_cap),
+        ] {
+            let row = match out {
+                Err(e) => format!("REFUSED {e:?}"),
+                Ok(topo::BooleanResult::Empty) => "EMPTY".into(),
+                Ok(topo::BooleanResult::Body(out)) => {
+                    let t3 = topo::validate_geometric(&out.body, tol);
+                    match topo::mass_properties(&out.body, tol) {
+                        Err(e) => format!("t3={:?} MP-ERR {e:?}", t3.is_ok()),
+                        Ok(m) => {
+                            let err = (m.volume - exact).abs();
+                            let ok = err <= m.volume_pad + 1e-9 * exact;
+                            if !ok || t3.is_err() {
+                                misses.push(format!("{label} {op}"));
+                            }
+                            format!(
+                                "t3={} err={err:.3e} pad={:.3e} area={:.12} v={:.17e} {}",
+                                t3.is_ok(),
+                                m.volume_pad,
+                                m.surface_area, m.volume,
+                                if ok { "ok" } else { "MISS" }
+                            )
+                        }
+                    }
+                }
+            };
+            eprintln!("PROBE {label:>20} θ={theta} {op:>10}: {row}");
+        }
+    }
+    assert!(misses.is_empty(), "{misses:#?}");
+}
