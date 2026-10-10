@@ -52,7 +52,8 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-use super::cone_search::{Class, Frame, Traced, band, offset, random_cone, trace, unit_vec};
+use super::cone_search::{Class, Frame, Traced, random_cone, trace};
+use super::search_kit::{band, offset, unit_vec};
 use super::*;
 use core::f64::consts::{FRAC_PI_2, TAU};
 use geom::Surface;
