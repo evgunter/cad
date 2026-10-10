@@ -88,7 +88,7 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-FROM_F64_CRATES=(editor-core geom geom-brep geom-core pncad profile sweep topo)
+FROM_F64_CRATES=(editor-core geom geom-brep geom-core pncad profile sweep topo verbs)
 FROM_F64_LIST=scripts/gates/from-f64-sites.tsv
 
 FROM_F64_RULES=(UNLISTED STALE CLASS)

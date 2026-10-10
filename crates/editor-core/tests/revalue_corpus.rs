@@ -59,7 +59,10 @@ enum Move {
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
     /// The census's fallback for a document whose branches
     /// [`Move::Apart`] moves, never a gating row's: on a document of
-    /// lengths it is a dilation, so a laundered quantity that depends
+    /// lengths it is a dilation — of every length but the profile's,
+    /// which the pinned lift holds at the nominal
+    /// (`work/intent/the-pinned-profile-lift-launders-at-sym.md`) — so a
+    /// laundered quantity that depends
     /// only on ratios of the variables (an angle, a unit normal's
     /// component, a fraction of a domain) does not move under it.
     InStep,
@@ -192,17 +195,10 @@ fn in_step(p0: &[Decision], p1: &[Decision]) -> usize {
 
 /// Reads the first `common` decisions of the two builds into `found`:
 /// each `p0` margin re-valued at `p0` (`env0`, the drift self-check)
-/// and at `p1` (`env`) against the `p1` build's.
-///
-/// A margin that re-values away from the `p1` build's is a laundering,
-/// unless an earlier decision was answered with another sign at `p1`:
-/// from there the builds may decide one predicate over two different
-/// margins (`topo`'s volume backstop decides `volume_backstop` on its
-/// open arm and on its magnitude arm alike), so the mismatch is kept
-/// apart, in `after_flip`. A sign difference parts nothing by itself —
-/// a decision whose `Zero` and `Positive` take one path (`join.rs`'s
-/// `nearer`) leaves the rest paired, and a margin that re-values to
-/// the `p1` build's bit for bit is read as paired.
+/// and at `p1` (`env`) against the `p1` build's. A mismatch is a
+/// laundering, or, once an EARLIER decision was answered with another
+/// sign at `p1`, kept apart in `after_flip`: past a flip the builds may
+/// decide one predicate over two margins. A flip parts nothing itself.
 fn tally(
     found: &mut Found,
     p0: &[Decision],
@@ -484,10 +480,17 @@ fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
     let w = ParamSymbol::new(9);
     let decide =
         |name: &'static str, m: Sym<f64>| geom_core::k_stats::decide(name, Margin::of(m), band);
-    let build = |d: f64, branches: bool| {
+    let build = |d: f64, branches: bool, laundered_split: bool| {
         let x = Sym::param(w, d);
         record(|| {
-            let split = decide("revalue_split", x);
+            let split = decide(
+                "revalue_split",
+                if laundered_split {
+                    x + (x - Sym::from_f64(x.value))
+                } else {
+                    x
+                },
+            );
             let arm = if branches && !matches!(split, Ok(Sign::Zero)) {
                 x * Sym::from_f64(3.0)
             } else {
@@ -497,10 +500,10 @@ fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
         })
         .1
     };
-    let tallied = |branches: bool| {
-        let p1 = session(|| build(1.0e-6, branches));
+    let tallied = |branches: bool, laundered_split: bool| {
+        let p1 = session(|| build(1.0e-6, branches, laundered_split));
         session(|| {
-            let p0 = build(0.0, branches);
+            let p0 = build(0.0, branches, laundered_split);
             assert_ne!(
                 p0[0].sign, p1[0].sign,
                 "the split answers differently at p0 and p1"
@@ -517,18 +520,24 @@ fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
             found
         })
     };
-    let branching = tallied(true);
+    let branching = tallied(true, false);
     assert!(
         branching.laundered.is_empty() && branching.after_flip == BTreeSet::from(["revalue_arm"]),
         "the arm after the split is two margins under one name: kept apart, never a laundering \
          ({branching:?})"
     );
-    let steering_nothing = tallied(false);
+    let steering_nothing = tallied(false, false);
     assert!(
         steering_nothing.laundered.is_empty()
             && steering_nothing.after_flip.is_empty()
             && steering_nothing.moved == 2,
         "a split that steers nothing leaves the arm paired and compared ({steering_nothing:?})"
+    );
+    let self_flip = tallied(false, true);
+    assert!(
+        self_flip.laundered == BTreeSet::from(["revalue_split"]),
+        "the decision that flips is itself paired: its own mismatch is a laundering, never \
+         after_flip ({self_flip:?})"
     );
 }
 
