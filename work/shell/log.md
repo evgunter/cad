@@ -1367,3 +1367,9 @@ Ev said go.
   - The ruling is recorded in the item's `## Decided`, and `needs_ev` is cleared.
   - Unit (c), the arm, is scoped by it. Units (a), the iso-row narrowing, and (b), the general door, are unaffected.
 - **Filed** `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). It is unit (b) of the wall-seam cut, the door half of PR 4515's designed state.
+- **Unit 15 merged** (PR 4472, DR-138, H tier, concurrent pair). A moved fitted face bounded by planes now solves its corners: the held planes are rooted along the derived plane × fit sections (route 1).
+  - The review's MAJOR is fixed: a derived section levers its roots at its own domain's extent.
+  - A lane verdict on a derived section contributes no root.
+  - One `gap_within_eps` helper holds the single ε read.
+  - The orchestrator merged main twice before merging; the second merge kept both test modules in `replace_face.rs`.
+  - Filed from the unit: SSIEDGE one-arc on a window edge, QUAD sub-range trim image, SHELL iso-row u-moving image.
