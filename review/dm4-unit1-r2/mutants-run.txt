@@ -6,3 +6,11 @@ applied M1 crates/editor-core/src/eval/wire.rs
 error: test run failed
 applied M3 crates/editor-core/src/names/emit_union.rs
 == M3 filter: test(/dm3_indexed|docm3_union|emit_union|emit_nested|lib_g16|placedunion|die_|r2_every/)
+        FAIL [   0.289s] ( 30/126) editor-core::all dm3_indexed_read::a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike
+        FAIL [   0.253s] ( 31/126) editor-core::all dm3_indexed_read::set_members_writes_indexed_members
+     Summary [  84.364s] 126 tests run: 124 passed, 2 failed, 2953 skipped
+        FAIL [   0.289s] ( 30/126) editor-core::all dm3_indexed_read::a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike
+        FAIL [   0.253s] ( 31/126) editor-core::all dm3_indexed_read::set_members_writes_indexed_members
+error: test run failed
+applied M6 crates/editor-core/src/eval/wire.rs
+== M6 filter: test(/declare|decl|r2_a_declared|docm7|m4_pr5/)
