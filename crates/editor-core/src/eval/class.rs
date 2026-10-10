@@ -922,7 +922,7 @@ mod tests {
             },
             C::DerivedFrameSection => K::DerivedFrameSection {
                 profile: n(3),
-                frame: crate::VarId::new(2, 0),
+                frame: Some(n(2)),
             },
             C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
             C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),

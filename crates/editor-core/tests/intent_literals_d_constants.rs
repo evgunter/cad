@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::failures;
-use crate::fixture::{axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square};
+use crate::fixture::{insert, len, on_frame, prism_edges, revolve_about, square};
 use editor_core::{
     CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,
     EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, Formula, FreeVar, LowerFault, Node,
@@ -163,22 +163,14 @@ fn a_constant_is_its_exact_value() {
 
 /// A revolve of a square beside its axis by `angle`: the revolve's id.
 fn revolved(doc: ProfileDoc, angle: Formula) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(2.0, 0.0, 0.5)],
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
-        doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle,
-        },
-    )
+    insert(doc, revolve_about(profile, (0.0, 0.0), (0.0, 1.0), angle))
 }
 
 /// The symbolic tier's theorems a session of `run` adds by deciding,

@@ -790,21 +790,16 @@ fn separation_findings_are_certified_and_deterministic() {
 /// cylinder bands and two plane annuli, so the body carries
 /// chart-bearing faces for the examination to read.
 fn washer() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = fixture::on_frame_keeping(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("dsc-checks-washer", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, washer) = insert(
         doc,
-        Node::Revolve {
-            profile: p.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     fixture::place(doc, washer)
 }

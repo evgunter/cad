@@ -15,9 +15,7 @@ use editor_core::{
     evaluate,
 };
 use editor_core::{CapEnd, RoleSeg};
-use fixture::{
-    ang, axis_in_plane, die, insert, len, on_frame, on_frame_keeping, scl, square, step,
-};
+use fixture::{ang, die, insert, len, on_frame, revolve_about, scl, square, step};
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
@@ -418,27 +416,16 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         },
     );
     // Revolve: half-turn of a square offset from the axis.
-    let (doc, plane, rp) = on_frame_keeping(
+    let (doc, rp) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(1.5, 0.0, 0.25)],
     );
-    let (doc, rax) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, rev) = insert(
         doc,
-        Node::Revolve {
-            profile: rp.into(),
-            axis: rax.into(),
-            angle: ang(std::f64::consts::PI),
-        },
+        revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::PI)),
     );
     // Split the union by a datum plane.
     let (doc, pl) = insert(
@@ -475,9 +462,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     );
     (
         doc,
-        vec![
-            p, base, t1, t2, u, ax, pat, rp, rax, rev, pl, sp, bad, poisoned,
-        ],
+        vec![p, base, t1, t2, u, ax, pat, rp, rev, pl, sp, bad, poisoned],
     )
 }
 
@@ -547,18 +532,18 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
     // Poisoned.
     assert!(seq.value(_ids[4]).is_some(), "union must succeed");
     assert!(seq.value(_ids[6]).is_some(), "pattern must succeed");
-    assert!(seq.value(_ids[9]).is_some(), "revolve must succeed");
+    assert!(seq.value(_ids[8]).is_some(), "revolve must succeed");
     assert!(
-        seq.value(_ids[11]).is_some(),
+        seq.value(_ids[10]).is_some(),
         "split must succeed: {:?}",
-        seq.nodes.get(&_ids[11])
+        seq.nodes.get(&_ids[10])
     );
     assert!(matches!(
-        seq.nodes.get(&_ids[12]),
+        seq.nodes.get(&_ids[11]),
         Some(NodeResult::Failed(_))
     ));
     assert!(matches!(
-        seq.nodes.get(&_ids[13]),
+        seq.nodes.get(&_ids[12]),
         Some(NodeResult::Poisoned { .. })
     ));
     let par = run(&doc, None, true);
@@ -577,28 +562,14 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
 /// by `angle`.
 fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, plane, rp) = on_frame_keeping(
+    let (doc, rp) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(1.5, 0.0, 0.25)],
     );
-    let (doc, rax) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
-    let (doc, rev) = insert(
-        doc,
-        Node::Revolve {
-            profile: rp.into(),
-            axis: rax.into(),
-            angle: ang(angle),
-        },
-    );
+    let (doc, rev) = insert(doc, revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(angle)));
     (doc, rev)
 }
 
@@ -795,7 +766,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
-    let (p, base, u, ax, pat) = (ids[0], ids[1], ids[4], ids[5], ids[6]);
+    let (base, u, ax, pat) = (ids[1], ids[4], ids[5], ids[6]);
     // Instances fed to a boolean (their flag #5): a boolean reads one
     // body, so the door refuses the kind.
     let refusal = crate::fixture::insert_refused(
@@ -817,31 +788,6 @@ fn wire_doors_refuse_typed() {
         ),
         "{refusal:?}"
     );
-    // Revolve about the rich doc's `ax` — a 3-D z-axis datum. This
-    // asserted `AxisNotInSketchPlane`, a decided projection finding the
-    // direction out of plane. A revolve seats an axis written IN a
-    // frame now, so a world-space axis never reaches that question: it
-    // is refused one door earlier, as the wrong KIND of node, with no
-    // band consulted.
-    let (d, bad_rev) = insert(
-        doc.clone(),
-        Node::Revolve {
-            profile: p.into(),
-            axis: ax.into(),
-            angle: ang(1.0),
-        },
-    );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_rev) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == ax),
-                "got {:?}",
-                e.kind
-            );
-        }
-        other => panic!("expected Failed, got {other:?}"),
-    }
     // Split by an axis datum: the tool reads a plane, so the door
     // refuses the kind.
     let refusal = crate::fixture::insert_refused(

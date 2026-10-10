@@ -11,7 +11,7 @@
 use crate::fixture;
 
 use editor_core::{
-    Axis3, CancelToken, PoseValue, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult,
+    Axis3, CancelToken, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult, PoseValue,
     ProfileDoc, SlotId, ValuePayload, evaluate,
 };
 use fixture::insert;

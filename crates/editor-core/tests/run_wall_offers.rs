@@ -202,17 +202,14 @@ fn run_names_agree_across_scalar_types() {
             }),
         );
         let (doc, n) = if revolve {
-            let (doc, axis) = insert(
-                doc,
-                crate::fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-            );
             insert(
                 doc,
-                Node::Revolve {
-                    profile: p.into(),
-                    axis: axis.into(),
-                    angle: crate::fixture::ang(std::f64::consts::TAU),
-                },
+                crate::fixture::revolve_about(
+                    p,
+                    (0.0, 0.0),
+                    (0.0, 1.0),
+                    crate::fixture::ang(std::f64::consts::TAU),
+                ),
             )
         } else {
             insert(

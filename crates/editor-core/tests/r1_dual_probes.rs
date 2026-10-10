@@ -76,7 +76,7 @@ use editor_core::{
     AssertionVerdict, ContentKey, Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram,
     SlotId, ValuePayload, product_recorded,
 };
-use editor_core::{BooleanValue, PoseValue, Evaluation, NodeResult, SplitSide};
+use editor_core::{BooleanValue, Evaluation, NodeResult, PoseValue, SplitSide};
 use fixture::{len, scl, xy_frame};
 use geom_core::{Bounds, Decide, Dual64, Tol};
 use topo::Body;
@@ -208,21 +208,9 @@ where
                         d.v3(f.u().get());
                         d.v3(f.v().get());
                     }
-                    // Tag 24, appended: both spellings of an in-plane
-                    // axis, so a drift in the numbers a revolve
-                    // actually consumes cannot hide behind the lift.
-                    ValuePayload::Datum(PoseValue::AxisInPlane {
-                        plane_origin,
-                        plane_dir,
-                        origin,
-                        dir,
-                    }) => {
-                        d.u64(24);
-                        d.sc(plane_origin.x);
-                        d.sc(plane_origin.y);
-                        d.sc(plane_dir.x);
-                        d.sc(plane_dir.y);
-                        d.p3(*origin);
+                    // Tag 24 is retired with the in-plane axis datum.
+                    ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                        d.u64(26);
                         d.v3(dir.get());
                     }
                     ValuePayload::Profile(p) => {

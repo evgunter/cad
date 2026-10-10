@@ -6,7 +6,7 @@
 //! signatures of its nodes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, ang, axis_in_plane, insert, len, on_frame_keeping, scl, xform};
+use crate::fixture::{self, ang, insert, len, on_frame_keeping, revolve_about, scl, xform};
 use crate::wire::{doctored, up_to_ids, wire_body};
 use editor_core::{
     CarryForwardDoor, DocEdit, EditError, Formula, FreeValue, Node, OutputFault, PatternKind,
@@ -59,14 +59,9 @@ fn kinds(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<VarKind> {
 #[test]
 fn every_operation_defines_its_signature_at_insert() {
     let (doc, frame, profile, extrude) = block("s2a-signatures");
-    let (doc, axis) = insert(doc, axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(1.0),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
     );
     let (doc, plane) = insert(
         doc,
@@ -104,7 +99,6 @@ fn every_operation_defines_its_signature_at_insert() {
         (plane, vec![VarKind::Plane]),
         (profile, vec![VarKind::Profile]),
         (extrude, vec![VarKind::Body]),
-        (axis, vec![VarKind::Axis]),
         (revolve, vec![VarKind::Body, VarKind::Axis]),
         (split, vec![VarKind::Body, VarKind::Body]),
         (pattern, vec![VarKind::Bodies]),
@@ -552,8 +546,8 @@ fn every_node_shape_states_its_signature() {
 
 /// **A pose kind's symmetry** (D10, A11 (1)): a frame is known
 /// outright, a plane up to in-plane motion, an axis up to slide and
-/// spin; a point's and a direction's subgroups are not in the family,
-/// and a scalar or a shape is no pose.
+/// spin, a point up to rotation about it, a direction up to translation
+/// and spin about it; a scalar or a shape is no pose.
 #[test]
 fn a_pose_kind_names_its_subgroup_family() {
     use editor_core::SubgroupFamily;
@@ -561,8 +555,8 @@ fn a_pose_kind_names_its_subgroup_family() {
         (VarKind::Frame, Some(SubgroupFamily::Trivial)),
         (VarKind::Plane, Some(SubgroupFamily::Planar)),
         (VarKind::Axis, Some(SubgroupFamily::Cylindrical)),
-        (VarKind::Point, None),
-        (VarKind::Direction, None),
+        (VarKind::Point, Some(SubgroupFamily::Spherical)),
+        (VarKind::Direction, Some(SubgroupFamily::Parallel)),
         (VarKind::Length, None),
         (VarKind::Angle, None),
         (VarKind::Scalar, None),
@@ -591,11 +585,17 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, axis) = insert(doc, axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, point) = insert(
         doc,
         Node::Datum(editor_core::Datum::Point {
             position: [len(0.0), len(0.0), len(0.0)],
+        }),
+    );
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
     let ev = crate::corpus::eval::<f64>(&doc);
@@ -608,11 +608,7 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
             .var(doc.output(node, 0).expect("a datum defines its pose"))
             .unwrap()
             .kind();
-        assert_eq!(
-            value.symmetry().and_then(|subgroup| subgroup.family()),
-            kind.symmetry(),
-            "{kind:?}"
-        );
+        assert_eq!(value.symmetry().family(), kind.symmetry(), "{kind:?}");
     }
 }
 

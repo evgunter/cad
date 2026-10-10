@@ -6,7 +6,7 @@
 //! member re-pointed forward saves, loads and deletes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, on_frame_keeping, scl, xform};
+use crate::fixture::{self, insert, len, on_frame, on_frame_keeping, scl, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
     Dimension, DocEdit, EditError, Formula, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
@@ -932,21 +932,16 @@ fn dm5_is_over_the_variables_read() {
         "one half twice is one variable read twice"
     );
 
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         ProfileDoc::empty_derived("s2b-dm5-axis", Tol::witness()),
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![fixture::square(1.5, 0.5, 0.5)],
     );
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: fixture::ang(0.5),
-        },
+        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), fixture::ang(0.5)),
     );
     insert(
         doc,
@@ -1068,7 +1063,7 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
 /// read.
 pub(crate) fn families_document() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("s2b-families", Tol::witness());
-    let (doc, plane, low) = on_frame_keeping(
+    let (doc, low) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -1106,14 +1101,9 @@ pub(crate) fn families_document() -> ProfileDoc {
             v_degree: editor_core::Formula::count(3),
         },
     );
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (3.0, 0.0), (0.0, 1.0)));
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile: low.into(),
-            axis: axis.into(),
-            angle: fixture::ang(1.0),
-        },
+        fixture::revolve_about(low, (3.0, 0.0), (0.0, 1.0), fixture::ang(1.0)),
     );
     let (doc, pattern) = insert(
         doc,
@@ -1132,7 +1122,7 @@ pub(crate) fn families_document() -> ProfileDoc {
             input: Operand::output(revolve, 0),
             count: editor_core::Formula::count(2),
             kind: PatternKind::Circular {
-                axis: axis.into(),
+                axis: Operand::output(revolve, 1),
                 step: fixture::ang(1.0),
             },
         },

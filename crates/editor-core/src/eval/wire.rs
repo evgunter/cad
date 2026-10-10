@@ -56,7 +56,7 @@ use topo::{
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
-use super::{BooleanValue, PoseValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
+use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
     Axis3, BooleanOp, Datum, DeclaredPair, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef,
@@ -308,11 +308,11 @@ where
             wire_sweep(profile, path, doc, results, vals, env.lane, tol)
         }
         Node::Tube { frame, window, .. } => {
-            let frame = frame_pose(doc, results, *frame, env.lane.params, tol)?;
+            let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
             wire_tube(id, frame, window, vals, tol)
         }
         Node::HollowTube { frame, window, .. } => {
-            let frame = frame_pose(doc, results, *frame, env.lane.params, tol)?;
+            let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
             wire_hollow_tube(id, frame, window, vals, tol)
         }
         Node::Fillet { selection, .. } => wire_blend(
@@ -344,7 +344,7 @@ where
             id,
             at(O::Target, *target)?,
             (
-                &pose::eval_pose(doc, results, O::Tool, *tool, env.lane.params, tol)?,
+                &pose::eval_pose(doc, unprojected, O::Tool, *tool, env.lane.params, tol)?,
                 doc.operation_of(*tool),
             ),
             results,
@@ -396,6 +396,7 @@ where
                 doc,
                 written: &written(doc, id),
                 params: env.lane.params,
+                unprojected,
             };
             wire_pattern(id, input, kind, &rule, results, vals, tol)
         }
@@ -414,6 +415,7 @@ where
                     doc,
                     written: &written(doc, id),
                     params: env.lane.params,
+                    unprojected,
                 };
                 wire_placed_union(id, input, kind, &rule, results, vals, tol)
             }
@@ -1193,7 +1195,10 @@ pub(crate) fn profile_plane_f64<T: Decide>(
 ) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
     // A pose definition is bound at its reader, so it has no minted
     // placement: it places as a derived frame does, at the lane.
-    if doc.var(frame).is_some_and(|held| held.def().pose().is_some()) {
+    if doc
+        .var(frame)
+        .is_some_and(|held| held.def().pose().is_some())
+    {
         return Ok(None);
     }
     let plane = super::read_at(doc, crate::OperandSlot::Frame, frame)?;
@@ -1253,7 +1258,10 @@ fn frame_pose<T: Decide>(
 ) -> Result<OrthoFrame<T>, NodeErrorKind> {
     match pose::eval_pose(doc, results, crate::OperandSlot::Frame, frame, env, tol)? {
         PoseValue::Frame(f) => Ok(f),
-        other => unreachable!("the door admits a frame alone at a frame seat: {}", other.kind()),
+        other => unreachable!(
+            "the door admits a frame alone at a frame seat: {}",
+            other.kind()
+        ),
     }
 }
 
@@ -2530,6 +2538,19 @@ fn split_ports_projected<T: Decide>(
     if matches!(node, Node::Part { .. }) {
         return Ok(None);
     }
+    project_ports(reads, doc, results)
+}
+
+/// [`split_ports_projected`] for any reader: `results` with each split
+/// `reads` names by port replaced by that half, `None` when `reads`
+/// names none. A pose definition's reads are projected here on their
+/// own, since the halves a pose reads need not be the one its reader's
+/// body is.
+pub(super) fn project_ports<T: Decide>(
+    reads: &[crate::VarId],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+) -> Result<Option<Results<T>>, NodeErrorKind> {
     let ports: Vec<(RecipeNodeId, u8)> = reads
         .iter()
         .filter_map(|&var| doc.var(var)?.def().output())
@@ -4037,19 +4058,20 @@ fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -
 /// What a stepped rule reads beyond its own slots: the document its
 /// circular axis is read in, at the lane's parameters, and the rule's
 /// written formulas.
-struct RuleEnv<'a, T> {
+struct RuleEnv<'a, T: Decide> {
     doc: &'a crate::doc::Doc<ProfileProgram>,
     written: &'a dyn Fn(SlotId) -> crate::Formula,
     params: &'a crate::expr::VarEnv<T>,
+    /// The results before the reader's own split ports were projected,
+    /// which the pose evaluator projects for its own reads.
+    unprojected: &'a Results<T>,
 }
 
-#[allow(clippy::too_many_arguments)] // the rule's environment resolves a circular axis read
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
     rule: &RuleEnv<'_, T>,
     listed: crate::node::CountMismatch,
     i: i64,
-    results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> Result<Affine3<T>, NodeErrorKind> {
@@ -4070,7 +4092,7 @@ fn stepped_map<T: Decide>(
         PatternKind::Circular { axis, .. } => {
             let PoseValue::Axis { origin, dir } = pose::eval_pose(
                 rule.doc,
-                results,
+                rule.unprojected,
                 crate::OperandSlot::Axis,
                 *axis,
                 rule.params,
@@ -4136,7 +4158,6 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
             rule,
             crate::node::CountMismatch::ListedOnPattern,
             j,
-            results,
             vals,
             tol,
         )?;
@@ -4193,7 +4214,6 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         rule,
                         crate::node::CountMismatch::ListedWithCount,
                         i,
-                        results,
                         vals,
                         tol,
                     )
@@ -4284,8 +4304,10 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         Some(authored) => authored,
         None => {
             let lane_plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
-            pinned_plane(&lane_plane)
-                .ok_or(NodeErrorKind::DerivedFrameSection { profile: id, frame })?
+            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
+                profile: id,
+                frame: doc.operation_of(frame),
+            })?
         }
     };
     let pre = prepare_profile(Some(plane), &resolved, &program.ids, tol)?;
@@ -4304,7 +4326,10 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // `Some` by construction: both arms above passed a placement.
     let place = pre
         .placement_f64
-        .ok_or(NodeErrorKind::DerivedFrameSection { profile: id, frame })?
+        .ok_or(NodeErrorKind::DerivedFrameSection {
+            profile: id,
+            frame: doc.operation_of(frame),
+        })?
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical
     // positions' names the skin's walls and seams are named by.

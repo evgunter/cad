@@ -70,8 +70,8 @@
 //! correspondence is re-worded, the other when the word stops reaching
 //! the user.
 
-use geom_core::{Decide, Tol};
 use crate::PoseValue;
+use geom_core::{Decide, Tol};
 use topo::splitting::SplitNaming;
 use topo::{Body, SplitPlane};
 use verbs::{Verb, VerbRecord};

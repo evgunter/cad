@@ -21,7 +21,7 @@ use crate::corpus::documents;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CancelToken, Datum, PoseValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
+    CancelToken, Datum, EvalOptions, EvalScalar, Node, PoseValue, ValuePayload, evaluate,
 };
 use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};

@@ -41,7 +41,7 @@ use editor_core::{
     RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
-use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
+use crate::fixture::{ang, declare_x_offset_flush, len, revolve_about, scl};
 
 use super::{CorpusDoc, Recorder};
 
@@ -201,18 +201,18 @@ pub fn document() -> CorpusDoc {
     // (-2, 0, 0) with v = world +Z, so the line the pattern turns about
     // is this frame's +y through (0, 0) — the same line in space, said
     // in the coordinates the revolve reads.
-    let (rev_plane, rev_profile) = r.profile_keeping(
+    let (_, rev_profile) = r.profile_keeping(
         [-2.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let rev_axis = r.insert(axis_in_plane(rev_plane, (0.0, 0.0), (0.0, 1.0)));
-    let revolve = r.insert(Node::Revolve {
-        profile: rev_profile.into(),
-        axis: rev_axis.into(),
-        angle: ang(std::f64::consts::FRAC_PI_2),
-    });
+    let revolve = r.insert(revolve_about(
+        rev_profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::FRAC_PI_2),
+    ));
 
     // ---- the non-insert edit vocabulary ----
     // Structural: drive the linear pattern's count from `n`.

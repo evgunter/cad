@@ -28,9 +28,7 @@ use editor_core::{
     ResolveFault, SplitError, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{
-    ang, at_the_door, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step,
-};
+use fixture::{ang, at_the_door, insert, len, on_frame, revolve_about, run, solve, step};
 use geom_core::predicate::{Band, Sign};
 use geom_core::{Decide, Point3, Tol};
 
@@ -116,7 +114,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
 /// is placed in the part's world ([`placed_part`]).
 fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -128,14 +126,9 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
             (0.0, height),
         ]],
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, body) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     placed_part(doc, body)
 }

@@ -4637,7 +4637,7 @@ mod split_edge_lineage {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
-    use crate::eval::{CancelToken, PoseValue, EvalOptions, ValuePayload, evaluate};
+    use crate::eval::{CancelToken, EvalOptions, PoseValue, ValuePayload, evaluate};
     use crate::names::role::SplitHalf;
     use crate::names::table::{EntityKey, EntityRef};
     use crate::test_support::clipped_cylinder;

@@ -221,17 +221,6 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         },
     );
     let plane = crate::fixture::newest(&doc);
-    // The frame's v is world +Z and its origin sits ON the world Z
-    // axis, so the pole axis is this frame's own +y through (0, 0) —
-    // and it is minted AFTER the frame it names.
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0))),
-            fresh: Vec::new(),
-        },
-    );
-    let axis = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -247,11 +236,15 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Revolve {
-                profile: p.into(),
-                axis: axis.into(),
-                angle: ang(std::f64::consts::TAU),
-            }),
+            // The frame's v is world +Z and its origin sits ON the world
+            // Z axis, so the pole axis is this frame's own +y through
+            // (0, 0).
+            node: Box::new(fixture::revolve_about(
+                p,
+                (0.0, 0.0),
+                (0.0, 1.0),
+                ang(std::f64::consts::TAU),
+            )),
             fresh: Vec::new(),
         },
     );

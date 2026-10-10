@@ -62,7 +62,7 @@
 //! scalar-free or `f64`-only channels a caller compares directly.
 
 use editor_core::{
-    AssertionVerdict, BooleanValue, PoseValue, Dimension, Evaluation, NodeResult, RecipeNodeId,
+    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, PoseValue, RecipeNodeId,
     SplitSide, ValuePayload,
 };
 use geom_core::{Decide, Dual64};
@@ -213,23 +213,9 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.vec3(f.u().get());
                     d.vec3(f.v().get());
                 }
-                // Tag 24, appended: an in-plane axis is its own
-                // payload, and BOTH its spellings are digested —
-                // the sketch pair is what a revolve consumes, so a
-                // drift there that the world lift happened to hide
-                // must still move the digest.
-                ValuePayload::Datum(PoseValue::AxisInPlane {
-                    plane_origin,
-                    plane_dir,
-                    origin,
-                    dir,
-                }) => {
-                    d.u64(24);
-                    d.scalar(plane_origin.x);
-                    d.scalar(plane_origin.y);
-                    d.scalar(plane_dir.x);
-                    d.scalar(plane_dir.y);
-                    d.point3(*origin);
+                // Tag 24 is retired with the in-plane axis datum.
+                ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                    d.u64(26);
                     d.vec3(dir.get());
                 }
                 ValuePayload::Profile(p) => {

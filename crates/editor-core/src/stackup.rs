@@ -138,8 +138,8 @@ use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
-    BooleanValue, CancelToken, ContentKey, PoseValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
+    BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
+    NodeResult, PoseValue, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;

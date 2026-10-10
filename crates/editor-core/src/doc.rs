@@ -1746,6 +1746,34 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **A read as it was written**: an anonymous selection as the
+    /// selection it is, an anonymous pose as its definition, each read
+    /// within written the same way and each scalar as the formula it
+    /// was written as; any other read by id.
+    pub fn written_operand(&self, var: VarId) -> crate::Operand {
+        if self.var_names.contains_key(&var) {
+            return crate::Operand::Var(var);
+        }
+        match self.vars.get(&var).map(Var::def) {
+            Some(VarDef::Select(select)) => {
+                crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
+            }
+            Some(VarDef::Pose(def)) => {
+                let written = def.try_map(
+                    &mut |_, &read| Ok::<_, core::convert::Infallible>(self.written_operand(read)),
+                    &mut |slot, &scalar| {
+                        Ok(crate::Formula::from(
+                            self.written(&crate::Expr::var(scalar, slot.dimension())),
+                        ))
+                    },
+                );
+                let Ok(written) = written;
+                crate::Operand::Pose(Box::new(written))
+            }
+            _ => crate::Operand::Var(var),
+        }
+    }
+
     /// **The operations and ports a read reaches** (D10: reading is the
     /// only dependency): an output's own, a selection's body's, and for
     /// a pose definition every one its reads reach, through nested

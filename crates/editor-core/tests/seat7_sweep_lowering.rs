@@ -47,7 +47,7 @@ use editor_core::{
     RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
+use fixture::{ang, frame, insert, len, revolve_about, scl, square, step, tol, xy_frame};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, BooleanError, FaceKey};
 
@@ -174,12 +174,12 @@ fn both_sweeps() -> BothSweeps {
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
-    let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
-    let revolved = r.insert(Node::Revolve {
-        profile: rev_profile.into(),
-        axis: axis.into(),
-        angle: ang(PI / 2.0),
-    });
+    let revolved = r.insert(revolve_about(
+        rev_profile,
+        (0.0, 0.0),
+        (1.0, 0.0),
+        ang(PI / 2.0),
+    ));
     BothSweeps {
         snapshot,
         doc: r.doc,
@@ -450,14 +450,9 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
     let (doc, solid) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(2.0 * PI),
-        },
+        revolve_about(profile, (0.0, 0.0), (1.0, 0.0), ang(2.0 * PI)),
     );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);

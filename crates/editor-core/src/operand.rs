@@ -119,7 +119,11 @@ impl core::fmt::Display for Operand {
                 write!(f, "the selection of {} names in {body}", names.len())
             }
             Self::Pose(def) => match def.kind() {
-                Some(kind) => write!(f, "{} {kind} defined here", crate::sentence::article(&kind.to_string())),
+                Some(kind) => write!(
+                    f,
+                    "{} {kind} defined here",
+                    crate::sentence::article(&kind.to_string())
+                ),
                 None => f.write_str("a flipped pose defined here"),
             },
         }

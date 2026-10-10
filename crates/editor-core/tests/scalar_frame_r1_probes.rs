@@ -12,7 +12,7 @@
 
 use crate::fixture;
 
-use editor_core::{CancelToken, PoseValue, EvalOptions, ProfileDoc, ValuePayload, evaluate};
+use editor_core::{CancelToken, EvalOptions, PoseValue, ProfileDoc, ValuePayload, evaluate};
 use geom_core::linalg::frame::{path_start_frame, point_at};
 use geom_core::{Affine3, Band, Mat3, OrthoFrame, Point3, Tol, Vec3};
 use profile::SketchPlane;

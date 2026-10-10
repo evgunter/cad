@@ -753,7 +753,7 @@ fn table<T: SolveScalar>(
     arm: Arm,
 ) -> Result<(Subgroup<T>, Separated<T>), Indeterminate> {
     use Subgroup::{
-        Cylindrical, Empty, Parallel, PlaneTranslation, Planar, Prismatic, Revolute, Se3,
+        Cylindrical, Empty, Parallel, Planar, PlaneTranslation, Prismatic, Revolute, Se3,
         Spherical, Translation, Trivial,
     };
     let not = |g| (g, Separated::Not);
@@ -993,26 +993,46 @@ fn table<T: SolveScalar>(
             Some((_, sine)) => (PlaneTranslation { normal: n }, Separated::Sine(sine)),
         },
         // 17. parallel ∩ cylindrical or revolute.
-        (Parallel { direction: d }, Cylindrical { point, direction: u })
-        | (Cylindrical { point, direction: u }, Parallel { direction: d }) => {
-            match parallel(d, u, band, arm)? {
-                None => not(Cylindrical {
-                    point,
-                    direction: u,
-                }),
-                Some((_, sine)) => (Prismatic { direction: u }, Separated::Sine(sine)),
-            }
-        }
-        (Parallel { direction: d }, Revolute { point, direction: u })
-        | (Revolute { point, direction: u }, Parallel { direction: d }) => {
-            match parallel(d, u, band, arm)? {
-                None => not(Revolute {
-                    point,
-                    direction: u,
-                }),
-                Some((_, sine)) => (Trivial, Separated::Sine(sine)),
-            }
-        }
+        (
+            Parallel { direction: d },
+            Cylindrical {
+                point,
+                direction: u,
+            },
+        )
+        | (
+            Cylindrical {
+                point,
+                direction: u,
+            },
+            Parallel { direction: d },
+        ) => match parallel(d, u, band, arm)? {
+            None => not(Cylindrical {
+                point,
+                direction: u,
+            }),
+            Some((_, sine)) => (Prismatic { direction: u }, Separated::Sine(sine)),
+        },
+        (
+            Parallel { direction: d },
+            Revolute {
+                point,
+                direction: u,
+            },
+        )
+        | (
+            Revolute {
+                point,
+                direction: u,
+            },
+            Parallel { direction: d },
+        ) => match parallel(d, u, band, arm)? {
+            None => not(Revolute {
+                point,
+                direction: u,
+            }),
+            Some((_, sine)) => (Trivial, Separated::Sine(sine)),
+        },
         // 18. parallel ∩ a group of translations: every translation is
         //     in a parallel group, so the other side.
         (Parallel { .. }, g @ (Prismatic { .. } | Translation | PlaneTranslation { .. }))
@@ -1037,7 +1057,10 @@ fn table<T: SolveScalar>(
         (Translation, Revolute { .. }) | (Revolute { .. }, Translation) => not(Trivial),
         // 21. plane translation ∩ planar: both normals one, or the
         //     slide along the line the planes meet in.
-        (PlaneTranslation { normal: n1 }, Planar { normal: n2 } | PlaneTranslation { normal: n2 })
+        (
+            PlaneTranslation { normal: n1 },
+            Planar { normal: n2 } | PlaneTranslation { normal: n2 },
+        )
         | (Planar { normal: n2 }, PlaneTranslation { normal: n1 }) => {
             match parallel(n1, n2, band, arm)? {
                 None => not(PlaneTranslation { normal: n1 }),

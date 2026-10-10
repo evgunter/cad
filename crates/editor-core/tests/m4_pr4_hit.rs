@@ -194,7 +194,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
-    let (doc, plane, rp) = fixture::on_frame_keeping(
+    let (doc, rp) = fixture::on_frame(
         doc,
         [0.0, 3.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -203,14 +203,9 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     );
     // The world axis sat at the FRAME's origin pointing along its v, so
     // in the frame's own coordinates it is +y through (0, 0).
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, _rev) = insert(
         doc,
-        Node::Revolve {
-            profile: rp.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::FRAC_PI_2),
-        },
+        fixture::revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::FRAC_PI_2)),
     );
     // A pattern of the union.
     let (doc, _pat) = insert(

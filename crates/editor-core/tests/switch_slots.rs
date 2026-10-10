@@ -582,12 +582,11 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// **Every datum kind**, welded the same way: the six shapes carry
-    /// six different slot lists (a plane's origin and normal, a point's
-    /// position alone, an in-plane axis's X and Y with no Z), so the
-    /// node-level roster above would pass over a disagreement inside
-    /// one of them.
-    const DATUM_KIND: Datum = [Plane, Axis, Point, AxisInPlane, Frame, FaceFrame];
+    /// **Every datum kind**, welded the same way: the five shapes carry
+    /// five different slot lists (a plane's origin and normal, a
+    /// point's position alone, a face frame's spin), so the node-level
+    /// roster above would pass over a disagreement inside one of them.
+    const DATUM_KIND: Datum = [Plane, Axis, Point, Frame, FaceFrame];
 }
 
 type ProfileNode = AuthoredNode;
@@ -609,11 +608,6 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
         Datum::Point {
             position: [len(0.0), len(0.0), len(0.0)],
         },
-        Datum::AxisInPlane {
-            frame: nid(0).into(),
-            origin: [len(0.0), len(0.0)],
-            direction: [scl(1.0), scl(0.0)],
-        },
         Datum::Frame {
             origin: [len(0.0), len(0.0), len(0.0)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -630,7 +624,7 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
 }
 
 /// One value per node SHAPE — every kind of the roster above, and
-/// every payload shape that answers a different slot list: the six
+/// every payload shape that answers a different slot list: the five
 /// datums, a tube window open and closed, the three pattern kinds, a
 /// part selected two ways, and a placed union with and without its
 /// count.
@@ -649,7 +643,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis: nid(0).into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(1.0), scl(0.0)],
             angle: ang(1.0),
         },
         Node::Tube {

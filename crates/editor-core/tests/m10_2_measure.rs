@@ -1252,7 +1252,6 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
         &ProfileDoc::empty(DocumentId::derive("cusp-revolve-crescent"), Tol::witness()),
         xy_frame(),
     );
-    let (doc, axis) = mint(&doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
@@ -1263,11 +1262,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     );
     let (doc, rev) = mint(
         &doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(1.0),
-        },
+        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
     );
     let body = gathers(&doc, rev);
     // The cusp joint (h, h) revolves about the sketch's y axis to the

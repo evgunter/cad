@@ -189,6 +189,13 @@ pub(crate) enum Walk {
     /// stored form, and reads a body variable the mint holds, which, when
     /// live, is a `Body` no world placement defines. Snapshot only.
     Selection,
+    /// [`first_pose_fault`] over the variable table (D10): every pose
+    /// definition reads minted variables, a live read at a kind it
+    /// admits and a live scalar at its slot's dimension; no flip flips
+    /// a flip, no projection lacks its arm, a flip's stored kind is its
+    /// read's, and no definition reaches itself through its reads — the
+    /// predicates the seat door asks of a pose it mints. Snapshot only.
+    Pose,
     /// [`first_definition_read_fault`] over every defined variable's
     /// definition: it holds no name leaf, and every variable it reads
     /// is one the mint log holds, read at its kind when live — the
@@ -263,13 +270,14 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 15] = [
+    pub(crate) const ORDER: [Walk; 16] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::OutputSignature,
         Walk::Selection,
+        Walk::Pose,
         Walk::DefinitionRead,
         Walk::ObservedRead,
         Walk::DefinitionCycle,
@@ -314,6 +322,7 @@ impl Walk {
                 first_output_fault(snapshot).map(super::PersistError::Snapshot)
             }
             Walk::Selection => first_selection_fault(snapshot).map(super::PersistError::Snapshot),
+            Walk::Pose => first_pose_fault(snapshot).map(super::PersistError::Snapshot),
             Walk::DefinitionRead => {
                 first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
@@ -599,6 +608,96 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// the mint log, then the names — each on a live variable, none held
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
+/// The first pose definition, in id order, no door could have written
+/// ([`Walk::Pose`]). A read or a scalar the mint holds and the table no
+/// longer does is legal: its reader is unresolved, refused at
+/// evaluation (VR7).
+fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    use crate::pose::{PoseDef, PoseFault};
+    let fault_of = |id: crate::VarId, def: &PoseDef, kind: crate::VarKind| -> Option<PoseFault> {
+        for (read, &var, expected) in def.reads() {
+            match snapshot.var(var) {
+                None if snapshot.mint.has_var(var) => {}
+                None => return Some(PoseFault::Unminted { var }),
+                Some(held) if !expected.admits(held) => {
+                    return Some(PoseFault::ReadKind {
+                        read,
+                        found: held.kind(),
+                        expected,
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+        for (slot, &var) in def.scalars() {
+            match snapshot.var(var) {
+                None if snapshot.mint.has_var(var) => {}
+                None => return Some(PoseFault::Unminted { var }),
+                Some(held) if held.kind().dimension() != Some(slot.dimension()) => {
+                    return Some(PoseFault::ScalarKind {
+                        slot,
+                        found: held.kind(),
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+        match def {
+            PoseDef::Flip { pose } => match snapshot.var(*pose) {
+                Some(held)
+                    if held
+                        .def()
+                        .pose()
+                        .is_some_and(|d| matches!(d, PoseDef::Flip { .. })) =>
+                {
+                    return Some(PoseFault::DoubleFlip);
+                }
+                Some(held) if held.kind() != kind => {
+                    return Some(PoseFault::Kind {
+                        stored: kind,
+                        defined: held.kind(),
+                    });
+                }
+                _ => {}
+            },
+            PoseDef::Project { of, to } => {
+                if let Some(held) = snapshot.var(*of)
+                    && !crate::pose::projects(held.kind(), *to)
+                {
+                    return Some(PoseFault::Projection {
+                        from: held.kind(),
+                        to: *to,
+                    });
+                }
+            }
+            _ => {}
+        }
+        // A definition reaching itself through the poses it reads.
+        let mut stack: Vec<crate::VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(at) = stack.pop() {
+            if at == id {
+                return Some(PoseFault::Cycle);
+            }
+            if !seen.insert(at) {
+                continue;
+            }
+            if let Some(next) = snapshot.var(at).and_then(|held| held.def().pose()) {
+                stack.extend(next.reads().into_iter().map(|(_, &r, _)| r));
+            }
+        }
+        None
+    };
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        let def = var.def().pose()?;
+        let fault = fault_of(id, def, var.kind())?;
+        Some(SnapshotError::PoseShape {
+            var: snapshot.spoken_var(id),
+            fault,
+        })
+    })
+}
+
 /// The first selection, in id order, no door could have written
 /// ([`Walk::Selection`]).
 fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
@@ -1205,6 +1304,15 @@ pub enum SnapshotError {
         /// Why.
         fault: crate::var::SelectionFault,
     },
+    /// A pose definition no door could have written — the edit doors'
+    /// [`crate::EditError::PoseShape`], and the reads and scalars the
+    /// seat door lowers ([`crate::pose::PoseFault`]).
+    PoseShape {
+        /// The pose variable.
+        var: SpokenVar,
+        /// Why.
+        fault: crate::pose::PoseFault,
+    },
     /// A selection whose body read no door could have written.
     SelectionBody {
         /// The selection.
@@ -1613,6 +1721,11 @@ impl core::fmt::Display for SnapshotError {
             Self::SelectionShape { var, fault } => {
                 write!(f, "{var} is not a selection a door writes: {fault}")
             }
+            Self::PoseShape { var, fault } => write!(
+                f,
+                "{var} is not a pose a door writes: {fault}. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
             Self::SelectionBody { var, fault } => match fault {
                 SelectionBodyFault::Unminted { body } => write!(
                     f,
@@ -2238,6 +2351,7 @@ mod tests {
             Vars,
             OutputSignature,
             Selection,
+            Pose,
             DefinitionRead,
             ObservedRead,
             DefinitionCycle,
@@ -2262,6 +2376,7 @@ mod tests {
             Walk::Vars
             | Walk::OutputSignature
             | Walk::Selection
+            | Walk::Pose
             | Walk::DefinitionRead
             | Walk::ObservedRead
             | Walk::DefinitionCycle
@@ -2289,6 +2404,7 @@ mod tests {
             ReadsWorldCopy,
             SelectionShape,
             SelectionBody,
+            PoseShape,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2341,6 +2457,7 @@ mod tests {
             SnapshotError::SelectionShape { .. } | SnapshotError::SelectionBody { .. } => {
                 Walk::Selection
             }
+            SnapshotError::PoseShape { .. } => Walk::Pose,
             // An operand's kind is the operand walk's; the expression
             // walks raise the rest, and the slot walk runs first.
             SnapshotError::SlotVarKind {
@@ -2467,6 +2584,10 @@ mod tests {
                 fault: super::SelectionBodyFault::Unminted {
                     body: crate::VarId::new(0, 8),
                 },
+            },
+            SnapshotError::PoseShape {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                fault: crate::pose::PoseFault::DoubleFlip,
             },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },

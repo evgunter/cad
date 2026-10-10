@@ -66,7 +66,7 @@
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
-use crate::eval::{PoseValue, Evaluation, NodeStanding, ValuePayload};
+use crate::eval::{Evaluation, NodeStanding, PoseValue, ValuePayload};
 use crate::expr::{Dimension, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;

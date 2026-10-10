@@ -550,7 +550,7 @@ fn p4_a_cut_then_a_fold_moves_no_pose_bit_under_rotations() {
 // ---- what a fold takes out ----
 
 /// **A gauge defines nothing to read** (D10: a gauge is no
-/// operation's output): an in-plane axis drawn on a gauge refuses at
+/// operation's output): a profile drawn on a gauge refuses at
 /// its insert, so no node reads a gauge and a fold never strands a
 /// read; the folded document is one the save door accepts.
 #[test]
@@ -563,11 +563,10 @@ fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
     let err = refused(
         &doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Datum(editor_core::Datum::AxisInPlane {
-                frame: g.into(),
-                origin: [fixture::len(0.0), fixture::len(0.0)],
-                direction: [fixture::scl(1.0), fixture::scl(0.0)],
-            })),
+            node: Box::new(Node::Profile(fixture::desc(
+                g,
+                vec![fixture::square(0.0, 0.0, 0.5)],
+            ))),
             fresh: Vec::new(),
         },
     );

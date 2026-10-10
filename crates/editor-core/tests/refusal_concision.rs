@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::eval;
-use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
+use crate::fixture::{Recorder, ang, frame, len, revolve_about};
 use editor_core::ExtrudeSide;
 
 use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
@@ -28,12 +28,12 @@ fn cone_block_union_refusal() -> String {
         ],
         ids: Vec::new(),
     }));
-    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    let cone = r.insert(Node::Revolve {
-        profile: cone_p.into(),
-        axis: axis.into(),
-        angle: ang(std::f64::consts::TAU),
-    });
+    let cone = r.insert(revolve_about(
+        cone_p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
         frame: block_plane.into(),

@@ -1105,6 +1105,7 @@ test_utils::f6_variants! {
         ReadsWorldCopy,
         SelectionShape,
         SelectionBody,
+        PoseShape,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1264,6 +1265,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["selects in", "which is a profile, not a body"],
+        ),
+        (
+            SnapshotError::PoseShape {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+            },
+            vec!["is not a pose a door writes", "flips a flip"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },

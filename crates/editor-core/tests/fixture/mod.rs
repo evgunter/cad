@@ -63,7 +63,7 @@ pub mod value_channel;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, EntityKey, EntityKind, Entry,
+    AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
     ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
     RoleSeg, SitedRef, SolvedPoses, StableName, VarName, assemble, evaluate, mate_reach,
@@ -1107,14 +1107,20 @@ pub fn on_frame_keeping(
     (doc, plane, profile)
 }
 
-/// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
-/// of revolution.
-pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
-    Node::Datum(Datum::AxisInPlane {
-        frame: plane.into(),
-        origin: [len(origin.0), len(origin.1)],
-        direction: [scl(dir.0), scl(dir.1)],
-    })
+/// A revolve of `profile` by `angle` about the axis line through
+/// `origin` along `dir`, both in the profile's own 2-D coordinates.
+pub fn revolve_about(
+    profile: impl Into<editor_core::Operand>,
+    origin: (f64, f64),
+    dir: (f64, f64),
+    angle: Formula,
+) -> AuthoredNode {
+    Node::Revolve {
+        profile: profile.into(),
+        axis_origin: [len(origin.0), len(origin.1)],
+        axis_direction: [scl(dir.0), scl(dir.1)],
+        angle,
+    }
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).

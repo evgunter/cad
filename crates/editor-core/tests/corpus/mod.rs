@@ -507,10 +507,9 @@ pub const EDIT_KINDS: [&str; 21] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 20] = [
+pub const SUB_KINDS: [&str; 19] = [
     "Datum::Plane",
     "Datum::Axis",
-    "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
     "Datum::FaceFrame",
@@ -557,12 +556,6 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
         // Listed: `face_sketch` draws on a frame derived from a face.
         Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
-        // Listed: four corpus documents revolve, and a revolve's axis
-        // is written in the profile's frame. `kitchen_sink` carries
-        // BOTH axis kinds — a world line for its circular pattern, an
-        // in-plane axis for its revolve — which is the whole reason
-        // they are two sub-kinds to count.
-        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",

@@ -25,9 +25,9 @@ use super::{
 };
 use crate::eval::{NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
+use crate::mate::PoseSymmetry;
 use crate::names;
 use crate::node::{Node, SlotId};
-use crate::mate::PoseSymmetry;
 use crate::pose::{Carrier, PoseConstruction, PoseCoords, PoseDef, PoseReadFault, PoseValue};
 use crate::program::ProfileProgram;
 use crate::var::{VarDef, VarId, VarKind};
@@ -104,7 +104,11 @@ fn output<T: Decide>(
                     .map_err(DirectionRefusal::node_error)?,
             })
         }
-        _ => Err(super::wrong_operand(value, node, super::super::family::DATUM)),
+        _ => Err(super::wrong_operand(
+            value,
+            node,
+            super::super::family::DATUM,
+        )),
     }
 }
 
@@ -276,7 +280,11 @@ fn in_frame<T: Decide>(
             origin: point(origin)?,
             normal: unit(direction(normal)?, PLANE_NORMAL_ROLE)?,
         },
-        PoseCoords::Frame { origin, u: ux, v: vx } => PoseValue::Frame(
+        PoseCoords::Frame {
+            origin,
+            u: ux,
+            v: vx,
+        } => PoseValue::Frame(
             frame_axes(point(origin)?, direction(ux)?, direction(vx)?, band)
                 .map_err(DirectionRefusal::node_error)?,
         ),
@@ -295,6 +303,11 @@ fn read_off<T: Decide>(
     pose: VarKind,
     band: geom_core::Band,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
+    // The half of a split a selection reads is projected here, for the
+    // pose's own reads: `results` are its reader's, unprojected.
+    let body_var = doc.selection(of).map_or(of, |select| select.body);
+    let projected = super::project_ports(&[body_var], doc, results)?;
+    let results = projected.as_ref().unwrap_or(results);
     let selected = select(doc, results, slot, of)?;
     let body = read_body(results, selected.at)?;
     let Some(key) = selected.ents.first().map(|ent| ent.key) else {
@@ -374,5 +387,116 @@ fn read_off<T: Decide>(
         }),
         (K::Point, _) => Err(fault(PoseReadFault::NoCentre { carrier })),
         _ => unreachable!("the door admits a face at a plane, an axis or a point read alone"),
+    }
+}
+
+/// **One word of the stream a node's content key reads off the pose
+/// definitions it reads** (`tag::pose` states the grammar).
+pub(crate) enum PoseWord<T> {
+    /// A structural word.
+    Tag(u8),
+    /// A count or an operand's place.
+    Count(u64),
+    /// A selection's name.
+    Name(names::StableName),
+    /// A scalar at the lane and at the nominal.
+    Value(T, f64),
+}
+
+/// **The words a node's content key reads off its pose definitions**,
+/// `None` for a node reading none, so its key is the stream it was.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::PoseScalar`] for a scalar that does not evaluate at
+/// the lane or the nominal.
+pub(crate) fn key_words<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    node: &Node<ProfileProgram>,
+    env: &VarEnv<T>,
+    nominal: &VarEnv<f64>,
+) -> Result<Option<Vec<PoseWord<T>>>, NodeErrorKind> {
+    use crate::eval::tag::pose as w;
+    let mut out = Vec::new();
+    for (place, (_, var)) in node.operand_rows().into_iter().enumerate() {
+        if doc.var(var).and_then(|held| held.def().pose()).is_none() {
+            continue;
+        }
+        out.push(PoseWord::Tag(w::READ));
+        out.push(PoseWord::Count(place as u64));
+        walk(doc, var, env, nominal, &mut out)?;
+    }
+    Ok((!out.is_empty()).then_some(out))
+}
+
+fn walk<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    var: VarId,
+    env: &VarEnv<T>,
+    nominal: &VarEnv<f64>,
+    out: &mut Vec<PoseWord<T>>,
+) -> Result<(), NodeErrorKind> {
+    use crate::eval::tag::{pose as w, pose_arm as arm};
+    let def = doc.var(var).map(crate::Var::def);
+    match def {
+        Some(VarDef::Select(select)) => {
+            out.push(PoseWord::Tag(w::SELECTION));
+            out.push(PoseWord::Count(select.names.len() as u64));
+            out.extend(select.names.iter().cloned().map(PoseWord::Name));
+        }
+        Some(VarDef::Pose(def)) => {
+            out.push(PoseWord::Tag(w::DEFINITION));
+            out.push(PoseWord::Tag(match def {
+                PoseDef::Plane { .. } => arm::PLANE,
+                PoseDef::Axis { .. } => arm::AXIS,
+                PoseDef::Point { .. } => arm::POINT,
+                PoseDef::InFrame { .. } => arm::IN_FRAME,
+                PoseDef::Through { .. } => arm::THROUGH,
+                PoseDef::Meet { .. } => arm::MEET,
+                PoseDef::Flip { .. } => arm::FLIP,
+                PoseDef::Standoff { .. } => arm::STANDOFF,
+                PoseDef::Project { .. } => arm::PROJECT,
+            }));
+            match def {
+                PoseDef::Project { to, .. } => out.push(PoseWord::Tag(kind_word(*to))),
+                PoseDef::InFrame { coords, .. } => {
+                    out.push(PoseWord::Tag(kind_word(coords.kind())))
+                }
+                _ => {}
+            }
+            for (_, &read, _) in def.reads() {
+                walk(doc, read, env, nominal, out)?;
+            }
+            for (slot, &scalar) in def.scalars() {
+                let dim = slot.dimension();
+                let at = |source| NodeErrorKind::PoseScalar {
+                    var: scalar,
+                    source,
+                };
+                out.push(PoseWord::Value(
+                    eval_var(scalar, dim, env).map_err(at)?,
+                    eval_var(scalar, dim, nominal).map_err(at)?,
+                ));
+            }
+        }
+        // An output, whose key and port the upstream list carries, or a
+        // read the door admits at no pose seat.
+        Some(VarDef::Output { .. } | VarDef::Free(_) | VarDef::Defined(_)) | None => {
+            out.push(PoseWord::Tag(w::OUTPUT));
+        }
+    }
+    Ok(())
+}
+
+/// A pose kind's word ([`crate::eval::tag::pose_kind`]).
+fn kind_word(kind: VarKind) -> u8 {
+    use crate::eval::tag::pose_kind as w;
+    match kind {
+        K::Point => w::POINT,
+        K::Direction => w::DIRECTION,
+        K::Axis => w::AXIS,
+        K::Plane => w::PLANE,
+        K::Frame => w::FRAME,
+        other => unreachable!("a pose definition writes or projects to a pose kind, not {other}"),
     }
 }

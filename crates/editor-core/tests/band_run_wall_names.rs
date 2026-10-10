@@ -16,7 +16,7 @@ use editor_core::{
 use geom_core::Tol;
 
 use crate::fixture::{
-    ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, scl, table, vpiece,
+    ang, frame, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece,
 };
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
@@ -68,16 +68,8 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
 }
 
 fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = profiled(steps);
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
-        doc,
-        Node::Revolve {
-            profile: p.into(),
-            axis: axis.into(),
-            angle: ang(angle),
-        },
-    )
+    let (doc, _, p) = profiled(steps);
+    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
 }
 
 fn run_of(doc: &ProfileDoc, sweep: RecipeNodeId, segments: &[usize]) -> PieceRun {

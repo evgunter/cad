@@ -24,10 +24,9 @@
 //! kind the slot admits — so a door that stopped refusing it, and
 //! started shipping the evaluation's refusal to users, reds here.
 //!
-//! **Three rows are document-reachable**: the kind is right and the
-//! value is not — a 3-D axis where a revolve needs an axis in a sketch
-//! frame, and a half or an instance of a plain body. Their phrases and
-//! families differ, so a door that answered a constant goes red.
+//! **Two rows are document-reachable**: the kind is right and the
+//! value is not — a half or an instance of a plain body. Their phrases
+//! and families differ, so a door that answered a constant goes red.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -218,14 +217,6 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "frame_value (an in-plane axis written against a body)",
-        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Frame)),
-        fixture::axis_in_plane(body, (0.0, 0.0), (1.0, 0.0)),
-        body,
-    );
-    doc = add(
-        doc,
-        &mut rows,
         "wire_swept (an Extrude of a plane datum)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Extrude {
@@ -242,22 +233,11 @@ fn wired() -> (
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Revolve {
             profile: plane.into(),
-            axis: axis3.into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
             angle: ang(1.0),
         },
         plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "wire_revolve's axis (a Revolve about a 3-D axis)",
-        Owes::Refusal("an axis in a sketch frame (Datum::AxisInPlane)", "datum"),
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis3.into(),
-            angle: ang(1.0),
-        },
-        axis3,
     );
     doc = add(
         doc,

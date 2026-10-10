@@ -410,6 +410,28 @@ pub enum PoseFault {
         /// The kind asked for.
         to: crate::VarKind,
     },
+    /// A read or a scalar the document's mint log does not hold (a
+    /// file's fault, never a door's).
+    Unminted {
+        /// The variable read.
+        var: crate::VarId,
+    },
+    /// A scalar of another dimension than its slot's.
+    ScalarKind {
+        /// The slot.
+        slot: PoseSlot,
+        /// The kind it holds.
+        found: crate::VarKind,
+    },
+    /// A flip stored at another kind than the pose it flips.
+    Kind {
+        /// The kind stored.
+        stored: crate::VarKind,
+        /// The kind its read defines.
+        defined: crate::VarKind,
+    },
+    /// The definition reaches itself through the poses it reads.
+    Cycle,
 }
 
 impl core::fmt::Display for PoseFault {
@@ -425,9 +447,30 @@ impl core::fmt::Display for PoseFault {
                 read.label(),
                 crate::sentence::article(&found.to_string())
             ),
-            Self::DoubleFlip => f.write_str(
-                "it flips a flip, which is the unflipped pose: read that pose instead",
+            Self::DoubleFlip => {
+                f.write_str("it flips a flip, which is the unflipped pose: read that pose instead")
+            }
+            Self::Unminted { var } => {
+                write!(
+                    f,
+                    "it reads {var}, which the document's mint log does not hold"
+                )
+            }
+            Self::ScalarKind { slot, found } => write!(
+                f,
+                "its {} holds {} {found}, where {} {} is read",
+                slot.label(),
+                crate::sentence::article(&found.to_string()),
+                crate::sentence::article(&slot.dimension().to_string()),
+                slot.dimension()
             ),
+            Self::Kind { stored, defined } => write!(
+                f,
+                "it is stored as {} {stored} and flips {} {defined}",
+                crate::sentence::article(&stored.to_string()),
+                crate::sentence::article(&defined.to_string())
+            ),
+            Self::Cycle => f.write_str("it reaches itself through the poses it reads"),
             Self::Projection { from, to } => write!(
                 f,
                 "{} {from} has no {to} to project to (a frame projects to its plane, axis or \
@@ -701,7 +744,10 @@ impl core::fmt::Display for PoseReadFault {
             Self::NoAxis { carrier } => write!(f, "{carrier} carrier has no axis"),
             Self::NoCentre { carrier } => write!(f, "{carrier} carrier has no centre"),
             Self::Readback { error } => {
-                write!(f, "the entity resolved to a key its body could not read back: {error}")
+                write!(
+                    f,
+                    "the entity resolved to a key its body could not read back: {error}"
+                )
             }
         }
     }

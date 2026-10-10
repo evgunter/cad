@@ -14,6 +14,7 @@ use crate::corpus;
 use crate::docm1_face_frame::lofted_on_face_frame;
 use crate::fixture::{self, Recorder, ang, len, scl};
 
+use editor_core::PoseValue;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
@@ -21,7 +22,7 @@ use editor_core::{
     RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
-use topo::{PoseValue, validate_closed};
+use topo::validate_closed;
 
 fn run(
     doc: &ProfileDoc,
@@ -60,8 +61,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
             "{lift:?}: {:?}",
             corpus::failures(&ev)
         );
-        let ValuePayload::Datum(PoseValue::Frame(f)) =
-            &ev.value(frame).expect("the frame").payload
+        let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
         else {
             panic!("a frame value");
         };
@@ -117,7 +117,7 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
             ..
         })) => {
             assert_eq!(*profile, section);
-            assert_eq!(*named, frame);
+            assert_eq!(*named, Some(frame));
         }
         other => panic!("the loft must refuse typed, got {other:?}"),
     }

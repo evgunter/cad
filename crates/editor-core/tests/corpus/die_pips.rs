@@ -81,7 +81,7 @@ use editor_core::{
     ProgramTarget, SlotId,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len, len2, scl, xy_frame};
+use crate::fixture::{ang, frame, len, len2, revolve_about, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -131,17 +131,17 @@ pub fn document() -> CorpusDoc {
     // The axis, written in the meridian frame it turns: that frame's
     // v is world +Z, so the pole axis is its own +y through (0, 0).
     // It is minted AFTER the frame because it names it.
-    let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         frame: ball_plane.into(),
         loops: vec![half_disc],
         ids: Vec::new(),
     }));
-    let ball = r.insert(Node::Revolve {
-        profile: ball_p.into(),
-        axis: axis.into(),
-        angle: ang(std::f64::consts::TAU),
-    });
+    let ball = r.insert(revolve_about(
+        ball_p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
 
     // ---- the pip: the face-1 ball, at the +Z face centre ----
     // Translation-only: the chart is already poled (deviation (a)), so

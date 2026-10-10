@@ -22,6 +22,7 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use crate::fixture::{ang, len};
+use editor_core::PoseValue;
 use editor_core::persist::{load, save};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
@@ -32,8 +33,8 @@ use editor_core::{
 };
 use geom::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
+use topo::CurveKind;
 use topo::readback;
-use topo::{CurveKind, PoseValue};
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -67,21 +68,21 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
 /// A washer: a rectangle off the axis, revolved a full turn — two
 /// cylinder bands and two plane annuli.
 fn washer_doc() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = fixture::on_frame_keeping(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("docm1_washer", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     fixture::insert(
         doc,
-        Node::Revolve {
-            profile: p.into(),
-            axis: axis.into(),
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     )
 }
 
@@ -93,7 +94,6 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         doc,
         fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -104,11 +104,12 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
     );
     fixture::insert(
         doc,
-        Node::Revolve {
-            profile: p.into(),
-            axis: axis.into(),
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     )
 }
 
@@ -755,11 +756,11 @@ fn a5_a_non_planar_face_refuses_naming_its_carrier() {
     }
 }
 
-/// **A7 — by value.** A derived frame is the plane of a profile AND
-/// the `plane` of an `AxisInPlane`, and a revolve about that axis
-/// evaluates to a closed body sitting on the box's top face.
+/// **A7 — by value.** A derived frame is the plane of a profile, and
+/// a revolve about an axis line in that profile's plane evaluates to a
+/// closed body sitting on the box's top face.
 #[test]
-fn a7_a_derived_frame_serves_a_profile_and_an_in_plane_axis_by_value() {
+fn a7_a_derived_frame_serves_a_revolved_profile_by_value() {
     let (doc, cube) = box_doc();
     let (doc, frame) = fixture::insert(doc, face_frame_node(cube, top_cap(cube), 0.0));
     // A square off the axis, so the revolve is a washer standing on
@@ -768,14 +769,9 @@ fn a7_a_derived_frame_serves_a_profile_and_an_in_plane_axis_by_value() {
         doc,
         Node::Profile(fixture::desc(frame, vec![fixture::square(0.35, 0.0, 0.1)])),
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, ring) = fixture::insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     let ev = eval(&doc);
     assert!(

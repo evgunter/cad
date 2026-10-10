@@ -1301,29 +1301,29 @@ fn mint_pose<P: crate::ProfilePayload>(
         },
         &mut |_, formula| Ok::<_, EditError>(formula.clone()),
     )?;
-    let stored: PoseDef = read.try_map(
-        &mut |_, &var| Ok(var),
-        &mut |pose_slot, formula| {
-            let var = Lowering::none()
-                .slot(doc, formula)
-                .map_err(|fault| fault.at(doc, spoken(), ExprSite::Slot(slot)))?;
-            let found = doc.var(var).map_or(VarKind::Scalar, Var::kind);
-            let expected = VarKind::from(pose_slot.dimension());
-            if found != expected {
-                return Err(EditError::SlotVarKind {
-                    var: Box::new(doc.spoken_var(var)),
-                    node: spoken(),
-                    slot,
-                    found,
-                    expected: crate::SlotKind::Is(expected),
-                });
-            }
-            Ok(var)
-        },
-    )?;
+    let stored: PoseDef = read.try_map(&mut |_, &var| Ok(var), &mut |pose_slot, formula| {
+        let var = Lowering::none()
+            .slot(doc, formula)
+            .map_err(|fault| fault.at(doc, spoken(), ExprSite::Slot(slot)))?;
+        let found = doc.var(var).map_or(VarKind::Scalar, Var::kind);
+        let expected = VarKind::from(pose_slot.dimension());
+        if found != expected {
+            return Err(EditError::SlotVarKind {
+                var: Box::new(doc.spoken_var(var)),
+                node: spoken(),
+                slot,
+                found,
+                expected: crate::SlotKind::Is(expected),
+            });
+        }
+        Ok(var)
+    })?;
     let kind = match &stored {
         PoseDef::Flip { pose } => {
-            if matches!(doc.var(*pose).map(Var::def), Some(VarDef::Pose(PoseDef::Flip { .. }))) {
+            if matches!(
+                doc.var(*pose).map(Var::def),
+                Some(VarDef::Pose(PoseDef::Flip { .. }))
+            ) {
                 return Err(shape(PoseFault::DoubleFlip));
             }
             doc.var(*pose)
@@ -1504,6 +1504,31 @@ pub fn selection_into<P>(
             names: names.to_vec(),
         },
     );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
+/// **A pose definition minted into `doc` as given**, outside any edit:
+/// of the definition's kind (a flip's is its read's), reading what it
+/// reads, with no door around it. The test support's rows build their
+/// poses through it.
+///
+/// # Panics
+///
+/// If a flip's read is not live.
+#[doc(hidden)]
+#[track_caller]
+pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
+    let kind = def.kind().unwrap_or_else(|| {
+        let crate::pose::PoseDef::Flip { pose } = &def else {
+            unreachable!("every arm but a flip states its kind")
+        };
+        doc.var(*pose)
+            .map(Var::kind)
+            .expect("a flip reads a live pose")
+    });
+    let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));
     id
@@ -3511,7 +3536,10 @@ impl EditError {
                 tail.recourse(f, format_args!("list two or more entries"))
             }
             Self::PoseShape { slot, fault, .. } => {
-                write!(f, "the pose defined at {slot} is not one a document stores: {fault}")?;
+                write!(
+                    f,
+                    "the pose defined at {slot} is not one a document stores: {fault}"
+                )?;
                 tail.recourse(
                     f,
                     format_args!(

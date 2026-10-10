@@ -4278,19 +4278,15 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// ([`crate::Doc::written_would_not_reproduce`]) and none was
     /// value-edited after its insert (its mint read the old value). A
     /// caller rebuilding a document checks the first and compares the
-    /// ids for the second. An anonymous selection an operand reads is
-    /// written as the selection it is ([`crate::Operand::Select`]).
+    /// ids for the second. An anonymous selection or pose an operand
+    /// reads is written as the definition it is
+    /// ([`crate::Operand::Select`], [`crate::Operand::Pose`]).
     #[must_use]
     pub fn written(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
         self.authored_with(
             doc,
             &mut |var, dim| crate::Formula::from(doc.written(&crate::Expr::var(var, dim))),
-            &mut |var| match doc.selection(var) {
-                Some(select) if doc.var_name(var).is_none() => {
-                    crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
-                }
-                _ => crate::Operand::Var(var),
-            },
+            &mut |var| doc.written_operand(var),
         )
     }
 

@@ -45,9 +45,7 @@ use editor_core::{
     mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, in_world, with_resolver};
-use fixture::{
-    at_the_door, gate, insert, len, on_frame, on_frame_keeping, run, solve, square, step, step_with,
-};
+use fixture::{at_the_door, gate, insert, len, on_frame, run, solve, square, step, step_with};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -422,16 +420,15 @@ fn carrier(
 /// `loops` on the xz plane revolved a full turn about the plane's y
 /// axis (the world z).
 fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
-    let (doc, plane, profile) =
-        on_frame_keeping(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], loops);
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], loops);
     let (doc, _) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     );
     doc
 }
@@ -443,7 +440,6 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
         doc,
         fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -454,11 +450,12 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
     );
     let (doc, _) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     );
     doc
 }

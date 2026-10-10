@@ -43,9 +43,8 @@ use editor_core::clearance::{
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    VarName,
+    CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::Tol;
 
@@ -617,15 +616,14 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     )));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    let quarter = r.insert(Node::Revolve {
-        profile: profile.into(),
-        axis: axis.into(),
-        angle: ang(core::f64::consts::FRAC_PI_2),
-    });
+    // The axis line, in the profile's own coordinates: its v is the
+    // world axis the quarter turns about.
+    let quarter = r.insert(fixture::revolve_about(
+        profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(core::f64::consts::FRAC_PI_2),
+    ));
     let block = extruded(
         &mut r,
         &[(-2.5, 0.0), (-2.1, 0.0), (-2.1, 1.0), (-2.5, 1.0)],

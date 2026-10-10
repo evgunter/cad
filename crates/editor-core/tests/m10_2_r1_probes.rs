@@ -413,20 +413,9 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(
-        &doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        fixture::axis_in_plane(xy, (0.0, 0.0), (0.0, 1.0)),
-    );
     insert(
         &doc,
-        Node::Revolve {
-            profile: p.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     )
 }
 

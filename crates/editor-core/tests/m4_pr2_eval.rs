@@ -468,7 +468,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
-    use editor_core::{Datum, PoseValue, Node, SplitSide};
+    use editor_core::{Datum, Node, PoseValue, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, prof) = fixture::on_frame(
         doc,

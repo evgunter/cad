@@ -1977,9 +1977,9 @@ pub enum NodeErrorKind {
     DerivedFrameSection {
         /// The section profile node.
         profile: RecipeNodeId,
-        /// The frame it reads: a derived frame's output, or a pose
-        /// definition.
-        frame: crate::VarId,
+        /// The derived frame node it is drawn on, `None` for a frame
+        /// pose definition, which no node defines.
+        frame: Option<RecipeNodeId>,
     },
     /// A profile needed an AUTHORED frame's `f64` placement and the
     /// frame's own direction slots refused, so the refusal is raised
@@ -2441,13 +2441,16 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::PoseRead { pose, fault } => write!(
                 f,
-                "{} {pose} read off geometry found none: {fault}",
+                "{} {pose} read off geometry found none: {fault}. Recourse: read it off \
+                 geometry whose carrier has one",
                 crate::sentence::article(&pose.to_string())
             ),
             Self::PoseDegenerate { construction } => write!(f, "{construction}"),
-            Self::PoseScalar { var, source } => {
-                write!(f, "a scalar the pose reads ({var}) did not evaluate: {source}")
-            }
+            Self::PoseScalar { var: _, source } => write!(
+                f,
+                "a scalar the pose reads did not evaluate: {source}. Recourse: define it from \
+                 values the document holds"
+            ),
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
@@ -2611,11 +2614,14 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,
-                "section {} is drawn on the derived frame {}, and a loft's or a \
+                "section {} is drawn on {}, and a loft's or a \
                  sweep's section is placed only in the plain (f64) evaluation, so this \
                  evaluation refuses rather than guess where the frame lies",
                 by.node_as(*profile, "profile node"),
-                frame
+                frame.map_or_else(
+                    || "a frame pose definition".to_owned(),
+                    |frame| by.node_as(frame, "derived frame node").to_string()
+                )
             ),
             Self::MeasureRefUnreadable {
                 slot,
@@ -4215,6 +4221,10 @@ where
         Ok(v) => v,
         Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
     };
+    let pose_words = match wire::pose::key_words(doc, node, env, op_env.lane.nominal) {
+        Ok(words) => words,
+        Err(kind) => return fail(bracket, kind),
+    };
     // A node whose inputs lie in two spaces compares an unplaced group
     // with something outside it (A9), and refuses before it reads them.
     if let Some(&(group, cause)) = op_env.across.get(&id) {
@@ -4363,6 +4373,7 @@ where
         &slot_values,
         &nominal_values,
         payload_values,
+        pose_words.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
         &upstream_keys,
@@ -4662,6 +4673,43 @@ mod tag {
         presence {
             ABSENT = 0,
             PRESENT = 1,
+        }
+        /// **The words of the pose definitions a node reads** (D10),
+        /// written after its payload expressions and only by a node
+        /// reading one, so no other node's key moves. Per such operand:
+        /// `READ` and the operand's place among the node's reads, then
+        /// the read's tree — `OUTPUT` for an operation's output (whose
+        /// key and port the upstream list carries), `SELECTION` and its
+        /// names, or `DEFINITION`, the arm ([`pose_arm`]), the kind it
+        /// projects to or writes ([`pose_kind`]) where the arm states
+        /// one, each read's tree in field order, then each scalar's
+        /// value and its nominal under [`slot`]'s `NOMINAL`.
+        pose {
+            READ = 1,
+            OUTPUT = 2,
+            SELECTION = 3,
+            DEFINITION = 4,
+        }
+        /// A pose definition's arm ([`crate::pose::PoseDef`]).
+        pose_arm {
+            PLANE = 1,
+            AXIS = 2,
+            POINT = 3,
+            IN_FRAME = 4,
+            THROUGH = 5,
+            MEET = 6,
+            FLIP = 7,
+            STANDOFF = 8,
+            PROJECT = 9,
+        }
+        /// A pose kind, as a projection's target or in-frame
+        /// coordinates' shape.
+        pose_kind {
+            POINT = 1,
+            DIRECTION = 2,
+            AXIS = 3,
+            PLANE = 4,
+            FRAME = 5,
         }
         /// The mate's fault flag, read after its role word: whether the
         /// solve recorded a fault against the node.
@@ -5113,6 +5161,7 @@ fn content_key<'d, T>(
     slot_values: &slots::SlotValues<T>,
     nominal_values: &slots::SlotValues<f64>,
     payload_values: Option<&Payload<T>>,
+    pose_words: Option<&[wire::pose::PoseWord<T>]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[UpstreamRead<ContentKey>],
@@ -5793,6 +5842,23 @@ where
                 .unavailable
                 .map_or(u64::MAX, |(index, _)| index as u64),
         );
+    }
+    // The pose definitions the node reads ([`tag::pose`]): absent for
+    // a node reading none, so no other node's key moves by a byte.
+    if let Some(words) = pose_words {
+        h.write_u64(words.len() as u64);
+        for word in words {
+            match word {
+                wire::pose::PoseWord::Tag(t) => h.write_tag(*t),
+                wire::pose::PoseWord::Count(n) => h.write_u64(*n),
+                wire::pose::PoseWord::Name(name) => feed_stable_name(&mut h, name),
+                wire::pose::PoseWord::Value(v, n) => {
+                    v.feed(&mut h);
+                    h.write_tag(tag::slot::NOMINAL);
+                    h.write_f64_bits(*n);
+                }
+            }
+        }
     }
     // Upstream identity, by CONTENT (never by id — ids are stable
     // labels, content keys are the Merkle links): each read as its
