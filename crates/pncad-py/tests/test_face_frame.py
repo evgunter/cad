@@ -285,7 +285,6 @@ class TestTheDerivedFrame(unittest.TestCase):
         _, datum = self.frame_datum(0 * rad)
         self.assertEqual(datum.kind, "frame")
         self.assertIsNotNone(datum.axes)
-        self.assertIsNone(datum.in_plane)
 
     def test_its_origin_is_the_faces_carrier_origin(self):
         _, datum = self.frame_datum(0 * rad)
@@ -398,7 +397,7 @@ class TestTheFrameIsRead(unittest.TestCase):
                 self.assertAlmostEqual(origin[2].meters, thickness, delta=1e-12)
 
     def test_the_body_is_a_read(self):
-        """`at` is a READ, exactly as `datum_axis_in_plane`'s plane is —
+        """`at` is a READ, exactly as a profile's plane is —
         so deleting the body out from under the frame is accepted and
         reported, naming the frame, which refuses until re-pointed."""
         doc = Doc()

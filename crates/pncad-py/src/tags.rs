@@ -3369,6 +3369,10 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
         Subgroup::Cylindrical { .. } => "cylindrical",
         Subgroup::Prismatic { .. } => "prismatic",
         Subgroup::Revolute { .. } => "revolute",
+        Subgroup::Spherical { .. } => "spherical",
+        Subgroup::Parallel { .. } => "parallel",
+        Subgroup::Translation => "translation",
+        Subgroup::PlaneTranslation { .. } => "plane_translation",
         Subgroup::Trivial => "trivial",
         Subgroup::Empty => "empty",
     }

@@ -2408,7 +2408,8 @@ class Node:
 
     @staticmethod
     def split(target: _Operand, tool: _Operand) -> Node:
-        """Split `target` by `tool` (a `datum_plane`). The value is a
+        """Split `target` by `tool` (a plane: a `datum_plane`, or a
+        `PoseDef` of kind plane). The value is a
         split — read it with `Value.split()`, not `Value.body()`."""
 
     @staticmethod
@@ -6012,13 +6013,15 @@ class Subgroup:
     """A residual subgroup: what a fold left free.
 
     `normal`, `point` and `direction` are present on every arm and
-    `None` where that arm does not carry one. `planar` and `prismatic`
-    are point-FREE on purpose: rotations about any parallel axis, and
-    translations along any parallel line, are in the group."""
+    `None` where that arm does not carry one. `planar`, `prismatic`,
+    `parallel` and `plane_translation` are point-FREE on purpose:
+    rotations about any parallel axis, and translations along any
+    parallel line, are in the group."""
 
     @property
     def variant(self) -> str:
         """`se3`, `planar`, `cylindrical`, `prismatic`, `revolute`,
+        `spherical`, `parallel`, `translation`, `plane_translation`,
         `trivial`, or `empty`."""
 
     @property

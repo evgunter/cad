@@ -521,15 +521,12 @@ class TestCrossCheckConverges(unittest.TestCase):
         frame = doc.sketch_frame()
         # The axis in the sketch's own coordinates: the frame's v is
         # world +y, so the world y axis IS its own +y through (0, 0).
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), axis, Formula.angle_in(360, deg))
+            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), *axis, Formula.angle_in(360, deg))
         )
         body = body_of(doc, ring)
         body.validate()

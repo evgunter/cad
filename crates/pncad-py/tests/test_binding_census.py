@@ -589,6 +589,9 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The pose module's authoring door: a pose defined at the seat that
+    # reads it, as Python's `PoseDef` constructors write it (D10).
+    "pose": "PoseDef",
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -3667,6 +3670,7 @@ MEMBERS_BOUND_AS = {
     "EditError::WouldCycle": "EditError.variant",
     "EditError::DuplicateInput": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::PoseShape": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
@@ -3982,6 +3986,10 @@ MEMBERS_BOUND_AS = {
     "Subgroup::Cylindrical": "Subgroup.variant",
     "Subgroup::Prismatic": "Subgroup.variant",
     "Subgroup::Revolute": "Subgroup.variant",
+    "Subgroup::Spherical": "Subgroup.variant",
+    "Subgroup::Parallel": "Subgroup.variant",
+    "Subgroup::Translation": "Subgroup.variant",
+    "Subgroup::PlaneTranslation": "Subgroup.variant",
     "Subgroup::Trivial": "Subgroup.variant",
     "Subgroup::Empty": "Subgroup.variant",
     "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
@@ -4140,7 +4148,6 @@ MEMBERS_BOUND_AS = {
     # and each reads back through `Value.datum()`.
     "Datum::Plane": "Node.datum_plane",
     "Datum::Axis": "Node.datum_axis",
-    "Datum::AxisInPlane": "Node.datum_axis_in_plane",
     "Datum::FaceFrame": "Node.datum_face_frame",
     "Datum::Point": "Node.datum_point",
     "Datum::Frame": "Node.datum_frame",

@@ -84,13 +84,10 @@ T, ROLL = 0.125, 0.125
 
 def axis_of(doc, frame):
     """The sketch frame's own +y through its origin."""
-    return doc.insert(Node.datum_axis_in_plane(frame, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
+    return (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
 
 
 def ring(doc):
@@ -100,7 +97,7 @@ def ring(doc):
     chain, legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
     profile = doc.insert(Node.profile(chain, plane=frame))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, *axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -112,7 +109,7 @@ def frustum(doc):
     chain, legs = polygon([(0, 0), (R_BASE, 0), (R_TOP, H_F), (0, H_F)])
     profile = doc.insert(Node.profile(chain, plane=frame))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, *axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -127,7 +124,7 @@ def holed_ring(doc):
     return Scene(doc, profile, [outer_legs, hole_legs]), doc.insert(
         Node.revolve(
             profile,
-            axis_of(doc, frame),
+            *axis_of(doc, frame),
             Formula.angle_in(2 * math.pi, rad),
         )
     )

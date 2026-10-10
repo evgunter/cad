@@ -936,7 +936,9 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
-                    d::VarDef::Output { .. } | d::VarDef::Select(_) => held.kind().dimension(),
+                    d::VarDef::Output { .. } | d::VarDef::Select(_) | d::VarDef::Pose(_) => {
+                        held.kind().dimension()
+                    }
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1558,7 +1560,7 @@ impl Doc {
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
-        Node::place_in_world(py, body, pose.clone())?;
+        Node::place_in_world(py, body.clone(), pose.clone())?;
         self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
             .map_err(|err| edit_err(py, &err))
     }
@@ -2594,7 +2596,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
-                profiles: profiles.iter().map(|p| p.read()).collect(),
+                profiles: profiles.into_iter().map(OperandArg::read).collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
         })
@@ -3135,7 +3137,7 @@ impl Node {
     fn union(members: Vec<OperandArg>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Union {
-                members: members.iter().map(|m| m.read()).collect(),
+                members: members.into_iter().map(OperandArg::read).collect(),
                 declare: declared_pairs(declare),
             },
         })
@@ -4209,7 +4211,7 @@ impl DocEdit {
         Self {
             inner: d::DocEdit::SetMembers {
                 node: node.0,
-                members: members.iter().map(|m| m.read()).collect(),
+                members: members.into_iter().map(OperandArg::read).collect(),
             },
         }
     }

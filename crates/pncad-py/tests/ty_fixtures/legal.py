@@ -88,6 +88,7 @@ from pncad import (
     NamePat,
     MeridianEnd,
     Node,
+    PoseDef,
     NodeId,
     NodePick,
     NodePickError,
@@ -227,18 +228,14 @@ offset_node: NodeId = doc.sketch_frame(plane=offset_frame)
 sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_node)), Formula.length_in(4, m)))
 
 # A revolve's axis is written IN the frame it turns, in that frame's
-# own two coordinates — so `datum_axis_in_plane`, never `datum_axis`.
+# own two coordinates: an origin pair of lengths and a bare direction
+# pair, on the node itself.
 turned_frame: NodeId = doc.sketch_frame()
 turned: NodeId = doc.insert(
     Node.revolve(
         doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
-        doc.insert(Node.datum_axis_in_plane(turned_frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        ))),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
         Formula.angle_in(360, deg),
     )
 )
@@ -276,27 +273,23 @@ leaning: NodeId = doc.insert(
 )
 
 # A datum read back. `origin` is a POSITION and carries `Length`s;
-# `direction` and `axes` are dimensionless and are bare. `in_plane` is
-# the one that is BOTH — its first pair is a position and carries
-# `Length`s like every other position on this class, its second is a
-# direction and is bare.
+# `direction` and `axes` are dimensionless and are bare.
 # Exercised here because the name-for-name check in `test_stubs.py`
 # compares NAMES and hands SIGNATURES to `ty`: a property this file
 # never mentions is a property neither of them reads.
 turned_axis: Datum = evaluate(doc).value(
-    doc.insert(Node.datum_axis_in_plane(turned_frame, (
+    doc.insert(Node.datum_axis((
+        Formula.length_in(0, m),
         Formula.length_in(0, m),
         Formula.length_in(0, m),
     ), (
         Formula.literal(0.0),
         Formula.literal(1.0),
+        Formula.literal(0.0),
     )))
 ).datum()
 axis_kind: str = turned_axis.kind
 axis_at: tuple[Length, Length, Length] = turned_axis.origin
-axis_written_in_plane: tuple[tuple[Length, Length], tuple[float, float]] | None = (
-    turned_axis.in_plane
-)
 
 # A three-section loft: the sections are NodeIds in skin order, the
 # v-degree a plain int (a Count, structurally), and each section's
@@ -386,6 +379,27 @@ cutter: NodeId = doc.insert(Node.datum_plane((
     Formula.literal(1.0),
 )))
 halves = evaluate(doc).value(doc.insert(Node.split(plate_with_holes, cutter))).split()
+
+# A pose defined at the seat that reads it (D10): a face read as its
+# plane, moved along its outward normal, and a frame projected to its
+# plane. Every constructor answers a `PoseDef`, and an operand takes one.
+_plate_face: str = evaluate(doc).all_faces(plate)[0]
+face_plane: PoseDef = PoseDef.plane(plate, _plate_face)
+inset: PoseDef = PoseDef.standoff(face_plane, Formula.length_in(-0.01, m))
+flipped: PoseDef = PoseDef.flip(inset)
+framed: PoseDef = PoseDef.in_frame(
+    authored_frame,
+    origin=(0 * m, 0 * m, 0.5 * m),
+    u=(1.0, 0.0, 0.0),
+    v=(0.0, 1.0, 0.0),
+)
+projected: PoseDef = PoseDef.project(framed, "plane")
+crossing: PoseDef = PoseDef.meet(face_plane, projected)
+through_edge: PoseDef = PoseDef.through(
+    PoseDef.axis(plate, evaluate(doc).all_edges(plate)[0]),
+    PoseDef.point(plate, evaluate(doc).all_vertices(plate)[0]),
+)
+pose_cut: NodeId = doc.insert(Node.split(plate, inset))
 
 # A rigid placement: rotate about an axis through the world origin,
 # then translate.
@@ -1059,15 +1073,8 @@ _names_profile: NodeId = _names_doc.insert(
 _revolved: NodeId = _names_doc.insert(
     Node.revolve(
         _names_profile,
-        _names_doc.insert(
-            Node.datum_axis_in_plane(_names_frame, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        ),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
         Formula.angle_in(360, deg),
     )
 )
@@ -1095,7 +1102,7 @@ _hollowed: NodeId = _names_doc.insert(
 # the slot's own dimension — written, or bare in its canonical unit.
 q9_solid: NodeId = plate
 Node.extrude(q9_solid, 1 * m)
-Node.revolve(q9_solid, q9_solid, 90 * deg)
+Node.revolve(q9_solid, (0 * m, 0 * m), (0.0, 1), 90 * deg)
 Node.fillet(q9_solid, 1 * mm, [])
 Node.loft([], 2)
 DocEdit.set_param(q9_solid, "distance", 1 * m)

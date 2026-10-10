@@ -3615,6 +3615,26 @@ pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartRea
     )
 }
 
+/// **A pose variable bound against an evaluation**, as a reader at
+/// `slot` binds it ([`wire::pose`]): a definition at the evaluation's
+/// lane scalar from the results it reads, an operation's output from
+/// that operation's value. Pose values are bound at their readers and
+/// held nowhere, so this is how a test reads one without a reader.
+///
+/// # Errors
+///
+/// The refusal the reader at `slot` would carry.
+#[doc(hidden)]
+pub fn bound_pose<T: EvalScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    wire::pose::eval_pose(doc, &ev.nodes, slot, var, &ev.env, tol)
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.

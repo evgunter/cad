@@ -158,14 +158,11 @@ class TestChute(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        chute = doc.insert(Node.revolve(profile, axis, Formula.angle_in(270, deg)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
         expected = (1287.0 / 2048.0) * math.pi
         self.assertAlmostEqual(volume_of(doc, chute), expected, delta=1e-12)
@@ -552,20 +549,18 @@ class TestPlateParam(unittest.TestCase):
 
 
 def y_axis(doc, plane):
-    """The sketch's own +y through its origin, as a revolve axis.
+    """The sketch's own +y through its origin, as a revolve's axis: the
+    `(axis_origin, axis_direction)` pair a revolve writes in its
+    profile's frame, splatted into `Node.revolve`.
 
-    It used to be the WORLD y axis, and a revolve checked that the axis
-    lay in the profile's plane. An axis written in the frame cannot
-    leave it, so `plane` is which frame — and the four numbers below
-    are that frame's coordinates, not the world's.
+    An axis written in the profile's frame cannot leave its plane, so
+    the four numbers below are that frame's coordinates, not the
+    world's; `doc` and `plane` are kept for the callers' shape.
     """
-    return doc.insert(Node.datum_axis_in_plane(plane, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
+    return (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
 
 
 class TestBracket(unittest.TestCase):
@@ -676,7 +671,7 @@ class TestVase(unittest.TestCase):
         vase = doc.insert(
             Node.revolve(
                 doc.insert(Node.profile(outline, plane=frame)),
-                y_axis(doc, frame),
+                *y_axis(doc, frame),
                 Formula.angle_in(360, deg),
             )
         )
@@ -713,7 +708,7 @@ class TestSheave(unittest.TestCase):
         sheave = doc.insert(
             Node.revolve(
                 doc.insert(Node.profile(outline, plane=frame)),
-                y_axis(doc, frame),
+                *y_axis(doc, frame),
                 Formula.angle_in(360, deg),
             )
         )
@@ -795,7 +790,7 @@ class TestSnowman(unittest.TestCase):
             .line_to(Start)
         )
         profile = doc.insert(Node.profile(semicircle, plane=frame))
-        return doc.insert(Node.revolve(profile, axis, Formula.angle_in(2 * math.pi, rad)))
+        return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def level(self, doc, y):
         return doc.insert(
@@ -1681,14 +1676,11 @@ class DieScene:
         frame = doc.sketch_frame(plane=plane)
         sketch = doc.insert(Node.profile(half, plane=frame))
         # The axis in the sketch's own coordinates: the frame's v IS world +z, so the pole axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(sketch, axis, Formula.angle_in(2.0 * math.pi, rad)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(sketch, *axis, Formula.angle_in(2.0 * math.pi, rad)))
 
     def pipped_die(self, doc):
         """The pipped cube: cube ∖ (21 fused balls), one subtract."""
@@ -2397,14 +2389,11 @@ class TestHollowring(unittest.TestCase):
             )
         )
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(profile, axis, Formula.angle_in(360, deg)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(360, deg)))
 
     def test_hollowring_matches_the_torus_closed_forms(self):
         doc = Doc()
@@ -2536,14 +2525,11 @@ class TestKlein(unittest.TestCase):
         frame = doc.sketch_frame(plane=bulb_plane)
         band = doc.insert(Node.profile(self.band(md), plane=frame))
         # The axis in the sketch's own coordinates: the axis is the plane's own +v — said in the plane now.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(band, axis, Formula.angle_in(2 * math.pi, rad)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(band, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def test_the_bulb_is_the_scenes_twelve_faces_four_of_them_cylinders(self):
         doc = Doc()
@@ -2614,14 +2600,11 @@ class TestBudfillet(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(Node.profile(meridian, plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(profile, axis, Formula.angle_in(2 * math.pi, rad)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def test_three_curved_rims_roll_in_the_scenes_two_calls(self):
         doc = Doc()
@@ -2730,7 +2713,7 @@ def teapot_frame_and_axis(doc):
 def fully_revolved(doc, frame, axis, meridian):
     """One full turn of `meridian` about `axis`, drawn on `frame`."""
     profile = doc.insert(Node.profile(meridian, plane=frame))
-    return doc.insert(Node.revolve(profile, axis, Formula.angle_in(2 * math.pi, rad)))
+    return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
 
 class TestTeapot(unittest.TestCase):
@@ -3074,7 +3057,7 @@ class TestTeapot(unittest.TestCase):
 
         # ---- the vessel: one revolve, two hollows ----
         vessel = doc.insert(Node.profile(self.vessel_meridian(), plane=frame))
-        pot = doc.insert(Node.revolve(vessel, axis, Formula.angle_in(2 * math.pi, rad)))
+        pot = doc.insert(Node.revolve(vessel, *axis, Formula.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
         bands = self.in_program_order(
             doc, vessel, pot, band, self.seg_faces(ev, pot, SegTag.Band)
@@ -3099,7 +3082,7 @@ class TestTeapot(unittest.TestCase):
 
         # ---- the lid: three rims, by name ----
         lid_profile = doc.insert(Node.profile(self.lid_meridian(), plane=frame))
-        sharp = doc.insert(Node.revolve(lid_profile, axis, Formula.angle_in(2 * math.pi, rad)))
+        sharp = doc.insert(Node.revolve(lid_profile, *axis, Formula.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
         rims = self.in_program_order(doc, lid_profile, sharp, band_rim, self.rim_edges(ev, sharp))
         self.assertEqual(len(rims), 6, "an annular profile mints one rim per vertex")
@@ -3874,14 +3857,11 @@ class TestMeshCrossCheck(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        chute = doc.insert(Node.revolve(profile, axis, Formula.angle_in(270, deg)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
         body = evaluate(doc).value(chute).body()
         body.validate()
@@ -4307,7 +4287,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assertion", "boolean", "chamfer", "datum_axis",
-                "datum_axis_in_plane", "datum_face_frame",
+                "datum_face_frame",
                 "datum_frame", "datum_plane", "datum_point",
                 "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
                 "loft", "mate", "measure", "part", "pattern",

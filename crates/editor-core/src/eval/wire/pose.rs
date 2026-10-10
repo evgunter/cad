@@ -56,11 +56,28 @@ pub(crate) fn eval_pose<T: Decide>(
     env: &VarEnv<T>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
+    eval_pose_as(doc, results, slot, slot.kind(), var, env, tol)
+}
+
+/// [`eval_pose`] for a read admitting `admits`: the reader's seat's
+/// kind at the top, a read's own kind inside a definition, where the
+/// door checked it against what the definition admits there.
+fn eval_pose_as<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    slot: OperandSlot,
+    admits: crate::SlotKind,
+    var: VarId,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
     let Some(held) = doc.var(var) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let value = match held.def() {
-        VarDef::Output { node, port } => output(doc, results, slot, *node, *port, env, tol)?,
+        VarDef::Output { node, port } => {
+            output(doc, results, slot, admits, *node, *port, env, tol)?
+        }
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
         VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
@@ -76,10 +93,12 @@ pub(crate) fn eval_pose<T: Decide>(
 
 /// **An operation's pose output**: a datum's value, or a revolve's
 /// axis, the lift of its 2-D axis line through its profile's plane.
+#[allow(clippy::too_many_arguments)]
 fn output<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: OperandSlot,
+    admits: crate::SlotKind,
     node: crate::RecipeNodeId,
     port: u8,
     env: &VarEnv<T>,
@@ -87,7 +106,7 @@ fn output<T: Decide>(
 ) -> Result<PoseValue<T>, NodeErrorKind> {
     let value = value_of(results, node)?;
     match (&value.payload, doc.node(node)) {
-        (ValuePayload::Datum(pose), _) if !matches!(slot.kind(), crate::SlotKind::Is(kind) if kind != pose.kind()) => {
+        (ValuePayload::Datum(pose), _) if !matches!(admits, crate::SlotKind::Is(kind) if kind != pose.kind()) => {
             Ok(pose.clone())
         }
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
@@ -111,7 +130,7 @@ fn output<T: Decide>(
         // it: the datum the seat asks for, in the operand door's words.
         _ => {
             use super::super::phrase;
-            let expected = match slot.kind() {
+            let expected = match admits {
                 crate::SlotKind::Is(K::Axis) => phrase::DATUM_AXIS,
                 crate::SlotKind::Is(K::Plane) => phrase::DATUM_PLANE,
                 crate::SlotKind::Is(K::Frame) => phrase::DATUM_FRAME,
@@ -131,7 +150,12 @@ fn definition<T: Decide>(
     env: &VarEnv<T>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
-    let pose = |var: VarId| eval_pose(doc, results, slot, var, env, tol);
+    // A read inside the definition admits its own kind: the door checked
+    // it against what the definition reads there.
+    let pose = |var: VarId| {
+        let admits = crate::SlotKind::Is(doc.var(var).map_or(K::Scalar, crate::Var::kind));
+        eval_pose_as(doc, results, slot, admits, var, env, tol)
+    };
     let scalar = |var: VarId, dim| {
         eval_var(var, dim, env).map_err(|source| NodeErrorKind::PoseScalar { var, source })
     };

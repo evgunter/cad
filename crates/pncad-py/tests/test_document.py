@@ -1257,48 +1257,34 @@ class TestSketchPlaneFrame(unittest.TestCase):
 
 
 class TestDatumReadback(unittest.TestCase):
-    """What a datum's numbers cross AS. A position carries `Length`
-    whichever frame it is written in; a direction is dimensionless and
-    crosses bare. `Datum.in_plane` is the field that holds both, so it
-    is where the rule is visible in one value."""
+    """What a datum's numbers cross AS. A position carries `Length`; a
+    direction is dimensionless and crosses bare. An axis holds both, so
+    it is where the rule is visible in one value."""
 
     def axis(self, x, y):
         doc = Doc()
-        frame = doc.sketch_frame()
-        node = doc.insert(Node.datum_axis_in_plane(frame, (
+        node = doc.insert(Node.datum_axis((
             Formula.literal(x),
             Formula.literal(y),
+            Formula.length_in(0, m),
         ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         return evaluate(doc).value(node).datum()
 
-    def test_the_in_plane_origin_reads_back_as_the_length_pair_it_was_written_as(self):
-        """The write door takes `tuple[Length, Length]`; the read door
-        answers the same. A frame-local coordinate changes the datum a
-        position is measured from, not its dimension — so what goes in
-        comes back out, equal and still typed."""
+    def test_the_origin_reads_back_as_the_lengths_it_was_written_as(self):
+        """The write door takes `Length`s; the read door answers the
+        same — so what goes in comes back out, equal and still typed."""
         datum = self.axis(0.25 * m, 0.5 * m)
-        origin, direction = datum.in_plane
-        self.assertIsInstance(origin[0], Length)
-        self.assertIsInstance(origin[1], Length)
-        self.assertEqual(origin, (0.25 * m, 0.5 * m))
-        # The second pair is a DIRECTION: dimensionless, and bare.
-        self.assertEqual(direction, (0.0, 1.0))
-        self.assertNotIsInstance(direction[0], Length)
-
-    def test_the_world_origin_of_the_same_axis_is_dimensioned_too(self):
-        """The sibling field, so the class is read as one convention
-        rather than two: both origins are positions and both carry
-        `Length`."""
-        datum = self.axis(0.25 * m, 0.5 * m)
-        self.assertEqual(datum.kind, "axis_in_plane")
+        self.assertEqual(datum.kind, "axis")
         for coordinate in datum.origin:
             self.assertIsInstance(coordinate, Length)
-        # The sketch frame is the world xy plane, so the two spellings
-        # of the same point agree coordinate for coordinate.
         self.assertEqual(datum.origin, (0.25 * m, 0.5 * m, 0 * m))
+        # The second triple is a DIRECTION: dimensionless, and bare.
+        self.assertEqual(datum.direction, (0.0, 1.0, 0.0))
+        self.assertNotIsInstance(datum.direction[0], Length)
 
 
 class TestDatumPointAndFrame(unittest.TestCase):
@@ -1324,7 +1310,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         # standing in for a direction a point does not have.
         self.assertIsNone(datum.direction)
         self.assertIsNone(datum.axes)
-        self.assertIsNone(datum.in_plane)
 
     def test_a_selection_measures_its_distance_to_a_point(self):
         """The downstream door: `GeomPred.datum_distance` is UNSIGNED
@@ -1369,7 +1354,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         datum = evaluate(doc).value(frame).datum()
         self.assertEqual(datum.kind, "frame")
         self.assertEqual(datum.origin, (0 * m, 0 * m, 1 * m))
-        self.assertIsNone(datum.in_plane)
         u, v = datum.axes
         # An axis is a DIRECTION: dimensionless, and bare.
         self.assertNotIsInstance(u[0], Length)
@@ -1518,16 +1502,12 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame, x0)
-        axis = doc.insert(
-            Node.datum_axis_in_plane(frame, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        )
-        node = doc.insert(Node.revolve(profile, axis, Formula.literal(angle)))
+        node = doc.insert(Node.revolve(
+            profile,
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.literal(angle),
+        ))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node)
         return caught.exception

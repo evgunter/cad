@@ -42,12 +42,12 @@
     },
     "die_composed": {
       "about": "M6 unit 1: the pipped cube filleted in place \u2014 box blends, octants, and the pip-rim torus band in one body",
-      "nodes": 11,
+      "nodes": 10,
       "cone": 4
     },
     "die_composed_tour": {
       "about": "the demo tour's die: 21 pips fused by one n-ary union and cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind member-keyed names",
-      "nodes": 34,
+      "nodes": 33,
       "cone": 6
     },
     "die_fillet": {
@@ -62,12 +62,12 @@
     },
     "die_pips": {
       "about": "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
-      "nodes": 10,
+      "nodes": 9,
       "cone": 3
     },
     "die_tool": {
       "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
-      "nodes": 10,
+      "nodes": 9,
       "cone": 3
     },
     "face_sketch": {

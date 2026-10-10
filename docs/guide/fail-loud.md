@@ -400,14 +400,11 @@ def revolved(x0, angle):
         .line_to((x0 * m, 1 * m))
         .line_to(Start)
     )
-    axis = doc.insert(Node.datum_axis_in_plane(frame, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
-    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, Formula.literal(angle)))
+    axis = (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), *axis, Formula.literal(angle)))
     try:
         evaluate(doc).value(node)
         raise AssertionError("expected a typed refusal")
