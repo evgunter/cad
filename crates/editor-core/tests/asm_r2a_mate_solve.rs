@@ -1608,7 +1608,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: a.into(),
+                a,
                 b: crate::fixture::head(bogus.clone()).into(),
                 class,
                 alignment,

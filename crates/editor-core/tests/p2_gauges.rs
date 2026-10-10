@@ -1328,8 +1328,8 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: a.into(),
-                b: b.into(),
+                a,
+                b,
                 class,
                 alignment,
             }),

@@ -73,8 +73,8 @@ fn authored_a(node: AuthoredNode) -> AuthoredNode {
     )
     .expect("a definite frame");
     Node::Mate {
-        a: a.into(),
-        b: b.into(),
+        a,
+        b,
         class,
         alignment,
     }

@@ -984,8 +984,8 @@ pub fn insert_mate_with_stranded_head(
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: a.into(),
-            b: b.into(),
+            a,
+            b,
             class,
             alignment,
         },

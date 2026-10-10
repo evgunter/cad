@@ -25,7 +25,7 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
     Frame, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, Node,
     NodeErrorKind, NodeResult, PartFault, PartReach, ProfileDoc, ReachRefusal, RecipeNodeId,
-    ResolveFault, SplitError, content_pin, mate_reach, product, split,
+    ResolveFault, SplitError, ValuePayload, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -772,11 +772,24 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
         ),
         Verdict::Parallel | Verdict::Indeterminate => {
             // The band did not separate the two scales at this ε, so
-            // the solve's answer did not move and neither does the
-            // key: the mate's key follows the VERDICT, not the part's
-            // bytes, which is exactly the claim.
-            let key_large = second.value(mate).map(|v| v.content_key);
-            assert_eq!(Some(key_small), key_large, "no flip, no key move");
+            // the solve's answer did not move. The key does: a mate's
+            // key is its reads' upstream keys (D10), and its sides read
+            // faces of the re-pinned instances, so the memo cannot
+            // serve the old entry — it re-runs and answers the same.
+            let large = second.value(mate).expect("the large part's mate evaluates");
+            assert_ne!(
+                key_small, large.content_key,
+                "the mate reads the re-pinned parts"
+            );
+            let role = |payload: &ValuePayload<f64>| match payload {
+                ValuePayload::Mate(role) => *role,
+                other => panic!("a mate evaluates to its role, got {other:?}"),
+            };
+            assert_eq!(
+                first.value(mate).map(|v| role(&v.payload)),
+                Some(role(&large.payload)),
+                "no flip, the same answer"
+            );
         }
     }
 }

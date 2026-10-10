@@ -1981,8 +1981,8 @@ fn escalation<T: geom_core::Decide>(
 /// or the member whose checked offset it was faults `OffsetUnchecked`
 /// with the same cause — over an enclosure (never a poisoned margin),
 /// under a predicate the table names for this document at this ε; the
-/// escalation is on a mate's own log, and what the fault reaches fails
-/// with it; everything else reads as at `f64`. A document the table
+/// escalation is on a mate's own log, or a mate is poisoned through the
+/// member it faulted, and what the fault reaches fails with it; everything else reads as at `f64`. A document the table
 /// names escalates.
 fn assert_interval_structure(
     doc: &ProfileDoc,
@@ -2036,9 +2036,17 @@ fn assert_interval_structure(
         "{label}: at ε = {eps:e} the corpus's escalations list {allowed:?}, and Interval \
          escalated at {moved:?}"
     );
+    // A mate reading a member whose offset check escalated is poisoned
+    // through it (D10: reading is the dependency), and its log goes
+    // with it; the escalation is then the member's own fault, checked
+    // above.
+    let mate_poisoned_through_moved = doc.ids().iter().any(|&id| {
+        matches!(doc.node(id), Some(Node::Mate { .. }))
+            && matches!(i.result(id), Some(NodeResult::Poisoned { through }) if moved.contains(through))
+    });
     if !moved.is_empty() {
         assert!(
-            mate_log_escalated,
+            mate_log_escalated || mate_poisoned_through_moved,
             "{label}: Interval escalated at {moved:?} with no escalation on a mate's log"
         );
     }
