@@ -9,6 +9,11 @@
 //! when `D` is small. That ellipse is the rim's section; the apex point
 //! is not, and the door must not read it as a plane that no longer
 //! meets its neighbour.
+//!
+//! A plane through the apex holding two generators, moved into the band
+//! of it, cuts a hyperbola instead, whose branches start `|δ|/D` from
+//! the apex. On a needle that is past the band, and the door must not
+//! keep the generator through the apex as the section there.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -139,5 +144,100 @@ fn a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts() {
             matches!(plan, Ok(None)),
             "{edge:?}: the moved plane's ellipse is the rim's section, got {plan:?}"
         );
+    }
+}
+
+/// A quarter wedge of the cone of half-angle `atan(1/64)` with its apex
+/// at the origin and axis `+y`, from the apex to `y = 3/8`: its two caps
+/// are planes containing the axis, each meeting the wall along a
+/// generator from the apex vertex.
+fn needle_wedge() -> Body<f64> {
+    let t = 1.0 / 64.0;
+    let meridian = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(0.375 * t, 0.375),
+        Point2::new(0.0, 0.375),
+    ]);
+    revolve(
+        &validated(vec![meridian]),
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    )
+    .expect("the meridian revolves")
+    .body
+}
+
+/// **A cap moved off a needle's apex does not keep the generator its
+/// plane no longer holds.** A cap of [`needle_wedge`] moved by `±0.9·ε`
+/// stands in the zero band of the apex, and its plane cuts the wall in
+/// a hyperbola whose branches start `0.9·ε/D` (`D = sin α ≈ 1/64`, so
+/// `≈ 58·ε`) from the apex, past the band. The cap's wall edge runs from
+/// the apex vertex, so the line pair through the apex is not its
+/// section there: the edge refuses typed, naming the hyperbola (R1),
+/// where the door had planned the old generator. The cap's other edges,
+/// against planes, plan.
+#[test]
+fn a_cap_moved_off_a_needle_apex_refuses_the_hyperbola() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    let body = needle_wedge();
+    let Some(Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    }) = body
+        .faces()
+        .map(|(f, _)| surface_of(&body, f))
+        .find(|s| matches!(s, Surface::Cone { .. }))
+    else {
+        panic!("the wedge's wall is a cone");
+    };
+    let caps: Vec<FaceKey> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| {
+            matches!(surface_of(&body, f), Surface::Plane { normal, .. } if normal.y.abs() < 0.5)
+        })
+        .collect();
+    assert_eq!(caps.len(), 2, "the wedge has two caps");
+    for face in caps {
+        let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
+            unreachable!("a cap is a plane")
+        };
+        for d in [0.9 * eps, -0.9 * eps] {
+            let moved_gap = (apex - (origin + normal * d)).dot(normal);
+            let discr = half_angle.sin() * axis.cross(normal).norm()
+                - half_angle.cos() * axis.dot(normal).abs();
+            assert!(
+                moved_gap.abs() <= eps && moved_gap.abs() / discr > k * eps,
+                "{face:?} by {d:e}: the moved gap {moved_gap:e} is in the zero band and the \
+                 hyperbola starts {:e} off the apex, past it",
+                moved_gap.abs() / discr
+            );
+            let mut walls = 0;
+            for (edge, plan) in topo::offset_edge_plans_for_tests(&body, face, d, tol) {
+                match plan {
+                    Err(topo::ReplaceFaceError::NeighborPoseUnroutable {
+                        other_kind: geom::SurfaceKind::Cone,
+                        why,
+                        ..
+                    }) => {
+                        assert!(
+                            why.contains("HYPERBOLA"),
+                            "{face:?} by {d:e}, {edge:?}: refuses naming the hyperbola, got {why}"
+                        );
+                        walls += 1;
+                    }
+                    Ok(None) => {}
+                    other => panic!("{face:?} by {d:e}, {edge:?}: got {other:?}"),
+                }
+            }
+            assert_eq!(
+                walls, 1,
+                "{face:?} by {d:e}: the cap's one wall edge refuses"
+            );
+        }
     }
 }
