@@ -19,8 +19,8 @@
 
 ## Verdict: **APPROVE-WITH-FIXES**
 
-1 MAJOR (demonstrated by execution), 3 MINOR (2 demonstrated, 1 by
-inspection), 5 NOTE, plus the style lane (22 items).
+1 MAJOR (demonstrated by execution), 3 MINOR (1 partly demonstrated, 2 by
+inspection), 6 NOTE, plus the style lane (22 items).
 
 The MAJOR is a real defect in the new indexed-read surface (a subtract
 whose two seats read one family refuses with an emission bug where the
@@ -161,7 +161,15 @@ node ids, so a non-empty declaration would refuse spuriously or
 mis-pair. "It would catch a dropped declaration" holds only as an
 array-length check.
 
+Two survivors (M6, M7) are test gaps on claims 3 and 6: no row pins the
+same-read declared-pair skip in the pairwise judgement, and no row lifts
+a name through a subtract's seat, so a wrong read there (the shape of
+M1's defect) would ship green. Recorded as NOTE N6.
+
 ## NOTE
+
+- **N6. Mutant survivors (test gap, demonstrated by execution).** M6 and
+  M7 above survive their targeted batteries.
 
 - **N1. `IndexRank` refuses any rank but one, while DM3 writes `xs[i, j]`.**
   `node.rs:1693-1702, 3704-3716` refuse `at.len() > 1` regardless of the
@@ -242,7 +250,12 @@ array-length check.
 
 | Mutant | What it breaks | Expected red | Result |
 |---|---|---|---|
-MUTANT_TABLE
+| M1 | judgement log always spliced (`wire.rs:3262`) | m4_pr4 `PredicateFlip` row | **red**: `m4_pr4_ci::diagnosis_corpus_is_golden` (the PR's fix is pinned) |
+| M3 | `member_of` ignores which member holds the name (`emit_union.rs`) | family-read union rows | **red**: `dm3_indexed_read::a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike`, `set_members_writes_indexed_members` |
+| M6 | a same-read declared pair is judged as a cross pair (drop `if r1.at == r2.at { continue; }`, `wire.rs`) | DM5 declared-pair rows | **survives** (177 rows incl. my `r2_a_declared_pair_at_a_read_spelled_twice`): the skip is unpinned, possibly equivalent on every fixture |
+| M7 | `lift` keys a subtract's `from` survivor by the tool's read (`role.rs`) | mate/refactor rows reading `lift` | **survives** (481 rows over mate/asm/lift/inline/split/refactor): no row lifts through a subtract seat |
+| M9 | the rewriters leave a carry's read unmapped (`refactor.rs` `Remapping::read`) | split/inline/remap rows | **red**: 6 rows (`remap_reorders_ids::*`, `asm4_split_inline::inline_name_refusals_fire_typed_and_name_their_subjects`, two `refactor` unit rows) |
+| M11 | a plain read serializes in the struct form (`operand.rs`) | byte/golden rows | **red**: 17 rows incl. `a_document_of_plain_reads_saves_to_its_own_bytes`, `m4_pr6_golden::golden_bytes_are_frozen` |
 
 ## Style
 

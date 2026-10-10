@@ -14,3 +14,62 @@ applied M3 crates/editor-core/src/names/emit_union.rs
 error: test run failed
 applied M6 crates/editor-core/src/eval/wire.rs
 == M6 filter: test(/declare|decl|r2_a_declared|docm7|m4_pr5/)
+     Summary [  12.277s] 177 tests run: 177 passed, 2902 skipped
+applied M7 crates/editor-core/src/names/role.rs
+== M7 filter: test(/mate|asm|lift|inline|split|refactor/)
+     Summary [  44.389s] 481 tests run: 481 passed, 2598 skipped
+applied M9 crates/editor-core/src/refactor.rs
+== M9 filter: test(/inline|split|refactor|asm|remap/)
+        FAIL [   0.169s] ( 21/291) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_union_seam_vertex_follows_its_edge_parents_line
+        FAIL [   0.184s] ( 22/291) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_union_seam_edge_piece_swaps_its_sides_and_reorders_its_ends
+        FAIL [   0.269s] ( 86/291) editor-core::all asm4_split_inline::inline_name_refusals_fire_typed_and_name_their_subjects
+        FAIL [   0.676s] (275/291) editor-core::all remap_reorders_ids::a_pair_booleans_pieces_of_a_union_seam_follow_it_as_the_a_operand
+        FAIL [   0.841s] (278/291) editor-core::all remap_reorders_ids::a_pair_booleans_pieces_of_a_union_seam_follow_it_as_the_b_operand
+        FAIL [   3.510s] (286/291) editor-core::all remap_reorders_ids::a_second_cut_of_a_union_seams_pieces_follows_it_too
+     Summary [  24.593s] 291 tests run: 285 passed, 6 failed, 2788 skipped
+        FAIL [   0.169s] ( 21/291) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_union_seam_vertex_follows_its_edge_parents_line
+        FAIL [   0.184s] ( 22/291) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_union_seam_edge_piece_swaps_its_sides_and_reorders_its_ends
+        FAIL [   0.269s] ( 86/291) editor-core::all asm4_split_inline::inline_name_refusals_fire_typed_and_name_their_subjects
+        FAIL [   0.676s] (275/291) editor-core::all remap_reorders_ids::a_pair_booleans_pieces_of_a_union_seam_follow_it_as_the_a_operand
+        FAIL [   0.841s] (278/291) editor-core::all remap_reorders_ids::a_pair_booleans_pieces_of_a_union_seam_follow_it_as_the_b_operand
+        FAIL [   3.510s] (286/291) editor-core::all remap_reorders_ids::a_second_cut_of_a_union_seams_pieces_follows_it_too
+error: test run failed
+applied M11 crates/editor-core/src/operand.rs
+== M11 filter: test(/dm3_indexed|persist|golden|corpus_name|plain_reads/)
+        FAIL [   0.207s] (13/45) editor-core::all asm2a_instantiate::row3_instance_qualified_names_round_trip_persistence
+        FAIL [   0.206s] (14/45) editor-core::all asm4_split_inline::split_pair_round_trips_persistence_and_still_evaluates_identically
+        FAIL [   0.238s] (15/45) editor-core::all asm2b_multisolid::row3_doubly_wrapped_names_round_trip_persistence
+        FAIL [   0.228s] (17/45) editor-core::all dm3_indexed_read::a_document_of_plain_reads_saves_to_its_own_bytes
+        FAIL [   0.185s] (27/45) editor-core::all lib_tube_node::both_kinds_round_trip_through_persistence
+        FAIL [   0.213s] (28/45) editor-core::all lib_g17_shell_node::both_documents_round_trip_through_persistence
+        FAIL [   0.781s] (29/45) editor-core::all lib_g16_corpus_name_digests::every_corpus_documents_name_tables_are_golden
+        FAIL [   0.323s] (30/45) editor-core::all m4_pr4_ci::diagnosis_corpus_is_golden
+        FAIL [   0.265s] (32/45) editor-core::all m4_pr6_golden::golden_bytes_are_frozen
+        FAIL [   0.225s] (33/45) editor-core::all m4_pr6_golden::golden_bytes_load
+        FAIL [   0.245s] (37/45) editor-core::all m5_pr6_pcurve_persistence::a_round_trip_re_derives_bit_identical_caches
+        FAIL [   0.241s] (38/45) editor-core::all m5_s1_rest_declare::rest_union_persistence_round_trip
+        FAIL [   0.241s] (39/45) editor-core::all msolve1_transform_aware::a8d_a_transform_operand_round_trips_through_persistence
+        FAIL [   2.044s] (40/45) editor-core::all m4_pr3_names_ci::die_name_tables_are_golden
+        FAIL [   0.750s] (41/45) editor-core::all name_words_corpus::every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget
+        FAIL [   0.704s] (43/45) editor-core::all perf12_census_goldens::the_at_rest_census_verdicts_are_goldened_bit_exact
+        FAIL [   0.802s] (44/45) editor-core::all perf2_name_keying_differential::every_corpus_documents_name_tables_and_persisted_text_are_pinned
+     Summary [   7.315s] 45 tests run: 28 passed, 17 failed, 3034 skipped
+        FAIL [   0.207s] (13/45) editor-core::all asm2a_instantiate::row3_instance_qualified_names_round_trip_persistence
+        FAIL [   0.206s] (14/45) editor-core::all asm4_split_inline::split_pair_round_trips_persistence_and_still_evaluates_identically
+        FAIL [   0.238s] (15/45) editor-core::all asm2b_multisolid::row3_doubly_wrapped_names_round_trip_persistence
+        FAIL [   0.228s] (17/45) editor-core::all dm3_indexed_read::a_document_of_plain_reads_saves_to_its_own_bytes
+        FAIL [   0.185s] (27/45) editor-core::all lib_tube_node::both_kinds_round_trip_through_persistence
+        FAIL [   0.213s] (28/45) editor-core::all lib_g17_shell_node::both_documents_round_trip_through_persistence
+        FAIL [   0.781s] (29/45) editor-core::all lib_g16_corpus_name_digests::every_corpus_documents_name_tables_are_golden
+        FAIL [   0.323s] (30/45) editor-core::all m4_pr4_ci::diagnosis_corpus_is_golden
+        FAIL [   0.265s] (32/45) editor-core::all m4_pr6_golden::golden_bytes_are_frozen
+        FAIL [   0.225s] (33/45) editor-core::all m4_pr6_golden::golden_bytes_load
+        FAIL [   0.245s] (37/45) editor-core::all m5_pr6_pcurve_persistence::a_round_trip_re_derives_bit_identical_caches
+        FAIL [   0.241s] (38/45) editor-core::all m5_s1_rest_declare::rest_union_persistence_round_trip
+        FAIL [   0.241s] (39/45) editor-core::all msolve1_transform_aware::a8d_a_transform_operand_round_trips_through_persistence
+        FAIL [   2.044s] (40/45) editor-core::all m4_pr3_names_ci::die_name_tables_are_golden
+        FAIL [   0.750s] (41/45) editor-core::all name_words_corpus::every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget
+        FAIL [   0.704s] (43/45) editor-core::all perf12_census_goldens::the_at_rest_census_verdicts_are_goldened_bit_exact
+        FAIL [   0.802s] (44/45) editor-core::all perf2_name_keying_differential::every_corpus_documents_name_tables_and_persisted_text_are_pinned
+error: test run failed
+DONE
