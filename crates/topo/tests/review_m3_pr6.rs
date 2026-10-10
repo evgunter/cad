@@ -326,7 +326,10 @@ fn r2_flush_stack_full_overlap() {
             ..
         } = e
         {
-            contacts.vv.push(topo::VvContact { a: *a, b: *b });
+            contacts.vv.push(topo::Cited::new(
+                topo::VvContact { a: *a, b: *b },
+                topo::Cites::decided(0),
+            ));
         }
     }
     assert_eq!(contacts.vv.len(), 4, "expected the 4 corner kisses");
@@ -601,7 +604,7 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
         .map(|(k, _)| k)
         .find(|&k| k != right)
         .unwrap();
-    rec.face = wrong;
+    rec.record.face = wrong;
     let errors = validate_pseudomanifold(&r.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors

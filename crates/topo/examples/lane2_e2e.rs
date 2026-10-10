@@ -28,10 +28,13 @@ fn main() {
     // --- f64: the straddle seat with its declared patch pair ---
     let seat = topo::test_support::straddle_seat(tol);
     let mut records = ContactRecords::default();
-    records.patches.push(PatchContact {
-        face_a: seat.post_top,
-        face_b: seat.shelf_bottom,
-    });
+    records.patches.push(topo::Cited::new(
+        PatchContact {
+            face_a: seat.post_top,
+            face_b: seat.shelf_bottom,
+        },
+        topo::Cites::decided(0),
+    ));
 
     render(
         "f64 validate_pseudomanifold (declared)",
@@ -62,10 +65,13 @@ fn main() {
     let mut dual = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body).unwrap();
     let mut drecords = ContactRecords::default();
-    drecords.patches.push(PatchContact {
-        face_a: post.top_face,
-        face_b: keys.face(shelf.bottom_face).unwrap(),
-    });
+    drecords.patches.push(topo::Cited::new(
+        PatchContact {
+            face_a: post.top_face,
+            face_b: keys.face(shelf.bottom_face).unwrap(),
+        },
+        topo::Cites::decided(0),
+    ));
     render(
         "Dual64 validate_pseudomanifold_structural (declared)",
         topo::validate_pseudomanifold_structural(&dual, &drecords, tol),

@@ -101,7 +101,7 @@ pub fn contact_pair_verdict<T: Decide>(
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
     match class {
-        ContactClass::Rest => rest_pair_verdict(a, fa, b, fb, band),
+        ContactClass::Rest => rest_pair_reading(a, fa, b, fb, band).map(|(verdict, _)| verdict),
         ContactClass::Tangent => {
             let Some((carrier, t0, t1)) = witness else {
                 return Err(ContactRefusal::NotCertifiable {
@@ -138,15 +138,15 @@ pub(super) fn fit_steer(fact: Contradiction) -> Option<&'static str> {
 /// THIS door's job, because `SameOriented` is a legitimate and
 /// exercised answer at the classification/merge site (flush walls),
 /// and only a claim of CONTACT makes it a lie.
-fn rest_pair_verdict<T: Decide>(
+pub(crate) fn rest_pair_reading<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<ContactVerdict, ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
     let outcome =
-        super::carrier_pair::carrier_pair_verdict(a, fa, b, fb, true, band).map_err(|unread| {
+        super::carrier_pair::carrier_pair_reading(a, fa, b, fb, true, band).map_err(|unread| {
             ContactRefusal::NotCertifiable {
                 what: match unread {
                     super::carrier_pair::PairUnread::OutsideInventory => {
@@ -161,8 +161,13 @@ fn rest_pair_verdict<T: Decide>(
             }
         })?;
     match outcome {
-        Ok((CarrierRelation::SameOpposite, verdict)) => Ok(verdict),
-        Ok((CarrierRelation::SameOriented, _)) => Err(ContactRefusal::Contradicted {
+        Ok((CarrierRelation::SameOpposite, verdict, Some(margin))) => Ok((verdict, margin)),
+        // A one-carrier reading carries the margin that decided it
+        // (`CarrierReading`): only `Distinct` reads none.
+        Ok((CarrierRelation::SameOpposite, _, None)) => {
+            unreachable!("a carrier reading decided one carrier, opposed, and carries no margin")
+        }
+        Ok((CarrierRelation::SameOriented, ..)) => Err(ContactRefusal::Contradicted {
             diag: Indeterminate {
                 margin: geom_core::MarginDiag::INVALID,
                 band,
@@ -175,7 +180,7 @@ fn rest_pair_verdict<T: Decide>(
         // it `Distinct`, and a declared pair never reaches the
         // undeclared posture's undecided coincidence; either here would
         // be the ladder breaking its own contract.
-        Ok((CarrierRelation::Distinct, _)) | Err(CarrierEqError::Undecided { .. }) => {
+        Ok((CarrierRelation::Distinct, ..)) | Err(CarrierEqError::Undecided { .. }) => {
             Err(ContactRefusal::Escalated {
                 diag: Indeterminate {
                     margin: geom_core::MarginDiag::INVALID,

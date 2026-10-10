@@ -669,9 +669,9 @@ pub enum SsiError {
         /// What is missing, in the caller's terms.
         what: &'static str,
     },
-    /// A NURBS wall's boundary row would not re-wrap as a curve: its
-    /// control net disagrees with its knot vectors. Unreachable for a
-    /// wall that validated, and surfaced with the spline layer's own
+    /// A NURBS wall's boundary row would not re-wrap as a curve: a
+    /// weight on it is not positive and finite. Unreachable for a wall
+    /// that validated, and surfaced with the spline layer's own
     /// refusal rather than swallowed (D4 ¶2).
     ChartRow {
         /// The spline layer's typed refusal.

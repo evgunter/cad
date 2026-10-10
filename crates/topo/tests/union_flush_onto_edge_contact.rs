@@ -120,10 +120,8 @@ fn carried_records_certify_every_order_of_the_fold() {
 /// `(vertex, edge)` and edge-edge rows a join leaves.
 fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
     topo::CarriedContacts {
-        vv: rest_rows(records),
-        ve: records.ve.clone(),
-        ee: records.ee.clone(),
-        ..topo::CarriedContacts::default()
+        vf: Vec::new(),
+        ..records.carried(ContactClass::Rest)
     }
 }
 
@@ -235,14 +233,7 @@ fn quarter_pinch(
 }
 
 fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedVv> {
-    records
-        .vv
-        .iter()
-        .map(|&pair| CarriedVv {
-            pair,
-            class: ContactClass::Rest,
-        })
-        .collect()
+    records.carried(ContactClass::Rest).vv
 }
 
 /// The unit-radius wedge from `d0` to `d1` degrees (counterclockwise,
