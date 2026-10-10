@@ -1403,3 +1403,4 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-10 — Dispatched `a-certified-bound-refusal-reads-as-a-stored-contradiction` (`encl/bound-kind`).
 - 2026-10-10 — PR 4497 (topo poisoned endings) merged at `4c7fb9b0fc`; row closed. Seam notes are posted on restfront, cleave, restread, chart, inside, hone and pred.
 - 2026-10-10 — `[ev]` PR 4498 merged at `81e179dcf0`: Ev approved retiring `ssi_foot_orthogonality` ("nice catch, sounds good!"). C2 limb 1 is reworded, and fork-log row 104 is filled in (renumbered from 103 after a concurrent row). The code retirement is `foot-orthogonality-limb-is-retired-in-the-code`, to dispatch after bound-kind lands.
+- 2026-10-10 — PR 4504 (bound kind) merged. Closed `a-certified-bound-refusal-reads-as-a-stored-contradiction` and its parent `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door`. Seam notes are posted on restfront, the ssi programs, iso, pcert, fuse, topo, tally and exch.
