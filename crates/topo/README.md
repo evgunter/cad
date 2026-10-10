@@ -52,9 +52,8 @@ operands. Three objects carry the design:
 - a **decision** (`Coincidence`, `crate::coincidence`) is a
   coincidence an operation decided from values: which two of its
   inputs' cells, what relation, where, and the margin read;
-- a **record** (`ContactRecords`: `VvContact`, `VeContact`,
-  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is a touch
-  a result body carries, citing the decisions that back it (`Cites`):
+- a **record** (`ContactRecords`, one list of unordered pairs of the
+  body's cells) is a touch a result body carries, citing the decisions that back it (`Cites`):
   rows of the producing operation's own coincidences
   (`Backing::Decided`), or a record of an input it carries in
   (`Backing::Carried`, which cites its own). A record cannot be built
@@ -141,13 +140,20 @@ the reduction decided (`DecisionSite::VertexFusion`), and a pair a
 chain of such identities implies cites every one on each shortest
 chain.
 
-- `CurveContact { face_a, face_b, witness }` is a certified curve touch:
-  the jet schedule along the witness edge's carrier (coincidence within
-  ε, normal opposition within ε·κ_rel, κ_rel definitely positive, hull
-  bounds between samples). Its endpoints are bounded by vertex records or
-  the locus's closure; an unbacked bound is `UndeclaredContact`.
-- `PatchContact { face_a, face_b }` is a certified conformal patch,
-  backed by a `SameOpposite` decision (for a mate's patch, the at-rest
+A record's kind is its two cells' dimensions; the face-level kinds
+are edge–face and face–face pairs, and the census reads which touch a
+pair is from the two cells' carriers:
+
+- A **curve touch** is certified by the jet schedule along its locus
+  (coincidence within ε, normal opposition within ε·κ_rel, κ_rel
+  definitely positive, hull bounds between samples). For an edge–face
+  pair the locus is the edge's carrier; for a face–face pair on two
+  carriers the census derives it from the carriers, on the closed-form
+  lane the deciding operation used, and refuses typed where no such lane
+  exists. Its endpoints are bounded by vertex records or the locus's
+  closure; an unbacked bound is `UndeclaredContact`.
+- A **patch** is a face–face pair on one carrier, backed by a
+  `SameOpposite` decision (for a mate's patch, the at-rest
   census's `CensusAtRest` row; the mate places and never checks):
   carrier identity by the carrier ladder (a margin
   decided Zero, or a declaration bridging one in band), senses opposed
@@ -407,7 +413,7 @@ cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
 **Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a `PatchContact`. Findings attribute to mates as Declined, Unattributed
+a face–face record (a patch). Findings attribute to mates as Declined, Unattributed
 or Refuted (`StaleContactDeclaration`); all-Declined is the `Uncertified`
 frontier, and any Unattributed is a hard `AtRest` error
 (`crates/editor-core/ASSEMBLY.md`).
