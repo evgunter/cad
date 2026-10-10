@@ -174,14 +174,39 @@ pub(crate) fn every_member_edge_lies_on_its_source(
                     );
                 }
             }
-            Some(RoleSeg::Seam { .. }) if name.kind == EntityKind::Edge => {
-                // A seam runs along no member edge: an edge that does is
-                // named for the member edges it lies along, never as a
-                // seam, so a joined edge part seam and part member edge
-                // would show up here.
+            Some(RoleSeg::Seam { a, b }) if name.kind == EntityKind::Edge => {
+                // A seam runs along no member edge between two member
+                // faces it lies between: an edge that does is named for
+                // the member edges it lies along, never as a seam, so a
+                // joined edge part seam and part member edge would show
+                // up here. A member edge whose faces the seam does not
+                // lie between (another member's wall resting on it) is
+                // no parent of the seam, and the seam may run along it.
+                let sides: Vec<_> = cited_faces(doc, a)
+                    .into_iter()
+                    .chain(cited_faces(doc, b))
+                    .collect();
                 for &m in members {
                     let mb = body_of(ev, m);
+                    let face_name = |f| {
+                        table(ev, m).iter().find_map(|(n, e)| match e {
+                            editor_core::Entry::Unique(x)
+                                if x.key == editor_core::EntityKey::Face(f) =>
+                            {
+                                Some(n.clone())
+                            }
+                            _ => None,
+                        })
+                    };
                     for (_, me) in mb.edges() {
+                        let parents = [me.he_plus, me.he_minus].map(|he| {
+                            mb.face_of_half_edge(he)
+                                .and_then(face_name)
+                                .is_some_and(|f| sides.contains(&(m, f)))
+                        });
+                        if parents != [true, true] {
+                            continue;
+                        }
                         let (q0, q1) = (point(mb, me.he_plus), point(mb, me.he_minus));
                         let (o0, s0) = place(q0, (ends[0], ends[1]));
                         let (o1, s1) = place(q1, (ends[0], ends[1]));
@@ -195,6 +220,19 @@ pub(crate) fn every_member_edge_lies_on_its_source(
             }
             _ => {}
         }
+    }
+}
+
+/// The member faces a seam side cites: its one member face, or each
+/// of a merged set's.
+fn cited_faces(doc: &ProfileDoc, side: &StableName) -> Vec<(RecipeNodeId, StableName)> {
+    match side.path.as_slice() {
+        [RoleSeg::From { read, of }] => vec![(
+            doc.operation_of(*read).expect("a member read is live"),
+            (**of).clone(),
+        )],
+        [RoleSeg::Merged(set)] => set.iter().flat_map(|c| cited_faces(doc, c)).collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -294,10 +332,36 @@ pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
     docs
 }
 
+/// The emitter's two open residues the probe corpus reaches, by the
+/// cases that reach them, now that a flush contact the test leaves
+/// undeclared glues:
+/// - `row` and `rowids`, where `a` and `h` (their x = 1 walls glued)
+///   fold before `b` joins across them, reach the unenumerated
+///   seam-vertex residue
+///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`);
+/// - `cross` reaches the held-edge residue of a face held as several
+///   borders
+///   (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+const RESIDUES: [(&str, &str); 3] = [
+    (
+        "row",
+        "seam vertex parentage underdetermined from incident edges",
+    ),
+    (
+        "rowids",
+        "seam vertex parentage underdetermined from incident edges",
+    ),
+    (
+        "cross",
+        "a piece of a face held as several borders no recorded discard between them",
+    ),
+];
+
 #[test]
 fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
     let docs = probe_corpus();
     let mut fused = 0;
+    let mut residue = Vec::new();
     for (label, blocks, creation) in docs {
         let (doc, ids) = document(&blocks, &creation);
         for order in permutations(&(0..blocks.len()).collect::<Vec<_>>()) {
@@ -309,6 +373,11 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             );
             let ev = run(&docx);
             match failure(&ev, union) {
+                Some(NodeErrorKind::Naming(NamingError::Emission { what }))
+                    if RESIDUES.contains(&(&*label, *what)) =>
+                {
+                    residue.push(format!("{label} {order:?}"));
+                }
                 None => {
                     every_member_edge_lies_on_its_source(
                         &docx,
@@ -327,11 +396,26 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 148 cells fuse. `row` and `rowids` refuse in all 24 orders here,
-    // because their (a, h) contact is undeclared and contact is judged
-    // pairwise (DM4); the 6 orders of each that fused when the fold
-    // judged contact, with `b` covering it, are the 12 the count lost.
-    assert_eq!(fused, 148, "cells fused");
+    // 172 cells fuse: `row`, `rowids` and `cross` fuse in orders that
+    // refused before, their contacts the test leaves undeclared glued
+    // (D10). In the two orders of `row` and `rowids` that fold `a` and
+    // `h` first, and in four of `cross`, the emitter reaches a residue
+    // ([`RESIDUES`]).
+    assert_eq!(fused, 172, "cells fused");
+    assert_eq!(
+        residue,
+        [
+            "row [0, 3, 1, 2]",
+            "row [3, 0, 1, 2]",
+            "rowids [0, 3, 1, 2]",
+            "rowids [3, 0, 1, 2]",
+            "cross [0, 1, 2, 3]",
+            "cross [1, 0, 2, 3]",
+            "cross [1, 2, 0, 3]",
+            "cross [2, 1, 0, 3]",
+        ],
+        "the orders that reach a residue"
+    );
 }
 
 /// **A reference to a retired rim piece is offered the joined edge.**

@@ -1071,12 +1071,12 @@ mod tests {
             EntityKind::Face,
             OP,
             vec![RoleSeg::From {
-                read: crate::VarId::new(1, 10),
+                read: crate::VarId::new(1, 10 << 16),
                 of: NameRef::new(name(
                     EntityKind::Face,
                     OTHER,
                     vec![RoleSeg::From {
-                        read: crate::VarId::new(1, 77),
+                        read: crate::VarId::new(1, 77 << 16),
                         of: NameRef::new(cap(CapEnd::End)),
                     }],
                 )),
@@ -1084,8 +1084,8 @@ mod tests {
         );
         assert_eq!(
             said(&carried),
-            "the end cap of node 000000000001, through read 000000000000 at node \
-             000000000003, through read 000000000000 at node 000000000002"
+            "the end cap of node 000000000001, through read 00000000000a at node \
+             000000000003, through read 00000000004d at node 000000000002"
         );
         assert_eq!(role_leaf(&carried).node, EXTRUDE);
         assert_eq!(said(&cap(CapEnd::End)), "the end cap of node 000000000001");

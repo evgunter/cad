@@ -1140,6 +1140,7 @@ test_utils::f6_variants! {
         MetadataUnversioned,
         StepIds,
         MintLogOrder,
+        NameReadNotMinted,
         NameStepNotMinted,
         DeclaredNameNotUpstream,
     ];
@@ -1630,6 +1631,32 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "does not count up from one at step 000000000006",
                 "which no mint writes",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::NameReadNotMinted {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId::new(0, tagged(5)),
+                        path: vec![RoleSeg::From {
+                            read: editor_core::VarId::new(0, tagged(9)),
+                            of: StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, tagged(4)),
+                                path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                            }
+                            .into(),
+                        }],
+                    },
+                    node(),
+                ),
+                read: editor_core::VarId::new(0, tagged(9)),
+            },
+            vec![
+                "carries the read",
+                "mint log does not hold",
+                "never minted it",
             ],
         ),
         (

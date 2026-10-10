@@ -938,11 +938,11 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
 }
 
 /// **A boolean's declared pairs are its own payload, and `SetDeclare`
-/// replaces them on the live node.** Undeclared, the flush contacts are
-/// refused; the same boolean with the pairs set fuses. A node that
-/// declares no contacts refuses the edit at the door.
+/// replaces them on the live node.** Undeclared, the flush contacts
+/// glue; the same boolean with the pairs set builds the same body. A
+/// node that declares no contacts refuses the edit at the door.
 #[test]
-fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
+fn set_declare_on_a_live_boolean_builds_its_undeclared_body() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
@@ -955,15 +955,18 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         },
     );
     let undeclared = run(&doc);
-    assert!(
-        matches!(
-            undeclared.nodes.get(&boolean),
-            Some(NodeResult::Failed(e))
-                if matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "the flush contacts are refused while undeclared, got {:?}",
-        undeclared.nodes.get(&boolean)
-    );
+    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body: bare, .. }) = &undeclared
+        .value(boolean)
+        .unwrap_or_else(|| {
+            panic!(
+                "the flush contacts glue undeclared, got {:?}",
+                undeclared.nodes.get(&boolean)
+            )
+        })
+        .payload
+    else {
+        panic!("expected boolean body");
+    };
 
     let declared = doc
         .apply(
@@ -987,6 +990,11 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         panic!("expected boolean body");
     };
     assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
+    assert_eq!(
+        format!("{body:?}"),
+        format!("{bare:?}"),
+        "the declared boolean is the undeclared one's body"
+    );
 
     let refused = doc.apply(
         &editor_core::DocEdit::SetDeclare { node: a, pairs },

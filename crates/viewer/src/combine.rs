@@ -233,8 +233,7 @@ impl BooleanTool {
 
     /// **The one committed edit**: the session op that inserts the
     /// boolean node through the ordinary commit door, declaring no
-    /// contact. A contact the door refuses is declared through the
-    /// offer its refusal makes ([`crate::session::DeclareOffer`]).
+    /// contact.
     ///
     /// # Errors
     ///

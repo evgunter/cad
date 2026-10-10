@@ -13,12 +13,8 @@
 //! `Part(Instance(i))` — the same kernel op on the same body under the
 //! same map, so nothing is approximate and no rule is restated. The
 //! lane rows of the same claims are `eval6_placers_over_instances_interval`.
-//!
-//! What is NOT compared is provenance: a placing node stamps every
-//! description `Placed { node, instance }` with its own id and the
-//! body's ordinal in its value, so two nodes' bodies never share a
-//! source by construction, and the digest here is the geometry, the
-//! topology and the arena keys — the bits a consumer reads.
+//! The digest here is the geometry, the topology and the arena keys —
+//! the bits a consumer reads.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -541,64 +537,5 @@ fn a_transform_of_a_pattern_is_not_a_pattern_of_a_transform_under_rotation() {
             bits(&p[i]),
             "body {i} of the transform is MOVED"
         );
-    }
-}
-
-/// The outermost placement stamp of a body's first surface: the placing
-/// node and ordinal, or `None` for a description minted rather than
-/// placed.
-fn outer_stamp(b: &Body<f64>) -> Option<(u64, u32)> {
-    let (key, _) = b.surfaces().next().expect("a cube has surfaces");
-    match &b
-        .surface_source(key)
-        .expect("a placed description is sourced")
-        .expr
-    {
-        topo::SourceExpr::Placed { node, instance, .. } => Some((*node, *instance)),
-        topo::SourceExpr::Minted { .. } => None,
-    }
-}
-
-/// **The stamps are pairwise distinct across a value's bodies** —
-/// `compose_placed`'s ordinal rule, pinned on the two values that
-/// would collide under a constant ordinal: a nested pattern (placement
-/// 0 carries the inner's own stamps; every placed body wears the
-/// outer node at its flat index) and a transform of a pattern (body
-/// `i` wears the transform at `i`). A stamp shared by two bodies of
-/// one node would read as one source over two geometries at a
-/// boolean's identity rung.
-#[test]
-fn placement_stamps_are_pairwise_distinct_across_a_values_bodies() {
-    let (doc, _cube, inner, outer) = nested_doc("eval6-stamps");
-    let (doc, moved) = insert(doc, skew(inner));
-    let ev = run(&doc, &opts());
-    for (what, node, bodies) in [
-        ("the nested pattern", outer, instances_of(&ev, outer)),
-        (
-            "the transform of the pattern",
-            moved,
-            instances_of(&ev, moved),
-        ),
-    ] {
-        let stamps: Vec<Option<(u64, u32)>> = bodies.iter().map(|b| outer_stamp(b)).collect();
-        for (x, sx) in stamps.iter().enumerate() {
-            for (y, sy) in stamps.iter().enumerate().skip(x + 1) {
-                assert_ne!(sx, sy, "{what}: bodies {x} and {y} share a stamp {sx:?}");
-            }
-        }
-        // And every body this node PLACED wears this node at its own
-        // flat index; the ones it passed through verbatim do not wear
-        // it at all.
-        for (k, stamp) in stamps.iter().enumerate() {
-            match stamp {
-                Some((by, ordinal)) if *by == node.0.digest() => {
-                    assert_eq!(*ordinal as usize, k, "{what}: body {k}'s ordinal")
-                }
-                _ => assert!(
-                    node == outer && k < M as usize,
-                    "{what}: body {k} is unstamped by its node yet is not a verbatim placement 0"
-                ),
-            }
-        }
     }
 }

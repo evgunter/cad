@@ -148,9 +148,7 @@ pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact
 /// [`ContactClass`] is: the evidence a finding carries is the verify
 /// door's own verdict, that door is the kernel's, and a second
 /// spelling of its verdict at this layer is exactly the twin the
-/// anti-twin rule forbids. For a tied name whose candidates decided
-/// through different rungs, the weaker claim
-/// ([`FlushRung::DecidedCoincident`]) is what this door records.
+/// anti-twin rule forbids.
 pub use topo::flush::{FlushEvidence, FlushRung};
 
 /// One flush finding at the DOCUMENT seat: "this cross-body face
@@ -298,7 +296,6 @@ fn pair_verdict<T: Decide>(
     band: Band,
 ) -> Result<Option<FlushFinding>, SelectRefusal> {
     let mut relation: Option<PlaneRelation> = None;
-    let mut all_shared_source = true;
     let mut matched = 0usize;
     let total = ca.len() * cb.len();
     for &(ba, fa) in ca {
@@ -312,13 +309,8 @@ fn pair_verdict<T: Decide>(
                     source,
                 }
             })?;
-            if let Some(FlushEvidence {
-                relation: rel,
-                rung,
-            }) = verdict
-            {
+            if let Some(FlushEvidence { relation: rel, .. }) = verdict {
                 matched += 1;
-                all_shared_source &= rung == FlushRung::SharedSource;
                 match relation {
                     None => relation = Some(rel),
                     // Tied candidates flush with OPPOSITE orientations:
@@ -345,11 +337,7 @@ fn pair_verdict<T: Decide>(
             ),
             FlushEvidence {
                 relation,
-                rung: if all_shared_source {
-                    FlushRung::SharedSource
-                } else {
-                    FlushRung::DecidedCoincident
-                },
+                rung: FlushRung::DecidedCoincident,
             },
         )
         .map(Some)

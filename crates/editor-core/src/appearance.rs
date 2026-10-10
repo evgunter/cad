@@ -256,7 +256,7 @@ pub struct AppearanceLoss {
 /// upheld as correct v1 semantics: painting an OPERAND's face and
 /// then consuming the operand in a boolean paints the operand node's
 /// output only. The final node's corresponding face is a DIFFERENT
-/// derivation (`FromA(name)` ≠ `name` — N1 identity), so it shows
+/// derivation (`From { read, of: name }` ≠ `name` — N1 identity), so it shows
 /// neither the paint nor a loss, and [`Self::is_lossless`] is true.
 /// This is deliberate: auto-following a face through a boolean would
 /// be a silent rebinding policy, and the N5 policy menu is EMPTY by

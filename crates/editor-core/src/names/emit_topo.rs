@@ -1,7 +1,7 @@
 //! Split/boolean name emission (spec D2/D3): descent-driven — every
 //! result entity is chased to its operand parent through the kernels'
 //! mint-time rows (`SplitNaming`, `BooleanNaming`, D5 `SplitEdge`
-//! provenance), then named as pass-through, `FromA`/`FromB`,
+//! provenance), then named as pass-through, `From` (keyed by the seat's read),
 //! fragment (with N2 qualifiers), seam, section, or merged. Nothing
 //! is matched; unresolvable descent is a typed error.
 
@@ -1264,7 +1264,7 @@ pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
 }
 
 /// Boolean edges, grouped by parent: `Seam` for zip-minted edges,
-/// `FromA`/`FromB` for operand-descended ones, and `Merged` for an edge
+/// `From` for operand-descended ones, and `Merged` for an edge
 /// the output stage joined across several operand edges
 /// ([`joined_cover`]). A group's pieces are qualified once the vertices
 /// are named ([`EdgeGroup`]).
@@ -1816,7 +1816,7 @@ struct EdgeGroup {
     lone: Lone,
 }
 
-/// Boolean vertices: operand pass-downs (`FromA`/`FromB`), and seam
+/// Boolean vertices: operand pass-downs (`From`), and seam
 /// (crossing/fused) vertices named by the operand entities whose
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
@@ -1841,7 +1841,12 @@ fn name_boolean_vertices<T: Decide>(
     let bug = |what| NamingError::Emission { what };
     // Each edge's parent, the head a vertex cites it by, and whether
     // that descends from a tie.
-    type EdgeBase<'g> = (&'g StableName, bool, &'g [OpSide<EdgeKey>], Option<topo::Operand>);
+    type EdgeBase<'g> = (
+        &'g StableName,
+        bool,
+        &'g [OpSide<EdgeKey>],
+        Option<topo::Operand>,
+    );
     let edge_base: BTreeMap<EdgeKey, EdgeBase<'_>> = edge_groups
         .iter()
         .flat_map(|g| {
@@ -3995,8 +4000,8 @@ mod tests {
     /// removed, `name_boolean` returns `Ok` with a TOTAL table of 27
     /// rows in which the two caps carry each other's operand names —
     /// measured, not argued: `built.top` comes out
-    /// `FromA(Cap(Start))` and `built.bottom` comes out
-    /// `FromA(Cap(End))`, each the other's. Nothing is missing and
+    /// `From { of: Cap(Start) }` and `built.bottom` comes out
+    /// `From { of: Cap(End) }`, each the other's. Nothing is missing and
     /// nothing refuses; the document is simply wrong about which face
     /// is which.
     ///
@@ -4169,7 +4174,7 @@ mod tests {
         // Synthetic descent: `top` reads as a fragment of `bottom`,
         // `laterals[1]` as a fragment of `laterals[0]` — the two
         // groups then share the constituent set
-        // {FromA(bottom), FromA(laterals[0])}.
+        // {From(bottom), From(laterals[0])}.
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,

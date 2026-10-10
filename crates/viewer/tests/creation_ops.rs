@@ -1263,10 +1263,10 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 /// evidence that a profile drew and extruded on it.
 ///
 /// **Not the union of block and boss.** A boss drawn on the face
-/// frame is FLUSH with the block at that face by construction, so its
-/// union refuses until the contact is declared; that path, with its
-/// sum-of-volumes assertion, is `viewer::pane::create`'s
-/// `declared_union` rows.
+/// frame is FLUSH with the block at that face by construction; a union
+/// across flush contacts, with its sum-of-volumes assertion, is
+/// `tests/combine_ops.rs`'s
+/// `a_union_across_two_flush_contacts_lands_as_one_action`.
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue

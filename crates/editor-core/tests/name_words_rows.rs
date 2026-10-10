@@ -593,10 +593,13 @@ fn a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time() {
         fuzz::replay()
     );
     // The search before this row's fix took 15 s at this size in a
-    // release build; each name said once per detail its group's
-    // searches try is well under one.
+    // release build, far longer in a debug one; each name said once per
+    // detail its group's searches try is well under one in release and
+    // about 10 s in debug (9.7 s on main and 10.3 s with FORK-DM4 unit 1
+    // on one cloud box, 2026-10-10), so the debug bound leaves that
+    // margin and still refuses the search it guards.
     assert!(
-        first_took.as_secs() < 10,
+        first_took.as_secs() < 20,
         "the first saying of {NAMES} names took {first_took:?} — {}",
         fuzz::replay()
     );

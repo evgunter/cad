@@ -17,7 +17,7 @@
 //!
 //! Every blend segment carries the source entity's OWN name from the
 //! target's table, so a blend name is a function of the target's
-//! names — the `FromA`/`Seam` shape. When an upstream bump moves the
+//! names — the `From`/`Seam` shape. When an upstream bump moves the
 //! target's names, these move with them; when the bump changes
 //! nothing upstream, these are bit-identical. This emitter contributes
 //! no independent judgment that could disagree.

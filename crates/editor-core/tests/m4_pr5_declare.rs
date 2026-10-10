@@ -189,12 +189,12 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
 }
 
 /// D6.3, the #91 flush-plane narrative: the coincident-plane pair
-/// GLUES when the union declares it (N3 `Merged` row), refuses
-/// typed undeclared, and the decoupled variant is untouched.
+/// GLUES whether or not the union declares it — the margins decide the
+/// planes one carrier — the declared union names the glued faces with
+/// N3 `Merged` rows and is the undeclared body bit for bit, and the
+/// decoupled variant is untouched.
 #[test]
-fn flush_plane_pair_glues_with_declare_refuses_without() {
-    // Coincident-plane pair, UNDECLARED: typed refusal at the
-    // coincidence door (rung (b): value equality never classifies).
+fn flush_plane_pair_glues_declared_or_not() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -206,16 +206,10 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         },
     );
     let ev = run(&doc_undeclared);
-    match ev.nodes.get(&u) {
-        // Since R3 (LIB-PYG5) the undeclared-coincidence refusal
-        // surfaces as the typed refusal-menu variant, finding attached.
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. }),
-            "expected the UndeclaredContact menu, got {:?}",
-            e.kind
-        ),
-        other => panic!("undeclared flush union must fail, got {other:?}"),
-    }
+    let BooleanValue::Body { body: bare, .. } = boolean_value(&ev, u) else {
+        panic!("the undeclared union is a body");
+    };
+    let bare = format!("{bare:?}");
 
     // DECLARED: glues — Merged rows minted, tiers green.
     let decl = declare_x_offset_flush(&doc, a, b);
@@ -237,6 +231,11 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
     assert_eq!(
         topo::validate::validate_geometric(body, Tol::witness()),
         Ok(())
+    );
+    assert_eq!(
+        format!("{body:?}"),
+        bare,
+        "the declared union is the undeclared one's body"
     );
     let merged = |kind| {
         ev.value(u)

@@ -279,6 +279,7 @@ fn parallel_schedule_preserves_verdict_logs() {
         &EvalOptions {
             epoch: editor_core::Epoch::mint(),
             parallel: true,
+            boolean_sweep: topo::SweepStrategy::Idealized,
             ..EvalOptions::default()
         },
         Tol::witness(),

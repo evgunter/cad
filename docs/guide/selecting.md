@@ -418,11 +418,11 @@ assert!(matches!(
 
 ## Detect and declare: flush contact as a conversation
 
-Two bodies that touch face-to-face do not silently glue — the
-boolean REFUSES an undeclared coincidence, and the recourse
-menu has exactly two arms: declare the contact, or move the
-geometry. This is the declare arm's protocol:
-`find_flush_candidates` REPORTS the flush pairs as
+Two bodies that touch face-to-face glue where their margins decide
+the faces one surface, declared or not, and the boolean records each
+such coincidence. A declaration still bridges a pair whose margin
+lies in the tolerance's ambiguity band, so the detect/declare
+protocol stays: `find_flush_candidates` REPORTS the flush pairs as
 `FlushFinding` values — the contact verifier itself run in
 candidate-generation mode, so a finding can never disagree with
 the boolean's own verify-at-use — and `declare` /
@@ -434,7 +434,7 @@ pass through your hands as values, never straight into a recipe.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BooleanValue, NodeErrorKind, NodeResult};
+use pncad::document::{Bodies, BooleanValue, NodeResult};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -472,29 +472,18 @@ let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
 let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5), side: ExtrudeSide::Along });
 
-// Undeclared, the union refuses — coincidence is never inferred
-// from values (the coincidence ladder).
+// Undeclared, the union glues the rest its margin decides.
 let (doc, uni) = insert(
     &doc,
     Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]), declare: Vec::new() },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
-    panic!("the undeclared union must refuse");
-};
-// The refusal IS the menu: it carries the candidate
-// declaration — the pair by stable name, with its relation — in
-// the detector's own value shape.
-let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
-    panic!("expected the refusal menu, got {:?}", e.kind);
-};
-assert_eq!(finding.class, BooleanCoincidence::REST);
+assert!(matches!(ev.nodes.get(&uni), Some(NodeResult::Ok(_))));
 
-// The declare arm: detect, INSPECT, declare on the live union,
-// and the SAME node that refused now verifies the declared contact.
-// (Declaring the menu's own finding — `declare(&doc, uni, finding)`
-// — is the same door; the detector shows the full inventory.)
-let findings = find_flush_candidates(&ev, &doc, base, block, tol).expect("definite findings");
+// The declare arm: detect, INSPECT, declare on the live union.
+// The declared union is the same body: the declaration names what
+// the margins decided, and is verified at use.
+let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);
 let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");

@@ -1,7 +1,7 @@
 //! **Every walk over a [`StableName`] carries its own stack.**
 //!
 //! A name nests one whole name per derivation level: a boolean's
-//! survivor holds its operand's name ([`RoleSeg::FromA`]), a pattern
+//! survivor holds its operand's name ([`RoleSeg::From`]), a pattern
 //! copy its master's ([`RoleSeg::Instance`]), an instantiated part's
 //! entity its name in the part ([`RoleSeg::InPart`]), and so on down
 //! the chain. Nothing bounds the depth: a part nested
@@ -2356,7 +2356,8 @@ pub(super) mod tests {
                 }],
             );
             let folded = wrapped(member.clone(), DEEP, 9, from_a);
-            let collapsed = super::super::collapse_name(union, &folded).expect("it collapses");
+            let collapsed =
+                super::super::emit_union::collapse_name(union, &folded).expect("it collapses");
             assert_eq!(collapsed, member, "the descent is flattened to its foot");
         });
     }
@@ -2436,8 +2437,9 @@ pub(super) mod tests {
                     .collect(),
             )],
         );
-        let (collapsed, asked, levels) =
-            counted(|| super::super::collapse_name(union, &merged).expect("it collapses"));
+        let (collapsed, asked, levels) = counted(|| {
+            super::super::emit_union::collapse_name(union, &merged).expect("it collapses")
+        });
         assert_eq!(
             collapsed, merged,
             "a merged face of member faces collapses to itself"

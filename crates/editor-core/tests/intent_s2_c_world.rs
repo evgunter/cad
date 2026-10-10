@@ -12,10 +12,9 @@ use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
 use crate::fixture::{insert, len, on_frame, place, square};
 use editor_core::{
-    AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind,
-    ExtrudeSide, InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named,
-    run_checks,
+    AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
+    InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, SplitError, StableName, product, product_named, run_checks,
 };
 use geom_core::Tol;
 

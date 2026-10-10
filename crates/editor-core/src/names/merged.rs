@@ -435,11 +435,10 @@ mod tests {
     }
 
     /// **A union over a union reads the inner merge through its
-    /// `FromMember`** as a boolean over a boolean reads it through
-    /// `FromA`: the inner merged face stands for its constituents, each
-    /// keyed by the same member, and the outer flat row covers it. The
-    /// member id is part of the wrapper: the same face keyed by another
-    /// member is not covered.
+    /// `From`**, keyed by the member read that holds it: the inner merged
+    /// face stands for its constituents, each keyed by the same read, and
+    /// the outer flat row covers it. The read is part of the wrapper: the
+    /// same face keyed by another read is not covered.
     #[test]
     fn a_union_over_a_union_reads_the_inner_merge_through_from_member() {
         let inner = merged(
@@ -488,7 +487,7 @@ mod tests {
         let [RoleSeg::Merged(listed)] = set.path.as_slice() else {
             panic!("an edge set is one Merged segment: {set:?}");
         };
-        assert_eq!(listed.len(), 3, "flat through FromMember: {listed:?}");
+        assert_eq!(listed.len(), 3, "flat through From: {listed:?}");
         // A run wall a union carries covers its pieces' walls under the
         // same member.
         let run = from_member(12, 3, lateral(3, &[7, 8]));

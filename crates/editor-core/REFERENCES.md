@@ -141,9 +141,12 @@ and a selection of `split.above` states its body once. A body seat
 reading a whole family, a profile or a split as a whole refuses by kind at
 the door (`SlotVarKind`).
 
-*Built: the indexed read at every body seat, FORK-DM4 unit 1 (PR 4527).
-Until stage 3 G, `Part { select: Instance }` stands beside it, a second
-way to pick a member; new authoring writes `xs[i]`.*
+*Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
+(PR 4527). Every family a node defines is one flat list, so `xs[i, j]`
+waits on a family keyed by two indices
+(`work/intent/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
+3 G, `Part { select: Instance }` stands beside it, a second way to pick a
+member; new authoring writes `xs[i]`.*
 
 ## DM4 — Flat operators before splice: union and intersect are lists, subtract a pair
 

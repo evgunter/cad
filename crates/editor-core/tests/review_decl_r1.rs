@@ -18,7 +18,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{
     block, declared_union, declared_union_classed, failure, flush_pairs, run,
 };
-use crate::fixture::{ang, fname, insert, len, scl, step, wall};
+use crate::fixture::{ang, built_bits, fname, insert, len, scl, step, wall};
 use editor_core::{
     CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
     RoleSeg, SitedRef, find_flush_candidates,
@@ -49,48 +49,66 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 // A contact against a MERGED row of the accumulation.
 // ---------------------------------------------------------------------
 
-/// **A contact against what the fold merges is refused pairwise, naming
-/// two member faces.** `a` and `c` are declared flush, so the fold
-/// merges their tops into one `Merged({a.capEnd, c.capEnd})` row; `d`
-/// rests on both, undeclared. Contact is judged between members before
-/// the fold (DM4), so in every order the refusal names one member's
-/// top and `d`'s bottom and carries no merged set: no refusal names a
-/// row the fold minted. Which of the two touching pairs it names is
-/// the first in the author's list order (#4323: the list is the
-/// author's stated order, and nothing sorts it away), spelled in that
-/// order.
+/// The rest of `d`'s bottom on member `m`'s top, sited at each.
+fn rests(
+    doc: &ProfileDoc,
+    m: RecipeNodeId,
+    d: RecipeNodeId,
+) -> (SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>) {
+    (
+        SitedRef::new(
+            crate::fixture::out(doc, m),
+            fname(m, RoleSeg::Cap(CapEnd::End)),
+        ),
+        SitedRef::new(
+            crate::fixture::out(doc, d),
+            fname(d, RoleSeg::Cap(CapEnd::Start)),
+        ),
+    )
+}
+
+/// **A contact against what the fold merges glues in every member
+/// order, declared or not.** `a` and `c` are declared flush, so the
+/// fold merges their tops into one `Merged({a.capEnd, c.capEnd})` row;
+/// `d` rests on both, undeclared. The margins decide each rest one
+/// carrier, so every order builds, and declaring both rests — each
+/// resolving to the merged row through the look-through at `d`'s step
+/// — builds that order's body bit for bit.
 #[test]
-fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
+fn a_contact_against_a_merged_cap_glues_in_every_order_declared_or_not() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
+    let flush: Vec<_> = flush_pairs(&doc, (a, a), (c, c))
+        .into_iter()
+        .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
+        .collect();
     for order in [[a, c, d], [d, c, a], [c, d, a]] {
-        let (doc, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (c, c)));
-        let ev = run(&doc);
-        let got = failure(&ev, union);
-        let Some(NodeErrorKind::UndeclaredCoincidence {
-            finding, merged, ..
-        }) = got
-        else {
-            panic!("{order:?}: expected the pairwise refusal, got {got:?}")
-        };
-        // The undeclared pairs are `a`'s top on `d`'s bottom and `c`'s
-        // top on it; the pairs are judged in list order, each spelled
-        // listed-first member first, and the first of them refuses.
-        let side = |m: RecipeNodeId| {
-            let end = if m == d { CapEnd::Start } else { CapEnd::End };
-            SitedRef::new(crate::fixture::out(&doc, m), fname(m, RoleSeg::Cap(end)))
-        };
-        let want = (0..3)
-            .flat_map(|i| (i + 1..3).map(move |j| (order[i], order[j])))
-            .find(|&(x, y)| x == d || y == d)
-            .map(|(x, y)| (side(x), side(y)))
-            .expect("d touches a member");
-        assert_eq!(finding.pair, want, "{order:?}");
+        let (bare, union) = declared_union_classed(doc.clone(), &order, flush.clone());
+        let undeclared = run(&bare);
         assert!(
-            merged.0.is_empty() && merged.1.is_empty(),
-            "{order:?}: {merged:?}"
+            failure(&undeclared, union).is_none(),
+            "{order:?}: {:?}",
+            failure(&undeclared, union)
+        );
+        let v = volume(&undeclared, union);
+        assert!((v - (1.5 + 1.1 * 0.6 * 0.5)).abs() < 1e-9, "{order:?}: {v}");
+        let mut pairs = flush.clone();
+        for m in [a, c] {
+            pairs.push((rests(&doc, m, d), editor_core::BooleanCoincidence::REST));
+        }
+        let (full, full_union) = declared_union_classed(doc.clone(), &order, pairs);
+        let declared = run(&full);
+        assert!(
+            failure(&declared, full_union).is_none(),
+            "{order:?}: {:?}",
+            failure(&declared, full_union)
+        );
+        assert_eq!(
+            built_bits(&declared, full_union),
+            built_bits(&undeclared, union),
+            "{order:?}: the declared union is the undeclared one's body"
         );
     }
 }
@@ -98,47 +116,37 @@ fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
 /// **Both member contacts declared, the fold resolves them through the
 /// merge**: at `d`'s step `a`'s and `c`'s tops are one merged row, and
 /// each declaration rewrites to it (the look-through). Declaring only
-/// `(c, d)` leaves `(a, d)` undeclared, and that refuses.
+/// `(c, d)` leaves `(a, d)` undeclared, which glues by its margins, and
+/// builds the fully declared body bit for bit.
 #[test]
 fn a_merged_row_contact_is_declared_through_its_constituents() {
     let doc = ProfileDoc::empty_derived("r1_merged_declared", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
-    let rests = |m: RecipeNodeId| {
-        (
-            SitedRef::new(
-                crate::fixture::out(&doc, m),
-                fname(m, RoleSeg::Cap(CapEnd::End)),
-            ),
-            SitedRef::new(
-                crate::fixture::out(&doc, d),
-                fname(d, RoleSeg::Cap(CapEnd::Start)),
-            ),
-        )
-    };
     let mut pairs: Vec<_> = flush_pairs(&doc, (a, a), (c, c))
         .into_iter()
         .map(|p| (p, editor_core::BooleanCoincidence::Continuation))
         .collect();
-    pairs.push((rests(c), editor_core::BooleanCoincidence::REST));
-    let (only_c, union) = declared_union_classed(doc.clone(), &[a, c, d], pairs.clone());
-    let ev = run(&only_c);
+    pairs.push((rests(&doc, c, d), editor_core::BooleanCoincidence::REST));
+    let (only_c, partial_union) = declared_union_classed(doc.clone(), &[a, c, d], pairs.clone());
+    let partial = run(&only_c);
     assert!(
-        matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
-        if [finding.pair.0.at, finding.pair.1.at] == {
-            let (a, d) = (crate::fixture::out(&doc, a), crate::fixture::out(&doc, d));
-            if a < d { [a, d] } else { [d, a] }
-        }),
+        failure(&partial, partial_union).is_none(),
         "{:?}",
-        failure(&ev, union)
+        failure(&partial, partial_union)
     );
-    pairs.push((rests(a), editor_core::BooleanCoincidence::REST));
+    pairs.push((rests(&doc, a, d), editor_core::BooleanCoincidence::REST));
     let (doc, union) = declared_union_classed(doc, &[a, c, d], pairs);
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(&ev, union);
     assert!((v - (1.5 + 1.1 * 0.6 * 0.5)).abs() < 1e-9, "{v}");
+    assert_eq!(
+        built_bits(&ev, union),
+        built_bits(&partial, partial_union),
+        "the partly declared union is the fully declared one's body"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -347,11 +355,10 @@ fn every_declaring_corpus_document_replays_in_document_order() {
 // of one prototype, declared verbatim, consumed by a union in one pass.
 // ---------------------------------------------------------------------
 
-/// **A union's own refusal is declarable verbatim**, on the live
-/// union: declaring the union's refusal leaves the remaining contacts
-/// refusing — each one a finding of the same shape — and `declare_all`
-/// over the detector's findings, which replaces the list whole, fuses
-/// the pair.
+/// **The detector's findings declare verbatim on a union**: one finding
+/// `declare`d leaves the union building, `declare_all` over every
+/// finding replaces the list whole, and each declared union is the
+/// undeclared one's body bit for bit.
 #[test]
 fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     let doc = ProfileDoc::empty_derived("r1_flush_union", Tol::witness());
@@ -373,25 +380,34 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
             declare: Vec::new(),
         },
     );
-    let ev = run(&bare);
-    let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, union) else {
-        panic!("{:?}", failure(&ev, union))
-    };
-    let one = editor_core::declare(&bare, union, finding, Tol::witness())
-        .expect("declares the refusal verbatim");
-    let ev = run(&one.doc);
-    // One pair declared of four: the union refuses the NEXT undeclared
-    // contact, which is a finding of the same shape — so the loop
-    // "declare what it names, evaluate again" terminates rather than
-    // changing character.
-    let next = failure(&ev, union);
+    let undeclared = run(&bare);
     assert!(
-        matches!(next, Some(NodeErrorKind::UndeclaredCoincidence { .. })),
-        "{next:?}"
+        failure(&undeclared, union).is_none(),
+        "{:?}",
+        failure(&undeclared, union)
+    );
+    assert_eq!(volume(&undeclared, union), 1.5);
+    let one = editor_core::declare(&bare, union, &findings[0], Tol::witness())
+        .expect("declares one finding verbatim");
+    let ev = run(&one.doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    assert_eq!(
+        built_bits(&ev, union),
+        built_bits(&undeclared, union),
+        "one pair declared of four builds the undeclared body"
     );
     let all =
         editor_core::declare_all(&one.doc, union, &findings, Tol::witness()).expect("declares");
+    assert_eq!(
+        all.doc.node(union).expect("live").declared_pairs().len(),
+        findings.len(),
+        "declare_all replaces the list with every finding"
+    );
     let ev = run(&all.doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    assert_eq!(volume(&ev, union), 1.5);
+    assert_eq!(
+        built_bits(&ev, union),
+        built_bits(&undeclared, union),
+        "the fully declared union is the undeclared one's body"
+    );
 }

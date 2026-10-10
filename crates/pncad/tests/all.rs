@@ -1505,11 +1505,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 
     // The post is strictly interior in x and y and pokes out of the
     // base's top, so the two bodies genuinely interpenetrate and NO
-    // pair of faces is coincident. That matters: the kernel never
-    // infers coincidence from values, so two boxes merely TOUCHING on
-    // a shared plane refuse with `UndeclaredCoincidence` until the
-    // author declares the contact. (Declared-contact unions are the
-    // corpus's own subject; this test wants the plain seamed path.)
+    // pair of faces is coincident: this test wants the plain seamed
+    // path, not a glued contact.
     let base = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.0)); // 6.0
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0)); // 1.5, of which 0.5 is inside
 
@@ -2572,8 +2569,17 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
-    // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, plane) = insert(doc, xy_frame());
+    // A failing Boolean and its downstream: the second box's floor
+    // stands 2ε off the first's, inside the ambiguity band at every ε.
+    let sliver = 2.0 * pncad::geom_core::Tol::witness().eps();
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [len(0.0), len(0.0), len(sliver)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, second_profile) = insert(doc, square(plane, 1.0));
     let (doc, second_box) = insert(
         doc,

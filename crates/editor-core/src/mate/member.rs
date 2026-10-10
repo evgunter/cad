@@ -33,7 +33,7 @@ use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 /// renaming it — any number of `Transform`s and `Part` instance
 /// selections, any number of `Pattern` levels, each of which the name
 /// qualifies `Instance(i)`, and any number of `Union`s, each of which
-/// the name qualifies `FromMember`.
+/// the name qualifies `From`, keyed by the member's read.
 ///
 /// A member is its instance and the PLACEMENT the walk passed on the
 /// way down: two references that reach one instance through different
@@ -341,8 +341,8 @@ pub(super) fn walk<'r, P>(
 /// renaming it: any number of `Transform`s, any number of `Part`
 /// nodes selecting an `Instance`, any number of `Pattern` levels,
 /// each of which must carry its `Instance(i)` qualifier in the name,
-/// and any number of `Union`s, each of which must carry the
-/// `FromMember` qualifier naming one of its members. A nested copy is
+/// and any number of `Union`s, each of which must carry a `From`
+/// qualifier keyed by one of its member reads. A nested copy is
 /// a member like any other; its identity carries the whole chain of
 /// placings ([`Member::chain`]).
 ///
@@ -353,7 +353,7 @@ pub(super) fn walk<'r, P>(
 ///
 /// Outside the vocabulary: a non-instance head; a pattern whose name
 /// carries no `Instance(i)` qualifier; a union whose name carries no
-/// `FromMember` qualifier naming one of its members; anything the walk
+/// `From` qualifier keyed by one of its member reads; anything the walk
 /// meets that places no body of its own — a boolean, a split, a `Part`
 /// naming a split HALF (which is a different body, not this one
 /// placed), a head the walk never reaches at all.
@@ -371,7 +371,7 @@ pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> 
 /// that member's instance names it** — [`member_of`]'s walk, with the
 /// name it reached at the instance: inside one `Instance(i)` qualifier
 /// per pattern level the walk consumed ([`Member::copy`]) and one
-/// `FromMember` per union, so a copy answers its MASTER's name. That name is a row of the instance's own
+/// `From` per union, so a copy answers its MASTER's name. That name is a row of the instance's own
 /// product table.
 ///
 /// `None` exactly where [`member_of`] answers `None`.

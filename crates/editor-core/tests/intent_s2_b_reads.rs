@@ -1004,17 +1004,15 @@ fn dm5_is_over_the_variables_read() {
 }
 
 /// **Each of a split's two halves is read as itself, and a pair
-/// declared across them is sided by the half that holds each name.**
-/// Both halves are read at the split's one site. Undeclared, the pair
-/// boolean of them refuses the rest contact across the section; under
-/// a declared rest named in either order it is the whole block, where
-/// one projection per node read one half twice. A side naming what
-/// its half does not hold — a wall of the block the cut renamed in
-/// both — refuses as a name its site's table does not answer. Each
-/// member is keyed by its read (DM4), so the two halves are two
-/// members in either order.
+/// declared across them is sited at each half's read.** The two halves
+/// are two reads of one split, so two members in either order (DM4).
+/// Under a declared rest named in either order their union is the whole
+/// block; undeclared, it glues the rest the margins decide and is that
+/// same block. A side naming what its half does not hold — a wall of the
+/// block the cut renamed in both — refuses as a name its site's table
+/// does not answer.
 #[test]
-fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
+fn a_pair_declared_across_one_splits_halves_is_sited_by_read() {
     let (doc, split, _) = split_block("s2b-split-siding");
     let before = fixture::run(&doc, &editor_core::EvalOptions::default());
     let target = doc
@@ -1045,14 +1043,14 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
         section(editor_core::SplitHalf::Above),
         section(editor_core::SplitHalf::Below),
     );
-    let boolean = |declare| Node::Union {
+    let union = |declare| Node::Union {
         members: editor_core::Bodies::Spelled(vec![
             half(editor_core::SplitHalf::Above),
             half(editor_core::SplitHalf::Below),
         ]),
         declare,
     };
-    let union = |declare| Node::Union {
+    let reversed = |declare| Node::Union {
         members: editor_core::Bodies::Spelled(vec![
             half(editor_core::SplitHalf::Below),
             half(editor_core::SplitHalf::Above),
@@ -1063,19 +1061,18 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
     let flipped_pairs = pair((up, above.clone()), (down, below.clone()));
     let fused_pairs = pair((up, above.clone()), (down, below));
     let stray_pairs = pair((up, above), (down, wall));
-    let (doc, undeclared) = insert(doc, boolean(Vec::new()));
-    let (doc, joined) = insert(doc, boolean(joined_pairs));
-    let (doc, flipped) = insert(doc, boolean(flipped_pairs));
-    let (doc, fused) = insert(doc, union(fused_pairs));
-    let (doc, stray_boolean) = insert(doc, boolean(stray_pairs));
+    let (doc, undeclared) = insert(doc, union(Vec::new()));
+    let (doc, joined) = insert(doc, union(joined_pairs));
+    let (doc, flipped) = insert(doc, union(flipped_pairs));
+    let (doc, fused) = insert(doc, reversed(fused_pairs));
+    let (doc, stray_union) = insert(doc, union(stray_pairs));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    assert!(
-        matches!(
-            ev.node_error(undeclared).map(|e| &e.kind),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "{:?}",
-        ev.node_error(undeclared)
+    // Undeclared, the two section faces are one plane by margin, so the
+    // pair glues them as the declared `Rest` they are (D10).
+    assert_eq!(
+        format!("{:?}", crate::corpus::body_of(&ev, undeclared)),
+        format!("{:?}", crate::corpus::body_of(&ev, joined)),
+        "the undeclared union is the declared one"
     );
     for id in [joined, flipped, fused] {
         assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
@@ -1085,16 +1082,16 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
             .volume;
         assert!(
             (volume - 1.0).abs() < 1e-12,
-            "the pair boolean of the two halves is the whole block: {volume}"
+            "the union of the two halves is the whole block: {volume}"
         );
     }
     assert!(
         matches!(
-            ev.node_error(stray_boolean).map(|e| &e.kind),
+            ev.node_error(stray_union).map(|e| &e.kind),
             Some(NodeErrorKind::DeclareResolve { .. })
         ),
         "{:?}",
-        ev.node_error(stray_boolean)
+        ev.node_error(stray_union)
     );
 }
 

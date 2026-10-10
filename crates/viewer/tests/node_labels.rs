@@ -600,23 +600,23 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     let doc = relabelled(&doc, block, "plate", tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    // The flush union's refusal hands back the real pair, block side
+    // The detector's real pair between the two operands, block side
     // first.
-    let refusal = session
-        .perform(SessionOp::AddBoolean {
-            spec: BooleanSpec::Union(vec![block, boss]),
-            declare: Vec::new(),
-        })
-        .refusal
-        .expect("the flush union refuses");
-    let offer = viewer::frame::declare_offer(Some(&refusal))
-        .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"));
+    let findings = pncad::select::find_flush_candidates(
+        session.evaluation().expect("the scene lands"),
+        session.committed_doc(),
+        block,
+        boss,
+        tol,
+    )
+    .expect("the detector answers block x boss");
+    assert!(!findings.is_empty(), "the premise: the boss rests on the block");
     let line = batch_line(
         &mut session,
         &[
             SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![boss]),
-                declare: offer.findings().to_vec(),
+                declare: findings,
             },
             SessionOp::SetLabel {
                 node: block,

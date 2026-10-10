@@ -7,7 +7,8 @@
 //!
 //! - a cylinder whose cap is coplanar with the box's top, the box's
 //!   boundary crossing the rim (the cap beside the rim is a coplanar
-//!   neighbour; today every op refuses `UndeclaredCoincidence`);
+//!   neighbour, one plane with the box top by margin, which the boolean
+//!   glues undeclared: every op answers its closed form);
 //! - a donut revolved with its seam parallels at the equators, the box
 //!   top in the equator plane holding an arc of the outer equator (the
 //!   neighbours are the two torus faces; today every op refuses at the
@@ -338,9 +339,9 @@ fn every_op_refuses_or_answers_its_closed_form() {
 /// docs). Pinned per op, so a change that moves one is a red row rather
 /// than a refusal the row above would also accept.
 const OUTCOMES: [&str; 15] = [
-    "cylinder cap in the box top: A ∪ B: UndeclaredCoincidence",
-    "cylinder cap in the box top: A ∩ B: UndeclaredCoincidence",
-    "cylinder cap in the box top: A ∖ B: UndeclaredCoincidence",
+    "cylinder cap in the box top: A ∪ B: builds",
+    "cylinder cap in the box top: A ∩ B: builds",
+    "cylinder cap in the box top: A ∖ B: builds",
     "outer equator arc in the box top: A ∪ B: GermFrameUnsupported",
     "outer equator arc in the box top: A ∩ B: GermFrameUnsupported",
     "outer equator arc in the box top: A ∖ B: GermFrameUnsupported",

@@ -763,6 +763,37 @@ pub fn union_over(
     (doc, union)
 }
 
+/// **Every flush finding between each two of `members`, as declared
+/// pairs** — the list a caller following the detector writes, so a row
+/// can set an undeclared document beside its declared twin.
+pub fn findings_declared(
+    ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
+    members: &[RecipeNodeId],
+) -> Vec<editor_core::DeclaredPair> {
+    let mut pairs = Vec::new();
+    for (i, &a) in members.iter().enumerate() {
+        for &b in &members[i + 1..] {
+            let found = editor_core::find_flush_candidates(ev, doc, a, b, tol())
+                .unwrap_or_else(|e| panic!("the detector answers {a:?} × {b:?}: {e:?}"));
+            pairs.extend(editor_core::declared_pairs(&found));
+        }
+    }
+    pairs
+}
+
+/// The `Debug` of the one body `id` built — its bits, for setting two
+/// runs' bodies side by side.
+pub fn built_bits(ev: &Evaluation<f64>, id: RecipeNodeId) -> String {
+    match ev.value(id).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Body(b)) => format!("{b:?}"),
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => format!("{body:?}"),
+        other => panic!("{id:?} built no body: {other:?} / {:?}", ev.nodes.get(&id)),
+    }
+}
+
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
 /// direction, the table's gaps, a face-based side resolved from the

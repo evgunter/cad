@@ -465,19 +465,21 @@ impl CheckEvidence {
 
     /// What an unproven coincidence decided between its two cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
-    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`, `coaxial` or
-    /// `co_ruled`. A `profile_junction` row is `tangent` or `cusp`
-    /// between two carriers and `same_oriented` where its pieces
-    /// continue one.
+    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
     #[getter]
     fn relation(&self) -> Option<&'static str> {
         self.payload().relation
     }
 
     /// Where that coincidence was decided, on `unproven_coincidence`
-    /// alone: `plane_ladder`, `carrier_ladder`, `split_on`,
-    /// `battery_turn`, `battery_joint`, `battery_support_axis` or
-    /// `profile_junction`.
+    /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
+    /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
+    /// `battery_support_axis` or `profile_junction`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site

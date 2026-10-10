@@ -670,7 +670,7 @@ impl LegLane {
 /// **Made, not merely drawn under.** A patch belongs to the node that
 /// MINTED the entity its name denotes, which
 /// [`pncad::select::attribute`] reads off the name's own
-/// carry-through segments: a fillet's `FromTarget(f)` face is still
+/// carry-through segments: a fillet's `From { of: f }` face is still
 /// the target's face `f`, so a fillet's extent is the blends and
 /// corners it created and nothing else. Which node DRAWS a patch is a
 /// different question with a different answer — on a body whose whole

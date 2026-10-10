@@ -2925,4 +2925,52 @@ mod tests {
             }
         );
     }
+
+    /// **A subtract lifts each operand's names through that operand's
+    /// own seat** (review r2 of PR 4527, a surviving mutant): a name of
+    /// the `from` operand is keyed by `from`'s read, one of the tool by
+    /// the tool's, and neither by the other's.
+    #[test]
+    fn a_subtract_lifts_each_operands_names_by_its_own_seats_read() {
+        use super::{Lift, lift};
+        let (from_node, tool_node, cut) = (
+            RecipeNodeId::new(0, 1),
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 3),
+        );
+        let (from_read, tool_read) = (crate::VarId::new(1, 11), crate::VarId::new(2, 22));
+        let node: crate::node::Node<crate::ProfileProgram> = crate::node::Node::Subtract {
+            from: crate::BodyRead::plain(from_read),
+            tool: crate::BodyRead::plain(tool_read),
+            declare: Vec::new(),
+        };
+        let defined_by = |read: crate::VarId| {
+            if read == from_read {
+                Some(from_node)
+            } else if read == tool_read {
+                Some(tool_node)
+            } else {
+                None
+            }
+        };
+        for (input, read) in [(from_node, from_read), (tool_node, tool_read)] {
+            let name = StableName {
+                kind: EntityKind::Face,
+                node: input,
+                path: vec![RoleSeg::OutputBody],
+            };
+            assert_eq!(
+                lift(cut, &node, input, &name, &defined_by),
+                vec![Lift::Spelled(StableName {
+                    kind: EntityKind::Face,
+                    node: cut,
+                    path: vec![RoleSeg::From {
+                        read,
+                        of: NameRef::new(name.clone()),
+                    }],
+                })],
+                "a name of {input} lifts through its own seat's read"
+            );
+        }
+    }
 }

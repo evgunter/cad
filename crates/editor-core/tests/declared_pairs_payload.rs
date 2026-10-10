@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use editor_core::{
     BooleanCoincidence, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Node,
-    NodeErrorKind, ProfileDoc, RecipeNodeId, evaluate, inline, split,
+    ProfileDoc, RecipeNodeId, evaluate, inline, split,
 };
 use fixture::resolver::PartStore;
 use fixture::{flush_pairs, insert, step};
@@ -49,9 +49,8 @@ fn declared_overlap(id: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// **Clearing a live union's declaration recomputes it**, against the
 /// evaluation of the declared version: one id, so the memo is reached
-/// and only the content key can say the node moved. The union refuses
-/// the contacts it no longer declares rather than serving the body it
-/// built when it declared them.
+/// and only the content key can say the node moved. The cleared union
+/// builds undeclared, and its body is the declared one's.
 #[test]
 fn clearing_a_live_declaration_is_not_served_from_the_memo() {
     let (doc, union) = declared_overlap("declared-pairs-key-clear");
@@ -69,17 +68,19 @@ fn clearing_a_live_declaration_is_not_served_from_the_memo() {
     );
     let ev = rerun(&cleared, &prior);
     assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "the cleared union served its declared body: {:?}",
+        failure(&ev, union).is_none(),
+        "the cleared union builds undeclared: {:?}",
         failure(&ev, union)
     );
     assert_eq!(
         (ev.recomputed, ev.reused),
         (1, cleared.ids().len() - 1),
-        "the union alone recomputes"
+        "the cleared union was served from the memo, or a member moved"
+    );
+    assert_eq!(
+        fixture::built_bits(&ev, union),
+        fixture::built_bits(&prior, union),
+        "the undeclared union is the declared one's body"
     );
 }
 
@@ -106,13 +107,14 @@ fn a_class_flip_on_a_live_union_recomputes_it_alone() {
     );
 }
 
-/// **Following the refusal one finding at a time builds**: three slabs
-/// stacked as a stepped pyramid meet in two resting contacts, and a
-/// union of them refuses one contact at a time. `declare` ADDS each
-/// refusal's finding to the pairs the union holds, so the loop ends —
-/// a whole-list replace would trade one contact for the other forever.
+/// **`declare` ADDS each finding to the pairs the union holds**: three
+/// slabs stacked as a stepped pyramid meet in two resting contacts, the
+/// detector reports one finding at each, and declaring them one at a
+/// time leaves both declared — a whole-list replace would hold only the
+/// last. The undeclared stack builds, and the declared one is its body
+/// bit for bit.
 #[test]
-fn declaring_each_refusals_finding_converges_on_a_union_that_builds() {
+fn declaring_each_finding_in_turn_adds_it_and_builds_the_undeclared_body() {
     let doc = ProfileDoc::empty_derived("declared-pairs-converge", Tol::witness());
     let (doc, low) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, mid) = block(doc, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
@@ -124,29 +126,40 @@ fn declaring_each_refusals_finding_converges_on_a_union_that_builds() {
             declare: Vec::new(),
         },
     );
-    let mut refusals = 0;
-    let ev = loop {
-        let ev = run(&doc);
-        let Some(NodeErrorKind::UndeclaredCoincidence { finding, .. }) = failure(&ev, union) else {
-            break ev;
-        };
-        refusals += 1;
-        assert!(refusals <= 2, "the refusals do not converge");
+    let undeclared = run(&doc);
+    assert!(
+        failure(&undeclared, union).is_none(),
+        "{:?}",
+        failure(&undeclared, union)
+    );
+    let volume = topo::mass_properties(crate::corpus::body_of(&undeclared, union), Tol::witness())
+        .expect("the stack has mass")
+        .volume;
+    assert_eq!(volume, 9.0 + 4.0 + 1.0);
+    let mut findings = Vec::new();
+    for (a, b) in [(low, mid), (mid, top)] {
+        let found = editor_core::find_flush_candidates(&undeclared, &doc, a, b, Tol::witness())
+            .expect("the detector answers");
+        assert_eq!(found.len(), 1, "one resting contact: {found:?}");
+        findings.extend(found);
+    }
+    for finding in &findings {
         doc = editor_core::declare(&doc, union, finding, Tol::witness())
             .expect("the finding declares on its union")
             .doc;
-    };
-    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    assert_eq!(refusals, 2, "one refusal per contact");
+    }
     assert_eq!(
         doc.node(union).expect("live").declared_pairs().len(),
         2,
         "each contact declared once"
     );
-    let volume = topo::mass_properties(crate::corpus::body_of(&ev, union), Tol::witness())
-        .expect("the stack has mass")
-        .volume;
-    assert_eq!(volume, 9.0 + 4.0 + 1.0);
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    assert_eq!(
+        fixture::built_bits(&ev, union),
+        fixture::built_bits(&undeclared, union),
+        "the declared stack is the undeclared one's body"
+    );
 }
 
 /// **A declared union split into a part and inlined back builds**, its

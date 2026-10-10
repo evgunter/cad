@@ -584,16 +584,20 @@ fn twin(id: &str) -> ProfileDoc {
     crate::fixture::place(doc, body).0
 }
 
-/// A document whose one placement does not evaluate: two solids resting
-/// face on face, united and placed. The union of coincident faces is
-/// what the boolean refuses, so the placement is live and valueless —
-/// the state both the registry's precondition and the gather have
-/// something to say about. Answers the placement.
+/// A document whose one placement does not evaluate: two slabs whose
+/// caps stand apart by a sliver inside the ambiguity band, united and
+/// placed. The boolean refuses the in-band pair, so the placement is
+/// live and valueless — the state both the registry's precondition and
+/// the gather have something to say about. Answers the placement.
 fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
     let (doc, a) = slab(doc, 0.0, 1.0);
-    let (doc, b) = slab(doc, 1.0, 1.0);
+    // A gap strictly inside the ambiguity band: the margins decide the
+    // two caps neither one carrier nor two, so the union refuses.
+    let band = tol.get();
+    let gap = 0.5 * (band.eps + band.k * band.eps);
+    let (doc, b) = slab(doc, 1.0 + gap, 1.0);
     let (doc, fused) = insert(
         doc,
         Node::Union {

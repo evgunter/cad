@@ -2,11 +2,10 @@
 id: boolean-conic-side-code-zero-is-first-order
 kind: issue
 title: A curved edge's side code at a boolean vertex reads its departure to first order, so an arc tangent to the other face at the vertex reads On while it curves off
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: M
-blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -45,3 +44,7 @@ fixture shows the arc split at the band's edge
 ## Parked on the D10 hold (2026-10-08)
 
 `side_code`'s conic Zero is reached only through the declared `tangent_lump`; the undeclared path refuses `CurvedBooleanUnsupported` today. Once booleans glue on Zero the lump runs on the verdict, and this becomes that unit's fix. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+Undeclared tangent pairs now reach `tangent_lump` through the glue door's witness lane. E does not change `side_code`, so the fix is this row's own.

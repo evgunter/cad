@@ -14,7 +14,9 @@
 //!   node's first seat (a subtract's `from`, a union's or intersect's first
 //!   member), `FromB`'s its second, `FromTarget`'s its target, and
 //!   `FromMember { member, of }`'s the member read the node `member`
-//!   defines.
+//!   defines;
+//! - a declared pair's site, which named the member node, names the
+//!   member's read: the read that node defines.
 //!
 //! Persist has no migration path ("regenerate the corpus and move on",
 //! `persist/mod.rs`): the documents are regenerated once from their
@@ -22,6 +24,12 @@
 //! saves. Edit logs record no minted id, so the map is checked in step
 //! with the regenerated file, edit for edit, each carry segment against
 //! the seat of the node that minted it in the regenerated document.
+//!
+//! None of the three files declares a pair, so the site rule is written
+//! and not yet exercised here. In the tour's file an edit log replays at
+//! load, and a mis-seated read there is refused by that replay before the
+//! map runs; the map is what checks the snapshot files and each name's
+//! seat.
 //!
 //! Run against a checkout of the base: `DM4_BASE_TREE=<that checkout>`
 //! and `--run-ignored only`. Ignored because the base is not in this
@@ -193,6 +201,10 @@ impl Walk {
             } else if ka != kb {
                 return Err(format!("{at}: key {ka} against {kb}"));
             }
+            if ka == "at" && at.contains(".declare") {
+                self.site(va, vb, &here)?;
+                continue;
+            }
             self.value(va, vb, &here)?;
         }
         Ok(())
@@ -310,6 +322,22 @@ impl Walk {
             self.value(of, &from["of"], &format!("{here}.of"))?;
         }
         Ok(Some(()))
+    }
+
+    /// A declared pair's site: the base's names the member NODE, this
+    /// tree's the member's READ, so the old node is the one that defines
+    /// the new read.
+    fn site(&mut self, old: &Value, new: &Value, at: &str) -> Result<(), String> {
+        let (Some(node), Some(read)) = (old.as_str(), new.as_str()) else {
+            return Err(format!("{at}: a site is an id: {old} against {new}"));
+        };
+        let defining = self
+            .seats
+            .defined_by
+            .get(read)
+            .ok_or(format!("{at}: the site {read} is no output"))?
+            .clone();
+        self.map.pair(node, &defining, at)
     }
 
     fn seat_is(&self, minter: &str, k: usize, read: &str, at: &str) -> Result<(), String> {

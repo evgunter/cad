@@ -312,3 +312,107 @@ fn a_three_member_intersect_with_coincident_faces_folds() {
     );
     assert_eq!(volume(&ev, i), 0.5);
 }
+
+/// **A declared pair sited at a read spelled twice sites both of its
+/// members** (REFERENCES DM5, the work item's pinned row; reviews of
+/// PR 4527). `a` and `b` rest on each other at `x = 1`; the pair the
+/// detector finds between them is declared on a union listing `a` twice,
+/// in each of the three orders the repeat can take. Each builds the two
+/// blocks, volume 2: the repeated read is the same material, and the
+/// declaration between its read and `b`'s is judged once.
+///
+/// Red if a declared pair whose site appears twice is judged against the
+/// repeat itself, or routed to no step.
+#[test]
+fn a_declared_pair_sited_at_a_read_spelled_twice_builds_in_every_order() {
+    let doc = ProfileDoc::empty_derived("dm5-decl-twice", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 1.0);
+    let declare = editor_core::declared_pairs(
+        &editor_core::find_flush_candidates(&run(&doc), &doc, a, b, Tol::witness())
+            .expect("the blocks' findings"),
+    );
+    assert!(!declare.is_empty(), "the premise: a and b touch");
+    let mut doc = doc;
+    let mut unions = Vec::new();
+    for order in [[a, a, b], [a, b, a], [b, a, a]] {
+        let (next, union) = insert(
+            doc,
+            Node::Union {
+                members: spelled(&order),
+                declare: declare.clone(),
+            },
+        );
+        doc = next;
+        unions.push(union);
+    }
+    let ev = run(&doc);
+    for union in unions {
+        assert!(
+            (volume(&ev, union) - 2.0).abs() < 1e-9,
+            "the union builds the two blocks: {}",
+            volume(&ev, union)
+        );
+    }
+}
+
+/// **A stored name's read is held to the document at load** (review r2
+/// of PR 4527, m1). A fillet on a union selects an edge of the union by
+/// its read-keyed name (`RoleSeg::From { read: a }`); that read rewritten,
+/// in the saved snapshot, to one the document never minted — the union
+/// fold's own sentinel, or an id the mint log never held — refuses
+/// `NameReadNotMinted`, where the file as saved loads.
+///
+/// Red if the load door checks a name's nodes and steps but not its
+/// reads.
+#[test]
+fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
+    let doc = ProfileDoc::empty_derived("dm4-carry-read-at-load", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 1.0);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: spelled(&[a, b]),
+            declare: Vec::new(),
+        },
+    );
+    let read = fixture::out(&doc, a);
+    let ev = run(&doc);
+    let edge = table(&ev, union)
+        .iter()
+        .map(|(name, _)| name.clone())
+        .find(|name| {
+            name.kind == EntityKind::Edge
+                && matches!(name.path.first(), Some(RoleSeg::From { read: r, .. }) if *r == read)
+        })
+        .expect("the union names a's edges through a's read");
+    let (doc, fillet) = insert(doc, Node::fillet(union, len(0.1), vec![edge]));
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    assert!(
+        editor_core::persist::load(&text, Tol::witness()).is_ok(),
+        "the premise: the file as saved loads"
+    );
+    let key = serde_json::to_value(fillet).expect("an id serializes");
+    let key = key.as_str().expect("a node id is a string").to_owned();
+    for bogus in ["0:0000000000000000", "77777:00000000deadbeef"] {
+        let edited = crate::wire::doctored(&text, |body| {
+            let at = &mut body["snapshot"]["nodes"][key.as_str()]["Fillet"]["selection"][0]["path"]
+                [0]["From"]["read"];
+            assert_eq!(
+                *at,
+                serde_json::to_value(read).expect("a read serializes"),
+                "the selection's name is keyed by a's read"
+            );
+            *at = bogus.into();
+        });
+        match editor_core::persist::load(&edited, Tol::witness()) {
+            Err(editor_core::PersistError::Snapshot(error))
+                if matches!(error, editor_core::SnapshotError::NameReadNotMinted { .. }) => {}
+            other => panic!(
+                "a name carrying {bogus} refuses NameReadNotMinted, got {:?}",
+                other.map(|_| ()).map_err(|e| e.to_string())
+            ),
+        }
+    }
+}

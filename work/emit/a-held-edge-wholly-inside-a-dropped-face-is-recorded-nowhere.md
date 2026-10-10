@@ -46,3 +46,27 @@ Found in review of PR 3753 (re-review, 2026-10-02).
 - The breaking shape tried was an L-shaped `a`, `b` = [.5,1]×[.5,1]×[0,1], and `H` = [.3,.7]×[.3,.5]×[.5,2]. The kernel refuses it with `ClassificationInvariant` ("edge-edge membership disagreement"), the reflex-wedge limit documented on `resolve_edge_edge`.
 
 **When to revisit.** Before that limit is lifted, or before non-axis-aligned planar covered pairs are admitted, the attach rule should test "borders the stretch", not "touches `at`". The probe source is in the reviewer's notes: `probe_l_vertex.rs`.
+
+## A corpus case reaches it (INTENT stage 4 PR E, 2026-10-10)
+
+PR E glues an undeclared flush contact. With that change, the probe
+corpus's `cross` (`a`, `b` flush, the slab `g`, and the bar
+x −1..2, y 0.9..1.1, z 0.5..3) refuses this `Emission` in
+`[0, 1, 2, 3]`, `[1, 0, 2, 3]`, `[1, 2, 0, 3]` and `[2, 1, 0, 3]` of
+`emit_shared_rim_several::no_order_of_the_probe_corpus_refuses_several_shared_rims`.
+Before PR E, those orders refused `UndeclaredCoincidence`. The test
+admits the refusal by name (`RESIDUES`), so this issue now has a
+corpus fixture to measure against.
+
+**A three-box reproducer** (both reviews of PR 4527, FORK-DM4 unit 1, measured
+on its head and on its base with identical results). `A = [0,1]³`,
+`C = [1,2]×[0,1]²` touching `A` at `x = 1` (the `A`–`C` pair declared from
+`find_flush_candidates`), and `M = [0.5,1.5]×[−0.5,1.5]²` covering that contact.
+A `Union` over the six member orders: `amc`, `mac`, `cma` and `mca` refuse
+`Naming(Emission { "a piece of a face held as several borders no recorded
+discard between them" })`, while `acm` and `cam` build. So the union decides by
+member order, against DM4's "in every member order", on three boxes and with no
+corpus document needed. It also blocks any fixture that wants a building union
+whose admission rests on a pair the fold never meets (a contact a third member
+covers), which is how both reviewers tried to exercise the pairwise verdicts.
+Worth re-weighing the priority.

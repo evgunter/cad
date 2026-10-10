@@ -235,8 +235,9 @@ use geom_core::{
 };
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
+use crate::patch_bound::{PatchBoundError, is_rational};
 use crate::recourse::Reading;
+use geom_core::spline::TensorCoeffs;
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
@@ -2173,15 +2174,14 @@ struct Composite {
     breaks_v: Vec<f64>,
 }
 
-/// A row-major enclosure net of one spatial channel of a control net,
-/// optionally weighted (the homogeneous `A^c = w·P^c`).
+/// An enclosure net of one spatial channel of a control net, paired
+/// with the surface's two knot vectors and optionally weighted (the
+/// homogeneous `A^c = w·P^c`).
 ///
-/// `patch_bound::comp_nets` is the same extraction, and the two now
-/// share one storage shape: `geom_core::spline::net::TensorNet` is
-/// row-major and hands out both a flat slice (what
-/// `PatchSpans::decompose` consumes) and indexed windows (what
-/// `window_hull` reads), so the flat/nested bridge the two used to
-/// need is gone. What is shared is also the arithmetic — `weight ·
+/// `patch_bound::comp_nets` is the same extraction, and the two
+/// share one storage shape: `geom_core::spline::TensorCoeffs`, which
+/// `PatchSpans::decompose` consumes and whose net `window_hull`
+/// reads. What is shared is also the arithmetic — `weight ·
 /// coordinate`, in that order — and a change to it is a change to
 /// both. Where they still differ is WHEN the recentring happens: this
 /// one folds the centre into the net, because the net feeds
@@ -2198,22 +2198,34 @@ struct Composite {
 /// Interval arithmetic's outward rounding of `P − centre` is one ulp of the
 /// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
 /// carried one ulp of the coordinate.
-fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<Interval> {
-    n.control()
-        .iter()
-        .zip(n.weights().iter())
-        .map(|(p, w)| {
-            let x = Interval::point(match c {
-                0 => p.x,
-                1 => p.y,
-                _ => p.z,
-            }) - Interval::point(origin.0[c]);
-            match form {
-                NetForm::Homogeneous => Interval::point(*w) * x,
-                NetForm::Spatial => x,
-            }
-        })
-        .collect()
+fn channel<'n>(
+    n: &'n NurbsSurface<f64>,
+    c: usize,
+    form: NetForm,
+    origin: &Origin,
+) -> TensorCoeffs<'n> {
+    let nv = n.knots_v().control_count();
+    TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+        // Row-major layout: control[iu·nv + iv] — the net's own.
+        let (p, w) = (n.control()[i * nv + j], n.weights()[i * nv + j]);
+        let x = Interval::point(match c {
+            0 => p.x,
+            1 => p.y,
+            _ => p.z,
+        }) - Interval::point(origin.0[c]);
+        match form {
+            NetForm::Homogeneous => Interval::point(w) * x,
+            NetForm::Spatial => x,
+        }
+    })
+}
+
+/// The weight net `w` of a control net, as point enclosures.
+fn weight_net(n: &NurbsSurface<f64>) -> TensorCoeffs<'_> {
+    let nv = n.knots_v().control_count();
+    TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+        Interval::point(n.weights()[i * nv + j])
+    })
 }
 
 /// Which net a [`channel`] extraction produces.
@@ -2358,7 +2370,6 @@ impl Composite {
             base
         };
         let (ku, kv) = (base.knots_u(), base.knots_v());
-        let (nu, nv) = base.control_counts();
         let rational = is_rational(base);
         // One break list per direction, carrying every operand's
         // interior knots — the alignment substrate (patch docs).
@@ -2366,9 +2377,7 @@ impl Composite {
         extra_u.extend(fit.knots_u().interior_knots().map(|(t, _)| t));
         let mut extra_v: Vec<f64> = kv.interior_knots().map(|(t, _)| t).collect();
         extra_v.extend(fit.knots_v().interior_knots().map(|(t, _)| t));
-        let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[Interval]| {
-            PatchSpans::decompose(kku, kkv, grid, &extra_u, &extra_v)
-        };
+        let dec = |grid: &TensorCoeffs<'_>| PatchSpans::decompose(grid, &extra_u, &extra_v);
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
         // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
         // IS the homogeneous one and `wf` is not formed: the identity
@@ -2377,51 +2386,29 @@ impl Composite {
         let ctr = recentre_origin(base);
         let fit_form = NetForm::of(fit);
         let fc = |c: usize| channel(fit, c, fit_form, &ctr);
-        let f: [PatchSpans; 3] = [
-            dec(fit.knots_u(), fit.knots_v(), &fc(0)),
-            dec(fit.knots_u(), fit.knots_v(), &fc(1)),
-            dec(fit.knots_u(), fit.knots_v(), &fc(2)),
-        ];
-        let wf = (fit_form == NetForm::Homogeneous).then(|| {
-            let g: Vec<Interval> = fit.weights().iter().map(|x| Interval::point(*x)).collect();
-            dec(fit.knots_u(), fit.knots_v(), &g)
-        });
+        let f: [PatchSpans; 3] = [dec(&fc(0)), dec(&fc(1)), dec(&fc(2))];
+        let wf = (fit_form == NetForm::Homogeneous).then(|| dec(&weight_net(fit)));
         // The base's homogeneous nets and their first derivatives.
-        let a_grid: Vec<Vec<Interval>> = (0..3)
-            .map(|c| channel(base, c, NetForm::of(base), &ctr))
-            .collect();
-        let ku1 = derived_knots(ku)?;
-        let kv1 = derived_knots(kv)?;
-        let du = |g: &[Interval]| {
-            Net::from_flat(nu, nv, g.to_vec())
-                .diff_u_knots(ku)
-                .as_flat()
-                .to_vec()
+        let a_grid: [TensorCoeffs<'_>; 3] =
+            core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
+        // A direction whose derived vector is not clamped has no first
+        // partial net to decompose: refused typed.
+        let du = |g: &TensorCoeffs<'_>| {
+            g.derivative_u()
+                .map(|d| dec(&d))
+                .ok_or(PatchBoundError::DerivedKnots)
         };
-        let dv = |g: &[Interval]| {
-            Net::from_flat(nu, nv, g.to_vec())
-                .diff_v_knots(kv)
-                .as_flat()
-                .to_vec()
+        let dv = |g: &TensorCoeffs<'_>| {
+            g.derivative_v()
+                .map(|d| dec(&d))
+                .ok_or(PatchBoundError::DerivedKnots)
         };
-        let a: [PatchSpans; 3] = [
-            dec(ku, kv, &a_grid[0]),
-            dec(ku, kv, &a_grid[1]),
-            dec(ku, kv, &a_grid[2]),
-        ];
-        let a_u: [PatchSpans; 3] = [
-            dec(&ku1, kv, &du(&a_grid[0])),
-            dec(&ku1, kv, &du(&a_grid[1])),
-            dec(&ku1, kv, &du(&a_grid[2])),
-        ];
-        let a_v: [PatchSpans; 3] = [
-            dec(ku, &kv1, &dv(&a_grid[0])),
-            dec(ku, &kv1, &dv(&a_grid[1])),
-            dec(ku, &kv1, &dv(&a_grid[2])),
-        ];
-        let w_grid: Vec<Interval> = base.weights().iter().map(|x| Interval::point(*x)).collect();
+        let a: [PatchSpans; 3] = [dec(&a_grid[0]), dec(&a_grid[1]), dec(&a_grid[2])];
+        let a_u: [PatchSpans; 3] = [du(&a_grid[0])?, du(&a_grid[1])?, du(&a_grid[2])?];
+        let a_v: [PatchSpans; 3] = [dv(&a_grid[0])?, dv(&a_grid[1])?, dv(&a_grid[2])?];
+        let w_grid = weight_net(base);
         let w = if rational {
-            dec(ku, kv, &w_grid)
+            dec(&w_grid)
         } else {
             a[0].constant(Interval::one())
         };
@@ -2448,8 +2435,8 @@ impl Composite {
         // (`w ≡ 1`), and are not formed there.
         let auav = cross_spans(&a_u, &a_v);
         let m_tilde: [PatchSpans; 3] = if rational {
-            let w_u = dec(&ku1, kv, &du(&w_grid));
-            let w_v = dec(ku, &kv1, &dv(&w_grid));
+            let w_u = du(&w_grid)?;
+            let w_v = dv(&w_grid)?;
             let aua = cross_spans(&a_u, &a);
             let aav = cross_spans(&a, &a_v);
             [

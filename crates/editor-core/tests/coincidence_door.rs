@@ -102,7 +102,7 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         "the declared reading's own margin, never a synthetic one"
     );
     let Proof::Unproven { residual, .. } = coincide::prove(&doc, row) else {
-        panic!("the same-source rung proves a declared glue of two extrudes")
+        panic!("the same-construction rung proves a declared glue of two extrudes")
     };
     assert!(
         matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
@@ -165,11 +165,9 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
 /// the walk sees the transform although it adds no name segment — and
 /// stays unproven.
 ///
-/// The kernel settles a same-source pair like these walls by its own
-/// structural rung before any margin (stage 4 spec §14 Q1), so no
-/// production row reaches the door over them, and the row is built
-/// here over the scene's real cells. The production row that does is
-/// the section caps' ([`a_reunited_splits_section_caps_are_one_construction`]).
+/// The row is built here over the scene's real cells; the production
+/// rows over a split's walls and caps are the reunion's
+/// ([`a_reunited_splits_section_caps_are_one_construction`]).
 #[test]
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());

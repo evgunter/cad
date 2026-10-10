@@ -192,17 +192,15 @@ impl Interval {
     /// decoration); no geometric meaning is implied, and this is
     /// *never* a substitute for [`Decide`] classification (the
     /// no-`PartialEq` rationale on the type stands). Serves
-    /// bit-faithful declared-coincidence checks (e.g.
-    /// `merge_coplanar_faces`' declared-equality rung) and D9
-    /// determinism pins. Unlike [`Bounds`], this does not collapse
+    /// content-key hashing and D9 determinism pins. Unlike [`Bounds`], this does not collapse
     /// NaI and empty: their decorations differ (`Ill` vs `Trv`).
     ///
     /// **Not a coincidence channel (allowlist justification, M4
     /// PR 5)**: this is SCALAR PLUMBING — exact access to this
     /// scalar's own storage representation (content-key hashing,
     /// determinism pins), never a comparison between descriptions.
-    /// Production bit-identity COINCIDENCE checking retired with N6
-    /// (GeomSource); the CI tripwire's consumer allowlist is empty,
+    /// Production bit-identity COINCIDENCE checking is retired (N6);
+    /// the CI tripwire's consumer allowlist is empty,
     /// and this entry stays on the plumbing justification (#53).
     #[must_use]
     pub fn repr_bits(self) -> (u64, u64, u8) {

@@ -500,3 +500,59 @@ fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() 
         );
     }
 }
+
+/// `name` with every occurrence of the node `from` — at any depth, in a
+/// seam's or a crossing's citations as in its head — read as `to`.
+fn renoded_deep(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> StableName {
+    let text = serde_json::to_string(name).expect("a name serializes");
+    let (from, to) = (
+        serde_json::to_string(&from).expect("an id serializes"),
+        serde_json::to_string(&to).expect("an id serializes"),
+    );
+    serde_json::from_str(&text.replace(&from, &to)).expect("the renamed name parses")
+}
+
+/// **An overlapping family names alike read whole and spelled** (review
+/// r1 of PR 4527, S4). Three unit cubes along `(1, 1, 1)` at spacing 0.5
+/// overlap, so the union mints seams and crossings that cite the union
+/// itself; renamed at every depth, the family read whole and its members
+/// spelled publish one table and build one body.
+///
+/// Red if the spelled members are keyed or folded otherwise than the
+/// family's instances, which a disjoint family cannot show.
+#[test]
+fn an_overlapping_family_names_alike_read_whole_and_spelled() {
+    let (doc, cube) = cube_doc("dm3-overlap-alike");
+    let (doc, xs) = insert(doc, linear(cube, [1.0, 1.0, 1.0], 0.5, 3));
+    let (doc, whole) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Family(xs.into()),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, spelled) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
+            declare: Vec::new(),
+        },
+    );
+    let ev = eval(&doc);
+    let mut renamed: Vec<StableName> = names(&ev, whole)
+        .iter()
+        .map(|n| renoded_deep(n, whole, spelled))
+        .collect();
+    renamed.sort();
+    assert_eq!(
+        renamed,
+        names(&ev, spelled),
+        "the overlapping family read whole and spelled publish one table"
+    );
+    assert!(
+        (volume(&ev, whole) - volume(&ev, spelled)).abs() < 1e-12,
+        "and build one body: {} and {}",
+        volume(&ev, whole),
+        volume(&ev, spelled)
+    );
+}

@@ -2,12 +2,11 @@
 id: contact-verify-lane-gate-answers-a-crossing-not-certifiable
 kind: issue
 title: tangent_locus_relation refuses a declared contact across a transverse out-of-lane crossing NotCertifiable, where in lane it refuses Contradicted: the lane gate runs before the first-order reading
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: M
 design: true
-blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -65,3 +64,7 @@ kind and recourse.
 ## Parked on the D10 hold (2026-10-08)
 
 Same verifier as the row above. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+The glue door asks `tangent_locus_relation` about undeclared pairs too, and reads any refusal as "not tangent". So on the undeclared path this row's two answers both leave the pair unglued. The asymmetry stands on the declared path.

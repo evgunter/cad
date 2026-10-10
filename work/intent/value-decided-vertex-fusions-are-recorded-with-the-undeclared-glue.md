@@ -2,11 +2,10 @@
 id: value-decided-vertex-fusions-are-recorded-with-the-undeclared-glue
 kind: issue
 title: A boolean's vertex fusions decided by a margin are coincidences D10 records; E records them when undeclared touch glues
-status: parked
+status: open
 opened: 2026-10-08
 priority: P1
 cost: M
-blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -42,3 +41,7 @@ glue. Like any row, it is provable by the door (the same construction
 read twice, or C's margin identity at `Sym`). The `ContactRecords` rows
 these fusions back cite them through
 `contact-records-cite-their-decision`.
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+E records the face pairs it glues: ladder-decided `Rest`/continuation rows and witness-verified `Tangent`/`Seam` rows. It does not record vertex fusions. `one_vertex` still answers a `bool`, and the containment arms still keep their margins. Recording them is this row's work, and it is dispatchable.

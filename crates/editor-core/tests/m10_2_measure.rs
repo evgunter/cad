@@ -18,11 +18,10 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName,
-    apply, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeErrorKind,
+    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName, apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::{Point3, Tol};

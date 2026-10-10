@@ -48,7 +48,7 @@ impl FaceSelection {
     /// the entity the name denotes, read off the name's own
     /// carry-through segments (`pncad::select::attribute`).
     ///
-    /// A fillet's `FromTarget(f)` face is still the target's face `f`,
+    /// A fillet's `From { of: f }` face is still the target's face `f`,
     /// so clicking a flat on a filleted body reaches the feature that
     /// swept the flat and not the fillet that shrank it. That is the
     /// question the feature tree's highlight, the property panel's

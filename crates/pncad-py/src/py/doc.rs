@@ -1682,10 +1682,8 @@ impl Doc {
     /// live union, intersect or subtract `node`, keeping every pair it
     /// declares
     /// already — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3), and the door an `undeclared_coincidence`
-    /// refusal's recourse names: following each refusal with its
-    /// `finding` converges on a node that declares every contact it
-    /// meets. A pair on the same two sides as one already declared
+    /// (SELECT-DESIGN §3). A pair on the same two sides as one already
+    /// declared
     /// replaces it rather than repeating it. Nothing here detects;
     /// findings reach this door as VALUES the caller already inspected
     /// (the ruled no-fusion boundary).
@@ -2380,14 +2378,8 @@ impl Node {
     /// is a boundary refusal rather than an ambiguous unit. They are
     /// the sketch's own (x, y), which `plane` maps into the world.
     ///
-    /// `elevation` earns its keep because the kernel is fail-loud
-    /// about coincidence: it never INFERS that two faces are the same
-    /// face, so two solids merely touching on a shared plane are
-    /// refused (the `undeclared_coincidence` menu) until the author
-    /// declares the contact. Authoring a genuine Boolean therefore
-    /// needs solids that interpenetrate, which needs sketches at
-    /// different heights — or the detect/declare protocol
-    /// (`Evaluation.find_flush_candidates` → `Doc.declare_all`).
+    /// `elevation` places the sketch's plane, so two solids sketched at
+    /// different heights stack or interpenetrate as authored.
     #[staticmethod]
     fn polygon(
         py: Python<'_>,
@@ -3182,13 +3174,13 @@ impl Node {
     /// `declare` is the node's declared contact pairs, given as the
     /// `FlushFinding`s the caller INSPECTED — each carries its pair,
     /// sited at the two member reads, and its class — and held as the
-    /// node's own payload; an empty list declares nothing. The kernel
-    /// never infers that two faces are the same face, so members that
-    /// merely touch refuse, and that refusal is the typed MENU: an
-    /// `EvaluationError` with `kind == "undeclared_coincidence"` whose
-    /// `finding` attribute carries the candidate declaration. A declared
-    /// pair is fed at the fold step its two members meet at. The
-    /// protocol that fills this argument is
+    /// node's own payload; an empty list declares nothing. Members whose
+    /// faces a margin decides on one surface glue there, declared or not,
+    /// and the coincidence is recorded for the `unproven_coincidence`
+    /// check; a declaration adds its verification. A declared pair is fed
+    /// at the fold step its two members meet at. A refusal only a fold
+    /// step raises is `kind == "union_fold_step"`, naming the member it
+    /// folds in. The protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → this `declare=`,
     /// or `Doc.declare`/`Doc.declare_all` on the live node.
     #[staticmethod]

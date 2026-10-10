@@ -2319,14 +2319,14 @@ pub fn apply_with_names<T: Decide>(
 }
 
 /// The nodes a name's derivation passes through: its minting node,
-/// every embedded operand name's nodes (recursively), every
-/// discriminator partner's nodes, and every node id a SEGMENT carries
-/// in its own right — the localization set of N7 ("an edit renames
-/// nothing outside derivation paths that actually pass through the
-/// edited node").
+/// every embedded operand name's nodes (recursively) and every
+/// discriminator partner's nodes — the localization set of N7 ("an edit
+/// renames nothing outside derivation paths that actually pass through
+/// the edited node").
 ///
 /// A read a segment carries ([`crate::names::RoleSeg::From`]) is a
-/// variable, not a node: [`derivation_reads`] lists those.
+/// variable, not a node: [`derivation_reads`] lists those, and the load
+/// door holds them to the mint log beside these.
 pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
     let mut nodes = BTreeSet::from([name.node]);
     for_each_inner(name, &mut |inner| {
@@ -2862,7 +2862,7 @@ mod tests {
     }
 
     /// A union group whose base is a seam line an earlier fold step
-    /// minted is read like the pair's `FromA(Seam ..)`: the later step's
+    /// minted is read like a pair's `From { of: Seam .. }`: the later step's
     /// seam vertices on that line, and a piece of it, name its cutters.
     #[test]
     fn a_union_seam_line_group_is_read() {
