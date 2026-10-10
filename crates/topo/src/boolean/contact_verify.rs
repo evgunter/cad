@@ -502,18 +502,20 @@ fn on_surface<T: Decide>(
 ) -> Result<(), ContactRefusal> {
     match geom_core::k_stats::decide_magnitude(on, Margin::of(r.abs() + sag), band) {
         Ok(Magnitude::Zero) => Ok(()),
-        Ok(Magnitude::Positive) => match crate::validate::decide_nonzero(off, Margin::of(r), band) {
-            Ok(_) => Err(ContactRefusal::Contradicted {
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some(on),
-                    terminal_sliver: false,
-                },
-                steer: Some(FIT_DEFERRAL),
-            }),
-            Err(diag) => Err(ContactRefusal::Escalated { diag }),
-        },
+        Ok(Magnitude::Positive) => {
+            match crate::validate::decide_nonzero(off, Margin::of(r), band) {
+                Ok(_) => Err(ContactRefusal::Contradicted {
+                    diag: Indeterminate {
+                        margin: geom_core::MarginDiag::INVALID,
+                        band,
+                        predicate: Some(on),
+                        terminal_sliver: false,
+                    },
+                    steer: Some(FIT_DEFERRAL),
+                }),
+                Err(diag) => Err(ContactRefusal::Escalated { diag }),
+            }
+        }
         Err(diag) => Err(ContactRefusal::Escalated { diag }),
     }
 }
@@ -719,11 +721,36 @@ mod tests {
         for (r, sag, want, why) in [
             (0.0, 0.0, Want::On, "an exact sample, no sag"),
             (0.4 * eps, 0.4 * eps, Want::On, "the sum within ε"),
-            (0.6 * eps, 0.6 * eps, Want::Escalated, "each within ε, the sum in band"),
-            (0.0, big, Want::Escalated, "on at the sample, a sag beyond K·ε between"),
-            (big, 1.5 * big, Want::Contradicted, "a definite miss under a larger sag"),
-            (-big, 0.0, Want::Contradicted, "a definite miss on the other side"),
-            (0.6 * eps, big, Want::Escalated, "an in-band sample under a large sag"),
+            (
+                0.6 * eps,
+                0.6 * eps,
+                Want::Escalated,
+                "each within ε, the sum in band",
+            ),
+            (
+                0.0,
+                big,
+                Want::Escalated,
+                "on at the sample, a sag beyond K·ε between",
+            ),
+            (
+                big,
+                1.5 * big,
+                Want::Contradicted,
+                "a definite miss under a larger sag",
+            ),
+            (
+                -big,
+                0.0,
+                Want::Contradicted,
+                "a definite miss on the other side",
+            ),
+            (
+                0.6 * eps,
+                big,
+                Want::Escalated,
+                "an in-band sample under a large sag",
+            ),
         ] {
             let got = match on_surface(["probe_on", "probe_off"], r, sag, b) {
                 Ok(()) => Want::On,
@@ -742,10 +769,7 @@ mod tests {
     /// the two walls cross at angle `φ` along a z-line (they touch along
     /// it at `φ = 0`). `δ` is set so the second-order
     /// sagitta reads `so_in_eps · ε`; the carrier is the crossing line.
-    fn pin_in_bore(
-        so_in_eps: f64,
-        phi: f64,
-    ) -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>) {
+    fn pin_in_bore(so_in_eps: f64, phi: f64) -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>) {
         let b = band();
         let cyl = |c: [f64; 3], radius: f64| Surface::Cylinder {
             origin: Point3::from_array(c),
@@ -791,9 +815,8 @@ mod tests {
                 "phi = {phi:e}: the second-order sagitta {so:e} is in band"
             );
             let bracket = geom_core::k_stats::Bracket::open();
-            let out = tangent_locus_relation(
-                &pin, true, &bore, false, &along, -1.0, 1.0, declared, b,
-            );
+            let out =
+                tangent_locus_relation(&pin, true, &bore, false, &along, -1.0, 1.0, declared, b);
             let log = bracket.finish();
             let escalations: Vec<_> = log.escalations.iter().map(|e| e.source).collect();
             (out, escalations)
@@ -815,13 +838,21 @@ mod tests {
             panic!("an in-band defect escalates: {out:?}");
         };
         assert_eq!(diag.predicate, Some("contact_tangent_parallel"));
-        assert_eq!(escalations, vec![diag], "the refusal is the log's escalation");
+        assert_eq!(
+            escalations,
+            vec![diag],
+            "the refusal is the log's escalation"
+        );
         // A touch, undeclared: the second-order reading is the refusal.
         let (out, escalations) = read(0.0, false);
         let Err(ContactRefusal::Escalated { diag }) = out else {
             panic!("an undeclared in-band κ_rel escalates: {out:?}");
         };
         assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
-        assert_eq!(escalations, vec![diag], "the refusal is the log's escalation");
+        assert_eq!(
+            escalations,
+            vec![diag],
+            "the refusal is the log's escalation"
+        );
     }
 }
