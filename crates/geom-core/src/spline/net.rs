@@ -51,11 +51,14 @@
 //! consumer as a refusal.
 //!
 //! *Measured reachability, so this is a guard and not a story about
-//! one:* the one shipped step, `geom_brep::props::quad`'s `raw_deriv`,
-//! answers `n - 1` whenever its degree is at least 1, which its own
-//! `Dir` construction guarantees, and it fills a DEGENERATE (empty)
-//! span itself with an explicit zero rather than by returning fewer
-//! coefficients. So this is a latent-bug guard on a path no caller
+//! one:* a knot-vector step ([`TensorCoeffs`]'s, and
+//! `geom_brep::props::quad`'s) builds its line at the vector's count
+//! and answers that count less one, which is the line's own length
+//! less one because the net was built at the vector's extent; and
+//! `quad`'s `raw_deriv` answers `n - 1` whenever its degree is at
+//! least 1, which its own `Dir` construction guarantees, filling a
+//! DEGENERATE (empty) span with an explicit zero rather than by
+//! returning fewer coefficients. So this is a latent-bug guard on a path no caller
 //! reaches today, and it is written that way rather than as a fill
 //! policy the callers choose between.
 //!
@@ -496,14 +499,7 @@ impl TensorCoeffs<'_> {
     /// `knots_u`'s ([`super::hull::SplineCoeffs::derivative_coeffs`]), `(nu − 1) × nv`.
     #[must_use]
     pub fn diff_u(&self) -> TensorNet {
-        let cols: Vec<Vec<Interval>> = (0..self.net.nv())
-            .map(|j| {
-                self.ku
-                    .with_coeffs_from_fn(|i| self.net.get(i, j), |pair| pair.derivative_coeffs())
-            })
-            .collect();
-        // `derivative_coeffs` answers `control_count() − 1` entries per line.
-        TensorNet::from_fn(self.net.nu() - 1, self.net.nv(), |i, j| cols[j][i])
+        self.net.diff_u(line_step(&self.ku))
     }
 
     /// **The `v` partial's net**, per [`TensorCoeffs::diff_u`]:
@@ -569,10 +565,19 @@ impl TensorCoeffs<'_> {
 /// `net`'s `v`-lines differenced as `kv`'s. Private: both callers hand
 /// it a net whose `v` extent is `kv`'s by construction.
 fn diff_rows(kv: &KnotVector, net: &TensorNet) -> TensorNet {
-    let rows: Vec<Vec<Interval>> = (0..net.nu())
-        .map(|i| kv.with_coeffs_from_fn(|j| net.get(i, j), |pair| pair.derivative_coeffs()))
-        .collect();
-    TensorNet::from_rows(&rows)
+    net.diff_v(line_step(kv))
+}
+
+/// The differencing step for a line along `kv`'s direction: the line
+/// minted as `kv`'s by construction — every line of a [`TensorCoeffs`]
+/// holds `kv.control_count()` entries — and differenced once.
+fn line_step(kv: &KnotVector) -> impl Fn(&[Interval]) -> Vec<Interval> + '_ {
+    move |line| {
+        kv.with_coeffs_from_fn(
+            |i| line.get(i).copied().unwrap_or_else(Interval::refused),
+            |pair| pair.derivative_coeffs(),
+        )
+    }
 }
 
 #[cfg(test)]
