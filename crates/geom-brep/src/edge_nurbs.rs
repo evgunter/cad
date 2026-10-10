@@ -76,7 +76,6 @@ use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
-use geom_core::spline::algebra::domain_grid_points;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
@@ -545,8 +544,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // along one, has no chart a length in metres can cross into, and the
     // schedule below would only meet that as a foot point or a sine that
     // cannot be stated.
-    let localized = localized(wall);
-    let wall_op = SsiOperand::nurbs(&localized).map_err(refusal)?;
+    let wall_op = SsiOperand::nurbs(wall).map_err(refusal)?;
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
     // The feet and the image are `chart_image`'s, which is also the
@@ -1124,12 +1122,6 @@ where
     Ok(Point2::new(proj.u, proj.v))
 }
 
-/// How many knot spans per direction the wall is refined to before the
-/// hull and tube limbs run. A **structure** choice in C6's `f64` lane
-/// (never a decision), the surface-side twin of `ssi::certify`'s
-/// `SSI_CERT_SPANS` for the carrier.
-pub const PXN_WALL_SPANS: usize = 16;
-
 /// The chart image's own D9-fixed schedule: how many foot points the
 /// image is interpolated through.
 ///
@@ -1164,37 +1156,6 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// bound in the payload (never a widened gate), and tightening that is
 /// the algebraic route already banked with #264's envelope findings.
 pub const PXN_IMAGE_DEGREE: usize = 1;
-
-/// The wall refined to [`PXN_WALL_SPANS`] spans per direction before the
-/// hull and tube limbs run.
-///
-/// The hull limb's composite is hulled per span, so finer spans tighten
-/// it. The tube's chart readings (`NurbsBoxes::speed_sup` and the
-/// transversality margin) cut each span cell to the tube window and
-/// meet that with the whole cell's reading, so they localize below a
-/// span on their own. Whether the
-/// tube still gains anything from this refinement is unmeasured
-/// (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
-/// Knot refinement is exact in ℝ (the surface's locus and
-/// parameterization are unchanged).
-///
-/// Already-fine patches are returned unchanged, and a refusing knot
-/// algebra falls back to the original — a coarser enclosure can only
-/// make the certificate harder to pass, never unsound.
-fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
-    fn breaks(kv: &geom_core::spline::KnotVector) -> Vec<f64> {
-        if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
-            return Vec::new();
-        }
-        domain_grid_points(kv, PXN_WALL_SPANS)
-    }
-    let add_u = breaks(wall.knots_u());
-    let add_v = breaks(wall.knots_v());
-    let refined = wall.refine_knots_u(&add_u).unwrap_or_else(|_| wall.clone());
-    refined
-        .refine_knots_v(&add_v)
-        .unwrap_or_else(|_| refined.clone())
-}
 
 /// `|n̂ × m̂|` — the sine of the angle between the plane's exact unit
 /// normal and the wall's normal `S_u × S_v`.
@@ -1466,107 +1427,6 @@ mod tests {
         }
     }
 
-    /// A degree-2 knot vector on `[0, 1]` with the given interior knots.
-    fn deg2(interior: &[f64]) -> KnotVector {
-        let mut knots = vec![0.0, 0.0, 0.0];
-        knots.extend_from_slice(interior);
-        knots.extend([1.0, 1.0, 1.0]);
-        KnotVector::clamped(knots, 2).unwrap()
-    }
-
-    fn wall(ku: KnotVector, kv: KnotVector) -> NurbsSurface<f64> {
-        let (nu, nv) = (ku.control_count(), kv.control_count());
-        #[allow(clippy::cast_precision_loss)]
-        let control = (0..nu * nv)
-            .map(|i| Point3::new((i / nv) as f64, (i % nv) as f64, 0.0))
-            .collect();
-        NurbsSurface::new(ku, kv, control, vec![1.0; nu * nv]).unwrap()
-    }
-
-    /// Odd 64ths: none on the sixteenths grid.
-    fn odd64(n: i32) -> Vec<f64> {
-        (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
-    }
-
-    /// `localized` inserts each direction's DOMAIN sixteenths, a grid
-    /// point skipped up to and including `GRID_CLEARANCE` of the
-    /// spacing (`2⁻¹²`) from a knot (`0.5`, and `1/16` beside a knot
-    /// exactly `2⁻¹²` above it; a knot one ulp further than that above
-    /// `3/8` leaves `3/8` standing), and leaves a direction with
-    /// `PXN_WALL_SPANS + degree` control points alone while one with a
-    /// control point fewer takes the grid.
-    #[test]
-    fn localized_skips_a_grid_point_up_to_the_clearance_per_direction_with_its_cut_off() {
-        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, PXN_WALL_SPANS);
-        let near = 0.0625 + c;
-        let clear = (0.375 + c).next_up();
-        let at = deg2(&odd64(15));
-        assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
-        let out = localized(&wall(deg2(&[near, clear, 0.5]), at.clone()));
-        assert_eq!(
-            out.knots_u().knots(),
-            [
-                0.0, 0.0, 0.0, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, clear, 0.4375, 0.5,
-                0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
-            ]
-        );
-        assert_eq!(out.knots_v().knots(), at.knots());
-        let below = deg2(&odd64(14));
-        assert_eq!(below.control_count(), 17);
-        let out = localized(&wall(deg2(&[0.5]), below));
-        assert_eq!(out.knots_v().control_count(), 17 + 15);
-    }
-
-    /// `localized`'s wall has no cliff at any distance of a stated knot
-    /// from a grid point: a degree-1 ruled wall bent at every offset of
-    /// [`crate::grid_offsets::knot_offsets`] from the first point of the
-    /// [`PXN_WALL_SPANS`] grid keeps every
-    /// span's `u` difference quotient within `1e-9` of the slope of the
-    /// leg it lies on. That quotient is the derivative net each cell of
-    /// the tube's chart readings is built from. It is read directly
-    /// because `NurbsBoxes::speed_sup` takes the largest cell and so
-    /// hides a hairline whose rounding happened to land low. A grid
-    /// point inserted at a gap `g` beside the bend divides the inserted
-    /// point's rounding by `g`.
-    #[test]
-    fn the_wall_grid_derivative_net_has_no_cliff_at_any_knot_offset() {
-        let (_, offsets) = crate::grid_offsets::knot_offsets(PXN_WALL_SPANS, 1);
-        let rows: Vec<(String, f64)> = offsets
-            .into_iter()
-            .map(|(label, k)| {
-                let ku = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
-                let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-                let control = [0.0, 0.9, 1.0]
-                    .into_iter()
-                    .flat_map(|x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)])
-                    .collect();
-                let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
-                let fine = localized(&wall);
-                let (knots, nv) = (fine.knots_u().knots(), fine.knots_v().control_count());
-                let x: Vec<f64> = fine.control().iter().step_by(nv).map(|p| p.x).collect();
-                // Degree 1: control `i` sits at knot `i + 1`.
-                let worst = (0..x.len() - 1)
-                    .map(|i| {
-                        let (a, b) = (knots[i + 1], knots[i + 2]);
-                        let slope = if b <= k { 0.9 / k } else { 0.1 / (1.0 - k) };
-                        ((x[i + 1] - x[i]) / (b - a) - slope).abs()
-                    })
-                    .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
-                (label, worst)
-            })
-            .collect();
-        let table: String = rows
-            .iter()
-            .map(|(label, worst)| format!("\n  {label:>26}: slope error {worst:.4e}"))
-            .collect();
-        for (label, worst) in &rows {
-            assert!(
-                *worst < 1e-9,
-                "knot {label}: a span left its leg's slope{table}"
-            );
-        }
-    }
-
     /// An exact rational: `n / d`, `d > 0`, for the oracle below.
     #[derive(Clone, Debug)]
     struct Q {
@@ -1665,9 +1525,7 @@ mod tests {
     /// controls and a non-unit constant weight, cut to a non-dyadic
     /// interval: at `Interval` every control of the piece contains the
     /// exact rational control of the true restriction, and the piece's
-    /// weights are the carrier's weight exactly. The same cut through an
-    /// `f64` insertion plan (`split_at`) misses the exact controls, which
-    /// is what this row tells apart.
+    /// weights are the carrier's weight exactly.
     #[test]
     fn the_tubes_piece_encloses_the_exact_restriction_at_interval() {
         use geom_core::{Bounds, Interval};
@@ -1706,10 +1564,5 @@ mod tests {
                 })
         };
         assert!(encloses(piece.control()), "{:?}", piece.control());
-        let planned = carrier.split_at(b).unwrap().0.split_at(a).unwrap().1;
-        assert!(
-            !encloses(planned.control()),
-            "an f64 insertion plan misses the exact restriction"
-        );
     }
 }

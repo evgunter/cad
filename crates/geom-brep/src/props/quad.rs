@@ -7050,7 +7050,7 @@ mod tests {
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = (Interval::from_bounds(1.0 - d, 1.0), pt(1.0));
         let mut g = general(&[(1.0 - d, 1.0), (0.0, 0.0)], 0.0);
-        g.a = (Interval::from_bounds(1.0 - 2.0 * d, 1.0 - d), pt(1.0));
+        g.a = (Interval::from_bounds(1.0 - 1.5 * d, 1.0 - 0.25 * d), pt(1.0));
         g.piece.as_mut().unwrap().control[0] = g.a;
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(

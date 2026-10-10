@@ -113,7 +113,8 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
+use geom_core::spline::algebra::{domain_grid_points, range_grid_points, refine_plan_homogeneous};
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
@@ -297,21 +298,52 @@ impl SsiLimb {
     }
 }
 
-/// Refine the carrier so the hull limbs have small spans to work with
-/// (knot refinement is exact in ℝ; the curve is unchanged).
-fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
-    let kv = curve.knots();
-    // Already fine enough: refining a carrier that the marcher's step
-    // rule already gave hundreds of spans buys nothing and costs an
-    // O(n²) knot insertion per call.
+/// The breaks limbs 2 and 3 cut the carrier at so they have small
+/// spans to work with: the domain's `SSI_CERT_SPANS` grid. Both read
+/// the DESCRIBED carrier with these breaks taken in the certification
+/// ring (limb 2 through [`CurveCertData::with_breaks`], the box chain
+/// through [`refined_net`]), never a refined curve with `f64` weights.
+fn cert_grid(kv: &KnotVector) -> Vec<f64> {
+    // Already fine enough: a carrier that the marcher's step rule
+    // already gave hundreds of spans gains nothing from more breaks.
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
-        return curve.clone();
+        return Vec::new();
     }
     // A grid point on or near a knot is skipped: on it, refinement
-    // would raise multiplicity; beside it, it would open a narrow span
-    // whose tangent is the insertion's rounding.
-    let add = domain_grid_points(kv, SSI_CERT_SPANS);
-    curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
+    // would raise multiplicity; beside it, it would open a narrow span.
+    domain_grid_points(kv, SSI_CERT_SPANS)
+}
+
+/// The carrier's control net refined at [`cert_grid`]: its homogeneous
+/// channels `(w·P, w)` through
+/// [`geom_core::spline::CurvePlan::apply_certified`], then
+/// de-homogenized, so every point encloses the refined net of the
+/// described carrier. Paired with the refined vector; `None` when the
+/// insertion chain refuses.
+fn refined_net<T: Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+) -> Option<(KnotVector, [Vec<Interval>; 3])> {
+    let kv = carrier.knots();
+    let plans = refine_plan_homogeneous(kv, &cert_grid(kv)).ok()?;
+    let refine = |channel: Vec<Interval>| -> Vec<Interval> {
+        plans.iter().fold(channel, |c, plan| plan.apply_certified(&c))
+    };
+    let w: Vec<Interval> = carrier.weights().iter().map(|w| Interval::point(*w)).collect();
+    let coords = carrier.certified_coords();
+    let rw = refine(w.clone());
+    let net = core::array::from_fn(|d| {
+        let homogeneous = coords
+            .get(d)
+            .map(|c| c.iter().zip(&w).map(|(x, w)| *x * *w).collect())
+            .unwrap_or_default();
+        refine(homogeneous)
+            .iter()
+            .zip(&rw)
+            .map(|(a, w)| *a / *w)
+            .collect()
+    });
+    let fine = plans.last().map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+    Some((fine, net))
 }
 
 /// The exact `f64` a structural surface parameter stands for, or `None`
@@ -422,13 +454,13 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let hull = || -> Result<Hull, SsiError> {
         let (form, to_meters) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
-        let fine = refined(carrier);
-        let coords = fine.certified_coords();
-        let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
-            SsiError::UnsupportedCertificate {
+        let coords = carrier.certified_coords();
+        let breaks = cert_grid(carrier.knots());
+        let data = CurveCertData::new(carrier.knots(), carrier.weights(), &coords)
+            .map_err(|_| SsiError::UnsupportedCertificate {
                 what: "the fitted carrier's enclosure data is malformed",
-            }
-        })?;
+            })?
+            .with_breaks(&breaks);
         let composite = compose::implicit_composite(&data, &form).map_err(|_| {
             SsiError::UnsupportedCertificate {
                 what: "the implicit composite refused the fitted carrier",
@@ -679,22 +711,24 @@ fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
     range_grid_points(lo, hi, SSI_CERT_SPANS, &knots)
 }
 
-/// The box chain covering a carrier: one padded box per span of the
-/// refined curve, from the span's control hull (exact containment for a
-/// non-rational curve — the convex-hull property).
+/// The box chain covering a carrier: one padded box per span of its
+/// [`refined_net`], from the span's control hull (containment by the
+/// convex-hull property, positive weights making the rational basis a
+/// partition of unity).
 fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
 ) -> Vec<(Box3, Vec3<T>)> {
-    let fine = refined(carrier);
-    let coords = fine.certified_coords();
-    let kv = fine.knots();
     let mut out = Vec::new();
+    // A refused insertion chain returns an EMPTY chain, which limb 3
+    // reads as a definite refusal (no box, so nothing banked).
+    let Some((kv, coords)) = refined_net(carrier) else {
+        return out;
+    };
+    let kv = &kv;
     // One pair per coordinate channel, minted once outside the span
-    // walk. The coordinates and the knots are both read from `fine` —
-    // the SAME refined curve — so the count relation is
-    // `NurbsCurve3::new`'s fact and the refusal arm is unreachable by
-    // construction; it returns an EMPTY chain, which limb 3 reads as a
-    // definite refusal (no box, so nothing banked).
+    // walk. The net and the vector come from one insertion chain, so
+    // the count relation holds by construction and the refusal arm is
+    // unreachable; it too returns an EMPTY chain.
     let (Some(cx), Some(cy), Some(cz)) = (
         kv.with_coeffs(&coords[0]),
         kv.with_coeffs(&coords[1]),
@@ -729,7 +763,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // margin's certification enclosure is refused with it, and
         // `zero_free_lower_bound` reports 0 — the same typed refusal
         // the guarded zero vector produced, reached without a branch.
-        let t = fine.deriv(T::from_f64(0.5 * (a + b)));
+        let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
         out.push((bx, t / n));
     }
@@ -1886,34 +1920,30 @@ mod tests {
         geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
     }
 
-    /// `refined` inserts the DOMAIN's 32nds, a grid point skipped up
-    /// to and including `GRID_CLEARANCE` of the spacing (`2⁻¹³`) from a
+    /// `cert_grid` is the DOMAIN's 32nds, a grid point skipped up to
+    /// and including `GRID_CLEARANCE` of the spacing (`2⁻¹³`) from a
     /// knot: `0.5` is a knot, and `2/32` is skipped beside a knot
     /// exactly `2⁻¹³` above it, while a knot one ulp further than that
     /// above `12/32` leaves `12/32` standing.
     #[test]
-    fn refined_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+    fn cert_grid_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
         let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
         let near = 0.0625 + c;
         let clear = (0.375 + c).next_up();
-        let fine = super::refined(&carrier(&[near, clear, 0.5]));
-        let mut want = vec![0.0, 0.0, 0.0, near, clear];
-        want.extend((1..32).filter(|&k| k != 2).map(|k| f64::from(k) / 32.0));
-        want.extend([1.0, 1.0, 1.0]);
-        want.sort_by(f64::total_cmp);
-        assert_eq!(fine.knots().knots(), want);
+        let grid = super::cert_grid(carrier(&[near, clear, 0.5]).knots());
+        let want: Vec<f64> = (1..32)
+            .filter(|&k| k != 2 && k != 16)
+            .map(|k| f64::from(k) / 32.0)
+            .collect();
+        assert_eq!(grid, want);
     }
 
-    /// `refined`'s box chain has no cliff at any distance of a stated
+    /// The box chain has no cliff at any distance of a stated
     /// knot from a grid point: a degree-1 carrier bent at every offset
     /// of [`crate::grid_offsets::knot_offsets`] from the second point of
     /// the [`super::SSI_CERT_SPANS`] grid gives every
-    /// box the direction of the leg it lies on as its axis, to `1e-10`.
-    /// A grid point inserted at a gap `g` beside the bend opens a span
-    /// of width `g` whose tangent is the inserted point's rounding over
-    /// `g`, an axis error decaying as `1/g` from `~1e-3` at `g ≈ 2e-15`;
-    /// `1e-10` is crossed near `g ≈ 2e-8`, far inside any clearance
-    /// that holds and far outside one that does not.
+    /// box the direction of the leg it lies on as its axis, to `1e-10`,
+    /// and at least one box per grid span.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn the_refine_grid_box_axes_have_no_cliff_at_any_knot_offset() {
@@ -1986,19 +2016,19 @@ mod tests {
         assert_eq!(breaks, want);
     }
 
-    /// `refined`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
-    /// control points is returned as it came, one with a control point
-    /// fewer still takes the whole grid. The interior knots are odd
-    /// 128ths, none on the 32nds grid.
+    /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
+    /// control points takes no breaks, one with a control point fewer
+    /// still takes the whole grid. The interior knots are odd 128ths,
+    /// none on the 32nds grid.
     #[test]
-    fn refined_leaves_a_carrier_at_the_cut_off_alone() {
+    fn cert_grid_leaves_a_carrier_at_the_cut_off_alone() {
         let odd = |n: i32| -> Vec<f64> { (0..n).map(|j| f64::from(2 * j + 1) / 128.0).collect() };
         let at = carrier(&odd(31));
         assert_eq!(at.knots().control_count(), super::SSI_CERT_SPANS + 2);
-        assert_eq!(super::refined(&at).knots().knots(), at.knots().knots());
+        assert!(super::cert_grid(at.knots()).is_empty());
         let below = carrier(&odd(30));
         assert_eq!(below.knots().control_count(), 33);
-        assert_eq!(super::refined(&below).knots().control_count(), 33 + 31);
+        assert_eq!(super::cert_grid(below.knots()).len(), 31);
     }
 
     /// **Each pad widens its own axis.** A one-span linear pcurve whose
