@@ -44,7 +44,7 @@ use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
@@ -101,7 +101,10 @@ fn span_meter_sample(
     let witness = carrier.eval(Probe(domain * 0.5));
     let (start, end) = (carrier.eval(Probe(0.0)), carrier.eval(Probe(domain)));
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        },
         carrier,
         param_start: Probe(0.0),
         param_end: Probe(domain),
