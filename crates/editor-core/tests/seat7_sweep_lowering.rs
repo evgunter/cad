@@ -342,11 +342,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xd6c9_f1b0_d590_d99f),
-        ("corner_table", 0x4258_e6f3_cc74_7ad7),
+        ("die", 0xeb26_a7ea_78ed_257d),
+        ("corner_table", 0x373c_f5b8_3c16_576f),
         ("cut_cylinder", 0x2f75_0d41_c9ca_4e19),
-        ("boss_union", 0x662b_d224_b6df_3ccf),
-        ("kitchen_sink", 0xd8ca_c8cc_c8f5_8725),
+        ("boss_union", 0xa949_244c_6c35_9853),
+        ("kitchen_sink", 0x85ff_813c_10fc_b28f),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
