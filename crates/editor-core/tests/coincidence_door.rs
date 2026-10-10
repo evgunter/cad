@@ -660,14 +660,15 @@ fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId,
     (doc, ev, node, n)
 }
 
-/// **The containment fallback carries the declaration door's rows.**
-/// Two blocks apart, their flush faces declared: the union's boundaries
-/// never cross, so it is the fallback's assembly, and the subtraction's
-/// is operand A whole (the single-operand finish). Each records one row
-/// per declared pair all the same: the declaration door decided them
-/// before the fallback was chosen.
+/// **A declared pair whose faces never meet records no row, through
+/// the containment fallback too.** Two blocks apart, their flush faces
+/// declared: the union's boundaries never cross, so it is the
+/// fallback's assembly, and the subtraction's is operand A whole (the
+/// single-operand finish). The declaration door verified each pair one
+/// carrier, but no face of one block meets a face of the other, so the
+/// glue took no effect and the result records no row (D1).
 #[test]
-fn the_fallbacks_carry_the_declared_rows() {
+fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     for (op, id) in [
         (BooleanOp::Union, "coincide-apart-union"),
         (BooleanOp::Subtract, "coincide-apart-subtract"),
@@ -675,14 +676,8 @@ fn the_fallbacks_carry_the_declared_rows() {
         let (doc, ev, node, n) = apart(op, id);
         assert!(n > 0, "the premise: flush faces to declare");
         let got = rows(&ev, node);
-        assert_eq!(got.len(), n, "{op:?}: one row per declared pair: {got:?}");
-        assert!(
-            got.iter().all(
-                |r| r.relation == Relation::SameOriented && r.site == DecisionSite::PlaneLadder
-            ),
-            "{op:?}: {got:?}"
-        );
-        assert_eq!(unproven(&doc, &ev).len(), n, "{op:?}: two extrudes' faces");
+        assert!(got.is_empty(), "{op:?}: no row for faces apart: {got:?}");
+        assert!(unproven(&doc, &ev).is_empty(), "{op:?}");
     }
 }
 
@@ -937,4 +932,62 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
             .any(|s| s.contains("a blend chain's joint read as tangent")),
         "{said:?}"
     );
+}
+
+/// **A union records a vertex touch once, as its pair boolean does.**
+/// Two blocks kissing at a corner: the pair boolean holds one
+/// `VertexFusion` row, cited by its one record. Built as a `Union` node,
+/// the pairwise judgement decides the same touch, but its records are
+/// not the union's, so only the fold step's row, which the union's
+/// record cites, is published: the union's rows and findings are the
+/// pair's, the vertex touch once.
+#[test]
+fn a_union_records_a_vertex_touch_once() {
+    let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: a.into(),
+            b: b.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, union) = crate::docm7_union_declare::declared_union(doc, &[a, b], Vec::new());
+    let ev = run(&doc);
+    let mut all = Vec::new();
+    for (what, node) in [("pair", pair), ("union", union)] {
+        let got = rows(&ev, node);
+        let fusions = got
+            .iter()
+            .filter(|r| r.site == DecisionSite::VertexFusion)
+            .count();
+        assert_eq!(
+            fusions, 1,
+            "{what}: one vertex row for the one kiss: {got:#?}"
+        );
+        let value = ev.value(node).expect("evaluated");
+        let ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. }) =
+            &value.payload
+        else {
+            panic!("{what}: a boolean body")
+        };
+        assert_eq!(
+            contacts.rows().count(),
+            1,
+            "{what}: one record: {contacts:?}"
+        );
+        all.push(got.len());
+    }
+    assert_eq!(all[0], all[1], "the union's rows are the pair's");
+    let findings = unproven(&doc, &ev);
+    let at = |node| {
+        findings
+            .iter()
+            .filter(|f| matches!(f.subject, FindingSubject::Node(n) if n == node))
+            .count()
+    };
+    assert_eq!(at(pair), at(union), "{findings:#?}");
 }

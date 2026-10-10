@@ -2350,6 +2350,8 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
+            // Empty by construction: the options declare no anchor.
+            coincidences: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: enclosure.map(MassProperties::from),
@@ -2691,7 +2693,8 @@ impl Coincidence {
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    /// `battery_joint`, `battery_support_axis` or `profile_junction`.
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site
