@@ -2289,6 +2289,14 @@ NOT_BOUND = {
     # carry, and writes one as a `NodeId` or a `Var` argument.
     "SlotKind": SHAPE,
     "OperandSlot": SHAPE,
+    # A union's or an intersect's members argument: Python writes it as
+    # a sequence of operands or as one family read (`Node.union`'s
+    # `members`), and the kernel's two arms are those two shapes.
+    "Bodies": SHAPE,
+    # The kernel's operator choice: Python picks the node instead —
+    # `Node.union`, `Node.intersect`, `Node.subtract` — so there is no
+    # operator value to pass.
+    "BooleanOp": SHAPE,
     # What the slot door writes: Python hands `DocEdit.set_param` a
     # formula, a value, a `Var` or a `NodeId`, and the slot's word says
     # which the kernel lowers it to.
@@ -3656,16 +3664,15 @@ MEMBERS_BOUND_AS = {
     "EditError::ProfileProgramRefused": "EditError.variant",
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
-    "EditError::DuplicateInput": "EditError.variant",
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
-    "EditError::TooFewMembers": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
@@ -3793,6 +3800,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
+    "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
@@ -3910,6 +3918,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
     "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoOutput": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",

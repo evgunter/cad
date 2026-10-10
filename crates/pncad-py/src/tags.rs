@@ -312,6 +312,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotADatum { .. } => "not_a_datum",
         R::DatumHasNoValue(_) => "datum_has_no_value",
         R::NodeHasNoValue(_) => "node_has_no_value",
+        R::NodeHasNoOutput { .. } => "node_has_no_output",
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",

@@ -657,7 +657,8 @@ class SelectRefusal(PncadError):
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
     `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
+    `node_has_no_output` (a flush query's node defines no output for a
+    finding to be sited at), `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
     `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text, a flush

@@ -879,6 +879,9 @@ pub(crate) fn select_refusal(
                 standing.spoken(doc)
             )
         }
+        // The node is spoken in the message, as `node_has_no_value`'s
+        // standing is.
+        R::NodeHasNoOutput { .. } => err.spoken(doc, evaluation),
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()

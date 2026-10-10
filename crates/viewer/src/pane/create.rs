@@ -1834,13 +1834,18 @@ impl ViewerBehavior<'_> {
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by. The
     /// pattern and blend tools create one of two kinds, by the choice
-    /// their form holds; the duplicate tool's last node is a
+    /// their form holds, and the boolean tool one of three, by the
+    /// operation it holds; the duplicate tool's last node is a
     /// projection, and its label lands there.
     fn tool_noun(&self, kind: ToolKind) -> &'static str {
         match kind {
             ToolKind::Mate => MATE_NOUN,
             ToolKind::Revolve => "Revolve",
-            ToolKind::Boolean => "Boolean",
+            ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
+                Some(BooleanOp::Union) | None => "Union",
+                Some(BooleanOp::Intersect) => "Intersect",
+                Some(BooleanOp::Subtract) => "Subtract",
+            },
             ToolKind::Split => "Split",
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {

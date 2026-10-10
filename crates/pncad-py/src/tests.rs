@@ -1663,6 +1663,12 @@ fn select_refusal_tags_are_stable() {
         "node_has_no_value"
     );
     assert_eq!(
+        select_refusal_tag(&SelectRefusal::NodeHasNoOutput {
+            node: RecipeNodeId::new(0, 0)
+        }),
+        "node_has_no_output"
+    );
+    assert_eq!(
         select_refusal_tag(&SelectRefusal::NotALength {
             dim: Dimension::Angle,
         }),
@@ -6122,6 +6128,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "datum_has_no_value",
             "distinct_finding",
             "in_band",
+            "node_has_no_output",
             "node_has_no_value",
             "not_a_datum",
             "not_a_length",

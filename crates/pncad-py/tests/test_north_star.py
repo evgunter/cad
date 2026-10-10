@@ -4292,6 +4292,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `intersect` and `subtract` JOINED it at FORK-DM4 in place of
+        # the one `boolean` constructor: the document has three boolean
+        # nodes, `union`, `intersect` and `subtract`, and each has its
+        # own constructor. The positive form is `tests/test_union.py`.
+        #
         # `set_program` JOINED it at EDIT-PROGRAM: the whole-program
         # edit over a live profile, the fourth door this roster sees
         # that the census cannot. The positive form is
@@ -4324,14 +4329,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "assertion", "boolean", "chamfer", "datum_axis",
+                "assertion", "chamfer", "datum_axis",
                 "datum_axis_in_plane", "datum_face_frame",
                 "datum_frame", "datum_plane", "datum_point",
                 "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
-                "loft", "mate", "measure", "part", "pattern",
+                "intersect", "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
-                "split", "transform", "transform_by", "tube", "union",
+                "split", "subtract", "transform", "transform_by", "tube", "union",
             ],
         )
         #

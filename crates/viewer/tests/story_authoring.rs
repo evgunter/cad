@@ -460,7 +460,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            ["1 × Pattern", "1 × PlacedUnion", "1 × Boolean"]
+            ["1 × Pattern", "1 × PlacedUnion", "1 × Union"]
                 .iter()
                 .all(|kind| hover.contains(kind))
         }),

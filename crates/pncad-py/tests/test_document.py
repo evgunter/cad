@@ -414,7 +414,7 @@ class TestEvaluation(unittest.TestCase):
         # The standing speaks each node as the evaluated document holds
         # it: kind, label and tag.
         self.assertIn(
-            f'Boolean {tag(downstream)} is poisoned by the failure at Boolean "pocket" '
+            f'Union {tag(downstream)} is poisoned by the failure at Subtract "pocket" '
             f"({tag(cut)})",
             str(caught.exception),
         )
@@ -623,7 +623,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
             evaluate(doc).find_flush_candidates(outer, cut)
         self.assertEqual(caught.exception.reason, "node_has_no_value")
         self.assertIn(
-            f'Boolean "pocket" ({tag(cut)}) failed, so it has no value',
+            f'Subtract "pocket" ({tag(cut)}) failed, so it has no value',
             str(caught.exception),
         )
 

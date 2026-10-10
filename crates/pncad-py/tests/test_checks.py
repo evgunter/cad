@@ -278,7 +278,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: Boolean "joined" ('
+        spoken = 'check connectedness: Union "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
@@ -471,7 +471,11 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
         self.assertIsNone(row.rung)
         self.assertEqual(row.residual, "the two cells are two constructions")
-        self.assertEqual([node for node, _ in row.cells], [lower, upper])
+        # Each cell is named in the table of the read it came in
+        # through: the two members' outputs.
+        self.assertEqual(
+            [read for read, _ in row.cells], [doc.output(lower, 0), doc.output(upper, 0)]
+        )
         self.assertTrue(all(name is not None for _, name in row.cells))
 
         cfg = ChecksConfig(
