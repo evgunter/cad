@@ -103,8 +103,8 @@ fn shell8_dump_hollow_and_opened_corpus() {
     let z = Vec3::new(0.0, 0.0, 1.0);
     let y = Vec3::new(0.0, 1.0, 0.0);
 
-    // ---- The planar hollow box: `PlanesTogether` on the way in, the
-    // per-chart door on the lift. ----
+    // ---- The planar hollow box: `offset_planes_together` on the way
+    // in, the general door on the lift. ----
     let hollow = hollow_box();
     dump("hollow box operand", &hollow);
     let (outer, void) = outer_and_void(&hollow);

@@ -528,8 +528,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door's scope gate**: a face it was asked to
     /// move is not a plane. Its corner solve is three plane equations,
-    /// and a curved face has no such equation; the per-chart door
-    /// solves those corners one chart at a time.
+    /// and a curved face has no such equation;
+    /// [`crate::offset_surfaces_together`] roots those corners.
     TogetherNonPlanar {
         /// The face that is not a plane.
         face: FaceKey,
@@ -613,7 +613,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// not a plane, cylinder, cone, sphere or TORUS. The axial reduction
     /// reads each surface as a line or a circle in the meridian
     /// half-plane, and a NURBS or a fitted chart is neither — such
-    /// bodies keep the per-chart door and the refusal it gives them.
+    /// bodies take [`crate::offset_surfaces_together`] instead.
     ///
     /// A coaxial torus IS one of the kinds: its meridian is the circle
     /// centred `(R, h_c)`, the sphere's circle centred `(0, h_c)` with
