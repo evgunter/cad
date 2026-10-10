@@ -2,7 +2,7 @@
 id: the-from-f64-gate-reads-every-generic-crate
 kind: issue
 title: The from_f64 audit and its gate cover sweep/topo/geom/geom-brep only; profile, editor-core and geom-core also run generic code at Sym
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P2
 cost: M
