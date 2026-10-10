@@ -2,7 +2,8 @@
 id: material-pairing-gate-definite-zero-ends-as-unreadable
 kind: issue
 title: geom-brep/topo: the material-pairing gate's decided Zero reaches tier 3 as SliverDihedral{MaterialSide} with a flat defect ending that reads no margin
-status: review
+status: closed
+closed: 2026-10-10
 branch: encl/material-pairing-zero
 pr: 4474
 opened: 2026-10-09
@@ -38,3 +39,15 @@ Let the gate's definite Zero carry its decided margin (`MarginDiag::rejected_sig
 - **`MaterialStations::after_positive`** reads through `decide_nonzero`. This closes RESTFRONT's `validate-material-side-zero-mints-an-indeterminate`.
 - **`census` `pairing` (`.ok()`)** stays as it is. On one plane the margin is the reach, and a decided Zero is the in-band reading's sibling, so the touch verdict's one marginless refusal is right.
 - **`census::ee_cross_backed` (`:2593`)** is held under D10: it is the declared-pair backing rung.
+
+## Closed
+
+2026-10-10. PR 4474 merged after a full review (fix pass), the fix pass, a delta review (merge) and a small follow-up; hosted CI was green.
+- **The pairing is a decision.** `geom_brep::MATERIAL_PAIRING` (`SizedPass::NonZero`, size "length", the arm's lever) and `MATERIAL_PAIRING_CLAUSE` end the pairing at every reader that asks it past a smooth dihedral: tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`).
+  - A decided Zero is real geometry (only at K < √2) and shares the in-band reading's ending.
+  - The tolerance offer is made true by `pairing_at_wedge`, as `DIHEDRAL_ARM`'s `at_wedge` does. Where the wedge would re-decide into band below m/K, the refusal quotes the wedge's margin and offers w/K, so the edge reads as a crease.
+  - Pinned at 45°, 42° and 30° and at K = 10. Each row re-runs just below its offer and the operation then succeeds.
+- **The cusp-side Zero** (`MaterialStations::after_positive`) reads through `decide_nonzero` and stays a contradiction with the defect ending. This closes RESTFRONT's `validate-material-side-zero-mints-an-indeterminate`.
+- **The census touch door** keeps its `.ok()`: Zero and in band are one refusal there. It does not re-quote the wedge (it asks no dihedral).
+- **No decision moved:** the k-stream is byte-identical to main.
+- **Held under D10:** census `ee_cross_backed`.
