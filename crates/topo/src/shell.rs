@@ -479,9 +479,10 @@ pub enum ShellError<T: Real> {
     /// single gap to report.
     ///
     /// Lines, circles and ellipses are cut exactly, a conic at its
-    /// roots. A spiric or spline edge is cut on its carrier to within
-    /// about the band, never short of the arc: the read may refuse a
-    /// pair whose walls clear by less than that, never the reverse.
+    /// roots. A spiric or spline edge is cut on its carrier, never short
+    /// of the arc: to within a few bands while its split budget lasts,
+    /// and wider past it, so the read may refuse a pair whose walls
+    /// clear by less than that, never the reverse.
     OffsetsCross {
         /// One of the two planar faces.
         face: FaceKey,
@@ -4010,21 +4011,25 @@ fn footprints_may_overlap<T: Decide>(
 ///
 /// Each set is the face's region cut by `L`, by crossing parity over
 /// its boundary. Every boundary vertex is put on one side of `L` by a
-/// decide, Zero counting with the positive side, so an edge ending on
-/// `L` is counted once and a vertex touching `L` is a closed interval
-/// of length zero. A line edge crosses at its ends' sides. A circle or
-/// ellipse edge is split where its side of `L` is extreme and each
+/// decide, so an edge ending on `L` is counted once; the face is read
+/// twice, Zero counted with the positive side and then with the
+/// negative, and the two cuts united, so a vertex or an edge on `L` is
+/// part of the set whichever side the face lies on, and swapping the
+/// pair reads the same. A line edge crosses at its ends' sides. A circle
+/// or ellipse edge is split where its side of `L` is extreme and each
 /// monotone piece crosses at its own root, so a conic is cut exactly.
 /// A spiric or spline edge is refined on its own carrier
 /// ([`ArcPiece`]): each piece crosses at its chord's ends' sides, and a
 /// piece whose ball reaches `L` adds the ball's cut, since the region
 /// between an arc and its chord lies in that ball. Pieces that reach
-/// `L` are halved until their ball is within the band, so the set read
-/// holds the true one and exceeds it by a few bands. Crossings are
-/// ordered by decided comparisons, a pair the band cannot order is a
-/// tie; the overlap is then computed in `T` and decided, and an
-/// undecided vertex side, overlap or touch escalates rather than
-/// clearing.
+/// `L` are halved until their ball is within the band or
+/// [`ARC_SPLIT_BUDGET`] is spent, so the set read holds the true one.
+/// While the budget lasts it exceeds it by a few bands; past it, by as
+/// much as the leftover pieces' balls reach, which costs refusals,
+/// never a miss. Crossings are ordered by decided comparisons, a pair
+/// the band cannot order is a tie; the overlap is then computed in `T`
+/// and decided, and an undecided vertex side or overlap escalates
+/// rather than clearing.
 ///
 /// A pair that crosses by inverting its common edge refuses at the
 /// offset door's interval-forward check before this read runs (module
@@ -4132,7 +4137,7 @@ fn walls_cross<T: Decide>(
                     for piece in [(lo, hi.min(e_lo)), (lo.max(e_hi), hi)] {
                         if !matches!(
                             decide(
-                                "shell_moved_walls_overlap",
+                                "shell_moved_walls_beside_joint",
                                 Margin::of(piece.1 - piece.0),
                                 band
                             ),
@@ -4226,31 +4231,16 @@ struct ArcPiece<T: Real> {
 }
 
 impl<T: Decide> ArcPiece<T> {
-    /// The piece that is a spiric or spline `carrier` over `(t0, t1)`,
-    /// run forward along a plus half-edge and backward along a minus one.
-    fn along(carrier: &geom::Curve3<T>, (t0, t1): (T, T), plus: bool) -> Self {
-        let (speed, hull) = match carrier {
-            geom::Curve3::Spiric {
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            } => (
-                geom::spiric_rate_bounds(
-                    *minor_radius,
-                    *offset,
-                    (*major_radius - *minor_radius, *major_radius + *minor_radius),
-                    T::one(),
-                )
-                .0,
-                None,
-            ),
-            geom::Curve3::Nurbs(spline) => (
-                spline_speed(spline),
-                crate::splitting::containment::carrier_ball(carrier, (t0, t1)),
-            ),
-            _ => unreachable!("a line or a conic edge is not refined"),
-        };
+    /// The piece that is `carrier` over `(t0, t1)`, read at `speed` and
+    /// inside `hull` when there is one, run forward along a plus
+    /// half-edge and backward along a minus one.
+    fn along(
+        carrier: &geom::Curve3<T>,
+        speed: T,
+        hull: Option<(geom_core::Point3<T>, T)>,
+        (t0, t1): (T, T),
+        plus: bool,
+    ) -> Self {
         Self {
             carrier: carrier.clone(),
             speed,
@@ -4268,7 +4258,9 @@ impl<T: Decide> ArcPiece<T> {
             return (centre, radius);
         };
         // Both balls hold the arc; either choice is sound, so this is a
-        // selection, not a decision.
+        // selection, not a decision. Centre and radius are picked by the
+        // one selection, so a scalar that cannot order the radii hulls
+        // both centres and both radii, which holds either ball.
         let pick = |a: T, b: T| (hull_radius - radius).select_le_zero(a, b);
         (
             geom_core::Point3::new(
@@ -4276,7 +4268,7 @@ impl<T: Decide> ArcPiece<T> {
                 pick(hull_centre.y, centre.y),
                 pick(hull_centre.z, centre.z),
             ),
-            hull_radius.min(radius),
+            pick(hull_radius, radius),
         )
     }
 
@@ -4329,30 +4321,54 @@ fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
 impl<T: Decide> MovedWall<T> {
     /// The intervals of `L = p0 + s·d` (`d` unit, in this face's plane)
     /// the face covers, as `(lo, hi)` in `s` (module docs of
-    /// [`moved_walls_cross`] for the reading).
+    /// [`moved_walls_cross`] for the reading): the union of the two
+    /// readings that count a point on `L` with one side and with the
+    /// other. Each reading holds the boundary stretches on `L` of a face
+    /// lying on the other side, so the union holds them whichever side
+    /// the face lies on, and swapping the pair (which turns `d`, and so
+    /// both sides, around) reads the same.
     fn cut(
         &self,
         p0: geom_core::Point3<T>,
         d: geom_core::Vec3<T>,
         band: Band,
     ) -> Result<Vec<(T, T)>, Indeterminate> {
+        let mut out = self.cut_counting(p0, d, band, true)?;
+        out.extend(self.cut_counting(p0, d, band, false)?);
+        Ok(out)
+    }
+
+    /// [`Self::cut`] with a point on `L` (a Zero side) counted with the
+    /// positive side when `zero_up`, else with the negative one.
+    fn cut_counting(
+        &self,
+        p0: geom_core::Point3<T>,
+        d: geom_core::Vec3<T>,
+        band: Band,
+        zero_up: bool,
+    ) -> Result<Vec<(T, T)>, Indeterminate> {
+        let up = |sign: Sign| match sign {
+            Sign::Positive => true,
+            Sign::Zero => zero_up,
+            Sign::Negative => false,
+        };
         let m = self.normal.cross(d);
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
         // arc is a sample of the refinement's own choosing: one the band
-        // cannot place goes with the positive side, as Zero does, and the
-        // pieces either side of it reach `L`, so their balls' cut covers
-        // whatever crossing the choice moved.
+        // cannot place goes with Zero's side, and the pieces either side
+        // of it reach `L`, so their balls' cut covers whatever crossing
+        // the choice moved.
         let mut side_of = |(v, p): (Option<VertexKey>, geom_core::Point3<T>)| {
             if let Some(&(_, s)) = sides.iter().find(|(w, _)| Some(*w) == v) {
                 return Ok(s);
             }
             let read = decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band);
             let Some(v) = v else {
-                return Ok(!matches!(read, Ok(Sign::Negative)));
+                return Ok(read.map_or(zero_up, up));
             };
-            let s = !matches!(read?, Sign::Negative);
+            let s = up(read?);
             sides.push((v, s));
             Ok::<bool, Indeterminate>(s)
         };
@@ -4398,10 +4414,11 @@ impl<T: Decide> MovedWall<T> {
                 while before(split, to.0) {
                     if before(from.0, split) {
                         let p = at(split);
-                        let s = !matches!(
-                            decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band)?,
-                            Sign::Negative
-                        );
+                        let s = up(decide(
+                            "shell_moved_wall_side",
+                            Margin::of((p - p0).dot(m)),
+                            band,
+                        )?);
                         ends.push((split, s));
                     }
                     split = split + T::pi();
@@ -4575,9 +4592,32 @@ fn moved_walls<T: Decide>(
                                 minor,
                                 u_ref,
                             } => conic(center, axis, u_ref, major, minor),
-                            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => EdgeArc::Arc(
-                                ArcPiece::along(curve.carrier(), (t0, t1), edge.he_plus == he),
-                            ),
+                            geom::Curve3::Spiric {
+                                major_radius,
+                                minor_radius,
+                                offset,
+                                ..
+                            } => EdgeArc::Arc(ArcPiece::along(
+                                curve.carrier(),
+                                crate::splitting::containment::spiric_speed(
+                                    major_radius,
+                                    minor_radius,
+                                    offset,
+                                ),
+                                None,
+                                (t0, t1),
+                                edge.he_plus == he,
+                            )),
+                            geom::Curve3::Nurbs(ref spline) => EdgeArc::Arc(ArcPiece::along(
+                                curve.carrier(),
+                                spline_speed(spline),
+                                crate::splitting::containment::carrier_ball(
+                                    curve.carrier(),
+                                    (t0, t1),
+                                ),
+                                (t0, t1),
+                                edge.he_plus == he,
+                            )),
                         }
                     }
                 };
@@ -4777,6 +4817,8 @@ mod tests {
 
     #[allow(clippy::panic)]
     mod footprint_fuzz;
+    #[allow(clippy::panic)]
+    mod speed_fuzz;
 
     /// **The tilted read cuts a conic at its roots.** A face's cut of a
     /// line is read edge by edge; a circle or ellipse edge is split at
@@ -4818,14 +4860,10 @@ mod tests {
             from,
             to,
         };
-        let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| {
-            assert_eq!(got.len(), want.len(), "{what}: {got:?}");
-            for (g, w) in got.iter().zip(want) {
-                assert!(
-                    (g.0 - w.0).abs() < 1e-12 && (g.1 - w.1).abs() < 1e-12,
-                    "{what}: got {got:?}, want {want:?}"
-                );
-            }
+        let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| match want {
+            [] => assert!(got.is_empty(), "{what}: got {got:?}"),
+            [one] => covers_exactly(&got, *one, 1e-12, what),
+            _ => unreachable!("each case covers one interval or none"),
         };
 
         let east = (key(1), Point3::new(1.0, 0.0, 0.0));
@@ -5093,7 +5131,27 @@ mod tests {
                     edge: EdgeKey::default(),
                     start,
                     end,
-                    curve: EdgeArc::Arc(ArcPiece::along(carrier, params, plus)),
+                    curve: EdgeArc::Arc(ArcPiece::along(
+                        carrier,
+                        match carrier {
+                            geom::Curve3::Nurbs(spline) => spline_speed(spline),
+                            geom::Curve3::Spiric {
+                                major_radius,
+                                minor_radius,
+                                offset,
+                                ..
+                            } => crate::splitting::containment::spiric_speed(
+                                *major_radius,
+                                *minor_radius,
+                                *offset,
+                            ),
+                            _ => unreachable!("the helper takes a spiric or a spline"),
+                        },
+                        crate::splitting::containment::carrier_ball(carrier, params)
+                            .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
+                        params,
+                        plus,
+                    )),
                 },
                 BoundaryEdge {
                     edge: EdgeKey::default(),
@@ -5105,6 +5163,134 @@ mod tests {
             vertices: vec![a.0, b.0],
             lo: a.1,
             hi: b.1,
+        }
+    }
+
+    /// The parabola `y = 1 − x²` over `(−1, 0), (0, 2), (1, 0)` with its
+    /// middle weight `w`.
+    fn weighted_parabola(w: f64) -> geom::Curve3<f64> {
+        use geom_core::Point3;
+        geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                vec![
+                    Point3::new(-1.0, 0.0, 0.0),
+                    Point3::new(0.0, 2.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                ],
+                vec![1.0, w, 1.0],
+            )
+            .unwrap(),
+        ))
+    }
+
+    /// **A rational arc's speed bound carries its weights.** The
+    /// quadratic over `(0, 0), (0, 0.1), (−0.6, 1.7)` with weights
+    /// `1, 4, 0.57` peaks near `23.95` per unit parameter. The bound
+    /// reads `24.03`, and without its weight term only `2.33`: the
+    /// steps of the weighted net are short here, and what speeds the arc
+    /// up is the weights falling away.
+    #[test]
+    fn the_spline_speed_bound_covers_a_strongly_rational_arc() {
+        use geom_core::Point3;
+        let spline = geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 0.1, 0.0),
+                Point3::new(-0.6, 1.7, 0.0),
+            ],
+            vec![1.0, 4.0, 0.57],
+        )
+        .unwrap();
+        let bound = spline_speed(&spline);
+        let fastest = (0..=20_000)
+            .map(|k| spline.deriv(k as f64 / 20_000.0).norm())
+            .fold(0.0_f64, f64::max);
+        assert!(fastest > 23.9, "the arc peaks near 23.95, got {fastest}");
+        assert!(
+            bound >= fastest,
+            "the bound {bound} covers the fastest sample {fastest}"
+        );
+    }
+
+    /// **A spline piece is read in the smaller of its two balls.** On the
+    /// weight-`40` parabola the speed bound's ball over the whole window
+    /// has radius about `90`, while the control net's ball has radius
+    /// `√2`: the piece, and so the wall's box, is read in the latter.
+    #[test]
+    fn a_rational_spline_piece_is_read_in_its_control_ball() {
+        let carrier = weighted_parabola(40.0);
+        let geom::Curve3::Nurbs(spline) = &carrier else {
+            unreachable!("built a spline")
+        };
+        let speed = spline_speed(spline);
+        let hull = crate::splitting::containment::carrier_ball(&carrier, (0.0, 1.0));
+        let piece = ArcPiece::along(&carrier, speed, hull, (0.0, 1.0), true);
+        let (centre, radius) = piece.ball();
+        assert!(
+            speed * 0.5 > 50.0,
+            "the speed ball is wide, radius {}",
+            speed * 0.5
+        );
+        assert!(
+            (radius - 2.0_f64.sqrt()).abs() < 1e-12 && (centre.y - 1.0).abs() < 1e-12,
+            "the piece is read in the control ball about (0, 1), radius √2, got {centre:?}, {radius}"
+        );
+    }
+
+    /// **A contact on `L` is read whichever side the face lies on, and
+    /// in either order.** In the plane `z = 0`, a triangle touching the
+    /// `x` axis at its corner `(0.5, 0)`, on the side `y > 0` and on
+    /// `y < 0`, against a rectangle in `y = 0` crossing the axis over
+    /// `[0, 1]`: a touch away from any shared vertex, so overlap zero,
+    /// refused, in both orders. And a rectangle in `z = 0` whose edge
+    /// lies half the coincidence band past the axis, against one in
+    /// `y = 0` over `[0, 2]`: the two meet along the whole stretch,
+    /// overlap `2`, refused in both orders and on both sides.
+    #[test]
+    fn a_contact_on_the_line_is_read_from_either_side_in_either_order() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let v = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let e = |n: u64| -> EdgeKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let ring = |base: u64, pts: &[(f64, f64)]| -> Vec<(VertexKey, (f64, f64), EdgeKey)> {
+            pts.iter()
+                .enumerate()
+                .map(|(i, &p)| (v(base + i as u64), p, e(base + i as u64)))
+                .collect()
+        };
+        let both_orders = |on_z: &[(VertexKey, (f64, f64), EdgeKey)],
+                           on_y: &[(VertexKey, (f64, f64), EdgeKey)],
+                           want: f64,
+                           what: &str| {
+            let (a, b) = axis_walls(on_z, on_y);
+            for (first, second, order) in [(&a, &b, "a, b"), (&b, &a, "b, a")] {
+                let got = walls_cross(first, second, band).unwrap();
+                assert!(
+                    got.is_some_and(|o| (o - want).abs() < 1e-12),
+                    "{what}, order {order}: overlap {want}, got {got:?}"
+                );
+            }
+        };
+        let narrow = ring(20, &[(0.0, -1.0), (1.0, -1.0), (1.0, 1.0), (0.0, 1.0)]);
+        let wide = ring(20, &[(0.0, -1.0), (2.0, -1.0), (2.0, 1.0), (0.0, 1.0)]);
+        for sign in [1.0, -1.0] {
+            let tip = ring(10, &[(0.5, 0.0), (1.0, sign), (0.0, sign)]);
+            both_orders(
+                &tip,
+                &narrow,
+                0.0,
+                &format!("a corner touching from y {sign:+}"),
+            );
+            let past = -sign * 0.5 * band.zero();
+            let slab = ring(10, &[(0.0, past), (2.0, past), (2.0, sign), (0.0, sign)]);
+            both_orders(
+                &slab,
+                &wide,
+                2.0,
+                &format!("an edge on the line from y {sign:+}"),
+            );
         }
     }
 
