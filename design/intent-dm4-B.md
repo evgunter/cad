@@ -495,6 +495,46 @@ D10's Variables sentence above.
   reads, as "an irregular family is its members written out" already
   implies.
 
+### Round 7: I concede both points
+
+1. **The spelled list is the slot's spelling, not a value; item 4 is
+   (iii).** *Likely.* This supersedes my rounds 5 and 6 on these points.
+   - A minted, nameable list definition of kind `Bodies` is a list
+     literal under another name. It would be a reusable list of bodies,
+     which D10 and FORK-PAT give only to an index.
+   - The spelled list is also already in the design: S3M's placement
+     reads "a list of reads, not a list literal", and union, intersect and
+     placement should take the same argument.
+   - With the list as a spelling, VR4 already has to say "a slot holds a
+     read, or a list of reads". Letting a read carry its `Count`
+     expressions is one more clause in that sentence, so my round-5
+     reason for (i) shrinks to that clause.
+   - (i)'s two departures stay: a `Body` defined by no operation, and
+     `union(xs)` against `union(xs[k])` in a per-`k` reader, one member
+     read named two ways.
+   - So `Union(xs)` and `Union([xs[0], xs[1]])` both name `From { read:
+     xs, of: Member { (i), of } }`.
+   - The alias cost is accepted. "The third bolt" shared by two readers is
+     `bolts` and a named `Count`. The shared thing is named, as D10
+     requires; it is the index.
+2. **Self-union is (c), keep and glue.** *Likely.*
+   - The other designer's flat-set answer meets my collision objection.
+     A repeated read is an identical body, so every cell meets its twin
+     structurally. Each glued row is `Merged` of a set whose two elements
+     are one name, which N3's flat, deduplicated set reduces to that name.
+     No position is needed.
+   - (b)'s collapse is a second rule: a rewrite of the author's list,
+     beside the glue that two variables holding one body already get.
+   - (c) makes the same read twice and two variables holding one body one
+     case, answered by the operation. DM5's door check and its
+     evaluation-time arm both retire, which also removes (iii)'s one
+     tail.
+   - What (c) needs stated: N3's sentence that a `Merged` whose set has
+     one element *is* that element. Today the text only says the set is
+     deduplicated.
+   - What (c) costs: one boolean of a body with itself, which is
+     performance, not meaning.
+
 ## For the orchestrator
 
 - Assumed: a `Body` variable is always a `VarDef::Output` (D10: "the
