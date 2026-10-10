@@ -975,6 +975,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # Which primitive a measure is, without its references: Python reads
+    # it as the primitive's verb word.
+    "MeasureVerb": "MeasurePrimitive.verb",
     # `SelectionFault` is what `EditError::SelectionShape` carries, and
     # its arms cross at the carrier's second word.
     "SelectionFault": "EditError.inner_variant",
