@@ -1082,7 +1082,7 @@ pub enum SelfCheck {
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
     /// Where a carried contact record lands on the pieces of an edge the
-    /// op split (`ops::split_lineage`): whether a point lies on a piece's
+    /// op split (`ops::ledger`): whether a point lies on a piece's
     /// interior, or two pieces' interiors meet, asked as the census
     /// confirms the record. The record certified at rest, so an
     /// undecided answer is a contact the census could not confirm

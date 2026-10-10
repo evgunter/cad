@@ -627,7 +627,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [kiss] = gathered.contacts.vv[..] else {
+    let [ref kiss] = gathered.contacts.vv[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts

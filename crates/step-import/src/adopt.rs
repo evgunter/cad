@@ -746,9 +746,8 @@ fn iso_curve_candidates(
                 continue;
             }
             // Not a rung condition: `boundary_iso_u` is a control-net
-            // copy whose refusals — a net that disagrees with its own
-            // knot vector, or a bad weight on the column — are what
-            // `geom::NurbsSurface::new` already refuses. Carried out to
+            // copy whose one refusal — a bad weight on the column — is
+            // what `geom::NurbsSurface::new` already refuses. Carried out to
             // the ladder rather than read as "not this shape".
             let iso = geom_brep::boundary_iso_u(wp.as_ref(), end)?;
             // The column's `u` is the payload's own KNOT domain end

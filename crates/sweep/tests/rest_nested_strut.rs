@@ -60,15 +60,7 @@ fn pinch() -> (BooleanBody<f64>, Vec<CarriedVv>) {
     let Ok(BooleanResult::Body(pinch)) = topo::union_with(&block, &wedge, &decls, tol()) else {
         panic!("the wedge folds into the notch");
     };
-    let rows = pinch
-        .contacts
-        .vv
-        .iter()
-        .map(|&pair| CarriedVv {
-            pair,
-            class: ContactClass::Rest,
-        })
-        .collect();
+    let rows = pinch.contacts.carried(ContactClass::Rest).vv;
     (pinch, rows)
 }
 
