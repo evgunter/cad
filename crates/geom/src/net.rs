@@ -76,8 +76,7 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
 
 /// The count half of [`validate_counts`]: `control` points and
 /// `weights` weights against the `expected` control count, in that
-/// order. The one statement of the count rule, which
-/// [`crate::NurbsSurface::check_net_counts`] exposes.
+/// order. The one statement of the count rule.
 ///
 /// # Errors
 ///

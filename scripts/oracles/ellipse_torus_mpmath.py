@@ -99,10 +99,10 @@ def bisect(f, lo, hi):
     return (lo + hi) / 2
 
 
-def extremum(f, lo, hi):
-    """Golden-section search for the extremum of `f` on [lo, hi] whose sign is
-    `f`'s at the bracket's middle: the least |f| a graze reaches."""
-    sign = 1 if f((lo + hi) / 2) > 0 else -1
+def extremum(f, lo, hi, sign):
+    """Golden-section search for the extremum of `f` on [lo, hi] of `sign`,
+    the sign `f` has at the sample it is searched about: the least |f| a
+    graze reaches."""
     g = (mp.sqrt(5) - 1) / 2
     a, b = lo, hi
     for _ in range(160):
@@ -123,18 +123,21 @@ def true_roots(pose, mid):
     for k in range(SAMPLES):
         if (fs[k] < 0) != (fs[k + 1] < 0):
             roots.append(bisect(f, ts[k], ts[k + 1]))
-    # A graze pair inside one step: a sampled local extremum of |f| whose
-    # refined extremum crosses zero.
-    for k in range(1, SAMPLES):
-        a, b, c = abs(fs[k - 1]), abs(fs[k]), abs(fs[k + 1])
-        same = (fs[k - 1] < 0) == (fs[k] < 0) == (fs[k + 1] < 0)
-        if not (same and b <= a and b <= c):
+    # A graze pair inside one step, the first and last steps included: a
+    # sampled local extremum of |f| whose refined extremum crosses zero. A
+    # tie goes to the earlier sample, so one extremum is searched once.
+    for k in range(SAMPLES + 1):
+        a, b = max(k - 1, 0), min(k + 1, SAMPLES)
+        kept = (fs[a] < 0) == (fs[k] < 0) == (fs[b] < 0)
+        before = a == k or abs(fs[k]) < abs(fs[a])
+        after = b == k or abs(fs[k]) <= abs(fs[b])
+        if not (kept and before and after):
             continue
-        t = extremum(f, ts[k - 1], ts[k + 1])
+        t = extremum(f, ts[a], ts[b], 1 if fs[k] > 0 else -1)
         least = min(least, abs(f(t)))
         if (f(t) < 0) != (fs[k] < 0):
-            roots.append(bisect(f, ts[k - 1], t))
-            roots.append(bisect(f, t, ts[k + 1]))
+            roots.append(bisect(f, ts[a], t))
+            roots.append(bisect(f, t, ts[b]))
     return sorted(roots), least
 
 

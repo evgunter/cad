@@ -594,8 +594,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `ImportOptions::declared_contacts` is a `pub Vec<ImportContact>` —
 // the import-side declaration channel (M9-2, D7 step 4), the position
 // anchored declarations a caller attaches to an import so they are
-// certified by the SAME tier-3′ gate a native declared-contact body
-// runs. `ImportOptions` was on this list and `ImportContact` was not,
+// certified by the SAME tier-3′ gate a native body's contact records
+// run. `ImportOptions` was on this list and `ImportContact` was not,
 // which is not a matchability gap but a REACH one: a prelude caller
 // could name the options struct, could set `eps_in`, and could not
 // put a declaration in it, because filling a public field means
