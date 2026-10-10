@@ -936,8 +936,9 @@ mod tests {
     const DISTANCE: &str =
         "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
     const REPORT: &str = "; if it has none, this may indicate a kernel bug worth reporting";
-    const UNREAD: &str = "; an unreadable or collapsed margin may indicate a kernel bug worth \
-                          reporting";
+    const UNREAD: &str = "; an unreadable margin may indicate a kernel bug worth reporting";
+    const UNREAD_AT_REST: &str =
+        "; an unreadable margin may indicate a kernel or file defect worth reporting";
 
     /// `K = 10`: a margin `m` passes at every tolerance below `m/10`.
     fn band() -> Band {
@@ -1071,12 +1072,16 @@ mod tests {
         for (error, want) in rows {
             for reading in [Reading::Build, Reading::AtRest] {
                 // A poisoned margin's note names the file at rest.
-                let want = match reading {
-                    Reading::Build => want.clone(),
-                    Reading::AtRest => want.replace(
-                        geom_core::UNREADABLE_MARGIN_NOTE,
-                        geom_core::UNREADABLE_STORED_MARGIN_NOTE,
-                    ),
+                let want = match (reading, &error) {
+                    (Reading::AtRest, MeterError::Escalated { meter, source })
+                        if source.margin.is_invalid() =>
+                    {
+                        match meter {
+                            Meter::NormalFloor => format!("{SPLIT}{UNREAD_AT_REST}"),
+                            Meter::CurvatureHeadroom => format!("{DISTANCE}{UNREAD_AT_REST}"),
+                        }
+                    }
+                    _ => want.clone(),
                 };
                 assert_eq!(error.ending(reading), want, "{error:?} at {reading:?}");
                 let text = error.render(reading);

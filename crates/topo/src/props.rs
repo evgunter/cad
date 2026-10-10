@@ -2802,8 +2802,9 @@ pub enum ShellClassifyError {
 /// The shell-role decision (`chk_shell_volume_sign`): its margin is
 /// `V/A`, the mean wall thickness the shell's volume corresponds to, and
 /// it passes on either definite sign — positive is an outer boundary,
-/// negative a void.
-const SHELL_ROLE: SizedDecision = SizedDecision {
+/// negative a void. A reader over stored geometry ends a refusal of it
+/// itself, at rest ([`ShellClassifyError::arm`]).
+pub const SHELL_ROLE: SizedDecision = SizedDecision {
     lever: "thicken or remove the degenerate geometry",
     size: "thickness",
     passes: SizedPass::NonZero,
@@ -2845,25 +2846,33 @@ impl ShellClassifyError {
         ShellClassifyPayload(self)
     }
 
-    /// The shell-role decision's one ending for this refusal (D4 ¶1
-    /// (i)), read at a build; `None` where the refusal is not that
-    /// decision's. A flux refusal ends in its own payload's recourse,
-    /// and a band failure is the run's configuration.
+    /// The refused arm of the shell-role decision ([`SHELL_ROLE`]) this
+    /// refusal is; `None` where the refusal is not that decision's. A
+    /// flux refusal ends in its own payload's recourse, and a band
+    /// failure is the run's configuration.
     ///
     /// An escalation and a zero are band-decided and end with the value
     /// the margin gives. A straddle is two definite verdicts on
     /// opposite sides, which no smaller tolerance reconciles, so it
-    /// ends in the lever alone; each ends the same read over a body at
-    /// rest ([`StoredDefinite::Lever`]).
+    /// ends in the lever alone.
+    #[must_use]
+    pub fn arm(&self) -> Option<RefusedArm<'_>> {
+        match self {
+            Self::Escalated { source, .. } => Some(RefusedArm::Undecided(source)),
+            Self::ZeroVolume { verdict, .. } => Some(RefusedArm::Zero(*verdict)),
+            Self::Straddles { .. } => Some(RefusedArm::SignCertain(None)),
+            Self::Props { .. } | Self::Band { .. } => None,
+        }
+    }
+
+    /// The shell-role decision's one ending for this refusal (D4 ¶1
+    /// (i)), read at a build, where the shell door's own `Display` reads
+    /// it; `None` where the refusal is not that decision's. A reader
+    /// over stored geometry reads [`ShellClassifyError::arm`] at rest
+    /// itself, where a poisoned margin's note names the file.
     #[must_use]
     pub fn ending(&self) -> Option<String> {
-        let arm = match self {
-            Self::Escalated { source, .. } => RefusedArm::Undecided(source),
-            Self::ZeroVolume { verdict, .. } => RefusedArm::Zero(*verdict),
-            Self::Straddles { .. } => RefusedArm::SignCertain(None),
-            Self::Props { .. } | Self::Band { .. } => return None,
-        };
-        Some(SHELL_ROLE.recourse(arm, Reading::Build))
+        Some(SHELL_ROLE.recourse(self.arm()?, Reading::Build))
     }
 }
 

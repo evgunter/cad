@@ -3547,11 +3547,23 @@ impl fmt::Display for ValidationError {
                 "two edges meeting at a vertex lie on one curve and are one edge, so the \
                  operation that finished the body did not join them. {DEFECT}"
             ),
-            Self::JoinUndecidedAtRest { undecided } => write!(
-                f,
-                "{}",
-                crate::boolean::JoinRefusal::Undecided(undecided.clone())
-            ),
+            Self::JoinUndecidedAtRest { undecided } => match undecided.diag() {
+                Some(diag) => write!(
+                    f,
+                    "{} is undecided ({}). {}",
+                    crate::boolean::JOIN_SUBJECT,
+                    diag.payload(),
+                    diag.ending_noted(
+                        crate::boolean::JOIN_LEVER,
+                        geom_brep::recourse::unreadable_margin_note(Reading::AtRest)
+                    )
+                ),
+                None => write!(
+                    f,
+                    "{}",
+                    crate::boolean::JoinRefusal::Undecided(undecided.clone())
+                ),
+            },
             Self::TangentNotIntrinsic { .. } => write!(
                 f,
                 "an edge where two faces meet tangentially is stored as a sketch curve, \
@@ -3693,11 +3705,21 @@ impl fmt::Display for ValidationError {
                  measured with far from the world origin. Recourse: model the part nearer the \
                  origin, or tighten the tolerance",
             ),
-            Self::ShellRoleUndecided { error, .. } => write!(
-                f,
-                "a shell's role in its solid cannot be read, so the solid's shells cannot be \
-                 wound: {error}"
-            ),
+            Self::ShellRoleUndecided { error, .. } => {
+                f.write_str(
+                    "a shell's role in its solid cannot be read, so the solid's shells cannot \
+                     be wound: ",
+                )?;
+                match error.arm() {
+                    Some(arm) => write!(
+                        f,
+                        "{}. {}",
+                        error.payload(),
+                        crate::props::SHELL_ROLE.recourse(arm, Reading::AtRest)
+                    ),
+                    None => write!(f, "{error}"),
+                }
+            }
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
             Self::UndeclaredContact { contact, witness } => write!(
@@ -10811,6 +10833,41 @@ mod tests {
                 child: EntityId::Shell(sh),
                 owners: 2,
             }])
+        );
+    }
+
+    /// **A poisoned shell role read at rest keeps its lever and names the
+    /// file** (D4 ¶1 (i)): check 10 ends the shell-role decision itself,
+    /// at rest, where the shell door's own text reads it at a build.
+    #[test]
+    fn a_poisoned_shell_role_at_rest_names_the_file() {
+        let error = crate::props::ShellClassifyError::Escalated {
+            shell: crate::entity::ShellKey::default(),
+            source: Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("chk_shell_volume_sign"),
+                terminal_sliver: false,
+            },
+        };
+        let lever = "Recourse: thicken or remove the degenerate geometry";
+        assert!(
+            error.to_string().ends_with(&format!(
+                "{lever}; an unreadable margin may indicate a kernel bug worth reporting"
+            )),
+            "the shell door reads at a build: {error}"
+        );
+        let at_rest = ValidationError::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error,
+        }
+        .to_string();
+        assert!(
+            at_rest.ends_with(&format!(
+                "{lever}; an unreadable margin may indicate a kernel or file defect worth \
+                 reporting"
+            )),
+            "{at_rest}"
         );
     }
 

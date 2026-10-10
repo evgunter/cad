@@ -1237,8 +1237,9 @@ mod tests {
         let above = diag(MarginDiag::value(5e-9));
         let below = diag(MarginDiag::value(-5e-9));
         let poisoned = diag(MarginDiag::INVALID);
-        const NOTE: &str =
-            "an unreadable or collapsed margin may indicate a kernel bug worth reporting";
+        const NOTE: &str = "an unreadable margin may indicate a kernel bug worth reporting";
+        const NOTE_AT_REST: &str =
+            "an unreadable margin may indicate a kernel or file defect worth reporting";
         const BOUNDARY: &str =
             "Recourse: move the point exactly onto the boundary or clearly off it";
         const RAY: &str = "Recourse: nudge the point so no boundary corner lines up with it";
@@ -1354,7 +1355,10 @@ mod tests {
         for (decision, escalation, cause, ending) in rows {
             let row = format!("{decision:?} {escalation:?} {}", cause.margin);
             // A poisoned margin's note names the file at rest.
-            let stored = ending.replace(NOTE, geom_core::UNREADABLE_STORED_MARGIN_NOTE);
+            let stored = match ending.strip_suffix(NOTE) {
+                Some(lever) => format!("{lever}{NOTE_AT_REST}"),
+                None => ending.clone(),
+            };
             for reading in [Reading::Build, Reading::AtRest] {
                 let ending = match reading {
                     Reading::Build => &ending,

@@ -1952,8 +1952,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
-            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable or \
-             collapsed margin may indicate a kernel bug worth reporting",
+            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable margin may indicate a kernel bug worth reporting",
         ),
         (
             "lever arm",
@@ -1999,7 +1998,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             "spline meter, invalid",
             escalated(CertCheck::ParamSpanMeter, MarginDiag::INVALID),
             "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
-             or turning back; an unreadable or collapsed margin may indicate a kernel bug worth \
+             or turning back; an unreadable margin may indicate a kernel bug worth \
              reporting",
         ),
         (
@@ -2120,7 +2119,7 @@ fn meter_escalations(curvature: &str) -> Vec<(&'static str, geom_brep::OffsetFit
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
-                "{curvature}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                "{curvature}; an unreadable margin may indicate a kernel bug worth \
                  reporting"
             ),
         ),
@@ -4833,7 +4832,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             escalated(MarginDiag::INVALID),
             format!(
                 "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
-                 unreadable or collapsed margin may indicate a kernel bug worth reporting"
+                 unreadable margin may indicate a kernel bug worth reporting"
             ),
         ),
         (

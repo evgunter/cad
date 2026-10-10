@@ -24,7 +24,6 @@ pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
 pub mod readable;
-pub mod reading;
 pub mod real;
 pub mod running;
 pub mod spline;
@@ -52,7 +51,6 @@ pub use predicate::{
     UnderTail, lever_recourse, noted,
 };
 pub use readable::Readable;
-pub use reading::Reading;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
     is_underflowed_length, is_zero_length,

@@ -588,8 +588,9 @@ pub enum FindingSubject {
 // - Unsupported forwards its payload's `Display`, recourse included.
 // - Escalated renders the refusal's data view,
 //   [`ShellClassifyError::payload`] (no stage prefix and no arena key,
-//   neither of which a document user can act on), then the same ending
-//   the refusal's own `Display` ends in, [`ShellClassifyError::ending`].
+//   neither of which a document user can act on), then the shell-role
+//   decision's ending read at rest ([`topo::props::SHELL_ROLE`] on
+//   [`ShellClassifyError::arm`]): the checks window reads a body at rest.
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -617,8 +618,12 @@ impl crate::finding::Finding for SaidFinding<'_> {
             ),
             CheckEvidence::Escalated { source } => {
                 write!(f, "the component count is unknowable: {}", source.payload())?;
-                match source.ending() {
-                    Some(ending) => write!(f, ". {ending}"),
+                match source.arm() {
+                    Some(arm) => write!(
+                        f,
+                        ". {}",
+                        topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest)
+                    ),
                     None => Ok(()),
                 }
             }

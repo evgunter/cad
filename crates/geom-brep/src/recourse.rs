@@ -18,7 +18,22 @@ use geom_core::{
     KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, Sign,
     SizedWords, lever_recourse, noted,
 };
-pub use geom_core::{Reading, SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
+pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
+
+/// Where a refusal is read: the door that reports it, which decides the
+/// ending (D4 ¶1 (i)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reading {
+    /// At the operation that built the geometry: it came from the
+    /// kernel's own construction.
+    Build,
+    /// Over a body at rest, which a damaged file reaches as surely as a
+    /// defective operation does. Certification at STEP adoption reads
+    /// here too (D4 ¶1); the import door's own ε_in words are the
+    /// margin's ([`MarginDiag::sized_recourse_in_file`],
+    /// [`FileCoincidence::miss_recourse_in_file`]).
+    AtRest,
+}
 
 /// **The door a refusal's ending is read at** (D4 ¶1): a [`Reading`] at
 /// this run's ε, or the STEP import door, which reads as at rest with the
@@ -63,6 +78,17 @@ pub fn defect_ending(reading: Reading) -> &'static str {
     match reading {
         Reading::Build => KERNEL_DEFECT_ENDING,
         Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING,
+    }
+}
+
+/// The unreadable-margin note at `reading`, by [`defect_ending`]'s rule:
+/// a build's names the kernel alone; over stored geometry, the file too.
+/// A poisoned margin's ending takes it ([`MarginDiag::unreadable_note`]).
+#[must_use]
+pub fn unreadable_margin_note(reading: Reading) -> &'static str {
+    match reading {
+        Reading::Build => UNREADABLE_MARGIN_NOTE,
+        Reading::AtRest => UNREADABLE_STORED_MARGIN_NOTE,
     }
 }
 
@@ -262,7 +288,8 @@ impl RefusedArm<'_> {
     /// ([`MarginDiag::unreadable_note`]), for [`not_yet`] and
     /// [`LeverOnly`].
     fn unreadable_note(self, reading: Reading) -> Option<&'static str> {
-        self.banded()?.unreadable_note(reading)
+        self.banded()?
+            .unreadable_note(unreadable_margin_note(reading))
     }
 }
 
@@ -362,7 +389,7 @@ impl SizedDecision {
     ///   where one does. A zero verdict that leaves no size to tighten
     ///   below adds [`SizedDecision::at_zero`] where the decision has
     ///   one. A poisoned margin keeps the lever and takes the note its
-    ///   reading gives ([`MarginDiag::unreadable_note`]) instead.
+    ///   reading gives ([`unreadable_margin_note`]) instead.
     /// - The sign-certain arm names the lever alone at a build. Read
     ///   over stored geometry it ends as [`SizedDecision::stored`] says.
     /// - The import door ([`ReadAt::File`]) reads as at rest, except that
@@ -390,9 +417,9 @@ impl SizedDecision {
         match arm {
             RefusedArm::Zero(_) if passes.passes_zero() => lever_recourse(lever, None),
             RefusedArm::Zero(Classified { margin, band }) => {
-                let words = self.words(at_zero.map(|note| note.at(reading)));
+                let words = self.words(at_zero.map(|note| note.at(reading)), reading);
                 match file {
-                    None => margin.sized_recourse(band, words, reading),
+                    None => margin.sized_recourse(band, words),
                     Some(file) => margin.sized_recourse_in_file(band, words, file),
                 }
             }
@@ -409,23 +436,24 @@ impl SizedDecision {
             RefusedArm::Undecided(cause) => match file {
                 None => cause
                     .margin
-                    .sized_recourse(cause.band, self.words(None), reading),
+                    .sized_recourse(cause.band, self.words(None, reading)),
                 Some(file) => {
                     cause
                         .margin
-                        .sized_recourse_in_file(cause.band, self.words(None), file)
+                        .sized_recourse_in_file(cause.band, self.words(None, reading), file)
                 }
             },
         }
     }
 
     /// Everything the reporting margin's sentence needs but the number.
-    fn words(self, otherwise: Option<&'static str>) -> SizedWords<'static> {
+    fn words(self, otherwise: Option<&'static str>, reading: Reading) -> SizedWords<'static> {
         SizedWords {
             lever: self.lever,
             size: self.size,
             passes: self.passes,
             otherwise,
+            unreadable: unreadable_margin_note(reading),
         }
     }
 }
