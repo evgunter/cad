@@ -36,6 +36,10 @@
 //!   interval lane, which is what makes a rung-3 certificate against a
 //!   NURBS operand exist there at all.
 //!
+//! Every parameter the search hands `T` (a sweep sample, an iterate, a
+//! step) enters through `Real::from_computed`: at `Sym` it is an
+//! unknown, never the constant its bits spell.
+//!
 //! The bound is the sole-bound `T: Bounds` the discipline reserves for
 //! certification/driver code (`geom_core::real`'s scope rule): reading
 //! a bracket to *select* a parameter is the driver half of that rule,
