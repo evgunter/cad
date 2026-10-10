@@ -714,3 +714,9 @@ Signed (CLEAVE orchestrator).
   - Seven units are filed: four are dispatchable P1s; the stage-4 unit and the seal are parked; the
     ratchet gate is P3.
   - The umbrella is re-prioritised P0 → P1 and `design: true` moves to the stage-4 unit.
+- **PR 4552 merged** (the ellipse-torus graze P1; the oracle was wrong, not the kernel; test and
+  oracle change only, orchestrator read). Filed P3: the ray × torus probe oracles cannot see a graze
+  pair inside one cell.
+- **PR 4224 merged** (the interval join-order frame; single FULL review, fix pass done). The
+  oblique-frame residual and the axis-plane residual are P3 rows. The frame-building triplication is
+  filed on HONE, and the `SectionFace` renumbering is evidence on EMIT's ordinal row.
