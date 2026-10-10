@@ -5,7 +5,7 @@ title: assemble_one_local_battery gathers an unplaced fixture and reds under --f
 status: open
 opened: 2026-10-10
 priority: P2
-cost: S
+cost: E
 ---
 
 
