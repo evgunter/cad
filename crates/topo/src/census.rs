@@ -4228,11 +4228,10 @@ impl FaceSide {
 /// the one classifier of that question under the K row `name` — an On
 /// face's against a candidate plane's ([`TOUCH_NORMAL`]), or an edge's
 /// two faces' ([`TOUCH_FOLD`]). The magnitude is about 1 wherever it is
-/// asked (the faces lie on one plane), and only its sign is read. So the
-/// margin is the reach, and a decided Zero is the in-band reading's
-/// sibling: both are a reach too short to read a side over, one refusal
-/// (D4 ¶1 (i)) that the touch verdict carries without a margin, as it
-/// carries every reading's.
+/// asked (the faces lie on one plane), and only its sign is read.
+/// `None` is every refusal — in band, decided zero, or poisoned — and
+/// each reads as in band, ending as the touch's one in-band refusal
+/// (`TouchInBand`), which carries no margin.
 fn pairing<T: Decide>(
     name: &'static str,
     s: (&geom::Surface<T>, bool),

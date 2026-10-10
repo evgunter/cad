@@ -2401,9 +2401,9 @@ impl WedgeCheck {
                     "whether two faces meeting smoothly at an edge curve apart there"
                 )
             }
-            Self::MaterialPairing => geom_core::undecided!(
-                "which side of an edge the material of its two smoothly meeting faces lies on"
-            ),
+            Self::MaterialPairing => {
+                geom_core::undecided!(geom_brep::material_pairing_clause!())
+            }
             Self::MaterialSide => {
                 "which side of an edge the material of its two smoothly meeting faces lies \
                  on could not be read consistently along it"
@@ -2420,9 +2420,9 @@ impl WedgeCheck {
                 .into(),
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
-            Self::MaterialPairing => {
-                geom_brep::material_pairing_recourse(cause, Reading::AtRest).into()
-            }
+            Self::MaterialPairing => geom_brep::MATERIAL_PAIRING
+                .recourse(arm, Reading::AtRest)
+                .into(),
             // A split along the edge, or a side read after the decisions
             // before it came out definite: no margin of its own gives a
             // size or a lever.

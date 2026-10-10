@@ -94,9 +94,7 @@ use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
-use crate::recourse::{
-    AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-};
+use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
 /// length the wedge between the edge's faces is metered over, the
@@ -140,14 +138,17 @@ macro_rules! dihedral_arm_clause {
 /// **The material pairing** ([`classify_material_pairing`]) as a
 /// decision a refusal ends: it passes on either definite sign and
 /// refuses in band and at zero. It is asked past a definitely-smooth
-/// dihedral at the same point and arm, where unit normals are within
-/// `ε/arm` of parallel, so its margin `|n̂₊·n̂₋|·arm` is at least
-/// `√(arm² − ε²)`: the folded arm itself, the size [`DIHEDRAL_ARM`]
-/// decides. A refused pairing is therefore an arm too short to read a
-/// side over, a length the user may intend, and both band-decided arms
-/// end in the arm's lever with the tolerance the margin gives (D4 ¶1
-/// (i)). A zero margin needs `arm ≤ √2·ε` past an arm gate that decided
-/// `arm ≥ K·ε`, so a decided Zero is reached only at `K < √2`.
+/// dihedral at the same point and arm, where the wedge `sin θ · arm` is
+/// at most `ε`, so its margin `|cos θ| · arm` lies between
+/// `√(arm² − ε²)` and the arm: within `ε²/arm` of the folded arm, the
+/// size [`DIHEDRAL_ARM`] decides. A refused pairing is an arm too short
+/// to read a side over, a length the user may intend, so both
+/// band-decided arms end in the arm's lever with the tolerance the
+/// margin gives (D4 ¶1 (i)); the door quotes the wedge where that
+/// tolerance would leave the wedge undecided
+/// ([`classify_material_pairing_as`]). A zero margin needs
+/// `arm ≤ √2·ε` past an arm gate that decided `arm ≥ K·ε`, so a decided
+/// Zero is reached only at `K < √2`.
 pub const MATERIAL_PAIRING: SizedDecision = SizedDecision {
     lever: DIHEDRAL_ARM.lever,
     size: "length",
@@ -156,15 +157,17 @@ pub const MATERIAL_PAIRING: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// [`MATERIAL_PAIRING`]'s one ending for a pairing escalation read at
-/// `reading`: the gate's decided Zero ([`Refused::rejected`]) or the
-/// undecided margin, each with the tolerance its margin gives.
-#[must_use]
-pub fn material_pairing_recourse(cause: &Indeterminate, reading: Reading) -> String {
-    match Refused::rejected(cause) {
-        Some(verdict) => MATERIAL_PAIRING.recourse(verdict.arm(), reading),
-        None => MATERIAL_PAIRING.recourse(RefusedArm::Undecided(cause), reading),
-    }
+/// The question [`MATERIAL_PAIRING`] decides, of an edge: every door that
+/// ends its refusal names it in this one spelling (D4 ¶1 (iv)).
+pub const MATERIAL_PAIRING_CLAUSE: &str = crate::material_pairing_clause!();
+
+/// [`MATERIAL_PAIRING_CLAUSE`] as a literal, for `concat!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! material_pairing_clause {
+    () => {
+        "which side of an edge the material of its two smoothly meeting faces lies on"
+    };
 }
 
 /// A definite dihedral classification (the indeterminate outcome is the
@@ -1040,7 +1043,7 @@ pub enum MaterialPairing {
 /// that name no side. That rejection carries the decided margin, as
 /// every gate's does. On a definitely-smooth sample the margin is the
 /// folded arm, so either refusal is an arm too short to read a side
-/// over, ended by [`MATERIAL_PAIRING`] ([`material_pairing_recourse`]).
+/// over, ended by [`MATERIAL_PAIRING`].
 pub fn classify_material_pairing<T: Decide>(
     s_plus: &Surface<T>,
     sense_plus: bool,
@@ -1083,11 +1086,64 @@ pub fn classify_material_pairing_as<T: Decide>(
 ) -> Result<MaterialPairing, Indeterminate> {
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
-    Ok(
-        match decide_nonzero(name, Margin::levered(n_plus.dot(n_minus), arm), band)? {
-            NonzeroSign::Positive => MaterialPairing::Aligned,
-            NonzeroSign::Negative => MaterialPairing::Opposed,
-        },
+    let cos_theta = n_plus.dot(n_minus);
+    match decide_nonzero(name, Margin::levered(cos_theta, arm), band) {
+        Ok(NonzeroSign::Positive) => Ok(MaterialPairing::Aligned),
+        Ok(NonzeroSign::Negative) => Ok(MaterialPairing::Opposed),
+        Err(refusal) => Err(pairing_at_wedge(
+            refusal,
+            cos_theta,
+            n_plus.cross(n_minus).norm(),
+            arm,
+            band,
+        )),
+    }
+}
+
+/// **The pairing's refusal, quoted at the wedge where its tolerance would
+/// not decide the wedge.** At a tolerance below `|cos θ|·arm/K` the
+/// pairing decides, but the same smaller tolerance re-reads the wedge
+/// `sin θ · arm`, and where that lands in band the edge refuses on its
+/// dihedral instead. So where the wedge does not read zero at the
+/// pairing's offered tolerance ([`wedge_reads_zero_at_the_offer`]), the
+/// refusal carries the wedge's own margin through its funnel
+/// (`"material_pairing_wedge"`), and the tolerance it offers decides
+/// both: the wedge past its band, the pairing (no shorter than the
+/// wedge) with it. A refusal that offers no tolerance keeps its margin,
+/// as does a wedge decided positive, whose crease every smaller
+/// tolerance keeps.
+fn pairing_at_wedge<T: Decide>(
+    refusal: Indeterminate,
+    cos_theta: T,
+    sin_theta: T,
+    arm: T,
+    band: Band,
+) -> Indeterminate {
+    if !refusal.offers_tolerance() || wedge_reads_zero_at_the_offer(sin_theta, cos_theta, band) {
+        return refusal;
+    }
+    match decide_positive("material_pairing_wedge", Margin::of(sin_theta * arm), band) {
+        Err(wedge) => wedge,
+        Ok(()) => refusal,
+    }
+}
+
+/// **Whether the wedge reads zero at the pairing's offered tolerance**,
+/// `|cos θ|·arm/K`: in the band that escalates at the pairing's margin
+/// the wedge reads as `tan θ · escalate` does in `band`, so the reading
+/// is `|tan θ|` levered over `band`'s own escalation edge, decided in
+/// `band` (`"material_pairing_wedge_at_offer"`).
+fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Band) -> bool {
+    matches!(
+        decide_reported(
+            "material_pairing_wedge_at_offer",
+            Margin::levered(sin_theta / cos_theta.abs(), T::from_f64(band.escalate())),
+            band,
+        ),
+        Ok(Decided {
+            sign: Sign::Zero,
+            ..
+        })
     )
 }
 

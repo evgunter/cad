@@ -347,9 +347,11 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::DescribeSideEscalated { diag, .. } => diag
                 .undecided(
-                    "which side of an edge along the cut the material of its two smoothly \
-                     meeting faces lies on",
-                    geom_brep::material_pairing_recourse(diag, geom_brep::recourse::Reading::Build),
+                    geom_brep::MATERIAL_PAIRING_CLAUSE,
+                    geom_brep::MATERIAL_PAIRING.recourse(
+                        geom_brep::recourse::RefusedArm::Undecided(diag),
+                        geom_brep::recourse::Reading::Build,
+                    ),
                 )
                 .fmt(f),
             Self::DescribeBendEscalated { diag, .. } => write!(
@@ -1500,19 +1502,32 @@ mod smooth_arm_rows {
         }
     }
 
-    /// **A refused material pairing ends as the pairing.** The
-    /// neighbour is a unit cylinder along the edge, tilted about it so
-    /// its normal leans `tilt` off the section's; at `K = 1.2 < √2` a
-    /// band of `(0.75, 0.9)` reads the 45° lean smooth with its pairing
-    /// margin `cos 45°` decided zero, and the 30° lean smooth with
-    /// `cos 30°` in band. Both are an arm too short to read a side over,
-    /// and end in its lever with the tolerance the margin gives.
+    /// **A refused material pairing ends as the pairing, offering a
+    /// tolerance that decides it.** The neighbour is a unit cylinder
+    /// along the edge, tilted about it so its normal leans `tilt` off the
+    /// section's: arm 1, wedge `w = sin tilt`, pairing margin
+    /// `m = cos tilt`. Each row reads smooth with its pairing refused.
+    /// At `K = 1.2` the 45° and 42° leans decide the pairing zero and the
+    /// 30° lean leaves it in band; at `K = 10` a lean of `w = 0.0998`
+    /// leaves it in band. Where the wedge reads zero at `m/K` (30°) that
+    /// is the offer; elsewhere a tolerance just below `m/K` would leave
+    /// the wedge in band, so the offer is `w/K`, which decides both.
     #[test]
     fn a_refused_pairing_ends_as_the_pairing_decision() {
-        let band = Band::new(0.75, 0.9).unwrap();
-        for (label, tilt, decided_zero) in
-            [("decided zero", 45.0_f64, true), ("in band", 30.0, false)]
-        {
+        let deg = |d: f64| d.to_radians().sin();
+        let rows = [
+            ("45°, decided zero", (0.75, 0.9), deg(45.0), deg(45.0) / 1.2),
+            ("42°, decided zero", (0.75, 0.9), deg(42.0), deg(42.0) / 1.2),
+            (
+                "30°, in band",
+                (0.75, 0.9),
+                deg(30.0),
+                30.0_f64.to_radians().cos() / 1.2,
+            ),
+            ("K = 10, in band", (0.0999, 0.999), 0.0998, 0.0998 / 10.0),
+        ];
+        for (label, (zero, escalate), sin, offered) in rows {
+            let band = Band::new(zero, escalate).unwrap();
             let SectionEdge {
                 mut body,
                 face,
@@ -1522,7 +1537,7 @@ mod smooth_arm_rows {
                 along,
                 ..
             } = section_edge();
-            let (sin, cos) = tilt.to_radians().sin_cos();
+            let cos = (1.0 - sin * sin).sqrt();
             let lean = Vec3::unit_z() * cos + Vec3::unit_z().cross(along) * sin;
             body.surfaces[s_other] = Surface::Cylinder {
                 origin: mid - lean,
@@ -1534,33 +1549,44 @@ mod smooth_arm_rows {
                 .expect_err("a refused pairing refuses the split");
             let text = refusal.to_string();
             assert!(
-                text.starts_with(
-                    "which side of an edge along the cut the material of its two smoothly \
-                     meeting faces lies on is undecided: "
-                ),
+                text.starts_with(concat!(
+                    geom_brep::material_pairing_clause!(),
+                    " is undecided: "
+                )),
                 "{label}: the refusal names the pairing, got {text}"
             );
+            let (_, ending) = text.split_once(". Recourse: ").expect("one recourse");
+            let quoted: f64 = ending
+                .strip_prefix(
+                    "move the geometry so that edge is clearly longer and no face curves \
+                     tightly there, or, if this length is intended, tighten the tolerance below ",
+                )
+                .and_then(|v| v.strip_suffix(" m"))
+                .unwrap_or_else(|| panic!("{label}: the pairing's lever and offer, got {text}"))
+                .parse()
+                .unwrap();
             assert!(
-                text.contains(
-                    ". Recourse: move the geometry so that edge is clearly longer and no face \
-                     curves tightly there, or, if this length is intended, tighten the \
-                     tolerance below "
-                ),
-                "{label}: the pairing's lever with its tolerance, got {text}"
+                (quoted - offered).abs() <= 1e-9 * offered,
+                "{label}: offers {quoted:e}, wants {offered:e}"
             );
             match refusal {
-                SplitFinishError::DescribeSideEscalated {
-                    edge: refused,
-                    diag,
-                } => {
+                SplitFinishError::DescribeSideEscalated { edge: refused, .. } => {
                     assert_eq!(refused, edge, "{label}: the refusal names the edge");
-                    assert_eq!(
-                        diag.margin.rejected_sign().is_some(),
-                        decided_zero,
-                        "{label}: the margin keeps the gate's verdict"
-                    );
                 }
                 other => panic!("{label}: expected the pairing's refusal, got {other:?}"),
+            }
+            // The offer is true: just below it, the same pose describes.
+            let (k, below) = (escalate / zero, 0.99 * quoted);
+            let mut body = section_edge().body;
+            body.surfaces[s_other] = Surface::Cylinder {
+                origin: mid - lean,
+                axis: along,
+                radius: 1.0,
+                u_ref: lean,
+            };
+            let tighter = Band::new(below, k * below).unwrap();
+            if let Err(other) = super::describe_section_boundary(&mut body, face, tighter, tol()) {
+                panic!("{label}: refuses again below the offer: {other}");
             }
         }
     }
