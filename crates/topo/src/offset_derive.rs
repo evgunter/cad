@@ -17,7 +17,7 @@
 //! door transports, at every scalar; everywhere else it derives.
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ssi::{BoundarySection, SsiDomain, SsiError};
+use geom_brep::ssi::{BoundarySection, ChartAxis, SsiDomain, SsiError};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
@@ -202,10 +202,16 @@ fn zero<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Ind
 /// containing it; a sphere's is a homothety about its centre, held by a
 /// plane through the centre; a cone's and a torus's move each point in
 /// its meridian plane, held by a plane containing the axis, and the
-/// torus's also by its equatorial plane. Nothing else holds.
+/// torus's also by its equatorial plane. A spline or fitted chart
+/// moves each point along its own normal, so it is held along a
+/// boundary `row` of its net by a plane containing that normal at
+/// every point of the row ([`normal_in_plane_along`]); with no row
+/// named (a corner), or beside anything but a plane, it does not hold.
+/// Nothing else holds.
 pub(crate) fn holds_the_move<T: Decide>(
     moved: &Surface<T>,
     held: &Surface<T>,
+    row: Option<(ChartAxis, T)>,
     d: T,
     band: Band,
 ) -> bool {
@@ -266,8 +272,88 @@ pub(crate) fn holds_the_move<T: Decide>(
                 && (zero("offset_holds_torus_along", m.dot(*axis) * reach)
                     || zero("offset_holds_torus_across", across(*m, *axis)))
         }
+        (Surface::Nurbs(_) | Surface::Approx(_), Surface::Plane { normal: m, .. }) => {
+            match (moved.spline_chart(), row) {
+                (Some(net), Some((axis, at))) => {
+                    normal_in_plane_along(net, axis, at, *m, reach, band)
+                }
+                _ => false,
+            }
+        }
         _ => false,
     }
+}
+
+/// Whether the plane of normal `m` contains `net`'s normal at every
+/// point of its boundary row `axis = at`.
+///
+/// At a clamped end the cross-row derivative is
+/// `S_a = k·Σⱼ Nⱼ·wⱼ·(P₁ⱼ − P₀ⱼ) / W` when the first two rows' weights
+/// agree pointwise, so where every step `P₁ⱼ − P₀ⱼ` is along `m` and
+/// they all point ONE way along it the derivative is too, and the
+/// normal `S_u × S_v`, across it, lies in the plane. Steps pointing
+/// both ways can cancel in the sum, leaving whatever their small
+/// leans off `m` add up to as the derivative, so a row whose steps'
+/// senses disagree, or any one of them is undecided, does not hold.
+/// Sufficient, not necessary: a cross-row derivative leaning along the
+/// row also leaves the normal in the plane, and answers false here,
+/// which routes the edge to its section. Each step's direction off `m`
+/// is levered by the move, as every hold is.
+fn normal_in_plane_along<T: Decide>(
+    net: &NurbsSurface<T>,
+    axis: ChartAxis,
+    at: T,
+    m: Vec3<T>,
+    reach: T,
+    band: Band,
+) -> bool {
+    // A `v` column of the chart is a `u` row of its transpose.
+    let transposed;
+    let net = match axis {
+        ChartAxis::U => net,
+        ChartAxis::V => {
+            transposed = net.transposed();
+            &transposed
+        }
+    };
+    let zero = |name, value| held_zero(name, value, band);
+    let (nu, nv) = net.control_counts();
+    if nu < 2 {
+        return false;
+    }
+    let (a0, a1) = net.knots_u().domain();
+    // The boundary row and the one next in from it.
+    let (first, second) = if zero("offset_holds_row_at_start", at - T::from_f64(a0)) {
+        (0, 1)
+    } else if zero("offset_holds_row_at_end", at - T::from_f64(a1)) {
+        (nu - 1, nu - 2)
+    } else {
+        return false;
+    };
+    let row = |r: usize| r * nv..(r + 1) * nv;
+    let (ctl, w) = (net.control(), net.weights());
+    let mut sense = None;
+    ctl[row(first)]
+        .iter()
+        .zip(&ctl[row(second)])
+        .zip(w[row(first)].iter().zip(&w[row(second)]))
+        .all(|((p0, p1), (w0, w1))| {
+            let step = *p1 - *p0;
+            let length = step.norm();
+            if w0 != w1
+                || zero("offset_holds_row_step", length)
+                || !zero(
+                    "offset_holds_row_direction",
+                    step.cross(m).norm() * reach / length,
+                )
+            {
+                return false;
+            }
+            match decide("offset_holds_row_sense", Margin::of(step.dot(m)), band) {
+                Ok(s @ (Sign::Positive | Sign::Negative)) => *sense.get_or_insert(s) == s,
+                _ => false,
+            }
+        })
 }
 
 /// Whether `wall` is a translation surface along `n`:
@@ -916,5 +1002,67 @@ mod wiring {
             Ok(()),
             "`SectionLane::f64()` holds something other than its two routines"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod holds {
+    use super::holds_the_move;
+    use geom::{NurbsSurface, Surface};
+    use geom_brep::ssi::ChartAxis;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, Vec3};
+    use std::sync::Arc;
+
+    /// The bilinear chart whose boundary row runs `0 → x̂` with the
+    /// row next in from it `p10 → p11`, beside the plane `z = 0`: laid
+    /// out as the `u = 0` row, and as the `v = 0` column of the same
+    /// net transposed, which must answer alike.
+    fn holds_beside_z0(p10: Point3<f64>, p11: Point3<f64>) -> bool {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("a clamped linear vector");
+        let (o, x) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let answer = |axis, control| {
+            let chart = Surface::Nurbs(Arc::new(
+                NurbsSurface::new(kv.clone(), kv.clone(), control, vec![1.0; 4])
+                    .expect("a bilinear chart"),
+            ));
+            holds_the_move(&chart, &plane, Some((axis, 0.0)), 0.1, band)
+        };
+        let row = answer(ChartAxis::U, vec![o, x, p10, p11]);
+        let column = answer(ChartAxis::V, vec![o, p10, x, p11]);
+        assert_eq!(row, column, "the row and its transpose's column disagree");
+        row
+    }
+
+    /// A row whose cross-row steps all run up `ẑ` holds: the chart's
+    /// normal lies in `z = 0` all along it.
+    #[test]
+    fn steps_running_one_way_along_the_normal_hold() {
+        assert!(holds_beside_z0(
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 2.0)
+        ));
+    }
+
+    /// **Steps along `±ẑ` that disagree in sense do not hold** (review
+    /// of PR 4525, F1). Here `S_u` along the row is `(0, e, 1 − 2v)`:
+    /// at `v = ½` its `ẑ` parts cancel and the normal is `−ẑ`, so the
+    /// moved row point stands `|d|` off the plane. Each step alone is
+    /// along `ẑ` to within its lean `e`, at `e = 0` and below the band.
+    #[test]
+    fn steps_along_the_normal_that_disagree_in_sense_do_not_hold() {
+        for e in [0.0, 1e-13] {
+            assert!(
+                !holds_beside_z0(Point3::new(0.0, e, 1.0), Point3::new(1.0, e, -1.0)),
+                "e = {e}"
+            );
+        }
     }
 }
