@@ -315,6 +315,37 @@ pub(crate) fn partition<T: crate::EvalScalar>(
             None => rest.push(error),
         }
     }
+    // The containment arm leaves a pair it could not clear undecided
+    // when a crossing stands on it; once the crossing is decided
+    // interference, that undecided pair is the same overlap.
+    let (subsumed, rest): (Vec<_>, Vec<_>) = rest.into_iter().partition(|error| {
+        let ValidationError::CensusUndecidable {
+            a: topo::EntityId::Solid(x),
+            b: topo::EntityId::Solid(y),
+            ..
+        } = error
+        else {
+            return false;
+        };
+        let (Some(&x), Some(&y)) = (copy_of.get(x), copy_of.get(y)) else {
+            return false;
+        };
+        pairs.iter().any(|(p, _)| *p == (x.min(y), x.max(y)))
+    });
+    for error in subsumed {
+        let ValidationError::CensusUndecidable {
+            a: topo::EntityId::Solid(x),
+            b: topo::EntityId::Solid(y),
+            ..
+        } = &error
+        else {
+            unreachable!("partitioned on that shape above")
+        };
+        let pair = (copy_of[x].min(copy_of[y]), copy_of[x].max(copy_of[y]));
+        if let Some((_, evidence)) = pairs.iter_mut().find(|(p, _)| *p == pair) {
+            evidence.push(error);
+        }
+    }
     let findings = pairs
         .into_iter()
         .flat_map(|((a, b), evidence)| localize(product, a, b, evidence, tol))

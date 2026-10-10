@@ -2224,7 +2224,9 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 /// `None`, passed through; that doc says when.
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
-/// news and there is nothing to act on. A refusal is
+/// news and there is nothing to act on, unless it reports a loud
+/// overlap between copies, which only the reader can answer. A
+/// refusal is
 /// [`Tone::Actionable`] — it is the gate declining to certify the
 /// product on screen, and the reader is the only one who can answer
 /// it.
@@ -2234,11 +2236,25 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 /// badge naming itself.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
     Some(match at_rest? {
-        AtRestBadge::Certified { minted } => Badge::read(
-            Subject::Document,
-            format!("at rest: certified ({minted} declaration(s))"),
-            Tone::Advisory,
-        ),
+        AtRestBadge::Certified {
+            minted,
+            loud,
+            quiet,
+        } => {
+            let interference = match (loud, quiet) {
+                (0, 0) => String::new(),
+                (loud, quiet) => format!(", interference: {loud} loud, {quiet} quiet"),
+            };
+            Badge::read(
+                Subject::Document,
+                format!("at rest: certified ({minted} declaration(s){interference})"),
+                if *loud == 0 {
+                    Tone::Advisory
+                } else {
+                    Tone::Actionable
+                },
+            )
+        }
         AtRestBadge::Refused { message } => Badge::read(
             Subject::Document,
             format!("at rest: {message}"),

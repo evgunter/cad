@@ -769,6 +769,8 @@ mod intent_s2_d_measure;
 mod intent_s2_e_select;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
+#[path = "intent_s5_b_interference.rs"]
+mod intent_s5_b_interference;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
