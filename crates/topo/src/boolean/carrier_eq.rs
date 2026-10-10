@@ -1,13 +1,13 @@
 //! **`carrier_eq`** — the oriented-carrier-equality ladder,
 //! kind-generalized (CONTACT-DESIGN C4's `Rest` table).
 //!
-//! [`super::oriented_plane_eq`] answers "same plane?" through four
-//! rungs: same recipe source, declared intent, definite geometric
-//! difference, else a typed undeclared-coincidence refusal. `Rest`
-//! generalizes S1's planar vocabulary to every carrier kind, so the
-//! ladder generalizes with it — SAME four rungs, SAME three verdicts
-//! ([`CarrierRelation`]), SAME typed refusals ([`CarrierEqError`]),
-//! with only the rung-3 margin list varying by kind:
+//! [`super::oriented_plane_eq`] answers "same plane?" through three
+//! rungs: declared intent, definite geometric difference, else a
+//! coincidence decided by its margin — Zero glues, in band refuses.
+//! `Rest` generalizes S1's planar vocabulary to every carrier kind, so
+//! the ladder generalizes with it — SAME three rungs, SAME three
+//! verdicts ([`CarrierRelation`]), SAME typed refusals
+//! ([`CarrierEqError`]), with only the margin list varying by kind:
 //!
 //! | kind | defining data | margins, each at its named lever arm |
 //! |------|---------------|--------------------------------------|
@@ -47,22 +47,21 @@
 //! reports it honestly as `SameOriented` and the CONTACT doors
 //! ([`super::contact_verify::contact_pair_verdict`]) are what refuse it.
 //!
-//! **Value-equality still never glues** (AQ6). Two independently
-//! authored spheres with bit-equal radii reach rung 4 and refuse
-//! `Undeclared`, exactly as two bit-equal planes do — the declaration
-//! is what makes them one carrier, and nothing else is.
+//! **A margin decided Zero glues** (D10, Booleans). Two independently
+//! authored spheres with equal radii and centres are one carrier
+//! exactly as two equal planes are, and the decided margin rides out
+//! with the verdict ([`CarrierReading`]) for the caller to record
+//! ([`crate::coincidence`]). Whether they are one CONSTRUCTION is the
+//! document's coincidence door's question, never the kernel's. A datum
+//! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
-use geom_brep::recourse::Classified;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::Contradiction;
 use crate::contact::ContactVerdict;
 use crate::validate::{decide, decide_reported};
 
-use super::plane_eq::{
-    PlaneDesc, PlaneIdentity, PlaneRung, orientation_zero, oriented_plane_eq_verdict,
-    plane_source_rung,
-};
+use super::plane_eq::{PlaneDesc, PlaneIdentity, PlaneRung, orientation_zero, plane_ladder};
 
 /// The relation between two oriented carriers: the three outcomes
 /// every kind's ladder produces.
@@ -89,7 +88,7 @@ pub enum CarrierRelation {
 #[derive(Debug)]
 pub enum CarrierEqError {
     /// A rung of the plane ladder could not decide: the only rungs that
-    /// escalate here (the curved data rungs refuse `Undeclared` or
+    /// escalate here (the curved data rungs refuse `Undecided` or
     /// `Contradicted` instead).
     Escalated {
         /// The rung that could not decide.
@@ -98,15 +97,13 @@ pub enum CarrierEqError {
         /// decided at zero where zero does not pass.
         diag: Indeterminate,
     },
-    /// Geometrically coincident-or-near without shared source or
-    /// declared intent: an undeclared coincidence (F6). Carries the
-    /// orientation the data rungs had ALREADY decided before the
-    /// refusal (alignment is settled before the coincidence margins
-    /// are taken), so a refusal can name the relation a declaration
-    /// would assert — the refusal-menu payload (SELECT-DESIGN §3d,
-    /// LIB-PYG5 R3) — without re-running any decide on the error
-    /// path.
-    Undeclared {
+    /// An undeclared pair whose coincidence did not decide: a datum in
+    /// band (a sliver, F6) or poisoned. Carries the orientation the
+    /// data rungs had ALREADY decided before the refusal (alignment is
+    /// settled before the coincidence margins are taken), so a refusal
+    /// can name the relation a declaration would bridge without
+    /// re-running any decide on the error path.
+    Undecided {
         /// What the coincidence measure read.
         coincidence: CoincidenceMeasure,
         /// The decided orientation: [`CarrierRelation::SameOriented`]
@@ -134,19 +131,10 @@ pub enum CarrierEqError {
     },
 }
 
-/// What an undeclared coincidence's measure read
-/// ([`CarrierEqError::Undeclared`]).
+/// What an undecided coincidence's measure read
+/// ([`CarrierEqError::Undecided`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CoincidenceMeasure {
-    /// Every datum decided zero: the pair would verify if declared.
-    /// The margin is the one the band decided for the named datum
-    /// (the plane's offset; a curved kind's first datum).
-    Zero {
-        /// The datum's predicate.
-        predicate: &'static str,
-        /// Its decided margin, with the band that decided it.
-        decided: Classified,
-    },
     /// A datum, or the declared reading of the pair, did not decide
     /// zero: in band, or past it where the declared reading stands off.
     Undecided(Indeterminate),
@@ -161,15 +149,6 @@ impl CoincidenceMeasure {
     #[must_use]
     pub const fn reported(self) -> Indeterminate {
         match self {
-            Self::Zero {
-                predicate,
-                decided: Classified { margin, band },
-            } => Indeterminate {
-                margin,
-                band,
-                predicate: Some(predicate),
-                terminal_sliver: false,
-            },
             Self::Undecided(diag) | Self::Unreadable(diag) => diag,
         }
     }
@@ -318,20 +297,19 @@ impl<T: geom_core::Real> ConsumedExtent<'static, T> {
     }
 }
 
-/// **`carrier_eq`** — module docs for the ladder. `id` is the
-/// comparison's identity evidence (recipe sources + declared intent);
-/// `extent` the region the verdict is consumed on, which levers the
-/// ANGULAR margins and bounds a declared pair's displacement; `band`
-/// the run's linear band.
+/// **`carrier_eq`** — module docs for the ladder. `id` says whether
+/// the pair is declared; `extent` the region the verdict is consumed
+/// on, which levers the ANGULAR margins and bounds a declared pair's
+/// displacement; `band` the run's linear band.
 ///
 /// # Errors
 ///
-/// [`CarrierEqError`] — sliver escalation, undeclared coincidence, an
+/// [`CarrierEqError`] — sliver escalation, an undecided coincidence, an
 /// unsettled or a contradicted declaration.
 pub fn carrier_eq<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    id: PlaneIdentity<'_>,
+    id: PlaneIdentity,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
 ) -> Result<CarrierRelation, CarrierEqError> {
@@ -355,49 +333,71 @@ pub fn carrier_eq<T: Decide>(
 pub fn carrier_eq_verdict<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    id: PlaneIdentity<'_>,
+    id: PlaneIdentity,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
 ) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+    carrier_eq_reading(c1, c2, id, extent, band).map(|(rel, verdict, _)| (rel, verdict))
+}
+
+/// A carrier verdict, its trilean, and the margin that decided the two
+/// carriers one: the declared reading's, or the undeclared posture's
+/// first datum decided Zero. `None` for a `Distinct` verdict, which
+/// glues nothing.
+pub(crate) type CarrierReading = (
+    CarrierRelation,
+    ContactVerdict,
+    Option<geom_core::MarginDiag>,
+);
+
+/// [`carrier_eq_verdict`] with the margin that decided a coincidence,
+/// which the coincidence's row records ([`crate::coincidence`]).
+pub(crate) fn carrier_eq_reading<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    id: PlaneIdentity,
+    extent: &ConsumedExtent<'_, T>,
+    band: Band,
+) -> Result<CarrierReading, CarrierEqError> {
     if id.declared {
-        declared_verdict(c1, c2, id, extent, band)
+        declared_reading(c1, c2, extent, band)
+            .map(|(rel, verdict, margin)| (rel, verdict, Some(margin)))
     } else {
-        undeclared_ladder(c1, c2, id, extent, band)
+        undeclared_ladder(c1, c2, extent, band)
     }
 }
 
-/// [`carrier_eq_verdict`] at the FACE-PAIR door, whose undeclared
-/// coincidence is an offer of the declaration the declared door then
-/// reads over the same extent: the coincidence stands only where the
-/// declared reading would ([`coincident_as_declared`]). The corner
-/// sites read their own arm, not a pair's extent, and take
-/// [`carrier_eq_verdict`] as it is.
+/// [`carrier_eq_reading`] at the FACE-PAIR door, where an undeclared
+/// coincidence glues the pair as the declared door would, over the same
+/// extent: it stands only where the declared reading's sum decides Zero
+/// too ([`coincident_as_declared`]), so the glue an undeclared pair
+/// takes is the one its declaration would verify
+/// [`ContactVerdict::Definite`]. The corner sites read their own arm,
+/// not a pair's extent, and take [`carrier_eq_verdict`] as it is.
 ///
 /// # Errors
 ///
 /// As [`carrier_eq_verdict`].
-pub(super) fn pair_door_verdict<T: Decide>(
+pub(super) fn pair_door_reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    id: PlaneIdentity<'_>,
+    id: PlaneIdentity,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
-    match carrier_eq_verdict(c1, c2, id, extent, band) {
-        Err(CarrierEqError::Undeclared {
-            coincidence: coincidence @ CoincidenceMeasure::Zero { .. },
-            relation,
-        }) => {
+) -> Result<CarrierReading, CarrierEqError> {
+    match carrier_eq_reading(c1, c2, id, extent, band) {
+        Ok((
+            relation @ (CarrierRelation::SameOriented | CarrierRelation::SameOpposite),
+            verdict,
+            margin,
+        )) if !id.declared => {
             coincident_as_declared(c1, c2, extent, relation, band).map_err(|diag| {
-                CarrierEqError::Undeclared {
+                CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
                 }
             })?;
-            Err(CarrierEqError::Undeclared {
-                coincidence,
-                relation,
-            })
+            Ok((relation, verdict, margin))
         }
         verdict => verdict,
     }
@@ -408,10 +408,9 @@ pub(super) fn pair_door_verdict<T: Decide>(
 fn undeclared_ladder<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
-    id: PlaneIdentity<'_>,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+) -> Result<CarrierReading, CarrierEqError> {
     let (c1, c2, arm) = at_consumed_extent(c1, c2, extent.reach);
     match (&c1, &c2) {
         (
@@ -423,7 +422,7 @@ fn undeclared_ladder<T: Decide>(
                 origin: o2,
                 normal: n2,
             },
-        ) => oriented_plane_eq_verdict(
+        ) => plane_ladder(
             &PlaneDesc {
                 origin: *o1,
                 normal: *n1,
@@ -432,7 +431,7 @@ fn undeclared_ladder<T: Decide>(
                 origin: *o2,
                 normal: *n2,
             },
-            id,
+            PlaneIdentity::NONE,
             extent,
             band,
         ),
@@ -447,12 +446,7 @@ fn undeclared_ladder<T: Decide>(
                 radius: r2,
                 outward: w2,
             },
-        ) => {
-            if let Some(v) = source_rung(id, *w1 != *w2) {
-                return Ok((v, ContactVerdict::Definite));
-            }
-            data_rungs(&sphere_data(*p1, *r1, *p2, *r2), *w1 == *w2, band)
-        }
+        ) => data_rungs(&sphere_data(*p1, *r1, *p2, *r2), *w1 == *w2, band),
         (
             CarrierDesc::Cylinder {
                 origin: p1,
@@ -466,16 +460,11 @@ fn undeclared_ladder<T: Decide>(
                 radius: r2,
                 outward: w2,
             },
-        ) => {
-            if let Some(v) = source_rung(id, *w1 != *w2) {
-                return Ok((v, ContactVerdict::Definite));
-            }
-            data_rungs(
-                &cylinder_data((*p1, *a1, *r1), (*p2, *a2, *r2), arm),
-                *w1 == *w2,
-                band,
-            )
-        }
+        ) => data_rungs(
+            &cylinder_data((*p1, *a1, *r1), (*p2, *a2, *r2), arm),
+            *w1 == *w2,
+            band,
+        ),
         (
             CarrierDesc::Torus {
                 center: p1,
@@ -491,19 +480,14 @@ fn undeclared_ladder<T: Decide>(
                 minor_radius: t2,
                 outward: w2,
             },
-        ) => {
-            if let Some(v) = source_rung(id, *w1 != *w2) {
-                return Ok((v, ContactVerdict::Definite));
-            }
-            data_rungs(
-                &torus_data((*p1, *a1, *r1, *t1), (*p2, *a2, *r2, *t2), arm),
-                *w1 == *w2,
-                band,
-            )
-        }
+        ) => data_rungs(
+            &torus_data((*p1, *a1, *r1, *t1), (*p2, *a2, *r2, *t2), arm),
+            *w1 == *w2,
+            band,
+        ),
         // Different kinds: definitely different carriers. A plane is
         // not a cylinder at any radius, so this needs no numerics.
-        _ => Ok((CarrierRelation::Distinct, ContactVerdict::Definite)),
+        _ => Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None)),
     }
 }
 
@@ -657,50 +641,6 @@ fn at_consumed_extent<T: geom_core::Real>(
     (c1, c2, reach.lever_from(pivot))
 }
 
-/// The declared posture: rung 1 (same source), the kind rung, then the
-/// pair read as one displacement ([`declared_reading`]).
-fn declared_verdict<T: Decide>(
-    c1: &CarrierDesc<T>,
-    c2: &CarrierDesc<T>,
-    id: PlaneIdentity<'_>,
-    extent: &ConsumedExtent<'_, T>,
-    band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
-    let same_source = match (c1, c2) {
-        (
-            CarrierDesc::Plane {
-                origin: o1,
-                normal: n1,
-            },
-            CarrierDesc::Plane {
-                origin: o2,
-                normal: n2,
-            },
-        ) => plane_source_rung(
-            &PlaneDesc {
-                origin: *o1,
-                normal: *n1,
-            },
-            &PlaneDesc {
-                origin: *o2,
-                normal: *n2,
-            },
-            id,
-        ),
-        (CarrierDesc::Sphere { outward: w1, .. }, CarrierDesc::Sphere { outward: w2, .. })
-        | (CarrierDesc::Cylinder { outward: w1, .. }, CarrierDesc::Cylinder { outward: w2, .. })
-        | (CarrierDesc::Torus { outward: w1, .. }, CarrierDesc::Torus { outward: w2, .. }) => {
-            source_rung(id, *w1 != *w2)
-        }
-        // Two kinds share no source; the reading refuses the pair.
-        _ => None,
-    };
-    match same_source {
-        Some(relation) => Ok((relation, ContactVerdict::Definite)),
-        None => declared_reading(c1, c2, extent, band),
-    }
-}
-
 /// A definite verdict's diagnostics: the rung keeps no measure.
 fn definite(predicate: &'static str, band: Band) -> Indeterminate {
     Indeterminate {
@@ -744,12 +684,16 @@ fn definite(predicate: &'static str, band: Band) -> Indeterminate {
 ///   `t·max(R₁, R₂)` move the tube's core circle, plus the
 ///   minor-radius difference; this holds at every point of the torus,
 ///   whatever the ball.
+///
+/// The verdict, its trilean, and the margin its upper bound was decided
+/// on: Zero for a [`ContactVerdict::Definite`], in band for a
+/// [`ContactVerdict::Bridged`].
 pub(super) fn declared_reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<'_, T>,
     band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+) -> Result<(CarrierRelation, ContactVerdict, geom_core::MarginDiag), CarrierEqError> {
     let witnessed = witnessed(c1, c2, extent);
     let (sigma, relation) = match (*c1, *c2) {
         (CarrierDesc::Plane { normal: n1, .. }, CarrierDesc::Plane { normal: n2, .. }) => {
@@ -830,9 +774,12 @@ pub(super) fn declared_reading<T: Decide>(
     };
     match decide_reported(upper_name, Margin::of(upper), band) {
         Ok(Decided {
-            sign: Sign::Zero, ..
-        }) => Ok((relation, ContactVerdict::Definite)),
-        Err(diag) if !diag.margin.is_invalid() => Ok((relation, ContactVerdict::Bridged)),
+            sign: Sign::Zero,
+            margin,
+        }) => Ok((relation, ContactVerdict::Definite, margin)),
+        Err(diag) if !diag.margin.is_invalid() => {
+            Ok((relation, ContactVerdict::Bridged, diag.margin))
+        }
         // A poisoned reading bridges nothing.
         Err(diag) => Err(CarrierEqError::Unsettled { diag }),
         // A sum of magnitudes reads negative only on broken input.
@@ -856,14 +803,13 @@ pub(super) fn declared_reading<T: Decide>(
     }
 }
 
-/// **The undeclared posture's affirmative, read as the declared rung
-/// would read it.** Rung 4's coincidence (every datum decided zero)
-/// says "a declaration would verify"; the declared rung reads the data's
-/// SUM, so the coincidence stands only where that sum decides zero too
-/// — a declared pair the detector called coincident then verifies
+/// **The undeclared posture's coincidence, read as the declared rung
+/// would read it.** Every datum decided zero says "one carrier"; the
+/// declared rung reads the data's SUM, so the coincidence stands only
+/// where that sum decides zero too — the glue an undeclared pair takes
+/// is then the one its declaration would verify
 /// [`ContactVerdict::Definite`], whatever K. Where the sum does not,
-/// the refusal carries its reading, in band or past it, as the
-/// coincidence the detector cannot call.
+/// the refusal carries its reading, in band or past it.
 fn coincident_as_declared<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
@@ -1097,44 +1043,22 @@ fn distance_to<T: geom_core::Real>(c: &CarrierDesc<T>, v: Point3<T>) -> T {
     }
 }
 
-/// Rung 1 for the curved arms: both descriptions carry the same
-/// recipe source ⇒ same carrier by the N6 theorem, with the material
-/// side read off the descriptions' own `outward` bits.
-///
-/// **Not [`crate::source::source_declaration`]'s ladder**, whose
-/// `orient` (with the face's sense composed in) is the plane rung's
-/// material side: a curved description cannot be reversed, so `revert`
-/// records a curved face's reversal on its `sense` AND its source's
-/// `orient`, and the composition cancels — a face against its reverted
-/// twin reads `SameSource` there and opposed here.
-///
-/// The plane arm's version additionally debug-asserts that the bits
-/// agree; the curved arms have no canonicalized bit form to assert
-/// against, and inventing one would be a second source of truth.
-fn source_rung(id: PlaneIdentity<'_>, opposed: bool) -> Option<CarrierRelation> {
-    let (s1, s2) = (id.s1?, id.s2?);
-    s1.same_base(s2).then_some(if opposed {
-        CarrierRelation::SameOpposite
-    } else {
-        CarrierRelation::SameOriented
-    })
-}
-
-/// Rungs 3–4 for the curved arms in the undeclared posture, driven by
-/// the kind's margin list: a definitely-nonzero margin means
-/// `Distinct`, and an all-zero-or-in-band list is the typed
-/// `Undeclared` refusal (value equality never glues).
+/// The curved arms' rungs in the undeclared posture, driven by the
+/// kind's margin list: a definitely-nonzero margin means `Distinct`,
+/// every datum decided Zero is one carrier (the first datum's decided
+/// margin rides), and a datum in band or poisoned is the typed
+/// `Undecided` refusal.
 fn data_rungs<T: Decide>(
     margins: &[Datum<T>],
     aligned: bool,
     band: Band,
-) -> Result<(CarrierRelation, ContactVerdict), CarrierEqError> {
+) -> Result<CarrierReading, CarrierEqError> {
     let same = if aligned {
         CarrierRelation::SameOriented
     } else {
         CarrierRelation::SameOpposite
     };
-    let mut first_zero: Option<CoincidenceMeasure> = None;
+    let mut first_zero = None;
     // An unreadable datum is a limit no tolerance moves, ranked before an
     // in-band one by the walk's one ranking.
     let mut kept = crate::ray_walk::Evidence::default();
@@ -1144,42 +1068,29 @@ fn data_rungs<T: Decide>(
                 sign: Sign::Positive | Sign::Negative,
                 ..
             }) => {
-                return Ok((CarrierRelation::Distinct, ContactVerdict::Definite));
+                return Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None));
             }
             Ok(Decided {
                 sign: Sign::Zero,
                 margin,
             }) => {
-                first_zero = first_zero.or(Some(CoincidenceMeasure::Zero {
-                    predicate: name,
-                    decided: Classified { margin, band },
-                }));
+                first_zero = first_zero.or(Some(margin));
             }
             Err(unread @ CoincidenceMeasure::Unreadable(_)) => kept.blocked(unread),
             Err(in_band) => kept.in_band(in_band),
         }
     }
-    // Rung 4: coincident-or-near with no identity rung — near
-    // coincidence NEVER silently becomes contact, and bit-equal data
-    // without a shared source stays unglued. A datum that cannot be
-    // read is reported first, then the first one in band; when every
-    // datum decided zero, the first one's decided margin rides.
-    let coincidence = match kept.ranked() {
-        crate::ray_walk::Ranked::Blocked(m) | crate::ray_walk::Ranked::InBand(m) => m,
-        crate::ray_walk::Ranked::Neither => match first_zero {
-            Some(zero) => zero,
-            None => unreachable!(
-                "every curved kind reads at least two data, and each datum decides zero, \
-                 decides nonzero (returned above) or does not decide"
-            ),
-        },
-    };
-    Err(CarrierEqError::Undeclared {
-        coincidence,
-        // The alignment this traversal was run under: the relation a
-        // declaration of this pair would verify with (R3).
-        relation: same,
-    })
+    // A datum that cannot be read is reported first, then the first one
+    // in band; when every datum decided zero, the carriers are one.
+    match kept.ranked() {
+        crate::ray_walk::Ranked::Blocked(coincidence)
+        | crate::ray_walk::Ranked::InBand(coincidence) => Err(CarrierEqError::Undecided {
+            coincidence,
+            // The alignment this traversal was run under.
+            relation: same,
+        }),
+        crate::ray_walk::Ranked::Neither => Ok((same, ContactVerdict::Definite, first_zero)),
+    }
 }
 
 /// Points on `c`'s carrier around its datum, the witnesses a face of
@@ -1278,37 +1189,33 @@ mod tests {
         ConsumedExtent { on, ..at(arm) }
     }
 
-    fn declared() -> PlaneIdentity<'static> {
-        PlaneIdentity {
-            s1: None,
-            s2: None,
-            declared: true,
-        }
+    fn declared() -> PlaneIdentity {
+        PlaneIdentity::DECLARED
     }
 
     /// **The declared sum reads at the face-pair door only.** Two
     /// spheres whose centres stand `0.6·ε` apart and whose radii differ
     /// by `0.6·ε`: each datum decides zero, their sum (`1.2·ε`) does not.
-    /// The ladder as the corner sites read it calls the pair coincident
-    /// (a margin decided at zero); the face-pair door, whose coincidence
-    /// offers the declaration the declared door reads over the same
-    /// extent, refuses it with the sum's in-band reading instead.
+    /// The ladder as the corner sites read it calls the pair one carrier
+    /// (every margin decided at zero); the face-pair door, which glues
+    /// only what the declared door would verify over the same extent,
+    /// refuses it with the sum's in-band reading instead.
     #[test]
     fn the_declared_sum_reads_at_the_pair_door_and_not_at_the_corners() {
         let e = band().zero();
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
-        match carrier_eq_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
-            Err(CarrierEqError::Undeclared {
-                coincidence: CoincidenceMeasure::Zero { predicate, .. },
-                ..
-            }) => {
-                assert_eq!(predicate, "carrier_sphere_center", "every datum zero");
+        match carrier_eq_reading(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
+            Ok((CarrierRelation::SameOriented, ContactVerdict::Definite, Some(margin))) => {
+                assert!(
+                    !margin.is_invalid(),
+                    "the first datum's decided margin rides"
+                );
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }
-        match pair_door_verdict(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
-            Err(CarrierEqError::Undeclared {
+        match pair_door_reading(&a, &b, PlaneIdentity::NONE, &at(1.0), band()) {
+            Err(CarrierEqError::Undecided {
                 coincidence: CoincidenceMeasure::Undecided(diag),
                 ..
             }) => {
@@ -1342,7 +1249,7 @@ mod tests {
         };
         assert!(matches!(
             declared_reading(&flat, &tilted, &at(0.01), band()),
-            Ok((_, ContactVerdict::Definite | ContactVerdict::Bridged))
+            Ok((_, ContactVerdict::Definite | ContactVerdict::Bridged, _))
         ));
         let on = [Point3::new(10.0, -10.0, 0.0)];
         assert!(matches!(
@@ -1364,7 +1271,7 @@ mod tests {
         for radius in [f64::NAN, f64::INFINITY] {
             let poisoned = sphere([apart, 0.0, 0.0], radius, true);
             match carrier_eq_verdict(&a, &poisoned, PlaneIdentity::NONE, &at(1.0), b) {
-                Err(CarrierEqError::Undeclared {
+                Err(CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::Unreadable(diag),
                     ..
                 }) => {
@@ -1377,20 +1284,19 @@ mod tests {
     }
 
     /// The peg-in-bore row: value-equal radii, opposed material
-    /// sides. UNDECLARED it refuses (value equality never glues);
-    /// DECLARED it is the `Rest` verdict.
+    /// sides. Declared or not, a margin decided Zero is the `Rest`
+    /// verdict.
     #[test]
-    fn sphere_value_equal_needs_the_declaration() {
+    fn sphere_value_equal_is_one_carrier_declared_or_not() {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.0, 0.0, 0.0], 2.0, false);
-        assert!(matches!(
-            carrier_eq(&a, &b, PlaneIdentity::NONE, &at(1.0), band()),
-            Err(CarrierEqError::Undeclared { .. })
-        ));
-        assert_eq!(
-            carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap(),
-            CarrierRelation::SameOpposite
-        );
+        for id in [PlaneIdentity::NONE, declared()] {
+            assert_eq!(
+                carrier_eq(&a, &b, id, &at(1.0), band()).unwrap(),
+                CarrierRelation::SameOpposite,
+                "{id:?}"
+            );
+        }
     }
 
     /// Aligned coincidence is reported honestly as `SameOriented` —
@@ -1427,20 +1333,25 @@ mod tests {
         );
     }
 
-    /// ε-row, three outcomes at one geometry: a sub-band radius
-    /// difference. UNDECLARED it refuses typed (in-band is never a
+    /// ε-row, three outcomes at one geometry: an in-band radius
+    /// difference. UNDECLARED it is undecided, typed (in-band is never a
     /// silent pass); DECLARED it is the bridged residue and stands;
     /// a definite difference at the same site contradicts.
     #[test]
     fn sphere_radius_epsilon_row_three_outcomes() {
+        let b = band();
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
-        let in_band = sphere([0.0, 0.0, 0.0], 2.0 + 1e-12, false);
+        let in_band = sphere(
+            [0.0, 0.0, 0.0],
+            2.0 + (b.zero() + b.escalate()) * 0.5,
+            false,
+        );
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, &at(1.0), band()),
-                Err(CarrierEqError::Undeclared { .. })
+                Err(CarrierEqError::Undecided { .. })
             ),
-            "in-band, undeclared: refuses"
+            "in-band, undeclared: undecided"
         );
         assert_eq!(
             carrier_eq(&a, &in_band, declared(), &at(1.0), band()).unwrap(),
@@ -1492,7 +1403,7 @@ mod tests {
     /// ε-row on the cylinder's own margins, three outcomes at one
     /// geometry — the row the sphere already had, owed to every new
     /// margin. The radius datum carries it: sub-band, the declaration
-    /// bridges and the undeclared pair refuses; definite, it
+    /// bridges and the undeclared pair is undecided; definite, it
     /// contradicts.
     #[test]
     fn cylinder_radius_epsilon_row_three_outcomes() {
@@ -1510,9 +1421,9 @@ mod tests {
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, &at(1.0), band()),
-                Err(CarrierEqError::Undeclared { .. })
+                Err(CarrierEqError::Undecided { .. })
             ),
-            "in-band, undeclared: refuses"
+            "in-band, undeclared: undecided"
         );
         assert_eq!(
             carrier_eq(&a, &in_band, declared(), &at(1.0), band()).unwrap(),
@@ -1564,17 +1475,16 @@ mod tests {
     }
 
     /// The toroidal peg-in-bore row: one carrier, opposed material
-    /// sides. UNDECLARED it refuses (value equality never glues);
-    /// DECLARED it is the `Rest` verdict — the torus arm's version of
-    /// the sphere and cylinder rows above.
+    /// sides, declared or not — the `Rest` verdict its margins decide,
+    /// the torus arm's version of the sphere and cylinder rows above.
     #[test]
-    fn torus_value_equal_needs_the_declaration() {
+    fn torus_value_equal_is_one_carrier_declared_or_not() {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, false);
-        assert!(matches!(
-            carrier_eq(&a, &b, PlaneIdentity::NONE, &at(1.0), band()),
-            Err(CarrierEqError::Undeclared { .. })
-        ));
+        assert_eq!(
+            carrier_eq(&a, &b, PlaneIdentity::NONE, &at(1.0), band()).unwrap(),
+            CarrierRelation::SameOpposite
+        );
         assert_eq!(
             carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
@@ -1663,9 +1573,9 @@ mod tests {
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, &at(1.0), band()),
-                Err(CarrierEqError::Undeclared { .. })
+                Err(CarrierEqError::Undecided { .. })
             ),
-            "in-band, undeclared: refuses"
+            "in-band, undeclared: undecided"
         );
         assert_eq!(
             carrier_eq(&a, &in_band, declared(), &at(1.0), band()).unwrap(),
@@ -1800,27 +1710,15 @@ mod tests {
         assert_eq!(direct, CarrierRelation::SameOpposite);
     }
 
-    /// **The curved rung's material side is the faces' `outward` bits,
-    /// which the composed `orient` does not track** (`source_rung`'s
-    /// docs). One sourced cylinder face against itself, against its
-    /// reverted body, and against a twin with its sense flipped, each
-    /// pair both ways: the rung reads the reverted pair opposed, where
-    /// the declaration ladder over the same composed sources reads it
-    /// `SameSource`.
-    ///
-    /// The ladder column is a measurement of today's composition, not
-    /// a contract: its reverted row is the reading
-    /// [`face_oriented_source`](super::super::reduce::face_oriented_source)'s
-    /// docs call wrong for a curved face. A composition that learns
-    /// curved faces and moves that row to an opposed reading is the
-    /// fix, to be re-pinned here.
+    /// **The curved ladder's material side is the faces' `outward`
+    /// bits.** One cylinder face against itself, against its reverted
+    /// body, and against a twin with its sense flipped, each pair both
+    /// ways: the reverted and the flipped pair read opposed.
     #[test]
-    fn the_curved_source_rung_reads_a_reverted_face_as_opposed() {
-        use super::super::reduce::face_oriented_source;
-        use crate::source::{GeomSource, SurfaceDeclaration as D, source_declaration};
+    fn the_curved_ladder_reads_a_reverted_face_as_opposed() {
         use CarrierRelation::{SameOpposite, SameOriented};
         let mut body = crate::Body::<f64>::new();
-        let (face, key) = crate::test_support_fixtures::unit_cyl_sheet(
+        let (face, _) = crate::test_support_fixtures::unit_cyl_sheet(
             &mut body,
             None,
             (0.0, 1.0),
@@ -1828,33 +1726,28 @@ mod tests {
             true,
             Tol::witness(),
         );
-        body.set_surface_source(key, GeomSource::minted(7, 0))
-            .unwrap();
         let reverted = body.revert();
         let mut flipped = body.clone();
         flipped.set_face_sense(face, false).unwrap();
-        for (name, other, rung, composed_today) in [
-            ("itself", &body, SameOriented, D::SameSource),
-            ("its reverted body", &reverted, SameOpposite, D::SameSource),
-            ("its sense flipped", &flipped, SameOpposite, D::Mirrored),
+        for (name, other, rung) in [
+            ("itself", &body, SameOriented),
+            ("its reverted body", &reverted, SameOpposite),
+            ("its sense flipped", &flipped, SameOpposite),
         ] {
             for (x, y) in [(&body, other), (other, &body)] {
                 assert_eq!(
-                    crate::boolean::rest::carrier_pair_relation(x, face, y, face, false, band())
-                        .unwrap()
-                        .unwrap(),
+                    crate::boolean::carrier_pair::carrier_pair_relation(
+                        x,
+                        face,
+                        y,
+                        face,
+                        false,
+                        band()
+                    )
+                    .unwrap()
+                    .unwrap(),
                     rung,
-                    "the curved rung, a face against {name}"
-                );
-                assert_eq!(
-                    source_declaration(
-                        face_oriented_source(x, face).as_ref(),
-                        face_oriented_source(y, face).as_ref()
-                    ),
-                    composed_today,
-                    "the composed sources' reading of a face against {name} moved; \
-                     an opposed reading of the reverted pair is the curved-aware \
-                     composition to re-pin, not a regression"
+                    "the curved ladder, a face against {name}"
                 );
             }
         }

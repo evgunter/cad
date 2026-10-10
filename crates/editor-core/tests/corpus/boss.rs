@@ -29,12 +29,12 @@ pub fn document() -> CorpusDoc {
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
     let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane: plate_plane,
+        frame: plate_plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(0.8),
         side: ExtrudeSide::Along,
     });
@@ -49,22 +49,24 @@ pub fn document() -> CorpusDoc {
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
     let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: boss_plane,
+        frame: boss_plane.into(),
         loops: vec![boss_loop],
         ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
 
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: plate,
-        b: boss,
+        a: plate.into(),
+        b: boss.into(),
         declare: Vec::new(),
     });
+
+    r.place(union);
 
     CorpusDoc {
         name: "boss_union",
@@ -78,7 +80,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: boss,
             slot: SlotId::Distance,
-            expr: len(1.125),
+            value: len(1.125).into(),
+            fresh: Vec::new(),
         },
         bump_root: boss,
     }

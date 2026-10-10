@@ -105,9 +105,33 @@ fn the_f64_seam_answers_every_public_door() {
     }
 
     // The offset door over the whole body: the mint that produces an
-    // `Approx` for a kind not closed under offset. The fixture's cap
-    // boundary refuses first, and that refusal is named so a change to
-    // the LANE absence cannot hide behind it.
+    // `Approx` for a kind not closed under offset. The fitted cap's
+    // edges with the box's side planes derive as their sections, its
+    // corners are the side planes' roots along them, and the body then
+    // refuses at the surface swap's re-certification: each section is
+    // the fit's own window edge, where the plane × NURBS tube proves no
+    // single arc
+    // (`work/ssiedge/a-plane-section-along-a-fits-window-edge-proves-no-one-arc.md`).
+    // That refusal is named so a change to the LANE absence cannot hide
+    // behind it.
+    let recertify_refusal = |e: Option<&topo::ReplaceFaceError<f64>>| {
+        matches!(
+            e,
+            Some(topo::ReplaceFaceError::Op {
+                error: topo::EulerOpError::RechartFalsifies {
+                    door: topo::RechartDoor::SetFaceSurfacesDescribing,
+                    error: geom_brep::CertifyError::PlaneNurbs(
+                        geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                            rungs: 20,
+                            cause: geom_brep::ssi::OneArcRefusal::Undecided(why),
+                        }
+                    ),
+                    ..
+                },
+                ..
+            }) if why.predicate == Some("ssi_tube_one_arc")
+        )
+    };
     let (mut fresh, cap) = box_with_approx_cap(d, 1e-9);
     // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
     fresh
@@ -119,11 +143,11 @@ fn the_f64_seam_answers_every_public_door() {
             },
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness()) {
-        Ok(()) => {}
-        Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
-        other => panic!("the `f64` mint must not report the lane's absence: {other:?}"),
-    }
+    let fresh_moved = topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness());
+    assert!(
+        recertify_refusal(fresh_moved.as_ref().err()),
+        "the `f64` mint must not report the lane's absence: {fresh_moved:?}"
+    );
     let (mut single, scap) = box_with_approx_cap(d, 1e-9);
     // Lifts RechartStrandsDescriptions: the cap's chart is the lane under test; its edges are not.
     single
@@ -135,11 +159,11 @@ fn the_f64_seam_answers_every_public_door() {
             },
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness()) {
-        Ok(()) => {}
-        Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
-        other => panic!("the single-face `f64` mint must not report the lane's absence: {other:?}"),
-    }
+    let single_moved = topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness());
+    assert!(
+        recertify_refusal(single_moved.as_ref().err()),
+        "the single-face `f64` mint must not report the lane's absence: {single_moved:?}"
+    );
 }
 
 /// The certifying interval scalar: every door refuses by its own typed

@@ -2,12 +2,12 @@
 id: a-failed-requirement-refuses-the-whole-product
 kind: issue
 title: A report-only Measure or Assertion root that fails refuses the whole product gather; under D10's explicit product list a check must never gate the product
-status: parked
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 refs: [a-measured-part-is-not-a-product-root]
+closed: 2026-10-08
 ---
 
 
@@ -21,3 +21,26 @@ variables, so a failing check has no business reaching the gather.
 INTENT stage 2 (the explicit product list) and stage 5 (assertions)
 settle it; this row's acceptance is that a failing assertion reports
 and the product still builds.
+
+## Stage 2 slicing (2026-10-07)
+
+Re-parked on `the-product-is-an-explicit-list` (INTENT stage 2 PR C,
+`docs/INTENT-STAGE2-SPEC.md` §4, test 8): the gather reads only listed `Body`
+variables, so a failing check cannot reach it. Stage 5's assertions do not
+change that acceptance.
+
+## Stage 5 slicing (2026-10-08)
+
+Stage 5 (`docs/INTENT-STAGE5-SPEC.md` §9) adds the first at-rest reader
+of an assertion: the quieting rule. It reads only the verdict, and a
+failed or poisoned assertion quiets nothing and refuses nothing, so this
+row's acceptance holds through stage 5 (spec test 10). Nothing here moves
+the row's trigger.
+
+## Closed
+
+By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch
+`intent/s2-c-world`): the gather reads only the placements, and a
+measure or an assertion is no placement, so a failing one reports and
+the product builds: `crates/editor-core/tests/intent_s2_c_world.rs`,
+`a_failing_measure_and_its_assertion_gate_no_placement`.

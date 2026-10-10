@@ -8,8 +8,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::{plate6, plate6_cyl};
+use crate::common::outcomes::outcome;
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
@@ -194,8 +195,6 @@ fn probe_peg_offset_one_ulp_characterized() {
                     err,
                     BooleanError::Escalated { .. }
                         | BooleanError::ContactContradicted { .. }
-                        | BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "typed only: {err:?}"
@@ -204,19 +203,28 @@ fn probe_peg_offset_one_ulp_characterized() {
     }
 }
 
-/// Missing declaration group: peg 2's walls undeclared — the second
-/// incidence must keep the typed frontier refusal (C8), never ride
-/// peg 1's declarations.
+/// Missing declaration group: peg 2's walls undeclared. The second
+/// incidence is one carrier by margin, so the boolean declares it
+/// itself: the union is the fully declared union bit for bit (D10),
+/// never one that rode peg 1's declarations into another body.
 #[test]
-fn probe_missing_declared_group_refuses_typed() {
+fn probe_missing_declared_group_is_the_full_declaration() {
     let p = plate_with_pegs(2.0, 4.0, 0.5);
     let q = plate_with_bores();
-    let decls = declarations(&p, &q, true, false);
-    let err = topo::union_with(&p, &q, &decls, Tol::witness())
-        .expect_err("an undeclared second peg must refuse");
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the undeclared incidence keeps the frontier door: {err:?}"
+    assert_eq!(
+        outcome(&topo::union_with(
+            &p,
+            &q,
+            &declarations(&p, &q, true, false),
+            Tol::witness()
+        )),
+        outcome(&topo::union_with(
+            &p,
+            &q,
+            &declarations(&p, &q, false, false),
+            Tol::witness()
+        )),
+        "the undeclared second peg is the declared one"
     );
 }
 
@@ -314,21 +322,10 @@ fn probe_partial_engagement_never_silent() {
         }
         Err(err) => {
             eprintln!("partial engagement refused: {err:?}");
-            // `JoinDesync { "minted-edge description failed
-            // certification" }` is the F7 output stage's edge
-            // re-description refusing a `Line` chord the declared-REST
-            // zip minted on a bore wall where a cap rim cuts it
-            // (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
-            // the merge door's own arm for a cylindrical declared pair
-            // records, and that is what exposed it. Typed and loud,
-            // which is all this probe asserts — where the frontier
-            // SITS is not a baseline this row defends.
             assert!(
                 matches!(
                     err,
-                    BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
-                        | BooleanError::Join(_)
+                    BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
                 ),
@@ -435,10 +432,7 @@ fn probe_ring_count_mismatch_never_silent() {
             assert!(
                 matches!(
                     err,
-                    BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::Join(_)
-                        | BooleanError::JoinDesync { .. }
-                        | BooleanError::ZipCorrespondence { .. }
+                    BooleanError::Join(_) | BooleanError::ZipCorrespondence { .. }
                 ),
                 "typed only: {err:?}"
             );
@@ -455,13 +449,10 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
-    let profile = Profile::new(
-        lying_plane(),
-        vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
-    )
-    .validate(Tol::witness())
-    .unwrap();
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
+    let profile = Profile::new(lying_plane(), vec![bulge_loop(vertices)])
+        .validate(Tol::witness())
+        .unwrap();
     let body = extrude(
         &profile,
         Extrusion::Distance {
@@ -477,29 +468,23 @@ fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) 
 
 fn quarter_round_below() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 2.0), b90),
-            (Point2::new(0.0, 3.0), 0.0),
-        ],
-        vec![2],
-    )
+    lying_extrude(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 2.0), b90),
+        (Point2::new(0.0, 3.0), 0.0),
+    ])
 }
 
 fn quarter_round_above() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
-    lying_extrude(
-        vec![
-            (Point2::new(1.0, 0.5), 0.0),
-            (Point2::new(1.0, 2.0), -b90),
-            (Point2::new(2.0, 3.0), 0.0),
-            (Point2::new(3.0, 3.0), 0.0),
-            (Point2::new(3.0, 0.5), 0.0),
-        ],
-        vec![1, 2],
-    )
+    lying_extrude(vec![
+        (Point2::new(1.0, 0.5), 0.0),
+        (Point2::new(1.0, 2.0), -b90),
+        (Point2::new(2.0, 3.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(3.0, 0.5), 0.0),
+    ])
 }
 
 fn one_cyl_face(body: &Body<f64>) -> topo::FaceKey {
@@ -558,10 +543,11 @@ fn probe_tube_chain_additivity_error_measured() {
 }
 
 /// Declared on one side only: drop the wall×wall Tangent declaration
-/// (keep the plane Rest + the two plane×wall Tangents). The wall pair
-/// incidence is then UNDECLARED and must keep a typed refusal.
+/// (keep the plane Rest + the two plane×wall Tangents). The wall pair's
+/// tangency is verified by its witness, so the boolean declares it
+/// itself and the union is the fully declared one bit for bit (D10).
 #[test]
-fn probe_rim_wall_pair_undeclared_refuses_typed() {
+fn probe_rim_wall_pair_undeclared_is_the_declared_union() {
     let a = quarter_round_below();
     let b = quarter_round_above();
     let mut decls = crate::mate2_common::continuations(&a, &b);
@@ -580,23 +566,20 @@ fn probe_rim_wall_pair_undeclared_refuses_typed() {
         plane_face(&b, 1.0, false),
         ContactClass::Tangent,
     ));
-    match topo::union_with(&a, &b, &decls, Tol::witness()) {
-        Ok(out) => {
-            // If it unions anyway the result must still be exact and
-            // valid — but record it: the wall-pair incidence rode
-            // other declarations.
-            let body = body_of(out);
-            let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-            let va = mass_properties(&a, Tol::witness()).unwrap().volume;
-            let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-            eprintln!(
-                "UNDECLARED WALL PAIR UNIONED: v = {v:.17e} vs {:.17e}",
-                va + vb
-            );
-            panic!("the undeclared wall-pair incidence must keep a typed refusal (C8)");
-        }
-        Err(err) => {
-            eprintln!("undeclared wall pair refused: {err:?}");
-        }
-    }
+    let mut full = decls.clone();
+    full.coincident_faces.push(FacePairDeclaration::new(
+        one_cyl_face(&a),
+        one_cyl_face(&b),
+        ContactClass::Tangent,
+    ));
+    let want = topo::union_with(&a, &b, &full, Tol::witness());
+    assert!(
+        matches!(want, Ok(BooleanResult::Body(_))),
+        "the fully declared union builds: {want:?}"
+    );
+    assert_eq!(
+        outcome(&topo::union_with(&a, &b, &decls, Tol::witness())),
+        outcome(&want),
+        "the undeclared wall pair is the declared one"
+    );
 }

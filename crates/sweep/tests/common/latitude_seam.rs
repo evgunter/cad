@@ -455,17 +455,19 @@ fn latitude_arc(
     let (he1, he2) = (leaving(body, face, va), leaving(body, face, vb));
     let (sin, cos) = from.sin_cos();
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            point: station,
-            place: geom_core::Affine3::rotation_about_axis(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                from,
-            ),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angle: theta,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: station,
+                place: geom_core::Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    from,
+                ),
+                axis_origin: Point3::new(0.0, 0.0, 0.0),
+                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                angle: theta,
+            },
+        )),
         carrier: Curve3::Circle {
             center: Point3::new(0.0, station.y, 0.0),
             // The rotation's own sense: `+y × +x = −z`, the way a
@@ -501,4 +503,41 @@ pub fn latitude_on_full_wall(body: &mut Body<f64>, surface: SurfaceKey, station:
     let pi = core::f64::consts::PI;
     latitude_arc(body, surface, station, 0.0, pi);
     latitude_arc(body, surface, station, pi, pi);
+}
+
+/// Cuts the latitude a partial revolve about `+y` (sketch plane `xy`)
+/// through `theta` would have struck at `station` into its curved wall
+/// on `surface`: each wedge cap's meridian on the wall split at the
+/// station, then one [`latitude_arc`] across the wall, as the revolve
+/// declares a latitude rim.
+pub fn latitude_on_partial_wall(
+    body: &mut Body<f64>,
+    surface: SurfaceKey,
+    station: Point2<f64>,
+    theta: f64,
+) {
+    let tol = Tol::witness();
+    let on_wall = |b: &Body<f64>, he: HalfEdgeKey| {
+        b.face_of_half_edge(he)
+            .is_some_and(|f| b.get_face(f).unwrap().surface == surface)
+    };
+    let at = crossing(station.y);
+    let meridians: Vec<(EdgeKey, f64)> = body
+        .edges()
+        .filter(|(_, e)| on_wall(body, e.he_plus) != on_wall(body, e.he_minus))
+        .filter_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+            let (t0, t1) = c.params();
+            at(c.carrier(), t0, t1).map(|t| (k, t))
+        })
+        .collect();
+    assert_eq!(
+        meridians.len(),
+        2,
+        "the latitude crosses both cap meridians"
+    );
+    for (m, t) in meridians {
+        body.split_edge(m, t, tol).expect("the meridian splits");
+    }
+    latitude_arc(body, surface, station, 0.0, theta);
 }

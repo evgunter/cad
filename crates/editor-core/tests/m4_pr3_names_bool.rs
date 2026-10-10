@@ -57,7 +57,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -76,8 +76,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -160,14 +160,15 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: n,
+            a: a.into(),
+            b: n.into(),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc);
     let t = table(&ev, u2);
-    // Cut rims are told apart by their ends (never bare indices).
+    // Cut rims are told apart by their ends (never bare indices), and so
+    // is a lone piece: each of the notch's edges the cap cuts.
     let pieces: Vec<_> = t
         .iter()
         .filter(|(n, _)| {
@@ -178,17 +179,33 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         })
         .map(|(n, _)| n.path[..n.path.len() - 1].to_vec())
         .collect();
-    assert_eq!(pieces.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
-    assert_eq!(pieces[0], pieces[1], "both pieces of one rim");
+    let (of_a, of_n): (Vec<_>, Vec<_>) = pieces
+        .iter()
+        .partition(|p| matches!(p.as_slice(), [RoleSeg::FromA(_)]));
+    assert_eq!(of_a.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
+    assert_eq!(of_a[0], of_a[1], "both pieces of one rim");
+    // `a` cuts four of the notch's edges, two start rims and two
+    // laterals, and keeps one piece of each: still named by its ends.
+    assert_eq!(of_n.len(), 4, "the notch's lone pieces: {pieces:?}");
     assert!(
-        matches!(pieces[0].as_slice(), [RoleSeg::FromA(_)]),
-        "the rim is `a`'s: {pieces:?}"
+        of_n.iter()
+            .all(|p| matches!(p.as_slice(), [RoleSeg::FromB(_)]))
+            && of_n.windows(2).all(|w| w[0] != w[1]),
+        "every other piece is the notch's, one of each edge: {pieces:?}"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
         .iter()
         .filter(|(n, _)| {
-            n.kind == EntityKind::Vertex && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
+            n.kind == EntityKind::Vertex
+                && matches!(
+                    n.path.first(),
+                    Some(
+                        RoleSeg::Seam { .. }
+                            | RoleSeg::Crossing { .. }
+                            | RoleSeg::EdgeCrossing { .. }
+                    )
+                )
         })
         .count();
     assert!(seams >= 4, "expected seam vertices, got {seams}");
@@ -208,8 +225,8 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -281,7 +298,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -290,8 +307,8 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -325,7 +342,8 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
         editor_core::DocEdit::SetParam {
             node,
             slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
-            expr: len(to),
+            value: len(to).into(),
+            fresh: Vec::new(),
         },
     )
     .0
@@ -355,8 +373,8 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a,
-                b: tb,
+                a: a.into(),
+                b: tb.into(),
                 declare: decl,
             },
         );
@@ -400,8 +418,8 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a,
-                b: tb,
+                a: a.into(),
+                b: tb.into(),
                 declare: decl,
             },
         );

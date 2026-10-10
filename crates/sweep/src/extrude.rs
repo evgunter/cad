@@ -7,12 +7,17 @@
 //! counterclockwise convention — see the crate docs for the direction
 //! conventions this crate owns):
 //!
+//! 0. **Runs.** Each loop's segments on one carrier are collapsed to
+//!    one segment per run (crate README, "Walls: one per run";
+//!    `swept::collapse_runs`), so a station inside a run has no entity
+//!    in the body: the run's wall is one face and each cap carries it
+//!    as one rim edge. Everything below sweeps the collapsed loops.
 //! 1. **Base lamina.** The outer loop's chain is laid down on the
 //!    sketch plane (`mvfs` + a `mev` chain + one closing `mef`), giving
 //!    two faces: the seed face (which will be swept and survive as the
 //!    **top cap**) keeps the swept-traversal winding; the `mef`-minted
 //!    face is the **bottom cap** (reversed winding, outward normal
-//!    opposite the extrusion), and receives its Newell plane at the
+//!    opposite the extrusion), and receives its cap plane at the
 //!    `mef` itself.
 //! 2. **Holes.** Each hole is planted in the seed face as a ring
 //!    (bridge `mev` + `kemr` — the empty-ring hole-planting state),
@@ -20,20 +25,15 @@
 //!    face is immediately consumed by a same-shell `kfmrh` demoting the
 //!    disc loop into the bottom cap. Genus rises by one per hole.
 //! 3. **Sweep.** Per loop of the seed face (outer, then rings in
-//!    canonical hole order), one wall per RUN of segments on one
-//!    carrier (crate README, "Walls: one per run"): one strut `mev` per run's
-//!    leading vertex (the `he1 == he2` case — swept vertex,
-//!    `ExtrudedPoint` description), then per run a `mev` chain laying
-//!    the top rim of every segment but the last (minting each
-//!    station's top vertex) and one side `mef` (the new edge is the
-//!    last segment's **top rim**, `PlacedSegment` at the translated
-//!    placement; the new face is the side wall, plane or cylinder — a
-//!    CONCAVE arc's wall is minted `sense: false`: its material lies
-//!    outside the carrier, against the chart normal), the last `mef`
-//!    closing against the first top rim. A station inside a run is a
-//!    vertex of both caps' rim chains and of nothing else. The original
-//!    loop survives translated by `w` — the swept face becomes the top
-//!    cap.
+//!    canonical hole order): one strut `mev` per vertex (the
+//!    `he1 == he2` case — swept vertex, `ExtrudedPoint` description),
+//!    then per segment one side `mef` (the new edge is its **top
+//!    rim**, `PlacedSegment` at the translated placement; the new face
+//!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
+//!    minted `sense: false`: its material lies outside the carrier,
+//!    against the chart normal), the last `mef` closing against the
+//!    first top rim. The original loop survives translated by `w` —
+//!    the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
@@ -48,7 +48,7 @@
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
-//!    Newell plane.
+//!    cap plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
@@ -66,7 +66,19 @@
 //!    [`ExtrudeError::SmoothJoinRefuted`]); Indeterminate ⇒ the typed
 //!    [`ExtrudeError::SliverRim`]. Which pairs reach the Smooth arm,
 //!    and at which K, is stated at the arm in `upgrade_rim`.
-//! 7. **Declared cusps.** Every declared cusp joint
+//! 7. **One-segment loops.** A loop of one segment is D1's full turn:
+//!    one vertex, one self-loop edge. It has no chain to lay down and
+//!    no run to close, so it is swept whole where its chain would be
+//!    laid — the outer in step 1, a hole in step 2 — FAR rim first
+//!    (`swept::build_full_turn`): the seed (an `mvfs` at the far vertex,
+//!    or a ring planted there) keeps the top rim, a `mef(Lone)` mints
+//!    the wall, the strut runs down to the near vertex, and a self-loop
+//!    `mef` there mints the bottom cap (a hole's disc, demoted by
+//!    `kfmrh` as in step 2). Both strut halves bound the one wall, on
+//!    whose cylinder `u_ref` aims at the vertex, so the strut is the
+//!    wall's seam and is described as one. Rims upgrade in step 6 like
+//!    any other.
+//! 8. **Declared cusps.** Every declared cusp joint
 //!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
 //!    material wedge 0 (2π on a hole loop). The profile's `.cusp()` is
 //!    where that tangency's intent is declared; at rest the strut is
@@ -76,31 +88,33 @@
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
-//! order, then side faces, then join classification; finally rim
-//! upgrades per loop, per segment, bottom before top. Two calls with
-//! identical inputs replay byte-identically.
+//! order, then side faces, then join classification — except a
+//! one-segment loop, swept whole where its chain is laid, which mints
+//! its wall before its strut (step 7); finally rim upgrades per loop,
+//! per segment, bottom before top. Two calls with identical inputs
+//! replay byte-identically.
 
 use core::fmt;
 
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, classify_dihedral,
-    newell_plane,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError,
+    classify_dihedral, newell_plane,
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
-    SolidKey, SurfaceKey,
+    Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
+    MevSite, ShellKey, SolidKey, SurfaceKey,
 };
 
 use crate::swept;
 use crate::swept::{
-    CosurfaceNames, SweptChord, cap_points, decide, face_surface_key, placed_segment_spec,
-    turn_axis,
+    CapEnd, CapPlaneError, CosurfaceNames, SweptChord, cap_plane, cap_points, decide,
+    face_surface_key, placed_segment_spec, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -238,23 +252,21 @@ pub struct SideWall {
     /// where the two walls' jet determines the locus and an image at
     /// rest in the previous wall's chart where it does not. A station
     /// inside the run (every later segment's start vertex) has no
-    /// strut: it is a vertex of the two caps' rim chains only.
+    /// entity.
     pub strut: EdgeKey,
     /// The CANONICAL segments the wall sweeps (the vocabulary
     /// [`crate::BandWall::segments`] uses), listed in the order the
     /// sweep traverses them — which runs backwards through the
     /// canonical order on a reversed extrusion — wrapping through the
-    /// loop's start where the run does. `bottom_rims` and `top_rims`
-    /// are aligned with it, and the run's lead (the strut's vertex) is
-    /// where the sweep starts `segments[0]`
+    /// loop's start where the run does. The run's lead (the strut's
+    /// vertex) is where the sweep starts `segments[0]`
     /// ([`Extruded::start_vertex`]).
     pub segments: Vec<usize>,
-    /// The wall's rim on the [`Extruded::bottom`] cap, one edge per
-    /// segment of `segments`: a station splits the rim into collinear
-    /// edges.
-    pub bottom_rims: Vec<EdgeKey>,
-    /// The wall's rim on the [`Extruded::top`] cap, one edge per segment.
-    pub top_rims: Vec<EdgeKey>,
+    /// The wall's rim on the [`Extruded::bottom`] cap: one edge over
+    /// the whole run, as the wall is one face.
+    pub bottom_rim: EdgeKey,
+    /// The wall's rim on the [`Extruded::top`] cap, one edge over the run.
+    pub top_rim: EdgeKey,
 }
 
 /// The swept position of canonical segment `c` of an `n`-segment loop,
@@ -395,19 +407,25 @@ pub enum ExtrudeError {
     /// The dihedral classification at a profile-corner join escalated:
     /// a sliver dihedral, certifiable as neither a corner nor a smooth
     /// join (D2's ratified text — a conventional description is not an
-    /// escape hatch from ill-conditioned geometry).
+    /// escape hatch from ill-conditioned geometry). A join whose witness
+    /// read smooth lands here too when a must-carry station escalates:
+    /// its first-order arm or wedge, or its second-order bend
+    /// (its `reading`).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall rim edge escalated
-    /// during the rim upgrade pass (module docs, step 6), or the
-    /// must-carry rule's reading did on a rim it read smooth — the
-    /// rim's counterpart of [`ExtrudeError::SliverJoin`].
+    /// during the rim upgrade pass (module docs, step 6), or, on a rim
+    /// whose witness read smooth, a must-carry station's first-order arm
+    /// or wedge or its second-order bend did — the rim's counterpart of
+    /// [`ExtrudeError::SliverJoin`].
     ///
     /// Reachable from admitted inputs: the direction gates admit a tilt
     /// of up to `1/K` against a rim the profile door floors at `K·ε`,
@@ -420,6 +438,8 @@ pub enum ExtrudeError {
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
+        /// The reading that escalated.
+        reading: DihedralReading,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -441,12 +461,12 @@ pub enum ExtrudeError {
         /// The strut or rim edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
-    /// A cap plane failed Newell certification (non-planar or
+    /// A cap plane could not be certified or oriented (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
     CapPlane {
-        /// The Newell failure.
-        source: NewellError,
+        /// The cap-plane failure.
+        source: CapPlaneError,
     },
     /// A side-wall plane failed Newell certification.
     ///
@@ -514,28 +534,30 @@ impl fmt::Display for ExtrudeError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
-                 definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let join = format!("the wall join at loop {loop_index} vertex {vertex_index}");
+                swept::sliver_text(f, &join, *reading, source)
+            }
             Self::SliverRim {
                 loop_index,
                 segment_index,
+                reading,
                 source,
-            } => write!(
-                f,
-                "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
-                 is neither a definite corner nor definitely smooth: {source}"
-            ),
+            } => {
+                let rim = format!(
+                    "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap"
+                );
+                swept::sliver_text(f, &rim, *reading, source)
+            }
             Self::SmoothJoinRefuted { edge } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness \
                  but definitely a corner at a certification station, so the construction \
                  refuses rather than choose a description for it"
             ),
-            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
+            Self::CapPlane { source } => write!(f, "{source}"),
             Self::SidePlane {
                 loop_index,
                 segment_index,
@@ -670,11 +692,13 @@ fn extruded_strut_spec<T: Real>(
     w_norm: T,
 ) -> EdgeCurveSpec<T> {
     EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point,
-            place,
-            vec: w,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point,
+                place,
+                vec: w,
+            },
+        )),
         carrier: strut_carrier(q_bottom, w),
         param_start: T::zero(),
         param_end: w_norm,
@@ -763,12 +787,41 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     let w_norm = w.norm();
     let top_place = Affine3::translation(w) * place;
 
-    // ---- Swept traversals and world points, per loop. ----
-    let loops: Vec<Vec<WallSeg<T>>> = profile
-        .loops()
-        .iter()
-        .map(|lp| wall_segments(lp, reverse))
-        .collect();
+    // ---- Swept traversals, each wall run collapsed to one segment
+    // (`swept::collapse_runs`: a station inside a run has no entity),
+    // and world points, per loop. The runs are decided up front from
+    // the segments alone, before anything is minted. ----
+    let mut loops: Vec<Vec<WallSeg<T>>> = Vec::with_capacity(profile.loops().len());
+    let mut joins: Vec<Vec<swept::Join>> = Vec::with_capacity(profile.loops().len());
+    let mut members: Vec<Vec<Vec<usize>>> = Vec::with_capacity(profile.loops().len());
+    for (li, lp) in profile.loops().iter().enumerate() {
+        let segs = wall_segments(lp, reverse);
+        if profile::is_full_turn(&segs) {
+            // One segment, so no run to collapse.
+            members.push(vec![vec![segs[0].chord.canonical_segment]]);
+            joins.push(vec![swept::Join::Corner]);
+            loops.push(segs);
+            continue;
+        }
+        let pair = swept::cosurface_pairs(
+            &segs,
+            |_| true,
+            SIDE_COSURFACE,
+            band,
+            |j, source| ExtrudeError::CosurfaceEscalated {
+                loop_index: li,
+                vertex_index: segs[j].chord.canonical_vertex,
+                source,
+            },
+        )?;
+        let col = swept::collapse_runs(&segs, &swept::joins(&segs, &pair), |seg, next| WallSeg {
+            chord: seg.chord.continued(&next.chord),
+            ..seg
+        });
+        members.push(col.canonical_members(|s| segs[s].chord.canonical_segment));
+        loops.push(col.segs);
+        joins.push(col.joins);
+    }
     let world = |p: Point2<T>| place.transform_point(Point3::new(p.x, p.y, T::zero()));
     let points: Vec<Vec<Point3<T>>> = loops
         .iter()
@@ -785,89 +838,136 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // check below is what the door pays, and it subsumes tier 1.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0], true)?;
-    let mut hes = Vec::with_capacity(n);
-    let first = body.mev(
-        MevSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        qs[1 % n],
-        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n], tol),
-        tol,
-    )?;
-    hes.push(first.he_plus);
-    let mut prev = first;
-    for j in 2..n {
-        let m = body.mev(
-            MevSite::Fan {
-                he1: prev.he_minus,
-                he2: prev.he_minus,
-            },
-            qs[j],
-            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
+    // Bottom cap plane, fitted where the cap is minted, after the
+    // chain's certifications.
+    let bottom_cap = || -> Result<FaceSurface<T>, ExtrudeError> {
+        let surface = cap_plane(
+            &cap_points(outer, qs, place),
+            place,
+            reverse,
+            CapEnd::Start,
+            band,
+        )
+        .map_err(|source| ExtrudeError::CapPlane { source })?;
+        Ok(FaceSurface::New {
+            surface,
+            sense: true,
+        })
+    };
+    // A loop swept whole in phases 1–2 (a one-segment loop, which is
+    // built far rim first: `sweep_full_turn`) carries its sweep here.
+    let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
+    let mut bases = Vec::with_capacity(loops.len());
+    let (seed, bottom_face, anchor) = if profile::is_full_turn(outer) {
+        let seed = body.mvfs(qs[0] + w, true)?;
+        let turn = sweep_full_turn(
+            &mut body,
+            0,
+            &outer[0],
+            seed.r#loop,
+            qs[0],
+            [place, top_place],
+            normal,
+            w,
+            w_norm,
+            bottom_cap()?,
+            band,
             tol,
         )?;
-        hes.push(m.he_plus);
-        prev = m;
-    }
-    // Bottom cap plane: the mef-minted face's loop runs the chain
-    // reversed — first cap point kept, the rest reversed (outward
-    // normal opposite the extrusion). Cap points are the loop vertices
-    // plus arc apexes (see `cap_points`).
-    let forward = cap_points(outer, qs, place);
-    let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-    if let Some(&p0) = forward.first() {
-        bottom_order.push(p0);
-    }
-    for &p in forward.iter().skip(1).rev() {
-        bottom_order.push(p);
-    }
-    let bottom_plane =
-        newell_plane(&bottom_order, band).map_err(|source| ExtrudeError::CapPlane { source })?;
-    let close = body.mef(
-        MefSite::Chords {
-            he1: prev.he_minus,
-            he2: first.he_plus,
-        },
-        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
-        // Newell over the loop the cap runs: its normal is the cap's
-        // outward normal, so the material agrees with the chart.
-        FaceSurface::New {
-            surface: bottom_plane,
-            sense: true,
-        },
-        tol,
-    )?;
-    hes.push(close.he_plus);
+        bases.push(LoopBase {
+            hes: vec![turn.near_in_wall],
+        });
+        let (far_kept, near_face) = (turn.far_kept, turn.near_face);
+        swept_early[0] = Some(turn.into());
+        (seed, near_face, far_kept)
+    } else {
+        let seed = body.mvfs(qs[0], true)?;
+        let mut hes = Vec::with_capacity(n);
+        let first = body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            qs[1],
+            placed_segment_spec(&outer[0], place, normal, qs[0], qs[1], tol),
+            tol,
+        )?;
+        hes.push(first.he_plus);
+        let mut prev = first;
+        for j in 2..n {
+            let m = body.mev(
+                MevSite::Fan {
+                    he1: prev.he_minus,
+                    he2: prev.he_minus,
+                },
+                qs[j],
+                placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
+                tol,
+            )?;
+            hes.push(m.he_plus);
+            prev = m;
+        }
+        let close = body.mef(
+            MefSite::Chords {
+                he1: prev.he_minus,
+                he2: first.he_plus,
+            },
+            placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
+            bottom_cap()?,
+            tol,
+        )?;
+        hes.push(close.he_plus);
+        let anchor = hes[0];
+        bases.push(LoopBase { hes });
+        (seed, close.face, anchor)
+    };
     let top_face = seed.face;
-    let bottom_face = close.face;
     let bottom_surface = face_surface_key(&body, bottom_face);
-    let mut bases = Vec::with_capacity(loops.len());
-    bases.push(LoopBase { hes });
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
     // bottom cap). ----
-    let anchor = bases[0].hes[0];
     for (li, segs) in loops.iter().enumerate().skip(1) {
         let hq = &points[li];
         let m = segs.len();
-        // Plant the hole anchor: bridge strut, immediately killed into
-        // an empty ring at the hole's first vertex (§9.3's state).
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            hq[0],
-            tol,
-        )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
-        // Grow the hole chain inside the ring loop.
+        if profile::is_full_turn(segs) {
+            let (turn, ()) = swept::full_turn_hole(
+                &mut body,
+                anchor,
+                hq[0] + w,
+                bottom_face,
+                tol,
+                |b, ring, disc| {
+                    let turn = sweep_full_turn(
+                        b,
+                        li,
+                        &segs[0],
+                        ring,
+                        hq[0],
+                        [place, top_place],
+                        normal,
+                        w,
+                        w_norm,
+                        disc,
+                        band,
+                        tol,
+                    )?;
+                    Ok::<_, ExtrudeError>((turn, ()))
+                },
+            )?;
+            bases.push(LoopBase {
+                hes: vec![turn.near_in_wall],
+            });
+            swept_early[li] = Some(turn.into());
+            continue;
+        }
+        // Grow the hole chain inside a ring planted at its first
+        // vertex; the ring keeps the forward chain, and the face the
+        // chain closes is the transient disc.
+        let (ring, _) = swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
         let mut hole_hes = Vec::with_capacity(m);
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
-            hq[1 % m],
-            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m], tol),
+            hq[1],
+            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -885,19 +985,13 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             hole_hes.push(mv.he_plus);
             prev = mv;
         }
-        // Close the hole cycle: the ring keeps the forward chain; the
-        // new face is the transient disc, on the bottom cap's plane.
-        // `kfmrh` kills it at once, and nothing reads its bit.
         let close = body.mef(
             MefSite::Chords {
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared {
-                key: bottom_surface,
-                sense: false,
-            },
+            swept::transient_disc(bottom_surface),
             tol,
         )?;
         hole_hes.push(close.he_plus);
@@ -914,24 +1008,27 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     let mut top_rims = Vec::with_capacity(loops.len());
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         let qs = &points[li];
-        let swept = sweep_loop(
-            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol,
-        )?;
+        let swept = match swept_early[li].take() {
+            Some(swept) => swept,
+            None => sweep_loop(
+                &mut body,
+                li,
+                segs,
+                &joins[li],
+                &members[li],
+                &base.hes,
+                qs,
+                place,
+                top_place,
+                normal,
+                w,
+                w_norm,
+                band,
+                tol,
+            )?,
+        };
         side_faces.push(swept.faces);
-        walls.push(
-            swept
-                .walls
-                .into_iter()
-                .map(|wall| SideWall {
-                    segments: wall
-                        .segments
-                        .iter()
-                        .map(|&j| segs[j].chord.canonical_segment)
-                        .collect(),
-                    ..wall
-                })
-                .collect::<Vec<_>>(),
-        );
+        walls.push(swept.walls);
         top_rims.push(swept.top_rims);
     }
 
@@ -942,8 +1039,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|&q| q + w)
         .collect();
-    let top_plane =
-        newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
+    let top_plane = cap_plane(&far_loop, place, reverse, CapEnd::End, band)
+        .map_err(|source| ExtrudeError::CapPlane { source })?;
     let top_surface = body.set_face_surface(
         top_face,
         FaceSurface::New {
@@ -1029,6 +1126,8 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     loop_index: usize,
     segs: &[WallSeg<T>],
+    joins: &[swept::Join],
+    members: &[Vec<usize>],
     hes: &[topo::HalfEdgeKey],
     qs: &[Point3<T>],
     place: Affine3<T>,
@@ -1041,28 +1140,10 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
 ) -> Result<LoopSwept, ExtrudeError> {
     let n = segs.len();
 
-    // Cosurface verdicts, decided up front (`swept::cosurface_pairs`).
-    let pair = swept::cosurface_pairs(
-        segs,
-        |_| true,
-        SIDE_COSURFACE,
-        band,
-        |j, source| ExtrudeError::CosurfaceEscalated {
-            loop_index,
-            vertex_index: segs[j].chord.canonical_vertex,
-            source,
-        },
-    )?;
-    let joins = swept::joins(segs, &pair, swept::CurvedRuns::Whole);
-    let runs = swept::wall_runs(&joins);
-
-    // Struts: one swept vertex per run's leading vertex. A station
-    // inside a run has none — its top vertex is minted by the run's
-    // top-rim chain below.
-    let mut struts: Vec<Option<MevCreated>> = vec![None; n];
-    for run in &runs {
-        let j = run.first;
-        let m = body.mev(
+    // Struts: one swept vertex per (collapsed) segment's start.
+    let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
+    for j in 0..n {
+        struts.push(body.mev(
             MevSite::Fan {
                 he1: hes[j],
                 he2: hes[j],
@@ -1070,63 +1151,38 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             qs[j] + w,
             extruded_strut_spec(segs[j].chord.a, place, qs[j], w, w_norm),
             tol,
-        )?;
-        struts[j] = Some(m);
+        )?);
     }
 
-    // Walls, one per run, in run order (`swept::build_run_walls`): the
-    // top rims are the far-side chain, every run's ends carry struts.
-    let strut_minus = |j: usize| match struts[j] {
-        Some(s) => s.he_minus,
-        None => unreachable!("every run's leading vertex was given a strut above"),
-    };
-    let origin = runs[0].first;
-    let walls = swept::build_run_walls(
+    // Walls, one per segment (`swept::build_walls`): the top rims are
+    // the far-side edges.
+    let walls = swept::build_walls(
         body,
-        &runs,
         n,
-        strut_minus,
-        |s| {
-            let to = (s + 1) % n;
-            Ok((
-                qs[to] + w,
-                placed_segment_spec(&segs[s], top_place, normal, qs[s] + w, qs[to] + w, tol),
-            ))
-        },
-        |body, run, faces| {
+        |j| struts[j].he_minus,
+        |body, j, faces| {
             let surface = side_surface(
-                body, loop_index, segs, &joins, faces, run, origin, qs, place, normal, w, band, tol,
+                body, loop_index, segs, joins, faces, j, qs, place, normal, w, band, tol,
             )?;
-            let last = (run.first + run.len - 1) % n;
-            let end = run.end(n);
-            let closing = placed_segment_spec(
-                &segs[last],
-                top_place,
-                normal,
-                qs[last] + w,
-                qs[end] + w,
-                tol,
-            );
-            Ok::<_, ExtrudeError>(Some((closing, surface)))
+            let end = (j + 1) % n;
+            let top = placed_segment_spec(&segs[j], top_place, normal, qs[j] + w, qs[end] + w, tol);
+            Ok::<_, ExtrudeError>(Some((top, surface)))
         },
         tol,
     )?;
-    let (faces, top_rims) = (walls.faces, walls.tops);
-    // The runs partition the loop, so every segment has its wall and
-    // its top rim.
-    let Some(faces) = faces.into_iter().collect::<Option<Vec<FaceKey>>>() else {
-        unreachable!("the wall runs cover every segment")
+    // Every segment sweeps a wall, so every one has its face and top rim.
+    let Some(faces) = walls.faces.into_iter().collect::<Option<Vec<FaceKey>>>() else {
+        unreachable!("every extruded segment sweeps a wall")
     };
-    let Some(top_rims) = top_rims.into_iter().collect::<Option<Vec<EdgeKey>>>() else {
-        unreachable!("the wall runs lay every segment's top rim")
+    let Some(top_rims) = walls.tops.into_iter().collect::<Option<Vec<EdgeKey>>>() else {
+        unreachable!("every extruded segment lays its top rim")
     };
 
     // Join classification: strut j joins the side walls of segments
-    // j − 1 and j (a station has no strut). Identical surface keys are
+    // j − 1 and j. Identical surface keys are
     // conventional joins structurally; distinct surfaces classify by
     // dihedral at the strut midpoint (extent: the strut chord).
-    for j in 0..n {
-        let Some(strut) = struts[j] else { continue };
+    for (j, strut) in struts.iter().enumerate() {
         let f_prev = faces[(j + n - 1) % n];
         let f_next = faces[j];
         let k_prev = face_surface_key(body, f_prev);
@@ -1202,11 +1258,15 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // refuses rather than store a description neither
                 // reading chose.
                 let refused = |refusal| match refusal {
-                    geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverJoin {
-                        loop_index,
-                        vertex_index: segs[j].chord.canonical_vertex,
-                        source: source.diag(),
-                    },
+                    geom_brep::MustCarryRefusal::InBand(escalation) => {
+                        let (reading, source) = DihedralReading::of_must_carry(escalation);
+                        ExtrudeError::SliverJoin {
+                            loop_index,
+                            vertex_index: segs[j].chord.canonical_vertex,
+                            reading,
+                            source,
+                        }
+                    }
                     geom_brep::MustCarryRefusal::Refuted => {
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
                     }
@@ -1233,11 +1293,13 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
                     geom_brep::MustCarryDescription::Conventional => {
-                        // The surfaces under-determine the locus — a
-                        // zero-side second order, or a pair outside
-                        // the certificate's lane — so the strut
-                        // "keeps the conventional description BY THE
-                        // PREDICATE" — the sentence above.
+                        // No intrinsic tangency is demanded: a station
+                        // read the second order zero-side (the surfaces
+                        // under-determine the locus), or every station
+                        // read it positive on a pair outside the
+                        // certificate's lane, which cannot store one —
+                        // so the strut keeps the conventional
+                        // description.
                         // The conventional form is a chart IMAGE, not
                         // the scaffolding the mint left (D3's
                         // transience fence), so spelling that sentence
@@ -1285,43 +1347,35 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     }
                 }
             }
-            Err(geom_brep::LeverEscalation { diag: source, .. }) => {
+            Err(escalation) => {
+                let (reading, source) = DihedralReading::of_lever(escalation);
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
+                    reading,
                     source,
                 });
             }
         }
     }
 
-    let mut walls = Vec::with_capacity(runs.len());
-    for run in &runs {
-        let Some(lead) = struts[run.first] else {
-            unreachable!("every run's leading vertex was given a strut")
-        };
-        let segments: Vec<usize> = run.segments(n).collect();
-        let bottom_rims = segments
-            .iter()
-            .map(|&j| {
-                body.get_half_edge(hes[j])
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "base half-edge {:?} was minted by this driver and nothing kills it",
-                            hes[j]
-                        )
-                    })
-                    .edge
-            })
-            .collect();
-        walls.push(SideWall {
-            face: faces[run.first],
-            strut: lead.edge,
-            top_rims: segments.iter().map(|&j| top_rims[j]).collect(),
-            bottom_rims,
-            segments,
-        });
-    }
+    let walls = (0..n)
+        .map(|j| SideWall {
+            face: faces[j],
+            strut: struts[j].edge,
+            segments: members[j].clone(),
+            bottom_rim: body
+                .get_half_edge(hes[j])
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "base half-edge {:?} was minted by this driver and nothing kills it",
+                        hes[j]
+                    )
+                })
+                .edge,
+            top_rim: top_rims[j],
+        })
+        .collect();
     Ok(LoopSwept {
         walls,
         faces,
@@ -1329,27 +1383,114 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     })
 }
 
-/// One loop's sweep products, in swept order (see [`sweep_loop`]).
+/// Sweeps a one-segment loop (D1's full turn) whose far vertex is the
+/// lone vertex of the empty loop `r#loop`, near vertex `q`
+/// ([`swept::build_full_turn`], which says why far first): the far rim
+/// at `places[1]` (`top_place`), the wall, a strut from the far vertex
+/// down to `q`, and the near rim at `places[0]` on `near_cap`. The
+/// strut's two halves both bound the wall, whose cylinder aims its
+/// `u_ref` at the vertex ([`side_surface`]), so it is the wall's seam
+/// and is described as one. Its description and carrier read the
+/// translation from the far end back (`vec = −w`), the direction its
+/// plus half runs.
+#[allow(clippy::too_many_arguments)] // two call sites; the sweep's fixed context.
+fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    loop_index: usize,
+    seg: &WallSeg<T>,
+    r#loop: topo::LoopKey,
+    q: Point3<T>,
+    [place, top_place]: [Affine3<T>; 2],
+    normal: Vec3<T>,
+    w: Vec3<T>,
+    w_norm: T,
+    near_cap: FaceSurface<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<swept::FullTurn, ExtrudeError> {
+    let segs = core::slice::from_ref(seg);
+    let wall = side_surface(
+        body,
+        loop_index,
+        segs,
+        &[swept::Join::Corner],
+        &[None],
+        0,
+        &[q],
+        place,
+        normal,
+        w,
+        band,
+        tol,
+    )?;
+    let far = q + w;
+    let back = Vec3::zero() - w;
+    let strut = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: seg.chord.a,
+                place: top_place,
+                vec: back,
+            },
+        )),
+        carrier: strut_carrier(far, back),
+        param_start: T::zero(),
+        param_end: w_norm,
+    };
+    let turn = swept::build_full_turn(
+        body,
+        r#loop,
+        q,
+        placed_segment_spec(seg, top_place, normal, far, far, tol),
+        wall,
+        strut,
+        placed_segment_spec(seg, place, normal, q, q, tol),
+        near_cap,
+        tol,
+    )?;
+    let wall_key = face_surface_key(body, turn.wall);
+    swept::describe_wrap_edge(body, turn.strut, wall_key, tol)?;
+    Ok(turn)
+}
+
+impl From<swept::FullTurn> for LoopSwept {
+    /// A one-segment loop's sweep products: one wall, led by the strut,
+    /// over the loop's one segment.
+    fn from(turn: swept::FullTurn) -> Self {
+        Self {
+            faces: vec![turn.wall],
+            walls: vec![SideWall {
+                face: turn.wall,
+                strut: turn.strut,
+                segments: vec![0],
+                bottom_rim: turn.near,
+                top_rim: turn.far,
+            }],
+            top_rims: vec![turn.far],
+        }
+    }
+}
+
+/// One loop's sweep products, per segment of the collapsed loop, in
+/// swept order (see [`sweep_loop`]).
 struct LoopSwept {
-    /// Side-wall faces, one per segment (a run's segments share one).
+    /// Side-wall faces.
     faces: Vec<FaceKey>,
-    /// The walls, one per run.
+    /// The walls.
     walls: Vec<SideWall>,
-    /// Top-rim edges, one per segment (the side `mef`s' new edges).
+    /// Top-rim edges (the side `mef`s' new edges).
     top_rims: Vec<EdgeKey>,
 }
 
-/// The surface spec of the wall over `run`, from the loop's precomputed
-/// [`swept::Join`]s (see [`sweep_loop`]) and the walls minted
-/// so far (`faces`, per segment; walls are minted in run order from the
-/// run that leads at `origin`). A line run is one wall on a freshly
-/// built plane (Newell over the run's quad corners in loop order —
-/// outward by the orientation contract). An arc run is one wall on a
-/// fresh cylinder (turn-signed axis, crate docs) whose `u_ref` aims at
-/// the run's leading vertex — except across a circle's canonical cut
-/// ([`swept::Join::Cut`]), where each wall after the first shares its
-/// key ([`swept::shared_wall`]). Every arm
-/// states the run's [`WallSeg::wall_sense`]: a concave arc's wall has
+/// The surface spec of the wall over collapsed segment `j`, from the
+/// loop's [`swept::Join`]s and the walls minted so far (`faces`, in
+/// segment order). A line is one wall on a freshly built plane (Newell
+/// over its quad corners in loop order — outward by the orientation
+/// contract). An arc is one wall on a fresh cylinder (turn-signed axis,
+/// crate docs) whose `u_ref` aims at its start vertex — except across a
+/// circle's canonical cut ([`swept::Join::Cut`]), where each wall after
+/// the first shares its key ([`swept::shared_wall`]). Every arm
+/// states the segment's [`WallSeg::wall_sense`]: a concave arc's wall has
 /// its material outside the carrier cylinder, against the
 /// outward-radial chart normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
@@ -1359,8 +1500,7 @@ fn side_surface<T: Decide>(
     segs: &[WallSeg<T>],
     joins: &[swept::Join],
     faces: &[Option<FaceKey>],
-    run: swept::Run,
-    origin: usize,
+    j: usize,
     qs: &[Point3<T>],
     place: Affine3<T>,
     normal: Vec3<T>,
@@ -1368,18 +1508,16 @@ fn side_surface<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<FaceSurface<T>, ExtrudeError> {
-    let n = segs.len();
-    let j = run.first;
     let sense = segs[j].wall_sense;
-    if let Some(f) = swept::shared_wall(joins, faces, j, origin) {
+    if let Some(f) = swept::shared_wall(joins, faces, j) {
         let key = face_surface_key(body, f);
         return Ok(FaceSurface::Shared { key, sense });
     }
-    let end = run.end(n);
+    let end = (j + 1) % segs.len();
     match segs[j].chord.kind.get() {
         SegmentKind::Line => {
             // Quad corners in the side loop's next order starting at
-            // the run's leading vertex: v_j′, v_j, v_end, v_end′.
+            // the segment's start: v_j′, v_j, v_end, v_end′.
             let corners = [qs[j] + w, qs[j], qs[end], qs[end] + w];
             let plane = newell_plane(&corners, band).map_err(|source| ExtrudeError::SidePlane {
                 loop_index,
@@ -1509,11 +1647,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // smooth cap–wall pair has no material side.
         Ok(DihedralClass::Smooth) => {
             let refused = |refusal| match refusal {
-                geom_brep::MustCarryRefusal::InBand(source) => ExtrudeError::SliverRim {
-                    loop_index,
-                    segment_index,
-                    source: source.diag(),
-                },
+                geom_brep::MustCarryRefusal::InBand(escalation) => {
+                    let (reading, source) = DihedralReading::of_must_carry(escalation);
+                    ExtrudeError::SliverRim {
+                        loop_index,
+                        segment_index,
+                        reading,
+                        source,
+                    }
+                }
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };
             match geom_brep::must_carry_over_edge(&s_cap, &s_wall, &carrier, t0, t1, extent, band)
@@ -1535,11 +1677,15 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(ExtrudeError::SliverRim {
-            loop_index,
-            segment_index,
-            source,
-        }),
+        Err(escalation) => {
+            let (reading, source) = DihedralReading::of_lever(escalation);
+            Err(ExtrudeError::SliverRim {
+                loop_index,
+                segment_index,
+                reading,
+                source,
+            })
+        }
     }
 }
 
@@ -1547,6 +1693,47 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A smooth strut or cap rim's must-carry escalation says which question
+    /// escalated**: a first-order station is the sliver, neither corner
+    /// nor smooth; a second-order one is a smooth join whose faces'
+    /// bend is too close to call. No fixture reaches a first-order
+    /// station past a witness that read smooth, so the escalations are
+    /// built directly.
+    #[test]
+    fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
+        use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
+        for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
+            let (reading, source) = DihedralReading::of_must_carry(escalation);
+            for text in [
+                ExtrudeError::SliverJoin {
+                    loop_index: 0,
+                    vertex_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+                ExtrudeError::SliverRim {
+                    loop_index: 0,
+                    segment_index: 1,
+                    reading,
+                    source,
+                }
+                .to_string(),
+            ] {
+                assert_eq!(
+                    text.contains("curve apart there or share their curvature is undecided: "),
+                    bend,
+                    "{escalation:?}: {text}"
+                );
+                assert_eq!(
+                    text.contains("is neither a definite corner nor definitely smooth"),
+                    !bend,
+                    "{escalation:?}: {text}"
+                );
+            }
+        }
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the extrusion pair —
     /// definitely-degenerate (`DegenerateExtrusion`) and in-band

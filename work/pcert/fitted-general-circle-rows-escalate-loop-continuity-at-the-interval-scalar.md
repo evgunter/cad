@@ -1,11 +1,14 @@
 ---
 id: fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar
 kind: issue
-title: A sphere face's fitted general-circle rows escalate pcurve_loop_continuity at the Interval scalar at eps 1e-12, so a tilted sphere pair builds in f64 and refuses there
-status: open
+title: A sphere face's fitted general-circle rows escalate at the Interval scalar at eps 1e-12 (pcurve_loop_continuity, since its retirement pcurve_map_residual), so a tilted sphere pair builds in f64 and refuses there
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-08
+branch: pcert/projected-image
+pr: 4304
 ---
 
 
@@ -39,3 +42,35 @@ enough to decide at the 1e-12 band at the interval scalar (the fitted
 image evaluated at its end parameter through the carrier's exact end
 point, say, rather than through the fit), or the reason it cannot be,
 stated at `pcurve_loop_continuity`.
+
+## Moved: the joint margin retired, the row's own residual is next (2026-10-03)
+
+The loop walk no longer decides a joint's chart gap on an analytic
+chart (`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`:
+a joint states its deck element, and its 3-D coincidence follows from
+the rows' envelopes and the endpoint pinning). The tilted pair still
+refuses at 1e-12 at the `Interval` scalar, one check earlier on the
+same row: the fitted row's own certificate schedule,
+
+```
+Pcurves { source: Certify { half_edge: HalfEdgeKey(18v1), error:
+  Escalated { check: MapResidual, sample: 0, cause: Indeterminate {
+  margin: Enclosure { lo: 0.0, hi: 2.89e-11 }, band: (1e-12, 1e-11),
+  predicate: Some("pcurve_map_residual") } } } }
+```
+
+(Union; the test pins the predicate for all three ops). So what a fix
+owes is now the fitted image's residual at its end sample: the image
+evaluated at an end parameter is the fit's, not the carrier's exact end
+point, and its enclosure is about 3× the escalate band at 1e-12.
+`crates/sweep/tests/tilted_sphere_pair.rs` pins the new predicate.
+
+## Closed (branch `pcert/projected-image`, 2026-10-08)
+
+Moot. The tilted arcs' rows are projected images of the exact circle,
+not a fit, and their envelope encloses rounding only. At the `Interval`
+scalar the pair builds under ∪, ∩ and ∖ at ε 1e-6, 1e-9 and 1e-12.
+`crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_tilted_sphere_pair_builds_at_the_interval_scalar`, flipped: its
+1e-12 escalation pin is gone, and every band is held to the three
+validation tiers and the lens volume bracket.

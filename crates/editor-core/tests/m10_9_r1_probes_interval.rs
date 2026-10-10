@@ -19,8 +19,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
-    Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Selector, SitedRef,
+    SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::{SymRules, Tol};
 
@@ -203,7 +203,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
     let plane = r.insert(xy_frame());
     let thickness = Formula::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
@@ -211,12 +211,12 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         ids: Vec::new(),
     }));
     let disc = r.insert(Node::Extrude {
-        profile: disc_profile,
+        profile: disc_profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::CircleSplit {
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
@@ -226,7 +226,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -257,12 +257,13 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         };
         vec![wall(disc), wall(bore)]
     };
-    let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let web = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[web], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.0e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -306,7 +307,14 @@ fn r1_split_bore_disc_end_to_end() {
                         println!("      render| {line}");
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, None, tol,
+                        &doc,
+                        crate::fixture::output(&doc, measure),
+                        &analyzed,
+                        &v,
+                        None,
+                        false,
+                        None,
+                        tol,
                     );
                     println!("      stackup {stack:?}");
                     let a =

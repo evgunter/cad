@@ -1,12 +1,12 @@
 //! R1 probes, part 2 — deviation 2's unreachability claim, executed.
 //!
 //! The disclosed deviation: the kernel door's non-unit-axis verdict is
-//! unreachable along the recipe path, because `wire_datum` decides
-//! `DATUM_UNIT_NORM` upstream. Two rows execute both halves: a
-//! non-unit datum direction is NORMALIZED upstream (the tube builds,
-//! and the door's non-unit refusal never fires), and a degenerate
-//! direction refuses AT THE DATUM node, one node upstream, never as
-//! `NodeErrorKind::Tube`.
+//! unreachable along the recipe path, because the tube reads a frame
+//! datum, whose own door orthonormalizes its directions upstream. Two
+//! rows execute both halves: a frame whose normal is non-unit is
+//! NORMALIZED upstream (the tube builds, and the door's non-unit
+//! refusal never fires), and a degenerate one refuses AT THE DATUM
+//! node, one node upstream, never as `NodeErrorKind::Tube`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,26 +37,30 @@ fn doc_with_axis_dir(
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Axis {
+            // The frame whose normal is `dir`: `u` the reference
+            // `[1, 0, 0]`, `v = dir × u`.
+            node: Box::new(Node::Datum(Datum::Frame {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: dir.map(scl),
+                u: [1.0, 0.0, 0.0].map(scl),
+                v: [0.0, dir[2], 0.0 - dir[1]].map(scl),
             })),
+            fresh: Vec::new(),
         },
     );
-    let spine = *doc.order().last().expect("datum");
+    let spine = *doc.ids().last().expect("datum");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
             }),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("tube");
+    let tube = *doc.ids().last().expect("tube");
     (doc, spine, tube)
 }
 

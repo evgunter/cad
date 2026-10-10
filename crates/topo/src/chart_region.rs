@@ -8,15 +8,15 @@
 //! # The certified lane is same-chart BY CONSTRUCTION
 //!
 //! "Overlap in the shared chart" presumes a shared chart. The lane
-//! admits exactly the pairs whose chart identity is structural:
+//! admits exactly the pairs whose chart identity is exact:
 //!
-//! - **at rest, one body**: the two faces carry the same `SurfaceKey`
-//!   — one description, one chart, trivially;
-//! - **cross-body, rung 2**: both surfaces carry the same
-//!   [`crate::GeomSource`] — the N6 retirement theorem gives
-//!   bit-identical descriptions, hence the identical chart.
+//! - **one key**: the two faces carry the same `SurfaceKey` — one
+//!   description, one chart, trivially;
+//! - **one description**: the two surfaces read bit-identical through
+//!   the bracketed exact comparator ([`surface_bits_equal`]) — the
+//!   identical chart, whichever arena holds each.
 //!
-//! **Rung-3 (declared) pairs have exactly TWO further authorities**
+//! **Declared pairs have exactly TWO further authorities**
 //! ([`declared_pair_overlap`]):
 //!
 //! - the shared WORLD CARRIER of a PLANAR pair (ratified as U-R2 with
@@ -217,13 +217,13 @@ pub enum ChartOverlap {
     strum_discriminants(name(ChartRegionErrorKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum ChartRegionError {
-    /// The pair has no structural chart identity (rung 3 or below):
-    /// C2's caveat — two descriptions of one locus may differ as
-    /// charts — makes a chart-space test unachievable; recourse is a
-    /// structural identity (shared key / same `GeomSource`), not a
-    /// numeric chart comparison.
+    /// The pair has no exact chart identity: C2's caveat — two
+    /// descriptions of one locus may differ as charts — makes a
+    /// chart-space test unachievable; recourse is one description
+    /// (a shared key, or bit-identical data), not a numeric chart
+    /// comparison.
     ChartDivergence {
-        /// What was missing (same-key, same-source, …).
+        /// What was missing (same key, bit-identical data, …).
         detail: &'static str,
     },
     /// A loop's chart image is outside the planar trim inventory
@@ -304,25 +304,40 @@ pub enum ChartRegionError {
     /// Every ray of the fixed 2-D schedule grazed the polygon
     /// ([`crate::ray_walk::NoRaySettled`]).
     RayExhausted,
-    /// The interior-witness schedule was cut off by its BUDGET before
-    /// it could finish ([`WITNESS_BUDGET`]): the pair's arrangement is
-    /// larger than the work this rung spends, so no candidate was
-    /// certified and none was ruled out either.
+    /// The interior-witness schedule did not run: the pair carries
+    /// more boundary segments than [`WITNESS_SEGMENT_CAP`], so the
+    /// arrangement was never built and no cell was probed. No
+    /// candidate was certified and none was ruled out either.
     ///
     /// Distinct from [`Self::TouchingBoundary`] because it is a
     /// distinct fact. `TouchingBoundary` says the overlap is not
-    /// decidable at this ε; this says the search stopped. A fat,
-    /// perfectly decidable overlap reaches it — the segment cap
-    /// declines before a single probe is issued — and a caller that
-    /// read the two as one refusal would take a bound on the work for
-    /// a statement about the geometry.
-    WitnessBudgetExhausted {
-        /// The pair's boundary-segment count, against
-        /// [`WITNESS_BUDGET`]'s segment cap.
+    /// decidable at this ε; this says the search was not made. A fat,
+    /// perfectly decidable overlap reaches it, and a caller that read
+    /// the two as one refusal would take a bound on the work for a
+    /// statement about the geometry.
+    WitnessSegmentCapExceeded {
+        /// The pair's boundary-segment count, over
+        /// [`WITNESS_SEGMENT_CAP`].
         segments: usize,
-        /// Cell centres probed before the cell cap stopped the
-        /// search. Zero when the segment cap declined first, which is
-        /// the whole of that arm: nothing was looked at.
+    },
+    /// The interior-witness schedule stopped at its cell cap: it
+    /// probed [`WITNESS_CELL_CAP`] cell centres without certifying one,
+    /// and the arrangement had more. The pair was within
+    /// [`WITNESS_SEGMENT_CAP`], so the arrangement was built; the
+    /// cells past the cap were never offered, so nothing was ruled
+    /// out.
+    ///
+    /// Distinct from [`Self::TouchingBoundary`] because a probe that
+    /// fails to certify measures nothing against the overlap: this
+    /// says the search stopped, on a pair whose overlap may be fat and
+    /// decidable in a cell the walk did not reach. Distinct from
+    /// [`Self::WitnessSegmentCapExceeded`] because its lever is the
+    /// other cap, and the work was partly done.
+    WitnessCellCapExceeded {
+        /// The pair's boundary-segment count, within
+        /// [`WITNESS_SEGMENT_CAP`].
+        segments: usize,
+        /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
     /// The topology could not be walked, or the crossing walk
@@ -330,17 +345,20 @@ pub enum ChartRegionError {
     Corrupt,
 }
 
+/// What [`ChartRegionError::Escalated`] leaves undecided.
+const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
+
 impl core::fmt::Display for ChartRegionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ChartDivergence { detail } => write!(
                 f,
-                "chart-region: no structural chart identity ({detail}) — a declared \
-                 (rung-3) pair escalates: two descriptions of one locus may differ \
-                 as charts, so no chart-space overlap test exists for it. Give the \
-                 pair a structural identity — one shared surface key, or two \
-                 descriptions off the same `GeomSource` — since no numeric \
-                 comparison of two charts stands in for one"
+                "chart-region: no exact chart identity ({detail}) — the pair \
+                 escalates: two descriptions of one locus may differ as charts, so \
+                 no chart-space overlap test exists for it. Give the pair one \
+                 description — one shared surface key, or two bit-identical \
+                 descriptions — since no numeric comparison of two charts stands \
+                 in for one"
             ),
             Self::NonPlanarTrim {
                 face,
@@ -411,19 +429,35 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
+            // A poisoned margin is reached by no declaration or move.
+            Self::Escalated(diag) if diag.margin.is_invalid() => write!(
+                f,
+                "chart-region: {}",
+                diag.undecided(
+                    OVERLAP_SUBJECT,
+                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                )
+            ),
             Self::Escalated(diag) => write!(
                 f,
-                "chart-region: a decision about how the two faces' regions overlap is too \
-                 close to call: {diag}"
+                "chart-region: a decision about {OVERLAP_SUBJECT} is too close to call: {diag}"
             ),
             Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::NoRaySettled),
-            Self::WitnessBudgetExhausted { segments, cells } => write!(
+            Self::WitnessSegmentCapExceeded { segments } => write!(
                 f,
-                "chart-region: the interior-witness schedule ran out of budget on a \
-                 {segments}-segment trim pair after {cells} cell probe(s) — the \
-                 search stopped, so the overlap is neither certified nor ruled \
-                 out; simplify the pair's trims, or read it on a chart whose \
-                 boundaries meet in fewer places"
+                "chart-region: the interior-witness schedule did not run on a \
+                 {segments}-segment trim pair, over its segment cap of \
+                 {WITNESS_SEGMENT_CAP} — no cell was probed, so the overlap is \
+                 neither certified nor ruled out; simplify the pair's trims"
+            ),
+            Self::WitnessCellCapExceeded { segments, cells } => write!(
+                f,
+                "chart-region: the interior-witness schedule stopped at its cell \
+                 cap of {WITNESS_CELL_CAP} on a {segments}-segment trim pair, after \
+                 {cells} cell probe(s) certified nothing — the search stopped, so \
+                 the overlap is neither certified nor ruled out; simplify the \
+                 pair's trims, or read it on a chart whose boundaries meet in fewer \
+                 places"
             ),
             Self::Corrupt => write!(
                 f,
@@ -663,10 +697,10 @@ fn definite_diag<T: Bounds>(
 /// of two faces on one STRUCTURALLY-identified chart. Pass the same
 /// `&Body` twice for the at-rest (one-body) site.
 ///
-/// This is the structural door and it stays structural: a pair with no
-/// shared `SurfaceKey` and no shared `GeomSource` gets
+/// This is the exact door and it stays exact: a pair with no shared
+/// `SurfaceKey` and no bit-identical description gets
 /// [`ChartRegionError::ChartDivergence`] here however coincident its
-/// geometry looks, because value equality never glues (F6). A pair
+/// geometry looks, since two charts of one locus are not one chart. A pair
 /// whose chart authority is a VERIFIED DECLARATION is a different
 /// question, asked at [`declared_pair_overlap`] — which asks this one
 /// first.
@@ -728,10 +762,9 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///
 /// Three authorities answer the same question, in fixed order:
 ///
-/// - [`declared_chart`] — the recipe declared the descriptions ONE
-///   chart (shared key / same `GeomSource`, read bit-identical), so the
-///   trims are read in it directly. Strictly stronger, so it is asked
-///   first.
+/// - [`declared_chart`] — the descriptions are ONE chart (a shared
+///   key, or bit-identical data), so the trims are read in it
+///   directly. Strictly stronger, so it is asked first.
 /// - the **shared world carrier**, PLANAR pairs
 ///   ([`world_carrier`]): a representative frame, legitimate exactly
 ///   to the extent of that function's frame-invariance lemma, and only
@@ -832,8 +865,11 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
             // the work, not about the geometry, so it does NOT leave
             // the carried refusal standing under a name that says the
             // overlap is undecidably thin.
-            WitnessOutcome::BudgetExhausted { segments, cells } => {
-                Err(ChartRegionError::WitnessBudgetExhausted { segments, cells })
+            WitnessOutcome::SegmentCapExceeded { segments } => {
+                Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+            }
+            WitnessOutcome::CellCapExceeded { segments, cells } => {
+                Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
             }
             WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
         },
@@ -1759,8 +1795,8 @@ fn band_overlap<T: Decide + Bounds>(
 /// on `Bridged` it declines and the region walk's typed refusal
 /// stands. Three-outcome honest, and the three are TYPED
 /// ([`WitnessOutcome`]): a proof, a decline that leaves the carried
-/// refusal standing, and a schedule that ran out of budget — which is
-/// a fact about the work and gets a refusal of its own.
+/// refusal standing, and a schedule that hit one of its two caps —
+/// which is a fact about the work and gets a refusal per cap.
 ///
 /// # The schedule, and why it is two stages
 ///
@@ -1878,14 +1914,15 @@ fn interior_witness<T: Decide + Bounds>(
 /// **What the interior-witness rung answers** — a proof, a decline, or
 /// the schedule stopping short.
 ///
-/// INVARIANT: three outcomes, not two. A decline says the schedule ran
-/// and found nothing, which the caller spells as the region walk's own
-/// [`ChartRegionError::TouchingBoundary`]; an exhaustion says the
-/// schedule did not finish, which is a bound on the work and not a
-/// statement about the geometry, and gets its own refusal
-/// ([`ChartRegionError::WitnessBudgetExhausted`]). Collapsing the two
-/// into one `bool` makes a fat, decidable overlap that overran the
-/// budget indistinguishable from an overlap too thin to certify.
+/// INVARIANT: a decline is not an exhaustion. A decline says the
+/// schedule ran and found nothing, which the caller spells as the
+/// region walk's own [`ChartRegionError::TouchingBoundary`]; an
+/// exhaustion says the schedule did not finish, which is a bound on
+/// the work and not a statement about the geometry, and gets its own
+/// refusal per cap ([`ChartRegionError::WitnessSegmentCapExceeded`],
+/// [`ChartRegionError::WitnessCellCapExceeded`]). Collapsing the two
+/// into one `bool` makes a fat, decidable overlap that hit a cap
+/// indistinguishable from an overlap too thin to certify.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WitnessOutcome {
     /// A point was certified strictly interior to both trims: the
@@ -1893,71 +1930,73 @@ enum WitnessOutcome {
     Certified,
     /// The schedule ran to its end and certified nothing.
     Declined,
-    /// [`WITNESS_BUDGET`] cut the schedule off.
-    BudgetExhausted {
+    /// [`WITNESS_SEGMENT_CAP`] refused the pair before the
+    /// arrangement was built.
+    SegmentCapExceeded {
         /// The pair's boundary-segment count.
         segments: usize,
-        /// Cell centres probed before the cut-off; zero when the
-        /// segment cap declined before the arrangement was walked.
+    },
+    /// [`WITNESS_CELL_CAP`] stopped the walk with cells left.
+    CellCapExceeded {
+        /// The pair's boundary-segment count.
+        segments: usize,
+        /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
 }
 
-/// The most cell centres [`decomposition_witness`] probes before it
-/// declines, and the most boundary segments it will decompose.
+/// The most boundary segments [`decomposition_witness`] will
+/// decompose. A trim pair with more is refused before the arrangement
+/// is built, rather than half-searched, because the decomposition is
+/// quadratic in that count.
 ///
-/// Both are the honest half of "complete or honest": inside them the
-/// schedule is complete in the sense argued at
-/// [`decomposition_witness`], and outside them it declines and the
-/// region walk's own typed refusal stands. A trim pair with more than
-/// `segments` boundary segments is refused rather than half-searched
-/// because the decomposition is quadratic in that count.
+/// This and [`WITNESS_CELL_CAP`] are the honest half of "complete or
+/// honest": within them the schedule is complete in the sense argued
+/// at [`decomposition_witness`], and past either it stops and says
+/// which. Each is public because its refusal is: a caller resolving
+/// one reads the cap it ran into, and a fixture asserting it DERIVES
+/// its over-cap value from here rather than restating a literal that
+/// drifts the day the cap moves.
 ///
 /// # What these limits cost, stated rather than implied
 ///
-/// **Neither is out of reach, and `cells` is reachable INSIDE
-/// `segments`.** A comb of 56 stacked horizontal runs against one
-/// tilted crosser carries 118 boundary segments — comfortably under
-/// the segment cap — and overruns 4096 cells, so "large enough never
-/// to bind" is not a claim this constant makes. What it is is a bound
-/// on the work, chosen so that the trim pairs this rung is actually
-/// reached with (the seats in the suite carry twelve segments) search
-/// exhaustively.
+/// **Neither is out of reach, and the cell cap is reachable WITHIN
+/// the segment cap.** A comb of 56 stacked horizontal runs against
+/// one tilted crosser carries 118 boundary segments — comfortably
+/// under this cap — and its arrangement has more than 4096 cells, so
+/// "large enough never to bind" is not a claim these constants make.
+/// What they are is a bound on the work, chosen so that the trim
+/// pairs this rung is actually reached with (the seats in the suite
+/// carry twelve segments) search exhaustively.
 ///
-/// The row `r2p7_cell_budget_is_reachable_inside_the_segment_cap`
+/// The row `r2p7_cell_cap_is_reachable_inside_the_segment_cap`
 /// builds that pair, and the number it READS is the segment count:
-/// the cell figure is structurally forced, because the walk returns
-/// the instant `spent > cells`, so every pair that reaches the cap
-/// reports exactly `cells + 1`. What the row pins is that 118
-/// segments suffice — and it is a TIGHT witness, not a comfortable
-/// one: one tooth fewer walks its arrangement to the end.
+/// the cell figure is structurally forced, because the walk stops
+/// once it has probed [`WITNESS_CELL_CAP`] cells and meets another,
+/// so every pair that reaches the cap reports exactly the cap. What
+/// the row pins is that 118 segments suffice — and it is a TIGHT
+/// witness, not a comfortable one: one tooth fewer walks its
+/// arrangement to the end.
 ///
-/// **An exhausted budget is its own refusal.** Both caps answer
-/// [`WitnessOutcome::BudgetExhausted`], which the caller spells
-/// [`ChartRegionError::WitnessBudgetExhausted`] carrying the segment
-/// count and the probes spent — never the carried
+/// **An exhausted cap is its own refusal, one per cap.** This cap
+/// answers [`ChartRegionError::WitnessSegmentCapExceeded`] with the
+/// segment count and nothing else, because nothing was probed; the
+/// cell cap answers [`ChartRegionError::WitnessCellCapExceeded`] with
+/// the segment count and the probes made. Neither is the carried
 /// [`ChartRegionError::TouchingBoundary`], which says the overlap is
 /// undecidably thin and would be a statement about the geometry that
-/// nothing measured. A fat, decidable overlap over the segment cap is
-/// the case that separates them: it declines with zero probes issued.
-pub const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
-    segments: 128,
-    cells: 4096,
-};
+/// nothing measured. A fat, decidable overlap over this cap is the
+/// case that separates them: it is refused with zero probes issued.
+pub const WITNESS_SEGMENT_CAP: usize = 128;
 
-/// The interior-witness schedule's two caps, public because
-/// [`ChartRegionError::WitnessBudgetExhausted`] is: a caller resolving
-/// that refusal wants the cap its `segments` count ran into, and a
-/// fixture asserting the refusal has to DERIVE its over-cap value
-/// from here rather than restate a literal that drifts the day the cap
-/// moves.
-pub struct WitnessBudget {
-    /// The boundary-segment cap: the arrangement is not built at all
-    /// beyond it.
-    pub segments: usize,
-    /// The cell-probe cap: the walk returns the instant `spent > cells`.
-    pub cells: usize,
-}
+/// The most cell centres [`decomposition_witness`] probes. Within
+/// [`WITNESS_SEGMENT_CAP`] an arrangement can still have more cells
+/// than the rung should pay for — each probe is a pair of
+/// point-in-region reads — so the walk stops once it has probed this
+/// many and meets another cell, and refuses
+/// [`ChartRegionError::WitnessCellCapExceeded`]. It is reachable inside
+/// the segment cap ([`WITNESS_SEGMENT_CAP`]'s doc has the witness).
+pub const WITNESS_CELL_CAP: usize = 4096;
 
 /// **The completion of the witness schedule**: the cell centres of the
 /// two trims' vertical decomposition, in fixed order, each offered to
@@ -2028,17 +2067,16 @@ fn decomposition_witness<T: Decide + Bounds>(
     };
     // Decline cause 2: no arrangement to build. One segment bounds no
     // cell, and the rung's own extraction refuses loops under three
-    // vertices, so this is the empty-trim guard rather than a budget.
+    // vertices, so this is the empty-trim guard rather than a cap.
     if segments.len() < 2 {
         return WitnessOutcome::Declined;
     }
-    // Cause 3 is the segment budget, and it is an EXHAUSTION rather
+    // Cause 3 is the segment cap, and it is an EXHAUSTION rather
     // than a decline: the arrangement is never walked, so nothing was
     // looked at and no probe was issued.
-    if segments.len() > WITNESS_BUDGET.segments {
-        return WitnessOutcome::BudgetExhausted {
+    if segments.len() > WITNESS_SEGMENT_CAP {
+        return WitnessOutcome::SegmentCapExceeded {
             segments: segments.len(),
-            cells: 0,
         };
     }
     let mut spent = 0usize;
@@ -2056,13 +2094,13 @@ fn decomposition_witness<T: Decide + Bounds>(
             if !(y > cell[0] && y < cell[1]) {
                 continue;
             }
-            spent += 1;
-            if spent > WITNESS_BUDGET.cells {
-                return WitnessOutcome::BudgetExhausted {
+            if spent == WITNESS_CELL_CAP {
+                return WitnessOutcome::CellCapExceeded {
                     segments: segments.len(),
                     cells: spent,
                 };
             }
+            spent += 1;
             if probe(x, y) {
                 return WitnessOutcome::Certified;
             }
@@ -2227,20 +2265,17 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     out
 }
 
-/// **The chart the recipe declared the two faces share** (module
-/// docs' chart-identity gate): the recipe declared the two surfaces
-/// one ([`crate::source::surface_declaration`] — the gluing question,
-/// not [`Body::same_chart`]'s identity), and where that declaration is
-/// a shared [`crate::GeomSource`], the two descriptions read
-/// bit-identical through [`surface_bits_equal`]. Anything weaker
-/// escalates typed.
+/// **The chart two faces share** (module docs' chart-identity gate):
+/// one surface key, or two descriptions that read bit-identical through
+/// [`surface_bits_equal`], the bracketed exact comparator — one chart,
+/// not two charts that decide one carrier. Anything weaker escalates
+/// typed rather than certify overlap in an arbitrarily chosen chart.
 fn declared_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    use crate::source::SurfaceDeclaration as D;
     let key_a = body_a
         .get_face(face_a)
         .ok_or(ChartRegionError::Corrupt)?
@@ -2249,33 +2284,17 @@ fn declared_chart<T: Decide + Bounds>(
         .get_face(face_b)
         .ok_or(ChartRegionError::Corrupt)?
         .surface;
-    let divergence = |detail| Err(ChartRegionError::ChartDivergence { detail });
-    match crate::source::surface_declaration(body_a, key_a, body_b, key_b) {
-        D::SameKey => body_a
-            .get_surface(key_a)
-            .cloned()
-            .ok_or(ChartRegionError::Corrupt),
-        // Two bodies' stamps were never compared (`crate::source`'s
-        // module docs): a same-source pair that does not read
-        // bit-identical refuses typed rather than certify overlap in an
-        // arbitrarily chosen chart.
-        D::SameSource => {
-            let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
-            let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
-            if surface_bits_equal(s_a, s_b) {
-                Ok(s_a.clone())
-            } else {
-                divergence(
-                    "same GeomSource with non-bit-identical descriptions — \
-                     the same-source theorem violated (forged or corrupted source attachment)",
-                )
-            }
-        }
-        D::Mirrored => divergence("same source base with flipped orientation — the charts mirror"),
-        D::DistinctSources => {
-            divergence("distinct GeomSources — equal-but-independent descriptions do not glue")
-        }
-        D::Unsourced => divergence("no shared SurfaceKey and no GeomSource on both faces"),
+    let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
+    if std::ptr::eq(body_a, body_b) && key_a == key_b {
+        return Ok(s_a.clone());
+    }
+    let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+    if surface_bits_equal(s_a, s_b) {
+        Ok(s_a.clone())
+    } else {
+        Err(ChartRegionError::ChartDivergence {
+            detail: "two descriptions that do not read bit-identical — no one chart holds both",
+        })
     }
 }
 
@@ -2376,10 +2395,11 @@ fn pcurve_entry<T: Decide + Bounds>(
         // cap can enter it, which is the props/tessellation frontier,
         // not a missing arm here.
         Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
-        // The tilted cone section's image is a genuine chart curve (its
-        // slant is a sinusoid, its azimuth a Kepler anomaly) — the
-        // cone's twin of the cylinder's tilted-cut sinusoid above.
-        Pcurve::ConeSection { .. } => Err("ConeSection image is not a straight segment"),
+        // A focal section's image is a genuine chart curve (its azimuth
+        // a Kepler anomaly) — the cone's and torus's twin of the
+        // cylinder's tilted-cut sinusoid above.
+        Pcurve::FocalSection(_) => Err("FocalSection image is not a straight segment"),
+        Pcurve::Projected(_) => Err("Projected image is not a straight segment"),
     }
 }
 
@@ -3486,6 +3506,33 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A poisoned overlap decision ends in the build's defect ending**
+    /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
+    /// readable. A margin that was read keeps the coincidence menu.
+    #[test]
+    fn a_poisoned_overlap_escalation_ends_in_the_defect_ending() {
+        let diag = |margin| Indeterminate {
+            margin,
+            band: band(),
+            predicate: Some("chart_region_cyl_axis_sense"),
+            terminal_sliver: false,
+        };
+        let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
+        let text = poisoned.to_string();
+        assert!(
+            text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+            "{text}"
+        );
+        assert!(!text.contains("declare"), "{text}");
+        let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
+        assert!(
+            in_band
+                .to_string()
+                .contains(geom_core::COINCIDENCE_RECOURSE),
+            "{in_band}"
+        );
+    }
+
     /// **A ray read in band is set aside, and a later ray answers**
     /// (`work/chart/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
     /// The square's right side carries a vertex `3e-9` off the `+x` ray
@@ -3587,13 +3634,16 @@ mod tests {
             },
             ChartRegionError::Escalated(diag),
             ChartRegionError::RayExhausted,
-            ChartRegionError::WitnessBudgetExhausted {
-                segments: WITNESS_BUDGET.segments + 1,
-                cells: 0,
+            ChartRegionError::WitnessSegmentCapExceeded {
+                segments: WITNESS_SEGMENT_CAP + 1,
+            },
+            ChartRegionError::WitnessCellCapExceeded {
+                segments: WITNESS_SEGMENT_CAP,
+                cells: WITNESS_CELL_CAP,
             },
             ChartRegionError::Corrupt,
         ];
-        assert_eq!(arms.len(), 13, "an arm was added without a row here");
+        assert_eq!(arms.len(), 14, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             // `Escalated` delegates to `Indeterminate`, whose Display
@@ -3609,6 +3659,32 @@ mod tests {
                 "no recourse in: {msg}"
             );
         }
+    }
+
+    /// Each witness-cap face's text names its own cap. The variants
+    /// and payloads are the walk's, pinned where the walk reaches them
+    /// (`r2p5_segment_cap_exhausts_on_a_fat_decidable_overlap`,
+    /// `r2p7_cell_cap_is_reachable_inside_the_segment_cap`); this row
+    /// checks only that the two texts do not trade levers.
+    #[test]
+    fn each_witness_cap_refusal_names_its_own_cap() {
+        let segment = ChartRegionError::WitnessSegmentCapExceeded {
+            segments: WITNESS_SEGMENT_CAP + 1,
+        }
+        .to_string();
+        let cell = ChartRegionError::WitnessCellCapExceeded {
+            segments: WITNESS_SEGMENT_CAP,
+            cells: WITNESS_CELL_CAP,
+        }
+        .to_string();
+        let names = |msg: &str, cap: &str, n: usize| msg.contains(&format!("{cap} cap of {n}"));
+        assert!(
+            names(&segment, "segment", WITNESS_SEGMENT_CAP)
+                && !segment.contains("cell cap")
+                && names(&cell, "cell", WITNESS_CELL_CAP)
+                && !cell.contains("segment cap"),
+            "segment face: {segment}\ncell face: {cell}"
+        );
     }
 
     /// Exact coordinate equality (Point2 carries no PartialEq).
@@ -4091,7 +4167,6 @@ mod tests {
     // ------------------------------------------------------------------
 
     use crate::euler::{FaceSurface, MefSite, MevSite};
-    use crate::source::GeomSource;
     use crate::test_support_fixtures::unit_cyl_sheet;
     use geom::Curve3;
     use geom_brep::EdgeCurveSpec;
@@ -4237,7 +4312,7 @@ mod tests {
     }
 
     #[test]
-    fn rung2_shared_source_certifies_and_rung3_escalates() {
+    fn bit_identical_charts_certify_and_divergent_ones_escalate() {
         let mut body_a = Body::<f64>::new();
         let fa = sheet(
             &mut body_a,
@@ -4250,7 +4325,6 @@ mod tests {
                 sense: true,
             },
         );
-        let ka = body_a.get_face(fa).unwrap().surface;
         let mut body_b = Body::<f64>::new();
         let fb = sheet(
             &mut body_b,
@@ -4263,43 +4337,29 @@ mod tests {
                 sense: true,
             },
         );
-        let kb = body_b.get_face(fb).unwrap().surface;
 
-        // No sources: value-equal descriptions do NOT glue (C2).
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("sourceless cross-body pair must escalate, got {other:?}"),
-        }
-
-        // Rung 2: the same GeomSource ⇒ bit-identical descriptions ⇒
-        // the identical chart (N6) — the pair certifies.
-        body_a
-            .set_surface_source(ka, GeomSource::minted(7, 0))
-            .unwrap();
-        body_b
-            .set_surface_source(kb, GeomSource::minted(7, 0))
-            .unwrap();
+        // Two bit-identical descriptions in two arenas are one chart.
         assert_eq!(
             chart_region_overlap(&body_a, fa, &body_b, fb, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
 
-        // Rung 3 (independent recipes): typed chart divergence.
-        body_b
-            .set_surface_source(kb, GeomSource::minted(8, 0))
-            .unwrap();
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
+        // The same locus on a rotated chart frame: typed divergence.
+        let mut body_c = Body::<f64>::new();
+        let fc = sheet(
+            &mut body_c,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::New {
+                surface: xy_plane_rotated(),
+                sense: true,
+            },
+        );
+        match chart_region_overlap(&body_a, fa, &body_c, fc, band()) {
             Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("distinct sources must escalate, got {other:?}"),
-        }
-
-        // Same base, flipped orientation: the mirrored chart diverges.
-        body_b
-            .set_surface_source(kb, GeomSource::minted(7, 0).reverted())
-            .unwrap();
-        match chart_region_overlap(&body_a, fa, &body_b, fb, band()) {
-            Err(ChartRegionError::ChartDivergence { .. }) => {}
-            other => panic!("reverted source must escalate, got {other:?}"),
+            other => panic!("divergent charts must escalate, got {other:?}"),
         }
     }
 
@@ -4392,13 +4452,11 @@ mod tests {
             "the tilted section's v channel is a live cosine — the class the gate excludes"
         );
         let (t0, t1) = (0.2, 1.6);
-        let window = pcurve.chart_box(t0, t1);
-        let cache =
-            geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, window, band())
-                .expect(
-                    "the sinusoid image itself certifies (C5 row) — the exclusion is the \
+        let cache = geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, band())
+            .expect(
+                "the sinusoid image itself certifies (C5 row) — the exclusion is the \
                          REGION machinery's, not the cache's",
-                );
+            );
         // Plant it on the wall's bottom rim: the region query must
         // refuse typed at the inventory gate.
         let bottom_he = {
@@ -4497,10 +4555,10 @@ mod tests {
             assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
         }
 
-        // ---- Claim 2: the same-chart lane is airtight (and its trust
-        // boundary is source attachment, not surface values).
+        // ---- Claim 2: the same-chart lane is airtight, its boundary
+        // the descriptions' bits.
         #[test]
-        fn r1_value_equal_but_distinct_keys_on_one_body_escalate() {
+        fn r1_bit_equal_distinct_keys_on_one_body_share_a_chart() {
             let mut body = Body::<f64>::new();
             let f1 = sheet(
                 &mut body,
@@ -4524,21 +4582,19 @@ mod tests {
                     sense: true,
                 },
             );
-            match chart_region_overlap(&body, f1, &body, f2, band()) {
-                Err(ChartRegionError::ChartDivergence { .. }) => {}
-                other => panic!("value-equal distinct keys must escalate, got {other:?}"),
-            }
+            assert_eq!(
+                chart_region_overlap(&body, f1, &body, f2, band()).unwrap(),
+                ChartOverlap::PositiveArea,
+                "bit-equal descriptions under distinct keys are one chart"
+            );
         }
 
         #[test]
-        fn r1_the_lane_trusts_source_attachment_not_surface_values() {
-            // The SAME minted source attached to value-DIFFERENT plane
-            // descriptions (u_ref x̂ vs ŷ). As reviewed, the lane
-            // admitted on recipe identity alone (this probe recorded
-            // PositiveArea); the union fix (U1) VERIFIES N6's
-            // bit-identity conclusion through the module's own
-            // exact-bracket comparator, so the forged pair now refuses
-            // typed — the rung-2 premise is checked, never assumed.
+        fn r1_the_lane_reads_surface_bits() {
+            // Value-DIFFERENT plane descriptions of one locus (u_ref x̂
+            // vs ŷ) across two arenas: the lane reads the descriptions'
+            // bits through the module's exact-bracket comparator, so
+            // the pair refuses typed.
             let mut a = Body::<f64>::new();
             let fa = sheet(
                 &mut a,
@@ -4551,7 +4607,6 @@ mod tests {
                     sense: true,
                 },
             );
-            let ka = a.get_face(fa).unwrap().surface;
             let mut b = Body::<f64>::new();
             let fb = sheet(
                 &mut b,
@@ -4564,12 +4619,9 @@ mod tests {
                     sense: true,
                 },
             );
-            let kb = b.get_face(fb).unwrap().surface;
-            a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
-            b.set_surface_source(kb, GeomSource::minted(3, 0)).unwrap();
             match chart_region_overlap(&a, fa, &b, fb, band()) {
                 Err(ChartRegionError::ChartDivergence { .. }) => {}
-                other => panic!("forged same-source pair must diverge, got {other:?}"),
+                other => panic!("value-different charts must diverge, got {other:?}"),
             }
         }
 
@@ -5298,7 +5350,7 @@ mod inf_arms_interval {
 mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
-    //! its budget guard. Probe-branch only; not part of the unit.
+    //! its cap guards. Probe-branch only; not part of the unit.
     use super::tests::{rect, uv};
     use super::*;
 
@@ -5432,14 +5484,14 @@ mod r2_mate8_probes {
         );
     }
 
-    /// P5 — the SEGMENT budget: two 70-gon "discs" in fat, decidable
+    /// P5 — the SEGMENT cap: two 70-gon "discs" in fat, decidable
     /// overlap carry 140 > 128 segments, and the schedule stops
-    /// WITHOUT PROBING AT ALL. The outcome is an EXHAUSTION carrying
-    /// both counts, not a decline: the overlap here is not thin, and
+    /// WITHOUT PROBING AT ALL. The outcome is the segment cap's
+    /// exhaustion, carrying the segment count, not a decline: the overlap here is not thin, and
     /// the caller must not spell this as the `TouchingBoundary` that
     /// says it is.
     #[test]
-    fn r2p5_segment_budget_exhausts_on_a_fat_decidable_overlap() {
+    fn r2p5_segment_cap_exhausts_on_a_fat_decidable_overlap() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5457,15 +5509,12 @@ mod r2_mate8_probes {
         });
         assert_eq!(
             found,
-            WitnessOutcome::BudgetExhausted {
-                segments: 140,
-                cells: 0
-            },
-            "over-budget: the schedule says so, and says how far it got"
+            WitnessOutcome::SegmentCapExceeded { segments: 140 },
+            "over the segment cap: the schedule says so, and names that cap"
         );
         assert_eq!(calls, 0, "and it stops before offering anything");
         // The same pair one segment under the cap certifies fine —
-        // the exhaustion above is the budget's, not the geometry's.
+        // the exhaustion above is the cap's, not the geometry's.
         let a64 = uv(ngon(0.0, 64), vec![]);
         let b64 = uv(ngon(1.0, 64), vec![]);
         assert_eq!(
@@ -5476,11 +5525,11 @@ mod r2_mate8_probes {
         );
     }
 
-    /// P6 — the CELL budget is a hard cap on probe calls (structural
+    /// P6 — the CELL cap is a hard cap on probe calls (structural
     /// companion to P5): an always-false probe on a busy pair is
-    /// called at most `WITNESS_BUDGET.cells` times.
+    /// called at most [`WITNESS_CELL_CAP`] times.
     #[test]
-    fn r2p6_cell_budget_caps_probe_calls() {
+    fn r2p6_cell_cap_caps_probe_calls() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5497,20 +5546,21 @@ mod r2_mate8_probes {
             false
         });
         assert_ne!(found, WitnessOutcome::Certified);
-        assert!(calls <= WITNESS_BUDGET.cells, "{calls} probes");
+        assert!(calls <= WITNESS_CELL_CAP, "{calls} probes");
         assert!(calls > 0, "the pair is busy enough to probe at all");
     }
 
     /// P7 — **the cell cap is reachable INSIDE the segment cap**, which
-    /// is the claim [`WITNESS_BUDGET`]'s own doc makes and the reason
+    /// is the claim [`WITNESS_SEGMENT_CAP`]'s own doc makes and the reason
     /// it cannot say "large enough never to bind". A comb of 28 teeth
     /// (56 stacked horizontal runs, 114 segments) against one thin
     /// tilted crosser (4 segments) is 118 segments — under the
-    /// 128-segment cap — and its arrangement overruns 4096 cells.
+    /// 128-segment cap — and its arrangement has more than 4096 cells.
     ///
     /// The load-bearing number is the SEGMENT count. The cell figure
-    /// is forced: the walk returns the instant `spent > cells`, so any
-    /// pair reaching the cap reports exactly `cells + 1` and that
+    /// is forced: the walk stops once it has probed
+    /// [`WITNESS_CELL_CAP`] cells and meets another, so any pair
+    /// reaching the cap reports exactly the cap and that
     /// assertion says nothing about this fixture. What is specific to
     /// the fixture is 118 and its tightness — 27 teeth carries 114
     /// segments, spends 3970 cells and walks its arrangement to the
@@ -5529,7 +5579,7 @@ mod r2_mate8_probes {
     /// two spanning sides whatever its shape — which is why the factor
     /// is structural rather than a property of this fixture.
     #[test]
-    fn r2p7_cell_budget_is_reachable_inside_the_segment_cap() {
+    fn r2p7_cell_cap_is_reachable_inside_the_segment_cap() {
         // A comb, walked as a simple polygon: up the spine, out along
         // each tooth's underside, back along its top.
         let teeth = 28usize;
@@ -5550,7 +5600,7 @@ mod r2_mate8_probes {
         ];
         let segments = comb.len() + crosser.len();
         assert!(
-            segments <= WITNESS_BUDGET.segments,
+            segments <= WITNESS_SEGMENT_CAP,
             "{segments} segments must be under the segment cap for this row to \
              say anything"
         );
@@ -5563,9 +5613,9 @@ mod r2_mate8_probes {
         });
         assert_eq!(
             found,
-            WitnessOutcome::BudgetExhausted {
+            WitnessOutcome::CellCapExceeded {
                 segments,
-                cells: WITNESS_BUDGET.cells + 1
+                cells: WITNESS_CELL_CAP
             },
             "{segments} segments, {calls} probes"
         );

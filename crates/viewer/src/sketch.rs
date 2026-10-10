@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
-    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, VarEnv, resolve_loops,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram,
+    Node, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
+    StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -417,8 +417,11 @@ pub fn held_program(
         .slots()
         .into_iter()
         .filter_map(|slot| match held.expr(slot) {
-            Some(expr) if expr.literal_value().is_some() => None,
-            Some(expr) => Some((slot, doc.unparse(expr))),
+            Some(&var) if doc.is_typed_value(var) => None,
+            Some(&var) => Some((
+                slot,
+                doc.unparse(&doc.written(&Expr::var(var, slot.expr_dimension()))),
+            )),
             None => Some((slot, String::new())),
         })
         .collect();
@@ -432,26 +435,43 @@ pub fn held_program(
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
+/// **`program` as it was written** ([`Node::written`]): each argument
+/// the formula its variable was written as — an anonymous variable's
+/// value, a named one's reader. It is what the path editor loads from
+/// and compares against: a value moved since the load (a `SetVarValue`
+/// on an argument's anonymous variable) moves it, where the stored
+/// program, which reads that variable by id, stays put.
+#[must_use]
+pub fn written_program(
+    doc: &Doc<ProfileProgram>,
+    program: &ProfileProgram,
+) -> ProfileProgram<Formula> {
+    let Node::Profile(written) = Node::Profile(program.clone()).written(doc) else {
+        unreachable!("a profile node is written as a profile node")
+    };
+    written
+}
+
 /// **Whether `loops` under `ids` is `base` itself** — every step kept
 /// in place and the program bit-equal to `base`, blind to notation: a
-/// `DocEdit::SetProgram` of them would write nothing.
+/// `DocEdit::SetProgram` of them would write nothing. `base` is the
+/// program as written ([`written_program`]) for loops the editor holds,
+/// or as re-authored ([`Node::authored`]) for loops whose unmoved
+/// arguments carry their variables.
 #[must_use]
 pub fn is_committed(
-    base: &ProfileProgram,
+    base: &ProfileProgram<Formula>,
     loops: &[LoopProgram<Formula>],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
     ids == base.kept_in_place().as_slice()
         && base.loops.len() == loops.len()
-        && ProfileProgram {
-            plane: base.plane,
-            loops: base.loops.iter().map(LoopProgram::authored).collect(),
-            ids: base.ids.clone(),
-        } == ProfileProgram {
-            plane: base.plane,
-            loops: loops.to_vec(),
-            ids: base.ids.clone(),
-        }
+        && *base
+            == ProfileProgram {
+                frame: base.frame.clone(),
+                loops: loops.to_vec(),
+                ids: base.ids.clone(),
+            }
 }
 
 /// Why a committed node cannot be held by the path editor.
@@ -541,7 +561,7 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    if !admits(doc.node(frame), NodeKindWanted::Frame) {
+    if !admits(doc, frame, NodeKindWanted::Frame) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
@@ -559,10 +579,10 @@ pub fn frame_placement(
 /// tree lists nodes that way, so the picker and the tree name the
 /// document's frames in one order.
 pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
-        .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
+        .filter(|id| admits(doc, *id, NodeKindWanted::Frame))
         .collect()
 }
 
@@ -1072,23 +1092,20 @@ pub fn preview(
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
         let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
-        // A form writes numbers, never a name, so its program is
-        // already the stored one.
-        match program.try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula)) {
-            Ok(stored) => programs.push(stored),
-            Err(fault) => unreachable!("a form's program reads no name, yet {fault}"),
-        }
+        programs.push(program);
     }
-    // Literals only reach this door, so an empty environment binds
-    // everything it can be asked about. It is passed rather than
-    // assumed because resolution is the document layer's one door and
-    // a form is not a special case of it. The LOOPS resolve, not a
-    // program: a preview has no plane node and does not need one — the
-    // plane it draws on arrives as a placement, from the frame the
-    // form is pointed at.
-    let env = VarEnv::default();
-    let resolved = resolve_loops(&programs, &env)
-        .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
+    // The LOOPS resolve, not a program: a preview has no plane node and
+    // does not need one — the plane it draws on arrives as a placement,
+    // from the frame the form is pointed at. Nor a document: each
+    // number the form wrote is the variable the insert door would mint
+    // for it, in a scratch document of the resolver's own.
+    let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
+        WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
+        // A form writes numbers, never a name.
+        WrittenLoopFault::Refused(refusal) => {
+            unreachable!("a form's program reads no name, yet {refusal}")
+        }
+    })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the
@@ -1453,8 +1470,8 @@ pub fn committed(
     except: Option<RecipeNodeId>,
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
-    for &node in doc.order() {
-        if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
+    for node in doc.ids() {
+        if Some(node) == except || !admits(doc, node, NodeKindWanted::Profile) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {

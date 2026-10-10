@@ -13,6 +13,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+/// One saved document against another up to minted ids, the newer
+/// one's output variables set aside.
+pub mod up_to_ids;
+
 /// **A saved document, corrupted at one path of its wire form.**
 ///
 /// The load-door suites need files the edit doors could not have
@@ -99,31 +103,29 @@ pub fn wire_undeclare(wire: &mut serde_json::Value, name: &str) {
         .as_object_mut()
         .expect("the variables are a map");
     assert!(vars.remove(&id).is_some(), "and the variable");
-    let order = wire["snapshot"]["var_order"]
-        .as_array_mut()
-        .expect("the declaration order is a list");
-    let before = order.len();
-    order.retain(|listed| *listed != serde_json::json!(id.parse::<u64>().expect("an id key")));
-    assert_eq!(order.len(), before - 1, "and its place in the order");
 }
 
 /// The variable `name` removed from a saved snapshot AND from its mint
-/// log, so its readers read an id the document never minted — the
-/// file-only fault ([`wire_undeclare`] alone leaves them a deleted
-/// variable's readers, which is legal).
+/// log as a variable's, so its readers read an id the document never
+/// minted as a variable — the file-only fault ([`wire_undeclare`] alone
+/// leaves them a deleted variable's readers, which is legal). The log
+/// entry is retagged a node's rather than dropped, so the log still
+/// counts up from one.
 ///
 /// # Panics
 ///
 /// As [`wire_undeclare`]'s, and when the log does not hold the id.
 pub fn wire_unmint(wire: &mut serde_json::Value, name: &str) {
-    let id: u64 = wire_var_key(wire, name).parse().expect("an id key");
+    let id = serde_json::Value::from(wire_var_key(wire, name));
     wire_undeclare(wire, name);
     let log = wire["snapshot"]["mint"]["log"]
         .as_array_mut()
         .expect("the mint log is a list");
-    let before = log.len();
-    log.retain(|entry| *entry != serde_json::json!({ "var": id }));
-    assert_eq!(log.len(), before - 1, "and its mint log entry");
+    let entry = log
+        .iter_mut()
+        .find(|entry| entry["var"] == id)
+        .expect("its mint log entry");
+    *entry = serde_json::json!({ "node": id });
 }
 
 /// The continuous variable `name` retyped in a saved snapshot, from
@@ -146,4 +148,44 @@ pub fn wire_retype(wire: &mut serde_json::Value, name: &str, from: &str, to: &st
     let decl = &mut var["def"]["Free"]["Continuous"];
     decl["dim"] = serde_json::json!(to);
     decl["display_unit"] = serde_json::json!(unit);
+}
+
+/// **Retypes, in a saved document's wire, the free variable a slot
+/// reads**: the slot at `slot`'s JSON holds its variable's id, and the
+/// variable's kind, dimension and display unit all move to `dim` and
+/// `unit`, so the variable stays well-formed and only a rule about
+/// what reads it can refuse it.
+pub fn retype_slot_var(
+    wire: &mut serde_json::Value,
+    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
+    dim: &str,
+    unit: &str,
+) {
+    let var = slot(wire)
+        .as_str()
+        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)))
+        .to_owned();
+    let held = &mut wire["snapshot"]["vars"][var.as_str()];
+    let def = &mut held["def"]["Free"]["Continuous"];
+    assert!(
+        def.is_object(),
+        "the surgery is aimed at a free continuous variable: {held}"
+    );
+    def["dim"] = serde_json::json!(dim);
+    def["display_unit"] = serde_json::json!(unit);
+    held["kind"] = serde_json::json!(dim);
+}
+
+/// **The free continuous definition, in a saved document's wire, of
+/// the variable a slot reads** — the slot at `slot`'s JSON holds the
+/// variable's id — for a row that doctors a written value.
+pub fn slot_var_def(
+    wire: &mut serde_json::Value,
+    slot: impl Fn(&serde_json::Value) -> &serde_json::Value,
+) -> &mut serde_json::Value {
+    let var = slot(wire)
+        .as_str()
+        .unwrap_or_else(|| panic!("a stored slot holds its variable's id, got {}", slot(wire)))
+        .to_owned();
+    &mut wire["snapshot"]["vars"][var.as_str()]["def"]["Free"]["Continuous"]
 }

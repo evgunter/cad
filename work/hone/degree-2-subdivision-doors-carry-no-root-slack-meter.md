@@ -2,11 +2,12 @@
 id: degree-2-subdivision-doors-carry-no-root-slack-meter
 kind: issue
 title: The degree-2 subdivision doors (circle x torus, circle x tilted wall, ellipse x sphere and wall) carry no root-slack meter; the ellipse x torus door shows unplaceable roots are certified without one
-status: open
+status: closed
 opened: 2026-10-03
+closed: 2026-10-08
 priority: P1
 cost: M
-refs: [line-roots-carry-no-root-slack-meter, ellipse-edge-crossing-a-torus-has-no-root-lane]
+refs: [line-roots-carry-no-root-slack-meter, 3973, circle-torus-certifies-shallow-roots-off-by-more-than-the-band]
 ---
 
 
@@ -88,3 +89,26 @@ off the true crossing — so the row is raised from P2 to P1 (a live
 wrong answer on unusual geometry; P0 is reserved for normal geometry).
 One of them moved in PR 3973 (ε 1e-12, ×1e3, inner graze: main
 certified roots 157,518 bands off; the PR answers `Uncertain`).
+
+## The plumbing exists (2026-10-06)
+
+`circle_roots::half_angle_roots` takes the subdivision's optional
+`RootSlack` meter (PR of `an-edge-crossing-a-cone-face-has-no-root-lane`).
+The conic × quadric door's cone arm hands it one
+(`bool_conic_cone_root_slack`, the residual read by
+`geom_brep::conic_cone_residual`); the door's sphere and wall ladder arm
+and `circle_torus::circle_torus_roots` still pass `None`, and what this
+row asks of them is unchanged.
+
+## Fixed with GERM's P0 (PR 4357, 2026-10-08)
+
+GERM's circle × torus measurement found the general arm wrong outside
+the band at `ε = 1e-12` (321 root placements of 9,000 poses, up to
+166 `Kε`, against an exact double-double oracle), filed as the P0
+`work/germ/circle-torus-certifies-shallow-roots-off-by-more-than-the-band.md`,
+and the conic × quadric ladder arm the same way (123 of 3,000 shallow
+poses, up to 74 `Kε`). Both doors now hand the subdivision a meter
+(`bool_circle_torus_sub_root_slack` on `F` itself through
+`geom_brep::conic_torus_implicit`; `bool_conic_quadric_sub_root_slack`
+through `geom_brep::conic_quadric_residual`), and both sweeps read 0
+wrong after. The measurements and what newly refuses are in that item.

@@ -34,15 +34,15 @@ use crate::corpus::Recorder;
 use crate::fixture::{self, len, scl};
 use editor_core::{
     BooleanCoincidence, BooleanOp, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions,
-    ExtrudeSide, MeasureExpr, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult,
-    PieceRole, ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf,
-    StableName, StepId,
+    ExtrudeSide, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole,
+    ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf, StableName,
+    StepId,
 };
 use test_utils::fuzz;
 
-const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
-const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
-const OP: RecipeNodeId = RecipeNodeId(3 << 16);
+const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
+const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
+const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
 
 fn wall(step: u64) -> StableName {
     StableName {
@@ -50,7 +50,7 @@ fn wall(step: u64) -> StableName {
         node: EXTRUDE,
         path: vec![RoleSeg::Lateral(
             ProfileEdgeRef::Piece {
-                step: StepId(step << 16),
+                step: StepId::new(0, step << 16),
                 role: PieceRole::Leg,
             }
             .into(),
@@ -158,12 +158,12 @@ fn random_cited(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         },
         4 => StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId((5 + rng.below(2) as u64) << 16),
+            node: RecipeNodeId::new(0, (5 + rng.below(2) as u64) << 16),
             path: vec![RoleSeg::FromB(NameRef::new(wall_of(rng)))],
         },
         _ => StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7 << 16),
+            node: RecipeNodeId::new(0, 7 << 16),
             path: vec![RoleSeg::FromB(NameRef::new(random_cited(
                 rng,
                 depth - 1,
@@ -218,9 +218,10 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
                     ProfileEdgeRef::Piece {
-                        step: StepId(step << 16),
+                        step: StepId::new(0, step << 16),
                         role: PieceRole::Leg,
-                    },
+                    }
+                    .into(),
                 )],
             },
         }
@@ -233,7 +234,7 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         (0..n).map(|_| random_rich(rng, depth - 1, pool)).collect()
     };
     let inner = |rng: &mut fuzz::Rng| NameRef::new(random_rich(rng, depth - 1, pool));
-    let node = |rng: &mut fuzz::Rng| RecipeNodeId((8 + rng.below(3) as u64) << 16);
+    let node = |rng: &mut fuzz::Rng| RecipeNodeId::new(0, (8 + rng.below(3) as u64) << 16);
     let half = |rng: &mut fuzz::Rng| {
         if rng.below(2) == 0 {
             SplitHalf::Above
@@ -350,7 +351,11 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
     );
     StableName {
         kind: name.kind,
-        node: if unsaid { RecipeNodeId(0) } else { name.node },
+        node: if unsaid {
+            RecipeNodeId::new(0, 0)
+        } else {
+            name.node
+        },
         path,
     }
 }
@@ -589,7 +594,7 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         vec![vec![(0.0, -1.0), (4.0, -1.0), (4.0, 3.0), (0.0, 3.0)]],
     );
     let block = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -600,14 +605,14 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         vec![vec![(1.0, 0.0), (1.5, 0.0), (1.5, 0.5), (1.0, 0.5)]],
     );
     let pin = r.insert(Node::Extrude {
-        profile: q,
+        profile: q.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let cut = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
-        a: block,
-        b: pin,
+        a: block.into(),
+        b: pin.into(),
         declare: Vec::new(),
     });
     (block, cut)
@@ -623,7 +628,7 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         vec![vec![(0.0, -1.0), (4.0, -1.0), (4.0, 3.0), (0.0, 3.0)]],
     );
     let block = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -632,8 +637,8 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         normal: [scl(1.0), scl(0.0), scl(0.0)],
     }));
     let split = r.insert(Node::Split {
-        target: block,
-        tool,
+        target: block.into(),
+        tool: tool.into(),
     });
     (block, split)
 }
@@ -657,16 +662,14 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let mut r = Recorder::new();
     let (block, split) = block_and_split(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(block, cap.clone()),
-                SitedRef::new(split, cap.clone()),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            editor_core::Operand::select(block, vec![cap.clone()]),
+            editor_core::Operand::select(editor_core::Operand::output(split, 0), vec![cap.clone()]),
+        ],
     );
+    let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);
     let said = failure_of(&r, measure);
     assert!(
         said.contains("this measure's reference 1 "),
@@ -678,8 +681,11 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: block,
-        b: split,
+        a: block.into(),
+        b: editor_core::Operand::Output {
+            node: split,
+            port: 0,
+        },
         declare: vec![(
             (
                 SitedRef::new(block, cap.clone()),
@@ -752,7 +758,7 @@ fn unheld(r: &Recorder, block: RecipeNodeId, kind: EntityKind) -> StableName {
         kind,
         node: block,
         path: vec![match kind {
-            EntityKind::Edge => RoleSeg::RimEdge(CapEnd::End, piece),
+            EntityKind::Edge => RoleSeg::RimEdge(CapEnd::End, piece.into()),
             _ => RoleSeg::Lateral(piece.into()),
         }],
     }
@@ -786,9 +792,8 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
         .expect("the selection holds it");
     assert!(at > 0, "the unheld edge sits above slot zero: {edges:#?}");
     let fillet = r.insert(Node::Fillet {
-        target: block,
         radius: len(0.1),
-        selection: edges,
+        selection: editor_core::Operand::select(block, edges),
     });
     let said = failure_of(&r, fillet);
     assert!(
@@ -799,12 +804,14 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
     let mut r = Recorder::new();
     let (block, _) = block_and_split(&mut r);
     let shell = r.insert(Node::Shell {
-        target: block,
         thickness: len(0.1),
-        open: vec![
-            fixture::fname(block, RoleSeg::Cap(CapEnd::End)),
-            unheld(&r, block, EntityKind::Face),
-        ],
+        open: editor_core::Operand::select(
+            block,
+            vec![
+                fixture::fname(block, RoleSeg::Cap(CapEnd::End)),
+                unheld(&r, block, EntityKind::Face),
+            ],
+        ),
     });
     let said = failure_of(&r, shell);
     assert!(
@@ -823,7 +830,7 @@ fn a_union_resolve_row_names_its_declared_pairs_second_side() {
     let (block, cut) = block_and_cut(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::Start));
     let union = r.insert(Node::Union {
-        members: vec![block, cut],
+        members: vec![block.into(), cut.into()],
         declare: vec![(
             (SitedRef::new(block, cap.clone()), SitedRef::new(cut, cap)),
             BooleanCoincidence::REST,
@@ -850,12 +857,12 @@ fn a_strand_row_names_a_deleted_union() {
         vec![vec![(1.0, 0.0), (1.5, 0.0), (1.5, 0.5), (1.0, 0.5)]],
     );
     let boss = r.insert(Node::Extrude {
-        profile: q,
+        profile: q.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
-        members: vec![block, boss],
+        members: vec![block.into(), boss.into()],
         declare: Vec::new(),
     });
     let doc = r.doc;

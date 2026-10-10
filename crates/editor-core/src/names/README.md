@@ -12,14 +12,14 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 | Decisions | Module |
 |---|---|
-| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk); how each consumer carries an entity of its input up to its own value (`lift`: the at-rest gate's lift from a mate's operand to the product) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
+| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: split's carried-name test and the mate member walk); how each consumer carries an entity of its input up to its own value (`lift`: the at-rest gate's lift from a mate's operand to the product) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
-| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
+| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
-| N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
+| N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
 | Selectors, geometric filters, detect/declare | `select.rs`, `geompred.rs`, `flush.rs`; design in `docs/SELECT-DESIGN.md`, usage in `docs/guide/selecting.md` |
 
@@ -30,9 +30,12 @@ a runtime `EntityKind` (Body, Face, Edge, Vertex — bodies are first-class), th
 minting `RecipeNodeId` (minted at insertion from the document's mint chain, as
 a step id is below; never positional, never reused), and
 `RolePath = Vec<RoleSeg>`. `RoleSeg` is one closed enum grouped by op: extrude
-(`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`, ...), boolean (`FromA`,
-`FromB`, `FromMember { member, of }`, `Seam`, `Merged`, `Fragment`), split
-(`SectionFace`, `SectionEdge`, `SplitFragment`, ...), blend (shared by fillet and
+(`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`, ...), the carry-through
+`From { read, of }` (an entity an operation brings in from an input, keyed
+by the variable the input slot reads, DM4: a union's or intersect's members,
+a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
+`Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
+...), blend (shared by fillet and
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
@@ -40,6 +43,21 @@ was minted with, never by its position (below). Names contain no floats and no a
 split-intact entity, a `Part`'s projection of one half or one instance) adds no
 segment, so `node` stays the original minter. Names are document-local;
 assembly wrapping is `ASSEMBLY.md`'s.
+
+**N1, the scope.** A name is scoped by the variable that holds its body:
+there is one name table per output variable, and a name tells apart only
+what that variable holds. An operation with several outputs never spells in
+a name which output holds the entity, so a split's roles carry no half
+(`SplitBody`, `SectionFace`, `SectionEdge`, `SplitFragment`,
+`CrossingVertex`): the variable says it, through the read that carries the
+entity on (`From { read: split.above, of }`) or the body a selection
+states. The per-node table compensates today by restating the output:
+the split's half and the pattern's `Instance { i }` segment exist only to
+keep one node's table distinct. D10 makes the compensation fail: `P1` and
+`P2` are two placements of `X`, each equally a copy of it; pinned into one
+space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
+verbatim (a placement adds no name segment, above), which one table per
+operation refuses as `DuplicateName`.
 
 **N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
 profile vertex revolves to, looked up in the sweep's `poles` export.
@@ -60,8 +78,8 @@ vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 
 **N1, the profile pieces: authored things are named by minted ids.** A name
 spells what the author made by the id it was minted with, and what the kernel
-made by the verdicts that decided it. Nodes and union members (`FromMember`,
-DM4) follow this rule, and so do profile pieces:
+made by the verdicts that decided it. Nodes and reads (`From`, DM4) follow
+this rule, and so do profile pieces:
 
 - **The id.** Every step of a profile program carries a `StepId` in the recipe
   (`ProfileProgram::ids`). It is minted when the step is authored, by
@@ -92,10 +110,10 @@ DM4) follow this rule, and so do profile pieces:
   whole document; its order is mint order, which is the order the author
   placed things in, and nothing else. The document keeps every
   id it has minted, node and step, in one mint log, deleted nodes' and
-  dropped steps' included, and a mint whose id is already in the log is
-  refused. The load door checks what minting makes true: every node's id
-  in the mint log, one id per authored step, every step's id in the mint
-  log, and no id standing for two steps. A name may spell only a step the
+  dropped steps' included, in mint order, so no id is minted twice. The
+  load door checks what minting makes true: the log's ordinals count up
+  from one, every node's id in the mint log, one id per authored step,
+  every step's id in the mint log, and no id standing for two steps. A name may spell only a step the
   document has minted: the doors that write a name (`InsertNode`, `Rebind`,
   `SetAppearance`, `SetAppearanceMeta`) refuse one the mint log does not
   hold, and so does the load door.
@@ -189,19 +207,19 @@ DM4) follow this rule, and so do profile pieces:
   locators. If a value edit changes which pieces pair, the old wall's name
   vanishes; it does not follow `k` to the new pairing.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
-  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"; a
-  partial revolve builds cocircular arcs one wall each, named per piece). The
+  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
   the run: its piece locators in authored order, a one-piece run spelled as
   one locator; a run that wraps through the loop's start begins at its first
   piece after the start vertex. `LateralEdge` and `BandRim` are minted only
   where an entity exists, so a station inside a run has none; a cap's rim
-  is one edge per run too, and holds the run as the wall does. A run wall
+  is one edge per run too, and holds the run as the wall does, as do a
+  partial revolve's meridians and its axis edge. A run wall
   is not a merge and never `Merged`.
   Covers and offers (N3) read one constituents view shared by every row
   that holds a set of names — a `Merged` face, and a run held by
-  `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`: `Lateral([p0, p1])`
-  covers `Lateral([p0])`, so a selection made before a station was inserted
+  `Lateral`, `RimEdge(end, ·)`, `Band`, `BandPi`, `Meridian(end, ·)` or
+  `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set
   of walls, so it has no constituents in that view.
@@ -217,24 +235,33 @@ The qualifier depends on what was split:
   it divides the parent when it borders two or more pieces, so a boss or notch
   on one piece is never cited and nothing in a piece's name lies beyond its
   own boundary. Pieces with equal sets are N4's tie.
-- **The Split op's pieces** keep their tool plane's side (`SplitFragment`):
-  there the plane is what the author drew. Several pieces of one parent on one
-  side of the plane are further qualified by `Qualifier::Keeps`, the sorted set
-  of the parent's boundary edges each holds a stretch of, cited by their names
-  without piece qualifiers; equal sets tie.
+- **The Split op's pieces** are told apart by their tool plane's side, which
+  is the output variable that holds them (N1, the scope), so
+  `SplitFragment` spells no side: there the plane is what the author drew. A
+  piece whose side flips when the plane moves leaves its variable's table
+  rather than renaming, and N5 diagnoses `PredicateFlip` from the split's
+  recorded classification, not from the name. Several pieces of one parent
+  in one half are further qualified by `Qualifier::Keeps`, the sorted set
+  of the parent's boundary edges each holds a stretch of, cited by their lines
+  (below); equal sets tie.
 - **Edge pieces** take `Qualifier::Ends`: the sorted pair of a piece's two end
-  vertices' names as the node publishes them. This covers every piece of a
+  vertices' names as the node publishes them. A piece is spelled on its parent
+  edge's *line*: the edge's name with every piece qualifier removed, at every
+  depth of wrapping. So a piece of an earlier piece is a piece of that line,
+  told from its siblings by its two ends, and nothing in its name records a cut
+  made elsewhere on the edge. This covers every piece of a
   parent edge, a lone piece on its side of a cut included, so no piece's name
   says how many siblings it has: a seam chain's pieces, pieces of an operand
   edge, pieces of an earlier seam, and a union's pieces of a member edge
-  (`FromMember(m, e)` + `Ends` over the union's published vertex names, read
+  (`From(m, e)` + `Ends` over the union's published vertex names, read
   off the finished body).
   Section chords are the same case: a section line that re-enters one operand
   face (an inner loop, a non-convex face) cuts several chords that
-  `SectionEdge{side, face}` spells alike, and each takes `Ends` like any other
+  `SectionEdge{face}` spells alike, and each takes `Ends` like any other
   edge piece (Ev, PR 3553). Pieces with equal pairs are N4's tie.
-- **Vertices** cite the edges they lie on by their heads, never by a piece's
-  qualifier, so vertices are named before edge pieces are qualified, and
+- **Vertices** cite the edges they lie on by their lines, never by a piece's
+  qualifier at any depth, so vertices are named before edge pieces are
+  qualified, and
   nothing in a piece's name lies beyond its own boundary. A crossing, where a
   face of one operand meets an edge of the other or where an edge lying in such
   a face ends in it, is named by its sense: whether the crossed edge, oriented
@@ -247,7 +274,7 @@ The qualifier depends on what was split:
   boolean's or union's is `Crossing { edge, face, sense }`, the Split's
   `CrossingVertex` holds it as a field. A vertex where two edges cross carries
   each edge's sense against the other operand's closed body. Crossings of one
-  edge by one face with the same sense are ranked along the crossed edge by its
+  line by one face with the same sense are ranked along the line by its
   carrier's own parameter, in the edge's stored orientation; an equal pair
   ties.
 
@@ -280,18 +307,48 @@ stretch keeps its piece name, the member edge qualified by its ends (N2),
 never the bare member edge. Unlike two coplanar faces, the stretch and the set
 are different cells on the line, and a name cites only what its cell lies on.
 
-A pair boolean names a joined edge by the same reading over its two operands'
-edges. A seam vertex cites a member edge whole, `FromMember(m, e)`, never a
-piece and never a set: the one it lies on, the least where several do. In a
-pair boolean, where an A edge and a B edge both hold it, A's is cited. A
-vertex at a member vertex is that vertex, and one where a single face crosses
-a member edge is the `Crossing` of that edge and that face. A reference to a
-member edge, or to a piece of one, that no longer resolves is offered every
-set listing that member edge.
+A subtract names a joined edge by the same reading over its two operands'
+edges, read along the edge's carrier: its line, or the curve a curved edge is
+carried by, where "along" is overlapping it over a length of that curve. A
+closed edge, one the output stage joined round a closed carrier, lies within a
+closed operand edge alone and is covered over its whole period, so its name
+reads nothing off where its vertex sits.
+
+A split and a shell name an edge their closing join made by the same reading
+over their one operand's edges, read off the joins' records rather than along
+a carrier: each edge the join took is chased to the operand edge it came from.
+An edge that covers one operand edge whole, the cut having separated nothing
+of it, takes that edge's own name. One that lies along a part of one operand
+edge whose other parts live on is a piece of it, named as the split names a
+piece. One that covers several operand edges whole is the `Merged` set of
+their names, flat and in name order: the shell's survivors as `From` of
+their names and its cavity twins as `Inner` of theirs, a set among them listed by its
+constituents. A split's section chords, joined, stay a chord of the face they
+cross. A join with no such reading, a chord with an operand edge's piece or
+pieces of several operand edges, is refused, not named.
+
+A blend names an edge its closing join made the same way. Each trim the blend
+mints is the image of one input edge on one support, as a cavity twin is, so
+an edge its join made over several of them is the `Merged` set of their
+images: `TrimEdge` for a trimline, `BandTrim` for a rim trim, `From`
+for a surviving input edge, kinds mixed as they come. An edge the blend
+minted outright, an end arc, a mitre, a band's slit or a remnant (`BandCut`),
+is the image of no input edge, and a join that takes one is refused. The
+split, the shell and the blend read their joins through one helper
+(`join_names.rs`), each supplying only which input edge a covered edge is
+the image of.
+
+A seam vertex cites an input edge
+whole, `From(m, e)`, never a piece and never a set: the one it lies on,
+the least in name order where several do, a subtract's two seats among
+them, so no seat is preferred. A vertex at a member vertex is that vertex, and one
+where a single face crosses a member edge is the `Crossing` of that edge and
+that face. A reference to a member edge, or to a piece of one, that no longer
+resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
-all of these hold: their members are declared coincident on them, or share a
-recipe source (N6), with the same orientation; the pairwise judgement
+all of these hold: their margins decide them one carrier, declared or not
+(D10), with the same orientation; the pairwise judgement
 certifies the pair (DM4); and that judgement consumed the pair, meaning its
 two-member union merged the faces or held either face's region through the
 other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A certified
@@ -307,7 +364,7 @@ another member's coplanar face covers, and one a later member swallows after
 it merged, are cited alike in every member order. A parent the finished body
 holds as one face is that face's name. A parent it holds as several faces
 qualifies each with one `Fragment(Borders)` over its divider walls, the rule
-above, which the pair boolean reads too. So a face merged and then cut, and a
+above, which the subtract reads too. So a face merged and then cut, and a
 face cut and then merged, are both `Merged(set)` + `Borders`; a face cut by two
 members is one `Borders` over both members' walls, whether one fold step cut
 it or two. The fold's spellings are replaced, not refined: which step cut a
@@ -333,13 +390,15 @@ unreferenceable until it does. Ties propagate downstream as tied (`defer.rs`);
 (`SelectRefusal::TiedDisagrees`), with no per-candidate narrowing.
 
 **N3 — Merge policy: names retire into the merge, loudly.** Coplanar-face
-merging (F7) merges only structural or declared-coincident faces, which share a
-recipe source; the merged face is `Merged(sorted, deduped, flat constituents)`,
+merging (F7) merges faces whose margins decide them one carrier, declared or
+not (D10); the merged face is `Merged(sorted, deduped, flat constituents)`,
 and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
 union's collapse rather than flattened (the fragment carve-out is stated once,
-at `RoleSeg::Merged`). A merged row COVERS a name when the name is a constituent
+at `RoleSeg::Merged`). A `Merged` whose set has one element is that
+element: a face glued to its twin, the same read spelled twice (REFERENCES
+DM5), is named as the face. A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
 constituents retire. In a union no face publishes under a constituent's
@@ -380,13 +439,12 @@ discriminator among a tie's candidates like any other: the divided candidate's
 pieces are named by their `Borders`, the undivided candidates stay under the
 bare name, and an edit that moves the divider onto another candidate moves each
 name with its role. The pass-through ops of N1 carry the candidate with the name; an op that wraps the
-name numbers afresh, as it mints a fresh name. The product's gather therefore
-has one rule for strict and tied names alike: a (name, candidate) pair reaches
-the product at most once. A strict name is its own only candidate, so two roots
-carrying it refuse; two roots carrying different candidates of one tie merge
-back into the tie; two carrying the same candidate refuse
-(`ProductError::Naming`), the tied case of one entity placed twice. The
-candidate is not part of the name and reaches no name digest.
+name numbers afresh, as it mints a fresh name. A world placement is such an op:
+each copy is its own output, and its names are qualified by the copy
+(`RoleSeg::Placed` at the placement) as a pattern copy's are, so a name reaches
+the product once per copy by construction and the gather has no
+once-per-product rule to keep. The candidate is not part of the name and
+reaches no name digest.
 
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
 per row, held by both directions — and a role segment holds its argument name by
@@ -488,8 +546,8 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
 - *Which edge pieces it meets.* An edge piece's `Ends` holds no count and a
   crossing's sense is its own, so a cut elsewhere on its parent leaves the
   piece's name as it was, and so do the crossings it ends at. Only a second
-  crossing with the same sense by a face that already crosses the parent
-  renames anything: it ranks the same-sense group, so the first crossing gains
+  crossing with the same sense by a face that already crosses the line renames
+  anything: it ranks the same-sense group, so the first crossing gains
   its rank, and with it every piece whose `Ends` cite it. The rung meets an edge piece where its own ends moved or were
   renamed, or its group stopped being divided.
 - *What the group is.* The group is the one the emitter formed, read from the
@@ -500,15 +558,19 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   survivor, and at a union the published entities a fold step's group descends
   to, followed by entity through every later step. A piece a later step
   re-mints under a seam name of its own is not a descendant by that descent and
-  is not counted. Two tied parents that share a base are two groups, each
+  is not counted. An edge piece's group is its line's: every edge the node
+  holds on the line from an operand edge, whichever parent edge on the line it
+  descends from, whole or in pieces, counted together. Two tied parents that
+  share a base are two groups, each
   counted on its own, where the emitter groups by parent entity; where it
   groups by parent names (the seam lanes) their pieces share one group and the
   rung declines. That is a statement about two recorded groups, not a claimed
   flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
-  minting node's two tables for the `Seam` rows on the group's parent (a face
-  group's seam edges, an edge group's seam vertices), matched on the
-  `Seam { a, b }` pair with any `Fragment` tail and never on the row, and names
+  minting node's two tables for the seam rows on the group's parent (a face
+  group's seam edges, an edge group's seam and crossing vertices), matched on
+  the pair — a `Seam`'s or an `EdgeCrossing`'s two sides, a `Crossing`'s edge
+  and face — with any `Fragment` tail and never on the row, and names
   every cutter whose seam with the parent only the last-good table spells
   (`gone`) or only the current one does (`new`); both empty says the two
   tables spell seams on the parent with the same cutters. A seam is a crossing,
@@ -520,30 +582,35 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   the parent edge is spelled as a pass-down vertex, not a seam, so a crossing
   that became a touch reads as gone. It names none, and says why, where the
   tables cannot say: a group no seam rows on one parent name bound (a split's,
-  a pair boolean's own seam chain or merged face), tied parents whose shared
+  a subtract's own seam chain or merged face), tied parents whose shared
   name the seams are spelled on, a prior table that spells no seam on the
   parent, and a seam on the parent spelled in a shape the reading does not
   follow.
+
+**A cited line.** A line is not a row: no table publishes an edge's name with
+its piece qualifiers removed. Where a name cites an edge by its line, N5 reads
+it as the rows of that node's table whose undivided base it is. The cascade
+rung counts a line as present while any row lies on it, so a crossing whose
+own verdict flipped reports that flip, and a line no row lies on any longer
+cascades. The offers for a vanished edge piece are the surviving pieces of its
+line. A union reads a cited line as its least member row on it.
 
 **Offers, tombstones and repair.** A collapsed fragment's undivided base, when
 it resolves, rides in the offers for either qualifier kind. `Tombstone` carries
 the last-good entry for ghost rendering; selection tools hold name plus
 tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
-repair is `DocEdit::Rebind { from, to }`, recorded once, no alias table.
+repair is `DocEdit::Rebind { body, from, to }`, recorded once, no alias
+table: with a body it rewrites that body's selections naming `from`, and
+without one the names no selection holds (a declared pair's, a mate head's,
+an appearance key).
 
-**N6 — Recipe-source identity retires bit identity.** Every surface, curve and
-point description carries `GeomSource { node, expr, orient }` beside the arena; a
-transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
-(`rev ∘ rev = id`). Same source is syntactic identity of the triple. Theorem:
-same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
-claimed, so equal bits without a shared source stay unglued. The declared
-coincidence rung is this lookup (`source::surface_declaration`, whose source rung
-`source::source_declaration` is also `oriented_plane_eq`'s rung 1); the bit
-comparison survives only in the debug assertions built on `crates/topo/src/source.rs`'s
-bit witnesses (`surface_bits_witness`, `data_bits_witness`), and the gate
-`scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
-Identity holds per evaluation against the current document only.
+**N6 — A cell's construction is read from the document.** A recorded
+cell is named by the read it entered the deciding operation through and its
+name there. The door reads its carrier at that name from the symbolic
+evaluation (D10, Coincidence); a pass-through placement adds no name segment
+(N1), so the read, not the name, carries where the cell was placed. The kernel
+carries no recipe provenance of a description.
 
 **N7 — The topology-change sites, exhaustively.** (i) structural parameter
 change, (ii) reified predicate flip, N2 discriminators included, (iii) recipe

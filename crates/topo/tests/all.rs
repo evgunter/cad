@@ -63,10 +63,10 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "analytic_rung3_at_rest.rs"]
+mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
 mod at_rest_pcurve_rows;
-#[path = "axis_source_rows.rs"]
-mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]
@@ -87,6 +87,10 @@ mod box_with_hole;
 mod census_g2_carrier;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
+#[path = "cone_apex_sector_joints.rs"]
+mod cone_apex_sector_joints;
+#[path = "contact12_crossing_cuts.rs"]
+mod contact12_crossing_cuts;
 #[path = "contact1_touch_cones.rs"]
 mod contact1_touch_cones;
 #[path = "contact5_gate_and_beam.rs"]
@@ -111,8 +115,6 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
-#[path = "geom_origin_rows.rs"]
-mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -193,6 +195,8 @@ mod mesh12_rim_row_reach;
 mod mesh8_coherence;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "offset_doors_read_charts_not_material.rs"]
+mod offset_doors_read_charts_not_material;
 #[path = "on_verdict.rs"]
 mod on_verdict;
 #[path = "pcurve_door_refusals.rs"]
@@ -215,6 +219,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "records_cite_their_decision.rs"]
+mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
@@ -293,6 +299,8 @@ mod shell_tolerance_chain;
 mod shell_winding;
 #[path = "site_mint_scaling.rs"]
 mod site_mint_scaling;
+#[path = "sliver_shell_role.rs"]
+mod sliver_shell_role;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]
@@ -348,12 +356,20 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_vertex_read_again_classes_every_edge.rs"]
+mod a_vertex_read_again_classes_every_edge;
+#[path = "a_vertex_read_by_two_sector_passes.rs"]
+mod a_vertex_read_by_two_sector_passes;
+#[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
+mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
 #[path = "door_backstop_settled_residue.rs"]
 mod door_backstop_settled_residue;
+#[path = "holes_meeting_at_a_vertex.rs"]
+mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]
@@ -362,3 +378,5 @@ mod review_cleave_mint_doors;
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "three_solids_on_one_line.rs"]
+mod three_solids_on_one_line;

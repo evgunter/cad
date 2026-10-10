@@ -114,19 +114,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/editor-core/src/eval/wire.rs",
-        subject: "refusal_menu",
-        why: Payload(
-            "the boolean's coincidence menu over a kernel refusal: its only bracket reads \
-             are the shell fold's below, reached through `verb_refused`",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
-        subject: "union_refusal",
-        why: Payload("the union's refusal lowering, delegating to `refusal_menu` above"),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
         subject: "verb_refused",
         why: Payload(
             "lowers a verb's refusal into the scalar-free document vocabulary; its only \
@@ -141,25 +128,6 @@ const ROSTER: &[Site] = &[
              bracket end it declares and becomes an error field, displayed and tagged, \
              never compared",
         ),
-    },
-    Site {
-        path: "crates/geom-brep/src/pcurve_cache.rs",
-        subject: "circle_image_envelope",
-        why: Selection(
-            "a general circle's fitted-certificate door on the sphere chart. Its reads are \
-             two refusal gates: the image's knot domain must lie inside the brackets of the \
-             edge's ends (`lo() <= k <= hi()`), and every span's Cauchy radius must clear \
-             zero (`radius.lo() > 0`, else `ArcNearPole`). Each decides whether the \
-             certificate exists at all, and is value-channel-decided (a dual's bracket is \
-             its value channel's, so the door answers what the f64 lane answers) and \
-             locally constant on either side of its boundary; what proceeds is the sum of \
-             bounds in the scalar itself",
-        ),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi.rs",
-        subject: "impl<T: geom_core::Bounds> TubeScale<T>",
-        why: HandedOff("Track Q's ssi ground; enumerated by S88 and not taken there"),
     },
     Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
@@ -337,6 +305,55 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "canonical_axis",
+        why: Selection(
+            "picks the sign of a band's axis (its largest component positive) and the \
+             axis point nearest the origin, so coaxial bands share one sheet frame. \
+             Either sign is a valid frame, the construction is the same on both, and \
+             nothing decided reads which was taken",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "same_frame",
+        why: Selection(
+            "bit-equality of two sheet frames, which selects whether one band's sheet \
+             bounds may be read on the other's sheet rectangles. Unequal bits only drop \
+             a clearing term — the cell is then read in space — so the selection moves \
+             cost, never what a margin encloses",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "same_sheet",
+        why: Selection("`same_frame` over two reaches' frames; the same disposition"),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "impl<T: Bounds> Least<T>",
+        why: Selection(
+            "the blend reach meter's cell driver. The read decides whether a cell is \
+             clear, which selects whether it is halved and which of two lower bounds it \
+             gives the face: the larger, when the face's own surface or a bound of the \
+             reach clears the cell, and the reach's bound alone otherwise, which is the \
+             smaller. Every contribution is a lower bound of the face's clearance over \
+             the face points the cell can hold, so the selection moves tightness and \
+             cost, never what the least bound encloses, and the funnel decides that \
+             least bound",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/open/end_face.rs",
+        subject: "impl<T: Bounds> SectionFrame<T>",
+        why: Selection(
+            "the cut-off's round-section depth (`scaled`, `depth`) for the sliver meter. It \
+             reads no bracket itself — scaled radii by arithmetic alone — and its result is \
+             one term of `CapSliver::clearance`, the margin `ring_clearance` decides, so it \
+             inherits that door's DL5(b) disposition and no other",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/surgery.rs",
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
@@ -424,6 +441,22 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracketed",
         why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
+    },
+    Site {
+        path: "crates/topo/src/boolean/boxes.rs",
+        subject: "axis_key",
+        why: Payload(
+            "the narrow phase's axis key: a vector's three brackets, compared for equality to \
+             drop a repeated or opposed candidate axis, and stop",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/boolean/boxes.rs",
+        subject: "circle_box",
+        why: Payload(
+            "the extent scan's section-circle box: a centre's, a frame's and a radius's \
+             brackets into an f64 `bvh::Aabb` through `conic_extent`, padded, and stop",
+        ),
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",

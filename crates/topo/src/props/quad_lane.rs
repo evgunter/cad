@@ -361,9 +361,12 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
 /// It is the exact flux, about `centre`, of each loop fanned from
 /// `anchor` (a point `x` of the fan has `(x − anchor)` in its tangent
 /// plane, so `x·n` integrates to `anchor·A⃗`). The fans of neighbouring
-/// faces meet on their shared edges, so summed over a closed body they
-/// bound a closed surface, and the sum is that surface's volume wherever
-/// the loops' points stand off their stored planes. A flux taken off the
+/// faces meet on their shared edges, but a loop closes only to the
+/// rounding of its carriers' ends, and a fan from a far anchor reads that
+/// gap at the face's length times its lever
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`);
+/// a shell of line-bounded planes is read off its vertex polygons
+/// instead ([`polygon_face_about`]), which close exactly. A flux taken off the
 /// stored plane instead (`((origin − centre)·n)(n·A⃗)/(n·n)`) is not a
 /// closed surface's: a glued face whose points stand `δ` off its carrier
 /// misses `δ` times its area, which crossed the oracle on the door's
@@ -386,6 +389,36 @@ fn planar_face_about(
     let mut va = geom_core::Vec3::zero();
     for edges in loops {
         va = va + loop_vector_area(edges, anchor)?;
+    }
+    Ok(FaceContribution {
+        flux: (anchor - centre).dot(va),
+        area: va.norm(),
+    })
+}
+
+/// A planar face bounded by lines, as the polygons of its vertex points
+/// (`rings`, in traversal order): its flux about `centre` and its area,
+/// at the interval scalar, `(anchor − centre)·A⃗` with `A⃗` the rings
+/// fanned from `anchor`, the first point of the first ring.
+///
+/// Over a shell every face of which is read this way, neighbouring
+/// faces' rings meet at the same points, so the sum is the volume of the
+/// closed polyhedron of the vertex points. A vertex point is a point
+/// interval, so each difference below is one rounding wide, at the
+/// difference's own magnitude.
+pub(super) fn polygon_face_about(
+    rings: &[Vec<Point3<Interval>>],
+    centre: Point3<Interval>,
+) -> Result<FaceContribution<Interval>, PropsError> {
+    let Some(&anchor) = rings.first().and_then(|ring| ring.first()) else {
+        return Err(PropsError::DegenerateFace);
+    };
+    let mut va = geom_core::Vec3::zero();
+    for ring in rings {
+        for (i, &p) in ring.iter().enumerate() {
+            let q = ring[(i + 1) % ring.len()];
+            va = va + (p - anchor).cross(q - anchor) * Interval::point(0.5);
+        }
     }
     Ok(FaceContribution {
         flux: (anchor - centre).dot(va),
@@ -467,17 +500,17 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             });
         };
         // The certified quadrature lane reads a chart image
-        // CHANNEL BY CHANNEL out of its closed form; a fitted image
-        // has no such form on an ANALYTIC chart's Green reduction.
-        // Typed refusal: the fitted-boundary Green lane
-        // (`quad::bspline_green_integral`'s remaining consumer) is not
-        // wired. A sphere's general circle mints one at rest (an
-        // oblique fillet corner's octant); the props door refuses that
-        // face's spherical triangle before this lane is asked.
+        // CHANNEL BY CHANNEL out of its harmonic form; a fitted,
+        // projected or focal-section image has none on an ANALYTIC
+        // chart's Green reduction, and refuses typed. A sphere's general
+        // circle mints a projected one at rest (an oblique fillet
+        // corner's octant); the props door refuses that face's spherical
+        // triangle before this lane is asked.
         let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
             return Err(PropsError::QuadratureUnsupported {
-                what: "curved-cut face half-edge carries a FITTED pcurve on an analytic \
-                       chart — its Green-form boundary integral (bspline_green_integral) \
+                what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
+                       an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
+                       Villarceau circle's focal section) — its Green-form boundary integral \
                        is not wired",
             });
         };
@@ -785,16 +818,16 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                 // structure, like every other read on this path.
                 let (d0, d1) = image.domain();
                 let (r0, r1) = (ring(t0), ring(t1));
-                // NO ROW AND NO KNOWN PRODUCER, stated so a reader
-                // does not take the guard for evidence of the case:
-                // `derive_general_image` mints an image over the
-                // carrier's whole interval, so nothing at rest
-                // stores a sub-range, and nothing in the suites
-                // hand-builds one. It is here because the trimmed
-                // lane subdivides the STORED image whole, and a
-                // future producer that stored a sub-range would get
-                // a certified number for chart the face does not
-                // bound rather than a refusal.
+                // A producer at rest: an offset fitted face cut by
+                // planes (`replace_face`'s derived plane × fit
+                // sections, each spanning the fit's window while its
+                // edge spans part of it) stores a sub-range, pinned by
+                // `encl_curved_loft_shell::a_moved_fitted_cap_stands_its_corners_on_the_held_sides`
+                // and filed as
+                // `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`.
+                // The trimmed lane subdivides the STORED image whole,
+                // so a sub-range would get a certified number for
+                // chart the face does not bound; it refuses instead.
                 // The refusal first, for the reason the
                 // `exact` closure above gives.
                 if !r0.is_certified()
@@ -846,11 +879,18 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                            torus, and this chart is a spline patch",
                 });
             }
-            Pcurve::ConeSection { .. } => {
+            Pcurve::FocalSection(_) => {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "a NURBS-face half-edge carries a CONE-SECTION pcurve — that \
-                           image certifies on a cone chart only, and this chart is a \
-                           spline patch",
+                    what: "a NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \
+                           image certifies on a cone or torus chart only, and this chart \
+                           is a spline patch",
+                });
+            }
+            Pcurve::Projected(_) => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a PROJECTED pcurve — that image \
+                           certifies on an analytic chart only, and this chart is a spline \
+                           patch",
                 });
             }
         };
@@ -1023,6 +1063,304 @@ mod tests {
             assert!(!c.ca.is_certified(), "the violated coefficient survived");
             for (tag, r) in [("c0", c.c0), ("cb", c.cb), ("cl", c.cl)] {
                 assert!(r.is_certified(), "{tag} refused a certified coefficient");
+            }
+        }
+    }
+
+    /// The polygon route of the role read's re-derivation
+    /// (`props::shell_polygons`), against exact values: the dyadic sum of
+    /// a shell's vertex polygons against its known volume, the interval
+    /// sum against that dyadic sum, and a shell with a curved edge kept on
+    /// the fan route bit for bit.
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod polygon_tests {
+        use geom_brep::props::quad::RoundWindow;
+        use geom_core::{Band, Bounds, Interval, Point3, Real, Tol};
+        use num_bigint::BigInt;
+
+        use crate::body::Body;
+        use crate::entity::{FaceKey, LoopBoundary};
+        use crate::props::{
+            FaceRun, QuadLane, corner_of, decide_faces_serially, face_flux, face_loops, rederive,
+            reporting_hook, resolve_face, shell_polygons, vertex_rings,
+        };
+
+        /// `m · 2^e`, exactly.
+        #[derive(Clone, Debug)]
+        struct Dyadic {
+            m: BigInt,
+            e: i64,
+        }
+
+        impl Dyadic {
+            fn of(x: f64) -> Self {
+                assert!(x.is_finite(), "a finite coordinate");
+                let bits = x.to_bits();
+                let sign = if bits >> 63 == 1 { -1 } else { 1 };
+                let exp = ((bits >> 52) & 0x7ff) as i64;
+                let frac = bits & ((1 << 52) - 1);
+                let (mant, e) = if exp == 0 {
+                    (frac, -1074)
+                } else {
+                    (frac | (1 << 52), exp - 1075)
+                };
+                Self {
+                    m: BigInt::from(mant) * sign,
+                    e,
+                }
+            }
+            fn add(&self, o: &Self) -> Self {
+                let e = self.e.min(o.e);
+                let shift = |d: &Self| d.m.clone() << (d.e - e) as usize;
+                Self {
+                    m: shift(self) + shift(o),
+                    e,
+                }
+            }
+            fn neg(&self) -> Self {
+                Self {
+                    m: -self.m.clone(),
+                    e: self.e,
+                }
+            }
+            fn mul(&self, o: &Self) -> Self {
+                Self {
+                    m: &self.m * &o.m,
+                    e: self.e + o.e,
+                }
+            }
+            /// `self ≤ o`.
+            fn le(&self, o: &Self) -> bool {
+                o.add(&self.neg()).m >= BigInt::from(0)
+            }
+        }
+
+        type D3 = [Dyadic; 3];
+
+        fn d3(p: Point3<f64>) -> D3 {
+            [Dyadic::of(p.x), Dyadic::of(p.y), Dyadic::of(p.z)]
+        }
+        fn sub(a: &D3, b: &D3) -> D3 {
+            [0, 1, 2].map(|i| a[i].add(&b[i].neg()))
+        }
+        fn cross(a: &D3, b: &D3) -> D3 {
+            let c = |i: usize, j: usize| a[i].mul(&b[j]).add(&a[j].mul(&b[i]).neg());
+            [c(1, 2), c(2, 0), c(0, 1)]
+        }
+        fn dot(a: &D3, b: &D3) -> Dyadic {
+            a[0].mul(&b[0]).add(&a[1].mul(&b[1])).add(&a[2].mul(&b[2]))
+        }
+
+        /// Twice the exact flux of `rings` about `c`, fanned from the
+        /// first point.
+        fn exact_flux2(rings: &[Vec<Point3<f64>>], c: &D3) -> Dyadic {
+            let a = d3(rings[0][0]);
+            let mut va = [0.0, 0.0, 0.0].map(Dyadic::of);
+            for ring in rings {
+                for (i, &p) in ring.iter().enumerate() {
+                    let q = ring[(i + 1) % ring.len()];
+                    let k = cross(&sub(&d3(p), &a), &sub(&d3(q), &a));
+                    va = [0, 1, 2].map(|j| va[j].add(&k[j]));
+                }
+            }
+            dot(&sub(&a, c), &va)
+        }
+
+        /// `body`'s faces as `(interval flux, exact doubled flux)` about
+        /// its least vertex corner, summed, every face read as its vertex
+        /// polygons.
+        fn sums(body: &Body<f64>) -> (Interval, Dyadic) {
+            let lane = QuadLane::<f64>::certified();
+            let points: Vec<_> = body.vertex_points().map(|(_, p)| p).collect();
+            let corner = points.iter().fold(points[0], |c, p| {
+                Point3::new(c.x.min(p.x), c.y.min(p.y), c.z.min(p.z))
+            });
+            let centre = Point3::new(
+                Interval::from_f64(corner.x),
+                Interval::from_f64(corner.y),
+                Interval::from_f64(corner.z),
+            );
+            let mut flux = Interval::zero();
+            let mut exact = Dyadic::of(0.0);
+            for (key, _) in body.faces() {
+                let (face, surface) = resolve_face(body, key);
+                let loops = face_loops(body, face).unwrap();
+                let rings = vertex_rings(body, face, surface, &loops, lane)
+                    .unwrap()
+                    .expect("a planar face bounded by lines");
+                let f = super::super::polygon_face_about(&rings, centre).unwrap();
+                flux = flux + f.flux;
+                let rings: Vec<Vec<Point3<f64>>> = rings
+                    .iter()
+                    .map(|r| {
+                        r.iter()
+                            .map(|p| Point3::new(p.x.lo(), p.y.lo(), p.z.lo()))
+                            .collect()
+                    })
+                    .collect();
+                exact = exact.add(&exact_flux2(&rings, &d3(corner)));
+            }
+            (flux, exact)
+        }
+
+        /// A `2 m × w × w` box along a generic direction from `(2, 1, 1)`.
+        fn sliver_box(w: f64, tol: Tol) -> Body<f64> {
+            let long = [1.788_854_382, 0.894_427_191, 0.031_25];
+            let side = [-0.447_213_595, 0.894_427_191, 0.0];
+            let up = [-0.0156, -0.03125, 0.9993];
+            crate::test_support::mapped_cube::<f64>(
+                move |x, y, z| {
+                    let at = |i: usize| {
+                        [2.0, 1.0, 1.0][i] + long[i] * x + side[i] * w * y + up[i] * w * z
+                    };
+                    Point3::new(at(0), at(1), at(2))
+                },
+                tol,
+            )
+        }
+
+        /// The exact doubled flux of a shell's vertex polygons is six
+        /// times its volume where that is known (a wrong ring order, a
+        /// dropped ring or a carrier end read for a vertex breaks it),
+        /// and the interval sum holds it.
+        #[test]
+        fn a_planar_shells_polygon_enclosure_holds_its_exact_volume() {
+            let tol = Tol::witness();
+            let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+            let tiny = f64::from_bits((1023 - 60) << 52);
+            let shells: [(&str, Body<f64>, Option<Dyadic>); 6] = [
+                (
+                    "a unit brick 5 km out",
+                    crate::test_support::brick((5e3, 5e3 + 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                    Some(Dyadic::of(1.0)),
+                ),
+                (
+                    "a brick from −2⁻⁶⁰, whose differences round",
+                    crate::test_support::brick((-tiny, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                    Some(Dyadic::of(1.0).add(&Dyadic::of(tiny))),
+                ),
+                (
+                    "the notch307 prism",
+                    crate::test_support::prism::<f64>(&notch, 1.0, tol).body,
+                    Some(Dyadic::of(6.0)),
+                ),
+                (
+                    "a 3 × 2 × 2 block with a unit square hole",
+                    crate::test_support::holed_block::<f64>(3.0, &[1.5], tol),
+                    Some(Dyadic::of(10.0)),
+                ),
+                ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol), None),
+                (
+                    "a 2 m sliver box 1e-4 wide, inside out",
+                    sliver_box(1e-4, tol).revert(),
+                    None,
+                ),
+            ];
+            let holed = shells[3].1.faces().any(|(_, f)| !f.rings.is_empty());
+            assert!(holed, "the holed block has a face with an inner ring");
+            for (name, body, volume) in &shells {
+                let (flux, exact) = sums(body);
+                if let Some(volume) = volume {
+                    let six = volume.mul(&Dyadic::of(6.0));
+                    assert!(
+                        exact.le(&six) && six.le(&exact),
+                        "{name}: the vertex polygons' doubled flux {exact:?} is six times the volume"
+                    );
+                }
+                let two = Dyadic::of(2.0);
+                let lo = Dyadic::of(flux.lo()).mul(&two);
+                let hi = Dyadic::of(flux.hi()).mul(&two);
+                assert!(
+                    flux.is_certified() && lo.le(&exact) && exact.le(&hi),
+                    "{name}: the enclosure [{:e}, {:e}] holds the exact flux {exact:?}",
+                    flux.lo(),
+                    flux.hi()
+                );
+            }
+        }
+
+        /// A brick's walk runs, measured as the role read measures them.
+        fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+            decide_faces_serially(&faces, |&f| {
+                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+            })
+            .unwrap()
+        }
+
+        /// **All or nothing.** The notch307 prism with a disc planted in
+        /// its top has planes bounded by lines and planes bounded by a
+        /// circle, so no face takes the polygon route: its re-derivation
+        /// is each face's own closed form about the corner, summed in walk
+        /// order, bit for bit. The prism's slanted edges end off their
+        /// vertex points, so a line-bounded plane read as its polygon
+        /// would not match. The prism alone takes the polygon route.
+        #[test]
+        fn a_shell_with_a_curved_edge_keeps_the_fan_route_bit_for_bit() {
+            let tol = Tol::witness();
+            let band = Band::linear(tol).unwrap();
+            let lane = QuadLane::<f64>::certified();
+            let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+            let p = crate::test_support::prism::<f64>(&notch, 1.0, tol);
+            let mut body = p.body;
+            assert!(
+                shell_polygons(&body, lane, &runs(&body, band, tol))
+                    .unwrap()
+                    .is_some(),
+                "the prism alone is read as its polygons"
+            );
+            let outer = body.get_face(p.top_face).unwrap().outer;
+            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+                panic!("the top's outer loop is a cycle");
+            };
+            crate::test_support::plant_disc_face(
+                &mut body,
+                first,
+                Point3::new(1.0, 0.6, 1.0),
+                0.4,
+                tol,
+            );
+            let runs = runs(&body, band, tol);
+            assert!(
+                shell_polygons(&body, lane, &runs).unwrap().is_none(),
+                "a disc in the top keeps every face off the polygon route"
+            );
+            let centre = corner_of(&body, lane, &runs).unwrap();
+            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+            let mut polygon = Interval::zero();
+            for run in &runs {
+                let (face, surface) = resolve_face(&body, run.face);
+                let loops = face_loops(&body, face).unwrap();
+                let (c, _) =
+                    super::super::closed_form(surface, &loops, face.sense, band, centre, None)
+                        .unwrap();
+                flux = flux + c.flux;
+                area = area + c.area;
+                polygon = polygon
+                    + match vertex_rings(&body, face, surface, &loops, lane).unwrap() {
+                        Some(rings) => {
+                            super::super::polygon_face_about(&rings, centre)
+                                .unwrap()
+                                .flux
+                        }
+                        None => c.flux,
+                    };
+            }
+            let bits = |x: Interval| (x.is_certified(), x.lo().to_bits(), x.hi().to_bits());
+            assert_ne!(
+                bits(polygon),
+                bits(flux),
+                "the premise: its line-bounded planes read differently as polygons"
+            );
+            let volume = flux / Interval::from_f64(3.0);
+            for tight in [false, true] {
+                let got = rederive(&body, band, tol, lane, &runs, tight).unwrap();
+                assert_eq!(
+                    (bits(got.volume), bits(got.area), got.recentred),
+                    (bits(volume), bits(area), true),
+                    "tight {tight}: the re-derivation is every face's closed form"
+                );
             }
         }
     }

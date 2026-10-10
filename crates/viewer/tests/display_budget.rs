@@ -180,7 +180,7 @@ fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
 #[test]
 fn a_document_inside_the_budget_is_drawn_as_asked() {
     let tol = Tol::witness();
-    let (doc, _root) = viewer::scene::plate_with_hole(tol).expect("the startup document");
+    let (doc, _) = viewer::scene::plate_with_hole(tol).expect("the startup document");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let body = session.landed_body().expect("the plate gathers");
@@ -558,20 +558,20 @@ const ANSWERS: &[Answer] = &[
         document: "corner_table",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 76,
+        predicted: 60,
         requested_cost: None,
-        largest_probe: 76,
-        probe_triangles: 228,
+        largest_probe: 60,
+        probe_triangles: 180,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "corner_table",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 76,
+        predicted: 60,
         requested_cost: None,
-        largest_probe: 76,
-        probe_triangles: 228,
+        largest_probe: 60,
+        probe_triangles: 180,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -698,20 +698,20 @@ const ANSWERS: &[Answer] = &[
         document: "kitchen_sink",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 3392,
+        predicted: 2880,
         requested_cost: None,
-        largest_probe: 424,
-        probe_triangles: 804,
+        largest_probe: 360,
+        probe_triangles: 628,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "kitchen_sink",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 8032,
+        predicted: 7520,
         requested_cost: None,
-        largest_probe: 1004,
-        probe_triangles: 1384,
+        largest_probe: 940,
+        probe_triangles: 1208,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -898,20 +898,20 @@ const ANSWERS: &[Answer] = &[
         document: "part_select",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 32,
+        predicted: 24,
         requested_cost: None,
-        largest_probe: 32,
-        probe_triangles: 96,
+        largest_probe: 24,
+        probe_triangles: 72,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "part_select",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 32,
+        predicted: 24,
         requested_cost: None,
-        largest_probe: 32,
-        probe_triangles: 96,
+        largest_probe: 24,
+        probe_triangles: 72,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -921,37 +921,37 @@ const ANSWERS: &[Answer] = &[
         predicted: 20272,
         requested_cost: None,
         largest_probe: 2534,
-        probe_triangles: 3580,
+        probe_triangles: 3578,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 177280,
+        predicted: 177264,
         requested_cost: None,
-        largest_probe: 22160,
-        probe_triangles: 23206,
+        largest_probe: 22158,
+        probe_triangles: 23202,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 208464,
+        predicted: 208127,
         requested_cost: None,
-        largest_probe: 26058,
-        probe_triangles: 29824,
+        largest_probe: 26016,
+        probe_triangles: 29740,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
         requested: 1e-5,
-        delta: 1.954846211277421e-5,
+        delta: 1.9336001620400844e-5,
         predicted: 1000000,
-        requested_cost: Some(1954846),
+        requested_cost: Some(1933600),
         largest_probe: 119934,
-        probe_triangles: 177654,
+        probe_triangles: 178038,
         stop: ProbeStop::Converged,
     },
     Answer {
@@ -1255,7 +1255,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
     );
 }
 
-/// The tour's two gallery documents — the multi-root ones the display
+/// The tour's two gallery documents — the multi-copy ones the display
 /// budget was written for.
 fn gallery_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let tour = corpus::documents()

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -26,3 +25,27 @@ Open, for the intent refactor:
 - A tangent, second-order-determined edge stored as a chart: turn it into a `TangentIntersection`, or keep the chart.
 - A declared chart image moved onto a transverse pair: refuse, or drop the declaration.
 - D2's prefer-intrinsic authority rule. Ev's 2026-07-19 text names no authority exemption. The agent-written clause from `99cc678bfd` exempts declared descriptions. Tier 3 check 4 exempts derived ones. See also `offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section`.
+
+## What waits on it
+
+The boolean's four seam kills onto kept faces (`zip_seam`'s retiring
+kills, `zip_folded`'s two in `boolean/rest.rs`) cannot move to
+`kef_describing` with a key swap: the seam edge's stored description
+names a surface other than the survivor's, so its re-description has
+to be derived, kind included. Nor can the coplanar merge's kill: the
+rest of a shared chain lands with both halves on the kept face, where
+the key-swapped `Intersection(kept, kept)` does not certify and a
+chart image is owed. Until this row's restater exists they
+stay on `kef_minting`, and `kef_minting` cannot be absorbed
+(`kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`,
+"Built, and what waits"). The restater plugs into the twins at
+`Body::vouch_described_move` (`crates/topo/src/attach.rs`), where a
+listed description is certified today.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: Ev held its details for the refactor; they turn on declared chart images, canonical carrier forms and the rest.rs zip kills, which stage 4 settles. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not build the restater. Stage 4 A deletes `boolean/rest.rs`'s `zip_folded`. `zip_seam`'s kills and the merge's kill stay on `kef_minting` (`crates/topo/src/boolean/zip.rs:720`, `crates/topo/src/euler_kill.rs:1690`), and the restater's plug point is unchanged (`crates/topo/src/attach.rs:851`, `vouch_described_move`). E deletes the provenance rungs (`GeomSource`), so a moved edge's description no longer carries a source a restater would read. The open details (a tangent chart edge's kind, a declared chart image on a transverse pair, D2's authority rule) are not touched by E, and the outline stands for a designer pass.

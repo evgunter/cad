@@ -1973,6 +1973,28 @@ The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pn
 
 `add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
 
+## 2026-10-06 — PR 4183: a label refuses direction scopes and needs a character that shows
+
+A blinded designer pair (byte 192, A = Opus, B = Fable, recorded on
+`analysis/design-fork/emit-label-invisible-chars`) converged in its first
+reports. No ratified text changed: DESIGN.md has no character rule, and
+the rule lives in `label.rs`. So it was built without an `[ev]`; the PR
+body says it extends the rule approved on #3565.
+
+`Label::new` refuses, in this order:
+- a line break;
+- a control character;
+- one of the nine bidi embedding, override or isolate characters
+  (`LabelFault::Direction`, Python tag `label_direction_control`);
+- `Blank`: every character is whitespace or Unicode
+  `Default_Ignorable_Code_Point`. The 17 ranges are verified against
+  Unicode 16 and 18 (4174 code points).
+
+Joiners, bidi marks and emoji sequences pass. The viewer clears a field
+on `Label::is_blank`, the same predicate, so a field that shows nothing
+clears rather than refusing. Review folds: ALM and control-order rows, a
+full-range direction scan, narrowed docs, and the range test's stated
+re-derivation rule.
 ## 2026-10-06 — the strict-tolerance reds, traced
 
 Several PRs failed CI's strict-tolerance step today (#4164 among them).
@@ -1988,3 +2010,113 @@ Two nightly-only reds remain, both stale test pins, fixed on
 
 Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
 with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense
+
+The ruled row from PR 4134, the sense half.
+- The boolean records each operand edge piece's in/on/out class at its
+  vertex (`EdgePieceClass`). The vertex-on-face rows are the side codes
+  that pass decided (D5). The vertex-vertex rows are measured beside the
+  classification by `sectors::wedge_classes`.
+- Null-edge copies are exposed (`BooleanNaming::null_copies`), so an edge
+  that ends at a copy ends at the vertex. A side with no row refuses unless
+  the edge ends there.
+- The boolean and union name an edge × face vertex
+  `Crossing { edge, face, sense }` and an edge × edge vertex
+  `EdgeCrossing { a, a_sense, b, b_sense }`. The Split's `CrossingVertex`
+  gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold. They flip under `RankRule::Reverse`, a
+  Split's crossings included, and a union rewrite re-reads them side by
+  side by image.
+
+`Ends` on every piece of a divided edge was built and reverted in the same
+PR. The review measured names growing about 2.41× per cut along a chain of
+trims (8.3M words at fourteen trims). It waits on
+`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.
+
+The pinned test is rebuilt as one document edited in place; it pins the
+crossing, and not the lone piece.
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the end-touch row, which main's edge joins left without a witness.
+
+## 2026-10-07 — PR 4212: a crossing cites the edge's line (ruled)
+
+Ev approved fork-log row 77: a crossing and every piece's base cite the
+edge's line, and N5 reads a cited line as the rows whose undivided base
+it is. Both designers converged on it after round 2. The growth row
+stays open for the build, which lands `Ends` on every piece on top.
+
+## 2026-10-07 — PR 4228: a crossing cites the edge's line; Ends on every piece
+
+This builds the #4212 ruling. Review found three real defects, all fixed
+with fail-before rows:
+- a cascade's `through` line, resolved on its own, cascaded wrongly;
+- `GroupResized` broke when two untied parents lay on one line;
+- the cross-piece ranking was anchored to the least-named piece, which
+  could swap ranks silently on a closed carrier.
+
+Two rows were filed: a curved-rim union that refuses `SharedRim` on main
+too, and the second-crossing row's same-sense group, which no geometry
+the kernel accepts reaches today. Main's lint red from #4234 was fixed by
+#4241 on the way. The growth row is closed.
+
+## 2026-10-07 — PR 4244: ids are a (mint ordinal, digest) pair
+
+This builds the #4156 ruling; nothing needed one integer. Review caught
+four things:
+- a probe-twin pin left stale;
+- msolve14's ε pins left stale (they hash ids; with ids masked to
+  positions the solve matches main at every ε);
+- `MintLogOrder`'s old wording;
+- docs restating a false "id order is topological".
+
+Filed from it: the forward-member row (doors), the u64-token residue
+(wire) and the analysis boxes' redundant axis order (flux). PR 4244
+merged second after #4228 and re-measured exactly the pins #4228 moved.
+The name row is closed.
+
+## 2026-10-07 — PR 4269: a vertex reads every key fused into it (P0)
+
+This fixes a regression from #4203. Leaning wedges' unions refused the
+unclassified-crossing emission in the 78 member orders whose first fold
+step unions two adjacent wedges.
+
+The cause was that `fused_partners` read the zips' fusions one hop deep.
+`split_cones` leaves per-cone copies that chain two fusions, so B's keys
+never reached the pinch vertex.
+
+Review asked for three things, all done:
+- partners nearest first, so every one-hop identity holds;
+- rows with mutation evidence;
+- a measurement: no corpus name moves.
+
+## 2026-10-07 — PR 4278: crossings of one NURBS piece rank by its parameter
+
+A crossing point is read along the piece's chord. The reading is used
+only when every control step shaping the piece advances along the
+chord, which makes the piece a graph over its chord, so the readings
+order as the parameters do.
+
+Review confirmed the argument and caught two things, both fixed: the
+certificate escalated where main tied, and no row checked the certificate.
+
+Filed from the review: K > 2 is unenforced (flux), and N2 states only
+part of the tie rule (emit). The lane also filed a swaying-loft refusal
+(nurbs) and the flush reading's NURBS gap (emit).
+
+## 2026-10-07 — PR 4281: merged sets are flat through FromMember (N3)
+
+A union over a union, or over a pair boolean, published an inner merge as
+one constituent. Merged sets now peel `FromA`, `FromB` and `FromMember`
+in one place. `Parents` and `member_edge` read constituents, and
+`face_descends_from` counts descent from a constituent.
+
+Review caught two things: an overstated PR claim (main never dropped
+declarations silently) and the untested pair-boolean case, which now has
+a row that is red on main. The wrong cascade diagnosis is filed as
+`a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+

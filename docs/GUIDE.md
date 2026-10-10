@@ -181,7 +181,7 @@ the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
 
 An **assembly** runs this same ladder — on its gathered *product*,
-the body its roots denote — with two rungs of its own in front:
+the bodies its world places — with two rungs of its own in front:
 solving the mates for where each instance sits, and the at-rest gate
 that certifies the parts really meet as the mates declare.
 `docs/guide/assembly.md` is those two rungs, and the workspace store
@@ -189,23 +189,25 @@ the parts come from.
 
 ### 2.1 The worked example
 
-The bracket: a base plate, an upright web sunk into it and poking out
-the top, and a lightening pocket entering from below and stopping
-inside the material. Three boxes, a union and a subtract.
+The bracket: a base plate, an upright web standing on it, and a
+lightening pocket entering from below and stopping inside the
+material. Three boxes, a union and a subtract.
 
 | part | x (mm) | y (mm) | z (mm) |
 |---|---|---|---|
 | base plate | 0 … 80 | 0 … 40 | 0 … 8 |
-| upright web | 36 … 44 | 5 … 35 | 4 … 34 |
-| pocket (subtracted) | 8 … 28 | 10 … 30 | −2 … 5 |
+| upright web | 36 … 44 | 5 … 35 | 8 … 34 |
+| pocket (subtracted) | 8 … 28 | 10 … 30 | 0 … 5 |
 
-Every solid here genuinely *interpenetrates* the one it is combined
-with — the web is sunk 4 mm into the plate, the pocket pokes 2 mm out
-below it. That is not laziness with round numbers. The kernel refuses
-a boolean whose operands merely *touch* on a shared plane until you
-declare that contact, because inferring "these two planes are the
-same plane" from float equality is exactly the guess it will not
-make. Section 2.3 and the fail-loud tour return to this.
+The web stands flush on the plate's top, and the pocket's floor is
+flush with the plate's bottom. Where two faces meet on one plane the
+kernel decides it from their margins — "these two planes are one
+plane" within the tolerance — and glues them, declared or not; it
+records each such decision so the document can say which ones its
+construction proves (the `unproven-coincidence` lint). Two faces whose
+planes lie apart inside the tolerance's ambiguity band — too far to
+call one plane, too near to call two — are a sliver, and refuse: the
+fail-loud tour returns to this.
 
 `crates/pncad-py/examples/bracket.py` builds this model with one
 addition the table cannot hold: since the PATHS lattice crossed to
@@ -555,8 +557,8 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, 
 
 let mm = |v: f64| (v * MM).meters();
 let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 
 let bracket = union(&base, &web, tol)?;
 let bracket = bracket.body().expect("a non-empty union");
@@ -600,8 +602,8 @@ use pncad::prelude::*;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let body = &result.body;
@@ -684,8 +686,8 @@ use pncad::prelude::*;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let props = mass_properties(&result.body, tol)?;
@@ -757,8 +759,8 @@ use pncad::prelude::*;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let mesh = tessellate(&result.body, 0.0005, tol)   // 0.5 mm chord budget
@@ -797,8 +799,8 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
@@ -847,8 +849,8 @@ use pncad::step_import::StepImport;
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
-# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
-# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(8.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
@@ -932,9 +934,9 @@ def slab(doc, x, y, z):
 
 doc = Doc()
 base = slab(doc, (0 * mm, 80 * mm), (0 * mm, 40 * mm), (0 * mm, 8 * mm))
-web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (4 * mm, 34 * mm))
+web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm))
 bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
-pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (-2 * mm, 5 * mm))
+pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm))
 lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
 
 # Evaluation is TOTAL: it never raises. Ask which nodes succeeded.
@@ -1286,8 +1288,10 @@ axis = doc.insert(Node.datum_axis_in_plane(frame, (
     Formula.literal(1.0),
 )))
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Formula.angle_in(2 * math.pi, rad)))
+# A revolve defines two outputs, its body and its axis, so a read of
+# it names which: `doc.output(ball, 0)` is the body.
 pip = doc.insert(
-    Node.transform(ball, (
+    Node.transform(doc.output(ball, 0), (
         Formula.length_in(0.5, m),
         Formula.length_in(0.5, m),
         Formula.length_in(1.0 + R - H, m),
@@ -1392,11 +1396,11 @@ except EvaluationError as refusal:
 ### Tubes: a ring from its intent, and the same ring with a wall
 
 A tube is authored from what you MEAN by it, not from a section
-profile you sweep yourself. `Node.tube(spine, u_ref, major_radius,
-window, minor_radius)` takes five things: `spine` is a
-`Node.datum_axis` whose origin is the ring's centre and whose
-direction is the axis the section turns about; `u_ref` is the
-reference direction the window's angles are measured from;
+profile you sweep yourself. `Node.tube(frame, major_radius, window,
+minor_radius)` takes four things: `frame` is a `Node.datum_frame`
+whose origin is the ring's centre, whose normal (`u x v`) is the axis
+the section turns about, and whose `u` is the reference direction the
+window's angles are measured from;
 `major_radius` is the centre-line radius, `minor_radius` the section's;
 and `window` is `TubeWindow.full()` for the whole ring or
 `TubeWindow.arc(t0, t1)` for an elbow of it. Every number is STORED
@@ -1419,20 +1423,25 @@ R, OUTER, WALL = 2.0, 0.5, 0.125
 T0, T1 = 0.0, 1.5
 
 doc = Doc()
-# The spine: centre at the origin, section turning about +z.
-spine = doc.insert(Node.datum_axis((
+# The frame: centre at the origin, section turning about +z, angles
+# measured from +x.
+frame = doc.insert(Node.datum_frame((
     Formula.length_in(0, m),
     Formula.length_in(0, m),
     Formula.length_in(0, m),
 ), (
+    Formula.literal(1.0),
     Formula.literal(0.0),
+    Formula.literal(0.0),
+), (
     Formula.literal(0.0),
     Formula.literal(1.0),
+    Formula.literal(0.0),
 )))
 
 # The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
 ring = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
+    Node.tube(frame, Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
@@ -1442,7 +1451,7 @@ assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-
 inner = OUTER - WALL
 torus = doc.insert(
     Node.hollow_tube(
-        spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
+        frame, Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
     )
 )
 walled = evaluate(doc).value(torus).body()
@@ -1454,8 +1463,7 @@ assert abs(walled.mass_properties().volume - want) < 1e-9
 # volume is the annulus swept through the window's angle.
 elbow = doc.insert(
     Node.hollow_tube(
-        spine,
-        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        frame,
         Formula.length_in(R, m),
         TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)),
         Formula.length_in(OUTER, m),
@@ -1471,7 +1479,7 @@ assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
 # is exactly the bore, which is only true if each node reached its own
 # kernel door.
 open_ring = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
+    Node.tube(frame, Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
 )
 ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2
@@ -1495,12 +1503,15 @@ is a cup. `Node.shell(target, thickness, open)` is the door, and
 names — carried, never read, frozen at authoring time.
 
 One thing the blend selection does not have: **`open` is ordered.** A
-chart's rim is its FIRST designated face (the chart's other faces
+chart's rim is its FIRST designated face (a plane chart's other faces
 merge onto it and the rim's name is that face's), so name first the
-face you want to carry the rim's identity. An empty list is the
+face you want to carry the rim's identity. A curved face opens too: a
+dome's cap, which wraps round its axis, keeps both of the faces a full
+revolve wears it on as the branches of one band, each named for its
+own designation. An empty list is the
 SEALED hollow — a closed thin solid with a cavity and no rim — which
 is legal and not a refusal. And a face is designated together with
-every face on its chart: where two faces share one plane, naming one
+every face on its chart: where two faces share one surface, naming one
 of them refuses (`shell`, the kernel's partial-chart gate) rather than
 silently opening both. (A full revolve's planar cap is ONE face — it
 sweeps a planar wall whole.)
@@ -1654,9 +1665,9 @@ ring = doc.insert(
 def piece(leg):
     return doc.piece(profile, 0, leg.step.leg)
 
-cup = doc.insert(Node.shell(ring, Formula.length_in(T, m), [band(ring, piece(top))]))
+cup = doc.insert(Node.shell(doc.output(ring, 0), Formula.length_in(T, m), [band(ring, piece(top))]))
 rolled = doc.insert(
-    Node.fillet(ring, Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
+    Node.fillet(doc.output(ring, 0), Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
 )
 
 ev = evaluate(doc)
@@ -1707,7 +1718,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1726,13 +1737,13 @@ doc = next;
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![outline, hole],
         ids: Vec::new(),
     }),
 );
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1765,22 +1776,23 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
-# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
+# let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(0.5), side: ExtrudeSide::Along });
 # doc = next;
 # let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
 let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
-    expr: len(1.0),
+    value: len(1.0).into(),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
@@ -1868,7 +1880,7 @@ doc = apply(&doc, &DocEdit::DeclareVar {
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1886,12 +1898,12 @@ let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: base_frame,
+    frame: base_frame.into(),
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
     ids: Vec::new(),
 }));
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5), side: ExtrudeSide::Along });
+let (next, plate) = insert(&doc, Node::Extrude { profile: profile.into(), distance: lit(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
@@ -1903,7 +1915,7 @@ let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
 }));
 doc = next;
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: tab_frame,
+    frame: tab_frame.into(),
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
@@ -1911,12 +1923,12 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25), side: ExtrudeSide::Along });
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25), side: ExtrudeSide::Along });
 doc = next;
 let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
-    a: plate,
-    b: tab,
+    a: plate.into(),
+    b: tab.into(),
     declare: Vec::new(),
 });
 doc = next;
@@ -1946,6 +1958,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -2005,8 +2018,10 @@ them are claims, not conveniences:
 | `TruncatedNormal { sigma, lo, hi }` | that normal, restricted to `[lo, hi]` and renormalized |
 
 Annotating is opt-in and it means something: a continuous parameter
-with **no** distribution is FIXED — the analysis varies exactly what you
-declared variable, and never guesses a spread you did not state.
+with **no** distribution is FIXED — a constant of every analysis lane,
+read at its nominal, and no axis of the box — so the analysis varies
+exactly what you declared variable, and never guesses a spread you did
+not state.
 `Count` parameters cannot be annotated at all; there is no spelling for
 it, because a structural count is fixed under any error analysis.
 
@@ -2057,8 +2072,8 @@ assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 // The band's box IS its support, so nothing escapes it...
 let plate = boxed.get(id("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
-// ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(id("web_t")).expect("an axis").offsets.is_fixed());
+// ...and the unannotated parameter is no axis at all: a constant.
+assert!(boxed.get(id("web_t")).is_none());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
@@ -2126,7 +2141,7 @@ bore = boxed.get(VarName("bore_r"))
 assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
 assert abs(boxed.tail_mass(VarName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
 assert boxed.get(VarName("plate_t")).offsets[0] == -0.1 * mm
-assert boxed.get(VarName("web_t")).is_fixed       # unannotated is FIXED
+assert boxed.get(VarName("web_t")) is None        # unannotated: a constant, no axis
 assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]  # declaration order
 
 # The band refuses to price anything its shape would decide, and the

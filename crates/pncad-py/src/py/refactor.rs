@@ -219,6 +219,19 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             input: i,
             ..
         } => (none(), id(c), id(i), none(), none(), none(), none(), none()),
+        // As inline's `instance_read_uncarried`: the reader is the
+        // consumer, and why no one body carries the read is in the
+        // message.
+        E::RemainderReadUncarried { reader, why: _ } => (
+            none(),
+            id(reader),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         // The reading edge's own severed case: the MATE takes the
         // `node` slot and the OPERAND the `input` slot, which is the
         // pair a caller reads off `severed_edge` too — one shape for
@@ -269,9 +282,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             first,
             second,
         } => (
-            first.as_ref().map_or_else(none, id),
+            first.as_deref().map_or_else(none, id),
             none(),
-            second.as_ref().map_or_else(none, id),
+            second.as_deref().map_or_else(none, id),
             none(),
             id(node),
             none(),
@@ -332,8 +345,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::AnonymousVarCrossesCut { var, node: n } => (
-            id(n),
+        E::DefinitionStraddlesCut { var, .. } => (
+            none(),
             none(),
             none(),
             none(),
@@ -364,6 +377,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
+        | E::NameOutsidePartWorld { name }
         | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
@@ -391,6 +405,15 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         | E::UnplaceableRoot { anchor: g, .. } => id(g),
         _ => none(),
     };
+    // A definition tied across the cut: the variable it reads that
+    // moves, and the one that stays (or that the document no longer
+    // holds), as `UncutVarReference` carries both of its nodes.
+    let (moving, staying) = match err {
+        E::DefinitionStraddlesCut {
+            moving, staying, ..
+        } => (text(&moving.to_string()), text(&staying.to_string())),
+        _ => (none(), none()),
+    };
     typed_err(
         py,
         ErrorClass::Split,
@@ -409,6 +432,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("name", name),
             ("id", doc_id),
             ("gauge", gauge),
+            ("moving", moving),
+            ("staying", staying),
         ],
     )
 }
@@ -619,9 +644,29 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::InstanceConsumed { node: n, by: b } => {
-            (id(n), id(b), none(), none(), none(), none(), none(), none())
-        }
+        // A host placement of the instance at a pose of its own.
+        E::PlacementPoseCrosses { placement: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The host node reading the instance rides `by`; why no one
+        // body takes its read is in the message.
+        E::InstanceReadUncarried { reader, why: _ } => (
+            none(),
+            id(reader),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::Unresolved { failure } => (
             none(),
             none(),
@@ -655,21 +700,11 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::VarNameConflict { name: p } => (
+        E::VarNameConflict { name: p } | E::InstanceOutputUncarried { name: p, why: _ } => (
             none(),
             none(),
             none(),
             text(p.as_str()),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::AnonymousVarCrossesCut { var } => (
-            none(),
-            none(),
-            none(),
-            text(&var.to_string()),
             none(),
             none(),
             none(),
@@ -868,7 +903,7 @@ impl InlineOutcome {
 
 /// A node map as the pairs Python reads ([`crate::node_map`]).
 fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
-    crate::node_map::in_document_order(map, doc)
+    crate::node_map::in_target_id_order(map, doc)
         .into_iter()
         .map(|(a, b)| (NodeId(a), NodeId(b)))
         .collect()

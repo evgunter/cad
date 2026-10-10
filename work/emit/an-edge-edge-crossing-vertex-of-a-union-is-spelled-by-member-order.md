@@ -37,3 +37,13 @@ edge's sense against the other operand's closed body. Once the sense is
 built (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`,
 branch `emit/crossing-sense`), re-measure this row against the narrower
 case that is left.
+
+## Since the crossing's sense
+
+Crossings now carry their sense (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`),
+so the two orders spell the vertex `EdgeCrossing { b's LateralEdge, ·, a's
+RimEdge(End), · }` and `Crossing { b's LateralEdge, a's Cap(End), sense }`.
+`KNOWN_ABSENT`'s digests were re-baselined for the new spellings, and its
+counts went from four absences per case to six: every piece of a divided
+edge is now named by its ends, a lone one included, so the lone piece of
+`b`'s lateral edge that ends at the vertex carries the order's spelling too.

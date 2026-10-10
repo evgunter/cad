@@ -63,7 +63,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -111,7 +111,7 @@ fn set_appearance_validates_and_applies_purely() {
     let edge = minted(
         EntityKind::Edge,
         ext,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0).into()),
     );
     assert_eq!(
         doc.apply(
@@ -131,7 +131,7 @@ fn set_appearance_validates_and_applies_purely() {
     // A never-existed node id: typed refusal at the edit door.
     let bogus = minted(
         EntityKind::Face,
-        RecipeNodeId(999),
+        RecipeNodeId::new(0, 999),
         RoleSeg::Cap(CapEnd::End),
     );
     assert_eq!(
@@ -249,7 +249,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     let (doc2, ext) = insert(
         doc1,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -268,13 +268,22 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(plane).unwrap().authored()),
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(plane).unwrap(),
+            )),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
+            node: Box::new(crate::fixture::as_authored(&doc3, doc3.node(p).unwrap())),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(ext).unwrap().authored()),
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(ext).unwrap(),
+            )),
+            fresh: Vec::new(),
         },
         DocEdit::SetAppearance {
             name: cap,
@@ -331,6 +340,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
         DocEdit::DefineVar {
             var: VarName::from_static("pip_depth").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
+            fresh: Vec::new(),
         },
     );
     let ev2 = rerun(&doc2, &ev1);
@@ -458,7 +468,8 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         DocEdit::SetParam {
             node: ext,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -474,7 +485,8 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         DocEdit::SetParam {
             node: ext,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.0),
+            value: len(1.0).into(),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -492,8 +504,8 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -519,7 +531,8 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
         DocEdit::SetParam {
             node: a,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -545,7 +558,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: ext,
+            input: ext.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -577,6 +590,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
             node: pat,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -597,6 +611,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
             node: pat,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(3),
+            fresh: Vec::new(),
         },
     );
     assert!(run(&doc).appearance.is_lossless());
@@ -627,7 +642,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -636,8 +651,8 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -734,8 +749,8 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );

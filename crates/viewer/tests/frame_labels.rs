@@ -72,7 +72,7 @@ fn two_frames_a_centimetre_apart_get_different_labels() {
     assert!(
         here.starts_with(&format!(
             "Datum frame {} — ",
-            test_utils::refusal::tag(id.0)
+            test_utils::refusal::tag(id.0.digest())
         )),
         "the node as the document speaks it, then its pose: {here}"
     );
@@ -162,32 +162,28 @@ fn an_oblique_frame_is_not_called_a_world_plane() {
 #[test]
 fn a_face_frame_names_the_node_its_face_is_read_off() {
     let tol = Tol::witness();
-    let (doc, at) = common::inserted(
-        &Doc::empty_derived("frame-labels-face", tol),
-        frame_at([0.0, 0.0, 0.0]),
-        tol,
-    );
-    let node = Node::Datum(Datum::FaceFrame {
+    let (doc, _, at) = common::parametric_plate(tol);
+    let node = Node::Datum(Datum::face_frame(
         at,
-        face: StableName {
+        StableName {
             kind: EntityKind::Face,
             node: at,
             path: vec![],
         },
-        spin: common::ang(0.0),
-    });
+        common::ang(0.0),
+    ));
     let (shown, id) = label_in(&doc, node);
     assert!(
         shown.starts_with(&format!(
             "Datum frame (on face) {} — ",
-            test_utils::refusal::tag(id.0)
+            test_utils::refusal::tag(id.0.digest())
         )),
         "{shown}"
     );
     assert!(
         shown.contains(&format!(
-            "on Datum frame {}'s face",
-            test_utils::refusal::tag(at.0)
+            "on Extrude {}'s face",
+            test_utils::refusal::tag(at.0.digest())
         )),
         "the face's carrier is what the node can say: {shown}"
     );
@@ -241,7 +237,10 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     assert_eq!(point.pose, None);
     assert_eq!(
         tree::node_label(&doc, point.id, &PartFiles::Unscanned),
-        format!("Datum point {}", test_utils::refusal::tag(point.id.0)),
+        format!(
+            "Datum point {}",
+            test_utils::refusal::tag(point.id.0.digest())
+        ),
         "a node with nothing more to say is named by its kind and tag"
     );
 }

@@ -201,10 +201,11 @@ pub enum MassPropsError {
         /// The per-face failure.
         source: PropsError,
     },
-    /// A curved face carries interior rings and is not a cylinder wall
-    /// bounded by rims and rulings — the one ringed curved face the
-    /// closed forms measure (`geom_brep::props::curved_face_loops`). A
-    /// boolean pierce leaves a ring in the wall it pierces.
+    /// A curved face carries interior rings and is neither a cone wall
+    /// nor a cylinder or torus wall bounded by rims and rulings — the
+    /// ringed curved faces the closed forms measure
+    /// (`geom_brep::props::curved_face_loops`). A boolean pierce leaves
+    /// a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -238,9 +239,9 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cylinder wall bounded by circles about its axis and lines along \
-                 it. Recourse: move the cut so it crosses the face's edge instead of closing \
-                 inside the face"
+                 other than a cone wall, or a cylinder or torus wall bounded by circles \
+                 about its axis and its own meridians. Recourse: move the cut so it \
+                 crosses the face's edge instead of closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -266,7 +267,8 @@ impl std::error::Error for MassPropsError {}
 /// # Errors
 ///
 /// [`MassPropsError`] — a misconfigured band, an out-of-inventory
-/// face, rings on a curved face, or unresolvable structure.
+/// face, a ring on a curved face no closed form reads, or unresolvable
+/// structure.
 ///
 /// **Not every valid body computes**, and the sentence that used to
 /// stand here (*"bodies that pass the structural tiers and were built
@@ -839,12 +841,50 @@ pub(crate) const SHELL_ROLE_NAMES: RoleNames = RoleNames::one("chk_shell_volume_
 pub(crate) const SHELL_ROLE_ENCLOSURE_NAMES: RoleNames =
     RoleNames::one("chk_shell_volume_sign_enclosure");
 
+/// **A shell certified in band of having no volume**: the interval
+/// re-derivation's escalation, where its one enclosure of `V/A` lies
+/// wholly inside one sliver band ([`Indeterminate::terminal_sliver`],
+/// the classifier's own verdict), so the shell is a sliver at this
+/// tolerance whatever its rounding. Minted only where that holds, so
+/// a holder never re-checks it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CertifiedSliver(Indeterminate);
+
+impl CertifiedSliver {
+    /// `certified` as a sliver, where its enclosure lies wholly in band.
+    pub(crate) fn of(certified: Indeterminate) -> Option<Self> {
+        certified.terminal_sliver.then_some(Self(certified))
+    }
+
+    /// The certified escalation: its enclosure, band and name.
+    #[must_use]
+    pub fn reading(&self) -> &Indeterminate {
+        &self.0
+    }
+}
+
+/// **Why a shell has no role**: the refusal its readers report, and
+/// whether its certified reading found it a sliver. The two are apart
+/// because the refusal's words are the walk's (a valued margin), while
+/// the sliver is the certificate's, which may refute what the walk read.
+#[derive(Clone, Debug)]
+pub(crate) struct RoleRefusal {
+    /// The refusal every reader of the shell's role reports.
+    pub(crate) error: ShellClassifyError,
+    /// The certified reading's verdict, where it lies wholly in band.
+    pub(crate) sliver: Option<Box<CertifiedSliver>>,
+}
+
 /// A role read that decided no role: the two ends' decisions (one and
-/// the same for an exact volume).
+/// the same for an exact volume), and whether the certified reading
+/// found the shell a sliver.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RoleUnread {
     lo: Result<Decided, Indeterminate>,
     hi: Result<Decided, Indeterminate>,
+    /// `None` where no certified reading was taken, or it was not wholly
+    /// in band.
+    sliver: Option<CertifiedSliver>,
 }
 
 impl RoleUnread {
@@ -853,9 +893,24 @@ impl RoleUnread {
         self.hi.err().or(self.lo.err())
     }
 
-    /// `shell`'s refusal for this read ([`shell_role_refusal`]).
-    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> ShellClassifyError {
-        shell_role_refusal(shell, self.lo, self.hi, band)
+    /// `shell`'s refusal for this read: the walk's ends pick its words
+    /// ([`shell_role_refusal`]), and the certified reading says whether
+    /// the shell is a sliver, whatever those ends decided.
+    pub(crate) fn refusal(self, shell: ShellKey, band: Band) -> RoleRefusal {
+        RoleRefusal {
+            error: shell_role_refusal(shell, self.lo, self.hi, band),
+            sliver: self.sliver.map(Box::new),
+        }
+    }
+
+    /// This read, with what the certified reading `certified` (an exact
+    /// one: both ends one enclosure) says of the sliver band.
+    fn certified_by(self, certified: &Self) -> Self {
+        let sliver = match (certified.lo, certified.hi) {
+            (Err(lo), Err(hi)) if lo == hi => CertifiedSliver::of(hi),
+            _ => None,
+        };
+        Self { sliver, ..self }
     }
 }
 
@@ -890,7 +945,11 @@ pub(crate) fn read_role<U: Decide>(
             let one = sign(names.high, volume, lever);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
-                RoleUnread { lo: one, hi: one },
+                RoleUnread {
+                    lo: one,
+                    hi: one,
+                    sliver: None,
+                },
             )
         }
         SignReading::Bracket(ends) => {
@@ -899,7 +958,14 @@ pub(crate) fn read_role<U: Decide>(
                 return RoleRead::Decided(role);
             }
             let lo = sign(names.low, ends.volume_lo, ends.surface_area);
-            read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
+            read(
+                role_at(BracketEnd::Low, lo),
+                RoleUnread {
+                    lo,
+                    hi,
+                    sliver: None,
+                },
+            )
         }
     }
 }
@@ -966,7 +1032,7 @@ pub(crate) enum Certified {
 /// refusal reports: it carries the valued margin a caller can act on,
 /// where the interval's carries an enclosure. A walk holding no lane has
 /// no re-derivation, and its sums decide
-/// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
     interval: impl Fn(bool) -> Option<Result<(SignReading<Interval>, bool), MassPropsError>>,
@@ -983,8 +1049,14 @@ pub(crate) fn certify_role<T: Decide>(
             (Some(Ok((exact, recentred))), walk) => {
                 let unread = match (read_role(exact, certified, band), walk) {
                     (RoleRead::Decided(role), _) => return Certified::Role(role),
-                    (RoleRead::Unread(_), RoleRead::Unread(unread))
-                    | (RoleRead::Unread(unread), RoleRead::Decided(_)) => unread,
+                    (RoleRead::Unread(cert), RoleRead::Unread(unread)) => {
+                        unread.certified_by(&cert)
+                    }
+                    // The walk's decision is not certified, so it is no role:
+                    // the certified read refuses, its own ends giving the
+                    // words. Where both are unread the walk's ends give them.
+                    // Either way the sliver verdict is the certificate's.
+                    (RoleRead::Unread(cert), RoleRead::Decided(_)) => cert.certified_by(&cert),
                 };
                 if recentred {
                     Certified::Open(unread)
@@ -1023,9 +1095,14 @@ fn rederived<T: Decide>(
 /// quadrature face measured again about `c`, at the round the walk
 /// reached (`quad_lane::cut_face_rounds`: a cylinder's position term
 /// taken as `(origin − c)·A⃗`, a patch's control net carried by `−c`).
-/// A plane's fan reads no carrier origin, so the planar faces sum to the
-/// volume of the closed surface their loops bound, whatever in-band
-/// distance the stored vertices stand off their planes. Taken about a
+/// A walk every face of which is a plane bounded by lines is read instead
+/// as the closed polyhedron of its vertex points ([`shell_polygons`]),
+/// whose faces sum to its volume, whatever in-band distance the vertices
+/// stand off their planes. Elsewhere a loop closes only to the rounding
+/// of its carriers' ends, and a fan reads that gap at the face's length
+/// times its lever
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
+/// Taken about a
 /// point of the body, no face's width is scaled by the body's distance
 /// from the world origin. A quadrature face whose lane refuses about `c`
 /// keeps the enclosure it was measured with less `c · A⃗`, at the
@@ -1055,6 +1132,9 @@ fn rederive<T: Decide>(
         );
     }
     let centre = corner_of(body, lane, runs)?;
+    if let Some(polygons) = shell_polygons(body, lane, runs)? {
+        return rederive_polygons(&polygons, centre, runs);
+    }
     match rederive_about(body, band, tol, lane, runs, Some(centre), tight)? {
         Some(rederived) => Ok(rederived),
         None => rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
@@ -1152,6 +1232,102 @@ fn rederive_about<T: Decide>(
     }))
 }
 
+/// A face's loops as their vertex points, in traversal order, the outer
+/// loop first ([`vertex_rings`]).
+type Rings = Vec<Vec<Point3<Interval>>>;
+
+/// **A shell read as the polyhedron of its vertex points**: every
+/// run's face as its loops' vertex points in traversal order, lifted
+/// through `lane` ([`vertex_rings`]), or `None` where any face is not a
+/// plane bounded by lines. All or nothing: a line edge read as its
+/// vertices on one side and as its carrier's ends on the other would
+/// open a gap between the two readings.
+///
+/// The polyhedron stands off the stored solid by its vertices' distance
+/// from their faces' planes: with `δ_f` the largest over face `f`'s
+/// vertices and `|T_{f,i}|` the unsigned areas of its fan triangles,
+/// `|V_polygons − V_stored| ≤ Σ_f δ_f · Σ_i |T_{f,i}|`, plus the slivers
+/// between each edge's chord and its carrier, of order `δ²` per unit
+/// length. `Σ_i |T_{f,i}|` is the face's area where the face is convex,
+/// and more where it is not or holds a ring.
+fn shell_polygons<T: Decide>(
+    body: &Body<T>,
+    lane: QuadLane<T>,
+    runs: &[FaceRun<T>],
+) -> Result<Option<Vec<Rings>>, MassPropsError> {
+    let mut polygons = Vec::with_capacity(runs.len());
+    for run in runs {
+        let (face, surface) = resolve_face(body, run.face);
+        let loops = face_loops(body, face)?;
+        match vertex_rings(body, face, surface, &loops, lane)? {
+            Some(rings) => polygons.push(rings),
+            None => return Ok(None),
+        }
+    }
+    Ok(Some(polygons))
+}
+
+/// [`rederive`] over [`shell_polygons`]: each face's flux about `centre`
+/// ([`quad_lane::polygon_face_about`]), recentred.
+fn rederive_polygons<T: Decide>(
+    polygons: &[Rings],
+    centre: Point3<Interval>,
+    runs: &[FaceRun<T>],
+) -> Result<Rederived, MassPropsError> {
+    let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+    for (rings, run) in polygons.iter().zip(runs) {
+        let c = quad_lane::polygon_face_about(rings, centre).map_err(|source| {
+            MassPropsError::Face {
+                face: run.face,
+                source,
+            }
+        })?;
+        flux = flux + c.flux;
+        area = area + c.area;
+    }
+    Ok(Rederived {
+        volume: flux / Interval::from_f64(3.0),
+        area,
+        recentred: true,
+    })
+}
+
+/// A planar face bounded by lines, as its loops' vertex points in
+/// traversal order, lifted through `lane`; `None` for any other face.
+fn vertex_rings<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    lane: QuadLane<T>,
+) -> Result<Option<Rings>, MassPropsError> {
+    let lines = loops
+        .iter()
+        .flatten()
+        .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
+    if !matches!(surface, Surface::Plane { .. }) || !lines {
+        return Ok(None);
+    }
+    let lift = |p: Point3<T>| Point3::new((lane.lift)(p.x), (lane.lift)(p.y), (lane.lift)(p.z));
+    core::iter::once(&face.outer)
+        .chain(&face.rings)
+        .map(|&lk| {
+            loop_edges(body, lk)?
+                .1
+                .into_iter()
+                .map(|he| {
+                    body.half_edge_start_point(he)
+                        .map(lift)
+                        .ok_or(MassPropsError::Corrupt {
+                            what: "a loop's half-edge has no start point",
+                        })
+                })
+                .collect()
+        })
+        .collect::<Result<_, _>>()
+        .map(Some)
+}
+
 /// A walk's runs re-derived in interval arithmetic ([`rederive`]).
 #[derive(Clone, Copy, Debug)]
 struct Rederived {
@@ -1172,11 +1348,16 @@ struct Rederived {
 /// `min`, so a point interval), and the same point for the same geometry
 /// whatever order its faces are stored in. The centre is order-free; the
 /// value about it is not quite: a plane's flux is read from its loop's
-/// first point (`quad_lane::planar_face_about`), and where a loop's
-/// points stand off their plane two bodies storing one boundary from
-/// different first points re-derive values that differ by up to
-/// `Σ δ·|A⃗|` over those faces — within the band's metering of a sign,
-/// not of a bound read at the exact band.
+/// first point (`quad_lane::planar_face_about`,
+/// `quad_lane::polygon_face_about`), and where a loop's points stand off
+/// their plane two bodies storing one boundary from different first
+/// points re-derive values that differ by up to
+/// `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over those faces, `|T^a|` and `|T^b|` the
+/// unsigned areas of face `f`'s fan triangles from either first point — within the
+/// band's metering of a sign, not of a bound read at the exact band. On
+/// the polygon route ([`shell_polygons`]) that is the whole difference; on
+/// the fan route the loops' gaps at their carrier ends add their own
+/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
 fn corner_of<T: Decide>(
     body: &Body<T>,
     lane: QuadLane<T>,
@@ -2316,11 +2497,11 @@ fn face_loops<T: Decide>(
 }
 
 /// **A face's closed form**, at whatever scalar its geometry is read
-/// at: a plane and a cylinder over every loop, any other surface over
-/// its outer loop and its sense (a ring there is refused before this is
-/// reached, `RingOnCurvedFace`). The face walk runs it at the walk's
-/// scalar, and [`QuadLane`]'s `closed_form` at the interval scalar over
-/// the same geometry lifted.
+/// at: a plane, a cylinder, a torus and a cone over every loop, a
+/// sphere over its outer loop and its sense (a ring there is refused
+/// before this is reached, `RingOnCurvedFace`). The face walk runs it
+/// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
+/// interval scalar over the same geometry lifted.
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
@@ -2365,13 +2546,15 @@ fn face_flux<T: Decide>(
             closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
-            // A cylinder face's closed form reads every loop
-            // (`geom_brep::props::curved_face_loops`); no other curved
-            // kind, and no quadrature lane, reads a ring.
+            // A cone face's closed form reads every loop of lines and
+            // conics, and a cylinder or torus face's every loop of rims
+            // and rulings (`geom_brep::props::curved_face_loops`); no other
+            // curved kind, and no quadrature lane, reads a ring.
             let mut rings = Vec::with_capacity(face.rings.len());
             for &lk in &face.rings {
                 rings.push(loop_edges(body, lk)?.0);
             }
+            let (outer, hes) = loop_edges(body, face.outer)?;
             let untrimmed = |edges: &[LoopEdge<T>]| {
                 edges.iter().all(|e| {
                     matches!(
@@ -2380,14 +2563,14 @@ fn face_flux<T: Decide>(
                     )
                 })
             };
-            if !rings.is_empty()
-                && !(matches!(surface, Surface::Cylinder { .. })
-                    && rings.iter().all(|r| untrimmed(r)))
-            {
-                return Err(MassPropsError::RingOnCurvedFace { face: face_key });
-            }
-            let (outer, hes) = loop_edges(body, face.outer)?;
-            if !rings.is_empty() && !untrimmed(&outer) {
+            let reads_rings = match surface {
+                Surface::Cone { .. } => true,
+                Surface::Cylinder { .. } | Surface::Torus { .. } => {
+                    untrimmed(&outer) && rings.iter().all(|r| untrimmed(r))
+                }
+                _ => false,
+            };
+            if !rings.is_empty() && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             // Structural dispatch (C5: on the carrier KIND, never a
@@ -2693,8 +2876,9 @@ pub enum ShellClassifyError {
 /// The shell-role decision (`chk_shell_volume_sign`): its margin is
 /// `V/A`, the mean wall thickness the shell's volume corresponds to, and
 /// it passes on either definite sign — positive is an outer boundary,
-/// negative a void.
-const SHELL_ROLE: SizedDecision = SizedDecision {
+/// negative a void. A reader over stored geometry ends a refusal of it
+/// itself, at rest ([`ShellClassifyError::arm`]).
+pub const SHELL_ROLE: SizedDecision = SizedDecision {
     lever: "thicken or remove the degenerate geometry",
     size: "thickness",
     passes: SizedPass::NonZero,
@@ -2736,25 +2920,33 @@ impl ShellClassifyError {
         ShellClassifyPayload(self)
     }
 
-    /// The shell-role decision's one ending for this refusal (D4 ¶1
-    /// (i)), read at a build; `None` where the refusal is not that
-    /// decision's. A flux refusal ends in its own payload's recourse,
-    /// and a band failure is the run's configuration.
+    /// The refused arm of the shell-role decision ([`SHELL_ROLE`]) this
+    /// refusal is; `None` where the refusal is not that decision's. A
+    /// flux refusal ends in its own payload's recourse, and a band
+    /// failure is the run's configuration.
     ///
     /// An escalation and a zero are band-decided and end with the value
     /// the margin gives. A straddle is two definite verdicts on
     /// opposite sides, which no smaller tolerance reconciles, so it
-    /// ends in the lever alone; each ends the same read over a body at
-    /// rest ([`StoredDefinite::Lever`]).
+    /// ends in the lever alone.
+    #[must_use]
+    pub fn arm(&self) -> Option<RefusedArm<'_>> {
+        match self {
+            Self::Escalated { source, .. } => Some(RefusedArm::Undecided(source)),
+            Self::ZeroVolume { verdict, .. } => Some(RefusedArm::Zero(*verdict)),
+            Self::Straddles { .. } => Some(RefusedArm::SignCertain(None)),
+            Self::Props { .. } | Self::Band { .. } => None,
+        }
+    }
+
+    /// The shell-role decision's one ending for this refusal (D4 ¶1
+    /// (i)), read at a build, where the shell door's own `Display` reads
+    /// it; `None` where the refusal is not that decision's. A reader
+    /// over stored geometry reads [`ShellClassifyError::arm`] at rest
+    /// itself, where a poisoned margin's note names the file.
     #[must_use]
     pub fn ending(&self) -> Option<String> {
-        let arm = match self {
-            Self::Escalated { source, .. } => RefusedArm::Undecided(source),
-            Self::ZeroVolume { verdict, .. } => RefusedArm::Zero(*verdict),
-            Self::Straddles { .. } => RefusedArm::SignCertain,
-            Self::Props { .. } | Self::Band { .. } => return None,
-        };
-        Some(SHELL_ROLE.recourse(arm, Reading::Build))
+        Some(SHELL_ROLE.recourse(self.arm()?, Reading::Build))
     }
 }
 
@@ -2818,7 +3010,7 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// ([`ShellClassifyError::Props`]). A closed-form shell's role is read
 /// off the walk's own sums, so at a rounding scalar a shell whose volume
 /// is below that rounding can read a role the certified door refuses
-/// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 ///
 /// # Errors
 ///
@@ -2863,8 +3055,8 @@ pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
 
 /// The per-shell classification through `quad` — the shared body of
 /// [`classify_shells_of`] and [`classify_shells_structural`]. `shell`
-/// calls it with the lane its result sort read roles through, so the two
-/// reads of one shell are one read ([`role_at_target`]).
+/// calls it with the lane its operand's check 10 read roles through, so
+/// the two reads of one shell are one read ([`role_at_target`]).
 pub(crate) fn classify_shells_through<T: Decide>(
     body: &Body<T>,
     shells: &[ShellKey],
@@ -2894,7 +3086,9 @@ pub(crate) fn classify_shells_through<T: Decide>(
         let role = match role {
             Ok(role) => role,
             Err(RoleWalkRefusal::Refused(source)) => return Err(props(source)),
-            Err(RoleWalkRefusal::Unread(unread)) => return Err(unread.refusal(shell_key, band)),
+            Err(RoleWalkRefusal::Unread(unread)) => {
+                return Err(unread.refusal(shell_key, band).error);
+            }
         };
         out.push(ShellClassification {
             shell: shell_key,
@@ -2934,7 +3128,22 @@ pub(crate) fn shell_role<'b, T: Decide>(
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<(ShellRole, SignCertificate<'b, T>), ShellClassifyError> {
-    let props = |source| ShellClassifyError::Props { shell, source };
+    shell_role_read(body, shell, band, tol, quad).map_err(|refusal| refusal.error)
+}
+
+/// [`shell_role`], keeping the certified reading's sliver verdict beside
+/// a refusal, for check 10.
+pub(crate) fn shell_role_read<'b, T: Decide>(
+    body: &'b Body<T>,
+    shell: ShellKey,
+    band: Band,
+    tol: Tol,
+    quad: Option<QuadLane<T>>,
+) -> Result<(ShellRole, SignCertificate<'b, T>), RoleRefusal> {
+    let props = |source| RoleRefusal {
+        error: ShellClassifyError::Props { shell, source },
+        sliver: None,
+    };
     let faces = body.get_shell(shell).map_or(&[][..], |s| &s.faces[..]);
     let (role, certificate) = role_walk(
         body,
@@ -3569,6 +3778,15 @@ pub trait AtRestPolicy: Decide {
     /// Euler door).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
+    /// **This scalar's section lane, or `None` where it is not
+    /// derived here** — the per-chart offset door's plane × spline-wall
+    /// section and the plane's root along a spline edge
+    /// ([`crate::offset_derive::SectionLane`]). Its march is written at
+    /// `f64` alone, so that arm answers `Some`; an offset whose edge or
+    /// corner needs it refuses at any other scalar by name
+    /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>>;
+
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
     /// seat's `verbs::Verb::run_shell` and, above it, the document
@@ -3684,6 +3902,11 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::NurbsLane::certified())
     }
 
+    /// The march is written here.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        Some(crate::offset_derive::SectionLane::f64())
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -3750,6 +3973,11 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::NurbsLane::certified())
     }
 
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
+    }
+
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
@@ -3811,6 +4039,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// its brackets are what their hull bounds are made of.
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         Some(geom_brep::NurbsLane::certified())
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -3884,6 +4117,11 @@ where
     /// fitted door above gives.
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         Some(geom_brep::NurbsLane::certified())
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+        None
     }
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
@@ -3967,6 +4205,11 @@ where
     /// are certification arithmetic, so no `Dual` can hold the lane
     /// ([`geom_brep::NurbsLane::certified`]'s bound).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        None
+    }
+
+    /// The march is written at `f64` alone.
+    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
         None
     }
 
@@ -4574,6 +4817,111 @@ mod shell_role_refusal_tests {
         ];
         for (name, lo, hi, want) in rows {
             assert_eq!(shell_role_refusal(shell, lo, hi, band), want, "{name}");
+        }
+    }
+
+    /// **The sliver rides beside every refusal**, whatever the walk's ends
+    /// decided: a walk that read zero, or straddled, against a certificate
+    /// wholly in band is refuted by it, and the refusal's words stay the
+    /// walk's (`vee300 nt e0 a1 d6e-9`: the walk reads 8.7e-10, in the
+    /// zero band, and the certificate [1.69973e-9, 1.69973e-9]).
+    #[test]
+    fn a_refusal_keeps_the_certified_sliver_beside_the_walks_words() {
+        let shell = ShellKey::default();
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let certified = CertifiedSliver::of(
+            geom_core::Interval::from_bounds(1.6997276e-9, 1.699728e-9)
+                .sign_within(band)
+                .expect_err("in band"),
+        )
+        .expect("an enclosure wholly in band");
+        let ok = |sign, m| {
+            Ok(Decided {
+                sign,
+                margin: MarginDiag::value(m),
+            })
+        };
+        let rows = [
+            (
+                "the walk reads zero",
+                ok(Sign::Zero, 8.7e-10),
+                ok(Sign::Zero, 8.7e-10),
+            ),
+            (
+                "the walk straddles",
+                ok(Sign::Negative, -1.0),
+                ok(Sign::Positive, 1.0),
+            ),
+            (
+                "the walk is in band",
+                3e-9_f64.sign_within(band),
+                3e-9_f64.sign_within(band),
+            ),
+        ];
+        for (name, lo, hi) in rows {
+            for sliver in [None, Some(certified)] {
+                let refusal = RoleUnread { lo, hi, sliver }.refusal(shell, band);
+                assert_eq!(
+                    refusal.error,
+                    shell_role_refusal(shell, lo, hi, band),
+                    "{name}"
+                );
+                assert_eq!(
+                    refusal.sliver.as_deref(),
+                    sliver.as_ref(),
+                    "{name}: the certificate's verdict rides"
+                );
+            }
+        }
+    }
+
+    /// The certified reading marks a read a sliver only where its one
+    /// enclosure lies wholly in band: a point margin in band, an
+    /// enclosure touching a threshold, or two different ends do not.
+    #[test]
+    fn only_an_enclosure_wholly_in_band_certifies_a_sliver() {
+        let band = Band::new(1e-9, 1e-8).expect("a band");
+        let read = |lo: f64, hi: f64| geom_core::Interval::from_bounds(lo, hi).sign_within(band);
+        let walk = RoleUnread {
+            lo: 3e-9_f64.sign_within(band),
+            hi: 3e-9_f64.sign_within(band),
+            sliver: None,
+        };
+        let one = |r: Result<Decided, Indeterminate>| RoleUnread {
+            lo: r,
+            hi: r,
+            sliver: None,
+        };
+        let rows = [
+            ("wholly in band", one(read(2e-9, 4e-9)), true),
+            ("a point in band", one(3e-9_f64.sign_within(band)), false),
+            ("touching the zero band", one(read(1e-9, 4e-9)), false),
+            (
+                "straddling the escalate edge",
+                one(read(4e-9, 1.2e-8)),
+                false,
+            ),
+            ("touching the escalate edge", one(read(4e-9, 1e-8)), false),
+            (
+                "straddling the escalate edge on the void side",
+                one(read(-1.2e-8, -4e-9)),
+                false,
+            ),
+            ("across zero", one(read(-2e-9, 4e-9)), false),
+            (
+                "two ends, each in band",
+                RoleUnread {
+                    lo: read(2e-9, 3e-9),
+                    hi: read(3e-9, 4e-9),
+                    sliver: None,
+                },
+                false,
+            ),
+        ];
+        for (name, certified, want) in rows {
+            let got = walk.certified_by(&certified);
+            assert_eq!(got.sliver.is_some(), want, "{name}");
+            assert_eq!(got.hi, walk.hi, "{name}: the walk's own reading stays");
         }
     }
 }

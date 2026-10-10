@@ -60,14 +60,15 @@ fn run(doc: &editor_core::ProfileDoc, shelf: &Arc<VersionShelf>) -> Evaluation<f
     evaluate::<f64>(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
-/// The part: a 2 × 2 square extruded 1 tall; `(doc, profile, extrude)`.
-fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+/// The part: a 2 × 2 square extruded 1 tall and placed in its world;
+/// `(doc, profile, extrude, placement)`.
+fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("held-names-part"), Tol::witness());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],
@@ -77,12 +78,13 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
-    (doc, profile, ext)
+    let (doc, placement) = fixture::place(doc, ext);
+    (doc, profile, ext, placement)
 }
 
 /// The part's wall at canonical segment `k` of its one loop, as the
@@ -92,12 +94,13 @@ fn part_wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, k: u32) -> Stable
 }
 
 /// The same wall as the parent names it: `InPart { of }` at the
-/// instantiate node.
-fn held(instance: RecipeNodeId, of: &StableName) -> StableName {
+/// instantiate node, `of` the part's copy of it under its world
+/// `placement` (A10).
+fn held(instance: RecipeNodeId, placement: RecipeNodeId, of: &StableName) -> StableName {
     fixture::fname(
         instance,
         RoleSeg::InPart {
-            of: of.clone().into(),
+            of: of.in_copy(placement).into(),
         },
     )
 }
@@ -136,7 +139,7 @@ fn corners(
 /// removed.
 #[test]
 fn a_parents_held_name_follows_its_step_across_a_pin_update() {
-    let (v1, profile, ext) = part();
+    let (v1, profile, ext, placement) = part();
     let wall = part_wall(&v1, ext, 1);
     let v1_painted = apply(
         &v1,
@@ -166,13 +169,14 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
                     .unwrap(),
             ],
             ids: vec![ids],
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
     )
     .unwrap();
     assert_eq!(
-        reshaped.maintenance,
+        crate::fixture::without_anonymous(&reshaped.maintenance),
         Vec::new(),
         "a reshaping that keeps every step has nothing to report"
     );
@@ -183,7 +187,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
 
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, Node::instantiate_part(r1));
-    let name = held(instance, &wall);
+    let name = held(instance, placement, &wall);
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
@@ -221,7 +225,11 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
         !after.contains(&(2.0, 0.0, 0.0)),
         "and never the inserted leg (2,0)→(3,1): {after:?}"
     );
-    assert_eq!(updated.maintenance, Vec::new(), "nothing is reported");
+    assert_eq!(
+        crate::fixture::without_anonymous(&updated.maintenance),
+        Vec::new(),
+        "nothing is reported"
+    );
 }
 
 /// The part's profile step ids, loop 0.
@@ -249,6 +257,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
             node: profile,
             loops: vec![LoopProgram::polygon(corners).unwrap()],
             ids: vec![ids],
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -270,7 +279,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
 /// the paint `Vanished`, rather than re-denoting B's leg.
 #[test]
 fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them() {
-    let (base, profile, ext) = part();
+    let (base, profile, ext, placement) = part();
     let a = with_leg(&base, profile, 2, (3.0, 1.0));
     let b = with_leg(&base, profile, 3, (1.0, 3.0));
     let a_new = step_ids(&a, profile)[2];
@@ -309,7 +318,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, Node::instantiate_part(ra));
-    let name = held(instance, &wall(a_new));
+    let name = held(instance, placement, &wall(a_new));
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
@@ -344,7 +353,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     )
     .unwrap();
     assert_eq!(
-        updated.maintenance,
+        crate::fixture::without_anonymous(&updated.maintenance),
         Vec::new(),
         "the storeless update reads neither version and reports nothing"
     );
@@ -353,7 +362,11 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
         table(&after_ev, instance).lookup(&name).is_none(),
         "at B the held spelling denotes nothing"
     );
-    let b_leg = corners(&after_ev, instance, &held(instance, &wall(b_new)));
+    let b_leg = corners(
+        &after_ev,
+        instance,
+        &held(instance, placement, &wall(b_new)),
+    );
     assert!(
         b_leg.contains(&(2.0, 2.0, 0.0)) && b_leg.contains(&(1.0, 3.0, 0.0)),
         "B's leg (2,2)→(1,3) is drawn, under B's own id: {b_leg:?}"
@@ -382,11 +395,11 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
 /// had: `NodeGone` blaming `ForeignNode`, never another node's face.
 #[test]
 fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
-    let (base, profile, _) = part();
+    let (base, profile, _, _) = part();
     let (a, tall) = insert(
         base.clone(),
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(3.0),
             side: ExtrudeSide::Along,
         },
@@ -394,7 +407,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     let (b, taller) = insert(
         base,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(5.0),
             side: ExtrudeSide::Along,
         },

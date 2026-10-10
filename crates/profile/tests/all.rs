@@ -98,8 +98,6 @@ mod cert4r1_e2e;
 mod cert4r2_e2e;
 #[path = "cusp_joints.rs"]
 mod cusp_joints;
-#[path = "declared_tangency.rs"]
-mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
 mod enclose_refusal_r2_probes;
 #[path = "fillet_overrun_nearest_fit.rs"]
@@ -118,6 +116,8 @@ mod interval_lane;
 mod lift_census;
 #[path = "onarc_probe.rs"]
 mod onarc_probe;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]
@@ -172,6 +172,8 @@ mod seal;
 mod sketch_plane;
 #[path = "table_arcs_inside_scene_resolution.rs"]
 mod table_arcs_inside_scene_resolution;
+#[path = "tangent_joints.rs"]
+mod tangent_joints;
 #[path = "validate_ok.rs"]
 mod validate_ok;
 #[path = "validate_ok_probe.rs"]

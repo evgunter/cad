@@ -99,7 +99,7 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // --- document fixtures for the panel suites ------------------------
 //
 // Authored through the ordinary document doors, in the order a user
-// would: parameters before the expressions that read them, nodes
+// would: variables before the expressions that read them, nodes
 // before the nodes that consume them. A fixture that reached past
 // `apply` would be testing a document the edit vocabulary cannot
 // produce.
@@ -137,7 +137,7 @@ pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
     viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
-/// The name of the parametric fixture's driving parameter.
+/// The name of the parametric fixture's driving variable.
 pub fn thickness_param() -> VarName {
     VarName::from_static("thickness")
 }
@@ -149,15 +149,16 @@ pub fn var_of(doc: &Doc<ProfileProgram>, name: &str) -> pncad::document::VarId {
         .unwrap_or_else(|| panic!("the document names a variable {name}"))
 }
 
-/// The parametric fixture's driving parameter, by its id in `doc`.
+/// The parametric fixture's driving variable, by its id in `doc`.
 pub fn thickness_var(doc: &Doc<ProfileProgram>) -> pncad::document::VarId {
     var_of(doc, thickness_param().as_str())
 }
 
 /// A document whose extrude distance is DRIVEN by a document
-/// parameter — the expression-driven-dimension fixture.
+/// variable — the expression-driven-dimension fixture.
 ///
-/// Answers the document, the profile node and the extrude node.
+/// The extrude is placed. Answers the document, the profile node and
+/// the extrude node.
 pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-parametric", tol);
     let (doc, _) = edited(
@@ -172,9 +173,9 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // `thickness / 2` — a composed expression over a
-            // parameter, which is the shape the refusal affordance
+            // variable, which is the shape the refusal affordance
             // exists for.
             distance: Formula::div(
                 Formula::named(thickness_param(), Dimension::Length),
@@ -185,6 +186,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         },
         tol,
     );
+    let (doc, _) = placed(&doc, extrude, tol);
     (doc, profile, extrude)
 }
 
@@ -193,15 +195,15 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
 /// The failure is a division by a zero literal in the extrude's
 /// distance — an expression that is well-dimensioned at the edit door
 /// and non-finite at evaluation, which is exactly the shape GQ2's
-/// per-node result exists to report. Answers the document, the failing
-/// extrude and the poisoned transform.
+/// per-node result exists to report. The transform is placed. Answers
+/// the document, the failing extrude and the poisoned transform.
 pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-broken", tol);
     let (doc, profile) = framed_square(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },
@@ -219,6 +221,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         ),
         tol,
     );
+    let (doc, _) = placed(&doc, moved, tol);
     (doc, extrude, moved)
 }
 
@@ -297,29 +300,44 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     )
 }
 
-/// **Insert through the session**: perform one op that must commit
-/// exactly one insert, answering the id of the node it minted.
+/// **Perform one authoring op and answer the node it made**: its first
+/// committed edit inserts that node, and every later edit is the world's
+/// (A10) — the new body's placement, or the target's placements
+/// re-pointed or withdrawn.
 ///
 /// This is the op vocabulary's door, and it holds the session's
-/// contract — no refusal, one committed edit, and that edit an
-/// `InsertNode`. [`inserted`] and [`insert_into`] are the document's
-/// door instead: they call `apply` with no session, and check only
-/// that the edit applies and mints an id — there is no op, so no
-/// outcome to hold to that contract. A fixture that means to exercise
-/// the chrome's ops reaches for this one.
+/// contract. [`inserted`] and [`insert_into`] are the document's door
+/// instead: they call `apply` with no session, and check only that the
+/// edit applies and mints an id — there is no op, so no outcome to hold
+/// to that contract. A fixture that means to exercise the chrome's ops
+/// reaches for this one.
 pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
+    let (first, world) = outcome
+        .committed
+        .split_first()
+        .expect("the op committed an edit");
+    assert!(
+        matches!(first, DocEdit::InsertNode { .. }),
+        "the op's first edit inserts its node: {first:?}"
+    );
+    for edit in world {
+        assert!(
+            matches!(
+                edit,
+                DocEdit::InsertNode { node, .. } if matches!(**node, Node::PlaceInWorld { .. })
+            ) || matches!(
+                edit,
+                DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Body),
+                    ..
+                } | DocEdit::DeleteNode { .. }
+            ),
+            "every later edit is the world's: {edit:?}"
+        );
+    }
+    *outcome.minted.first().expect("the insert minted its node")
 }
 
 /// **Add an instance of the part `id` through the session**, pump the
@@ -497,7 +515,7 @@ use viewer::pickindex::{PickIndex, PickIndexError, PictureKey};
 use viewer::scene::DisplayTolerance;
 
 /// The pick index for `session`'s landed evaluation at `delta`, or the
-/// refusal — a failed or poisoned root is an ordinary editing state,
+/// refusal — a failed or poisoned placement is an ordinary editing state,
 /// and a suite whose subject is that refusal reads it here.
 pub fn index_at(
     session: &DocSession,
@@ -605,3 +623,36 @@ fn level(axis: [f64; 2], sense: f64, origin: [f64; 3]) -> Ray {
 // re-exporting the kernel's type rather than wrapping it. A suite says
 // `common::head` as before.
 pub use crate::fixture::{head, head_at};
+
+/// **What the world places** (A10): for each world placement, in
+/// document order, the node defining the body it places.
+pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    doc.placements()
+        .into_iter()
+        .map(|placement| viewer::world::seat_of(doc, placement))
+        .collect()
+}
+
+/// **The one world placement of `body`**: the node its drawn copy is
+/// picked on (A10).
+///
+/// # Panics
+///
+/// Unless exactly one placement places `body`.
+pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
+    let [copy] = viewer::world::placements_of(doc, body)[..] else {
+        panic!("{body:?} is placed once")
+    };
+    copy
+}
+
+/// **The node `node`'s body is drawn under**: its one world placement
+/// when the world places it once ([`copy_of`]), `node` itself
+/// otherwise — so a row can aim at a datum or an unplaced node the way
+/// it aims at a placed body.
+pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
+    match viewer::world::placements_of(doc, node)[..] {
+        [copy] => copy,
+        _ => node,
+    }
+}

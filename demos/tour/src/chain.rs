@@ -104,8 +104,8 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    AssertionRelation, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
@@ -166,53 +166,53 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// [`crate::mcchain`] draws it to scale, and a number a picture is
 /// built around should not be a literal buried in the drawing code.
 ///
-/// **At the DEFAULT ε**, like every other measured number here. Since
-/// the extrude closes with the pcurve mint the wall is the placed rows'
-/// angular comparisons (`pcurve_loop_continuity`,
-/// `pcurve_trim_containment`), an enclosure ESCALATING against the band,
-/// so the fraction is ε-relative: `6.747e-5` at ε = 1e-6 against
-/// `6.751e-8` at the default, measured. Before the mint it was `0.111`,
-/// bounded by `dihedral_wedge`; the follow-on that restates the
-/// angular comparisons puts that back
-/// (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).
-pub const CERTIFIABLE_FRACTION: f64 = 6.751e-8;
+/// **At the DEFAULT ε**, like every other measured number here: the
+/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured — for the
+/// reason `chaintol`'s header gives ("What sets the wall"). So the
+/// cell asks at every ε whether this published box still certifies
+/// there rather than reasoning about it.
+pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 
-/// **The same measurement at 1, 2, 3 and 4 links.**
+/// **The same measurement at 1, 2, 3 and 4 links** — one number in
+/// four spellings.
 ///
 /// The tip's certified lateral half-width, `L · 3σ · f · n(n+1)/2` at
-/// `n` links, is what each fraction allows. The wall that sets it is
-/// check 5's escape enclosure on the placed rows, which does NOT grow in
-/// step with the tip's lever sum: the half-width rises with link count
-/// and flattens ([`CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS`]), so the
-/// four fractions are four measurements, not one number spelled four
-/// ways.
+/// `n` links, is `3.998e-4` m at two, three and four links alike. What
+/// that number IS, is half of [`PIN_RADIUS`] — a property of THIS
+/// document's geometry, not of the tier: the ratio is
+/// `0.500 / 0.500 / 0.499`, and MEASURED with the radius doubled to
+/// `1.6e-3` m the fractions become `1.0000 / 0.73841 / 0.36921 /
+/// 0.22192` and the half-width `7.975e-4` m — still `0.498` of the
+/// radius. [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
+/// is capped by the study itself rather than by the wall, and sits at
+/// `0.450` of the radius.
 ///
-/// (Before the mint the wall was `dihedral_wedge` and the number was
-/// HALF the pin radius, a property of this document's geometry: with
-/// the radius doubled to `1.6e-3` m the fractions became `1.0000 /
-/// 0.73841 / 0.36921 / 0.22192` and the half-width `7.975e-4` m, still
-/// `0.498` of the radius. That is what the follow-on restores.)
+/// (An earlier reading of this table said the constant thing was an
+/// ANGLE — "about 1.9° of accumulated swing, however many joints it is
+/// spread over". It is not: the swing doubles with the pin radius, to
+/// `3.81°`. The invariance across link counts is real; the angle was
+/// the shipped radius in disguise.)
 ///
 /// MEASURED by [`crate::chaintol`] and pinned there;
 /// [`CERTIFIABLE_FRACTION`] is the last row.
 ///
 /// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
 /// the last row of it.
-pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [6.510e-7, 2.216e-7, 1.117e-7, 6.751e-8];
+pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
 
-/// **The tip's certified lateral half-width, over the pin radius**, at
-/// 1, 2, 3 and 4 links.
+/// **The tip's certified lateral half-width, over the pin radius** —
+/// the same at every link count whose box the WALL sets, and the
+/// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
 ///
-/// MEASURED by [`crate::chaintol`] and pinned there. It rises at every
-/// step, and each step is smaller than the one before (2.1%, 0.81%,
-/// 0.73%). Whether it converges is not established. Before the
-/// extrude closed with the pcurve mint the wall was `dihedral_wedge`
-/// and this was one number, `4.995e-1`, half the pin radius, past one
-/// link.
+/// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
+/// there with a paste-ready re-baseline; it is not derived from the
+/// two constants beside it, because what it asserts is that those two
+/// stand in this ratio AT EVERY LINK COUNT, which neither of them
+/// says. The one-link chain is excluded on purpose: its box is the
+/// study, not the wall.
 ///
 /// Read only by that cell.
-pub const CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS: [f64; LINKS] =
-    [2.929e-7, 2.992e-7, 3.016e-7, 3.038e-7];
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
@@ -235,19 +235,18 @@ pub const CERTIFIED_TIP_OVER_PIN_RADIUS_BY_LINKS: [f64; LINKS] =
 /// `1 : 2.24 : 3.74 : 5.48`, the quadrature sum. That gap between a
 /// linear sum and a root-sum-square is E11's subject, and on this
 /// document it is visible on the sheet rather than only in a report.
-/// The enclosures are TIGHT, not padded: `2.430e-11` m is exactly
-/// `L · 3σ_c · 1` at the certified box's own σ. Since the extrude
-/// closes with the pcurve mint the box is `6.751e-8` of the study, so
-/// every enclosure is far under a pixel: the sheet draws each side
-/// under `mcchain`'s pixel floor AT that floor, centred on the pin,
-/// says in its legend which sides are floored, and prints the true
-/// half-widths in its table.
+/// The enclosures are TIGHT, not padded: `3.996e-5` m is exactly
+/// `L · 3σ_c · 1` at the certified box's own σ, to every digit the
+/// measurement carries. Along the chain they are microns: the sheet
+/// draws each side under `mcchain`'s pixel floor AT that floor,
+/// centred on the pin, says in its legend which sides are floored, and
+/// prints the true half-widths in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
-    (0e0, 0e0),
-    (6.938893903907228e-18, 2.430341361328867e-11),
-    (2.42861286636753e-17, 7.291024083986602e-11),
-    (5.551115123125783e-17, 1.4582048167973203e-10),
-    (9.71445146547012e-17, 2.4303413613288677e-10),
+    (0.0, 0.0),
+    (6.653231802815351e-8, 3.995961969247516e-5),
+    (3.3266085237848575e-7, 1.198788590774255e-4),
+    (9.314487635844748e-7, 2.3975816125464358e-4),
+    (1.995959949908921e-6, 3.9959841242371446e-4),
 ];
 
 /// **The pin's axis, read off the body the kernel built** — ONE rule,
@@ -306,6 +305,7 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -405,7 +405,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar_profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
                     .expect("finite bar corners"),
@@ -417,7 +417,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let bar = insert(
         &mut doc,
         Node::Extrude {
-            profile: bar_profile,
+            profile: bar_profile.into(),
             distance: len(LINK_THICKNESS),
             side: ExtrudeSide::Along,
         },
@@ -427,7 +427,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(x), len(0.0)],
                     radius: len(PIN_RADIUS),
@@ -439,7 +439,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(LINK_THICKNESS),
                 side: ExtrudeSide::Along,
             },
@@ -482,6 +482,13 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         .map(|k| place(&mut doc, k, base_pin, tol))
         .collect();
     pins.push(place(&mut doc, links, tip_pin, tol));
+    // The mechanism is the world: every placed bar and pin, one copy
+    // each, base first.
+    for &body in bars.iter().chain(&pins) {
+        doc = apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
+            .expect("a placed link places")
+            .doc;
+    }
 
     // The target: the mating pin at the chain's nominal tip, fixed.
     let target = pin_at(&mut doc, links as f64 * LINK_LENGTH, tol);
@@ -522,26 +529,22 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // their AXIS distance (its own contract), and both axes are `+z`,
     // so this is the tip pin's in-plane deviation from where the
     // drawing says it goes — no author's arithmetic on top of it.
-    let position = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     // The two references are read BEFORE the insert borrows the
     // document mutably — the borrow checker's way of saying that a
     // measure's references are resolved against a document that
     // already exists.
-    let refs = vec![
-        wall(*pins.last().expect("a chain has a tip pin")),
-        wall(target),
-    ];
-    let measure = insert(
-        &mut doc,
-        Node::measure(position, refs).expect("both indices in range"),
-        tol,
-    );
+    let position = MeasurePrimitive::Distance {
+        a: wall(*pins.last().expect("a chain has a tip pin")),
+        b: wall(target),
+    };
+    let measure = insert(&mut doc, Node::measure(&position), tol);
+    let position = doc.output(measure, 0).expect("a measure defines its value");
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure,
+            value: Formula::var(position, Dimension::Length),
             bound: len(bound),
-            dir: AssertionDir::AtMost,
+            relation: AssertionRelation::AtMost,
         },
         tol,
     );

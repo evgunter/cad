@@ -47,8 +47,7 @@ use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{
-    BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, TubeScale, certify, fit_branch,
-    seam_tol,
+    BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
 };
 
 /// What the branches between known ends read, minted once per call.
@@ -473,7 +472,7 @@ impl<'a> Ends<'a> {
                         wall: *wall,
                         pcurve,
                     },
-                    TubeScale::uniform(self.ctx.extent),
+                    self.ctx.extent,
                     self.band,
                     limbs,
                 )?;
@@ -504,10 +503,10 @@ impl<'a> Ends<'a> {
                 wall: *wall,
                 pcurve,
             },
-            TubeScale::uniform(self.ctx.extent),
+            self.ctx.extent,
             self.band,
             certify::Limbs::All,
-            &mut Vec::new(),
+            &mut certify::Refused::default(),
         )?;
         Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
     }
@@ -632,7 +631,7 @@ mod tests {
         };
         let limb = || SsiError::CertificateLimb {
             limb: SsiLimb::OnLocus,
-            value: 3e-9,
+            margin: MarginDiag::value(3e-9),
         };
         let step = |margin| SsiError::Escalated {
             decision: TraceDecision::StepProgress,
@@ -706,6 +705,7 @@ mod tests {
         let tangency = SsiError::TransversalityBand {
             sin_theta: 5e-10,
             arm: 1.0,
+            lever: crate::ssi::PointLever::Extent,
             sigma_min: 5e-10,
             verdict: Refused::Zero(Classified {
                 margin: MarginDiag::value(5e-10),

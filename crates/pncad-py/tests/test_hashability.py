@@ -85,7 +85,6 @@ UNHASHABLE = {
     "inside, so `0.0` and `-0.0` are equal trees whose bits are not "
     "(stated on the stub)",
     "Expr": "by design: `Formula`'s reason, for the stored tree",
-    "MeasureExpr": "by design: `Formula`'s reason, for `Formula`'s trees",
     "Length": "by design: the Rust newtype derives `PartialEq` and "
     "`PartialOrd` and no `Hash`, and this class mirrors its derives — "
     "a magnitude is not a key. The authored record that keys is "
@@ -162,6 +161,9 @@ UNHASHABLE = {
     "row of empirical statistics is a magnitude five times over, and a "
     "row nothing could sample carries `NaN`, which equals nothing at "
     "all",
+    "McValue": "by design: `editor_core::McValue` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives, "
+    "for `McMeasure`'s reason: a row of empirical statistics",
     "Placement": "by design: `editor_core::Placement` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives — "
     "`Frame`'s reason, one level out: a literal step bottoms out in "

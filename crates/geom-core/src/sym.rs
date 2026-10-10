@@ -933,31 +933,32 @@
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **106
-//! names.** The rule is written out in
-//! `work/sym/symbolic-tier-census.md`, which also carries the full
+//! names** at M10-7, **104** since two retired. The rule is written out in
+//! `work/tier/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
 //! | bucket | count |
 //! | --- | --- |
-//! | IMPLICIT (S-CERT's frontier) | 4 |
+//! | IMPLICIT (S-CERT's frontier) | 3 |
 //! | NOT A PREDICATE | 8 |
-//! | EXPLICIT | 94 |
+//! | EXPLICIT | 93 |
 //!
-//! **106 and not the 66 the previous sweep reported**, because that
+//! **106 at M10-7, and not the 66 the previous sweep reported**, because that
 //! number is not re-derivable from a rule written down anywhere and this
 //! one states its own. The difference is filter width, not new
 //! predicates.
 //!
-//! **IMPLICIT — 4**, and this is the census's load-bearing claim:
+//! **IMPLICIT — 3**, and this is the census's load-bearing claim:
 //! `ssi_on_locus` and `ssi_on_locus_foot` (a marched intersection
-//! point's residual and the foot of its projection),
-//! `plane_nurbs_on_locus` (a chart-image foot) and
-//! `offset_reanchor_on_carrier` (an offset carrier re-anchored through a
-//! solve) — EXACTLY the four S-CERT's frontier item already names, at
-//! either filter width. A quantity found by iteration has no expression
-//! in the parameters, so no normal form reaches it and its residual
-//! widens with the box whatever this tier does.
+//! point's residual and the foot of its projection, the plane × NURBS
+//! lane's chart-image foot among them) and `offset_corner_on_surface`
+//! (an offset corner found by a root solve) — EXACTLY the quantities
+//! S-CERT's frontier item
+//! (`work/tier/param-box-certification-of-implicit-quantities.md`)
+//! names, at either filter width. A quantity found by iteration has no
+//! expression in the parameters, so no normal form reaches it and its
+//! residual widens with the box whatever this tier does.
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
@@ -965,7 +966,7 @@
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
-//! **EXPLICIT — 94.** Closed forms in the parameters over analytic
+//! **EXPLICIT — 93.** Closed forms in the parameters over analytic
 //! carriers. Nine carry a MEASURED symbolic/numeric split from
 //! `editor-core/tests/m10_7_census_probe.rs` (at `Sym<Probe>`, through
 //! the same funnel, over the M10 fixtures and the tour's plate):
@@ -5161,7 +5162,7 @@ impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
 /// the hull mints a `Hull` node keyed by the two operands' ids (never by
 /// their forms — see [`SymOp::Hull`]).
 impl<T: SpanLocate> SpanLocate for Sym<T> {
-    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a> {
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>> {
         self.value.locate_spans(knots)
     }
 

@@ -1,18 +1,12 @@
 //! JOIN-1 fix-pass delta review: probes of the `AlongEdge` lane, the
 //! minted edge-edge record and the restated scaffold. Every building
-//! pose is read at tiers 2, 3′ and the at-rest certificate, against a
-//! polygonised closed-form volume, AND for the seams a restated
-//! scaffold could hide: an edge between two faces of ONE planar
-//! surface key (a face cut in two), an edge between two faces whose
-//! planes coincide (a smooth planar seam), and a zero-length open
+//! pose is judged by [`outcome`] against a closed-form volume (its
+//! arcs' areas extrapolated, [`chord_area`]), AND read for the seams a
+//! restated scaffold could hide: an edge between two faces of ONE
+//! planar surface key (a face cut in two), an edge between two faces
+//! whose planes coincide (a smooth planar seam), and a zero-length open
 //! edge. `#[ignore]`d batteries print one line per pose so two trees
 //! can be diffed.
-//!
-//! Measured (release) on 21b7f289 against its merge parent da396111f:
-//! the arc battery (7350 ops) moves 50 refusals to sound bodies, one
-//! sound body to a refusal (the lens row below), no BAD on either; the
-//! brick battery (6000 ops) moves 8 `RestZipUnsupported` to sound, no
-//! other move, no BAD.
 
 #![allow(
     clippy::unwrap_used,
@@ -26,7 +20,9 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::{AtRestBody, Body};
+use topo::{AtRestBody, Body, BooleanResult};
+
+use crate::common::differential::{area, clip_convex, outcome};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -55,8 +51,8 @@ fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> AtRestBody<f
     finished("the prism", prism, tol())
 }
 
-/// The loop polygonised (each bulge arc at 4096 chords).
-fn polygon(pts: &[(f64, f64, f64)], d: (f64, f64)) -> Vec<(f64, f64)> {
+/// The loop polygonised, each bulge arc at `n` chords.
+fn polygon(pts: &[(f64, f64, f64)], d: (f64, f64), n: usize) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
     for i in 0..pts.len() {
         let (x0, y0, b) = pts[i];
@@ -76,7 +72,6 @@ fn polygon(pts: &[(f64, f64, f64)], d: (f64, f64)) -> Vec<(f64, f64)> {
         let (nx, ny) = (-cy_ / chord, cx_ / chord);
         let (ccx, ccy) = (mx + nx * h, my + ny * h);
         let a0 = (y0 - ccy).atan2(x0 - ccx);
-        let n = 4096;
         for k in 1..n {
             let t = a0 + theta * (k as f64) / (n as f64);
             out.push((ccx + r.abs() * t.cos() + d.0, ccy + r.abs() * t.sin() + d.1));
@@ -85,45 +80,27 @@ fn polygon(pts: &[(f64, f64, f64)], d: (f64, f64)) -> Vec<(f64, f64)> {
     out
 }
 
-fn area(p: &[(f64, f64)]) -> f64 {
-    let n = p.len();
-    0.5 * (0..n)
-        .map(|i| p[i].0 * p[(i + 1) % n].1 - p[(i + 1) % n].0 * p[i].1)
-        .sum::<f64>()
-}
-
-fn clip_convex(subject: &[(f64, f64)], clipper: &[(f64, f64)]) -> Vec<(f64, f64)> {
-    let mut out = subject.to_vec();
-    for i in 0..clipper.len() {
-        let (a, b) = (clipper[i], clipper[(i + 1) % clipper.len()]);
-        let side = |p: (f64, f64)| (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0);
-        let inp = out.clone();
-        out.clear();
-        for j in 0..inp.len() {
-            let (p, q) = (inp[(j + inp.len() - 1) % inp.len()], inp[j]);
-            let (sp, sq) = (side(p), side(q));
-            if sq >= 0.0 {
-                if sp < 0.0 {
-                    let t = sp / (sp - sq);
-                    out.push((p.0 + t * (q.0 - p.0), p.1 + t * (q.1 - p.1)));
-                }
-                out.push(q);
-            } else if sp >= 0.0 {
-                let t = sp / (sp - sq);
-                out.push((p.0 + t * (q.0 - p.0), p.1 + t * (q.1 - p.1)));
-            }
+/// **The area of loop `a` against loop `b` shifted by `d`** (`b`
+/// `None`: `a`'s own), Richardson-extrapolated from its chord areas at
+/// 1024 and 2048 chords per arc. A chord polygon's area is short of the
+/// arcs' by `c/n² + O(n⁻³)`, so `(4·A(2n) − A(n))/3` is off by
+/// `O(n⁻³)`: under 1e-10 here, against the segments and lenses' closed
+/// forms and against the same extrapolation at 4096 chords.
+fn chord_area(a: &[(f64, f64, f64)], b: Option<(&[(f64, f64, f64)], (f64, f64))>) -> f64 {
+    let at = |n| {
+        let pa = polygon(a, (0.0, 0.0), n);
+        match b {
+            None => area(&pa),
+            Some((b, d)) => area(&clip_convex(&pa, &polygon(b, d, n))).max(0.0),
         }
-        if out.is_empty() {
-            return out;
-        }
-    }
-    out
+    };
+    (4.0 * at(2048) - at(1024)) / 3.0
 }
 
 /// The seams a restated scaffold could hide: (edges between two faces
 /// of one planar surface key, edges between two faces on one plane,
 /// zero-length open edges).
-pub(crate) fn seams(body: &Body<f64>) -> (usize, usize, usize) {
+fn seams(body: &Body<f64>) -> (usize, usize, usize) {
     let (mut same_key, mut coplanar, mut zero) = (0, 0, 0);
     for (_, e) in body.edges() {
         let ends = (
@@ -166,58 +143,18 @@ pub(crate) fn seams(body: &Body<f64>) -> (usize, usize, usize) {
     (same_key, coplanar, zero)
 }
 
-pub(crate) fn outcome(
-    r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
-    want: f64,
-    vtol: f64,
-) -> String {
-    match r {
-        Err(e) => {
-            let s = format!("{:?}", e.kind());
-            let cut: String = s.chars().take(90).collect();
-            format!("ERR {cut}")
-        }
-        Ok(r) => match r.body() {
-            None => {
-                if want.abs() < vtol {
-                    "EMPTY ok".into()
-                } else {
-                    format!("EMPTY WRONG want={want}")
-                }
-            }
-            Some(bb) => {
-                let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
-                let t3s = match &t3 {
-                    Ok(()) => "ok".to_string(),
-                    Err(e) => format!("{:?}", e).chars().take(60).collect(),
-                };
-                let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-                let (sk, cp, z) = seams(&bb.body);
-                match topo::mass_properties(&bb.body, tol()).map(|m| m.volume) {
-                    Ok(v) => {
-                        let good = (v - want).abs() < vtol;
-                        format!(
-                            "OK {} t2={t2} t3p={t3s} cert={cert} samekey={sk} coplanar={cp} \
-                             zero={z} v={v:.7} want={want:.7}",
-                            if good && t2 && t3.is_ok() && sk == 0 && z == 0 {
-                                "SOUND"
-                            } else {
-                                "BAD"
-                            }
-                        )
-                    }
-                    Err(e) => format!(
-                        "OK-UNMEASURED t2={t2} t3p={t3s} cert={cert} samekey={sk} \
-                         coplanar={cp} zero={z} {:?}",
-                        e
-                    )
-                    .chars()
-                    .take(200)
-                    .collect(),
-                }
-            }
-        },
+/// The battery's line: the shared [`outcome`], and where the op built,
+/// the body's [`seams`].
+fn line(r: Result<BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
+    let seams = r
+        .as_ref()
+        .ok()
+        .and_then(BooleanResult::body)
+        .map(|bb| seams(&bb.body));
+    let line = outcome(r, want, tol());
+    match seams {
+        Some((sk, cp, z)) => format!("{line} samekey={sk} coplanar={cp} zero={z}"),
+        None => line,
     }
 }
 
@@ -279,15 +216,13 @@ fn join1_delta_arc_battery() {
             continue;
         }
         let a = zprism(pa, (0.0, 0.0), za);
-        let polya = polygon(pa, (0.0, 0.0));
-        let va = area(&polya) * (za.1 - za.0);
+        let va = chord_area(pa, None) * (za.1 - za.0);
         for (nb, pb) in &shapes {
             for &d in &offsets {
-                let polyb = polygon(pb, d);
-                let ab = area(&clip_convex(&polya, &polyb)).max(0.0);
+                let ab = chord_area(pa, Some((pb, d)));
                 for &zb in &zbs {
                     let b = zprism(pb, d, zb);
-                    let vb = area(&polyb) * (zb.1 - zb.0);
+                    let vb = chord_area(pb, None) * (zb.1 - zb.0);
                     let vi = ab * (za.1.min(zb.1) - za.0.max(zb.0)).max(0.0);
                     for decl in [false, true] {
                         let d_ = if decl {
@@ -315,7 +250,7 @@ fn join1_delta_arc_battery() {
                             };
                             println!(
                                 "ARC {na} {nb} d={d:?} zb={zb:?} decl={decl} {op} => {}",
-                                outcome(res, want, 1e-6)
+                                line(res, want)
                             );
                         }
                     }
@@ -326,7 +261,7 @@ fn join1_delta_arc_battery() {
 }
 
 /// Brick against brick: corners, edges and faces shared, caps resting
-/// (the declared-REST zip's ground) and overlapping, undeclared and
+/// and overlapping, undeclared and
 /// flush-declared, every op in both orders.
 #[test]
 #[ignore = "differential battery; run with --ignored"]
@@ -380,7 +315,7 @@ fn join1_delta_brick_battery() {
                             };
                             println!(
                                 "BRICK x={x:?} y={y:?} z={z:?} decl={decl} {order} {op} => {}",
-                                outcome(res, want, 1e-9)
+                                line(res, want)
                             );
                         }
                     }
@@ -404,15 +339,18 @@ fn overlapping_lens_prisms_declared_union_builds() {
     let lens = [(0.5, 0.0, bulge(90.0)), (-0.5, 0.0, bulge(90.0))];
     let a = zprism(&lens, (0.0, 0.0), (0.0, 2.0));
     let b = zprism(&lens, (0.0, 0.0), (-1.0, 1.0));
-    let want = area(&polygon(&lens, (0.0, 0.0))) * 3.0;
+    let want = chord_area(&lens, None) * 3.0;
     let d = declare_all(&find_flush_candidates(&a, &b, tol()).unwrap());
     let r = topo::union_with(&a, &b, &d, tol());
     if let Err(e) = &r {
         println!("[lens] {e:?}");
     }
-    let line = outcome(r, want, 1e-6);
+    let line = line(r, want);
     println!("[lens] {line}");
-    assert!(line.starts_with("OK SOUND"), "{line}");
+    assert!(
+        line.starts_with("OK SOUND") && line.contains(" samekey=0 ") && line.ends_with(" zero=0"),
+        "{line}"
+    );
     let r = topo::union_with(&a, &b, &d, tol()).unwrap();
     sweep::test_support::assert_legal_operand("lens ∪", &r.body().unwrap().body, tol());
 }
@@ -443,16 +381,15 @@ fn the_declared_seam_body_is_an_operand() {
         brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
         tol(),
     );
-    // Fix pass 2: undeclared, the union refuses the continuation it
-    // would keep; declared, the merge stage glues it.
-    assert!(
-        matches!(
-            topo::union(&a, &b, tol()),
-            Err(topo::BooleanError::UndeclaredCoincidence { .. })
-        ),
-        "the undeclared continuation refuses at the op"
-    );
+    // The continuation is one carrier by margin: undeclared, the union
+    // glues it as the declared union does, bit for bit (D10), and the
+    // merge stage glues the two faces.
     let d = topo::flush::declare_all(&topo::flush::find_flush_candidates(&a, &b, tol()).unwrap());
+    assert_eq!(
+        crate::common::outcomes::outcome(&topo::union(&a, &b, tol())),
+        crate::common::outcomes::outcome(&topo::union_with(&a, &b, &d, tol())),
+        "undeclared is the declared union"
+    );
     let r = match topo::union_with(&a, &b, &d, tol()).unwrap() {
         topo::BooleanResult::Body(bb) => bb,
         topo::BooleanResult::Empty => panic!("empty"),
@@ -469,15 +406,15 @@ fn the_declared_seam_body_is_an_operand() {
     let lines = [
         (
             "∪",
-            outcome(topo::union(&r.body, &c, tol()), vr + 0.12 - 0.06, 1e-9),
+            outcome(topo::union(&r.body, &c, tol()), vr + 0.12 - 0.06, tol()),
         ),
         (
             "∖",
-            outcome(topo::subtract(&r.body, &c, tol()), vr - 0.06, 1e-9),
+            outcome(topo::subtract(&r.body, &c, tol()), vr - 0.06, tol()),
         ),
         (
             "∩",
-            outcome(topo::intersect(&r.body, &c, tol()), 0.06, 1e-9),
+            outcome(topo::intersect(&r.body, &c, tol()), 0.06, tol()),
         ),
     ];
     for (op, l) in &lines {
@@ -514,7 +451,7 @@ fn the_peg_collar_unions_are_operands() {
         };
         let (sk, cp, z) = seams(&r.body);
         let vr = topo::mass_properties(&r.body, tol()).unwrap().volume;
-        let next = outcome(topo::union(&r.body, &far, tol()), vr + 1.0, 1e-9);
+        let next = outcome(topo::union(&r.body, &far, tol()), vr + 1.0, tol());
         let l = format!("{what}: samekey={sk} coplanar={cp} zero={z}; with a far brick: {next}");
         println!("[peg] {l}");
         lines.push(l);

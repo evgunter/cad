@@ -263,6 +263,12 @@ fn clusters<T: Decide + Bounds>(
 
 /// Whether the ball of `radius` about `foot`, on the carrier, holds no
 /// point of `face` (module docs).
+///
+/// The face's boundary is read against the ball before the foot is
+/// placed. The ball's radius is at least `escalate`, so a vertex or
+/// edge the placement could not tell from the foot lies inside it and
+/// answers `false`; the placement is asked only of a foot every member
+/// stands clear of.
 fn ball_off_face<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
@@ -277,24 +283,6 @@ fn ball_off_face<T: Decide + Bounds>(
     ) {
         return Ok(false);
     }
-    match super::contain::curved_face_placement(y, face, foot, band) {
-        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => {}
-        Ok(_)
-        | Err(
-            ContainError::EmptyLoop(_)
-            | ContainError::LoopUnreadable(_)
-            | ContainError::Curved(_)
-            | ContainError::RayExhausted
-            | ContainError::Uncrossable(_),
-        ) => return Ok(false),
-        Err(ContainError::Escalated(diag)) => {
-            return Err(BooleanError::Escalated {
-                decision: BooleanDecision::Containment,
-                diag,
-            });
-        }
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
-    }
     let f = crate::live::proven(&y.faces, face, EntityId::Face);
     for member in y.face_boundary_linked(face, f) {
         let clear_of_ball = match member {
@@ -305,7 +293,29 @@ fn ball_off_face<T: Decide + Bounds>(
             return Ok(false);
         }
     }
-    Ok(true)
+    match super::contain::curved_face_placement(y, face, foot, band) {
+        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
+        Ok(_)
+        | Err(
+            ContainError::EmptyLoop(_)
+            | ContainError::LoopUnreadable(_)
+            | ContainError::Curved(_)
+            | ContainError::RayExhausted
+            | ContainError::Uncrossable(_),
+        ) => Ok(false),
+        Err(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
+            diag,
+        }),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+    }
 }
 
 /// Whether a lower bound `gap` on a distance from a ball's centre
@@ -354,9 +364,7 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Line { .. } => {
             let a = boxes::edge_end_point(y, edge, e.he_plus, "he_plus");
             let b = boxes::edge_end_point(y, edge, e.he_minus, "he_minus");
-            let (d, w) = (b - a, at - a);
-            let s = (w.dot(d) / d.norm_squared()).max(T::zero()).min(T::one());
-            (w - d * s).norm()
+            crate::sector_shape::point_segment_distance(a, b, at)
         }
         geom::Curve3::Circle {
             center,

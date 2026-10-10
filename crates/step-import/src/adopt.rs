@@ -43,9 +43,9 @@
 
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::spline::SplineError;
-use geom_core::{Affine3, Point2, Point3};
+use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
 use crate::assemble::Assembled;
@@ -53,17 +53,20 @@ use crate::entities::SolidSpec;
 use crate::error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 use geom_core::Tol;
 
-/// Runs phases B and C for one assembled solid (module docs).
+/// Runs phases B and C for one assembled solid (module docs), and
+/// returns the body face per file face, in `CLOSED_SHELL` order.
 pub(crate) fn finish(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
-) -> Result<(), StepImportError> {
-    let face_keys = designate_faces(body, solid, asm)?;
-    rotate_loop_firsts(body, solid, asm, tol)?;
-    attach_surfaces(body, solid, &face_keys)?;
-    adopt_edges(body, solid, asm, tol)
+    file: FileCoincidence,
+) -> Result<Vec<FaceKey>, StepImportError> {
+    let face_keys = designate_faces(body, solid, asm, file)?;
+    rotate_loop_firsts(body, solid, asm, tol, file)?;
+    attach_surfaces(body, solid, &face_keys, file)?;
+    adopt_edges(body, solid, asm, tol, file)?;
+    Ok(face_keys)
 }
 
 /// The body loop realizing target loop `l`.
@@ -101,10 +104,12 @@ fn designate_faces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
+    file: FileCoincidence,
 ) -> Result<Vec<FaceKey>, StepImportError> {
     let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
         source: source.from_driver(),
+        file,
     };
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
@@ -185,10 +190,12 @@ fn rotate_loop_firsts(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
         source: source.from_driver(),
+        file,
     };
     for seq in &asm.target.loops {
         let t = asm.use_he[seq[0]];
@@ -301,10 +308,12 @@ fn attach_surfaces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     face_keys: &[FaceKey],
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
         source: source.from_driver(),
+        file,
     };
     let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
         std::collections::BTreeMap::new();
@@ -332,6 +341,7 @@ fn adopt_edges(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     for (&edge_id, spec) in &solid.edges {
         let (fwd, rev) = asm
@@ -546,8 +556,12 @@ fn adopt_edges(
                         | Surface::Torus { .. }
                 )
             });
-            if periodic {
-                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
+            // A wrap edge is a fact about one face: both its uses bound
+            // it (D1). Two faces on one surface meet at an ordinary
+            // edge, which takes the conventional rung below.
+            let (f_plus, f_minus) = sides.faces();
+            if periodic && f_plus == f_minus {
+                candidates.push((AdoptionCandidate::Wrap, EdgeDescriptionSpec::wrap(fs_plus)));
             }
         }
         if conventional
@@ -593,15 +607,27 @@ fn adopt_edges(
             ));
         }
 
-        // A band-minted seam generator (M7-5, R1 fix pass m2): the
-        // mint's D1 statement is that this edge IS the surface's
-        // u_ref half-plane seam, so the only honest description is
-        // `Seam` — the conventional mapped-curve rung is withheld,
-        // and a seam that cannot certify refuses with the ladder's
-        // own typed report instead of silently downgrading to a
-        // certified body whose "seam" is off the half-plane.
+        // An edge both of whose uses bound one face is that face's wrap
+        // edge (D1), whichever rung describes it — a closed spline
+        // wall's boundary column as much as an analytic generator —
+        // and tier 3 refuses it described otherwise. Certification
+        // then decides whether the chart closes across it.
+        let (f_plus, f_minus) = sides.faces();
+        if f_plus == f_minus {
+            for (_, description) in &mut candidates {
+                if let EdgeDescriptionSpec::Chart { wrap, .. } = description {
+                    *wrap = true;
+                }
+            }
+        }
+
+        // A band-minted generator: the mint's D1 statement is that
+        // this edge is the band face's wrap edge, so the only honest
+        // description is a wrap — the conventional mapped-curve rung
+        // is withheld, and a generator that cannot certify as one
+        // refuses with the ladder's own typed report.
         if solid.band_seams.contains(&edge_id) {
-            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Seam));
+            candidates.retain(|(c, _)| matches!(c, AdoptionCandidate::Wrap));
         }
 
         let mut attempts = Vec::new();
@@ -631,6 +657,7 @@ fn adopt_edges(
             return Err(StepImportError::Adoption {
                 id: edge_id,
                 attempts,
+                file,
             });
         }
     }
@@ -898,27 +925,29 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line { origin, dir } if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| MappedCurve::PlacedSegment {
+        Curve3::Line { origin, dir } if nurbs_rim => line_frame(*origin, *dir).map(|place| {
+            MappedCurve::whole(MappedSource::PlacedSegment {
                 segment: geom_brep::SketchSegment::Line {
                     a: Point2::new(t0, 0.0),
                     b: Point2::new(t1, 0.0),
                 },
                 place,
             })
-        }
-        Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
+        }),
+        Curve3::Line { .. } => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
-        }),
-        Curve3::Circle { center, axis, .. } => Some(MappedCurve::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
-            angle: t1 - t0,
-        }),
+        })),
+        Curve3::Circle { center, axis, .. } => {
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis_origin: *center,
+                axis_dir: *axis,
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }

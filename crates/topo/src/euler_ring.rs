@@ -234,7 +234,7 @@
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
-use crate::attach::Slot;
+use crate::attach::KillMove;
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
@@ -411,6 +411,21 @@ struct KfmrhPlan<T: geom_core::Real> {
     /// Every half-edge of the ring, proven ([`Body::whole_cycle`]).
     ring_halves: Vec<HalfEdgeKey>,
     rows: Vec<SiteRows<T>>,
+    /// The re-descriptions a describing kill certified, on the keys
+    /// the ring's edges' faces wear after it.
+    described: Vec<(EdgeKey, geom_brep::EdgeCurve<T>)>,
+}
+
+/// What [`Body::kfmrh`]'s structural checks prove: `f1`'s shell, the
+/// killed face `f2` and its shell's records, the form, the ring that
+/// `f2`'s outer loop becomes, and its move onto `f1`.
+struct KfmrhMove {
+    f1_shell: ShellKey,
+    f2_data: crate::entity::Face,
+    s2_data: crate::entity::Shell,
+    cross_shell: bool,
+    ring: LoopKey,
+    kill: KillMove,
 }
 
 impl<T: geom_core::Real> KfmrhPlan<T> {
@@ -910,12 +925,12 @@ impl<T: Decide> Body<T> {
     /// that move whole. On a spline chart, or an `f1` that was unminted
     /// or half-minted, the drop is the whole answer at either door.
     ///
-    /// **What it does not ask:** where `f1` wears another key than
-    /// `f2`, whether the demoted loop's descriptions still name a key
-    /// their faces wear, or a key `f1` wears — the questions
-    /// [`Body::ring_move`] refuses on ([`RechartDoor`]). Production
-    /// callers rely on that move today
-    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// **Keys-only.** Where `f1` wears another key than `f2`, the
+    /// demoted loop moves onto a chart its edges' descriptions may not
+    /// name. This door asks [`Body::ring_move`]'s questions of that move
+    /// ([`Body::vouch_move`], as [`RechartDoor::Kfmrh`]), on
+    /// [`Body::kef`]'s terms; [`Body::kfmrh_describing`] takes the move
+    /// with its re-descriptions under a band.
     ///
     /// **Minting order**: nothing is minted (the loop survives with its D5
     /// birth record — no provenance changes for survivors; re-homed faces
@@ -934,7 +949,10 @@ impl<T: Decide> Body<T> {
     /// `f1` resolves, then `f2` ([`BadArgument::Stale`]); they are
     /// distinct ([`EulerOpError::SameFace`]); cross-shell only: one
     /// solid ([`EulerOpError::CrossSolid`]); `f2` has no rings
-    /// ([`EulerOpError::FaceHasRings`]); then the site mint's plan
+    /// ([`EulerOpError::FaceHasRings`]); then the move's keys
+    /// ([`EulerOpError::RechartStrandsDescriptions`], then
+    /// [`EulerOpError::RechartUnvouched`], each naming every edge, in
+    /// the demoted loop's cycle order); then the site mint's plan
     /// ([`Body::plan_moved_rows`]'s errors): where `f1` would be
     /// re-minted, [`EulerOpError::PcurveMint`] naming `f1` (`KeysOnly`
     /// at this door).
@@ -955,7 +973,9 @@ impl<T: Decide> Body<T> {
     pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let plan = self.kfmrh_plan(f1, f2, None)?;
+        let plan = self.kfmrh_plan(f1, f2, None, |body, m| {
+            body.vouch_kill(RechartDoor::Kfmrh, m)
+        })?;
         #[cfg(debug_assertions)]
         let declared = plan.delta();
         let fused = self.kfmrh_execute(plan);
@@ -973,7 +993,12 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::kfmrh`], except the `KeysOnly` refusal, and the site
-    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors);
+    /// and it does not ask the move's keys. Its production caller, the
+    /// boolean's seam zip, relies on that move, and
+    /// [`Body::kfmrh_describing`] absorbs it once the zip states its
+    /// re-descriptions
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     pub fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
@@ -982,7 +1007,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let plan = self.kfmrh_plan(f1, f2, Some(tol))?;
+        let plan = self.kfmrh_plan(f1, f2, Some(tol), |_, _| Ok(Vec::new()))?;
         #[cfg(debug_assertions)]
         let declared = plan.delta();
         let fused = self.kfmrh_execute(plan);
@@ -991,15 +1016,78 @@ impl<T: Decide> Body<T> {
         Ok(fused)
     }
 
-    /// [`Body::kfmrh`]'s preconditions and site mint plan, with the band
-    /// the site mint runs at, or none for the keys-only door.
-    fn kfmrh_plan(
+    /// **The describing kill**: [`Body::kfmrh_minting`]'s kill with the
+    /// re-descriptions of the demoted loop's edges, under `tol`'s band
+    /// — the twin [`Body::kfmrh`]'s refusals name, as
+    /// [`Body::kef_describing`] is [`Body::kef`]'s, and on its terms:
+    /// each listed description is stated on the adjacency the kill
+    /// leaves, a key `f2` wears standing for `f1`'s
+    /// ([`Body::kfmrh_carried_redescriptions`] states the stored ones
+    /// there), certified on the edge's own carrier and interval, and
+    /// nothing unlisted is re-described.
+    ///
+    /// # Precondition check order
+    ///
+    /// [`Body::kfmrh`]'s structural list; then
+    /// [`Body::kef_describing`]'s listed-edge, strand and residual
+    /// checks, an edge with a half in the demoted loop counting as
+    /// moved ([`EulerOpError::NotMovedEdge`] otherwise); then
+    /// [`Body::kfmrh_minting`]'s site mint.
+    ///
+    /// # Errors
+    ///
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::kfmrh`].
+    pub fn kfmrh_describing(
+        &mut self,
+        f1: FaceKey,
+        f2: FaceKey,
+        redescriptions: &[(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)],
+        tol: Tol,
+    ) -> Result<KfmrhResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, Some(tol), |body, m| {
+            body.vouch_described_kill(RechartDoor::KfmrhDescribing, m, redescriptions, tol)
+        })?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh_describing");
+        Ok(fused)
+    }
+
+    /// **The re-descriptions [`Body::kfmrh_describing`] would need to
+    /// carry `kfmrh(f1, f2)`'s move**: [`Body::kef_carried_redescriptions`]'
+    /// reading for the demoted loop, in its cycle order. Pure.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::kfmrh`]'s structural list: `f1` resolves, then `f2`
+    /// ([`BadArgument::Stale`]); they are distinct
+    /// ([`EulerOpError::SameFace`]); they share a solid
+    /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
+    /// ([`EulerOpError::FaceHasRings`]).
+    pub fn kfmrh_carried_redescriptions(
         &self,
         f1: FaceKey,
         f2: FaceKey,
-        tol: Option<Tol>,
-    ) -> Result<KfmrhPlan<T>, EulerOpError> {
-        // ---- Preconditions. ----
+    ) -> Result<Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)>, EulerOpError> {
+        Ok(self.carried_by_kill(&self.kfmrh_move(f1, f2)?.kill))
+    }
+
+    /// [`Body::kfmrh`]'s structural preconditions and the move it makes,
+    /// which [`Body::kfmrh_carried_redescriptions`] states and the doors
+    /// vouch and carry out.
+    fn kfmrh_move(&self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhMove, EulerOpError> {
         let f1_data = lookup(&self.faces, f1, EntityId::Face, Arg("f1"))?;
         let f1_shell = f1_data.shell;
         let f1_surface = f1_data.surface;
@@ -1062,7 +1150,45 @@ impl<T: Decide> Body<T> {
                 "solid",
             );
         }
-        let ring_halves = self.whole_cycle(ring);
+        let kill = KillMove::of(
+            self,
+            f1,
+            (f2_data.surface, f1_surface),
+            self.whole_cycle(ring),
+        );
+        Ok(KfmrhMove {
+            f1_shell,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            kill,
+        })
+    }
+
+    /// [`Body::kfmrh`]'s preconditions and site mint plan, with the band
+    /// the site mint runs at, or none for the keys-only door.
+    fn kfmrh_plan(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Option<Tol>,
+        vouch: impl FnOnce(
+            &Self,
+            &KillMove,
+        ) -> Result<Vec<(EdgeKey, geom_brep::EdgeCurve<T>)>, EulerOpError>,
+    ) -> Result<KfmrhPlan<T>, EulerOpError> {
+        // ---- Preconditions. ----
+        let KfmrhMove {
+            f1_shell,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            kill,
+        } = self.kfmrh_move(f1, f2)?;
+        let f2_shell = f2_data.shell;
+        let f1_surface = kill.onto;
         // Nothing the kill keeps names `f2`, or, in the fusion form,
         // `f2`'s shell: the ring re-homes onto `f1`, the shell that
         // drops `f2` is `f1`'s in the same-shell form and dies in the
@@ -1110,9 +1236,12 @@ impl<T: Decide> Body<T> {
                 },
             );
         }
+        let one_payload = kill.one_payload;
+        let described = vouch(self, &kill)?;
+        let ring_halves = kill.moving;
         let rows = self.plan_moved_rows(
             &ring_halves,
-            self.same_chart(f2_data.surface, f1_surface),
+            one_payload,
             f1,
             |body| Ok(body.site_face_receiving(f1, &ring_halves)),
             tol,
@@ -1128,6 +1257,7 @@ impl<T: Decide> Body<T> {
             ring,
             ring_halves,
             rows,
+            described,
         })
     }
 
@@ -1144,6 +1274,7 @@ impl<T: Decide> Body<T> {
             ring,
             ring_halves,
             rows,
+            described,
         } = plan;
         let f2_shell = f2_data.shell;
         // The surviving loop is repointed and demoted; nothing else at
@@ -1158,6 +1289,10 @@ impl<T: Decide> Body<T> {
         face.rings.push(ring);
         self.drop_rows_on_chart_change(ring_halves, f2_data.surface, f1_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
+        // A re-described edge keeps its carrier, so its rows stand.
+        for (edge, curve) in described {
+            self.replace_edge_curve(edge, curve);
+        }
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
@@ -1374,7 +1509,7 @@ impl<T: Decide> Body<T> {
             self.vouch_move(
                 RechartDoor::RingMove,
                 to_face,
-                (from_surface, Slot::Kept(to_surface)),
+                self.landing_on(from_surface, to_surface),
                 self.run_edges(&ring_halves),
                 |_, l, _| l == ring,
                 self.same_chart(from_surface, to_surface),
@@ -1625,9 +1760,7 @@ impl<T: Decide> Body<T> {
     /// row certified on one is certified on the other?
     ///
     /// Answered from identity evidence only: one surface key, or two
-    /// keys sharing one NURBS / `Approx` payload `Arc`. A
-    /// [`crate::GeomSource`] stamp is not read — [`crate::source`]'s
-    /// module docs name this question and the declared one apart.
+    /// keys sharing one NURBS / `Approx` payload `Arc`.
     ///
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of
@@ -3384,6 +3517,12 @@ mod tests {
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kfmrh(seed.face, other.face).unwrap_err()
         });
+        assert_eq!(
+            body.kfmrh_carried_redescriptions(seed.face, other.face)
+                .unwrap_err(),
+            expected,
+            "the restater refuses what the door refuses"
+        );
     }
 
     /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
@@ -3933,7 +4072,6 @@ mod tests {
             let wall = cyl_wall_sheet(
                 &mut body,
                 CylFrame::canonical(1.0),
-                None,
                 (0.2, 1.4),
                 (0.0, 1.0),
                 tol,

@@ -547,9 +547,14 @@ pub fn filleted_die() -> Body<f64> {
     .expect("the cube")
     .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    sweep::blend::build::fillet_edges(&body, &edges, 0.12, Tol::witness())
-        .expect("the die blank")
-        .body
+    sweep::blend::build::fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        0.12,
+        Tol::witness(),
+    )
+    .expect("the die blank")
+    .body
 }
 
 /// The M5 PR 12 pipped die: a SHARP unit cube with 21 spherical
@@ -740,9 +745,14 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    let blanked = fillet_edges(&pipped, &box_edges, die_r, Tol::witness())
-        .expect("the box edges blend in place")
-        .body;
+    let blanked = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &box_edges,
+        die_r,
+        Tol::witness(),
+    )
+    .expect("the box edges blend in place")
+    .body;
     let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
         b.get_face(f)
             .and_then(|fd| b.get_surface(fd.surface))
@@ -771,9 +781,14 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    fillet_edges(&blanked, &rims, rim_r, Tol::witness())
-        .expect("the rims blend to torus bands")
-        .body
+    fillet_edges(
+        &sweep::test_support::at_rest(&blanked, Tol::witness()),
+        &rims,
+        rim_r,
+        Tol::witness(),
+    )
+    .expect("the rims blend to torus bands")
+    .body
 }
 
 /// The M6-3 loft: R5 shape (iii)'s three-section polyline loft —
@@ -796,29 +811,31 @@ pub fn loft_prism() -> Body<f64> {
 /// minimal pair with `loft_prism` — same sections, same degree, same
 /// builder, non-uniform spacing.
 ///
-/// **The v-parameterization is NOT `[0, ⅓, 1]`.** `skin_parameters`
-/// averages cumulative **chord** lengths, not z-spacings, and the
-/// trapezoid's ±0.375 flare lengthens the first chord: both rows of the
-/// first strip travel `√(0.375² + 1²) = √73/8` then
-/// `√(0.375² + 2²) = √265/8`, so the average is exact and the middle
-/// parameter is
+/// **The v-parameterization is NOT `[0, ⅓, 1]`.** `loft_parameters`
+/// averages cumulative **chord** lengths over every control row of
+/// every wall, not z-spacings, and the trapezoid's ±0.375 flare
+/// lengthens the first chord at its two bottom corners: those travel
+/// `√(0.375² + 1²) = √73/8` then `√(0.375² + 2²) = √265/8`, while the
+/// two top corners travel `1` then `2`. Each corner is two walls' row,
+/// so the middle parameter is the mean of the two shares,
 ///
 /// ```text
-/// t = √73 / (√73 + √265) = 0.34419950074181277
+/// t = (√73 / (√73 + √265) + 1/3) / 2 = 0.33876641703757304
 /// ```
 ///
 /// The fixture ASKS `sweep::loft_parameters` for that value and pins
 /// this derivation against it (LIB-U5), so the algebra here is a
 /// cross-check rather than the only record of what the skin chose.
 ///
-/// The naive `⅓` would put the volume at 13.6875 m³ — out by 1.9e-3
-/// relative, 1.6e8 times the certified pad. Carrying the real `t`
-/// through the quadratic Lagrange fit (one Bézier span; slices are
-/// planar trapezoids of area `4 + 2d·L1(v)`, d = 0.375) gives
+/// The naive `⅓` would put the volume at 13.6875 m³ — out by 9.8e-4
+/// relative, eleven orders outside the certified pad. Carrying the
+/// real `t` through the quadratic Lagrange fit (one Bézier span; slices
+/// are planar trapezoids of area `4 + 2d·L1(v)`, d = 0.375) gives
 ///
 /// ```text
-/// V = 12 + 0.375 / (t(1 − t)) = 12.75 + 126.75/√19345
-///   = 13.661304680798798 m³
+/// V = 12 + 0.375 / (t(1 − t))
+///   = 12 + 13.5 (a + b)² / ((4a + b)(2a + 5b)),  a = √73, b = √265
+///   = 13.674079253555504 m³
 /// ```
 ///
 /// which is the derived volume. The `.expect` sidecar carries the
@@ -838,10 +855,10 @@ pub fn nonuniform_loft() -> Body<f64> {
         .body
 }
 
-/// The middle section's v-parameter, `√73 / (√73 + √265)` — the pin
-/// the derivation above rests on, checked against `loft_parameters`
-/// every time the fixture builds.
-const NONUNIFORM_T: f64 = 0.34419950074181277;
+/// The middle section's v-parameter, `(√73 / (√73 + √265) + 1/3) / 2`
+/// — the pin the derivation above rests on, checked against
+/// `loft_parameters` every time the fixture builds.
+const NONUNIFORM_T: f64 = 0.33876641703757304;
 
 /// **The swept elbow (#210 / #207): the corpus's first CURVED-PATH
 /// sweep.** A square profile of half-width 0.25 swept along a 90° arc

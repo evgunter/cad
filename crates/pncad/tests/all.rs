@@ -219,8 +219,18 @@ fn step_import_payload(e: &StepImportError) {
 // it is reachable only by module path, exactly the shape that made
 // the original leak invisible.
 fn contain_payload(e: &pncad::topo::boolean::ContainError) {
-    if let pncad::topo::boolean::ContainError::Escalated(inner) = e {
-        named::<&pncad::geom_core::Indeterminate>(inner);
+    if let pncad::topo::boolean::ContainError::Escalated {
+        decision,
+        escalation,
+        diag,
+    } = e
+    {
+        if let Some(pncad::topo::boolean::ContainDecision::Loop(inner)) = decision {
+            named::<&pncad::topo::LoopDecision>(inner);
+        }
+        named::<&Option<pncad::topo::boolean::ContainDecision>>(decision);
+        named::<&pncad::topo::Escalation>(escalation);
+        named::<&pncad::geom_core::Indeterminate>(diag);
     }
 }
 
@@ -300,7 +310,8 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // A straight band's cut-off — a configuration that CARVES,
         // whose policy is the cut-off the tag's map assigns.
         CornerConfig::EndFace => "end_face",
-        // Two of three edges requested: the mitre, named and refused.
+        // Two of three edges requested: the mitre, built where the
+        // faces are symmetric about the third.
         CornerConfig::Turn => "turn",
         CornerConfig::Indeterminate => "indeterminate",
     }
@@ -342,10 +353,15 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ConvexitySign => "convexity_sign",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
+        BlendDecision::ContactArm => "contact_arm",
+        BlendDecision::ContactWedge => "contact_wedge",
         BlendDecision::ContactSecondOrder => "contact_second_order",
         BlendDecision::CornerIndependence => "corner_independence",
         BlendDecision::CapTransverse => "cap_transverse",
+        BlendDecision::CapEllipse => "cap_ellipse",
         BlendDecision::CutOffFeet => "cut_off_feet",
+        BlendDecision::TurnIsosceles => "turn_isosceles",
+        BlendDecision::MitreSection => "mitre_section",
     }
 }
 
@@ -941,11 +957,11 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     assert_eq!(
         upstream(ResolveIndeterminate {
             standing: NodeStanding::Poisoned {
-                node: RecipeNodeId(7),
-                through: RecipeNodeId(4)
+                node: RecipeNodeId::new(0, 7),
+                through: RecipeNodeId::new(0, 4)
             }
         }),
-        ("target_poisoned", RecipeNodeId(4))
+        ("target_poisoned", RecipeNodeId::new(0, 4))
     );
 }
 
@@ -1047,7 +1063,7 @@ fn the_polygon_door_authors_through_the_lattice() {
 
 /// **The identity claim**: the door changes how a polygon is SAID, not
 /// what it is. The emitted loop is the raw vertex table — every
-/// authored point in order, every bulge zero, no declared joints.
+/// authored point in order, every bulge zero, no constructed joints.
 ///
 /// The claim is pinned against the table rather than against a call to
 /// the raw minting door, because that door is unreachable from here by
@@ -1070,13 +1086,13 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
         assert_eq!(format!("{:?}", loop_.segments()[i]), "Line", "segment {i}");
     }
     assert!(
-        loop_.tangent_joints().is_empty(),
-        "a polygon declares no tangent joint"
+        loop_.constructed_joints().is_empty(),
+        "a polygon constructs no tangent joint"
     );
 
     // And the same loop the hand-spelled chain emits: the door IS that
     // chain, not a second lowering of the same table.
-    let chain: ProfileLoop<f64> = Open
+    let chain: ConstructedLoop<f64> = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0), tol)
         .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
@@ -1084,7 +1100,7 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
         .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
         .and_then(|t| t.line_to(Start, tol))
         .expect("the hand-spelled chain authors")
-        .into();
+        .loop_;
     let hand = chain.vertices();
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
@@ -1095,7 +1111,7 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
             "segment {i}"
         );
     }
-    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
+    assert_eq!(chain.constructed_joints(), loop_.constructed_joints());
 }
 
 /// The validation ladder as the corpus actually walks it.
@@ -1360,6 +1376,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         curve_promotions,
         instances,
         coherence,
+        coincidences,
     } = imported
     else {
         panic!("the box re-imports as a solid, not a wireframe");
@@ -1379,6 +1396,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // empty report; `topo`'s own door draws the same line about the
     // two lists inside a report it did produce.
     named::<Option<CoherenceReport>>(coherence.clone());
+    // The anchors' decisions: none, since the default import declares
+    // no anchor.
+    named::<Vec<pncad::document::coincidence::Coincidence>>(coincidences.clone());
+    assert!(
+        coincidences.is_empty(),
+        "the default import declares no anchor"
+    );
     assert!(
         coherence.is_none(),
         "the default import asked for no chart-coherence examination"
@@ -1446,8 +1470,8 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
-        NormalizationKind::FullPeriodTorus => "full_period_torus",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -1489,11 +1513,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
 
     // The post is strictly interior in x and y and pokes out of the
     // base's top, so the two bodies genuinely interpenetrate and NO
-    // pair of faces is coincident. That matters: the kernel never
-    // infers coincidence from values, so two boxes merely TOUCHING on
-    // a shared plane refuse with `UndeclaredCoincidence` until the
-    // author declares the contact. (Declared-contact unions are the
-    // corpus's own subject; this test wants the plain seamed path.)
+    // pair of faces is coincident: this test wants the plain seamed
+    // path, not a glued contact.
     let base = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.0)); // 6.0
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0)); // 1.5, of which 0.5 is inside
 
@@ -2078,7 +2099,7 @@ fn xy_frame() -> pncad::document::AuthoredNode {
 fn square(plane: pncad::document::RecipeNodeId, s: f64) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -2099,6 +2120,7 @@ fn insert(
         &doc,
         &pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2109,7 +2131,8 @@ fn insert(
 }
 
 /// A one-box document under the id `label` derives: square(2)
-/// extruded 1.5, volume exactly 6.0. Returns (doc, profile id, body
+/// extruded 1.5, volume exactly 6.0, the box placed once in the world
+/// at the identity. Returns (doc, profile id, body
 /// id) — the MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
@@ -2118,21 +2141,56 @@ fn box_doc(
     pncad::document::RecipeNodeId,
     pncad::document::RecipeNodeId,
 ) {
-    use pncad::document::{Node, ProfileDoc};
+    use pncad::document::{Node, Placement, ProfileDoc};
     let doc = ProfileDoc::empty_derived(label, pncad::tolerance::Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(doc, square(plane, 2.0));
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
     );
+    let (doc, _) = insert(doc, Node::place_in_world(body, Placement::IDENTITY));
     (doc, profile, body)
 }
 // END box-document fixture twin
+
+/// Place one copy of `body` in the world at the identity — the façade's
+/// one placing door, `DocEdit::place` — returning the placement's id.
+fn place(
+    doc: pncad::document::ProfileDoc,
+    body: impl Into<pncad::document::Operand>,
+) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+    let applied = pncad::document::apply(
+        &doc,
+        &pncad::document::DocEdit::place(body, None),
+        pncad::tolerance::Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the placement is accepted");
+    let minted = applied.record.minted.expect("a placement mints an id");
+    (applied.doc, minted)
+}
+
+/// The one world placement of `node`'s output in `doc`.
+fn placement_of(
+    doc: &pncad::document::ProfileDoc,
+    node: pncad::document::RecipeNodeId,
+) -> pncad::document::RecipeNodeId {
+    let output = doc.output(node, 0);
+    doc.placements()
+        .into_iter()
+        .find(|&placement| {
+            matches!(
+                doc.node(placement),
+                Some(pncad::document::Node::PlaceInWorld { body, .. }) if Some(*body) == output
+            )
+        })
+        .expect("the node is placed")
+}
 
 /// The marker words the box-document twins sit between, less their
 /// `BEGIN`/`END` heads.
@@ -2232,11 +2290,10 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
-    let steps = lifted
-        .try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula))
-        .expect("a lifted recording reads no name")
-        .resolve(&VarEnv::<f64>::default(), 0)
-        .expect("literal arguments resolve");
+    let steps =
+        pncad::document::resolve_written_loops(std::slice::from_ref(&lifted), Tol::witness())
+            .expect("literal arguments resolve")
+            .remove(0);
     let replayed = pncad::profile::replay(&steps, Tol::witness())
         .expect("the lifted program replays")
         .into_loop();
@@ -2255,7 +2312,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![lifted],
             ids: Vec::new(),
         }),
@@ -2263,7 +2320,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(8.0),
             side: ExtrudeSide::Along,
         },
@@ -2377,7 +2434,7 @@ fn square_at(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(x), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(x + s), len(0.0)])),
@@ -2396,13 +2453,13 @@ fn square_at(
 #[test]
 fn the_document_export_door_ships_the_multi_solid_product() {
     use pncad::document::Node;
-    let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export", Tol::witness());
+    let doc = pncad::document::ProfileDoc::empty_derived("world-doc-export", Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, p0) = insert(doc, square_at(plane, 2.0, 0.0));
     let (doc, b0) = insert(
         doc,
         Node::Extrude {
-            profile: p0,
+            profile: p0.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
@@ -2412,12 +2469,13 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     let (doc, b1) = insert(
         doc,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
-    assert_eq!(doc.roots(), &[b0, b1][..], "both tips are product roots");
+    let (doc, _) = place(doc, b0);
+    let (doc, _) = place(doc, b1);
     let ev = doors_evaluate(&doc);
 
     // The per-node door speaks for ONE node, so no node in this
@@ -2442,20 +2500,75 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     }
 }
 
-/// The same door's typed refusal: a profile-only document has no body
-/// product, and the refusal says exactly that (ASM-ROOTS row 4).
+/// The same door's typed refusal on an EMPTY WORLD (A11 (2)): a
+/// document whose bodies nothing places has no product, and the
+/// refusal names every unplaced body in document order — the two
+/// extrudes' outputs, and not the profile's, which is no body. A
+/// profile-only document refuses the same with nothing to name.
 #[test]
-fn the_document_export_door_refuses_a_bodiless_document() {
-    use pncad::document::ProductError;
+fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
+    use pncad::document::{Node, ProductError};
     use pncad::export::ExportError;
-    let doc =
-        pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export-bodiless", Tol::witness());
+    let doc = pncad::document::ProfileDoc::empty_derived("world-doc-export-empty", Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
-    let (doc, _profile) = insert(doc, square_at(plane, 2.0, 0.0));
+    let (doc, p0) = insert(doc, square_at(plane, 2.0, 0.0));
+    let refuses = |doc: &pncad::document::ProfileDoc| {
+        let ev = doors_evaluate(doc);
+        match pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
+        {
+            Err(ExportError::Product(ProductError::EmptyProduct { unplaced })) => unplaced,
+            other => panic!("an empty world must refuse EmptyProduct, got {other:?}"),
+        }
+    };
+    assert_eq!(
+        refuses(&doc),
+        Vec::new(),
+        "a profile is not a body to place"
+    );
+    let extrude = |profile: pncad::document::RecipeNodeId| Node::Extrude {
+        profile: profile.into(),
+        distance: len(1.0),
+        side: ExtrudeSide::Along,
+    };
+    let (doc, b0) = insert(doc, extrude(p0));
+    let (doc, p1) = insert(doc, square_at(plane, 1.0, 10.0));
+    let (doc, b1) = insert(doc, extrude(p1));
+    assert_eq!(
+        refuses(&doc),
+        vec![
+            doc.output(b0, 0).expect("the first extrude's output"),
+            doc.output(b1, 0).expect("the second extrude's output"),
+        ],
+        "every unplaced body, in document order"
+    );
+}
+
+/// The same door's refusal of a STRANDED placement (A11 (2)): deleting
+/// a placed body is accepted, and the placement left reading nothing
+/// refuses the gather by name rather than leaving its copy out.
+#[test]
+fn the_document_export_door_refuses_a_stranded_placement() {
+    use pncad::document::{DocEdit, ProductError};
+    use pncad::export::ExportError;
+    let (doc, _, body) = box_doc("world-doc-export-stranded");
+    let placement = doc.placements()[0];
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::DeleteNode { id: body },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("deleting a placed body is accepted")
+    .doc;
     let ev = doors_evaluate(&doc);
     match pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness()) {
-        Err(ExportError::Product(ProductError::NoBodyRoots)) => {}
-        other => panic!("a profile-only document must refuse NoBodyRoots, got {other:?}"),
+        Err(ExportError::Product(ProductError::StrandedPlacement { placement: at })) => {
+            assert_eq!(
+                at, placement,
+                "the refusal names the placement left stranded"
+            );
+        }
+        other => panic!("a stranded placement must refuse StrandedPlacement, got {other:?}"),
     }
 }
 
@@ -2464,13 +2577,22 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
-    // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, plane) = insert(doc, xy_frame());
+    // A failing Boolean and its downstream: the second box's floor
+    // stands 2ε off the first's, inside the ambiguity band at every ε.
+    let sliver = 2.0 * pncad::geom_core::Tol::witness().eps();
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [len(0.0), len(0.0), len(sliver)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, second_profile) = insert(doc, square(plane, 1.0));
     let (doc, second_box) = insert(
         doc,
         Node::Extrude {
-            profile: second_profile,
+            profile: second_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2479,8 +2601,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
         doc,
         Node::Boolean {
             op: pncad::document::BooleanOp::Subtract,
-            a: first_box,
-            b: second_box,
+            a: first_box.into(),
+            b: second_box.into(),
             declare: Vec::new(),
         },
     );
@@ -2488,8 +2610,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
         doc,
         Node::Boolean {
             op: pncad::document::BooleanOp::Union,
-            a: cut,
-            b: first_box,
+            a: cut.into(),
+            b: first_box.into(),
             declare: Vec::new(),
         },
     );
@@ -2504,7 +2626,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         })
     ));
     assert!(matches!(
-        door(RecipeNodeId(u64::MAX)),
+        door(RecipeNodeId::new(0, u64::MAX)),
         Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
     assert!(matches!(
@@ -2522,7 +2644,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     // Each standing renders one way: the door's subject, then the
     // standing's own sentence (`editor-core`'s `node_standing` rows
     // hold the other doors to the same shape).
-    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+    for node in [RecipeNodeId::new(0, u64::MAX), cut, downstream] {
         let standing = ev.usable(node).expect_err("no value");
         let refusal = door(node).expect_err("refuses");
         assert_eq!(
@@ -2588,7 +2710,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
         }),
@@ -2596,7 +2718,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, plate) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -2614,7 +2736,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, tab_p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: tab_plane,
+            frame: tab_plane.into(),
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -2625,7 +2747,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, tab) = insert(
         doc,
         Node::Extrude {
-            profile: tab_p,
+            profile: tab_p.into(),
             distance: len(0.25),
             side: ExtrudeSide::Along,
         },
@@ -2634,11 +2756,12 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: tab,
+            a: plate.into(),
+            b: tab.into(),
             declare: Vec::new(),
         },
     );
+    let (doc, _) = place(doc, solid);
     // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
     // fixture the Python audit loads carries the two node kinds whose
     // READING door Python ships (`Value.measure`, `Value.assertion`).
@@ -2686,31 +2809,28 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         let first = found.remove(0);
         vec![first, last]
     };
+    // Read AT the plate extrude the walls were selected from —
+    // nothing places this geometry, so the reading site is that node,
+    // spelled explicitly rather than assumed.
+    let [a, b]: [pncad::document::SitedRef; 2] = walls
+        .into_iter()
+        .map(|name| pncad::document::SitedRef::new(plate, name))
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("two walls");
     let (doc, measure) = insert(
         doc,
-        Node::measure(
-            pncad::document::MeasureExpr::primitive(pncad::document::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            // Read AT the plate extrude the walls were selected from —
-            // nothing places this geometry, so the reading site is that
-            // node, spelled explicitly rather than assumed.
-            walls
-                .into_iter()
-                .map(|name| pncad::document::SitedRef::new(plate, name))
-                .collect(),
-        )
-        .expect("both indices address a reference"),
+        Node::measure(&pncad::document::MeasurePrimitive::Distance { a, b }),
     );
+    let value = doc.output(measure, 0).expect("a measure defines its value");
     // A distance is a magnitude, so `>= 0` holds for any selection —
     // the verdict is about the READ door, not about the geometry.
     let (doc, _) = insert(
         doc,
         Node::Assertion {
-            measure,
+            value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
             bound: len(0.0),
-            dir: pncad::document::AssertionDir::AtLeast,
+            relation: pncad::document::AssertionRelation::AtLeast,
         },
     );
     (doc, solid)
@@ -2830,15 +2950,8 @@ fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
     (doc, text)
 }
 
-/// [`ws_doc`], and the extrude that is its body — the node a
-/// part-local name of its faces is minted by.
-fn ws_doc_and_body(
-    label: &str,
-) -> (
-    pncad::document::ProfileDoc,
-    String,
-    pncad::document::RecipeNodeId,
-) {
+/// [`ws_doc`], and its body: the extrude, placed once in the world.
+fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBody) {
     use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
@@ -2849,13 +2962,40 @@ fn ws_doc_and_body(
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
     );
+    let (doc, placement) = place(doc, body);
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
-    (doc, text, body)
+    (doc, text, PartBody { body, placement })
+}
+
+/// A part's one body and the world placement whose copy is its product.
+#[derive(Clone, Copy)]
+struct PartBody {
+    /// The extrude that is the body — the node a part-local name of
+    /// its faces is minted by.
+    body: pncad::document::RecipeNodeId,
+    /// Its one world placement.
+    placement: pncad::document::RecipeNodeId,
+}
+
+impl PartBody {
+    /// The body's `cap` face, part-local.
+    fn cap(self, cap: pncad::select::CapEnd) -> pncad::prelude::StableName {
+        pncad::prelude::StableName {
+            kind: pncad::select::EntityKind::Face,
+            node: self.body,
+            path: vec![pncad::select::RoleSeg::Cap(cap)],
+        }
+    }
+
+    /// The same face as the part's product names it: under its copy.
+    fn product_cap(self, cap: pncad::select::CapEnd) -> pncad::prelude::StableName {
+        self.cap(cap).in_copy(self.placement)
+    }
 }
 
 /// Open + resolve happy path: the scan maps ids to paths from the
@@ -3376,7 +3516,7 @@ fn asm2a_part_and_body(
     dir: &WsDir,
     file: &str,
     label: &str,
-) -> (pncad::document::DocRef, pncad::document::RecipeNodeId) {
+) -> (pncad::document::DocRef, PartBody) {
     let (doc, text, body) = ws_doc_and_body(label);
     dir.write(file, &text);
     (
@@ -3388,8 +3528,9 @@ fn asm2a_part_and_body(
     )
 }
 
-/// An assembly document holding `n` instances of one reference, the
-/// second onward displaced along +x so the solids stay disjoint.
+/// An assembly document holding `n` instances of one reference, each
+/// placed once in the world, the second onward displaced along +x so
+/// the solids stay disjoint.
 fn asm2a_assembly(
     label: &str,
     doc_ref: pncad::document::DocRef,
@@ -3405,6 +3546,7 @@ fn asm2a_assembly(
     let mut ids = Vec::new();
     for i in 0..n {
         let (next, id) = insert(doc, pncad::document::Node::instantiate_part(doc_ref));
+        let (next, _) = place(next, id);
         doc = next;
         if i > 0 {
             #[allow(clippy::cast_precision_loss)]
@@ -3416,6 +3558,7 @@ fn asm2a_assembly(
                     offset: Some(pncad::document::Placement::literal(
                         &pncad::document::Frame::translation([dx, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -3448,7 +3591,7 @@ fn asm2a_eval(
 /// Row 1 (E2E) — author a part, save it into a workspace, and let an
 /// assembly of TWO instances at different frames evaluate through the
 /// real store: a 2-solid product, volume bit-exactly 2× the part's,
-/// solid order = root order.
+/// solid order = placement order.
 #[test]
 fn asm2a_row1_two_instances_through_a_real_workspace() {
     let dir = WsDir::new("asm2a-e2e");
@@ -3477,7 +3620,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         "the assembly's volume is bit-exactly twice the part's"
     );
 
-    // Solid order = root order: instance 0 is at the origin, instance 1
+    // Solid order = placement order: instance 0 is at the origin, instance 1
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => b
@@ -3489,7 +3632,16 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     };
     assert!((x_of(ids[0]) - 0.0).abs() < 1e-12);
     assert!((x_of(ids[1]) - 10.0).abs() < 1e-12);
-    assert_eq!(doc.roots(), &ids[..], "both instances are roots, in order");
+    let placed: Vec<_> = doc
+        .placements()
+        .into_iter()
+        .map(|placement| match doc.node(placement) {
+            Some(pncad::document::Node::PlaceInWorld { body, .. }) => Some(*body),
+            _ => None,
+        })
+        .collect();
+    let instances: Vec<_> = ids.iter().map(|&id| doc.output(id, 0)).collect();
+    assert_eq!(placed, instances, "both instances are placed, in order");
 
     // The whole-document export door consumes the assembly with no new
     // arms — A2's uniformity, executed.
@@ -3516,6 +3668,7 @@ fn step_export_refuses_an_unplaced_part_naming_it_and_the_cause() {
         &DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3560,7 +3713,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
         let (doc, _) = insert(
             doc,
             pncad::document::Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.5),
                 side: ExtrudeSide::Along,
             },
@@ -3654,11 +3807,12 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 ///
 /// The instance names are the A12 shape — an `InPart`-headed name whose
 /// HEAD is the instantiate node, which is exactly what the reading edge
-/// is recomputed from; `body` is the part's body.
+/// is recomputed from, wearing the part's product name of the face;
+/// `body` is the part's body. Each instance is placed in the world.
 fn asm_r2a_mated_assembly(
     label: &str,
     doc_ref: pncad::document::DocRef,
-    body: pncad::document::RecipeNodeId,
+    body: PartBody,
 ) -> (
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
@@ -3673,6 +3827,7 @@ fn asm_r2a_mated_assembly(
     let mut ids = Vec::new();
     for _ in 0..2 {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+        let (next, _) = place(next, id);
         doc = next;
         ids.push(id);
     }
@@ -3680,12 +3835,7 @@ fn asm_r2a_mated_assembly(
         kind: EntityKind::Face,
         node,
         path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: body,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }
-            .into(),
+            of: body.product_cap(CapEnd::Start).into(),
         }],
     };
     let axis = |origin: [f64; 3]| {
@@ -3817,7 +3967,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// question that may move.
 #[test]
 fn asm_r2b_child_crossing_probe() {
-    use pncad::document::{DocEdit, Node};
+    use pncad::document::Node;
     use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
@@ -3826,14 +3976,9 @@ fn asm_r2b_child_crossing_probe() {
     };
     let dir = WsDir::new("asm-r2b-probe");
     let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2b-probe-part");
-    let face = |cap| {
-        FaceName::new(StableName {
-            kind: EntityKind::Face,
-            node: body,
-            path: vec![RoleSeg::Cap(cap)],
-        })
-        .expect("a crossing's references are face names")
-    };
+    // The part's product names its faces under its one copy.
+    let face =
+        |cap| FaceName::new(body.product_cap(cap)).expect("a crossing's references are face names");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     // A mated pair (the minting subject), then a THIRD instance
@@ -3856,30 +4001,27 @@ fn asm_r2b_child_crossing_probe() {
             inner: face(CapEnd::Start),
         }],
     };
-    let doc = pncad::document::apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::instantiate_part_with(
-                doc_ref,
-                record,
-                None,
-                Some(pncad::document::Placement::IDENTITY),
-            )),
-        },
-        Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the crossing-bearing instance inserts")
-    .doc;
+    let (doc, crossing) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(pncad::document::Placement::IDENTITY),
+        ),
+    );
+    let (doc, _) = place(doc, crossing);
 
-    // The whole group split out, with the mate placing it — accepted,
-    // and the remainder is itself a crossing-bearing document.
+    // The whole group split out, with its world placements and the
+    // mate placing it — accepted, and the remainder is itself a
+    // crossing-bearing document.
     let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
     let group_and_mate = ids
         .iter()
         .copied()
+        .chain(ids.iter().map(|&id| placement_of(&doc, id)))
         .chain(
-            doc.order()
+            doc.ids()
                 .iter()
                 .copied()
                 .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. }))),
@@ -3988,6 +4130,7 @@ fn asm2b_outer(
     let mut ids = Vec::new();
     for i in 0..2 {
         let (next, id) = insert(doc, pncad::document::Node::instantiate_part(doc_ref));
+        let (next, _) = place(next, id);
         doc = next;
         if i > 0 {
             doc = pncad::document::apply(
@@ -3997,6 +4140,7 @@ fn asm2b_outer(
                     offset: Some(pncad::document::Placement::literal(
                         &pncad::document::Frame::translation([100.0, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -4021,7 +4165,7 @@ fn asm2b_signature(body: &pncad::topo::Body<f64>) -> String {
 
 /// Row 2 (E2E) — an assembly of two instances of a two-solid
 /// SUB-ASSEMBLY evaluates through the real store: four solids, volume
-/// bit-exactly 4× the part's, solid order = root order, and the
+/// bit-exactly 4× the part's, solid order = placement order, and the
 /// whole-document export door takes it with no new arms.
 #[test]
 fn asm2b_row2_sub_assembly_through_a_real_workspace() {
@@ -4051,7 +4195,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
         "four copies of the part, bit-exactly"
     );
 
-    // Solid order = root order: instance 0's two solids sit at x = 0
+    // Solid order = placement order: instance 0's two solids sit at x = 0
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
@@ -4213,7 +4357,7 @@ fn asm4_split_and_inline_through_the_real_store() {
             .to_bits()
     };
 
-    let cut = std::collections::BTreeSet::from([ids[1]]);
+    let cut = std::collections::BTreeSet::from([ids[1], placement_of(&doc, ids[1])]);
     let out = d::split(
         &doc,
         &cut,
@@ -4284,7 +4428,7 @@ fn asm4_child_split_probe() {
     let dir = WsDir::new("asm4-probe");
     let part_ref = asm2a_part(&dir, "part.pncad", "asm4-probe-part");
     let (doc, ids) = asm2a_assembly("asm4-probe-asm", part_ref, 2);
-    let cut = std::collections::BTreeSet::from([ids[1]]);
+    let cut = std::collections::BTreeSet::from([ids[1], placement_of(&doc, ids[1])]);
     let split_out = d::split(
         &doc,
         &cut,
@@ -4333,14 +4477,15 @@ fn asm_upd_resave_part(
     let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(doc, square(plane, side));
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.5),
             side: ExtrudeSide::Along,
         },
     );
+    let (doc, _) = place(doc, body);
     ws.resave(&doc, Tol::witness()).expect("the part rewrites");
     pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes")
 }
@@ -4611,8 +4756,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   and were wrong to be.** They are not machinery behind
 ///   `evaluate` — they are the EXPRESSION read side, the only way to
 ///   answer "what does this slot say right now" for a slot driven by
-///   a parameter or by arithmetic. `Expr::literal_value` answers only
-///   for a bare literal, so without them a consumer holding the
+///   a parameter or by arithmetic. `Formula::literal_value` answers
+///   only for a lone written quantity, so without them a consumer holding the
 ///   curated `Expr` + `VarEnv` pair had no door from an expression
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
@@ -4774,7 +4919,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 95] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4860,6 +5005,9 @@ const NOT_CARRIED: [&str; 95] = [
     "entity_name",
     "from_value",
     "var_env_over",
+    // The analysis's axis rule (VR8), which `analyzed_box` and the
+    // stackup's entry set read; a caller asks the box.
+    "is_axis",
     "rebind_suggestions",
     "remap_name",
     "Unmapped",
@@ -5307,13 +5455,18 @@ fn the_root_readers_read_statements_not_lines() {
 ///   document layer's one lookup over every owner's words
 ///   (`editor-core`'s `decision::words`), which renders them into its
 ///   own sentences; a modeller reads those sentences, never the table.
+/// - `is_full_turn`, the kernel's one home for "this loop is D1's full
+///   turn", asked over any per-segment slice by the builders (extrude,
+///   revolve, loft). A modeller asks a validated loop through its own
+///   `ValidatedLoop::is_full_turn`, which the façade carries with the
+///   type.
 ///
 /// The list is checked in both directions — a future interior root
 /// export is a finding, and a stale entry fails. It once held
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 1] = ["decision_subject"];
+const PROFILE_NOT_CARRIED: [&str; 2] = ["decision_subject", "is_full_turn"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
@@ -6448,7 +6601,7 @@ mod the_hollowed_box_through_the_facade {
         let (doc, profile) = super::insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![square],
                 ids: Vec::new(),
             }),
@@ -6456,7 +6609,7 @@ mod the_hollowed_box_through_the_facade {
         let (doc, blank) = super::insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: super::len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -6583,6 +6736,7 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
         &DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6666,6 +6820,7 @@ fn step_export_says_a_deeper_route_hop_as_its_document_holds_it_where_the_outer_
         &pncad::document::DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6794,6 +6949,7 @@ fn asm2a_placed_instance(
             offset: Some(pncad::document::Placement::literal(
                 &pncad::document::Frame::translation([dx, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6817,23 +6973,20 @@ fn asm2a_save(
     }
 }
 
-/// **Both unplaced refusals list in document order, not id order**: a
-/// sub-assembly whose instances after the first are unplaced lists them
-/// as it holds them, and an outer document instancing it several times
-/// lists the groups below by the instance each arrived through, in the
-/// outer document's order, and within one instance in the
-/// sub-assembly's. Each document takes instances until its ids do not
-/// run in document order, so a list in id order would differ.
+/// **Both unplaced refusals list in document order**, which is id
+/// order: a sub-assembly whose instances after the first are unplaced
+/// lists them as it holds them, and an outer document instancing it
+/// several times lists the groups below by the instance each arrived
+/// through, in the outer document's order, and within one instance in
+/// the sub-assembly's.
 #[test]
 fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     use pncad::document::{DocEdit, RecipeNodeId, Unplaced};
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
     let dir = WsDir::new("place-step-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-step-order-part");
-    let (mut sub, ids) = (3..12)
-        .map(|n| asm2a_assembly("place-step-order-sub", doc_ref, n))
-        .find(|(_, ids)| !ascending(&ids[1..]))
-        .expect("some instance count puts the unplaced ids out of document order");
+    let (mut sub, ids) = asm2a_assembly("place-step-order-sub", doc_ref, 4);
+    assert!(ascending(&ids), "ids run in document order");
     let unplaced = &ids[1..];
     for &instance in unplaced {
         sub = pncad::document::apply(
@@ -6841,6 +6994,7 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
             &DocEdit::SetOffset {
                 instance,
                 offset: None,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,
@@ -6856,10 +7010,8 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
         id: sub.id(),
         pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
     };
-    let (outer, outer_ids) = (2..12)
-        .map(|n| asm2a_assembly("place-step-order-outer", sub_ref, n))
-        .find(|(_, ids)| !ascending(ids))
-        .expect("some instance count puts the outer ids out of document order");
+    let (outer, outer_ids) = asm2a_assembly("place-step-order-outer", sub_ref, 3);
+    assert!(ascending(&outer_ids), "ids run in document order");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let opts = StepOptions::default();
 
@@ -6896,12 +7048,11 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     }
 }
 
-/// **The product door reads unplaced groups in document order, not id
-/// order**: with every instance unplaced it refuses
+/// **The product door reads unplaced groups in document order**, which
+/// is id order: with every instance unplaced it refuses
 /// `ProductError::Unplaced` listing the groups as the document holds
 /// them, and with the first placed, the own spaces it gathers beside
-/// the world (what the at-rest gate walks) come in that order too. The
-/// instance count grows until the ids do not run in document order.
+/// the world (what the at-rest gate walks) come in that order too.
 #[test]
 fn the_product_reads_unplaced_groups_in_document_order() {
     use pncad::document::{DocEdit, ProductError, RecipeNodeId, Unplaced};
@@ -6909,16 +7060,15 @@ fn the_product_reads_unplaced_groups_in_document_order() {
     let dir = WsDir::new("place-product-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-product-order-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = (3..12)
-        .map(|n| asm2a_assembly("place-product-order", doc_ref, n))
-        .find(|(_, ids)| !ascending(&ids[1..]) && !ascending(ids))
-        .expect("some instance count puts the ids out of document order");
+    let (doc, ids) = asm2a_assembly("place-product-order", doc_ref, 4);
+    assert!(ascending(&ids), "ids run in document order");
     let unplace = |doc: pncad::document::ProfileDoc, instance| {
         pncad::document::apply(
             &doc,
             &DocEdit::SetOffset {
                 instance,
                 offset: None,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,
@@ -6949,7 +7099,7 @@ fn the_product_reads_unplaced_groups_in_document_order() {
     assert_eq!(
         spaces,
         ids[1..],
-        "the own spaces, as the document holds their roots"
+        "the own spaces, as the document holds their group roots"
     );
 }
 
@@ -7063,4 +7213,56 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
         asked.contains(&"arc_start_on_carrier"),
         "the tables decide the checks: {asked:?}"
     );
+}
+
+/// **The façade's slot arguments share a variable by its name** (VR2,
+/// VR9): passing a slot's unnamed variable to a second slot refuses
+/// `SharedVarNeedsName`, naming it; once it is named, the same insert
+/// shares it.
+#[test]
+fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
+    use pncad::document::{
+        Axis3, Datum, Dimension, DocEdit, EditError, Formula, Node, ProfileDoc, SlotId, VarName,
+    };
+    let point = |x: Formula| DocEdit::InsertNode {
+        node: Box::new(Node::Datum(Datum::Point {
+            position: [
+                x,
+                Formula::literal(0.0, Dimension::Length).unwrap(),
+                Formula::literal(0.0, Dimension::Length).unwrap(),
+            ],
+        })),
+        fresh: Vec::new(),
+    };
+    let apply = |doc: &ProfileDoc, edit: &DocEdit<_>| {
+        pncad::document::apply(doc, edit, Tol::witness(), &pncad::document::RefusingReach)
+    };
+    let doc = ProfileDoc::empty_derived("facade-fork7", Tol::witness());
+    let first = apply(
+        &doc,
+        &point(Formula::literal(0.5, Dimension::Length).unwrap()),
+    )
+    .expect("a typed point");
+    let a = first.record.minted.expect("minted");
+    let x = first
+        .doc
+        .slot(a, SlotId::Origin(Axis3::X))
+        .expect("a reads x");
+    let second = point(Formula::var(x, Dimension::Length));
+    match apply(&first.doc, &second) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), x),
+        other => panic!("an unnamed variable's second reader refuses, got {other:?}"),
+    }
+    let named = apply(
+        &first.doc,
+        &DocEdit::RenameVar {
+            var: x.into(),
+            name: Some(VarName::from_static("x")),
+        },
+    )
+    .expect("the name lands")
+    .doc;
+    let shared = apply(&named, &second).expect("a named variable is shared");
+    let b = shared.record.minted.expect("minted");
+    assert_eq!(shared.doc.slot(b, SlotId::Origin(Axis3::X)), Some(x));
 }

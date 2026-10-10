@@ -30,22 +30,30 @@
 //! cannot hold two types.
 //!
 //! A NESTED REFUSAL is not flattened: `ProfileProgramRefused`,
-//! `MeasureMalformed`, `Dimension`, `InvalidDistribution`,
+//! `Dimension`, `InvalidDistribution`,
 //! `PlacementAxis` and `MetaUnversioned` each hold another error type,
 //! `inner_variant` names its arm, and the fields inside it belong to
-//! that type's own door. `Roots` is the exception and it is not a
-//! counter-example: its payload is recipe node ids, which are leaf
-//! values, so they cross under the node roles every other arm uses.
+//! that type's own door.
 
 use pncad::document::{
-    ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, RootFault,
-    VarName, VarRef,
+    ContentPin, EditError, FrameSite, FreeValue, HeldNodes, MateFault, RecipeNodeId, VarName,
+    VarRef,
 };
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
 
-use crate::errors::dimension_tag;
+use crate::errors::{dimension_tag, slot_kind_tag, var_kind_tag};
 use crate::tags::{attr_kind_tag, slot_id_tag};
+
+/// The position a slot names inside a list, for a loft's section or a
+/// union's member.
+fn operand_index(slot: &pncad::document::SlotId) -> Option<usize> {
+    use pncad::document::OperandSlot as S;
+    match slot {
+        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => usize::try_from(*i).ok(),
+        _ => None,
+    }
+}
 
 /// What one [`EditError`] arm carries, every field present.
 ///
@@ -60,10 +68,6 @@ pub struct EditPayload<'a> {
     /// A node the subject NAMES: an operand that does not resolve, an
     /// input reached twice, the measure an assertion constrains.
     pub input: Option<RecipeNodeId>,
-    /// A node DOWNSTREAM of [`Self::node`] that references it — the
-    /// live consumer a delete would dangle, the descendant root that
-    /// makes an ancestor root redundant.
-    pub referenced_by: Option<RecipeNodeId>,
     /// The named expression slot the refusal is about
     /// ([`crate::tags::slot_id_tag`]).
     pub slot: Option<&'static str>,
@@ -86,15 +90,14 @@ pub struct EditPayload<'a> {
     pub to_kind: Option<EntityKind>,
     /// How many entries a short list would have had.
     pub count: Option<usize>,
-    /// The position a DESIGNATION fault is reported at. The VARIANT
-    /// decides which position it is: `RepeatedDesignation`'s first
-    /// occurrence of a repeated entry, or `SelectionNotCanonical`'s
-    /// entry that does not sort strictly before the one after it.
-    /// Both are one index into one payload list, so they share the
-    /// attribute rather than minting a second word for it.
+    /// The position a selection's shape fault is reported at. The
+    /// fault decides which position it is: a repeated face's first
+    /// occurrence, or the edge that does not sort strictly before the
+    /// one after it. Both are one index into one list, so they share
+    /// the attribute rather than minting a second word for it.
     pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
-    /// `RepeatedDesignation`, the one fault that names two entries.
+    /// a repeated face, the one fault that names two entries.
     pub again: Option<usize>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
@@ -135,11 +138,10 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 24] {
+    pub fn presence(&self) -> [(&'static str, bool); 23] {
         let Self {
             node,
             input,
-            referenced_by,
             slot,
             param,
             name,
@@ -165,7 +167,6 @@ impl EditPayload<'_> {
         [
             ("node", node.is_some()),
             ("input", input.is_some()),
-            ("referenced_by", referenced_by.is_some()),
             ("slot", slot.is_some()),
             ("param", param.is_some()),
             ("name", name.is_some()),
@@ -203,7 +204,6 @@ impl EditPayload<'_> {
     pub const NONE: Self = Self {
         node: None,
         input: None,
-        referenced_by: None,
         slot: None,
         param: None,
         name: None,
@@ -312,14 +312,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::MeasureMalformed { node, fault: _ }
         | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
             node: Some(node.id()),
-            ..none
-        },
-        // The id the insert drew: the node it would have been.
-        EditError::NodeIdCollides { id } => EditPayload {
-            node: Some(id.id()),
             ..none
         },
         EditError::UnresolvedInput { input } => EditPayload {
@@ -344,42 +338,38 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(other.id()),
             ..none
         },
-        // An assertion's `measure` IS the node it reads, so it takes
-        // the `input` role rather than a fourth node attribute.
-        EditError::AssertionTarget { node, measure } => EditPayload {
-            node: Some(node.id()),
-            input: Some(measure.id()),
-            ..none
-        },
         EditError::AssertionDimension {
             node,
-            measure,
             measured,
             bound,
         } => EditPayload {
             node: Some(node.id()),
-            input: Some(measure.id()),
             expected: Some(dim(*measured)),
             found: Some(dim(*bound)),
             ..none
         },
-        EditError::RepeatedDesignation { node, first, again } => EditPayload {
-            node: Some(node.id()),
-            first: Some(*first),
-            again: Some(*again),
-            ..none
-        },
-        // One position, not two: a selection's canonical form breaks
-        // between an entry and its successor, so the successor's index
-        // is the entry's plus one and publishing it would be arithmetic
-        // dressed as data. `again` staying `None` is what tells a
-        // reader which of the two designation faults this is, beside
-        // the variant word itself.
-        EditError::SelectionNotCanonical { node, at } => EditPayload {
-            node: Some(node.id()),
-            first: Some(*at),
-            ..none
-        },
+        // One position for an edge set, not two: its canonical form
+        // breaks between an entry and its successor, so the successor's
+        // index is the entry's plus one and publishing it would be
+        // arithmetic dressed as data.
+        EditError::SelectionShape { node, slot, fault } => {
+            use pncad::document::SelectionFault as F;
+            let (first, again, count) = match fault {
+                F::Repeated { first, again } => (Some(*first), Some(*again), None),
+                F::NotCanonical { at } => (Some(*at), None, None),
+                F::Singleton { count } => (None, None, Some(*count)),
+                F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
+            };
+            EditPayload {
+                node: Some(node.id()),
+                slot: Some(slot_id_tag(slot)),
+                index: operand_index(slot),
+                first,
+                again,
+                count,
+                ..none
+            }
+        }
         // `found` here is a COUNT, not a dimension, so it takes the
         // `count` attribute: one attribute never carries two types.
         EditError::TooFewMembers { node, found } => EditPayload {
@@ -387,21 +377,42 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             count: Some(*found),
             ..none
         },
-        EditError::DeleteWouldDangle {
-            id: node,
-            referenced_by,
-        }
-        | EditError::FoldWouldDangle {
-            node,
-            referenced_by,
-        } => EditPayload {
+        // An operand's slot rides `slot` in the slot vocabulary, its
+        // field's word, and a section's or a member's position rides
+        // `index`.
+        EditError::OperandUnresolved { node, slot, read: _ } => EditPayload {
             node: Some(node.id()),
-            referenced_by: Some(referenced_by.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
+            ..none
+        },
+        EditError::AmbiguousOutput {
+            input,
+            slot,
+            ports: _,
+        }
+        | EditError::DefinesNothing { input, slot } => {
+            EditPayload {
+                input: Some(input.id()),
+                slot: Some(slot_id_tag(slot)),
+                index: operand_index(slot),
+                ..none
+            }
+        }
+        EditError::PartHalfPort { node, .. } => EditPayload {
+            node: Some(node.id()),
+            ..none
+        },
+        EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
             ..none
         },
         EditError::UnknownSlot { id, slot } => EditPayload {
             node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
             ..none
         },
         EditError::SlotDimensionMismatch {
@@ -410,7 +421,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found,
         } => EditPayload {
             slot: Some(slot_id_tag(slot)),
-            expected: Some(dim(*expected)),
+            expected: Some(slot_kind_tag(*expected)),
             found: Some(dim(*found)),
             ..none
         },
@@ -435,7 +446,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         } => EditPayload {
             node: Some(node.id()),
             param: var.name(),
-            expected: Some(dim(*declared)),
+            expected: Some(var_kind_tag(*declared)),
             found: Some(dim(*referenced)),
             ..none
         },
@@ -445,18 +456,28 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             slot: Some(slot_id_tag(slot)),
             ..none
         },
+        // What the slot takes and the kind it was offered, at an
+        // expression's slot as at an operand's.
         EditError::SlotVarKind {
             var,
             node,
             slot,
-            declared,
-            referenced,
+            found,
+            expected,
         } => EditPayload {
             node: Some(node.id()),
             param: var.name(),
             slot: Some(slot_id_tag(slot)),
-            expected: Some(dim(*declared)),
-            found: Some(dim(*referenced)),
+            index: operand_index(slot),
+            expected: Some(slot_kind_tag(*expected)),
+            found: Some(var_kind_tag(*found)),
+            ..none
+        },
+        EditError::ConstructionReadsObserved { node, slot, var } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
             ..none
         },
         EditError::ContinuousVarCannotBeCount { var }
@@ -481,6 +502,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         // A definition's faults name the variable defined; the
         // variable it reads, or the cycle, rides in the sentence.
+        EditError::VarIsAnOutput { var, node, door: _ } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            ..none
+        },
         EditError::NotAFreeVar { var, door: _ }
         | EditError::DefinitionCycle { var, through: _ }
         | EditError::DefinitionUnknownVarName { var, name: _ }
@@ -500,7 +526,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             referenced,
         } => EditPayload {
             param: var.name(),
-            expected: Some(dim(*declared)),
+            expected: Some(var_kind_tag(*declared)),
             found: Some(dim(*referenced)),
             ..none
         },
@@ -508,7 +534,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: Some(name),
             ..none
         },
-        EditError::VarIdCollides { id: _ } => none,
+        EditError::FreshUnheld { .. } | EditError::FreshKind { .. } | EditError::FreshUnread { .. } => {
+            none
+        }
         EditError::SlotUnresolvedVar { var, node, slot } => EditPayload {
             node: Some(node.id()),
             param: var.name(),
@@ -522,6 +550,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::VarNameUnchanged { var }
         | EditError::AnonymousVarUnread { var }
+        | EditError::SharedVarNeedsName { var }
         | EditError::DeleteAnonymousVar { var } => EditPayload {
             param: var.name(),
             ..none
@@ -532,8 +561,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             offered,
         } => EditPayload {
             param: var.name(),
-            expected: Some(dim(kind.dimension())),
-            found: Some(dim(offered.dimension())),
+            expected: Some(var_kind_tag(*kind)),
+            found: Some(var_kind_tag(*offered)),
             ..none
         },
         EditError::VarValueKindMismatch {
@@ -667,28 +696,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             pin: Some(*pin),
             ..none
-        },
-        // The product-root invariants read their WORD off the fault
-        // (`variant` is `root_duplicate`, not `roots`), and their
-        // payload is recipe node ids — leaf values, so they cross
-        // under the same node roles every other arm uses.
-        EditError::Roots(fault) => match fault {
-            RootFault::NotLive { root } | RootFault::Duplicate { root } => EditPayload {
-                node: Some(root.id()),
-                ..none
-            },
-            RootFault::Uncovered { node } => EditPayload {
-                node: Some(node.id()),
-                ..none
-            },
-            RootFault::Ancestor {
-                ancestor,
-                descendant,
-            } => EditPayload {
-                node: Some(ancestor.id()),
-                referenced_by: Some(descendant.id()),
-                ..none
-            },
         },
     }
 }

@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P3
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -51,3 +51,7 @@ it is a design question. Alternatively the decision could be levered by
 the mate's own scale, at the cost of needing the reach at replay.
 Either way, the original `snapshot_mate` fixture (1e4 vectors at
 ε = 16) should come back.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: compose_offset re-mints base∘offset; stage 3 makes frames and directions variable kinds with their own witness, the "witness that survives composition" this row asks for. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

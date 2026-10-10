@@ -14,19 +14,20 @@
 //! WHICH one a pose takes turns on whether the walls cross:
 //!
 //! - **The crossing coaxial pose gets through the crossing layer and
-//!   refuses at the germ frame, `GermFrameUnsupported`.** The cylinder's
-//!   SEAM LINE crossing the ball's SPHERE face used to be the door (a
-//!   line × sphere pair with no root lane); the crossing layer has that
-//!   lane now, so the pose reaches `boolean::join::cs_pair_frame`, which
-//!   names a frame only for a DECLARED-coaxial pair — coaxiality is
-//!   never inferred — and keeps `NoArm` for this undeclared one.
+//!   the germ frame, and refuses at the join, `CurvedBooleanUnsupported`
+//!   naming the cylinder.** The cylinder's SEAM LINE crossing the ball's
+//!   SPHERE face used to be the door (a line × sphere pair with no root
+//!   lane); the crossing layer has that lane now, so the pose reaches
+//!   `boolean::join::cs_pair_frame`, which decides the pair coaxial by
+//!   margin and names its frame; the join has no wired arm for the
+//!   coaxial cylinder × sphere germ pair.
 //! - **A non-crossing pose — a ball wholly inside a wider cylinder —
 //!   builds**: no crossing is found, the containment fallback runs, and
 //!   the section pass certifies the sphere × wall pair apart.
 //!
 //! The crossing rows pin the refusal as a MEASUREMENT rather than as a
-//! target. What would move them is a coaxiality declaration the frame
-//! can read (`work/wire/axis-shaped-identity-channel.md`).
+//! target. What would move them is the join's coaxial cylinder × sphere
+//! arm.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -108,26 +109,38 @@ fn fixture() -> [(&'static str, AtRestBody<f64>, AtRestBody<f64>); 2] {
 }
 
 /// **THE OPENING MEASUREMENT.** The crossing coaxial union gets past
-/// the CROSSING layer in both poses and dies at the GERM FRAME, with the
-/// same typed variant, naming the cylinder and the sphere.
+/// the CROSSING layer and the GERM FRAME in both poses and dies at the
+/// join, with the same typed variant, naming the cylinder's wall.
 ///
 /// The crossing layer used to stop it: operand A's seam LINE crossing
 /// the ball's SPHERE face had no root lane. With the line × sphere
 /// roots the seam pierces, and the germ pair this crossing mints is a
-/// cylinder×sphere pair whose frame `cs_pair_frame` names only under a
-/// coaxiality DECLARATION, which no caller can pass yet.
+/// cylinder×sphere pair whose frame `cs_pair_frame` decides coaxial by
+/// margin; the join has no arm for that pair.
 #[test]
-fn the_coaxial_union_refuses_at_the_germ_frame() {
+fn the_coaxial_union_refuses_at_the_join() {
     for (label, c, s) in fixture() {
         let err = topo::union(&c, &s, Tol::witness())
-            .expect_err("an undeclared coaxial cyl×sphere pair has no frame");
-        let BooleanError::GermFrameUnsupported { a_kind, b_kind, .. } = err else {
-            panic!("{label}: expected the germ frame door, got {err:?}");
+            .expect_err("a coaxial cyl×sphere pair has no join arm");
+        let BooleanError::CurvedBooleanUnsupported {
+            operand,
+            face,
+            kind,
+        } = err
+        else {
+            panic!("{label}: expected the join's missing arm, got {err:?}");
         };
         assert_eq!(
-            (a_kind, b_kind),
-            (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Sphere),
-            "{label}: the germ pair is the cylinder's wall and the ball's sphere"
+            (operand, kind),
+            (topo::Operand::A, geom::SurfaceKind::Cylinder),
+            "{label}: the cylinder's kind is the missing arm"
+        );
+        assert!(
+            matches!(
+                c.get_face(face).and_then(|f| c.get_surface(f.surface)),
+                Some(geom::Surface::Cylinder { .. })
+            ),
+            "{label}: the named face is the cylinder's wall"
         );
     }
 }
@@ -149,7 +162,7 @@ fn both_poses_take_the_same_door() {
         })
         .collect();
     assert_eq!(doors[0], doors[1], "the two poses take different doors");
-    assert_eq!(doors[0], "GermFrameUnsupported", "{doors:?}");
+    assert_eq!(doors[0], "CurvedBooleanUnsupported", "{doors:?}");
 }
 
 /// **The non-coaxial transversal pose crosses, passes the germ frame
@@ -159,7 +172,7 @@ fn both_poses_take_the_same_door() {
 /// certifies, and the cylinder × sphere germ pair it mints has the
 /// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
 /// chord lane takes its quartic section
-/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
+/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`), in both
 /// poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
@@ -442,10 +455,10 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     };
     let msg = format!("{err}");
     // What the JOIN dispatch wires, stated as the recourse: a plane
-    // face against a plane, cylinder or sphere face — so the sentence
-    // does not read as cone/torus-only, and does not claim the wider
-    // SECTION-FRAME dispatch's pairs as join arms.
-    let wired = "they meet only where a plane face meets a plane, cylinder or sphere face";
+    // face against a plane, cylinder, sphere or cone face — so the
+    // sentence does not claim the wider SECTION-FRAME dispatch's pairs
+    // as join arms.
+    let wired = "they meet only where a plane face meets a plane, cylinder, sphere or cone face";
     assert!(
         msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"

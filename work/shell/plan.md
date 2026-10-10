@@ -23,37 +23,92 @@ with `ShellNaming`), `editor-core`'s recipe doors.
 
 ## Unit order
 
-The landed units (SHELL-1, 2, 5–10) are in `log.md`; SHELL-3 and
-SHELL-4 are CLEAR's. The slate after the 2026-10-06 triage and cut
-(the rows behind it went to SHELF, CLEAR and OFFSET), as units:
+The landed units are in `log.md`: SHELL-1, 2 and 5–10 earlier; the
+2026-10-06 cut's seven units (PRs 4111, 4112, 4115, 4117, 4163, 4151,
+4191) on 2026-10-06/07. SHELL-3 and SHELL-4 are CLEAR's. The slate
+after that cut, as units:
 
-1. **The pole-touching ball** — `shell-of-a-pole-touching-sphere-refuses-mapped-source`
-   (P0). Measure `topo::shell` on today's fixtures first; close on a
-   closed-form row, or fix the measured refusal.
-2. **The operand is at rest** — `shell-answers-for-the-complement-of-an-inside-out-operand`
-   carrying `shell-launders-a-stale-operand-row`: `shell`,
-   `shell_open` and `replace_faces_offset` take an `AtRestBody`, the
-   shape the boolean and split doors already settled.
-3. **The planar gate's silent misses** — `shell-clearance-footprint-reads-vertices-not-arcs`
-   carrying `shell-walls-antiparallel-decides-a-cosine-on-the-metre-band`:
-   arc extents in the footprint, and the facing test as a length.
-4. **Lofted walls** — `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`:
-   a certified NURBS (and ellipse) re-anchor in `plan_reanchors`.
-5. **The refusal text** — `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`
-   carrying `shell-refusals-short-of-the-shape-guard` and
-   `offset-doors-small-doc-and-message-drift`: the chrome standard on
-   every `ReplaceFaceError` and `ShellError` arm, and the guard's
-   admissions deleted.
-6. **The klein elbow's lift** — `shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow`:
-   measure which face `is_axial_in` declines, then take the together
-   door or refuse typed. The end-to-end payoff also waits on FLUX's
-   `spiric-bounded-face-area-is-unimplemented`.
-7. **A curved designated face** — `shell-open-refuses-a-curved-designated-face`:
-   the designer pair first (refuse at props, or keep a construction
-   gate), then a spec.
+8. **Tilted planar walls** — `shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel`
+   (P1, M): the planar gate reads only antiparallel pairs, so two
+   walls meeting at an angle across less than `2t` shell silently.
+   A silent wrong body; first in line.
+9. **The lofted oblique corner** — `shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam`
+   (P1, H): decided 2026-10-08 (the item's `## Decided`): the
+   per-chart door derives edges by section and corners by crossing,
+   carrying ISO's `nurbs-iso-derive-line-rim-arm-refuses-an-interior-row`
+   first. Lofts then stop at the first wall:
+   `a-fitted-wall-has-no-section-with-a-moved-cap` is decided
+   2026-10-08 (a fitted face's section is its fit's; P2, after unit 9),
+   and behind it the wall–wall seams
+   (`a-wall-seam-between-two-fits-has-no-section`, P2;
+   `two-fits-sharing-a-smooth-seam-disagree-by-their-certificates`, P3).
+   The one-door merge `offset-doors-are-one-door-with-a-held-distance`
+   (P3, H) follows.
+10. **The face door is at rest** — `replace-face-offset-answers-for-the-complement-of-an-inside-out-body`
+    (P2, M) carrying `shell-operand-shape-arms-behind-the-at-rest-gate`
+    (P3, E): decided 2026-10-08 (the item's `## Decided`): the
+    doors stay construction steps, the premise is corrected and
+    pinned; the arms the `shell` gate made unreachable go.
+11. **The sealed arm's two refusals** — `shell-of-a-cone-tip-refuses-at-the-nappe-decision`
+    and `shell-of-a-tangent-dome-refuses-at-the-axial-corner` (P2,
+    M each). Unit 7's cone tip, tangent dome and the lift's cone arm
+    all wait here.
+12. **A band between two boundaries** — `shell-open-band-wrapping-between-two-boundaries`
+    (P2, M), unit 7's residue.
 
-Units 1–4 and the unit-7 designers run in parallel; unit 5 follows
-unit 4 in `replace_face.rs`; unit 6 when a lane frees.
+The P3 re-anchor rows (`reanchor-does-not-extend-…`,
+`reanchor-reads-a-closed-spline-carrier-…`,
+`replace-faces-offset-drops-rows-…`,
+`nurbs-lane-absence-has-three-spellings-…`) and the per-chart door's
+`per-chart-door-transports-a-torus-rim-…` follow; the two unpriced
+rows are priced before they are dispatched.
+
+then, as units:
+
+13. **A fitted wall's section is its fit's** — `a-fitted-wall-has-no-section-with-a-moved-cap`
+    (P2, H): decided 2026-10-08 (the item's `## Decided`). C5 routes
+    `(Plane, Approx)` over `approx.fit()`, the edge stores the `Approx`
+    key, and nothing is composed into its bound. Lofts then stop at the
+    wall–wall seams. Dual review.
+14. **The per-chart door's inverted body** — `the-per-chart-door-adopts-an-inverted-body`
+    (P2, M): unit 10's `## Decided` already rules that the doors are
+    construction steps, finished only through `AtRestBody::validate`.
+    What is owed is the check that every caller adopting the door's
+    result passes that gate, and pins showing the frustum and tube
+    moves refuse there. Single review.
+
+After 13, re-measure and price `a-wall-seam-between-two-fits-has-no-section`
+(P2, H) before dispatching it.
+
+then, as units:
+
+15. **A moved fit's corners** — `a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section`
+    (P2, H): seed the plane's root on a derived spline section, or root
+    the fit along a held edge, so a fitted face bounded by planes moves.
+    Lands after 13 (both in `replace_face.rs`). Dual review.
+16. **The tilted read's three gaps** — `tilted-read-accepts-a-zero-touch-on-any-vertex-sharing-pair`
+    (E), `tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge`
+    (M) and `tilted-read-takes-a-spline-or-spiric-edge-as-its-carrier-ball`
+    (M), all P3 and all in `moved_walls_cross` (`shell.rs`). The skipped
+    edge-adjacent pair is a possible silent crossing, so the unit is
+    M-tier: rule-1 draw byte 178 (mod 3 = 1), sequential.
+
+The wall seam re-measured (its `## Measured`, 2026-10-09): the loft's
+seams refuse at the iso-row guard and at `Approx × Nurbs`, behind a fit
+budget the default ε misses. It needs a designer pair before it is
+priced, after 15.
+
+The wall seam went to a designer pair (fork-log row 106). Ev ruled on PR 4515: one complete NURBS × NURBS arm, a `Section` handle with `branch_at` and `all()`. The designed final state is in the item's `## Designed` and `## Decided`. It cuts into:
+
+17. **Narrow the iso-row arm** — `the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row` (P2), plus the iso-row half of the wall-seam `## Designed`. The arm fires only for a self-shared image or a neighbour that holds the move, and reads the image's own row. M tier: rule-1 byte 37 (mod 3 = 1), sequential.
+18. **The general simultaneous door** — `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). Every chart of a solid moves at once; edges are sections of moved surfaces, and corners are their roots. Dual review. It runs beside 17 (both touch `replace_face.rs`; each merges main often).
+19. **The NURBS × NURBS arm** — `a-wall-seam-between-two-fits-has-no-section` (P2, H), as ruled. After 18.
+20. **The saddle fit's reach** — `a-saddle-walls-offset-fit-stalls-short-of-the-default-eps` (P3, measure first).
+
+Curved wall clearance (geom-brep README, Open) is the gate before a shelled loft is sound at rest. It is priced after 19.
+
+Units 8 and 10 run in parallel (different files); unit 9's measure
+runs beside them.
 
 ## Adjacent, not taken
 

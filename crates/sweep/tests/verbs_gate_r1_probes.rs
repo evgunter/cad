@@ -29,7 +29,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanError};
 
@@ -41,7 +41,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// volume: bulge b = 0.6 on the vertical chord (0.5, 1) → (0.5, 1.5),
 /// so sagitta s = b·c/2, arc radius R = ((c/2)² + s²)/(2s), centre
 /// (0.5 + s − R, 1.25). b < 1 keeps the arc's end tangents off both
-/// neighbouring segments (no undeclared tangency) and R < centre-x
+/// neighbouring segments (no tangent junction to decide) and R < centre-x
 /// keeps the revolved torus a ring torus (r < R).
 const BULGE: f64 = 0.6;
 
@@ -78,7 +78,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     } else {
         0.0 // straight generator: a cone with its apex on the axis
     };
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
         (Point2::new(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
         (Point2::new(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
@@ -86,9 +86,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
         (Point2::new(0.5, 2.0), cap),   // top cap → (0, 2.5)
         (Point2::new(0.0, 2.5), 0.0),   // axis seam → start
     ]);
-    if sphere {
-        lp = lp.with_tangent_joints(vec![1, 4]);
-    }
+
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -397,14 +395,26 @@ fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
 /// **Row 4 — the cone at a TILTED axis**: the cone-relabelled brick
 /// does not finish, so no probe meets its face's box at the boolean.
 /// The at-rest gate refuses it on the relabelled face: its four lines
-/// lie off the cone, and its loop's pcurves do not close on the cone's
-/// chart (a loop discontinuity).
+/// lie off the cone, and a line's chart image does not map back onto
+/// the line (check 4's map residual). The loop walk decides each joint's
+/// element as integers and leaves the joint's coincidence to the rows'
+/// certificates, so the certificate, not a chart-space gap, is what
+/// refuses it.
 #[test]
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
     let (a, face) = tilted_cone_brick();
     let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        matches!(finding, topo::PcurveMintError::LoopDiscontinuity { .. }),
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
         "{finding:?}"
     );
 }
@@ -450,7 +460,16 @@ fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
     let (a, face) = tilted_cone_brick();
     let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        matches!(finding, topo::PcurveMintError::LoopDiscontinuity { .. }),
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
         "{finding:?}"
     );
 }

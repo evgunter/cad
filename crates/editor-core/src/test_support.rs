@@ -6,7 +6,8 @@
 //! determinant the review rows read the certified one against, the
 //! recipe walks' pass-through classification a row holds against the
 //! evaluator, and the load door's nesting limit a row holds against
-//! what a save writes, and the recipes more than one suite builds.
+//! what a save writes, the recipes more than one suite builds, and the
+//! spelling a content key writes for a slot.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -51,13 +52,16 @@ pub fn ang(radians: f64) -> Formula {
     Formula::literal(radians, Dimension::Angle).expect("a finite angle")
 }
 
-/// A dimensionless literal — a direction component, a bulge, a ratio.
+/// A written dimensionless value ([`Formula::scalar`]) — a direction
+/// component, a bulge, a ratio: a variable the edit door mints, at a
+/// slot's root and inside a formula alike. The exact constant is
+/// [`Formula::ratio`].
 ///
 /// # Panics
 ///
 /// If `value` is not finite.
 pub fn scl(value: f64) -> Formula {
-    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
+    Formula::scalar(value).expect("a finite scalar")
 }
 
 /// Two length literals — a point in a sketch frame's own coordinates.
@@ -71,19 +75,99 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 
 // --- the stored form ------------------------------------------------
 
-/// The stored node `node` lowers to where no name is held: what the
-/// edit door would write for it, for a row that places a node in a
-/// document by hand.
+/// **A document to lower into and throw away**, for a row that asks a
+/// stored form something its variables' values do not answer.
+pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
+    ProfileDoc::empty_derived("scratch", tol)
+}
+
+/// The stored node `node` lowers to in `doc`: what the edit door would
+/// write for it, every variable it mints minted into `doc`, for a row
+/// that places a node in a document by hand.
 ///
 /// # Panics
 ///
-/// If `node` reads a variable by name.
-pub fn stored(node: &crate::AuthoredNode) -> Node<ProfileProgram> {
+/// If `node` does not lower in `doc`.
+pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
+    crate::edit::lower_node_into(doc, node).expect("a node the document can answer lowers")
+}
+
+/// **A stored node read as given**: every slot lowered into `doc` as
+/// [`stored`] lowers it, and every operand stored as the read it names
+/// with no door around it — a variable by id as itself, a node or a
+/// port as the id `read` hands for it — for a row about a node's own
+/// shape, whose operands need name no live output.
+///
+/// # Panics
+///
+/// If a slot does not lower in `doc`, or an operand reads by name.
+pub fn stored_reading(
+    doc: &mut ProfileDoc,
+    node: &crate::AuthoredNode,
+    read: impl Fn(RecipeNodeId, u8) -> crate::VarId,
+) -> Node<ProfileProgram> {
     use crate::ProfilePayload;
-    node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| {
-        Expr::try_from(f)
-    })
-    .expect("a node with no name leaf lowers in any scope")
+    fn given(
+        doc: &core::cell::RefCell<&mut ProfileDoc>,
+        slot: crate::OperandSlot,
+        operand: &crate::Operand,
+        read: &impl Fn(RecipeNodeId, u8) -> crate::VarId,
+    ) -> crate::VarId {
+        match operand {
+            crate::Operand::Node(id) => read(*id, 0),
+            crate::Operand::Output { node, port } => read(*node, *port),
+            crate::Operand::Var(var) => *var,
+            crate::Operand::Name(name) => {
+                panic!("an operand read as given has no name: {name}")
+            }
+            crate::Operand::Select { body, names } => {
+                let body = given(doc, slot, body, read);
+                crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
+            }
+        }
+    }
+    let doc = core::cell::RefCell::new(doc);
+    node.try_map_slots(
+        |p, f, r| ProfileProgram::lower(p, f, r),
+        &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
+        &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
+    )
+    .expect("a node the document can answer lowers")
+}
+
+/// **A live node as it was written**: each slot the formula its
+/// variable was written as ([`crate::Doc::written`]) — an anonymous
+/// variable's value or definition, a named one's reader — for a row
+/// that rebuilds a document by re-inserting its nodes, minting their
+/// anonymous variables afresh, as the original inserts did.
+///
+/// # Panics
+///
+/// If `node` reads an anonymous variable a written re-insert would not
+/// reproduce ([`crate::Doc::written_would_not_reproduce`]): the rebuilt
+/// document would not be this one. A value edited after its insert is
+/// the caller's to rule out, by comparing the rebuilt ids.
+pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::AuthoredNode {
+    let lost = doc.written_would_not_reproduce();
+    // Written expands each anonymous definition, so a lost variable is
+    // read through the definitions the node's slots reach as well.
+    let mut reached: Vec<crate::VarId> = node.exprs().into_iter().copied().collect();
+    let mut at = 0;
+    while let Some(&var) = reached.get(at) {
+        if doc.var_name(var).is_none() {
+            reached.extend(doc.definition_reads(var));
+        }
+        at += 1;
+    }
+    let read: Vec<crate::VarId> = reached
+        .into_iter()
+        .filter(|var| lost.contains(var))
+        .collect();
+    assert!(
+        read.is_empty(),
+        "a written re-insert would not reproduce {read:?}: read twice, or toleranced"
+    );
+    node.written(doc)
 }
 
 /// The stored expression `formula` lowers to where no name is held.
@@ -95,37 +179,46 @@ pub fn stored_expr(formula: &Formula) -> Expr {
     Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
 }
 
-/// The stored program `program` lowers to where no name is held.
+/// The stored program `program` lowers to in `doc`, its plane read as
+/// given ([`stored_reading`]): a plane naming node `n` is stored as the
+/// read with `n`'s own id, for a row about a program's own shape,
+/// whose plane need name no live frame.
 ///
 /// # Panics
 ///
-/// If `program` reads a variable by name.
-pub fn stored_program(program: &ProfileProgram<Formula>) -> ProfileProgram {
-    program
-        .try_map_slots(&mut |f| Expr::try_from(f))
-        .expect("a program with no name leaf lowers in any scope")
+/// If `program` does not lower in `doc`, or its plane reads by name.
+pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -> ProfileProgram {
+    match stored_reading(doc, &Node::Profile(program.clone()), |id, _| {
+        crate::VarId(id.0)
+    }) {
+        Node::Profile(stored) => stored,
+        _ => unreachable!("a profile lowers to a profile"),
+    }
 }
 
-/// The stored loop `program` lowers to where no name is held.
+/// The stored loop `program` lowers to in `doc` ([`stored`]).
 ///
 /// # Panics
 ///
-/// If `program` reads a variable by name.
-pub fn stored_loop(program: &LoopProgram<Formula>) -> LoopProgram {
+/// If `program` does not lower in `doc`.
+pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> LoopProgram {
     program
-        .try_map_slots(&mut |f| Expr::try_from(f))
-        .expect("a loop with no name leaf lowers in any scope")
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a loop the document can answer lowers")
 }
 
-/// The stored placement `placement` lowers to where no name is held.
+/// The stored placement `placement` lowers to in `doc` ([`stored`]).
 ///
 /// # Panics
 ///
-/// If `placement` reads a variable by name.
-pub fn stored_placement(placement: &crate::Placement<Formula>) -> crate::Placement {
+/// If `placement` does not lower in `doc`.
+pub fn stored_placement(
+    doc: &mut ProfileDoc,
+    placement: &crate::Placement<Formula>,
+) -> crate::Placement {
     placement
-        .try_map_slots(&mut |f| Expr::try_from(f))
-        .expect("a placement with no name leaf lowers in any scope")
+        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
+        .expect("a placement the document can answer lowers")
 }
 
 // --- the frame a sketch is drawn on ---------------------------------
@@ -168,6 +261,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             tol,
             &RefusingReach,
@@ -180,7 +274,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
     let (doc, profile) = ins(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -188,7 +282,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
     let (doc, ext) = ins(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: crate::ExtrudeSide::Along,
         },
@@ -200,7 +294,13 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
             normal: [scl(0.0), scl(1.0), scl(-1.0)],
         }),
     );
-    let (doc, split) = ins(doc, Node::Split { target: ext, tool });
+    let (doc, split) = ins(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     (doc, [ext, tool, split])
 }
 
@@ -356,17 +456,20 @@ pub fn bracket_depth(text: &str) -> usize {
 
 // --- the mint's preimage --------------------------------------------
 
-/// **The node id an insert of `node` draws from an empty document's
-/// mint**: `Mint::insert`, lifted out of the crate so a row can pin the
+/// **The node id an insert of `node` draws in an empty document**:
+/// the node lowered as the door lowers it, its variables minted first,
+/// then `Mint::insert`, lifted out of the crate so a row can pin the
 /// preimage node shape by node shape
 /// (`tests/switch_slots.rs`, `every_node_shapes_mint_is_pinned`).
 ///
-/// Carries no oracle: it IS the mint's draw, with no document around
-/// it, so a shape whose inputs name no live node still draws.
-pub fn first_node_id(node: &crate::AuthoredNode) -> RecipeNodeId {
-    crate::Mint::empty()
-        .insert(&stored(node))
-        .expect("an empty log holds no id")
+/// Carries no oracle: it IS the mint's draw, with no door around it, so
+/// a shape whose operands read no live output still draws: an operand
+/// naming node `n` is stored as the read with `n`'s own id
+/// ([`stored_reading`]).
+pub fn first_node_id(node: &crate::AuthoredNode, tol: geom_core::Tol) -> RecipeNodeId {
+    let mut doc = ProfileDoc::empty_derived("first_node_id", tol);
+    let node = stored_reading(&mut doc, node, |id, _| crate::VarId(id.0));
+    doc.mint.insert(&node)
 }
 
 /// **A spoken node built by hand**: what a document holding `id` as a
@@ -395,4 +498,19 @@ pub fn spoken_labelled(
 pub fn spoken_name(name: crate::StableName, minter: crate::SpokenNode) -> crate::SpokenName {
     assert_eq!(name.node, minter.id(), "the minter is the name's own node");
     crate::SpokenName::forged(name, minter)
+}
+
+// --- the content key's spelling --------------------------------------
+
+/// **The bytes the content key writes for `node`'s `slot`**: the slot's
+/// variable through the document's definitions, each free variable by
+/// its id (`param_source::feed_content_key`'s encoding) — so two slots
+/// spell equal exactly where they read one expression. `None` where
+/// the node or the slot is absent.
+pub fn slot_spelling(doc: &ProfileDoc, node: RecipeNodeId, slot: crate::SlotId) -> Option<Vec<u8>> {
+    let var = doc.slot(node, slot)?;
+    Some(crate::param_source::var_spelling(
+        &crate::param_source::definitions_of(doc),
+        var,
+    ))
 }

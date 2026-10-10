@@ -206,7 +206,9 @@ fn revert_negates_volume() {
 /// split_edge on the geometric cube at rest: after the prefer-intrinsic
 /// upgrade, splitting an Intersection-described edge yields two
 /// certified Intersection children whose adjacency obligations
-/// transfer — the split body passes tier 3.
+/// transfer — the split body passes every tier-3 check but 11, which
+/// names the split vertex: a split edge is construction state until
+/// the join takes it back.
 #[test]
 fn split_edge_preserves_tier3_at_rest() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
@@ -214,7 +216,12 @@ fn split_edge_preserves_tier3_at_rest() {
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge; // A → B chord, params [0, 1]
     let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
-    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_geometric(&cube.body, Tol::witness()),
+        Err(vec![topo::ValidationError::JoinableVertexAtRest {
+            vertex: created.vertex
+        }])
+    );
     // The new vertex sits at the carrier midpoint.
     let p = cube.body.get_point(created.point).unwrap();
     assert_eq!((p.x, p.y, p.z), (0.5, 0.0, 0.0));
@@ -339,19 +346,17 @@ fn cube_with_split_top(
     (cube.body, top, twin)
 }
 
-/// The declared rung (bit-identical plane, distinct keys) merges; a
-/// merely numerically-coincident plane (same geometry, different
-/// origin field) does NOT — coincidence is never inferred from values.
+/// The merge glues on the margin (D10): a bit-identical plane on a
+/// distinct key, a declared pair and a value-equal description (the
+/// same plane, another origin on it) all merge; a mirrored pair, whose
+/// outward sides face apart, does not.
 #[test]
-fn merge_coplanar_declared_vs_numeric() {
+fn merge_coplanar_glues_on_the_margin() {
     use common::plane;
     let build = |surface_for_split: fn(&Body<f64>) -> FaceSurface<f64>| {
         cube_with_split_top(surface_for_split).0
     };
-    // Bit-identical description on a fresh key, NO source and NO
-    // declaration: stays unmerged post-retirement (M4 PR 5, ladder
-    // rung (b) — value equality never glues; the M3-era bit rung is
-    // gone).
+    // Bit-identical description on a fresh key, no declaration.
     let mut bit_equal = build(|_| FaceSurface::New {
         surface: plane(
             &[
@@ -365,48 +370,11 @@ fn merge_coplanar_declared_vs_numeric() {
         sense: true,
     });
     let outcome = bit_equal.merge_coplanar_faces(Tol::witness()).unwrap();
-    assert_eq!(outcome.groups, vec![]);
-    assert_eq!(bit_equal.faces().count(), 7);
-    // Declared, N6 same-source rung: stamp BOTH descriptions with one
-    // GeomSource — the provenance lookup merges with zero numerics
-    // and zero per-call declarations.
-    let mut same_source = build(|_| FaceSurface::New {
-        surface: plane(
-            &[
-                Point3::new(0.0, 0.0, 1.0),
-                Point3::new(1.0, 0.0, 1.0),
-                Point3::new(1.0, 1.0, 1.0),
-                Point3::new(0.0, 1.0, 1.0),
-            ],
-            Tol::witness(),
-        ),
-        sense: true,
-    });
-    let src = topo::GeomSource::minted(42, 0);
-    let coplanar_keys: Vec<_> = same_source
-        .faces()
-        .filter_map(|(_, f)| match same_source.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. })
-                if origin.z == 1.0 && normal.z == 1.0 =>
-            {
-                Some(f.surface)
-            }
-            _ => None,
-        })
-        .collect();
-    // The seed top face and its chord twin both describe z = 1 with
-    // +z normals; stamp exactly those two.
-    assert_eq!(coplanar_keys.len(), 2, "{coplanar_keys:?}");
-    for k in &coplanar_keys {
-        same_source.set_surface_source(*k, src.clone()).unwrap();
-    }
-    let outcome = same_source.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1);
-    assert_eq!(same_source.faces().count(), 6);
-    // Mirrored, N6: the chord twin carries the top plane's reversal,
-    // stamped with the reverted source, on a face of the same sense.
-    // The recipe declared a surface and its mirror, whose outward
-    // sides face apart — not one surface: stays unmerged.
+    assert_eq!(bit_equal.faces().count(), 6);
+    // Mirrored: the chord twin carries the top plane's reversal on a
+    // face of the same sense, so the outward sides face apart — one
+    // plane, opposed: stays unmerged.
     let mut mirrored = build(|_| FaceSurface::New {
         surface: geom::Surface::Plane {
             origin: Point3::new(0.0, 0.0, 1.0),
@@ -415,26 +383,6 @@ fn merge_coplanar_declared_vs_numeric() {
         },
         sense: true,
     });
-    let on_top = |normal_z: f64| {
-        mirrored
-            .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    mirrored.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if origin.z == 1.0 && normal.z == normal_z
-                )
-            })
-            .map(|(_, f)| (f.surface, f.sense))
-            .collect::<Vec<_>>()
-    };
-    let (up, down) = (on_top(1.0), on_top(-1.0));
-    assert_eq!((up.len(), down.len()), (1, 1), "{up:?} {down:?}");
-    assert_eq!(up[0].1, down[0].1, "the mirrored pair shares a sense");
-    mirrored.set_surface_source(up[0].0, src.clone()).unwrap();
-    mirrored
-        .set_surface_source(down[0].0, src.reverted())
-        .unwrap();
     let outcome = mirrored.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![], "a mirrored pair does not glue");
     assert_eq!(mirrored.faces().count(), 7);
@@ -469,9 +417,9 @@ fn merge_coplanar_declared_vs_numeric() {
         .unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(declared.faces().count(), 6);
-    // Numeric-only: geometrically the same plane, but the description
-    // differs (another origin on the plane) — stays unmerged BY
-    // DESIGN: coincidence is structural or declared, never inferred.
+    // Value-equal: geometrically the same plane, the description
+    // differing (another origin on the plane) — its margins decide one
+    // plane, so it merges.
     let mut numeric = build(|_| FaceSurface::New {
         surface: geom::Surface::Plane {
             origin: Point3::new(0.25, 0.75, 1.0),
@@ -481,8 +429,8 @@ fn merge_coplanar_declared_vs_numeric() {
         sense: true,
     });
     let outcome = numeric.merge_coplanar_faces(Tol::witness()).unwrap();
-    assert_eq!(outcome.groups, vec![]);
-    assert_eq!(numeric.faces().count(), 7);
+    assert_eq!(outcome.groups.len(), 1);
+    assert_eq!(numeric.faces().count(), 6);
     assert_eq!(validate_closed(&numeric), Ok(()));
 }
 

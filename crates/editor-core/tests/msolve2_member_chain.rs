@@ -33,7 +33,7 @@ use editor_core::{
     product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::seat::{assert_seated, seat_map};
+use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
 use fixture::{
     ang, door_refusal, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform,
 };
@@ -61,7 +61,7 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -103,6 +103,61 @@ fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> AuthoredNode {
     }
 }
 
+/// **The world the product is** (A10): each of `bodies` placed, then
+/// each `(pattern, count)`'s copies placed through a `Part` per copy —
+/// what the old product roots were, the sinks of each row's chains.
+fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
+    let doc = fixture::place_all(doc, bodies);
+    patterns.iter().fold(doc, |doc, &(pattern, count)| {
+        (0..count).fold(doc, |doc, i| {
+            let (doc, copy) = insert(doc, part_of(pattern, i));
+            fixture::place(doc, copy).0
+        })
+    })
+}
+
+/// **`name`'s world copy**: the one name in the gathered product's
+/// table that is a copy of `name` ([`StableName::copy_of`]) — what the
+/// product names a member's face by, under the placement that put it
+/// in the world.
+fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
+    let (_, names) =
+        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
+    let copies: Vec<StableName> = names
+        .iter()
+        .map(|(n, _)| n.clone())
+        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
+        .collect();
+    let [copy] = copies.as_slice() else {
+        panic!("{name:?} has one world copy, not {copies:?}");
+    };
+    copy.clone()
+}
+
+/// [`fixture::seat::assert_seated`] over the world copies of `a` and
+/// `b` ([`copy_name`]).
+fn assert_seated(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    a: &StableName,
+    b: &StableName,
+    control: &Affine3<f64>,
+    what: &str,
+) {
+    let (a, b) = (copy_name(doc, ev, a), copy_name(doc, ev, b));
+    assert_seated_named(doc, ev, &a, &b, control, what);
+}
+
+/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`.
+fn seat_map(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    a: &StableName,
+    b: &StableName,
+) -> Affine3<f64> {
+    seat_map_named(doc, ev, &copy_name(doc, ev, a), &copy_name(doc, ev, b))
+}
+
 /// The seat every row's first mate declares: the slab's top cap at
 /// `(1, 1)`.
 const FIRST_SEAT: [f64; 3] = [1.0, 1.0, BASE_HEIGHT];
@@ -122,10 +177,14 @@ struct Scene {
 /// with nothing between them yet.
 fn scene(label: &str) -> Scene {
     let mut store = PartStore::new();
-    let (base_part, base_body) = part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT);
-    let (top_part, top_body) = part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT);
-    let base_ref = store.insert(base_part, Tol::witness());
-    let top_ref = store.insert(top_part, Tol::witness());
+    let (base_ref, base_body) = store.insert_part(
+        part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let (top_ref, top_body) = store.insert_part(
+        part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT),
+        Tol::witness(),
+    );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -137,6 +196,7 @@ fn scene(label: &str) -> Scene {
         DocEdit::SetOffset {
             instance: top,
             offset: None,
+            fresh: Vec::new(),
         },
     );
     Scene {
@@ -161,13 +221,14 @@ fn control_seat(label: &str) -> Affine3<f64> {
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_part(top, top_body, CapEnd::Start);
     let (doc, _) = step(
-        s.doc,
+        world(s.doc, &[base, top], &[]),
         DocEdit::InsertNode {
             node: Box::new(seat_at(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head(b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &s.opts);
@@ -177,7 +238,7 @@ fn control_seat(label: &str) -> Affine3<f64> {
 /// A linear pattern node over `input`.
 fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
-        input,
+        input: input.into(),
         count: Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
@@ -190,7 +251,7 @@ fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Autho
 /// projection a nested pattern is built through.
 fn part_of(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
-        of,
+        of: of.into(),
         select: PartSelect::Instance(Formula::count(i)),
     }
 }
@@ -220,10 +281,10 @@ fn circular(
     insert(
         doc,
         Node::Pattern {
-            input,
+            input: input.into(),
             count: Formula::count(count),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(step_angle),
             },
         },
@@ -292,14 +353,15 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: part,
+            input: part.into(),
             count: Formula::count(2),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
     );
+    let doc = world(doc, &[base], &[(outer, 2)]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(
         outer,
@@ -314,6 +376,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
                 crate::fixture::head_at(outer, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -449,6 +512,7 @@ fn a2b_sibling_outer_copies_close_a_loop() {
         let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
         let (doc, part) = insert(doc, part_of(inner, 1));
         let (doc, outer) = insert(doc, linear(part, rule.0, rule.1, 2));
+        let doc = world(doc, &[base], &[(outer, 2)]);
         let a = in_part(base, base_body, CapEnd::End);
         let master = in_part(top, top_body, CapEnd::Start);
         let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
@@ -460,6 +524,7 @@ fn a2b_sibling_outer_copies_close_a_loop() {
                     crate::fixture::head_at(outer, named(0)),
                     FIRST_SEAT,
                 )),
+                fresh: Vec::new(),
             },
         );
         let (doc, m2) = step(
@@ -470,6 +535,7 @@ fn a2b_sibling_outer_copies_close_a_loop() {
                     crate::fixture::head_at(outer, named(1)),
                     second,
                 )),
+                fresh: Vec::new(),
             },
         );
         (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -512,6 +578,7 @@ fn a2a_sibling_inner_copies_close_a_loop() {
             let (doc, outer_a) = insert(doc, linear(part_a, [0.0, 0.0, 1.0], LIFT, 2));
             let (doc, part_b) = insert(doc, part_of(inner, picks.1));
             let (doc, outer_b) = insert(doc, linear(part_b, [0.0, 0.0, 1.0], LIFT, 2));
+            let doc = world(doc, &[base], &[(outer_a, 2), (outer_b, 2)]);
             let a = in_part(base, base_body, CapEnd::End);
             let master = in_part(top, top_body, CapEnd::Start);
             let (i1a, i1b) = (picks.0 as u32, picks.1 as u32);
@@ -526,6 +593,7 @@ fn a2a_sibling_inner_copies_close_a_loop() {
                         ),
                         FIRST_SEAT,
                     )),
+                    fresh: Vec::new(),
                 },
             );
             let (doc, m2) = step(
@@ -539,6 +607,7 @@ fn a2a_sibling_inner_copies_close_a_loop() {
                         ),
                         second,
                     )),
+                    fresh: Vec::new(),
                 },
             );
             (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -573,6 +642,7 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
         let (doc, outer_a) = insert(doc, linear(part_a, [0.0, 0.0, 1.0], LIFT, 2));
         let (doc, part_b) = insert(doc, part_of(inner, 2));
         let (doc, outer_b) = insert(doc, linear(part_b, outer_b_rule.0, outer_b_rule.1, 2));
+        let doc = world(doc, &[base], &[(outer_a, 2), (outer_b, 2)]);
         let a = in_part(base, base_body, CapEnd::End);
         let master = in_part(top, top_body, CapEnd::Start);
         let (doc, m1) = step(
@@ -586,6 +656,7 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
                     ),
                     FIRST_SEAT,
                 )),
+                fresh: Vec::new(),
             },
         );
         let (doc, m2) = step(
@@ -599,6 +670,7 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
                     ),
                     second,
                 )),
+                fresh: Vec::new(),
             },
         );
         (doc, s.opts, m1.unwrap(), m2.unwrap())
@@ -631,6 +703,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
+    let doc = world(doc, &[base, part], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = step(
@@ -641,6 +714,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
                 crate::fixture::head_at(part, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -684,6 +758,7 @@ fn a3b_two_operands_over_one_copy_are_one_member() {
     let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
+    let doc = world(doc, &[base, part], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let at_pattern = crate::fixture::head_at(pattern, b.clone());
@@ -696,6 +771,7 @@ fn a3b_two_operands_over_one_copy_are_one_member() {
                 at_pattern.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -706,6 +782,7 @@ fn a3b_two_operands_over_one_copy_are_one_member() {
                 at_part.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
@@ -754,6 +831,7 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
             std::f64::consts::FRAC_PI_2,
         ),
     );
+    let doc = world(doc, &[base, moved], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = step(
@@ -764,6 +842,7 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
                 crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -831,6 +910,7 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
                     reference.clone(),
                     FIRST_SEAT,
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -883,6 +963,7 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], LIFT, 2));
+    let doc = world(doc, &[base], &[(outer, 2)]);
     let a = in_part(base, base_body, CapEnd::End);
     // Read at the `Part`, BELOW the outer pattern: the name stops at
     // the inner pattern's own `Instance(1)` row.
@@ -895,6 +976,7 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
                 crate::fixture::head_at(part, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -969,6 +1051,7 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
     let (doc, p2) = insert(doc, linear(t_mid, [1.0, 0.0, 0.0], 4.0, 3));
     let (doc, part2) = insert(doc, part_of(p2, 2));
     let (doc, t_top) = insert(doc, xform(part2, [0.0, 3.0, 0.0], [0.0, 0.0, 1.0], Q));
+    let doc = world(doc, &[base, t_top], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(p2, 2, in_copy(p1, 1, in_part(top, top_body, CapEnd::Start)));
     let r = crate::fixture::head_at(t_top, b.clone());
@@ -980,6 +1063,7 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
                 r.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1027,6 +1111,7 @@ fn a1c_three_levels_deep_seat() {
     let (doc, p2) = insert(doc, linear(part1, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part2) = insert(doc, part_of(p2, 1));
     let (doc, p3) = circular(doc, part2, [5.0, 5.0], std::f64::consts::FRAC_PI_3, 4);
+    let doc = world(doc, &[base], &[(p3, 4)]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(
         p3,
@@ -1042,6 +1127,7 @@ fn a1c_three_levels_deep_seat() {
                 r.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1086,6 +1172,7 @@ fn rotating_outer_tree_edge(
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = circular(doc, part, axis_at, Q, 3);
+    let doc = world(doc, &[base], &[(outer, 3)]);
     let a = in_part(base, base_body, CapEnd::End);
     let master = in_part(top, top_body, CapEnd::Start);
     let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
@@ -1097,6 +1184,7 @@ fn rotating_outer_tree_edge(
                 crate::fixture::head_at(outer, named(1)),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -1107,6 +1195,7 @@ fn rotating_outer_tree_edge(
                 crate::fixture::head_at(outer, named(2)),
                 [8.5, 8.5, BASE_HEIGHT],
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, s.opts, m1.unwrap(), m2.unwrap(), a, named(1))
@@ -1179,6 +1268,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
                 crate::fixture::head_at(part1, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m2) = step(
@@ -1189,6 +1279,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
                 crate::fixture::head_at(moved, b.clone()),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
@@ -1203,6 +1294,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
             node: part2,
             slot: editor_core::SlotId::Instance,
             expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     // Both references are members: admission is structural and the
@@ -1255,10 +1347,11 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(Formula::named(k.clone(), Dimension::Count)),
         },
     );
+    let doc = world(doc, &[base, part], &[]);
     let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let r = crate::fixture::head_at(part, b.clone());
@@ -1270,6 +1363,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
                 r.clone(),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.unwrap();
@@ -1360,7 +1454,7 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: editor_core::Operand::output(pattern, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );
@@ -1402,6 +1496,7 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = insert(doc, linear(part, ALONG.0, ALONG.1, 2));
+    let doc = world(doc, &[base], &[(outer, 2)]);
     let a = in_part(base, base_body, CapEnd::End);
     let master = in_part(top, top_body, CapEnd::Start);
     let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
@@ -1413,6 +1508,7 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
                 crate::fixture::head_at(outer, named(0)),
                 FIRST_SEAT,
             )),
+            fresh: Vec::new(),
         },
     );
     // The declaring mate's frame is authored THREE UNITS above the
@@ -1425,6 +1521,7 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
                 crate::fixture::head_at(outer, named(1)),
                 [SECOND_SEAT[0], SECOND_SEAT[1], SECOND_SEAT[2] + 3.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());

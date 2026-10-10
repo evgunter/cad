@@ -597,6 +597,9 @@ SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0,
   - Read: units on how segments are stored (3, 4, 6) and the storage P0s may start under the hold.
   - A unit that reworks how declared tangent joints are recorded or verified waits for D10's build, as the sketch plane does.
 
+- 2026-10-06 — 5b merged (#3774, `33e5000fb`; DR-88). Unit 3 (`one-segment-loop-through-builders`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: it changes how a closed loop is stored and swept, not intent or placement, so it may start under the hold.
+  - Review tier: dual. It is new topology (one periodic wall with a seam strut), where a wrong body ships silently.
 ## 2026-10-06 — PR 3774 fired the klein tour's tripwire on main
 
 PR 3774 ("constructions store the carriers they build") retired the
@@ -620,3 +623,56 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
   merges main is red on the `demos` job until it is resolved.
 
 - 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
+
+- 2026-10-06 — Unit 3 merged (#4169, `252db21ff`; DR-92, no MAJOR from either reviewer). The fix pass also fixed three things the review found:
+  - split's lever reading on a one-vertex cap;
+  - the tangent-plane split through the strut;
+  - contact near a full turn's vertex, now a crossing.
+
+  `one-segment-loop-revolves-and-lofts-to-one-wall` is dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: the unit changes how a face's chart closes (the wrap edge) and how closed walls are swept and read. It touches no intent, placement or declared contact, and `BooleanCoincidence::Seam` stays as it is, so it may start under the hold.
+  - Review tier: dual (H). It is new topology through every face reader, where a wrong body ships silently.
+- 2026-10-06 — `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0) closed: CLEAVE PR 4083 had already fixed both rows on main (`65b1b0a838`).
+- 2026-10-06 — Red on main at ε = 1e-6 since #4169 (`252db21ff`): `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` held a curved-cut quadrature midpoint (7.3e-6 off, pad 1.3e-3) to a fixed 1e-9. #4205 checks the certified bracket instead. The sibling checks are filed as `work/quad/sweep-tests-hold-quadrature-midpoints-to-fixed-tolerances.md`.
+## 2026-10-06 — seam note from CARVE: main is red on a PATHS row at ε = 1e-6
+
+`crates/sweep/tests/one_segment_loop.rs`
+`a_split_through_the_seam_builds_as_the_two_arc_form_does` fails at
+`CAD_TOLERANCE_EPS=1e-6`, with volume `3.1415853098901643` against π.
+CARVE's surface-pair lane (PR 4189) found it, and it reproduces on
+`origin/main` `3f3378808`. It came with PR 4169 (`0aad1a1b9`,
+`3bfd6a9b0`). The per-PR gate runs the 1e-6 row only for a diff
+touching `sweep`. CARVE's open PRs touch `sweep`, so they will show it
+red until PATHS fixes it, and CARVE merges them over it with this as
+the reason.
+
+Signed: (CARVE orchestrator)
+
+- 2026-10-07 — The wrap-edge unit merged (#4226, `e1efb472c`; DR-100, no MAJOR from either reviewer). A one-segment loop now revolves and lofts to one wall, and the one-face full torus is adopted.
+  - The fix pass made tier 3 hold the wrap flag both ways. That exposed a STEP slit adopted unflagged (`dm1-id-214.stp`); step-import now flags it as the face's wrap edge.
+  - Two of main's reds were ported by merge, not caused here: the meeting fixture's gates (#4229/#4230), and `SectorRead`'s rung disposition (#4242).
+  - Main's new `boolean/edge_join.rs` (FUSE, #4233) still read the renamed field, so the merge renamed it there.
+
+  Unit 4 (`circle-lowers-to-one-segment`) now waits only on JOIN's `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) is dispatched on `claude/clever-bardeen-4itqb3`. The seed still reds on main `e1efb472c` with the same message.
+  - D10 check: it is fillet construction accuracy, the tangent point `t2` lying off its own circle by about ε/2. It does not rework how declared tangent joints are recorded or verified, so it may start under the hold, and the lane stops if the fix needs to.
+  - Review tier: dual (H). The fillet construction feeds every filleted profile.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
+  - The centre now sits midway between the offset circles' nearest points, so each arc×arc rim carries half the gap: the floor where the circles are separated, a bound where they cross. The oracle pins each rim at half the gap, and a pinned sweep draws the decided class at both scalars.
+  - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.
+
+- 2026-10-07 — The fillet-radius P0 merged (#4259, `4aadf5b72`; DR-103, no MAJOR from either reviewer). On a decided offset tangency the fillet centre is the link midpoint: the floor on the separated side, a bound on the crossing side. The oracle now pins each rim at gap/2, and a seeded sweep of decided tangencies runs in the fast set.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is a validation-pair escalation on a drawn path. It touches no intent, placement or declared contact, so it may start under the hold.
+  - Review tier: single. It is one predicate's verdict on one drawn family.
+- 2026-10-07 — `a-straight-arrival-off-an-arc-departure-escalates-in-carrier-line-circle` closed on `claude/clever-bardeen-4itqb3`. The path placed nothing in error: validation escalated on carrier readings whose contact lies off a segment. `seg::line_arc` now asks the arc's span before an in-band `carrier_line_circle` escalates, and `seg::joint` answers on either span's definite miss of a secant candidate; the tangent arms still escalate on an in-band span reading. The siblings are filed as `validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc` (P2). The review measured a pre-existing silent miss in the tangent arms, filed as `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0).
+
+- 2026-10-07 — The path_property 1e-6 P0 merged (#4264, `f2e995806`, single review). Validation asks the segments' spans before an in-band secant carrier escalates. The tangent arms keep main's escalation, so the PR does not widen the hole the review found; that hole is filed as its own P0.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0, M) is dispatched on `claude/clever-bardeen-4itqb3`.
+  - D10 check: it is validation's contact reading. It records and verifies no declared contact, so it may start under the hold; the lane stops if the fix needs that.
+  - Review tier: dual. Difficulty letter M. The arm is drawn by `/dev/urandom` byte 208 (mod 3 = 1): SEQUENTIAL.
+- 2026-10-07 — `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps` (P0) closed on `claude/clever-bardeen-4itqb3`.
+  - A whole profile reaches the hole: two holes touching at a vertex whose two arcs each miss their own tangency with the other edge. It validated on `main` at both scalars and three ε.
+  - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
+  - D10's hold did not bind.
+

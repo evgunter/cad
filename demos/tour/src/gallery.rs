@@ -18,9 +18,10 @@
 //! workspace of several files and are written by that scene's own
 //! store. `plate` is the document the tolerance and plate-density
 //! cells share, and `chain` the one the chain-density and certified
-//! chain cells share, at its four links. Saving is not denoting: the
-//! denotation table below says which of these have no product, or a
-//! product other than the part their scene is about, and why. The
+//! chain cells share, at its four links. Each document places what
+//! its scene means as its product; the denotation table below says
+//! what that is per scene, and where it is other than the part the
+//! scene is about, why. The
 //! rest of the tour drives the kernel API directly and has no document
 //! to save; they join the gallery as they are re-authored, which is
 //! per-scene library work and independent of the GUI.
@@ -98,9 +99,9 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
     std::fs::write(&path, &text)
         .unwrap_or_else(|error| panic!("cannot write {}: {error}", path.display()));
     println!(
-        "   {name}.pncad — {} node(s), {} product root(s), {} byte(s){}",
+        "   {name}.pncad — {} node(s), {} placement(s), {} byte(s){}",
         doc.len(),
-        doc.roots().len(),
+        doc.placements().len(),
         text.len(),
         advisory(doc, tol)
     );
@@ -114,7 +115,7 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 /// registry on every landing — so a scene whose document reports a
 /// finding ships a picture that is wrong in a way only the badge
 /// explains. The die shipped exactly that for as long as this exporter
-/// has existed: two product roots, one sitting on the other, the pips
+/// has existed: two bodies in its product, one sitting on the other, the pips
 /// filled in and the outer faces z-fighting (#1162 diagnosed it; its
 /// separation resident is what reports it). Writing the count here
 /// means the next one is noticed when it is WRITTEN rather than when
@@ -147,17 +148,18 @@ fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use pncad::document::{ChecksError, ProductErrorKind};
-    use pncad::topo::mass_properties;
+    use pncad::document::{BooleanValue, Node, ValuePayload};
+    use pncad::topo::{Body, mass_properties};
 
     /// What one gallery scene is expected to PRODUCE.
     struct Shape {
         name: &'static str,
         doc: ProfileDoc,
-        /// Product roots. One, unless the scene has a reason.
-        roots: usize,
-        /// What the advisory registry answers, and why.
-        report: Report,
+        /// World placements. One, unless the scene has a reason.
+        placements: usize,
+        /// The separation findings the advisory registry reports, and
+        /// why.
+        separation: usize,
         /// The product's shape, where a row's `why` makes a claim
         /// about it: pinned so the claim goes red when the document
         /// changes under it.
@@ -171,34 +173,22 @@ mod tests {
         faces: usize,
     }
 
-    /// The registry's answer over one gallery document.
-    enum Report {
-        /// It ran, with this many separation findings.
-        Separation(usize),
-        /// The product gather refused, so no resident that reads the
-        /// product ran. The viewer still draws each root's own body
-        /// (its pick index tessellates per root, not the gather), under
-        /// the product-fault badge; what is missing is the product that
-        /// checks, mass properties and export read.
-        ProductRefused(ProductErrorKind),
-    }
-
     /// **A gallery document must denote what its scene means, or say
     /// why not.**
     ///
     /// The gallery's whole purpose is to be opened in the viewer, and
-    /// the viewer draws the PRODUCT: the gather of every root. A scene
-    /// that authors a body for narration authors a DAG sink, the root
-    /// set is exactly the sink set (`editor_core::roots`), and a sink
-    /// nobody meant as a product is a second body in the picture.
+    /// the viewer draws the PRODUCT: the world, every copy a placement
+    /// defines. A scene that authors a body for narration leaves it
+    /// unplaced; a placement nobody meant as product is a second body
+    /// in the picture.
     ///
-    /// That is the bug this row exists for. `diefillet` shipped with
-    /// two roots — the blank and the composed die, the blank being the
-    /// die's own outer shape with no pips cut — so the file drew one
+    /// That is the bug this row exists for. `diefillet` once shipped
+    /// the blank beside the composed die, the blank being the die's
+    /// own outer shape with no pips cut, so the file drew one
     /// die-shaped thing with its pips filled in, its faces z-fighting,
     /// and twice the material (115 faces, V = 1.918146). It looked
     /// almost right, which is why it survived: every local battery
-    /// passes, because each root's body is individually perfect.
+    /// passes, because each body is individually perfect.
     ///
     /// The row is a TABLE rather than a blanket "no findings", because
     /// one scene legitimately reports and hiding that would be the
@@ -212,46 +202,46 @@ mod tests {
             Shape {
                 name: "bracket",
                 doc: crate::bracket::gallery_document(tol),
-                roots: 1,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 product: None,
-                why: "one root: the extrude, split, its corner piece kept and that piece's \
+                why: "one placement: the extrude, split, its corner piece kept and that piece's \
                       chords chamfered; the offcuts live in the scene's wall probe, not in the \
                       document",
             },
             Shape {
                 name: "checks",
                 doc: crate::checks::gallery_document(tol),
-                roots: 1,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 product: None,
-                why: "one root; its connectedness finding is the scene's own subject \
+                why: "one placement; its connectedness finding is the scene's own subject \
                       and is not a separation one",
             },
             Shape {
                 name: "ring",
                 doc: crate::ring::gallery_document(tol),
-                roots: 1,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 product: None,
-                why: "one revolve, one root",
+                why: "one revolve, one placement",
             },
             Shape {
                 name: "diefillet",
                 doc: crate::diefillet::gallery_document(tol),
-                roots: 1,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 product: None,
                 why: "the composed die alone — the blank is a narration body and \
-                      `gallery_document` deletes it, which is what this row guards",
+                      nothing places it, which is what this row guards",
             },
             Shape {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
-                roots: 1,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 product: None,
-                why: "one root, and nothing in the document interpenetrates: the base \
+                why: "one placement, and nothing in the document interpenetrates: the base \
                       is rounded by a Fillet, the fin group is a PlacedUnion, and a \
                       Boolean folds the group into the rounded base, so the whole part \
                       is in the recipe",
@@ -259,28 +249,27 @@ mod tests {
             Shape {
                 name: "teapot",
                 doc: crate::teapot::gallery_document(tol),
-                roots: 4,
-                report: Report::Separation(4),
+                placements: 4,
+                separation: 2,
                 product: None,
                 why: concat!(
-                    "FOUR roots, because the teapot is four solids and the operand ",
-                    "gate has no arm for either join. FOUR findings over the six ",
+                    "FOUR placements, because the teapot is four solids and the operand ",
+                    "gate has no arm for either join. TWO findings over the six ",
                     "pairs, and the check denies a BOX certificate rather than ",
                     "asserting an overlap: handle/vessel and spout/vessel are the ",
                     "scene's own two walls, real interpenetrations a boolean would ",
-                    "have to take; lid/vessel and lid/spout are the lifted lid, ",
-                    "whose overhanging flange shares a box with both and is apart ",
-                    "from neither by any rule this check has. The two pairs it says ",
-                    "nothing about — spout/handle and lid/handle — are the ones the ",
-                    "box rule PROVED apart. No mate is authored, so nothing declares ",
+                    "have to take. The four pairs it says nothing about are the ones ",
+                    "the box rule PROVED apart, the lifted lid's two among them: its ",
+                    "dome is boxed by its latitude zone, not the whole ball. ",
+                    "No mate is authored, so nothing declares ",
                     "the gap the render shows",
                 ),
             },
             Shape {
                 name: "impeller",
                 doc: crate::impeller::gallery_document(tol),
-                roots: 1,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 // The 24-gon hub's 26 faces, and each blade's three
                 // outer walls plus its top and bottom.
                 product: Some(Product {
@@ -293,39 +282,40 @@ mod tests {
             Shape {
                 name: "plate",
                 doc: crate::plate::gallery_document(tol),
-                roots: 2,
-                report: Report::Separation(0),
+                placements: 1,
+                separation: 0,
                 product: Some(Product {
                     solids: 1,
                     faces: 6,
                 }),
                 why: concat!(
-                    "TWO roots, the blank's extrude and the web assertion, and the ",
-                    "product is the BLANK: a six-face slab with no holes. The two ",
-                    "hole extrudes exist only as the web measure's references, and ",
-                    "nothing subtracts them, so the document denotes the study's ",
-                    "numbers and not the two-hole plate it is about. The cut is two ",
-                    "walls: the certified drive certifies no box of the cut plate ",
-                    "(work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-",
-                    "volume-bound.md), and the cut plate has no product at all ",
-                    "(the_cut_plate_has_no_product; ",
-                    "work/recipe/a-measured-part-is-not-a-product-root.md)",
+                    "ONE placement, the blank's extrude, so the product is a six-face ",
+                    "slab with no holes. The two hole extrudes exist only as the web ",
+                    "measure's references and nothing places them, so the document ",
+                    "denotes the study's numbers and not the two-hole plate it is ",
+                    "about. The cut spelling places the cut part and that is its ",
+                    "product (the_cut_plate_is_its_product); its wall is the certified ",
+                    "drive, which certifies no box of it (work/tally/a-hole-wholly-",
+                    "inside-its-target-ties-the-subtract-volume-bound.md)",
                 ),
             },
             Shape {
                 name: "chain",
                 doc: crate::chain::gallery_document(tol),
-                roots: 9,
-                report: Report::ProductRefused(ProductErrorKind::PlacedUnderTwoRoots),
-                product: None,
+                placements: 9,
+                separation: 11,
+                // Each bar a six-face box; each pin a cylinder wall in
+                // two halves and its two caps.
+                product: Some(Product {
+                    solids: 9,
+                    faces: 4 * 6 + 5 * 4,
+                }),
                 why: concat!(
-                    "NINE roots — four placed bars, five placed pins — and no ",
-                    "product: one bar extrude, placed by each link's joint stack, ",
-                    "is one body under four transform roots, which the gather ",
-                    "refuses because a transform mints no name; its recourse, a ",
-                    "union, would weld a mechanism's links together. The viewer ",
-                    "still draws the nine bodies, under the product-fault badge ",
-                    "(work/wire/one-shape-placed-n-times-has-no-product.md)",
+                    "NINE placements — four bars, five pins — and NINE copies: one bar ",
+                    "extrude, placed by each link's joint stack, is four copies, each ",
+                    "its own output with its own names. ELEVEN findings, all ",
+                    "separation: each pin stands in the bar ends it joins and the bars ",
+                    "meet at the joints, and no mate declares a joint",
                 ),
             },
         ];
@@ -339,9 +329,9 @@ mod tests {
                 tol,
             );
             assert_eq!(
-                shape.doc.roots().len(),
-                shape.roots,
-                "{}: product roots ({})",
+                shape.doc.placements().len(),
+                shape.placements,
+                "{}: world placements ({})",
                 shape.name,
                 shape.why
             );
@@ -358,63 +348,55 @@ mod tests {
                     shape.why
                 );
             }
-            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol);
-            match (&shape.report, report) {
-                (Report::Separation(want), Ok(report)) => {
-                    let separation = report
-                        .findings
-                        .iter()
-                        .filter(|finding| finding.check == CheckId::Separation)
-                        .count();
-                    assert_eq!(
-                        separation,
-                        *want,
-                        "{}: separation findings ({}) — {}",
+            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{}: the registry refused: {}",
                         shape.name,
-                        shape.why,
-                        report.spoken(&shape.doc)
-                    );
-                }
-                (
-                    Report::ProductRefused(want),
-                    Err(ChecksError::Product {
-                        refusal: Some(refusal),
-                    }),
-                ) => assert_eq!(
-                    refusal.kind(),
-                    *want,
-                    "{}: the gather's refusal ({})",
-                    shape.name,
-                    shape.why
-                ),
-                (_, Ok(report)) => panic!(
-                    "{}: the registry ran, but this row expects the gather to refuse ({}) — {}",
-                    shape.name,
-                    shape.why,
-                    report.spoken(&shape.doc)
-                ),
-                (_, Err(error)) => panic!(
-                    "{}: the registry refused: {}",
-                    shape.name,
-                    error.spoken(&shape.doc)
-                ),
-            }
+                        error.spoken(&shape.doc)
+                    )
+                });
+            let separation = report
+                .findings
+                .iter()
+                .filter(|finding| finding.check == CheckId::Separation)
+                .count();
+            assert_eq!(
+                separation,
+                shape.separation,
+                "{}: separation findings ({}) — {}",
+                shape.name,
+                shape.why,
+                report.spoken(&shape.doc)
+            );
         }
     }
 
-    /// **The wall: the plate with its holes cut has no product.** The
-    /// web measure reads the cut part's bore walls, a measure's
-    /// references are DAG edges, so the part is not a sink and the
-    /// one root is the assertion, which denotes no body.
+    /// **The plate with its holes cut is its product.** The web
+    /// measure reads the cut part's bore walls; the document places
+    /// the part, and a reader of a placed body does not keep it out of
+    /// the world. The product is one body, the cut part's own value.
     #[test]
-    fn the_cut_plate_has_no_product() {
+    fn the_cut_plate_is_its_product() {
         use crate::plate::{RADIUS_SIGMA, SPACING_HALF_WIDTH, WEB_BOUND, cut_plate};
         let tol = Tol::witness();
         let cut = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
-        assert_eq!(
-            cut.doc.roots(),
-            [cut.assertion],
-            "the cut plate's one root is the web assertion"
+        let [placement] = cut.doc.placements()[..] else {
+            panic!(
+                "the cut plate places one body, the cut part: {:?}",
+                cut.doc.placements()
+            )
+        };
+        let Some(Node::PlaceInWorld { body, .. }) = cut.doc.node(placement) else {
+            unreachable!("a placement is a world placement")
+        };
+        let part_node = cut
+            .doc
+            .operation_of(*body)
+            .expect("the placed body is live");
+        assert!(
+            matches!(cut.doc.node(part_node), Some(Node::Boolean { .. })),
+            "the placed body is the second cut"
         );
         let evaluation = evaluate::<f64>(
             &cut.doc,
@@ -423,15 +405,42 @@ mod tests {
             &EvalOptions::default(),
             tol,
         );
-        crate::walls::wall(
-            "two-hole plate",
-            2,
-            "the gallery draws the plate with its holes cut",
-            pncad::document::product(&cut.doc, &evaluation, tol),
-            |e| e.kind() == ProductErrorKind::NoBodyRoots,
-            "write the cut plate to the gallery \
-             (work/recipe/a-measured-part-is-not-a-product-root.md)",
+        let product = pncad::document::product(&cut.doc, &evaluation, tol)
+            .unwrap_or_else(|error| panic!("the cut plate gathers: {error:?}"));
+        let part = match &evaluation
+            .value(part_node)
+            .expect("the cut part evaluated")
+            .payload
+        {
+            ValuePayload::Body(b) => (**b).clone(),
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
+            other => panic!("the cut part is a body, got {other:?}"),
+        };
+        assert_eq!(product.solids().count(), 1, "the product is one body");
+        assert_eq!(
+            digest(&product, tol),
+            digest(&part, tol),
+            "the product is the cut part's own value"
         );
+    }
+
+    /// A key-free digest of a body's value: its census, its mass
+    /// properties and its points, by bits.
+    fn digest(body: &Body<f64>, tol: Tol) -> (usize, usize, usize, u64, u64, Vec<[u64; 3]>) {
+        let mass = mass_properties(body, tol).expect("the body has mass properties");
+        let mut points: Vec<[u64; 3]> = body
+            .points()
+            .map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()])
+            .collect();
+        points.sort_unstable();
+        (
+            body.faces().count(),
+            body.edges().count(),
+            body.vertices().count(),
+            mass.volume.to_bits(),
+            mass.surface_area.to_bits(),
+            points,
+        )
     }
 
     /// The die, by the numbers its own scene already knows.
@@ -468,7 +477,7 @@ mod tests {
         // caps out, 21 torus bands in — has no such form written
         // anywhere, so this is a pin on the value the gather answers.
         // What makes it worth pinning is the defect's signature: with
-        // the blank still a root the product answered 1.918146, which
+        // the blank also in the product it answered 1.918146, which
         // is this number DOUBLED, because the same material was
         // gathered twice.
         let want = 0.952_914_984_014_647_f64;

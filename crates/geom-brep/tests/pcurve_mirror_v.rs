@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, SpiricImage,
-    SurfaceKey,
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve,
+    SpiricImage, SurfaceKey,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -138,19 +138,44 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             0.9,
         ),
         (
-            "ConeSection",
-            Pcurve::ConeSection {
+            "FocalSection",
+            Pcurve::FocalSection(FocalImage {
                 u0: 0.7,
+                t0: 0.375,
                 v0: 2.5,
                 va: -0.75,
                 vb: 0.125,
+                vl: -1.0,
                 beta: 0.3,
                 sense: -1.0,
-            },
+            }),
             -0.4,
             0.9,
         ),
+        ("Projected", projected_on_plane(), 0.0, 1.0),
     ]
+}
+
+/// A spline's projected image on a plane chart: its mapped net.
+fn projected_on_plane() -> Pcurve<f64> {
+    let carrier = Curve3::Nurbs(Arc::new(
+        geom::NurbsCurve3::new(
+            kv(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2),
+            vec![
+                Point3::new(0.1, -0.2, 0.0),
+                Point3::new(0.7, 0.9, 0.0),
+                Point3::new(1.3, 0.2, 0.0),
+            ],
+            vec![1.0, 0.6, 1.0],
+        )
+        .unwrap(),
+    ));
+    let plane = Surface::Plane {
+        origin: Point3::new(0.05, 0.1, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    geom_brep::chart_pcurve(&carrier, &plane, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
 
 /// Which kinds have a reflected locus at all: every one but a spiric
@@ -172,7 +197,7 @@ fn reflects(p: &Pcurve<f64>) -> bool {
 /// the hand-written `kinds()` above could not be on its own.
 #[test]
 fn every_variant_appears_in_the_kinds_census() {
-    let mut seen = [false; 7];
+    let mut seen = [false; 8];
     for (_, p, _, _) in kinds() {
         let slot = match p {
             Pcurve::Harmonic { .. } => 0,
@@ -181,7 +206,8 @@ fn every_variant_appears_in_the_kinds_census() {
             Pcurve::IsoLine { .. } => 3,
             Pcurve::IsoArc { .. } => 4,
             Pcurve::Spiric { .. } => 5,
-            Pcurve::ConeSection { .. } => 6,
+            Pcurve::FocalSection(_) => 6,
+            Pcurve::Projected(_) => 7,
         };
         seen[slot] = true;
     }
@@ -467,7 +493,8 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 stale,
                 Err(CertifyError::ResidualExceeded {
                     check: CertCheck::ChartResidual,
-                    sample: 0
+                    sample: 0,
+                    ..
                 })
             ),
             "{name}: the stored image on the reverted plane: {stale:?}"

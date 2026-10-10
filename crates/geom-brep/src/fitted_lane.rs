@@ -1,21 +1,21 @@
-//! **The fitted-pcurve derivations, as an injected door** — the four
-//! operations a fitted or general chart image needs that only a scalar
-//! with certification rights can perform.
+//! **The certification-arithmetic pcurve derivations, as an injected
+//! door** — the operations a fitted, general or projected chart image
+//! needs that only a scalar with certification rights can perform.
 //!
 //! A fitted chart image's between-samples obligation is, over a rung-3
 //! carrier, a C2 certificate — hull sup-norm and uniqueness tube,
 //! reached through `geom_brep::ssi::certify` — with the image and its
 //! chart feet produced by the `edge_nurbs` foot schedule over
-//! certification arithmetic (C9); over a sphere chart's general circle
-//! it is the Hermite bound, on an image interpolated from structure
-//! read off the data's brackets (`sphere_circle`). Building
-//! any of the four IS certification: `f64`,
+//! certification arithmetic (C9); a spline carrier's projected image on
+//! an analytic chart reads its hull terms (its sector hulls and the
+//! chart's implicit form composed along the carrier) the same way.
+//! Building any of them IS certification: `f64`,
 //! the telemetry probe, the interval scalar and `Sym` over any of those
 //! may do it, and a [`geom_core::Dual`] may not (DL1 — a dual carries a
 //! bracket since D1 and still has no
 //! [`geom_core::CertifiedEnclosure`] impl).
 //!
-//! [`FittedLane`] is that door: the four operations in one value,
+//! [`FittedLane`] is that door: the operations in one value,
 //! with one constructor ([`FittedLane::certified`]) whose `impl` block
 //! is bounded on the right, so holding one IS the statement that the
 //! scalar it is parameterised by may certify. A scalar that may not
@@ -37,9 +37,9 @@
 //! **Where the `Some` comes from.** One seam answers it —
 //! `topo::AtRestPolicy::fitted_lane`, DL3's per-scalar policy home
 //! (`docs/DUAL-DESIGN.md`) — and every consumer reads that seam: the
-//! pcurve mint (`topo::mint_pcurves`, its general-image and
-//! sphere-circle derivations, its chart-foot rim arms and its
-//! `certify_general` and `certify_fitted` calls) and the
+//! pcurve mint (`topo::mint_pcurves`, its general-image derivation,
+//! its chart-foot rim arms and its `certify_general` and
+//! `certify_projected` calls) and the
 //! tier-3 pcurve pass (`topo::pcurves::validate_pcurves`, through
 //! [`crate::PcurveCache::recertify`]). A certifying scalar answers
 //! `Some(FittedLane::certified())` and a dual answers `None`, and a
@@ -49,16 +49,18 @@
 //!
 //! **A `None` door refuses where the door is first needed.** For an
 //! image the caller already holds, that is check 4 of the fitted lane's
-//! five checks, where every fitted cache's certificate is derived — in
+//! four checks, where every fitted cache's certificate is derived — in
 //! [`crate::PcurveCache::certify_general`] and
 //! [`crate::PcurveCache::recertify`], the two doors that take the
 //! `Option` because a caller reaches them at every scalar (the mint
 //! with a construction's stated `General` image, the tier-3 pass with
 //! every row). Checks 1–3 read no door, so an image they refuse draws
 //! the same verdict at every scalar, and no `Fitted` or `General`
-//! cache is built without the door. For an image the mint must DERIVE
-//! (a general image on a spline chart, a sphere's general circle) it is
-//! the derivation, which refuses before any check runs; the mint leaves
+//! cache is built without the door; a spline carrier's projected image
+//! on an analytic chart refuses at the same check 4
+//! ([`crate::PcurveCache::certify_projected`]). For an image the mint
+//! must DERIVE (a general image on a spline chart) it is the
+//! derivation, which refuses before any check runs; the mint leaves
 //! such a face rowless at a scalar with no door, since that scalar is
 //! owed no fitted rows (`topo::pcurves`' `mint_faces`).
 //! [`crate::PcurveCache::certify_fitted`] takes the door itself.
@@ -75,6 +77,7 @@ use geom_core::{Band, Decide, Point2, Point3, Real};
 
 use crate::PcurveCertifyError;
 use crate::pcurve_cache::FittedEnvelope;
+use crate::pcurve_cache::projected::ProjectedHull;
 
 /// The scalars that hold a [`FittedLane`], by their [`Real::NAME`]s —
 /// the replay list [`crate::PcurveCertifyError::FittedLaneUnsupported`]
@@ -98,8 +101,8 @@ pub const FITTED_DOOR_HOLDERS: &[&str] = &[
     <geom_core::Sym<f64> as Real>::NAME,
 ];
 
-/// **The fitted-pcurve door**: the four fitted-pcurve derivations the
-/// mint and the tier-3 pass reach, in one value.
+/// **The fitted-pcurve door**: the certification-arithmetic pcurve
+/// derivations the mint and the tier-3 pass reach, in one value.
 ///
 /// Its one constructor is [`FittedLane::certified`], bounded on
 /// [`geom_core::CertifiedBounds`], so holding a value of this type IS
@@ -112,8 +115,6 @@ pub struct FittedLane<T: Real> {
     /// [`FittedLane::fitted_certificate`]'s body.
     fitted_lane: fn(
         &Curve3<T>,
-        T,
-        T,
         &NurbsCurve2<T>,
         &Surface<T>,
         Option<&Surface<T>>,
@@ -124,9 +125,12 @@ pub struct FittedLane<T: Real> {
         fn(&NurbsCurve3<T>, &NurbsSurface<T>) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
     /// [`FittedLane::chart_foot`]'s body.
     chart_foot_lane: fn(Point3<T>, &NurbsSurface<T>) -> Result<Point2<f64>, PcurveCertifyError>,
-    /// [`FittedLane::sphere_circle_image`]'s body.
-    sphere_circle_lane:
-        fn(&Curve3<T>, T, T, &Surface<T>, Band) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
+    /// [`FittedLane::projected_hull`]'s body.
+    projected_lane: fn(
+        &crate::ProjectedImage<T>,
+        &NurbsCurve3<T>,
+        &Surface<T>,
+    ) -> Result<ProjectedHull, PcurveCertifyError>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
@@ -140,70 +144,31 @@ impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
             fitted_lane: crate::pcurve_cache::fitted_lane::<T>,
             general_image_lane: crate::pcurve_cache::general_image_lane::<T>,
             chart_foot_lane: crate::pcurve_cache::chart_foot_lane::<T>,
-            sphere_circle_lane: crate::pcurve_cache::sphere_circle_image_lane::<T>,
+            projected_lane: crate::pcurve_cache::projected_hull_lane::<T>,
         }
     }
 }
 
 impl<T: Real> FittedLane<T> {
     /// The full C2 certificate of a fitted chart image against its
-    /// operand pair — check 4 of the fitted lane's five checks, reached
-    /// only from inside this crate's fitted doors.
-    ///
-    /// The carrier arrives as the edge's own [`Curve3`]: a rung-3
-    /// `Curve3::Nurbs` feeds the SSI door directly, against its operand
-    /// pair (`mate` is `Some`); an exact `Curve3::Circle` (the sphere
-    /// chart's GENERAL-circle class) is certified against the sphere
-    /// alone — its distance from it, bounded over the whole circle in
-    /// closed form — and `mate` is not read.
+    /// operand pair — check 4 of the fitted lane's four checks, reached
+    /// only from inside this crate's fitted doors. The carrier is the
+    /// edge's own `Curve3::Nurbs`, and `mate` is the other operand of
+    /// the pair whose intersection minted it.
     ///
     /// # Errors
     ///
     /// [`PcurveCertifyError::FittedCertificate`] when the SSI
-    /// certificate itself refuses, or for a Circle carrier on a chart
-    /// that is not a sphere.
-    #[allow(clippy::too_many_arguments)] // one parameter per named quantity
+    /// certificate itself refuses.
     pub(crate) fn fitted_certificate(
         self,
         carrier: &Curve3<T>,
-        t0: T,
-        t1: T,
         image: &NurbsCurve2<T>,
         surface: &Surface<T>,
         mate: Option<&Surface<T>>,
         band: Band,
     ) -> Result<FittedEnvelope<T>, PcurveCertifyError> {
-        (self.fitted_lane)(carrier, t0, t1, image, surface, mate, band)
-    }
-
-    /// **The chart image of a general circle on a sphere chart** — a
-    /// circle neither a parallel nor a meridian of the chart, whose
-    /// image no closed form holds (the closed-form door refuses it as
-    /// `UncoveredClass::SphereGeneralCircle`).
-    ///
-    /// The image is interpolated on the carrier's own angular parameter
-    /// over `[t0, t1]`, one azimuth branch, with every certification
-    /// sample a node (`pcurve_cache::sphere_circle_image_lane`). It is
-    /// EVIDENCE and certifies nothing by itself; the caller's next move
-    /// is [`crate::PcurveCache::certify_fitted`]. It sits on this door
-    /// because its structure is read from the data's brackets, which
-    /// only a certifying scalar's derivation may do.
-    ///
-    /// # Errors
-    ///
-    /// [`PcurveCertifyError::FittedCertificate`] (or
-    /// [`PcurveCertifyError::FittedEscalated`]) when the circle passes
-    /// through a pole of the chart, where no one-branch image exists;
-    /// [`PcurveCertifyError::UnsupportedChart`] off a sphere chart.
-    pub fn sphere_circle_image(
-        self,
-        carrier: &Curve3<T>,
-        t0: T,
-        t1: T,
-        sphere: &Surface<T>,
-        band: Band,
-    ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
-        (self.sphere_circle_lane)(carrier, t0, t1, sphere, band)
+        (self.fitted_lane)(carrier, image, surface, mate, band)
     }
 
     /// **The chart image of a spline carrier on a NURBS wall.**
@@ -237,6 +202,23 @@ impl<T: Real> FittedLane<T> {
         wall: &NurbsSurface<T>,
     ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
         (self.general_image_lane)(carrier, wall)
+    }
+
+    /// **A spline carrier's projected row's hull terms** — check 4 of
+    /// [`crate::PcurveCache::certify_projected`] for a net, reached only
+    /// from inside this crate: the stored image's piece hulls (its
+    /// sector condition and cone lever) and the chart's implicit form
+    /// composed along `twin_net`, the carrier written in the frame of
+    /// `twin`, the chart's orthonormal twin
+    /// (`pcurve_cache::projected`'s docs). Certification arithmetic, so
+    /// it sits on this door.
+    pub(crate) fn projected_hull(
+        self,
+        image: &crate::ProjectedImage<T>,
+        twin_net: &NurbsCurve3<T>,
+        twin: &Surface<T>,
+    ) -> Result<ProjectedHull, PcurveCertifyError> {
+        (self.projected_lane)(image, twin_net, twin)
     }
 
     /// **The chart foot of one point** on a NURBS wall —
@@ -277,19 +259,15 @@ impl<T: Real> FittedLane<T> {
 #[cfg(test)]
 mod wiring_rows {
     use super::FittedLane;
-    use crate::pcurve_cache::{
-        chart_foot_lane, fitted_lane, general_image_lane, sphere_circle_image_lane,
-    };
+    use crate::pcurve_cache::projected_hull_lane;
+    use crate::pcurve_cache::{chart_foot_lane, fitted_lane, general_image_lane};
 
     /// `Ok(())` when every field holds its shared body; otherwise the
     /// name of the first field that does not.
     fn holds_the_certified_fitted_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = FittedLane::<T>::certified();
-        if !std::ptr::fn_addr_eq(
-            lane.fitted_lane,
-            fitted_lane::<T> as fn(_, _, _, _, _, _, _) -> _,
-        ) {
+        if !std::ptr::fn_addr_eq(lane.fitted_lane, fitted_lane::<T> as fn(_, _, _, _, _) -> _) {
             return Err("fitted_lane is not `pcurve_cache::fitted_lane`");
         }
         if !std::ptr::fn_addr_eq(
@@ -302,10 +280,10 @@ mod wiring_rows {
             return Err("chart_foot_lane is not `pcurve_cache::chart_foot_lane`");
         }
         if !std::ptr::fn_addr_eq(
-            lane.sphere_circle_lane,
-            sphere_circle_image_lane::<T> as fn(_, _, _, _, _) -> _,
+            lane.projected_lane,
+            projected_hull_lane::<T> as fn(_, _, _) -> _,
         ) {
-            return Err("sphere_circle_lane is not `pcurve_cache::sphere_circle_image_lane`");
+            return Err("projected_lane is not `pcurve_cache::projected_hull_lane`");
         }
         Ok(())
     }
@@ -315,7 +293,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<f64>(),
             Ok(()),
-            "`FittedLane::<f64>::certified()` holds something other than its four bodies"
+            "`FittedLane::<f64>::certified()` holds something other than its bodies"
         );
     }
 
@@ -326,7 +304,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`FittedLane::<Sym<f64>>::certified()` holds something other than its four bodies"
+            "`FittedLane::<Sym<f64>>::certified()` holds something other than its bodies"
         );
     }
 
@@ -336,7 +314,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<geom_core::Probe>(),
             Ok(()),
-            "`FittedLane::<Probe>::certified()` holds something other than its four bodies"
+            "`FittedLane::<Probe>::certified()` holds something other than its bodies"
         );
     }
 
@@ -345,7 +323,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_fitted_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`FittedLane::<Interval>::certified()` holds something other than its four bodies"
+            "`FittedLane::<Interval>::certified()` holds something other than its bodies"
         );
     }
 }

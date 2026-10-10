@@ -9,20 +9,16 @@ use core::f64::consts::PI;
 use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
-use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, SplitResult, split};
 use topo::{AtRestBody, Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
 
+/// The chain revolved about the y axis, finished.
 fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
-    revolved_with(chain, Vec::new())
-}
-
-/// [`revolved`] with the profile's tangent joints declared, finished.
-fn revolved_with(chain: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
     let body = revolve(
-        &validated(vec![bulge_loop(chain).with_tangent_joints(tangent_joints)]),
+        &validated(vec![bulge_loop(chain)]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
@@ -91,16 +87,13 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
 fn rounded_cylinder() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(1.0, 1.0), Point2::new(0.75, 1.25));
     let bulge = bulge_from_center(a, b, Point2::new(0.75, 1.0), ArcSweep::Ccw);
-    revolved_with(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (a, bulge),
-            (b, 0.0),
-            (Point2::new(0.0, 1.25), 0.0),
-        ],
-        vec![2, 3],
-    )
+    revolved(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (a, bulge),
+        (b, 0.0),
+        (Point2::new(0.0, 1.25), 0.0),
+    ])
 }
 
 /// The torus rounding's volume above `y = 1` by Pappus, every piece in
@@ -432,11 +425,14 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// leave the edge uncut while the plane crosses the faces beside it.
 ///
 /// The re-description moves the rim's carrier, so it re-mints the
-/// faces the rim bounds; the closed-form lane has no image of the
-/// spline, so the curved one stores no row, and the at-rest gate cannot
-/// compute the body's volume across it. The body is not a finished
-/// body and no split door takes it; the row reads the carrier gate past
-/// the door.
+/// faces the rim bounds. The spline's image on the cylinder is its
+/// projected one, whose hull terms read the fitted door, which the
+/// description door's site mint does not hold. So the cylinder face is
+/// left rowless for a closing mint, and the at-rest gate reads it
+/// `Unminted`; the mint stores its projected rows
+/// (`work/pcert/site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm.md`).
+/// The body is not a finished body and no split door takes it; the row
+/// reads the carrier gate past the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
@@ -450,12 +446,28 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
         !errors.is_empty()
             && errors.iter().all(|e| matches!(
                 e,
-                topo::ValidationError::VolumeUncomputable {
-                    source: topo::MassPropsError::Face { face, .. },
-                    ..
+                topo::ValidationError::Pcurve {
+                    finding: topo::pcurves::PcurveMintError::Unminted { face },
                 } if face == &rim_faces.0 || face == &rim_faces.1
             )),
-        "the at-rest gate refuses the volume across a face the spline bounds alone: {errors:?}"
+        "the at-rest gate reads the face the spline bounds as owed rows it lacks: {errors:?}"
+    );
+    let mut minted = body.clone();
+    topo::mint_pcurves(&mut minted, Tol::witness()).expect("the closing mint");
+    let sides = topo::readback::edge_sides(&minted, edge).unwrap();
+    let projected = [sides.plus.half_edge, sides.minus.half_edge]
+        .into_iter()
+        .filter_map(|h| minted.pcurve(h))
+        .any(|c| matches!(c.pcurve(), geom_brep::Pcurve::Projected(_)));
+    assert!(
+        projected,
+        "the closing mint stores the spline's projected row"
+    );
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let findings = topo::pcurves::validate_pcurves(&minted, band);
+    assert!(
+        findings.is_empty(),
+        "the minted body reads clean: {findings:?}"
     );
     match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
         Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {

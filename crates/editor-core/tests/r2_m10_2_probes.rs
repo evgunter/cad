@@ -19,9 +19,9 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
+    AssertionRelation, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit,
+    DocumentId, EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred,
+    LoopProgram, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
     SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
     select_where,
@@ -112,18 +112,18 @@ fn edges_of_kind(
 /// unchanged.
 fn with_measure(
     doc: &ProfileDoc,
-    expr: MeasureExpr<Formula>,
+    expr: MeasurePrimitive<u32>,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
-    let doc = push(
-        doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::measure(expr, refs).expect("indices in range")),
-        },
-    );
-    let id = crate::fixture::newest(&doc);
-    (doc, id)
+    // Read at the minting node's body port: a revolve also defines its
+    // axis.
+    let refs: Vec<editor_core::Operand> = refs
+        .into_iter()
+        .map(|name| {
+            editor_core::Operand::select(editor_core::Operand::output(name.node, 0), vec![name])
+        })
+        .collect();
+    crate::fixture::measure_node(doc, expr, refs)
 }
 
 fn measured(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
@@ -168,6 +168,7 @@ fn boxed(
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -178,6 +179,7 @@ fn boxed(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
             ))),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -185,10 +187,11 @@ fn boxed(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -214,6 +217,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
                 [1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -224,6 +228,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0))),
+            fresh: Vec::new(),
         },
     );
     let axis = crate::fixture::newest(&doc);
@@ -231,10 +236,11 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![half],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -242,10 +248,11 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Revolve {
-                profile: p,
-                axis,
+                profile: p.into(),
+                axis: axis.into(),
                 angle: ang(std::f64::consts::TAU),
             }),
+            fresh: Vec::new(),
         },
     );
     let s = crate::fixture::newest(&doc);
@@ -270,6 +277,7 @@ fn cylinder(
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -277,13 +285,14 @@ fn cylinder(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(cx), len(cy)],
                     radius: len(r),
                 }],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -291,10 +300,11 @@ fn cylinder(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -356,7 +366,7 @@ fn r2_distance_vertex_vertex_is_the_exact_norm() {
         for j in (i + 1)..8 {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                MeasurePrimitive::Distance { a: 0, b: 1 },
                 vec![vs[i].clone(), vs[j].clone()],
             );
             d = nd;
@@ -407,7 +417,7 @@ fn r2_distance_vertex_plane_is_the_normal_projection() {
         for v in &vs {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                MeasurePrimitive::Distance { a: 0, b: 1 },
                 vec![v.clone(), f.clone()],
             );
             d = nd;
@@ -465,7 +475,7 @@ fn r2_distance_plane_plane_is_the_authored_offset() {
         for y in &pb {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                MeasurePrimitive::Distance { a: 0, b: 1 },
                 vec![x.clone(), y.clone()],
             );
             d = nd;
@@ -518,7 +528,7 @@ fn r2_angle_line_line_is_the_box_direction_set() {
         for j in (i + 1)..es.len() {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+                MeasurePrimitive::Angle { a: 0, b: 1 },
                 vec![es[i].clone(), es[j].clone()],
             );
             d = nd;
@@ -563,7 +573,7 @@ fn r2_gap_sphere_sphere_walks_all_three_regimes() {
         );
         let (d3, id) = with_measure(
             &d2,
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
             vec![fo[0].clone(), fi[0].clone()],
         );
         let g = measured(&eval(&d3), id);
@@ -616,12 +626,12 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
         for (j, y) in pb.iter().enumerate() {
             let (dx, ix) = with_measure(
                 &d2,
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                MeasurePrimitive::Gap { outer: 0, inner: 1 },
                 vec![x.clone(), y.clone()],
             );
             let (dy, iy) = with_measure(
                 &d2,
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                MeasurePrimitive::Gap { outer: 0, inner: 1 },
                 vec![y.clone(), x.clone()],
             );
             let fwd = outcome(&eval(&dx), ix);
@@ -691,7 +701,7 @@ fn r2_the_parallelism_arm_is_clamped_below_one_metre() {
         assert!(!f1.is_empty() && !f2.is_empty());
         let (d3, id) = with_measure(
             &d2,
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            MeasurePrimitive::Distance { a: 0, b: 1 },
             vec![f1[0].clone(), f2[0].clone()],
         );
         let v = measured(&eval(&d3), id);
@@ -731,6 +741,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                 [1.0, 0.0, 0.0],
                 [0.0, theta.cos(), -theta.sin()],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&d1);
@@ -738,13 +749,14 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         &d1,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
                 }],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&d2);
@@ -752,10 +764,11 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(0.01),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let c2 = crate::fixture::newest(&d3);
@@ -768,7 +781,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     }
     let (d4, id) = with_measure(
         &d3,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![f1[0].clone(), f2[0].clone()],
     );
     match outcome(&eval(&d4), id) {
@@ -795,19 +808,20 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: crate::fixture::value_of(&d2, measure),
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
                 bound: len(100.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = crate::fixture::newest(&d3);
@@ -827,8 +841,8 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 "boolean-a",
                 Node::Boolean {
                     op: BooleanOp::Union,
-                    a: victim,
-                    b,
+                    a: victim.into(),
+                    b: b.into(),
                     declare: Vec::new(),
                 },
             ),
@@ -836,8 +850,8 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 "boolean-b",
                 Node::Boolean {
                     op: BooleanOp::Subtract,
-                    a: b,
-                    b: victim,
+                    a: b.into(),
+                    b: victim.into(),
                     declare: Vec::new(),
                 },
             ),
@@ -855,7 +869,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             (
                 "extrude-profile",
                 Node::Extrude {
-                    profile: victim,
+                    profile: victim.into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 },
@@ -866,6 +880,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 &d3,
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
             ) {
                 // Refused at the edit door: ideal.
@@ -902,17 +917,18 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
     let vs = vertices(&ev, b);
     let (with_measure_doc, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let with_assertion = push(
         &with_measure_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: crate::fixture::value_of(&with_measure_doc, measure),
                 bound: len(100.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = crate::fixture::newest(&with_assertion);
@@ -966,7 +982,7 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
     let vs = vertices(&ev, b);
     let (doc, id) = with_measure(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[7].clone()],
     );
     let at_f64 = measured(&eval(&doc), id);
@@ -1006,7 +1022,7 @@ fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
     let (d3, id) = with_measure(
         &d2,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         vec![fo[0].clone(), fi[0].clone()],
     );
     let at_f64 = measured(&eval(&d3), id);
@@ -1070,6 +1086,7 @@ fn r2_a_transform_has_no_emission_to_measure() {
                     angle: ang(0.0),
                 },
             )),
+            fresh: Vec::new(),
         },
     );
     let moved = crate::fixture::newest(&d3);
@@ -1100,7 +1117,7 @@ fn r2_a_transform_has_no_emission_to_measure() {
     // (3) The measure reports the MASTER's number, with no diagnostic.
     let (d4, id) = with_measure(
         &d3,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs_moved[0].clone(), vs_fixed[0].clone()],
     );
     let ev2 = eval(&d4);
@@ -1126,9 +1143,9 @@ fn r2_a_transform_has_no_emission_to_measure() {
 // ===============================================================
 
 /// **A corrupt v16 file is refused typed at the LOAD door**, for each
-/// of the three structural faults the edit door refuses: an
-/// out-of-range primitive index, a dimension-mismatched assertion
-/// bound, and an assertion pointed at something that is not a measure.
+/// of the structural faults the edit door refuses: a
+/// dimension-mismatched assertion bound, and an assertion reading
+/// something that is no value.
 ///
 /// The corruption is done on the SERIALIZED text, not by building an
 /// illegal document in memory, so this exercises the door a real
@@ -1141,17 +1158,18 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let good = push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: crate::fixture::value_of(&d2, measure),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let text = editor_core::save(&good, &[], Tol::witness()).expect("a well-formed document saves");
@@ -1161,30 +1179,9 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     );
     eprintln!("R2/load: saved file is\n{text}");
 
-    // (a) index out of range: rewrite the primitive's `b` index to a
-    // reference the node does not carry. The exact spelling depends on
-    // the wire shape, so several candidates are tried and the row
-    // requires that at least one corruption applied AND was refused.
-    let mut applied = 0usize;
-    for (from, to) in [
-        ("\"b\": 1", "\"b\": 9"),
-        ("\"b\":1", "\"b\":9"),
-        ("\"inner\": 1", "\"inner\": 9"),
-    ] {
-        let corrupt = text.replacen(from, to, 1);
-        if corrupt == text {
-            continue;
-        }
-        applied += 1;
-        match editor_core::load(&corrupt, Tol::witness()) {
-            Err(e) => eprintln!("R2/load: out-of-range index refused: {e}"),
-            Ok(_) => panic!("an out-of-range primitive index LOADED ({from} -> {to})"),
-        }
-    }
-    assert!(
-        applied > 0,
-        "no index corruption applied; the wire shape moved"
-    );
+    // (a) was an out-of-range primitive index. A primitive carries its
+    // references since D10's one-primitive measure, so there is no
+    // index left to put out of range; the row keeps its letters.
 
     // (b) and (c): the edit door's own refusals, which the load door
     // re-runs verbatim through the same `validate_snapshot` walk.
@@ -1192,10 +1189,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: crate::fixture::value_of(&d2, measure),
                 bound: ang(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     assert!(
@@ -1206,10 +1204,15 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: b,
+                // The box's body, read as a length: no value at all.
+                value: Formula::var(
+                    d2.output(b, 0).expect("a box defines its body"),
+                    editor_core::Dimension::Length,
+                ),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     assert!(
@@ -1255,17 +1258,18 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let fi = faces(&ev, ball, geom::SurfaceKind::Sphere);
         let (d3, measure) = with_measure(
             &d2,
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
             vec![fo[0].clone(), fi[0].clone()],
         );
         let d4 = push(
             &d3,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Assertion {
-                    measure,
+                    value: crate::fixture::value_of(&d3, measure),
                     bound: len(0.02),
-                    dir: AssertionDir::AtLeast,
+                    relation: AssertionRelation::AtLeast,
                 }),
+                fresh: Vec::new(),
             },
         );
         let assertion = crate::fixture::newest(&d4);
@@ -1333,20 +1337,21 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let doc = push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: crate::fixture::value_of(&d2, measure),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
-    let assertion = *doc.order().last().expect("the assertion is the last node");
+    let assertion = *doc.ids().last().expect("the assertion is the last node");
     let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
@@ -1357,14 +1362,12 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // rebuild, and would never reach the snapshot walk this row is
     // about.
     let dim_corrupt = doctored(&text, |wire| {
-        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-        assert_eq!(
-            lit["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at the bound's length literal"
+        crate::wire::retype_slot_var(
+            wire,
+            |wire| &wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"],
+            "Angle",
+            "rad",
         );
-        lit["dim"] = serde_json::json!("Angle");
-        lit["unit"] = serde_json::json!("rad");
     });
     match editor_core::load(&dim_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
@@ -1375,24 +1378,26 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         other => panic!("a dimension-mismatched assertion bound must refuse typed, got {other:?}"),
     }
 
-    // (b) the assertion's target repointed at a non-measure node.
+    // (b) the assertion's value repointed at a body, which is no value.
     let tgt_corrupt = doctored(&text, |wire| {
-        let target =
-            &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        let target = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
         assert_eq!(
             *target,
-            serde_json::json!(measure.0),
-            "the surgery is aimed at the assertion's target"
+            serde_json::json!(
+                doc.output(measure, 0)
+                    .expect("a measure defines its value")
+                    .0
+            ),
+            "the surgery is aimed at the assertion's value"
         );
-        *target = serde_json::json!(b.0);
+        *target = serde_json::json!(doc.output(b, 0).expect("a body").0);
     });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
-            measure,
-            bound: Dimension::Length,
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
+            declared: editor_core::VarKind::Body,
             ..
-        })) => assert_eq!(measure.id(), b),
-        other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
+        })) => {}
+        other => panic!("an assertion over a body must refuse typed, got {other:?}"),
     }
 }
 
@@ -1400,22 +1405,15 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
 // The finiteness door `eval_measure` does not have
 // ===============================================================
 
-/// **A measured expression can evaluate to a non-finite quantity and
-/// report it as an ordinary typed success.**
-///
-/// `expr::eval` refuses a non-finite RESULT at its "door 2"
-/// (`EvalError::NonFiniteResult`), so no slot expression can ever hand
-/// an infinity to an op. `eval::measure::eval_measure` restates the
-/// arithmetic — `Div` is a bare `x / y` — and does not restate that
-/// door, so the measurement language, which the module doc calls "the
-/// same arithmetic", is missing the one refusal the arithmetic had.
+/// **A measured quotient that is not finite refuses; it is never a
+/// typed success.**
 ///
 /// **Oracle.** `distance(v0, v1) / s` with the document parameter
-/// `s = 0`. Each VALUE leaf is finiteness-checked on its own (`s` is a
-/// finite 0.0 and passes); the division that produces the infinity
-/// happens inside `eval_measure`, downstream of every door.
+/// `s = 0`. The measure is the distance alone and is finite; the
+/// quotient is the assertion's definition, evaluated by `expr::eval`,
+/// whose "door 2" refuses a non-finite result (`EvalError::NonFiniteResult`).
 #[test]
-fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
+fn r2_a_measured_quotient_that_is_not_finite_refuses() {
     let d0 = empty("r2-nonfinite");
     let d0 = push(
         &d0,
@@ -1432,51 +1430,51 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
-    let expr = MeasureExpr::div(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
+    let (d2, measured) = crate::fixture::measure(
+        d1.clone(),
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            SitedRef::at_mint(vs[0].clone()),
+            SitedRef::at_mint(vs[7].clone()),
+        ],
+    );
+    let value = Formula::div(
+        crate::fixture::read_var(&d2, measured.outputs[0]),
+        Formula::named(VarName::from_static("s"), Dimension::Scalar),
     )
     .expect("Length / Scalar is a Length");
-    let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
-
-    // The same shape in a SLOT refuses, which is the comparison: an
-    // extrude distance of `13 / s` would never reach an op.
-    let slotted = try_push(
+    let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Extrude {
-                profile: d1.order()[1],
-                distance: Formula::div(
-                    len(13.0),
-                    Formula::named(VarName::from_static("s"), Dimension::Scalar),
-                )
-                .expect("Length / Scalar"),
-                side: ExtrudeSide::Along,
+            node: Box::new(Node::Assertion {
+                value: value.clone(),
+                bound: len(1.0),
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
-    if let Ok(doc) = slotted {
-        let sid = crate::fixture::newest(&doc);
-        let sev = eval(&doc);
-        eprintln!(
-            "R2/nonfinite: the same division in a SLOT evaluates to {:?}",
-            sev.nodes.get(&sid).map(|r| match r {
-                NodeResult::Ok(_) => "Ok".to_string(),
-                NodeResult::Failed(e) => format!("Failed({:?})", e.kind),
-                other => format!("{other:?}"),
-            })
-        );
-    }
-
-    match outcome(&eval(&d2), id) {
-        Ok(v) => {
-            eprintln!("R2/nonfinite: the MEASURE reported {v} as a typed success");
-            assert!(
-                !v.is_finite(),
-                "the probe is only meaningful if the value is non-finite; got {v}"
-            );
-        }
-        Err(e) => eprintln!("R2/nonfinite: the measure refused: {e}"),
+    let assertion = crate::fixture::newest(&d3);
+    let ev = eval(&d3);
+    // The measure itself is finite: the distance between two corners.
+    assert!(outcome(&ev, measured.measures[0]).is_ok_and(f64::is_finite));
+    // The quotient is a definition, and the assertion reading it refuses
+    // at the door every expression shares rather than reporting a
+    // verdict over an infinity.
+    match ev.nodes.get(&assertion) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                editor_core::NodeErrorKind::PayloadExpr {
+                    index: 0,
+                    source: editor_core::EvalError::NonFiniteResult,
+                    ..
+                }
+            ),
+            "{:?}",
+            e.kind
+        ),
+        other => panic!("an infinite measured value must refuse, got {other:?}"),
     }
 }
 
@@ -1500,20 +1498,28 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
-    let expr = MeasureExpr::div(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
+    let (d2, measured) = crate::fixture::measure(
+        d1.clone(),
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[
+            SitedRef::at_mint(vs[0].clone()),
+            SitedRef::at_mint(vs[7].clone()),
+        ],
+    );
+    let value = Formula::div(
+        crate::fixture::read_var(&d2, measured.outputs[0]),
+        Formula::named(VarName::from_static("s"), Dimension::Scalar),
     )
     .expect("Length / Scalar");
-    let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure,
+                value: value.clone(),
                 bound: len(1.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     ) else {
         eprintln!("R2/nonfinite-assert: the assertion was refused at the edit door");

@@ -100,7 +100,7 @@ fn body_of(r: Result<BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64>
 /// the one edge of these results whose faces that length cannot tell
 /// from tangent: tier 3 finds it a scaffold at rest, and may read its
 /// wedge as a lamina's, on that edge and no other
-/// (`work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length.md`).
+/// (`work/restread/seam-description-reads-a-dihedral-at-the-seams-own-length.md`).
 /// The refusal withholds the body, so the edge is pinned by the count; a
 /// second scaffold, another edge, or a different finding turns the row
 /// red.
@@ -267,7 +267,7 @@ fn a_pierce_reads_a_dipping_edge_at_its_far_vertex() {
 /// At ε 1e-12 the control's ∩ is a valid sliver of +5.83e-19 m³ that
 /// the door's tier-3 result gate refuses `NegativeVolume`: check 7
 /// reads its sign before the interval re-derivation of PR #3977
-/// (`work/reach/boolean-door-adopts-the-finished-body-type.md`,
+/// (`boolean-door-adopts-the-finished-body-type` (REACH, closed by PR 3987),
 /// §Sequencing 1), which lands first.
 #[test]
 fn a_vertex_pair_reads_a_dipping_chord_at_its_far_vertex() {
@@ -320,7 +320,7 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     // radians apart, which that edge's length cannot tell from tangent:
     // the seam is left a scaffold, and the result gate refuses it at
     // rest. That is the seam description's lever, filed as
-    // `work/contact/seam-description-reads-a-dihedral-at-the-seams-own-length`.
+    // `work/restread/seam-description-reads-a-dihedral-at-the-seams-own-length`.
     for (what, r) in [
         ("∩", intersect(&block, &wedge, tol)),
         ("−", subtract(&block, &wedge, tol)),
@@ -377,11 +377,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         face_carrier(&block, top).unwrap(),
         face_carrier(&wedge, bottom).unwrap(),
     );
-    let declared = topo::PlaneIdentity {
-        s1: None,
-        s2: None,
-        declared: true,
-    };
+    let declared = topo::PlaneIdentity::DECLARED;
     let metre =
         topo::boolean::carrier_eq::carrier_eq_verdict(&ca, &cb, declared, &metre_ball(1.0), band);
     assert!(
@@ -612,11 +608,11 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 /// not settle: a wedge on the block's CORNER whose 1 mm edge lies in the
 /// top's plane (outside the face) and whose 10 m edge rises `500·ε`
 /// over it. The pair of bottoms agrees at the 1 mm arm, so it goes to
-/// the carrier ladder as a coincidence, and undeclared it refuses,
-/// typed. Read by its bounds instead, the pair is half a crossing, and
+/// the carrier ladder as a coincidence its extent does not decide, and
+/// it refuses, typed. Read by its bounds instead, the pair is half a crossing, and
 /// the vertex's germs came out odd (a kernel invariant). The same pose
 /// under 1 m edges answers. Making the short pose answer is filed:
-/// `work/contact/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
+/// `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
 #[test]
 fn a_near_coincident_pair_at_a_corner_refuses_typed() {
     let tol = Tol::witness();
@@ -639,13 +635,11 @@ fn a_near_coincident_pair_at_a_corner_refuses_typed() {
         ("−", subtract(&short, &block, tol)),
         ("∪", union(&short, &block, tol)),
     ] {
-        // UndeclaredCoincidence; at ε = 1e-6, where the 1 mm edges are
-        // a thousand bands, an edge contact in band escalates first.
+        // The corner reads Zero for a pair the glue door did not glue
+        // (an unglued coincidence); at ε = 1e-6, where the 1 mm edges
+        // are a thousand bands, an edge contact in band escalates first.
         assert!(
-            matches!(
-                r,
-                Err(BooleanError::UndeclaredCoincidence { .. } | BooleanError::Escalated { .. })
-            ),
+            matches!(r, Err(BooleanError::Escalated { .. })),
             "{what}: the near-coincidence refuses typed, got {:?}",
             r.as_ref().err()
         );

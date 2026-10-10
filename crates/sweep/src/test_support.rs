@@ -132,6 +132,7 @@ use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
 use crate::blend::BlendKind;
 use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
 use crate::blend::build::Blended;
+pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
@@ -232,6 +233,22 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 }
 
 pub use topo::test_support::finished;
+
+/// `body`, cloned and finished ([`finished`]): the operand of ONE blend
+/// door call on a fixture held by reference. Each call clones and pays
+/// tier 3, so a body handed to several doors is finished once with
+/// [`finished`] and that operand reused.
+///
+/// # Panics
+///
+/// As [`finished`], where the gate refuses the body, naming the
+/// caller's line.
+#[must_use]
+#[track_caller]
+pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
+    let caller = core::panic::Location::caller();
+    finished(&format!("the blend operand at {caller}"), body.clone(), tol)
+}
 
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
@@ -1073,6 +1090,9 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 /// direction (a) and (b) do not imply: a retirement the surgery forgets
 /// to record is invisible to both and to the census delta alike. Also:
 /// the band and blend rows together name exactly `requested`. The
+/// blend ends with the join (`BlendNaming::edge_joins`): an edge or
+/// vertex a join killed is its row there, so (c) and (d) read it as
+/// accounted for, mint or source alike. The
 /// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
 pub fn assert_naming_totality<T: Real>(
@@ -1104,6 +1124,7 @@ pub fn assert_naming_totality<T: Real>(
         .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
+        .chain(rec.mitres.iter().map(|(e, _)| *e))
         .collect();
     let mut minted_vertices: Vec<topo::VertexKey> = rec
         .rim_feet
@@ -1111,6 +1132,7 @@ pub fn assert_naming_totality<T: Real>(
         .map(|(v, _)| *v)
         .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
+        .chain(rec.turn_feet.iter().map(|(v, _)| *v))
         .collect();
     // (e) recorded once each.
     fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {
@@ -1154,7 +1176,12 @@ pub fn assert_naming_totality<T: Real>(
             "{what}: a minted vertex reused a key: {v:?}"
         );
     }
-    // (d) every mint is present.
+    // (d) every mint is present, unless the closing join killed it:
+    // its `gone` edge and its vertex are its row in `edge_joins`.
+    let joined_gone: Vec<EdgeKey> = rec.edge_joins.iter().map(|j| j.gone).collect();
+    let joined_vertex: Vec<topo::VertexKey> = rec.edge_joins.iter().map(|j| j.vertex).collect();
+    minted_edges.retain(|e| !joined_gone.contains(e));
+    minted_vertices.retain(|v| !joined_vertex.contains(v));
     for f in &minted_faces {
         assert!(
             out.body.get_face(*f).is_some(),
@@ -1231,7 +1258,7 @@ pub fn assert_naming_totality<T: Real>(
     for (k, _) in source.edges() {
         if out.body.get_edge(k).is_none() {
             assert!(
-                rec.dead.edges.contains(&k) || banded.contains(&k),
+                rec.dead.edges.contains(&k) || banded.contains(&k) || joined_gone.contains(&k),
                 "{what}: source edge {k:?} vanished with no retirement recorded"
             );
         }
@@ -1239,7 +1266,7 @@ pub fn assert_naming_totality<T: Real>(
     for (k, _) in source.vertices() {
         if out.body.get_vertex(k).is_none() {
             assert!(
-                rec.dead.vertices.contains(&k),
+                rec.dead.vertices.contains(&k) || joined_vertex.contains(&k),
                 "{what}: source vertex {k:?} vanished with no retirement recorded"
             );
         }

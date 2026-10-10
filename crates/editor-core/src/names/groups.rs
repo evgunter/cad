@@ -39,7 +39,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use super::role::StableName;
+use super::role::{Sense, StableName};
 use super::table::EntityRef;
 use crate::node::RecipeNodeId;
 
@@ -69,6 +69,11 @@ struct Group {
     /// and tied parents share names, so their pieces land in one group
     /// and no one parent's count is on record.
     tie_summed: bool,
+    /// Whether the group is one parent's share of a LINE's group: the
+    /// edges a node holds on one line (N2), whichever parent edge on it
+    /// each descends from, are one group, counted together
+    /// ([`GroupRecord::record_on_line`]).
+    on_line: bool,
 }
 
 /// The groups one emission formed, keyed by base name. Built by the
@@ -84,7 +89,20 @@ impl GroupRecord {
     /// Records one group of one parent: its `base`, its `members` (the
     /// output's entities, each once), and where they descend from.
     pub(crate) fn record(&mut self, base: &StableName, members: Vec<EntityRef>, parent: Parent) {
-        self.push(base, members, parent, false);
+        self.push(base, members, parent, false, false);
+    }
+
+    /// Records one parent edge's share of the group of the line `line`:
+    /// its `members`, and where they descend from. Every share recorded
+    /// under one line is counted as one group, so two untied parents on
+    /// one line are one group and not two.
+    pub(crate) fn record_on_line(
+        &mut self,
+        line: &StableName,
+        members: Vec<EntityRef>,
+        parent: Parent,
+    ) {
+        self.push(line, members, parent, false, true);
     }
 
     /// Records a group the emitter formed by parent NAMES, so that
@@ -96,7 +114,7 @@ impl GroupRecord {
         members: Vec<EntityRef>,
         tied: bool,
     ) {
-        self.push(base, members, Parent::Elsewhere, tied);
+        self.push(base, members, Parent::Elsewhere, tied, false);
     }
 
     fn push(
@@ -105,11 +123,13 @@ impl GroupRecord {
         members: Vec<EntityRef>,
         parent: Parent,
         tie_summed: bool,
+        on_line: bool,
     ) {
         self.0.entry(base.clone()).or_default().push(Group {
             members,
             parent,
             tie_summed,
+            on_line,
         });
     }
 }
@@ -165,12 +185,32 @@ fn counts(record: &GroupRecord) -> BTreeMap<StableName, Vec<Count>> {
         .0
         .iter()
         .map(|(b, gs)| {
-            let counts = gs
-                .iter()
-                .map(|g| (!g.tie_summed).then(|| g.members.iter().collect::<BTreeSet<_>>().len()))
-                .collect();
-            (b.clone(), counts)
+            let sets = gs.iter().map(|g| g.members.iter().copied().collect());
+            (b.clone(), line_counts(gs, sets))
         })
+        .collect()
+}
+
+/// The counts of the groups under one base, each group's `set` its
+/// distinct entities: one count per group, but every share of a line's
+/// group ([`Group::on_line`]) counted together, as one count of their
+/// union, ahead of the others. `None` for a group tied parents share.
+fn line_counts(
+    groups: &[Group],
+    sets: impl IntoIterator<Item = BTreeSet<EntityRef>>,
+) -> Vec<Count> {
+    let mut line: Option<BTreeSet<EntityRef>> = None;
+    let mut rest = Vec::new();
+    for (g, set) in groups.iter().zip(sets) {
+        if g.on_line {
+            line.get_or_insert_with(BTreeSet::new).extend(set);
+        } else {
+            rest.push((!g.tie_summed).then_some(set.len()));
+        }
+    }
+    line.map(|set| Some(set.len()))
+        .into_iter()
+        .chain(rest)
         .collect()
 }
 
@@ -269,19 +309,19 @@ impl FragmentGroups {
             // What this step made of each entity of the step before it.
             let mut carried: BTreeMap<EntityRef, BTreeSet<EntityRef>> = BTreeMap::new();
             for (b, groups) in &step.0 {
-                let mut counts = Vec::with_capacity(groups.len());
+                let mut sets = Vec::with_capacity(groups.len());
                 for g in groups {
                     let set: BTreeSet<EntityRef> = g
                         .members
                         .iter()
                         .flat_map(|m| published(m, &reach))
                         .collect();
-                    counts.push((!g.tie_summed).then_some(set.len()));
                     if let Parent::AOperand(e) = g.parent {
-                        carried.entry(e).or_default().extend(set);
+                        carried.entry(e).or_default().extend(set.iter().copied());
                     }
+                    sets.push(set);
                 }
-                counted[k].insert(b.clone(), counts);
+                counted[k].insert(b.clone(), line_counts(groups, sets));
             }
             reach = carried;
         }
@@ -354,13 +394,28 @@ pub(crate) struct Emitted {
     pub(crate) table: Arc<super::NameTable>,
     /// The groups those names were minted from.
     pub(crate) groups: Arc<GroupRecord>,
+    /// A pair boolean's crossing senses, by result vertex.
+    pub(crate) senses: CrossingSenses,
 }
+
+/// **The senses a pair boolean read at its seam vertices** (N2), by
+/// result vertex: each operand edge that crosses there, by its name in
+/// its operand's table, with its sense. A union's fold carries them to
+/// the finished body for a vertex its fold names other than as a
+/// crossing (`names::emit_union`).
+pub(crate) type CrossingSenses = BTreeMap<topo::VertexKey, Vec<(StableName, Sense)>>;
 
 impl Emitted {
     pub(crate) fn new(table: super::NameTable, groups: GroupRecord) -> Self {
         Self {
             table: Arc::new(table),
             groups: Arc::new(groups),
+            senses: CrossingSenses::new(),
         }
+    }
+
+    /// The same, carrying a pair boolean's crossing senses.
+    pub(crate) fn with_senses(self, senses: CrossingSenses) -> Self {
+        Self { senses, ..self }
     }
 }

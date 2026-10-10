@@ -57,4 +57,4 @@ runs the battery on any `&Body` without a tier-2 gate:
   `ring_circle` (`BodyNotIntact`). Each now refuses at the screen as
   `UnsupportedGeometry`, the tag the surgery gives the same reads (the
   ruled cap meter's lone-vertex cycle, every certified-carrier read).
-  Rows: `crates/sweep/tests/band_clearance_screen_reads_every_feature.rs`.
+  Rows: `crates/sweep/tests/scaffolding_on_a_blend_support_face_does_not_finish.rs`.

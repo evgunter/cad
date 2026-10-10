@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::slab;
+use crate::common::oracles::{ball_lens, ball_volume};
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
@@ -147,21 +148,8 @@ fn die_pip_subtract_is_green() {
             };
             let p = geom_brep::chart_pcurve(curve.carrier(), &plane, band)
                 .unwrap_or_else(|e| panic!("seam pcurve on the plane chart: {e:?}"));
-            let cache = geom_brep::PcurveCache::certify(
-                p,
-                t0,
-                t1,
-                curve.carrier(),
-                &plane,
-                geom_brep::ChartWindow {
-                    u_min: -10.0,
-                    u_max: 10.0,
-                    v_min: -10.0,
-                    v_max: 10.0,
-                },
-                band,
-            )
-            .unwrap_or_else(|e| panic!("seam pcurve certification: {e:?} (edge {ek:?})"));
+            let cache = geom_brep::PcurveCache::certify(p, t0, t1, curve.carrier(), &plane, band)
+                .unwrap_or_else(|e| panic!("seam pcurve certification: {e:?} (edge {ek:?})"));
             assert!(cache.certificate().max_residual < 1e-9);
         }
     }
@@ -316,19 +304,18 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
     assert_eq!(cut.shells().count(), 2, "outer shell + reverted void");
 }
 
-/// Sphere-vs-sphere boundaries the scan cannot certify refuse TYPED.
-/// The section circle is exact and the germ frame names it; what is
-/// absent is the JOIN's arm for a curved×curved germ pair. The pair is
-/// offset VERTICALLY, so neither ball's seam edges enter the other's
-/// certified box — the poking-but-not-crossing shape again, this time
-/// between two spheres, which only the scan can see. That direction is
-/// not a depth choice: a seam great circle lies in the plane `z = c_z`
-/// with the ball's own radius, so a Z-offset seam is equidistant from
-/// the other centre all the way round and never crosses it. Every
-/// offset that DOES cross a seam pierces a curved face and stops a
-/// layer higher.
+/// **Two spheres crossing off both seams build through the scan.** The
+/// pair is offset VERTICALLY, so neither ball's seam edges enter the
+/// other's certified box — the poking-but-not-crossing shape again,
+/// this time between two spheres, which only the scan can see. That
+/// direction is not a depth choice: a seam great circle lies in the
+/// plane `z = c_z` with the ball's own radius, so a Z-offset seam is
+/// equidistant from the other centre all the way round and never
+/// crosses it. The scan re-charts each ball with its pole on the centre
+/// line, and the re-entered pipeline joins the circle their seams now
+/// cross: the union is two balls less their lens, and it meshes.
 #[test]
-fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
+fn overlapping_sphere_pair_builds_through_the_scan() {
     let b1 = finished(
         "the lower ball",
         ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness()),
@@ -339,10 +326,12 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
         ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness()),
         Tol::witness(),
     );
-    let err = topo::union(&b1, &b2, Tol::witness()).expect_err("no sphere×sphere seam lane");
-    let BooleanError::SpheresMeet { .. } = err else {
-        panic!("expected the scan's typed refusal, got {err:?}");
-    };
+    crate::common::differential::assert_sound_and_meshed(
+        "the overlapping pair's union",
+        topo::union(&b1, &b2, Tol::witness()),
+        2.0 * ball_volume(1.0) - ball_lens(1.0, 1.0, 1.4),
+        Tol::witness(),
+    );
 }
 
 /// **The scan's TRIMMED-GROUP arm, and where it actually bites.** A pip

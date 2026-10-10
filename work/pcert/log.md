@@ -596,3 +596,144 @@ coincidence is now a margined verdict (no declarations), checked by the
 - Main meanwhile landed TOPO's R build (Ev's ruling on PR 4024: a stored per-half-edge joint element, `loop_lift`). That re-architected the code 3945 changes: 45 conflict hunks in `pcurves.rs`.
 - TOPO filed the coordination row on my slate. My call: 3945 lands second and re-ports onto R, with one decider and R's storage, not identity-at-every-joint.
 - The re-ported head gets a fresh dual pair. Most of the code under review will be new against 78e55c70, so a delta review would not cover it.
+
+## 2026-10-06 — PR 3945 round-2 dual review adjudicated (the re-port onto R)
+
+- Frozen head da1afd1f, a fresh pair because most of the code is new against 78e55c70. The later commit bbee7652 changes only a `work/` item.
+- Both reviews delivered: R1 (comment 6015903724) and R2 (comment 6014803528). Both verdicts are APPROVE-WITH-FIXES with no MAJOR. Isolation held: R1 read no comments, and R2 read only those before the cutoff. Both reproduced the `pinch_faces` ε=1e-6 red on main 62bdd557.
+- **Correspondence pre-note (rule 7), before the blinded coding returns.**
+  - Bilateral MINORs:
+    - `split_cache` turns a `decide_joint` refusal into a stored identity;
+    - near-pole orbit-point mutants survive (R1 MB/…, R2 m1);
+    - the README's C4 closure sentence is narrower than `Winding::closes`.
+  - Unilateral, R1 only:
+    - the further survivors: a Reset/Shift swap with the same deck, and the site mint's new-half vertex;
+    - `chart_boundary`'s `is_zero` leans on a winding the decider's docs concede can be off by one orbit step near a pole or a narrow cone apex;
+    - the unit's closure note is stale;
+    - NOTEs: claim 1 is overstated (kills, revert and graft write elements by algebra or copy), and `chaintol`'s rows 3–4 moved without being listed, with a guard that can't tell the predicate names apart.
+  - Unilateral, R2 only: `Reset` is written on an undecided reading on spline charts. That corrects my brief's premise; no code change.
+  - Tally candidates: none, since neither review raised a MAJOR.
+- The fix list (the union) has gone to the implementer. The blinded coder is session_01TeTFymE7xDPjooubHwkkPD; the byte is recorded privately.
+
+## 2026-10-07 — PR 3945 merged (4711ad4f): the chart's angle checks are integers, on R
+
+- **What landed:**
+  - Check 5 and the caller's `ChartWindow` are retired.
+  - One decider, `decide_joint`, decides each joint's deck element on TOPO's R storage. Tier 3 checks every stored element against it.
+  - On a sphere the deck element is one orbit integer in half periods, with a quarter period of room. On other surfaces it is whole periods.
+  - Poles are decided as 3-D incidence. `Reset` is written only on a decided incidence or an undecided spline gate.
+  - A room fence: `chart_boundary` builds only where every joint's winding was decided with room.
+  - `split_cache` and `turn_element` refuse rather than store a guess.
+  - `chaintol` is back to `[1.0, 0.370, 0.185, 0.111]`, with `dihedral_wedge` as its wall.
+- **Review:**
+  - Two concurrent pairs. Round 1 on 78e55c70 found a bilateral MAJOR: the zero-margin sphere twin. Round 2 on the R re-port, da1afd1f, found no MAJOR.
+  - Two confirming reviews, each APPROVE-WITH-FIXES 0/2, both fixed.
+  - DR-95, tally 0. It was renumbered from DR-94 at merge, because SSI #4104 took 94 first.
+- **Path:** the usage cap stalled the unit, and main landed R in the meantime. That forced the re-port, plus four merges of main, the last one combining our pins with CARVE #4187's cap orientation.
+- **Rows closed by the PR:**
+  - the unit itself;
+  - `at-rest-trim-containment-…`;
+  - the 3945/R coordination row.
+- **Left open:** TOPO's kill-straddle row, with a note appended.
+- **Next in PCERT:**
+  - `fillet-meridian-radius-term-is-registered-only` (P0) stays parked on PATHS 5b.
+  - pctail's wide-arc row is P2.
+- **Fillet-meridian P0 closed by PATHS 5b (#3774):** the filleted bracket and the pad now certify whole at M10-9's scale at every ε. So all three regressions disclosed at 3759/3812 are resolved:
+  - chaintol, by 3945;
+  - the bracket and the pad, by 5b;
+  - the shallow-arc grid stays as pctail's P2.
+- **Priorities set on the remaining slate.** The three C4 route rows (torus general circle, cone section, spline carrier) are P1, per Ev's 3617 ruling that every uncovered class gets a route wired. The spiric / no-fitted classes, the fitted-kind option and the line-seam refusal are P2. The torus general circle goes next, as the nearest analogue of the sphere route (3733).
+
+## 2026-10-07 — torus general circle: designer pair concurs, implementer dispatched
+
+- **Designers:** an Opus/Fable pair (byte 220, on `analysis/design-fork/pcert-torus-general-circle-2026-10-07`). Both recommend the same final state, so this is not a fork and gets no fork-log row.
+- **The geometry corrects the row's premise:**
+  - A ring torus holds only parallels, meridians and Villarceau circles.
+  - The class's "circle ⊥ the axis centred off it" lies on no torus; it only grazes the tube crest.
+  - A right circular cone holds no circle but its rims, so `UncoveredClass::ConeSection` is a grazer too.
+- **Adopted:**
+  - A Villarceau circle gets an exact closed-form image (a Kepler azimuth with the focus on the axis, and an affine minor angle), certified as `MapResidualClosedForm`.
+  - `Pcurve::ConeSection` is generalised into one focal-section image with one lemma. Opus leaned to a sibling variant; Fable to generalising. The orchestrator picked generalising, with a stop-and-report if any field would be meaningless for one instance.
+  - Torus incidence goes through the existing `ConicTorusHarmonics` (degree 2, not the issue's degree 4), then structural Villarceau gates.
+  - A grazer (on cone or torus) refuses typed.
+  - `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are deleted.
+- **Rejected:** a fitted Hermite image for every band-close torus circle. It certifies at the fallback grade a curve that has a closed form, and it is conditional on the fitted door.
+- **Folded in:** the cone lane's schedule `Record::Verdict` is brought in line with C4's witness-lane cross-check.
+- **Implementer:** session_01Jf5pbwHG7dwojg183pt2vs, branch `pcert/torus-villarceau-route` from 9645b375. It is an H unit, so it gets a dual review.
+
+## 2026-10-07 — PR 4227 dual review (frozen head 64b7def7)
+
+- **The review pair:** two Opus reviewers ran concurrently. Both returned APPROVE-WITH-FIXES. The pre-note's tally candidates are none.
+- **The one MAJOR is in both reports:** the torus incidence test decides "off the torus" from an *upper* bound on the distance. So circles within band of a Villarceau circle get refused as `CarrierOffChart`.
+  - **Class finding:** the same one-sided idiom is in the cone's `pcurve_cone_chart_incident`. The sphere's test is to be checked.
+  - The fix pass decides Off only from a lower bound, and sweeps all three.
+- **Test gaps** (demonstrated by surviving mutants): five envelope terms and every Villarceau gate.
+- **Fix pass** is with the implementer: session_01Jf5pbwHG7dwojg183pt2vs.
+
+## 2026-10-07 — PR 4227 merged (65af3eca); spline-carrier designers dispatched
+
+- **4227 merged.** `Pcurve::FocalSection` covers both cone sections and Villarceau circles under one closed-form envelope. Incidence on the sphere, cone and torus is one-sided: Off is decided only from a sampled lower bound. A circle on a torus or cone that is in band but is none of its circles refuses as `CarrierGrazesChart`. `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are retired.
+- **Rows:**
+  - Closed: the torus and cone route rows.
+  - Filed: `the-face-whole-excusal-has-no-fixture-on-an-analytic-chart`.
+  - Still open: the incidence issue, for its spline-carrier and no-fitted bullets.
+- **Review: DR-102.**
+  - The concurrent pair's only MAJOR was raised by both reviewers, so the tally is 0.
+  - A single confirming review followed the fix pass: 0 MAJOR, 3 MINOR.
+  - The row was renumbered twice at merge (DR-100, then DR-101), because main took both numbers while CI ran.
+- **Next P1, the spline-carrier route:** an Opus/Fable designer pair is running. The byte, 122, is on `analysis/design-fork/pcert-spline-carrier-route-2026-10-07`. Sessions: session_01QrKCiRg8fQ31Qwsdm8FQ2c and session_012cb8vsD3QyGVpV4oCTU2cZ.
+
+## 2026-10-07 — spline-carrier route: designers converge, [ev] PR 4261
+
+- **Round 1:** A recommended a Hermite fit on the curved charts and the affine net on the plane. B recommended the *projected image*, `ψ(C(t))`, exact on every analytic chart.
+- **Reconciliation:** each designer was shown the other's report. A moved to B's route. B adopted A's routed-verdict point and its reach correction.
+  - The orchestrator asked B to check its nearest-point claim on the cone. B found it false there by exactly 1/cos α (the cone's `v` was height), and moved the cone's `v` to the foot's coordinate on the generator.
+  - Converged, not crossed.
+- **Why it goes to Ev:** the route rewrites C4's `OnLocusHull` sentence, which Ev worded on PR 3781, and the sphere circle's Hermite sentence, which landed with 3733 without an `[ev]` review. PR 4261 carries the diff and fork-log row 85.
+- **Still Ev's:** A versus A′ (whether the sphere's general circle leaves the Hermite route); both designers lean A. The P1/P2 question is in the PR body.
+- **Off-question findings, filed:** `no-fitted-class-misuse-is-excused-by-not-owed`, `site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm` and `on-locus-hull-is-named-for-charts-whose-metres-composite-refuses`. The excusal-fixture row's `m6_2` claim is corrected.
+
+## 2026-10-07 — PR 4268 merged (6f5c5224): the LINE seam carries its chart row's refusal
+
+- `line-seam-boundary-row-refusal-discarded-as-iso-unsupported` (P2) is closed. The LINE-seam arm now answers `ChartRow { source }`, as its sibling arms do.
+- **The sweep found the same discard in SSI's `Pass::curve`, which was fixed.** `SsiError` gains `ChartRow`, numbered in SSI's roster, and the fitted lane maps it through to pcert's `ChartRow`.
+- **A third site was filed for SSI** (P3): `ssi-one-arc-side-readers-discard-the-side-rows-refusal`.
+- **The test the brief asked for cannot exist:** a mismatched net cannot reach the arm. A source-preservation test stands in for it.
+- **Review:** orchestrator's read (an S unit, a one-line repair plus its sibling).
+- `[ev]` PR 4261 (spline-carrier route) is still awaiting Ev.
+
+## 2026-10-08 — Ev rules on 4261; merged (529a47bd); projected-image implementer dispatched
+
+- **Ev's question:** first asked whether the PR concerned the intensional description or the cache. Answered: the cache, and D2 is unchanged.
+- **Ev's ruling** ("ok all the recommendations sound good!"):
+  - the projected image goes on every analytic chart, with the sphere's general circle included (A);
+  - `OnLocusHull` and the Hermite route retire on analytic charts;
+  - the tube belongs to the edge's certificate;
+  - P1 is kept.
+- **Record:** fork-log row 89 is completed (renumbered from 85 at merge, because main took rows 85–88).
+- **Implementer:** session_01Ht23dQzhB1yisWXxau9tZF, on branch `pcert/projected-image` from 981fd34e. It is an H unit, with at most two PRs, and gets a dual review. It first establishes where the tube lives at rest.
+
+## 2026-10-09 — PR 4304 merged (111782d6): the projected image on every analytic chart; dual review, three follow-up reviews, DR-116
+
+- **Dual review** at `fdc8ea9b` (byte 13, odd: R1 = B, R2 = A). R1 NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES. Both found the same MAJOR, so the tally stays 0.
+  - **The MAJOR:** retiring `OnLocusHull` dropped limbs 1–2 from every edge whose faces store no row. A plane face, or a mate named only in the description, left the edge with only the tube. Red probes on plane × cylinder.
+  - **Class finding:** *the edge certificate must not rely on rows existing.* `edge_nurbs::analytic_rung3` now states limb 2 against each analytic operand at every door holding the lane.
+- **A 13-item fix pass**, then a confirming single-Opus review: MERGEABLE-WITH-FIXES.
+  - Limb 2 read the whole net, so an edge refused on geometry past its ends. The derivation's incidence gate and the piece-granular `met` did too. Class: *whole-net reads where the edge's interval is owed.*
+  - An unratified no-lane sentence had entered C2 in the fix pass. It was removed, and the lane-free doors were filed as `lane-free-doors-skip-the-analytic-rung3-limbs` (P2).
+- **Two delta reviews:**
+  - The new cut and the hull refinement formed f64 knot-insertion plans at `Interval`, which is the item-9 class again. Fixed by windowing without a cut, breaks in the composite's own ring, and an exact equal-weight piece. The rational tube reads its whole net (P3). The tube chain's own f64 refinement is pre-existing and filed P2.
+  - The implementer had reported "a real hole" in min/max over brackets. The reviewer showed there was none: Interval min/max propagate the refusal. The guard stays, its rationale is corrected, and MUT9 is pinned on a cylinder.
+- **CI along the way:**
+  - a pncad-py prose-census miss, fixed;
+  - main's demos goldens left unrun after #4353's blend join, re-pinned on main (#4383 merged, plus d5a518b1b);
+  - one default-ε `test` failure on `7c7b15e2` that never reproduced locally and could not be read, because the Actions log blob host is denied by the session network policy (Ev told). It was green on the next head.
+  - a semantic conflict with JOIN's new near-pole row, which named the retired `ArcNearPole`. Its δ = 1e-7 cut now builds, with every volume holding.
+- **DR-116:** recorded as DR-114 on the branch, renumbered twice (main took 114 and 115 first). Fair pairs that found any MAJOR: 54.
+- **Next on the slate:** the mirror-torus spiric / no-fitted classes, the filed P2s (`lane-free-doors-…`, the tube chain's f64 refinement), and `a-reimported-spiric-rim-refuses-at-the-edge-tube`.
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4427, `encl/limb-refusal-margin`, merged at `e3646226c0`): `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb` now carry `margin: MarginDiag` beside `value`, minted by `decide_reported`; the decision bit is identical to `decide`. Match them with `..`. The margin is for error text only: never branch on it (Bounds clause 2). `MissReading::DefiniteUnvalued` is gone, and `geom_core::FileCoincidence::new` now takes only `eps_in`. A new limb mint on your ground should use `decide_reported` and carry the margin, so that the import door can say whether the miss lies within the file's ε_in. Known gap: a hull-sup limb's margin is an upper bound, read today as the miss (ENCL row `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door`). (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL: filed `pcurve-envelope-bound-ends-as-a-stored-contradiction` on your slate, from PR 4504's review. `Unsized::LastResort` is renamed `Fit` there, and a new `Unsized::Bound` ends a certified-bound refusal in the last resort at every reading. Your `PcurveCheck::Envelope` looks like a bound. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4504, merged): `geom_brep::recourse::Unsized::LastResort` is renamed `Unsized::Fit`, with the same behaviour, and a new `Unsized::Bound` ends a refusal on a certified upper bound in the kernel-limit last resort at every reading. At the import door, `MissReading::Bound` names the bound. `CertCheck::bounds_a_miss()` answers whether a check is a bound. A table on your ground that refuses on a bound, not a measured miss, should take `Bound`. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4520, merged): the PlaneNurbs limbs are decided once, in the lane (`ssi::certify` `nurbs_limbs`). `geom_brep::certify::run_checks` no longer re-decides them, and the k-stream names `plane_nurbs_on_locus` and `plane_nurbs_hull_sup` are gone. The certificate's `max_residual` is bit-identical. (ENCL orchestrator) Filed `fitted-pcurve-envelope-re-decides-the-ssi-hull` on your ground: `pcurve_cache::run_fitted_checks` re-decides `ssi.hull_sup` the same way.
+- 2026-10-10 — Seam note from ENCL (PR 4529, merged): `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb` no longer carry `value: f64`; the margin is the only copy and their Displays print it. Refinement routes on a crate-private refused residual recorded with the refusal (`LimbRefusal`), not on the margin. The step-budget ending reads a decided `RefineStop::StepBudget { trend: ResidualTrend }`, and `STEP_BUDGET_FLOOR_RECOURSE` now says "the refused residual stopped falling". `RoundMargin` and `pcurve_cache::FittedMagnitude::LimbResidual` hold `MarginDiag`. Tests that read a margin's upper end use `geom_core::test_support::upper`, the one helper. This supersedes the earlier note saying the margin sits "beside `value`". (ENCL orchestrator)

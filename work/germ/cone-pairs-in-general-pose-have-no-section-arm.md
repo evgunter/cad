@@ -11,10 +11,9 @@ refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exi
 
 ## What
 
-The section certificate (PR 3372) has no cone arms; they land with the
-cone's operand admission (`VERBS-CONE`), at the commented seam in
-`section_cert::classify`. Beyond the arms the spec derived (cone ×
-plane, cone × sphere, coaxial and parallel-axis partners), cone ×
+The section certificate's cone arms (`section_cert::cone_pair`, and
+the coaxial cone in `torus_pair`) cover cone × plane, cone × sphere,
+and coaxial and parallel-axis partners. Beyond them, cone ×
 cylinder and cone × cone in GENERAL pose refuse on reach. The ruling
 reduction makes them tractable: each cylinder ruling meets the cone in
 a quadratic whose discriminant is a degree-2 trigonometric polynomial

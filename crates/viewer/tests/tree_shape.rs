@@ -4,7 +4,7 @@
 //! The tree's shape is a pure function of the recipe DAG, so it is
 //! asserted here as values rather than looked at. The one rule under
 //! test is `tree`'s: a node continues the line of its PRIMARY input
-//! (the first entry of `Node::inputs()` — a boolean's `a`, a fillet's
+//! (the first entry of `Doc::upstream` — a boolean's `a`, a fillet's
 //! `target`), and every other input is a branch that indents one
 //! level.
 //!
@@ -48,7 +48,7 @@ fn plate(
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -89,8 +89,8 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
             &doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: accumulated,
-                b: tool,
+                a: accumulated.into(),
+                b: tool.into(),
                 declare: Vec::new(),
             },
             tol,
@@ -140,8 +140,8 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: tool_a,
-            b: tool_b,
+            a: tool_a.into(),
+            b: tool_b.into(),
             declare: Vec::new(),
         },
         tol,
@@ -151,8 +151,8 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: base,
-            b: compound_tool,
+            a: base.into(),
+            b: compound_tool.into(),
             declare: Vec::new(),
         },
         tol,
@@ -176,26 +176,32 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
 /// the old one once the new run has landed.
 #[test]
 fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
-    use pncad::document::{Dimension, Formula, FreeVar, MeasureExpr, VarName};
+    use pncad::document::{Dimension, MeasurePrimitive, Node, SitedRef};
+    use pncad::prelude::StableName;
+    use pncad::select::{CapEnd, EntityKind, RoleSeg};
     use viewer::props::{Computed, SlotValue};
     use viewer::session::{DocSession, SessionOp};
     use viewer::tree::Readout;
 
     let tol = Tol::witness();
-    let gap = VarName::from_static("gap");
-    let mut doc = common::declared(
-        "measure-landed",
-        &gap,
-        FreeVar::continuous(Dimension::Length, 0.01),
-        tol,
-    );
+    // The plate is `thickness / 2` deep, and the measure reads it back.
+    let (mut doc, _, extrude) = common::parametric_plate(tol);
+    let cap = |end| {
+        SitedRef::new(
+            extrude,
+            StableName {
+                kind: EntityKind::Face,
+                node: extrude,
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
+    };
     let measure = common::insert_into(
         &mut doc,
-        Node::measure(
-            MeasureExpr::value(Formula::named(gap.clone(), Dimension::Length)),
-            Vec::new(),
-        )
-        .expect("a value measure references nothing"),
+        Node::measure(&MeasurePrimitive::Distance {
+            a: cap(CapEnd::Start),
+            b: cap(CapEnd::End),
+        }),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -211,11 +217,11 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
             dimension: Dimension::Length,
         }))
     };
-    let landed = reading(0.01);
+    let landed = reading(0.004);
     assert_eq!(measured(&session), landed);
 
-    session.perform(SessionOp::SetParam {
-        var: common::var_of(session.committed_doc(), gap.as_str()),
+    session.perform(SessionOp::SetVariable {
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.012),
     });
     assert!(session.busy(), "the premise: the document has moved on");
@@ -225,5 +231,5 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
         "the row is the landed picture's until the next one lands"
     );
     session.pump();
-    assert_eq!(measured(&session), reading(0.012));
+    assert_eq!(measured(&session), reading(0.006));
 }

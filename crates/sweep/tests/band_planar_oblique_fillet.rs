@@ -1,0 +1,576 @@
+//! **The plane–plane fillet cut off at an oblique end face**, beside the
+//! shape rows in `band_planar_cut_off_shapes`: the concave side, where
+//! the band adds its section and the slanted end walls lose the sliver
+//! under an elliptic arc; the near-perpendicular sliver band, where the
+//! kind-picker escalates or decides the circle; what the downstream
+//! doors make of the ellipse edges (the tessellator, and the boolean
+//! beside, through and apart from the band); and the `Interval` replay.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::interval::iv;
+use geom::Curve3;
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Vec3};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendDecision, BlendError, FILLET3_CAP_ELLIPSE_RECOURSE};
+use sweep::test_support::{
+    assert_naming_totality, block, brick, finished, prism, prism_on, realized, sketch_from_axes,
+};
+use topo::boolean::BooleanOp;
+use topo::{Body, BooleanError, EdgeKey, mass_properties, query, validate_geometric};
+
+use crate::band_planar_cut_off::{
+    D, Verb, carve, edge, midpoint_tol, pad_ceiling, tol, volume, volume_enclosure,
+};
+
+/// The parallelogram prism whose top front edge ends at two parallel
+/// side walls slanted 26.6° off its normal plane.
+fn parallelogram<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
+    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    prism(
+        vec![p(0.0, 0.0), p(2.0, 0.0), p(2.5, 1.0), p(0.5, 1.0)],
+        T::one(),
+        tol(),
+    )
+}
+
+/// **The concave side at slanted end walls**: a block less a
+/// parallelogram pocket whose floor edges along `x` end at the pocket's
+/// two parallel slanted walls, a unit apart along the edge. Both verbs
+/// add their section over that unit, and each wall loses the sliver
+/// under the end curve — an elliptic arc under the fillet.
+#[test]
+fn a_pocket_floor_edge_at_slanted_walls_adds_its_section_on_both_verbs() {
+    let plane = sketch_from_axes(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        tol(),
+    );
+    let pocket = prism_on(
+        plane,
+        vec![
+            (Point2::new(0.5, 0.25), 0.0),
+            (Point2::new(1.5, 0.25), 0.0),
+            (Point2::new(1.8, 1.25), 0.0),
+            (Point2::new(0.8, 1.25), 0.0),
+        ],
+        1.0,
+        tol(),
+    );
+    let body = realized(
+        BooleanOp::Subtract,
+        &block(2.5, 1.5, 1.0, tol()),
+        &pocket,
+        tol(),
+    );
+    validate_geometric(&body, tol()).expect("the pocketed block is tier-3 valid");
+    let e = edge(&body, [0.5, 0.25, 0.5], [1.5, 0.25, 0.5]);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let out = carve(
+            &body,
+            &[e],
+            verb,
+            -verb.section(),
+            "a slanted pocket's floor edge",
+        );
+        if let Verb::Fillet = verb {
+            let rec = out.naming.as_ref().expect("births");
+            let ellipses = rec
+                .arcs
+                .iter()
+                .filter(|(a, _, _)| {
+                    let c = out.body.get_edge(*a).unwrap().curve;
+                    matches!(
+                        out.body
+                            .get_curve_geom(c)
+                            .and_then(|g| g.certified())
+                            .map(|c| c.carrier()),
+                        Some(Curve3::Ellipse { .. })
+                    )
+                })
+                .count();
+            assert_eq!(ellipses, 2, "both concave ends are elliptic arcs");
+        }
+    }
+}
+
+/// **The near-perpendicular sliver band, through the door**: a
+/// trapezoid prism whose end walls lean by `s` off the top front
+/// edge's normal plane. A lean definite at the edge's lever whose
+/// ellipse's axes, `r·s²/2` apart, are one circle escalates as
+/// `CapEllipse`, on the ellipse door's `ellipse_axes_distinct`; a lean
+/// inside the zero band decides the circle and builds. Both leans are
+/// read off the run's band, so the row holds at every eps row.
+#[test]
+fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
+    let band = Band::linear(tol()).expect("the door's band");
+    let trapezoid = |s: f64| {
+        prism(
+            vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(2.0, 0.0), 0.0),
+                (Point2::new(2.0 - s, 1.0), 0.0),
+                (Point2::new(s, 1.0), 0.0),
+            ],
+            1.0,
+            tol(),
+        )
+    };
+    let top = |body: &Body<f64>| edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let s = 20.0 * band.escalate();
+    assert!(
+        D * s * s / 2.0 < band.zero(),
+        "the axes are one circle at s = {s}"
+    );
+    let body = trapezoid(s);
+    match Verb::Fillet.run(&body, &[top(&body)]) {
+        Err(BlendError::Escalated {
+            decision, source, ..
+        }) => {
+            assert_eq!(decision, BlendDecision::CapEllipse);
+            assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
+        }
+        other => panic!("s = {s}: the sliver band escalates, got {other:?}"),
+    }
+    // Decided Zero, the circle stands for the section to within the
+    // lean: the band's trim reads it as the spine's normal section and
+    // the end face as its own, so the volume agrees with the closed
+    // form to the order of the lean times the section.
+    let s = band.zero() / 10.0;
+    let body = trapezoid(s);
+    let edges = [top(&body)];
+    let out = Verb::Fillet
+        .run(&body, &edges)
+        .unwrap_or_else(|e| panic!("a lean of {s} builds the circle, got {e}"));
+    validate_geometric(&out.body, tol()).expect("tier 3");
+    assert_naming_totality(&body, &out, &edges, "a lean inside the zero band");
+    let removed = Verb::Fillet.section() * (2.0 - 2.0 * s * Verb::Fillet.centroid());
+    let dv = volume(&body) - volume(&out.body);
+    assert!(
+        (dv - removed).abs() < 10.0 * s * Verb::Fillet.section(),
+        "a lean of {s}: ΔV {dv} vs the closed form {removed}"
+    );
+    for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
+        let c = out.body.get_edge(*arc).unwrap().curve;
+        assert!(
+            matches!(
+                out.body
+                    .get_curve_geom(c)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(Curve3::Circle { .. })
+            ),
+            "a lean inside the zero band is the circle"
+        );
+    }
+}
+
+/// **Downstream of the ellipse**: the filleted parallelogram, whose
+/// band is trimmed by two elliptic arcs that also bound the slanted
+/// walls. Mass properties measure it through the certified quadrature
+/// (the closed-form rows above), and the tessellator meshes it
+/// watertight. The boolean takes it with a brick beside the band and
+/// with one through it, in every op, tier-3 valid at the closed forms:
+/// the notch's overlap is its box, the slot's its box less the band's
+/// section over the slot's width. A brick wholly apart refuses at the
+/// containment door, whose rays from the far brick meet nothing and
+/// whose volume fallback is closed-form only — the boolean's open row
+/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
+/// pinned here so it retires with it.
+#[test]
+fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
+    let body = parallelogram::<f64>();
+    let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
+        .expect("the oblique fillet builds");
+    let mesh = mesh::tessellate(&out.body, 5e-3, tol()).expect("the filleted body tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
+    let (v, pad) = volume_enclosure(&out.body);
+    for (what, cutter, overlap) in [
+        (
+            "a notch beside the band",
+            brick((1.0, 1.4), (0.8, 1.2), (0.5, 1.5), tol()),
+            0.4 * 0.2 * 0.5,
+        ),
+        (
+            "a slot through the band",
+            brick((0.9, 1.1), (-0.5, 0.3), (0.6, 1.5), tol()),
+            0.2 * 0.3 * 0.4 - Verb::Fillet.section() * 0.2,
+        ),
+    ] {
+        let (brick_v, _) = volume_enclosure(&cutter);
+        for (op, want) in [
+            (BooleanOp::Subtract, v - overlap),
+            (BooleanOp::Union, v + brick_v - overlap),
+            (BooleanOp::Intersect, overlap),
+        ] {
+            let result = realized(op, &out.body, &cutter, tol());
+            validate_geometric(&result, tol())
+                .unwrap_or_else(|e| panic!("{what} ({op:?}): tier 3, got {e:?}"));
+            let (got, pad_r) = volume_enclosure(&result);
+            assert!(
+                pad + pad_r < pad_ceiling() && (got - want).abs() < 1e-12 + pad + pad_r,
+                "{what} ({op:?}): V {got} ± {} vs the closed form {want}",
+                pad + pad_r
+            );
+            assert!(
+                (got - want).abs() < midpoint_tol(),
+                "{what} ({op:?}): V's midpoint {got} is off the closed form {want}"
+            );
+        }
+    }
+    let operand = finished("the filleted parallelogram", out.body, tol());
+    let apart = finished(
+        "a brick apart",
+        brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
+        tol(),
+    );
+    for (op, result) in [
+        ("subtract", topo::subtract(&operand, &apart, tol())),
+        ("union", topo::union(&operand, &apart, tol())),
+    ] {
+        match result {
+            Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)) => {}
+            other => panic!(
+                "a brick apart ({op}): the containment door's closed-form fallback refuses, got \
+                 {:?} — retire this pin with the boolean's row",
+                other.map(|_| ())
+            ),
+        }
+    }
+}
+
+/// The edge between two points of an `Interval` body, either way round.
+fn edge_at(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
+    let near = |p: &Point3<Interval>, q: [f64; 3]| {
+        [p.x, p.y, p.z]
+            .iter()
+            .zip(q)
+            .all(|(c, w)| c.lo() <= w + 1e-12 && w - 1e-12 <= c.hi())
+    };
+    query::all_edges(body)
+        .into_iter()
+        .find(|&e| {
+            let he = body.get_edge(e).unwrap().he_plus;
+            let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let (s, t) = (
+                p(body.get_half_edge(he).unwrap().start),
+                p(body.half_edge_end(he).unwrap()),
+            );
+            (near(&s, a) && near(&t, b)) || (near(&s, b) && near(&t, a))
+        })
+        .expect("an edge between the two points")
+}
+
+/// **The `Interval` replay**: the parallelogram's oblique fillet carves
+/// at the certified scalar, tier-3 valid with naming total, its ends
+/// ellipses, and its volume enclosure brackets the closed form
+/// `(1 − π/4)·r²·2`.
+#[test]
+fn the_oblique_fillet_carves_at_the_certified_scalar() {
+    let body = parallelogram::<Interval>();
+    let e = edge_at(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[e],
+        iv(D),
+        tol(),
+    )
+    .expect("carves at Interval");
+    validate_geometric(&out.body, tol()).expect("tier 3 at Interval");
+    assert_naming_totality(&body, &out, &[e], "the oblique fillet at Interval");
+    for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
+        let c = out.body.get_edge(*arc).unwrap().curve;
+        assert!(
+            matches!(
+                out.body
+                    .get_curve_geom(c)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(Curve3::Ellipse { .. })
+            ),
+            "an oblique end is an ellipse at Interval"
+        );
+    }
+    let (p0, p1) = (
+        mass_properties(&body, tol()).expect("interval props"),
+        mass_properties(&out.body, tol()).expect("interval props"),
+    );
+    let removed = p0.volume - p1.volume;
+    let pad = p0.volume_pad + p1.volume_pad;
+    let truth = Verb::Fillet.section() * 2.0;
+    assert!(
+        removed.lo() - pad <= truth && truth <= removed.hi() + pad,
+        "ΔV {removed:?} ± {pad} brackets {truth}"
+    );
+    assert!(
+        removed.hi() - removed.lo() + 2.0 * pad < 1e-6,
+        "the enclosure is a claim: {removed:?} ± {pad}"
+    );
+}
+
+/// A parallelogram prism of height one whose top front edge, `(0, 0, 1)`
+/// to `(2, 0, 1)`, ends at two parallel walls leaning `s` along `x` per
+/// unit of `y`.
+fn leaning(s: f64) -> Body<f64> {
+    prism(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.0),
+            (Point2::new(2.0 + s, 1.0), 0.0),
+            (Point2::new(s, 1.0), 0.0),
+        ],
+        1.0,
+        tol(),
+    )
+}
+
+/// **Steep walls, to 89°**: the parallelogram's top front and top back
+/// edges at leans out to `s = ±60`, each removing its section over the
+/// unit-spaced walls' length of two — the major semi-axis `r·√(1 + s²)`
+/// runs to six metres beside a sliver a tenth tall, and the arcs lie on
+/// the band and the walls to `1e-12` ([`carve`]).
+#[test]
+fn steep_walls_cut_off_at_the_closed_form() {
+    for s in [2.0, 8.0, 20.0, 60.0, -20.0] {
+        let body = leaning(s);
+        for (what, a, b) in [
+            ("front", [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
+            ("back", [s, 1.0, 1.0], [2.0 + s, 1.0, 1.0]),
+        ] {
+            let e = edge(&body, a, b);
+            carve(
+                &body,
+                &[e],
+                Verb::Fillet,
+                2.0 * Verb::Fillet.section(),
+                &format!("the {what} edge at s = {s}"),
+            );
+        }
+    }
+}
+
+/// **A draft-angle end wall, in the user's terms**: a one-millimetre
+/// fillet at a wall drafted 0.25° off square. The tilt is definite, but
+/// the ellipse's semi-axes differ by `r·(sec θ − 1) ≈ 9.5e-9 m`, inside
+/// the default band, so the end escalates on that difference — the
+/// subject names the semi-axes, the margin is that difference, and the
+/// recourse is the tilt that clears the band, about `√(2e/r)`, or
+/// squaring the wall. At 0.5°, past that tilt, the fillet builds. Each
+/// draft is read against the run's band: a difference short of its
+/// upper edge escalates so, and one past it builds.
+#[test]
+fn a_drafted_wall_escalates_on_its_ellipses_axes() {
+    let band = Band::linear(tol()).expect("the door's band");
+    let r = 1e-3;
+    for deg in [0.25f64, 0.5] {
+        let theta = deg.to_radians();
+        let s = theta.tan();
+        let body = prism(
+            vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(2.0, 0.0), 0.0),
+                (Point2::new(2.0 - s, 1.0), 0.0),
+                (Point2::new(s, 1.0), 0.0),
+            ],
+            1.0,
+            tol(),
+        );
+        let top = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+        let apart = r * (1.0 / theta.cos() - 1.0);
+        let result = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[top],
+            r,
+            tol(),
+        );
+        if apart > band.escalate() {
+            let out = result.unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
+            validate_geometric(&out.body, tol()).expect("tier 3");
+            continue;
+        }
+        let err = result
+            .map(|_| ())
+            .expect_err("a draft whose axes are within the band escalates");
+        let BlendError::Escalated {
+            decision, source, ..
+        } = &err.error
+        else {
+            panic!("a {deg}° draft escalates, got {}", err.error);
+        };
+        assert_eq!(*decision, BlendDecision::CapEllipse, "{deg}°");
+        let geom_core::ErrorTextReading::Value(margin) =
+            source.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("{deg}°: a point margin, got {source:?}");
+        };
+        assert!(
+            (margin - apart).abs() < 1e-3 * apart,
+            "{deg}°: the margin is the semi-axes' difference {apart}, got {margin}"
+        );
+        let text = err.error.to_string();
+        assert!(
+            text.contains("semi-axes differ") && text.contains(FILLET3_CAP_ELLIPSE_RECOURSE),
+            "{deg}°: the refusal names the semi-axes and the tilt that clears them: {text}"
+        );
+        assert!(
+            !text.contains(sweep::blend::FILLET3_CORNER_RECOURSE),
+            "{deg}°: a plane end face is not told to end in a plane end face: {text}"
+        );
+    }
+}
+
+/// A round pin of radius `rad` and length `h` whose axis runs along
+/// `a × b` from `origin`, to drill a hole in a wall.
+fn pin(origin: Point3<f64>, a: Vec3<f64>, b: Vec3<f64>, rad: f64, h: f64) -> Body<f64> {
+    prism_on(
+        sketch_from_axes(origin, a, b, tol()),
+        vec![(Point2::new(-rad, 0.0), 1.0), (Point2::new(rad, 0.0), 1.0)],
+        h,
+        tol(),
+    )
+}
+
+/// The leaning prism drilled through its `x = s·y` wall by a pin of
+/// radius `rad`, at `t` along the wall's top edge from the old vertex
+/// `(0, 0, 1)` and `h` down from the top.
+fn drilled(s: f64, t: f64, h: f64, rad: f64) -> Body<f64> {
+    let len = (1.0 + s * s).sqrt();
+    let along = Vec3::new(s, 1.0, 0.0) / len;
+    let out = Vec3::new(-1.0, s, 0.0) / len;
+    let at = Point3::new(0.0, 0.0, 1.0 - h) + along * t + out * 0.1;
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    realized(
+        BooleanOp::Subtract,
+        &leaning(s),
+        &pin(at, along, z, rad, 0.1 + 0.4 * t),
+        tol(),
+    )
+}
+
+/// **What the cut-off takes from a drilled end wall**: the sliver
+/// between the elliptic arc and the old vertex, and nothing of the wall
+/// the band keeps. On the 45° wall (`s = 1`, major semi-axis `r·√2`
+/// along the wall, minor `r` down it, about `(r·√2, r)` in wall
+/// coordinates), a hole in the sliver — mid-sliver, in the cusp at the
+/// major vertex, in the cusp at the top foot — refuses
+/// `RingClearance`; a hole inside the ellipse but outside the disc of
+/// its minor semi-axis, or near its major vertex, builds, as it does
+/// on the square wall and at a 0.3 lean.
+#[test]
+fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() {
+    let front = |body: &Body<f64>| edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    for (what, t, h, rad) in [
+        ("mid-sliver", 0.04, 0.015, 0.004),
+        ("the cusp at the major vertex", 0.004, 0.05, 0.0018),
+        ("the cusp at the top foot", 0.10, 0.003, 0.0015),
+    ] {
+        let body = drilled(1.0, t, h, rad);
+        match Verb::Fillet.run(&body, &[front(&body)]) {
+            Err(BlendError::RingClearance { .. }) => {}
+            other => panic!(
+                "a hole at {what} is in the sliver: RingClearance, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
+    for (what, t, h, rad) in [
+        (
+            "inside the ellipse, outside its minor disc",
+            0.03,
+            0.07,
+            0.005,
+        ),
+        (
+            "inside the ellipse near its major vertex",
+            0.012,
+            0.10,
+            0.004,
+        ),
+    ] {
+        for s in [0.0, 0.3, 1.0] {
+            let body = drilled(s, t, h, rad);
+            let out = Verb::Fillet
+                .run(&body, &[front(&body)])
+                .unwrap_or_else(|e| panic!("a hole {what} at s = {s} is kept: builds, got {e}"));
+            validate_geometric(&out.body, tol())
+                .unwrap_or_else(|e| panic!("a hole {what} at s = {s}: tier 3, got {e:?}"));
+        }
+    }
+}
+
+/// **A steep wall's own edges stay clear of its sliver**: at `s = 20`
+/// (87°) the ellipse's major semi-axis is two metres, the sliver a
+/// tenth tall, and the wall's bottom edge `0.9` below the ellipse's
+/// centre. A hole far along the wall puts the wall through the ring
+/// meter, which reads every one of its edges against the sliver's box
+/// in the ellipse's frame, so the bottom edge, clear of it by `0.9`,
+/// builds.
+#[test]
+fn a_steep_drilled_wall_keeps_its_bottom_edge_clear() {
+    let body = drilled(20.0, 10.0, 0.5, 0.05);
+    let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let out = Verb::Fillet
+        .run(&body, &[e])
+        .unwrap_or_else(|e| panic!("a hole far along a steep wall builds, got {e}"));
+    validate_geometric(&out.body, tol()).expect("tier 3");
+}
+
+/// **A brick through a steep elliptic end**: on the `s = 3` filleted
+/// parallelogram a brick crossing the band's end arc builds in every op
+/// at the default and coarse ε, consistent with itself
+/// (`S + I = V`, `U − S = brick`). At ε = 1e-12 the subtract and the
+/// union refuse to measure their result — the quadrature cannot decide
+/// its convergence
+/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`)
+/// — pinned so the row reds when that lands.
+#[test]
+fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
+    let body = leaning(3.0);
+    let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
+        .expect("the s = 3 fillet builds");
+    let cutter = brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5), tol());
+    let operand = finished("the filleted parallelogram", out.body.clone(), tol());
+    let tool = finished("the brick", cutter.clone(), tol());
+    let run = |op| {
+        topo::boolean::boolean_op_with(
+            op,
+            &operand,
+            &tool,
+            &topo::BooleanDeclarations::none(),
+            topo::boolean::SweepStrategy::Realized,
+            tol(),
+        )
+    };
+    if tol().eps() < 1e-10 {
+        for op in [BooleanOp::Subtract, BooleanOp::Union] {
+            match run(op) {
+                Err(BooleanError::VolumeUnmeasured { .. }) => {}
+                other => panic!(
+                    "{op:?} at ε = {}: the result's volume is unmeasured, got {:?}",
+                    tol().eps(),
+                    other.map(|_| ())
+                ),
+            }
+        }
+        return;
+    }
+    let (v, _) = volume_enclosure(&out.body);
+    let (b, _) = volume_enclosure(&cutter);
+    let mut got = [0.0; 3];
+    for (slot, op) in
+        got.iter_mut()
+            .zip([BooleanOp::Subtract, BooleanOp::Union, BooleanOp::Intersect])
+    {
+        let result = realized(op, &out.body, &cutter, tol());
+        validate_geometric(&result, tol()).unwrap_or_else(|e| panic!("{op:?}: tier 3, got {e:?}"));
+        *slot = volume_enclosure(&result).0;
+    }
+    let [sub, uni, int] = got;
+    assert!(
+        (sub + int - v).abs() < midpoint_tol() && (uni - sub - b).abs() < midpoint_tol(),
+        "S {sub} + I {int} = V {v}, U {uni} − S = brick {b}"
+    );
+}

@@ -341,8 +341,10 @@ pub(crate) fn runs(
     let (doc, mut ids) = document(&case.blocks, &case.creation);
     let doc = match case.shift {
         None => doc,
-        // The shift is a value edit of one transform, so every shift of
-        // a case is one document's history and names one set of nodes.
+        // The shift is a value edit of one transform — its slot keeps
+        // the variable it reads, whose value moves, so nothing is minted
+        // — and every shift of a case is one document's history and
+        // names one set of nodes.
         Some((i, dx)) => {
             let (doc, tr) = insert(
                 doc,
@@ -356,12 +358,14 @@ pub(crate) fn runs(
                 ),
             );
             ids[i] = tr;
+            let var = doc
+                .slot(tr, editor_core::SlotId::Translation(editor_core::Axis3::X))
+                .expect("a transform reads its translation");
             crate::fixture::step(
                 doc,
-                editor_core::DocEdit::SetParam {
-                    node: tr,
-                    slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
-                    expr: len(dx),
+                editor_core::DocEdit::SetVarValue {
+                    var: var.into(),
+                    value: editor_core::FreeValue::Continuous(dx),
                 },
             )
             .0
@@ -418,10 +422,13 @@ pub(crate) fn runs(
 /// `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`
 /// and the rows it cites; a change here is a change to that row, measured.
 const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
+    ("row", "U", 18, "DeclareResolve:16/Naming:2"),
+    ("rowids", "U", 18, "DeclareResolve:16/Naming:2"),
     ("abg", "U", 2, "DeclareResolve:2"),
     ("abgids", "U", 2, "DeclareResolve:2"),
     ("abglow", "U", 2, "DeclareResolve:2"),
     ("abgg2", "U", 16, "DeclareResolve:16"),
+    ("cross", "U", 12, "DeclareResolve:8/Naming:4"),
     ("fam000", "U", 2, "DeclareResolve:2"),
     ("fam001", "U", 2, "DeclareResolve:2"),
     ("fam002", "U", 2, "DeclareResolve:2"),
@@ -449,12 +456,23 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// count holds; the failure prints the new digest. In `r5poke` and
 /// `r5pokehi` the vertex where `b`'s lateral edge crosses `a`'s top rim
 /// is spelled as an edge–edge seam in one order and as a face–edge seam
-/// in the other, and so is the rim piece whose end it is;
+/// in the other, and so is the rim piece whose end it is; `cross` and
+/// `r1three`, whose flush contacts glue undeclared, publish the same
+/// split: an edge-crossing vertex and the rim pieces it ends, spelled by
+/// member order;
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
+///
+/// The digests spell node and step ids, so they moved when slots came to
+/// hold variables (INTENT-LITERALS PR C renumbered every node); the
+/// counts, and which absences they are, did not. They moved again when
+/// an id became its mint ordinal and digest, with the counts PR 4228
+/// left (six: `Ends` on every piece) held.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 15101828559543090631),
-    ("r5pokehi", "U", 4, 13843135683705318993),
+    ("cross", "U", 168, 8207400505740249369),
+    ("r1three", "U", 480, 9202961066558908279),
+    ("r5poke", "U", 6, 12073390200676593441),
+    ("r5pokehi", "U", 6, 14091623114288037371),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.
@@ -752,7 +770,7 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
         }
     }
     assert_eq!(
-        checked, 48,
+        checked, 52,
         "unions with two or more fused orders checked (a nested case has two unions)"
     );
 }
@@ -838,7 +856,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
                         node: m,
                         path: vec![RoleSeg::RimEdge(
                             CapEnd::Start,
-                            crate::fixture::piece(&doc, m, 0, 0),
+                            crate::fixture::piece(&doc, m, 0, 0).into(),
                         )],
                     },
                     EntityKind::Edge,
@@ -861,7 +879,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
 }
 
 /// **A vertex name cites a member edge whole, and lies on it.** A seam
-/// vertex names the entities that cross at it; the fold wrote the member
+/// or crossing vertex names the entities that cross at it; the fold wrote the member
 /// edge a face crossed as far as it had cut it by then (`#k of n` of THAT
 /// step), which is fold history and names no published piece. Over every
 /// case and order, each edge a vertex's seam cites in the union's space
@@ -890,7 +908,12 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                     };
                     let p = point(body, v);
                     for seg in &name.path {
-                        let RoleSeg::Seam { a, b } = seg else {
+                        let (RoleSeg::Seam { a, b }
+                        | RoleSeg::EdgeCrossing { a, b, .. }
+                        | RoleSeg::Crossing {
+                            edge: a, face: b, ..
+                        }) = seg
+                        else {
                             continue;
                         };
                         for side in [a.name(), b.name()] {
@@ -956,7 +979,7 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, m, 0, 0),
+            crate::fixture::piece(&doc, m, 0, 0).into(),
         )],
     };
     // x-span → the name there, for every edge along the rim line.
@@ -1069,23 +1092,18 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
         .collect()
 }
 
-/// **A covered contact is a contact, in every member order** (DM4's
-/// contact rule). `row` is `a`, `b`, `g`, `h`, with `(a, b)` declared
-/// and `(a, h)` not; `b` covers the `(a, h)` contact. Every one of the 24
-/// orders refuses `UndeclaredCoincidence`, naming a face of `a` and a face
-/// of `h`, whichever order the members are in and whichever order they
-/// were created in (`rowids`). Judged in the fold, 6 orders fused, 8
-/// refused the contact and 10 refused `DeclareResolve`.
-///
-/// With `(a, h)` declared, the 6 orders that fused undeclared fuse, and
-/// the other 18 refuse what they refused before this rule, each on its
-/// own row: 2 `Emission` (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`)
-/// and 16 `DeclareResolve` on a declared face the fold split
+/// **A covered contact decides alike declared or not, in every member
+/// order** (DM4's contact rule). `row` is `a`, `b`, `g`, `h`, with
+/// `(a, b)` declared; `b` covers the `(a, h)` contact. The margins decide
+/// `(a, h)` one carrier, so leaving it undeclared or declaring it gives
+/// every one of the 24 orders the same outcome, whichever order the
+/// members are in and whichever order they were created in (`rowids`):
+/// 6 orders fuse, 2 refuse `Emission`
+/// (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`)
+/// and 16 refuse `DeclareResolve` on a declared face the fold split
 /// (`union-refuses-in-some-member-orders-and-publishes-in-others`).
-/// Judged in the fold, those 6 refused `DeclareResolve` as well, on
-/// `a`'s wall consumed whole by `b`.
 #[test]
-fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where_b_covers_it() {
+fn a_covered_contact_decides_alike_declared_or_not_in_every_order() {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     let fused = [
         vec![0, 1, 2, 3],
@@ -1096,30 +1114,9 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
         vec![2, 1, 0, 3],
     ];
     for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
-        let (doc, ids) = document(&[A, B, g, H], &creation);
-        for order in permutations(&[0, 1, 2, 3]) {
-            let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union) = declared_union(
-                doc.clone(),
-                &members,
-                flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),
-            );
-            let ev = run(&docx);
-            match failure(&ev, union) {
-                Some(editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
-                    let mut sites = [finding.pair.0.at, finding.pair.1.at];
-                    sites.sort();
-                    let mut ah = [ids[0], ids[3]];
-                    ah.sort();
-                    assert_eq!(
-                        sites, ah,
-                        "{label} {order:?}: the refusal names {finding:?}"
-                    );
-                }
-                other => panic!("{label} {order:?}: {other:?}"),
-            }
-        }
+        let undeclared = outcomes(&[A, B, g, H], &creation, None);
         let declared = outcomes(&[A, B, g, H], &creation, Some(3));
+        assert_eq!(undeclared, declared, "{label}: undeclared vs declared");
         assert_eq!(orders_that(&declared, "fuse"), fused, "{label}");
         assert_eq!(
             orders_that(&declared, "Emission"),
@@ -1134,24 +1131,16 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
     }
 }
 
-/// **The covered-contact row itself: `{a, b, h}`.** Undeclared, `(a, h)`
-/// refuses `UndeclaredCoincidence` in all six orders; judged in the fold,
-/// `[a, b, h]` and `[b, a, h]` fused, because `b` had covered the contact
-/// before `h` joined. Declared, those two orders fuse: `b` consumed `a`'s
-/// wall whole before the pair's step, so the declaration is satisfied
-/// (in the fold's judgement it refused `DeclareResolve`, `Vanished`).
-/// The other four refuse what they refused before: `Emission` where `a`
-/// and `h` meet first, and `DeclareResolve` on a face of `b` that `h`
-/// split, which is GATHER's.
+/// **The covered-contact row itself: `{a, b, h}`**, alike declared or
+/// not. `[a, b, h]` and `[b, a, h]` fuse: `b` consumes `a`'s wall whole
+/// before `h` joins, so a declaration of `(a, h)` is satisfied. The
+/// other four refuse: `Emission` where `a` and `h` meet first, and
+/// `DeclareResolve` on a face of `b` that `h` split, which is GATHER's.
 #[test]
-fn a_contact_b_covers_refuses_undeclared_and_is_satisfied_declared_where_b_consumed_the_face() {
+fn a_contact_b_covers_decides_alike_declared_or_not() {
     let undeclared = outcomes(&[A, B, H], &[0, 1, 2], None);
-    assert_eq!(
-        orders_that(&undeclared, "UndeclaredCoincidence").len(),
-        6,
-        "{undeclared:?}"
-    );
     let declared = outcomes(&[A, B, H], &[0, 1, 2], Some(2));
+    assert_eq!(undeclared, declared, "undeclared vs declared");
     assert_eq!(
         declared,
         [

@@ -65,8 +65,13 @@ fn p1_a_square_vent_passes_the_ring_clearance_door_and_both_convexity_ones() {
     let body = square_vented_cavity();
     let edges = edges_with_corners(&body, cavity_corner);
     assert_eq!(edges.len(), 12, "the square-vented cavity's twelve edges");
-    let out = chamfer_edges(&body, &edges, D, Tol::witness())
-        .unwrap_or_else(|e| panic!("the square vent's ring is clear of the carve: {}", e.error));
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the square vent's ring is clear of the carve: {}", e.error));
     assert_eq!(
         validate_closed(&out.body),
         Ok(()),
@@ -147,8 +152,8 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 /// - requesting the four floor edges alone leaves each floor corner
 ///   with exactly two requested edges, so the battery walks them into
 ///   ONE CLOSED chain, chain G1 breaks it at each sharp corner into four
-///   open chains, and each corner — two of its three edges requested —
-///   refuses as the turn;
+///   open chains, and each corner — two of its three edges requested,
+///   the walls square to the floor — is a concave mitre, which builds;
 /// - completing the request — here the WHOLE pocket component, floor,
 ///   struts and even the convex rim — reaches the struts' top ends,
 ///   which are the rim's mixed corners: the corner door refuses
@@ -159,7 +164,8 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
-    let body = cut("pocket", &block, &pocket);
+    let body =
+        sweep::test_support::finished("body", cut("pocket", &block, &pocket), Tol::witness());
 
     let floor_corner = |p: Point3<f64>| {
         (p.z - 2.0).abs() < 1e-12
@@ -177,19 +183,12 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
-    let err = chamfer_edges(&body, &floor, D, Tol::witness())
-        .expect_err("the floor alone is an incomplete request");
-    assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::Turn,
-                ..
-            }
-        ),
-        "the floor-only request breaks at its sharp corners and refuses at \
-         the turns, got {:?}",
-        err.error
+    let floor_only = chamfer_edges(&body, &floor, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
+    assert_eq!(
+        floor_only.naming.as_ref().expect("births").mitres.len(),
+        4,
+        "the floor-only request breaks at its sharp corners into four mitred turns"
     );
 
     let full = edges_with_corners(&body, on_pocket_vertical);
@@ -241,8 +240,13 @@ fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
         (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
     });
     assert_eq!(inner.len(), 1, "the bracket's one reflex vertical edge");
-    let err =
-        fillet_edges(&body, &inner, 0.1, Tol::witness()).expect_err("the mixed corner refuses");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &inner,
+        0.1,
+        Tol::witness(),
+    )
+    .expect_err("the mixed corner refuses");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },

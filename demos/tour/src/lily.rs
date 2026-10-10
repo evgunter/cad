@@ -90,9 +90,7 @@
 //! and the sepals skins and meshes, and then tier 3 refuses it:
 //! check 7's quadrature gives up at the reporting target on a solid
 //! whose sign is not in doubt (probe 16). The swept leaves carry the
-//! lens because their skin is fitted at degree 2 along the path; at
-//! the cubic fit the lofted blades use, the swept lens refuses the
-//! same way (probe 15).
+//! lens at the same cubic fit along the path, and certify.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -796,8 +794,8 @@ impl Lance {
 }
 
 /// A swept leaf's numbers — [`leaf`]'s arguments bar `up`, which is
-/// world `z` for both — named once because probe 15 and the Pappus
-/// rows rebuild the same blades.
+/// world `z` for both — named once because the scene and the Pappus
+/// rows build the same blades.
 #[derive(Clone, Copy, Debug)]
 struct SweptLeaf {
     base: Point3<f64>,
@@ -913,12 +911,7 @@ fn leaf_a_plan() -> Plan {
 /// Stations along a leaf's swept spine (the swept-elbow corpus
 /// fixture's count).
 const LEAF_STATIONS: usize = 9;
-/// The swept leaf skin's fit degree along the path. Quadratic, and
-/// that is a wall's doing: the lens's arcs make every lateral wall
-/// rational, and at the cubic fit [`BLADE_V_DEGREE`] the gate refuses
-/// the blade (probe 15).
-const LEAF_V_DEGREE: usize = 2;
-/// The lofted blades' skin fit degree along the path.
+/// Every blade's skin fit degree along the path, swept and lofted alike.
 const BLADE_V_DEGREE: usize = 3;
 /// Stations along the LOFTED long leaf. More than the swept blades
 /// use, because a loft's stations carry the taper and the roll as well
@@ -956,25 +949,6 @@ fn leaf<S: Scalar>(
     curl: f64,
     tol: Tol,
 ) -> Body<S> {
-    try_leaf(base, dir, up, len, section, curl, LEAF_V_DEGREE, tol)
-        .expect("the leaf sweeps along its spine")
-        .body
-}
-
-/// [`leaf`] at a chosen skin degree, with the refusal surfaced, so
-/// probe 15 can sweep the same blade at the cubic fit and ask the
-/// gate about it.
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
-fn try_leaf<S: Scalar>(
-    base: Point3<f64>,
-    dir: Vec3<f64>,
-    up: Vec3<f64>,
-    len: f64,
-    section: Lance,
-    curl: f64,
-    v_degree: usize,
-    tol: Tol,
-) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up, tol);
     // The spine: a circular arc of length `len` turning through `curl`
     // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
@@ -996,9 +970,11 @@ fn try_leaf<S: Scalar>(
         place,
         &path,
         LEAF_STATIONS,
-        v_degree,
+        BLADE_V_DEGREE,
         tol,
     )
+    .expect("the leaf sweeps along its spine")
+    .body
 }
 
 // ---------------------------------------------------------------
@@ -1317,7 +1293,7 @@ fn try_lofted_blade<S: Scalar>(
     )
 }
 
-/// Probe 15's attempt: the long basal leaf lofted exactly as the scene
+/// Probe 16's attempt: the long basal leaf lofted exactly as the scene
 /// lofts it, each section of [`leaf_a_plan`] said as the [`Lance`] of
 /// its own width, ridge and keel — then asked of the gate.
 fn try_lofted_lance<S: Scalar>(tol: Tol) -> Result<(), Vec<pncad::topo::ValidationError>> {
@@ -2171,8 +2147,8 @@ fn wall<T, E: core::fmt::Debug>(
     crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
-/// Walls 15 and 16 pin one refusal: a lanceolate blade the gate
-/// refuses on the quadrature's REPORTING budget (`1024·ε`). Through
+/// Wall 16's refusal: a lanceolate blade the gate refuses on the
+/// quadrature's REPORTING budget (`1024·ε`). Through
 /// [`crate::walls::wall_from_default_eps`], since the refusal is the
 /// reporting target's and a looser ε clears it.
 fn reporting_budget_refusal(e: &[pncad::topo::ValidationError]) -> bool {
@@ -2248,40 +2224,34 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
-    //    an exact coincident planar contact, the crosslap mate — so
-    //    the glue is the M5 S1 declared REST zip if it reaches it.
+    //    an exact coincident planar contact, the crosslap mate, which
+    //    the join builds once declared.
     //
     //    The torus is on the operand gate's KIND roster, and the
     //    crossing layer has a circle × torus root lane: the stem's inner
     //    equator seam and the arch's outer equator seam each cross the
     //    other tube's carrier only outside that face's window, which
-    //    the roots certify. So the glue reaches the join and stops at
-    //    the germ pair of the stem's weld cap against the arch's wall —
-    //    a plane × torus pair with no section frame arm.
+    //    the roots certify. So the glue reaches the join, whose germ
+    //    pair of the stem's weld cap against the arch's wall (plane ×
+    //    torus, the arch's rim lying in the cap) reads its frame off
+    //    that rim and has no join arm: the join refuses on the arch's
+    //    wall.
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
-        // The pair is named, not just its kinds: the stem's face is a
-        // plane (its weld cap) and the arch's a torus (its tube wall).
-        |e| match *e {
-            BooleanError::GermFrameUnsupported {
-                a_face,
-                a_kind: SurfaceKind::Plane,
-                b_face,
-                b_kind: SurfaceKind::Torus,
-            } => {
-                matches!(
-                    stem.get_face(a_face)
-                        .and_then(|f| stem.get_surface(f.surface)),
-                    Some(pncad::geom::Surface::Plane { .. })
-                ) && matches!(
-                    arch.get_face(b_face)
-                        .and_then(|f| arch.get_surface(f.surface)),
+        |e| {
+            matches!(
+                *e,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::B,
+                    face,
+                    kind: SurfaceKind::Torus,
+                } if matches!(
+                    arch.get_face(face).and_then(|f| arch.get_surface(f.surface)),
                     Some(pncad::geom::Surface::Torus { .. })
                 )
-            }
-            _ => false,
+            )
         },
         "make the stem a single body — and close #968, whose whole content this is",
     );
@@ -2292,61 +2262,36 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    both stored carriers. There is no transverse curve here to
     //    have a closed form for.
     //
-    //    What refuses FIRST is the OPERAND GATE, on KINDS: `op: None`
-    //    is `gate_operand_pairs` (boolean/reduce.rs), which asks
-    //    whether a boolean arm exists for the pair and lets boxes
-    //    decide only whether the pair can matter. It reads kinds,
-    //    never loci — so it cannot see the coincidence.
-    //
-    //    **What BINDS is further down, and it is not this pair's
-    //    business at all.** The whole sequence is measured by
-    //    `review_probes::the_declared_weld_refuses_exactly_as_the_
-    //    undeclared_one_does` and its sibling. Widen the gate and the
-    //    next refusal used to be `NonMaximalFaces` on this very body,
-    //    from its pole-split caps. A gate exemption was tried for
-    //    this and WITHDRAWN; the fix landed at the source instead — a
-    //    full revolve sweeps a planar cap whole, so the lantern
-    //    arrives maximal-faced. After F7 comes the curved
-    //    PIERCE arm, and only after that could a
-    //    germ-pair question arise.
-    //
-    //    So wall 2's binding blocker is #1031, not #968's shape. The
-    //    gate-admission reading was this unit's SPEC, and measuring it
-    //    is what refuted it: declaring the weld changes nothing today,
-    //    because the declared contact is the PLANAR pair the throat
-    //    disk and the arch's cap already form, and a cone x torus Rest
-    //    declaration would be Contradicted, correctly. #1059 is the
-    //    derivation; the measurement is VERBS-LILYWELD PR-2's. The
-    //    face the gate names on the arch is that same end cap, paired
-    //    with the lantern's neck CONE — a pair no declaration speaks
-    //    for, coverage being per pair and never per face.
+    //    What refuses is the crossing layer, on the weld circle
+    //    itself: the lantern's neck rim lies on the arch's torus wall
+    //    as its terminal meridian circle, and a circle ON a torus is a
+    //    coincidence the circle × torus lane does not decide. This is
+    //    the chain VERBS-LILYWELD PR-2 measured — gate, then F7, then
+    //    the curved PIERCE arm — reached now that the cone is on the
+    //    operand roster and the full revolve sweeps its caps whole.
+    //    Declaring the weld changes nothing: the declared contact is
+    //    the PLANAR pair the throat disk and the arch's cap already
+    //    form, and a cone × torus Rest declaration would be
+    //    Contradicted, correctly (#1059 is the derivation).
     wall(
         2,
         "weld the lantern onto the arch (cone x the arch's end cap, \
          meeting on one shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
-            // The pair is (Cone, Plane): the lantern's neck cone
-            // against the arch's END CAP, whose rim IS the shared
-            // circle — a genuine coincidence rather than a box
-            // artifact. It was (Cone, Torus) while the arch's tube
-            // wall was boxed as its whole ring; the wall is now boxed
-            // by the chart window its own boundary states, so the
-            // first overlapping pair in arena order is the cap.
+            // The lantern's edge refused is the weld circle, lying on
+            // the arch's torus wall
+            // (`review_probes::declaring_the_covered_weld_pair_leaves_the_weld_circle_refusing`).
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
         },
-        "join flower to stem — #1031's pole half is NECESSARY BUT NOT \
-         SUFFICIENT: the measured chain runs gate -> F7 -> the curved \
-         pierce arm, and only the first two are anyone's current unit",
+        "join flower to stem — the weld circle lying on the arch's torus \
+         wall is a coincidence the crossing layer refuses",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
@@ -2609,45 +2554,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         assert_eq!(outcome.groups.len(), 0, "no cap arrives split");
     }
 
-    // 15. The swept leaves at the cubic skin. The lens's arcs make
-    //     every lateral wall rational, and at the degree the lofted
-    //     blades are fitted at, tier 3 refuses the blade: check 7's
-    //     quadrature stops after round 0 against the REPORTING target
-    //     (`rounds: 1`, `target_len` = 1024·ε) on a solid of 3.1e-3
-    //     m³ whose sign is not in doubt. The scene fits its swept
-    //     leaves at degree 2, where the gate certifies
-    //     (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`).
-    let cubic = try_leaf::<S>(
-        LEAF_B.base,
-        LEAF_B.dir,
-        Vec3::unit_z(),
-        LEAF_B.len,
-        LEAF_B.section,
-        LEAF_B.curl,
-        BLADE_V_DEGREE,
-        tol,
-    )
-    .expect("the cubic leaf sweeps")
-    .body;
-    crate::walls::wall_from_default_eps(
-        "lily",
-        15,
-        "fit the lanceolate swept leaf's skin at the cubic degree the lofted \
-         blades use, and validate it",
-        pncad::topo::validate_geometric_certificate(&cubic, tol).map(|_| ()),
-        |e: &Vec<_>| reporting_budget_refusal(e),
-        "fit the swept leaves at BLADE_V_DEGREE",
-        tol,
-    );
+    // 15 — RETIRED. The swept leaves fit at `BLADE_V_DEGREE`, and the
+    //      tour's own gate (`gated` in `main.rs`) holds every body to
+    //      tier 3 at each ε row the tour runs, so no probe repeats it.
 
     // 16. The lofted blades with the swept leaves' lens. They skin,
-    //     validate at tiers 1-2 and mesh; tier 3 refuses them as it
-    //     refuses probe 15's cubic. Measured on the long leaf at 5, 9,
-    //     17 and 33 stations and degrees 2 and 3, and with each arc
-    //     split in two; on the three sepals, about 2.7 m out, at the
-    //     scene's 13 stations and at 33. Every one of those refuses but
-    //     three, which admit a bracket about 2.5x wide; none certifies
-    //     a number. So the lofted blades keep their straight
+    //     validate at tiers 1-2 and mesh; tier 3 refuses them on the
+    //     reporting budget. The variant census below was measured on
+    //     2026-10-02, under the domain grid's earlier ulp-count
+    //     clearance, and has not been re-measured under the
+    //     spacing-fraction clearance (`grid_clearance`): the long leaf
+    //     at 5, 9, 17 and 33 stations and degrees 2 and 3, and with
+    //     each arc split in two; the three sepals, about 2.7 m out, at
+    //     the scene's 13 stations and at 33. Every one of those refused
+    //     but three, which admitted a bracket about 2.5x wide; none
+    //     certified a number. The scene's own setting is what this probe
+    //     re-asks at every run. So the lofted blades keep their straight
     //     kite-and-rectangle sections.
     crate::walls::wall_from_default_eps(
         "lily",
@@ -2999,33 +2921,23 @@ mod review_probes {
     }
 
     /// **The declared weld's door sequence, measured** — VERBS-LILYWELD
-    /// PR-2's opening measurement, kept as the record it is.
+    /// PR-2's opening measurement, carried past the cone's admission to
+    /// the boolean.
     ///
-    /// PR-1 authored the flower/arch junction circle-coincident and
-    /// left wall 2 pinned on the operand gate. The obvious next
-    /// question is what a DECLARED union would do, and the answer
-    /// today is: exactly what the undeclared one does. The scene's
-    /// own `flush_declarations` DOES find the contact — the lantern's
-    /// throat disk against the arch's end cap, an
-    /// exact coincident planar Rest pair — and the union still
-    /// refuses with the identical payload, because `gate_operand_pairs`
-    /// runs on KINDS before any declaration is consulted.
-    ///
-    /// **What the row pins is narrower than its old name claimed.**
-    /// The pair the gate names is the lantern's neck CONE against that
-    /// same end cap, and no declaration speaks for THAT pair —
-    /// coverage is per pair, never per face. So this row cannot show
-    /// a declaration being ignored; what it shows is that the gate
-    /// refuses on an UNCOVERED pair whether or not the covered one is
-    /// declared, and the differential between the two calls is empty
-    /// for that reason. The row is named for what it pins.
-    ///
-    /// That is the pin: **declaring the weld changes nothing today**,
-    /// and the differential between the declared and undeclared calls
-    /// is empty. When the operand gate learns declared cone×torus,
-    /// this row is what will show the two calls separating.
+    /// The scene's own `flush_declarations` finds the contact — the
+    /// lantern's throat disk against the arch's end cap, an exact
+    /// coincident planar Rest pair — and the declared union refuses
+    /// with the undeclared one's payload. Past the operand gate (the
+    /// cone is on its roster) and F7, both stop at the crossing layer
+    /// on the WELD CIRCLE itself: the lantern's neck rim, which lies on
+    /// the arch's torus wall as its terminal meridian circle. A circle
+    /// lying on a torus is a coincidence no declaration covers
+    /// (coverage is per pair, and a cone × torus Rest declaration would
+    /// be Contradicted), so the differential between the two calls is
+    /// empty, and this row is what shows them separating when a
+    /// coincidence door learns the circle.
     #[test]
-    fn declaring_the_covered_weld_pair_leaves_the_uncovered_cone_pair_refusing() {
+    fn declaring_the_covered_weld_pair_leaves_the_weld_circle_refusing() {
         let tol = Tol::witness();
         let ps = pieces();
         let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
@@ -3052,21 +2964,34 @@ mod review_probes {
         assert_eq!(
             format!("{declared:?}"),
             format!("{undeclared:?}"),
-            "the operand gate reads kinds before declarations, so these must be \
-             the SAME refusal until the gate learns the declared pair"
+            "the declaration covers the planar pair, not the weld circle, so these \
+             must be the SAME refusal"
         );
+        let BooleanError::CurvedPierceUnsupported {
+            operand: Operand::A,
+            face,
+            edge,
+            ..
+        } = declared
+        else {
+            panic!("the weld stops at the curved pierce: {declared:?}");
+        };
+        let carrier = lant
+            .get_edge(edge)
+            .and_then(|e| lant.get_curve_geom(e.curve))
+            .and_then(|g| g.certified())
+            .map(|c| c.carrier().clone());
+        let kind = arch
+            .get_face(face)
+            .and_then(|f| arch.get_surface(f.surface))
+            .map(|s| s.kind());
         assert!(
             matches!(
-                declared,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
-                    ..
-                }
-            ),
-            "{declared:?}"
+                carrier,
+                Some(pncad::geom::Curve3::Circle { radius, .. }) if (radius - ARCH_R).abs() < 1e-12
+            ) && kind == Some(SurfaceKind::Torus),
+            "the refused edge is the weld circle, on the arch's torus wall: \
+             {carrier:?} on {kind:?}"
         );
     }
 
@@ -3270,8 +3195,8 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding, and it runs the
-    /// other way: a swept lens skin costs nearly EIGHT times the stem
-    /// tube at the same δ (6_468 against 828 at 2e-3). Part of that
+    /// other way: a swept lens skin costs nearly SEVEN times the stem
+    /// tube at the same δ (5_576 against 828 at 2e-3). Part of that
     /// is geometry — the lens is curved across, where a straight-sided
     /// section is flat — and part is the sizing lane: a rational wall
     /// is sized per cell of the 16 × 16 refinement its certified bound
@@ -3302,8 +3227,11 @@ mod review_probes {
             // half-discs — 1_084 -> 1_080 and 2_560 -> 2_556.
             ("lily_lantern", 5e-3, 1_080),
             ("lily_lantern", 2e-3, 2_556),
-            ("lily_leaf_b", 2e-3, 6_468),
-            ("lily_leaf_c", 2e-3, 5_992),
+            // RE-BASELINED: the swept leaves are fitted at the cubic
+            // degree along the path (wall 15 retired) — 6_468 -> 5_576
+            // and 5_992 -> 5_164.
+            ("lily_leaf_b", 2e-3, 5_576),
+            ("lily_leaf_c", 2e-3, 5_164),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -3364,14 +3292,14 @@ mod review_probes {
         // when the enclosure is narrow — under `BRACKET_CEILING` of
         // Pappus, a tenth of the mesh's own deficit below, so a closed
         // form off by more than that is excluded. At the default ε the
-        // full widths are 1.4e-4 and 8.2e-5 of it. At 1e-6 the pad,
+        // full widths are 5.1e-5 (b) and 1.4e-4 (c) of it. At 1e-6 the pad,
         // and at 1e-12 the bracket the budget refusal keeps
         // (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`),
         // are wider than the ceiling, and the row says so beside the
         // containment it still asserts. And the mesh must fall
         // SHORT of it by between 3e-3 and 6e-3: every chord across the
         // convex lens cuts inside it, and the inscribed deficit measured
-        // 4.3e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
+        // 4.4e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
         // not have been measured off a real tessellation; one further
         // off would mean the section rolled about the tangent on its
         // way down the path.
@@ -3390,13 +3318,14 @@ mod review_probes {
                     .abs()
                     .mul_add(leaf.section.centroid_rise(), leaf.len);
             let b = body(&ps, name);
-            let e = pncad::topo::VolumeReading::of(
+            let reading = pncad::topo::VolumeReading::of(
                 pncad::topo::validate_geometric_certificate(b, Tol::witness())
                     .expect("the swept leaf is tier 3 clean")
                     .measure(),
-            )
-            .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
-            .enclosure();
+            );
+            let e = reading
+                .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(
                 lo <= pappus && pappus <= hi,
@@ -3923,7 +3852,7 @@ mod review_probes {
     /// stacking fold.** The wall is no longer at spine turn π and is
     /// no longer about how far the spine goes. The loft's stacking
     /// statement is a fold over adjacent section pairs, each decided
-    /// against its own base section's normal, so a blade whose spine
+    /// against both its sections' normals, so a blade whose spine
     /// turns a full circle and more builds as long as each of its
     /// slabs advances — and at [`LOFT_STATIONS`] stations each slab
     /// carries 1/16 of the turn.
@@ -4001,17 +3930,12 @@ mod verbs_gate_r1_probes {
     use pncad::topo::Surface;
 
     /// The wall-7 finding, re-derived with the reviewer's own
-    /// arithmetic — and the measurement REVERSES the reading the wall
-    /// text invites. The refusal names (Cone, Sphere): the pucker's
-    /// SLAB BOX overlaps the carving ball's box, and that is real —
-    /// but the pucker's EXACT frustum never comes within the ball's
-    /// radius of it, while the sphere ZONE's carrier does meet the
-    /// ball. So the pair the gate names is pure box looseness (the
-    /// cone slab claims max-generator radius along its whole axial
-    /// range); the geometry the model cares about is still
-    /// sphere-on-sphere, and a tighter cone box would restore the
-    /// original steering premise (waits on item 9) without any cone
-    /// germ lane.
+    /// arithmetic. A slab box of the pucker (max-generator radius along
+    /// its whole axial range) overlaps the carving ball's box, but the
+    /// pucker's EXACT frustum never comes within the ball's radius of
+    /// it, while the sphere ZONE's carrier does meet the ball. So a
+    /// (Cone, Sphere) pair named on boxes is pure box looseness; the
+    /// geometry the model cares about is sphere-on-sphere.
     #[test]
     fn wall7_the_cone_pair_is_box_looseness_the_ball_meets_the_zone() {
         let tol = Tol::witness();
@@ -4092,27 +4016,10 @@ mod verbs_gate_r1_probes {
              asking a sphere-on-sphere question any more"
         );
 
-        // **The amendment (r1 fix pass), and it is a NEGATIVE result
-        // stated as one.** The measurement above is the reviewer's,
-        // unchanged: the pucker's exact frustum clears the carving
-        // ball, and the sphere zone meets it. The cone arm now boxes
-        // the FRUSTUM its axial window cuts rather than a slab pinned
-        // at the window's widest radius — a real tightening, measured
-        // below — and it is STILL not enough to separate this pair.
-        //
-        // What is left is not the constant-radius artifact the
-        // reviewer measured. It is the AABB of a TILTED frustum: an
-        // axis-aligned box around a slanted cone is bigger than the
-        // cone, and no per-kind box construction can close that. So
-        // the gate keeps naming (Cone, Sphere), honestly — "may
-        // intersect" is exactly the claim it makes, and the two loci
-        // do not.
-        //
-        // The residual is measured rather than asserted away: this
-        // row prints the frustum's own AABB against the ball's and
-        // the per-axis overlap, so the day an ORIENTED-box door or an
-        // exact cone×sphere separation test lands, the number to beat
-        // is written down.
+        // The cone arm boxes the FRUSTUM its axial window cuts rather
+        // than a slab pinned at the window's widest radius. This row
+        // prints that AABB against the ball's and the per-axis overlap,
+        // and holds the box clear of the ball below.
         let (fa, fb) = frustum_aabb(lant, &pucker, (bc, br));
         let overlap = |lo_a: f64, hi_a: f64, lo_b: f64, hi_b: f64| hi_a.min(hi_b) - lo_a.max(lo_b);
         let per_axis = [
@@ -4232,32 +4139,21 @@ mod verbs_gate_r1_probes {
         // circle × torus root lane certifies each seam's crossing of the
         // other tube's carrier as lying outside that face's window, so
         // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) has no section
-        // frame arm. Unconditional: an `if let` here would go quiet
-        // exactly when the refusal's shape changes.
-        let BooleanError::GermFrameUnsupported {
-            a_face,
-            a_kind: SurfaceKind::Plane,
-            b_face,
-            b_kind: SurfaceKind::Torus,
+        // cap against the arch's wall (plane × torus) reads its frame
+        // off the arch's rim lying in the cap and has no join arm: it
+        // refuses on the arch's wall. Unconditional: an `if let` here
+        // would go quiet exactly when the refusal's shape changes.
+        let BooleanError::CurvedBooleanUnsupported {
+            operand: Operand::B,
+            face,
+            kind: SurfaceKind::Torus,
         } = glued
         else {
-            panic!("wall 1 stops at the join's plane × torus germ frame: {glued:?}");
+            panic!("wall 1 stops at the join's plane × torus arm: {glued:?}");
         };
-        // The stem's weld cap: its plane passes through the fork, the
-        // stem's end at 22° on its 5 m ring about (−5, 0, 0).
-        let fork =
-            pncad::geom_core::Point3::new(-5.0 + 5.0 * deg(22.0).cos(), 0.0, 5.0 * deg(22.0).sin());
         assert!(
             matches!(
-                stem.get_face(a_face).and_then(|f| stem.get_surface(f.surface)),
-                Some(&Surface::Plane { origin, .. }) if (origin - fork).norm() < 1e-9
-            ),
-            "the stem's face is its weld cap at the fork: {glued:?}"
-        );
-        assert!(
-            matches!(
-                arch.get_face(b_face)
+                arch.get_face(face)
                     .and_then(|f| arch.get_surface(f.surface)),
                 Some(Surface::Torus { .. })
             ),
@@ -4321,17 +4217,13 @@ mod verbs_gate_r1_probes {
         assert!(
             matches!(
                 welded,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 2 must name a lantern CONE against the arch's END CAP — the pair \
-             the gate has no arm for, and the cone's rim IS that cap's rim: \
-             {welded:?}"
+            "wall 2 must stop at the crossing layer on the lantern's weld circle, \
+             which lies on the arch's torus wall: {welded:?}"
         );
     }
 

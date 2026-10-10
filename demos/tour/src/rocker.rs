@@ -31,8 +31,8 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::prelude::{
-    BlendError, Body, Convexity, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet,
-    fillet_edges, mass_properties, query, validate_geometric,
+    BlendError, Body, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet, fillet_edges,
+    mass_properties, query, validate_geometric,
 };
 use pncad::profile::{
     ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, Radius, SegmentKind, SketchPlane, Start,
@@ -41,6 +41,7 @@ use pncad::profile::{
 use pncad::sweep::{Extruded, Extrusion, extrude};
 use pncad::topo::readback::euler_counts;
 
+use crate::booleans::finished;
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::p2;
@@ -66,8 +67,7 @@ const KEY_SLOT: f64 = 0.8;
 /// The plate's thickness.
 const DEPTH: f64 = 0.5;
 /// Radius of the 3-D fillet on the keyhole's two convex creases: the
-/// eye tip's radius, the largest of the plate's radii the keyhole
-/// admits (walls 1 and 2 in [`crease_narration`]).
+/// eye tip's radius.
 const R_CREASE: f64 = R_EYE;
 /// Half the eye slot's tip separation: the two R = 1 slot carriers sit
 /// at (∓1/2, 0), so they cross at (0, ±√(1 − 1/4)) — the vesica of the
@@ -376,7 +376,7 @@ fn keyhole_creases<S: Scalar>(plate: &Extruded<S>) -> Vec<EdgeKey> {
 pub fn build<S: Scalar>(tol: Tol) -> (Extruded<S>, Body<S>) {
     let plate = plate::<S>(tol);
     let rounded = fillet_edges(
-        &plate.body,
+        &finished("plate.body", plate.body.clone(), tol),
         &keyhole_creases(&plate),
         S::from_f64(R_CREASE),
         tol,
@@ -384,20 +384,6 @@ pub fn build<S: Scalar>(tol: Tol) -> (Extruded<S>, Body<S>) {
     .expect("the keyhole's creases round at R_CREASE")
     .body;
     (plate, rounded)
-}
-
-/// The radius from which the cap meter refuses the keyhole's creases
-/// (wall 2), derived. The meter's margin for the slot end's corner
-/// `E = (KEY_SLOT, w)` is `‖E − c‖ − ‖V − c‖`; `E` and `V` share the
-/// wall line `y = w` and `c` sits at height `r` above it, so the margin
-/// changes sign where `c` is equidistant from them: `cx = (x0 + KEY_SLOT)/2`.
-/// With `cx² = (R + r)² − (w + r)² = x0² + 2r(R − w)`, that is
-/// `r* = (cx² − x0²) / (2(R − w))` — 0.3097 for this keyhole.
-fn ring_clearance_onset() -> f64 {
-    let (_, _, big_r) = KEY;
-    let x0 = (big_r * big_r - KEY_W * KEY_W).sqrt();
-    let mid = 0.5 * (x0 + KEY_SLOT);
-    (mid * mid - x0 * x0) / (2.0 * (big_r - KEY_W))
 }
 
 /// The area one keyhole crease's fillet removes from the plate's
@@ -505,13 +491,14 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     // seams where a profile fillet meets a straight side. Those are
     // tangent, and the selector has no convexity atom to leave them
     // out, so the door refuses the whole request.
+    let operand = finished("plate.body", plate.body.clone(), tol);
     let described = cylinder_plane_lines(&plate.body);
     assert_eq!(
         described.len(),
         8,
         "the description matches the keyhole's two creases and the outline's six tangent seams"
     );
-    let over = fillet_edges(&plate.body, &described, R_CREASE, tol);
+    let over = fillet_edges(&operand, &described, R_CREASE, tol);
     assert!(
         matches!(&over, Err(e) if matches!(e.error, BlendError::TangentialEdge { .. })),
         "the description alone hands the door a tangent seam: {:?}",
@@ -521,52 +508,22 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     let creases = keyhole_creases(plate);
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
 
-    // The plate's own blend radius: the ball rolls OUTSIDE the disc's
-    // wall, where its curvature sets no limit, but the headroom
-    // predicate reads `(1 − r/R)·r` whichever side the ball is on.
-    crate::walls::wall(
-        "rocker",
-        1,
-        "round the keyhole's creases at the outline's blend radius R_BLEND = R_disc",
-        fillet_edges(&plate.body, &creases, R_BLEND, tol),
-        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "re-pin it: with headroom sided, r = R_BLEND lies past wall 2's onset and meets \
-         RingClearance next, so R_CREASE can move to R_BLEND only once both are fixed",
-    );
-    // From `ring_clearance_onset` on, the slot end's corner is inside
-    // the region the cap meter encloses the sliver with (an annulus
-    // about the ball's centre out to the crease), though it stays clear
-    // of the sliver itself, which ends at the wall foot `x = cx`, short
-    // of the slot's end. The onset is derived, and pinned from both
-    // sides at ±1 %: the crease carves just below it and refuses just
-    // above it.
-    let onset = ring_clearance_onset();
-    assert!(
-        R_CREASE < onset,
-        "R_CREASE = {R_CREASE} lies below the cap meter's onset {onset}"
-    );
-    fillet_edges(&plate.body, &creases, 0.99 * onset, tol).unwrap_or_else(|e| {
-        panic!("1 % below the derived onset {onset:.4} the creases carve, got {e:?}")
-    });
-    crate::walls::wall(
-        "rocker",
-        2,
-        "round the keyhole's creases 1 % past the derived onset r* = 0.3097, where the \
-         sliver stays clear of the slot's end",
-        fillet_edges(&plate.body, &creases, 1.01 * onset, tol),
-        |e| {
-            matches!(
-                e.error,
-                BlendError::RingClearance {
-                    face,
-                    chain: Convexity::Convex,
-                    bounded: false,
-                    ..
-                } if face == plate.bottom || face == plate.top
-            )
-        },
-        "raise R_CREASE to the largest radius the slot admits",
-    );
+    // Larger radii carve too, the outline's own blend radius among
+    // them: the ball rolls outside the disc's wall, which bends away
+    // from it, and the sliver each cap loses ends at the slot wall's
+    // foot `x = cx`, short of the slot's end, so the cap meter reads
+    // the slot end's edge clear of it.
+    for r in [0.31, 0.49, R_BLEND] {
+        let out = fillet_edges(&operand, &creases, r, tol)
+            .unwrap_or_else(|e| panic!("the creases carve at r = {r}, got {e:?}"));
+        validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("r = {r}: tier 3, got {e:?}"));
+        let dv = volume(&out.body) - volume(&plate.body);
+        let want = -2.0 * crease_cut(r) * DEPTH;
+        assert!(
+            (dv - want).abs() < 1e-12,
+            "r = {r}: the two creases remove 2·A·depth = {want:e}, measured ΔV = {dv:e}"
+        );
+    }
 
     validate_geometric(rounded, tol).expect("the rounded rocker is tier-3 valid");
     let cut = crease_cut(R_CREASE);
@@ -592,8 +549,8 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
          description alone also matches the outline's six tangent seams, and the door \
          refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
-         measured {dv:.6e}. The outline's blend radius ({R_BLEND}) is refused (wall 1), \
-         and so is every radius from r* = {onset:.4} (wall 2)."
+         measured {dv:.6e}. Larger radii carve at their closed forms too, up to the \
+         outline's own blend radius ({R_BLEND})."
     )
 }
 

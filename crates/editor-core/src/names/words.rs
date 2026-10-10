@@ -22,8 +22,8 @@
 //!   member: "…, joined at Union d1aa from Transform 3218". By tag, or
 //!   where the document does not hold the Boolean, a B join says what
 //!   the name holds: "…, through operand B of node 1669". A carry
-//!   through a primary operand (a Boolean's A, a fillet's target) is the
-//!   body's own continuation and is silent. Two names of one table first
+//!   through a primary operand (a Boolean's A, the body a fillet's
+//!   selection reads) is the body's own continuation and is silent. Two names of one table first
 //!   differ at a node where one went through a secondary operand, which
 //!   a join says.
 //! - **Wraps and joins are said in the order the path takes them.** A
@@ -727,15 +727,20 @@ fn role_np(role: PieceRole) -> String {
 
 /// A profile piece of `feature`'s profile: its role, and the step that
 /// drew it as the profile pane numbers it — with the profile, unless
-/// `feature` reads that profile alone — or, on a kernel-built section,
-/// which circle. A leg is its step's only piece, so the step alone says
+/// `feature` is that profile or reads it alone — or, on a kernel-built
+/// section, which circle. A leg is its step's only piece, so the step alone says
 /// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
 /// 0 step 2`).
-fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     match e {
         ProfileEdgeRef::Piece { step, role } => {
             let step = match by.step(*step) {
-                Some(at) if by.sole_profile(feature) == Some(at.profile()) => at.to_string(),
+                Some(at)
+                    if feature == at.profile()
+                        || by.sole_profile(feature) == Some(at.profile()) =>
+                {
+                    at.to_string()
+                }
                 Some(at) => format!("{at} in {}", by.node(at.profile())),
                 None => format!("the profile step {step}"),
             };
@@ -799,6 +804,14 @@ fn head<'n, 's>(
     items
 }
 
+/// A crossing's sense as the verb its edge takes.
+fn sense_verb(sense: super::role::Sense) -> &'static str {
+    match sense {
+        super::role::Sense::Enters => "enters",
+        super::role::Sense::Leaves => "leaves",
+    }
+}
+
 /// One segment of `leaf`'s head, in words. Exhaustive over [`RoleSeg`],
 /// so a new segment is given words here or the compile breaks, and each
 /// segment's words differ from every other's.
@@ -815,7 +828,7 @@ fn role<'n, 's>(
         RoleSeg::OutputBody => one("the output body".to_owned()),
         RoleSeg::Cap(e) => one(format!("the {} cap", cap(*e))),
         RoleSeg::Lateral(r) => one(format!("the side wall over {}", run(r, f, by))),
-        RoleSeg::RimEdge(c, e) => one(format!("the {} rim edge over {}", cap(*c), piece(e, f, by))),
+        RoleSeg::RimEdge(c, r) => one(format!("the {} rim edge over {}", cap(*c), run(r, f, by))),
         RoleSeg::LateralEdge(v) => one(format!("the lateral edge over {}", vertex(v, f, by))),
         RoleSeg::CapVertex(c, v) => one(format!(
             "the {} cap vertex over {}",
@@ -846,12 +859,30 @@ fn role<'n, 's>(
         )),
         RoleSeg::RevolveCap(m) => one(format!("the {} wedge cap", meridian(*m))),
         RoleSeg::Pole(v) => one(format!("the pole over {}", vertex(v, f, by))),
-        RoleSeg::AxisEdge(e) => one(format!("the axis edge over {}", piece(e, f, by))),
+        RoleSeg::AxisEdge(r) => one(format!("the axis edge over {}", run(r, f, by))),
         RoleSeg::Seam { a, b } => vec![
             text(format!("the seam {kind} of ")),
             cites.one(a),
             text(" and "),
             cites.one(b),
+        ],
+        RoleSeg::Crossing { edge, face, sense } => vec![
+            text("the crossing where "),
+            cites.one(edge),
+            text(format!(" {} the body of ", sense_verb(*sense))),
+            cites.one(face),
+        ],
+        RoleSeg::EdgeCrossing {
+            a,
+            a_sense,
+            b,
+            b_sense,
+        } => vec![
+            text("the crossing where "),
+            cites.one(a),
+            text(format!(" {} the other body and ", sense_verb(*a_sense))),
+            cites.one(b),
+            text(format!(" {} the first", sense_verb(*b_sense))),
         ],
         RoleSeg::Merged(set) => {
             // A set on an edge is the edge a join made of its members.
@@ -873,10 +904,10 @@ fn role<'n, 's>(
             cites.one(face),
             text(format!(" {}", half(*side))),
         ],
-        RoleSeg::CrossingVertex { side, edge } => vec![
-            text("the split's crossing of "),
+        RoleSeg::CrossingVertex { side, edge, sense } => vec![
+            text("the split's crossing where "),
             cites.one(edge),
-            text(format!(" {}", half(*side))),
+            text(format!(" {} the half {}", sense_verb(*sense), half(*side))),
         ],
         RoleSeg::BlendFace(edge) => vec![text("the blend face over "), cites.one(edge)],
         RoleSeg::CornerFace(v) => vec![text("the corner face at "), cites.one(v)],
@@ -898,6 +929,8 @@ fn role<'n, 's>(
             text(" of the blend over "),
             cites.one(edge),
         ],
+        RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
+        RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandFace(edges) => {
             let mut items = vec![text("the blend band over ")];
             items.extend(cites.list(edges));
@@ -936,6 +969,7 @@ fn role<'n, 's>(
         // The part's own steps and nodes are another document's ids,
         // so the part-local name is said by tag.
         RoleSeg::InPart { of } => vec![cites.by_tag(of), text(" in the part")],
+        RoleSeg::Placed { of } => vec![text("the world copy of "), cites.one(of)],
         // A carry or a qualifier is a role only inside a path no
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its
@@ -984,10 +1018,10 @@ mod tests {
     use crate::names::role::NameRef;
     use crate::node::StepId;
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
-    const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
-    const OP: RecipeNodeId = RecipeNodeId(3 << 16);
-    const MOVED: RecipeNodeId = RecipeNodeId(4 << 16);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
+    const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
+    const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
+    const MOVED: RecipeNodeId = RecipeNodeId::new(0, 4 << 16);
 
     fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName { kind, node, path }
@@ -995,7 +1029,7 @@ mod tests {
 
     fn leg(step: u64) -> ProfileEdgeRef {
         ProfileEdgeRef::Piece {
-            step: StepId(step << 16),
+            step: StepId::new(0, step << 16),
             role: PieceRole::Leg,
         }
     }
@@ -1016,7 +1050,7 @@ mod tests {
         name(
             EntityKind::Edge,
             EXTRUDE,
-            vec![RoleSeg::RimEdge(CapEnd::End, leg(step))],
+            vec![RoleSeg::RimEdge(CapEnd::End, leg(step).into())],
         )
     }
 

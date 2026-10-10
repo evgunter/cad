@@ -215,6 +215,8 @@ before each is the reading at the commit before the merge.
 | #3759 `82b52c36cb` PCERT | sz +136, reg +8, num +236, frozen +24 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +68, reg +4, num +118, frozen +12 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +87, reg +4, num +176, frozen +77; refuses at `pcurve_envelope` | `(1036,2,152,1188,2587)`, refuses at `pcurve_envelope` | `Study`, rule-F row; `frozen` judged below |
 | #3981 `6d1cef94cf` check 5's escape | sz +8, num −8 | sg +8, num −8 | sz +4, num −4 | sg +8, num −8 | sz +4, num −4 | sz +4, num −4 | `Study` (plate, link, pad) |
 | #4037 `201239b0e4` joint elements | num +14 | num +14 | num +7 | num +14 | num +10 | num +10 | **not credited** |
+| #4187 (CARVE) `cap_plane_orientation`, one decision per extruded cap | num +6 | num +4 | num +3, frozen +2 | num +4 | num +2 | num +4, frozen +48 | both rows, at the PR |
+| #3945 PCERT chart-angle unit (after this item closed) | sz −56, num −56 | sz −24, num −24 | sz −28, num −28 | sz −24, num −24 | sz −28, num −28 | sz −84, num −84, frozen −15 | `Study`, both rows: the loop's chart-space angle comparisons and check 5 are retired, so their decisions are gone; the same at ε = 1e-6 and 1e-12 |
 
 Every other stretch reads the same at both ends. #4011 (INTENT-VARS-1
 PR 2) moves nothing past the ceiling. #3804 (SYM-15, `810bc55336`)
@@ -408,6 +410,22 @@ annulus `[588,0,451,804]`, link `[373,9,284,484]`, bracket
 35 / 0). The pad's rule-F row is `(1340,2,54,1272,3138)` at both
 dials, so it is pinned as one tuple again. `Study::symbolic_zero` is
 `[x,x,x]` for all five.
+
+**Since the re-take, on `main`.** #4187 (`e127871b19`, pad `numeric`
++2) and #3945 (`4711ad4f53`, pad `symbolic_zero` −28 and `numeric`
+−28), both rows of the table above, put the pad past the ceiling at
+`[340,0,276,302]`. #4264 (PATHS: `line_arc` reads both spans of a
+candidate before an in-band reading escalates) leaves it there, at
+every ε. The pad's replay refuses at `line_span` in `line_arc`'s
+tangent arm, which still reads the line's span first and escalates
+on it. The PR's review head read 277: that arm also read the arc's
+span of the foot before escalating. The fix pass took that read out.
+The tangent-pair silent-miss P0
+(`work/paths/validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps`)
+puts it back, numeric 276 → 277 at every ε: a definite miss of the
+foot by either span now leaves the pair's ends to read, so both spans
+are read before the in-band `line_span` escalates. The pad still
+refuses there, between its segments 0 and 1.
 
 ## Closed (SYM-16, PR #4155, 2026-10-06)
 

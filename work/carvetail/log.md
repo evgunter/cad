@@ -16,3 +16,4 @@ Each row's body says why. The six unpriced rows were priced at the cut.
 and then re-opened in the same commit: Ev's ruling on PR 3941 already
 answered its question (an angle about a directed axis stays signed),
 and what is left is refusal text, which the hold does not cover.
+- 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)

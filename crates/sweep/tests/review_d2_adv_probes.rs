@@ -185,7 +185,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
-        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, Tol::witness()) {
+        if let Ok(f) = fillet_edges(
+            &sweep::test_support::at_rest(&b, Tol::witness()),
+            &box_edges,
+            0.12,
+            Tol::witness(),
+        ) {
             out.push(("die_one_pip_blended", f.body));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
@@ -376,6 +381,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "ChainNotConnected",
         BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
+        BlendError::FaceClearance { .. } => "FaceClearance",
         BlendError::TangentialEdge { .. } => "TangentialEdge",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",
@@ -390,10 +396,14 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::ScaffoldingOperand { .. } => "ScaffoldingOperand(row 1)",
+        BlendError::InsideOutOperand { .. } => "InsideOutOperand(row 1)",
+        BlendError::UnjoinedOperand { .. } => "UnjoinedOperand(row 1)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
+        BlendError::Join { .. } => "Join",
     }
 }
 
@@ -436,9 +446,14 @@ fn d2_no_input_reaches_a_panic() {
                 // is the only outcome-level proof available from outside
                 // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fillet_edges(body, &req, r, Tol::witness())
-                        .map(|f| f.band_faces.len())
-                        .unwrap_or(0)
+                    fillet_edges(
+                        &sweep::test_support::at_rest(body, Tol::witness()),
+                        &req,
+                        r,
+                        Tol::witness(),
+                    )
+                    .map(|f| f.band_faces.len())
+                    .unwrap_or(0)
                 }));
                 match outcome {
                     Err(_) => fired.push(format!(
@@ -504,7 +519,14 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, Tol::witness()).map_err(|r| r.error) {
+                match fillet_edges(
+                    &sweep::test_support::at_rest(&body, Tol::witness()),
+                    &req,
+                    r,
+                    Tol::witness(),
+                )
+                .map_err(|r| r.error)
+                {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -551,8 +573,15 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     let base = cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = base.edges().map(|(k, _)| k).collect();
     let mut dst = base.clone();
-    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()))
-        .expect("a disjoint graft");
+    // The grafted cube stands clear of the destination: one at the
+    // origin would lie inside it, where the destination's bands reach.
+    let apart = topo::transform_rigid(
+        &cube(0.5, Tol::witness()),
+        &Affine3::translation(Vec3::new(3.0, 0.0, 0.0)),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid");
+    topo::instance::graft_disjoint_all(&mut dst, &apart).expect("a disjoint graft");
     assert_eq!(dst.shells().count(), 2, "the graft added a shell");
     let after: Vec<EdgeKey> = edges
         .iter()
@@ -562,8 +591,13 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     assert_eq!(after, edges, "the graft keeps the destination's own keys");
     let mut base_shells: Vec<_> = base.shells().map(|(k, _)| k).collect();
     base_shells.sort_unstable();
-    let out = fillet_edges(&dst, &after, 0.12, Tol::witness())
-        .unwrap_or_else(|r| panic!("the destination's cube fillets inside its shell: {r}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&dst, Tol::witness()),
+        &after,
+        0.12,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|r| panic!("the destination's cube fillets inside its shell: {r}"));
     assert_eq!(
         out.shells, base_shells,
         "only the destination's shell is carved"

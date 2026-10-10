@@ -42,7 +42,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
 use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
-use pncad::topo::{Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
 const R_NECK: f64 = 3.0 / 64.0;
@@ -100,6 +100,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -133,7 +134,7 @@ fn sharp_lid_in(
     let axis = insert(
         &mut doc,
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -142,7 +143,7 @@ fn sharp_lid_in(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),
@@ -151,8 +152,8 @@ fn sharp_lid_in(
     let lid = insert(
         &mut doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(TAU),
         },
         tol,
@@ -203,7 +204,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfileP
     let Some(Node::Revolve { profile, .. }) = doc.node(lid) else {
         panic!("the lid is a revolve");
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
         panic!("a revolve's operand is a profile");
     };
     program
@@ -240,7 +241,11 @@ fn rolled_lid(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (mut doc, lid) = sharp_lid(tol);
     let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(roll), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(roll), sel),
+        tol,
+    );
     (doc, lid, rolled)
 }
 
@@ -361,7 +366,15 @@ fn one_request_builds_the_kernels_body() {
         .iter()
         .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
         .collect();
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel.clone()), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(
+            pncad::document::Operand::output(lid, 0),
+            len(ROLL),
+            sel.clone(),
+        ),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),
@@ -383,14 +396,14 @@ fn one_request_builds_the_kernels_body() {
                 .expect("each rolled half-arc's key, by its name")
         })
         .collect();
-    let kernel = fillet_edges(&sharp, &keys, ROLL, tol)
+    let kernel = fillet_edges(&finished("sharp", sharp.clone(), tol), &keys, ROLL, tol)
         .expect("the kernel door rolls all three in one request")
         .body;
 
     assert_eq!(census(&sharp), (8, 14, 8));
     assert_eq!(bands(&kernel).len(), 3, "three rims, three torus bands");
-    assert_eq!(census(&kernel), (14, 23, 11));
-    assert_eq!(census(&doc_body), (14, 23, 11));
+    assert_eq!(census(&kernel), (12, 21, 11));
+    assert_eq!(census(&doc_body), (12, 21, 11));
     assert_eq!(
         bands(&kernel),
         bands(&doc_body),
@@ -441,7 +454,8 @@ fn the_rolled_names_are_one_set_at_two_radii() {
             &DocEdit::SetParam {
                 node: rolled,
                 slot: pncad::document::SlotId::Radius,
-                expr: len(roll),
+                value: len(roll).into(),
+                fresh: Vec::new(),
             },
             tol,
             &pncad::document::RefusingReach,
@@ -674,7 +688,11 @@ fn a_split_carries_a_held_slits_band() {
     );
     let (mut doc, lid) = sharp_lid_in(doc, R_VENT, tol);
     let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
-    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(ROLL), sel),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),
@@ -693,14 +711,28 @@ fn a_split_carries_a_held_slits_band() {
         Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
         tol,
     );
+    // The lid is the document's product; a cut carries what it places.
+    doc = apply(
+        &doc,
+        &DocEdit::place(holder, None),
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the held lid places")
+    .doc;
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
-        doc.order().iter().copied().filter(|&n| n != lead).collect();
+        doc.ids().iter().copied().filter(|&n| n != lead).collect();
     let out = split(&doc, &cut, DocumentId::derive("teapot-lid-part"), tol, None)
         .expect("the lid splits out whole");
     let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);
     let held = match out.part.node(part_holder) {
-        Some(Node::Fillet { selection, .. }) => selection[0].clone(),
+        Some(Node::Fillet { selection, .. }) => out
+            .part
+            .selection(*selection)
+            .expect("the fillet reads a selection")
+            .names[0]
+            .clone(),
         other => panic!("{other:?}"),
     };
     assert_ne!(
@@ -719,4 +751,10 @@ fn a_split_carries_a_held_slits_band() {
         Some(&before[&slit]),
         "the held slit names the same edge in the part"
     );
+}
+
+/// `body` finished for a blend door, which takes finished bodies only.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

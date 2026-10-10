@@ -34,12 +34,12 @@ use geom_core::Tol;
 
 /// The frame, the document's first node.
 fn frame(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[0]
+    doc.ids()[0]
 }
 
 /// The profile drawn on it, the second.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn p() -> VarName {
@@ -81,6 +81,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -93,6 +94,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
                 frame(&doc),
                 vec![fixture::square(0.0, 0.0, 1.0)],
             ))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -320,13 +322,14 @@ fn the_probe_document_carries_the_parameter_only_in_the_frame() {
         panic!("a frame first");
     };
     for e in u {
-        e.var_reads(&mut refs);
+        doc.written(&editor_core::Expr::var(*e, Dimension::Scalar))
+            .var_reads(&mut refs);
     }
     let var = doc.var_named(p().as_str()).expect("the frame's variable");
     assert_eq!(refs, vec![(var, Dimension::Scalar)]);
     let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
         panic!("a profile second");
     };
-    assert_eq!(program.plane, frame(&doc));
+    assert_eq!(doc.operation_of(program.frame), Some(frame(&doc)));
     assert!(!program.reads(var), "the program must hold no parameter");
 }

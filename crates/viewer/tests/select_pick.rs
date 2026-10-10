@@ -25,7 +25,8 @@ use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Doc, Evaluation, Formula, Frame, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Doc, Evaluation, Formula, Frame, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{HitTestError, Ray, Resolution};
@@ -52,18 +53,19 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
     session.evaluation().expect("an evaluation has landed")
 }
 
-/// A pattern of `count` small blocks — the fixture for the rows that
-/// need SEVERAL bodies under one node, and for the structural edit
-/// that consumes one of them.
+/// A pattern of `count` small blocks, each copy projected and placed
+/// (A10) — the fixture for the rows that need SEVERAL drawn bodies of
+/// one feature, and for the structural edit that consumes one of them.
 ///
-/// Answers the document, the extrude node and the pattern node.
+/// Answers the document, the extrude node and the pattern node; the
+/// copies' placements are `doc.placements()`, in instance order.
 fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-pattern", tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -72,7 +74,7 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -81,6 +83,17 @@ fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId,
         },
         tol,
     );
+    let doc = (0..count).fold(doc, |doc, index| {
+        let (doc, copy) = common::inserted(
+            &doc,
+            Node::Part {
+                of: pattern.into(),
+                select: PartSelect::Instance(Formula::count(index)),
+            },
+            tol,
+        );
+        common::placed(&doc, copy, tol).0
+    });
     (doc, extrude, pattern)
 }
 
@@ -174,50 +187,51 @@ fn every_id_round_trips_to_the_patch_it_names() {
 #[test]
 fn distinct_patches_never_share_an_id_across_bodies() {
     let tol = Tol::witness();
-    let (doc, _extrude, pattern) = patterned_blocks(tol, 3);
+    let (doc, _extrude, _pattern) = patterned_blocks(tol, 3);
+    let copies = doc.placements();
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let index = plate_index(&session);
     let ids = index.ids();
 
-    let mut bodies = std::collections::BTreeSet::new();
+    let mut drawn = std::collections::BTreeSet::new();
     let mut seen_ids = std::collections::BTreeSet::new();
     for id in ids.ids() {
         let key = ids.key_of(id).expect("an assigned id names a patch");
-        assert_eq!(key.node, pattern, "every drawn part belongs to the root");
-        bodies.insert(key.body);
+        assert_eq!(key.body, 0, "a copy is one body");
+        drawn.insert(key.node);
         assert!(seen_ids.insert(id), "ids are distinct");
     }
-    assert_eq!(bodies.len(), 3, "three instances, three output bodies");
+    assert_eq!(
+        drawn.into_iter().collect::<Vec<_>>(),
+        copies,
+        "three copies, three drawn parts"
+    );
     // The collision the id map exists to make impossible: two patches
     // at the same position in DIFFERENT bodies must not answer to one
     // id.
-    for body in &bodies {
-        let key = PatchId {
-            node: pattern,
-            body: *body,
-            patch: 0,
-        };
-        assert!(ids.id_of(key).is_some(), "patch 0 of body {body} is drawn");
-    }
-    let first: Vec<Option<u32>> = bodies
+    let first: Vec<Option<u32>> = copies
         .iter()
-        .map(|body| {
+        .map(|&node| {
             ids.id_of(PatchId {
-                node: pattern,
-                body: *body,
+                node,
+                body: 0,
                 patch: 0,
             })
         })
         .collect();
+    assert!(
+        first.iter().all(Option::is_some),
+        "patch 0 of every copy is drawn"
+    );
     let distinct: std::collections::BTreeSet<_> = first.iter().collect();
-    assert_eq!(distinct.len(), first.len(), "one id per body's patch 0");
+    assert_eq!(distinct.len(), first.len(), "one id per copy's patch 0");
 }
 
 #[test]
 fn nothing_is_reserved_and_a_repeated_patch_is_refused() {
     let key = PatchId {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         body: 0,
         patch: 0,
     };
@@ -272,7 +286,11 @@ fn a_ray_onto_the_top_face_names_it_and_the_name_resolves() {
         .pick(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("the hit test does not refuse")
         .expect("a ray onto the plate hits it");
-    assert_eq!(hit.node, extrude, "the plate's body is the extrude's");
+    assert_eq!(
+        hit.node,
+        common::copy_of(session.committed_doc(), extrude),
+        "the plate's drawn copy is the extrude's placement"
+    );
     let (doc, eval) = session.landed_pair().expect("a landed pair");
     assert!(
         matches!(
@@ -512,7 +530,7 @@ fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
         .face()
         .expect("the click selected a face")
         .clone();
-    assert_eq!(face.node, extrude);
+    assert_eq!(face.node, common::copy_of(session.committed_doc(), extrude));
     assert_eq!(
         session.hover().map(|h| h.name().clone()),
         Some(face.name.clone()),
@@ -685,7 +703,11 @@ fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("the first block is under this ray");
-    assert_eq!(face.node, pattern);
+    assert_eq!(
+        face.node,
+        session.committed_doc().placements()[0],
+        "the first copy is hit"
+    );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
@@ -720,11 +742,15 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
         .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
         .expect("no refusal")
         .expect("the third block is under this ray");
-    assert_eq!(face.body, 2, "the third instance is output body 2");
+    assert_eq!(
+        face.node,
+        session.committed_doc().placements()[2],
+        "the third copy is hit"
+    );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
-    // The parameter edit that consumes it: two instances, no third.
+    // The variable edit that consumes it: two instances, no third.
     let outcome = session.perform(SessionOp::SetSlot {
         node: pattern,
         slot: SlotId::Count,
@@ -749,13 +775,20 @@ fn undo_across_the_selections_birth_leaves_it_unresolved() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
 
-    // Grow the pattern, then pick a face that exists only because of
-    // that edit — the selection is BORN here.
+    // Grow the pattern and place its third copy, then pick a face that
+    // exists only because of those edits — the selection is BORN here.
     session.perform(SessionOp::SetSlot {
         node: pattern,
         slot: SlotId::Count,
         value: SlotValue::Count(3),
     });
+    common::session_insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: pattern,
+            select: viewer::session::PartSelectSpec::Instance(2),
+        },
+    );
     session.pump();
     let index = plate_index(&session);
     let face = index
@@ -908,29 +941,30 @@ fn a_product_scene_carries_no_ids_and_is_therefore_unpickable() {
 
 // --- the merge across display groups ------------------------------
 
-/// **Two identical boxes, authored as two roots at one place.**
+/// **Two identical boxes, each placed, at one place.**
 ///
-/// The display view is what separates them: a root it free-moves is
+/// The display view is what separates them: a copy it free-moves is
 /// picked in its own `pick_face` call, everything else in one batch.
 /// So this one document offers a tie INSIDE the unmoved batch (a ray
 /// across a top rim edge meets the top face and the wall under it) and
-/// a second root the view can put anywhere along the ray — the two
+/// a second copy the view can put anywhere along the ray — the two
 /// things the cross-group merge has to hold together.
 ///
-/// Answers the document and the two extrude roots.
+/// Answers the document and the two placements, the drawn copies.
 fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-two-roots", tol);
     let box_of = |doc: &Doc<ProfileProgram>| {
         let (doc, profile) = common::framed_square(doc, 0.02, tol);
-        common::inserted(
+        let (doc, extrude) = common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.01),
                 side: ExtrudeSide::Along,
             },
             tol,
-        )
+        );
+        common::placed(&doc, extrude, tol)
     };
     let (doc, first) = box_of(&doc);
     let (doc, second) = box_of(&doc);
@@ -967,7 +1001,7 @@ fn across_the_rim() -> Ray {
 ///
 /// The unmoved batch here refuses on its own — the ray crosses a top
 /// rim edge, and the top face and the wall under it are one certified
-/// tie — while the second root is free-moved to sit squarely in front
+/// tie — while the second copy is free-moved to sit squarely in front
 /// of it. Its face PRECEDES both tied ones, so it is the answer: the
 /// pick is a function of the whole candidate set and not of which
 /// batch the display view happened to split the scene into.
@@ -982,10 +1016,10 @@ fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
     let eval = session.evaluation().expect("an evaluation has landed");
     let ray = across_the_rim();
 
-    // The premise: with the second root free-moved out of the ray, the
+    // The premise: with the second copy free-moved out of the ray, the
     // unmoved batch is the first box alone and it REFUSES.
     let away = DisplayView {
-        moved_roots: BTreeMap::from([(second, Frame::translation([0.0, 0.5, 0.0]))]),
+        moved_placements: BTreeMap::from([(second, Frame::translation([0.0, 0.5, 0.0]))]),
         ..DisplayView::none()
     };
     let refusal = index
@@ -997,12 +1031,12 @@ fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
     assert_eq!(hits.len(), 2, "the top face and the wall: {hits:?}");
     assert!(
         hits.iter().all(|hit| hit.node == first),
-        "both of them the unmoved root's: {hits:?}"
+        "both of them the unmoved copy's: {hits:?}"
     );
 
-    // The second root, put in front of that tie along the same ray.
+    // The second copy, put in front of that tie along the same ray.
     let ahead = DisplayView {
-        moved_roots: BTreeMap::from([(second, Frame::translation([0.29, 0.0, 1.0]))]),
+        moved_placements: BTreeMap::from([(second, Frame::translation([0.29, 0.0, 1.0]))]),
         ..DisplayView::none()
     };
     let hit = index
@@ -1011,7 +1045,7 @@ fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
         .expect("the moved box is on the ray");
     assert_eq!(
         hit.node, second,
-        "the moved root's face is the answer, not the refusal of the batch behind it"
+        "the moved copy's face is the answer, not the refusal of the batch behind it"
     );
     assert!(
         hit.t_hi < hits[0].t_lo && hit.t_hi < hits[1].t_lo,
@@ -1021,7 +1055,7 @@ fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
 
 /// **Two coincident faces in different groups refuse with both.**
 ///
-/// The second root is free-moved to exactly where the first one is
+/// The second copy is free-moved to exactly where the first one is
 /// drawn, so a ray down the two boxes' shared top face meets two faces
 /// the arithmetic cannot order — one in the unmoved batch, one in a
 /// moved instance's own call. Neither `pick_face` call sees the other,
@@ -1032,10 +1066,10 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
     let (doc, first, second) = two_boxes(tol);
     let (session, index) = indexed(doc, tol);
     let eval = session.evaluation().expect("an evaluation has landed");
-    // The identity displacement: the root is drawn where it always
+    // The identity displacement: the copy is drawn where it always
     // was, and is its own group because the display view holds it.
     let held = DisplayView {
-        moved_roots: BTreeMap::from([(second, Frame::translation([0.0, 0.0, 0.0]))]),
+        moved_placements: BTreeMap::from([(second, Frame::translation([0.0, 0.0, 0.0]))]),
         ..DisplayView::none()
     };
     let refusal = index
@@ -1051,6 +1085,6 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
     );
     assert_eq!(
         hits[0].t, hits[1].t,
-        "the two faces are coincident, so they answer one parameter: {hits:?}"
+        "the two faces are coincident, so they answer one variable: {hits:?}"
     );
 }

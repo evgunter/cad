@@ -3,7 +3,7 @@
 //! WIDENED parameter the split's body reads, and each Part's body is
 //! the half's or the instance's own, read off the split's or the
 //! pattern's value at the same lane; and the amendment's `Sym<Interval>`
-//! pin of the relaxed same-source assertions on the exact document.
+//! pin of the exact document.
 //!
 //! The widening is scaled to the row's ε because the hosted matrix
 //! runs this row at every ε row and the widened split must certify at
@@ -73,6 +73,7 @@ fn widened_document(width: f64) -> ProfileDoc {
                     hi: width,
                 }),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -83,10 +84,10 @@ fn widened_document(width: f64) -> ProfileDoc {
 
 /// Every Part of `doc` with the node it reads and its selector.
 fn parts(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId, PartSelect)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
-            Some(Node::Part { of, select }) => Some((id, *of, select.clone())),
+            Some(Node::Part { of, select }) => Some((id, doc.operation_of(*of)?, select.clone())),
             _ => None,
         })
         .collect()
@@ -140,7 +141,7 @@ fn node_where(
     doc: &ProfileDoc,
     pick: impl Fn(&editor_core::Node<editor_core::ProfileProgram>) -> bool,
 ) -> RecipeNodeId {
-    *doc.order()
+    *doc.ids()
         .iter()
         .find(|id| doc.node(**id).is_some_and(&pick))
         .expect("the document carries the node")
@@ -266,7 +267,7 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     // The widened box reaches the halves: the above half's top cap
     // carries the width.
     let split = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
@@ -289,9 +290,9 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
 }
 
 /// **The `Sym<Interval>` pin** (the amendment, item 2): the exact
-/// corpus document — whose union rejoins two pieces carrying one
-/// pass-through source — evaluates green at the symbolic scalar, which
-/// has no bit channel either.
+/// corpus document — whose union rejoins the two halves of one split
+/// — evaluates green at the symbolic scalar, which has no bit channel
+/// either.
 #[test]
 fn the_part_select_document_evaluates_at_sym_interval() {
     let cd = corpus::part_select::document();

@@ -221,8 +221,9 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
         } else {
             assert!(realized > 0.0, "[r2p5] d=+1.5 runs away from the apex");
             assert!(
-                matches!(got, Err(ReplaceFaceError::ReanchorOffCarrier { .. })),
-                "[r2p5] so the old row's d now meets the rim gate instead: {got:?}"
+                got.is_ok(),
+                "[r2p5] so the old row's d moves the wall, each rim the section of the \
+                 moved cone and its held neighbour: {got:?}"
             );
         }
     }

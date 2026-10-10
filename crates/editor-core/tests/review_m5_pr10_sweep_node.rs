@@ -61,7 +61,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         let (d, path) = insert(
             doc,
             Node::Profile(editor_core::ProfileProgram {
-                plane: path_plane,
+                frame: path_plane.into(),
                 loops: path_loops,
                 ids: Vec::new(),
             }),
@@ -70,8 +70,8 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         let (doc, sweep) = insert(
             doc,
             Node::Sweep {
-                profile,
-                path,
+                profile: profile.into(),
+                path: path.into(),
                 stations: Formula::count(4),
                 v_degree: Formula::count(2),
             },
@@ -101,7 +101,10 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
                              single-segment case: {what}"
                         );
                         assert!(
-                            what.contains("closed chain of two or more segments"),
+                            what.contains(
+                                "a closed chain of segments, or a full circle as one \
+                                 segment at one vertex"
+                            ),
                             "{name}: the arm must say WHY no path is expressible: {what}"
                         );
                     }
@@ -114,8 +117,9 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
 }
 
 /// The RECIPE doors still run BEFORE the frontier: a Sweep whose path
-/// is a datum is a recipe error and reads as one, never as a frontier
-/// story about geometry it never reached.
+/// is a datum is a recipe error and reads as one — refused by kind at
+/// the edit door — never as a frontier story about geometry it never
+/// reached.
 #[test]
 fn review_recipe_doors_precede_the_sweep_frontier() {
     let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
@@ -127,34 +131,30 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     doc = d;
-    let (d, datum) = insert(
+    let (doc, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::Point {
             position: [len(0.0), len(0.0), len(0.0)],
         }),
     );
-    doc = d;
-    let (doc, sweep) = insert(
-        doc,
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Sweep {
-            profile,
-            path: datum,
+            profile: profile.into(),
+            path: datum.into(),
             stations: Formula::count(4),
             v_degree: Formula::count(2),
         },
     );
-    let out = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
+    assert!(
+        matches!(
+            &refusal,
+            editor_core::EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Path),
+                found: editor_core::VarKind::Point,
+                ..
+            }
+        ),
+        "a datum path is refused by kind: {refusal:?}"
     );
-    match out.nodes.get(&sweep).expect("result") {
-        NodeResult::Failed(e) => match &e.kind {
-            NodeErrorKind::WrongOperand { input, .. } => assert_eq!(*input, datum),
-            other => panic!("a datum path must be WrongOperand, got {other:?}"),
-        },
-        other => panic!("sweep unexpectedly produced {other:?}"),
-    }
 }

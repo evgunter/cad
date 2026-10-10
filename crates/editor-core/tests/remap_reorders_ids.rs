@@ -49,9 +49,9 @@ struct Built {
 }
 
 fn added(before: &ProfileDoc, after: &ProfileDoc) -> Vec<RecipeNodeId> {
-    let old: BTreeSet<_> = before.order().iter().copied().collect();
+    let old: BTreeSet<_> = before.ids().iter().copied().collect();
     after
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|i| !old.contains(i))
@@ -61,7 +61,7 @@ fn added(before: &ProfileDoc, after: &ProfileDoc) -> Vec<RecipeNodeId> {
 fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
     let mut doc = ProfileDoc::empty_derived("remap-reorders-ids", Tol::witness());
     let mut keyed = BTreeMap::new();
-    let mut ids = vec![RecipeNodeId(0); blocks.len()];
+    let mut ids = vec![RecipeNodeId::new(0, 0); blocks.len()];
     for &i in creation {
         let (x, y, z) = blocks[i];
         let before = doc.clone();
@@ -79,13 +79,13 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
         let before = doc.clone();
         let node = match *op {
             Op::Union(ms) => Node::Union {
-                members: ms.iter().map(|&m| r(m, &out)).collect(),
+                members: ms.iter().map(|&m| r(m, &out).into()).collect(),
                 declare: Vec::new(),
             },
             Op::Pair(op, a, b) => Node::Boolean {
                 op,
-                a: r(a, &out),
-                b: r(b, &out),
+                a: (r(a, &out)).into(),
+                b: (r(b, &out)).into(),
                 declare: Vec::new(),
             },
         };

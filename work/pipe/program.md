@@ -2,7 +2,7 @@
 id: pipe
 kind: program
 title: PIPE — the topology pipeline, its shared cores and what a refusal there may say
-status: ready
+status: blocked
 opened: 2026-09-11
 area: kernel
 prefix: pipe/

@@ -99,3 +99,11 @@ self/adjacent-pair lane exists, and once it does the certificate
 refuses the fold with no turn-sign rule and no cusp declaration. So
 this row no longer waits on D10: it waits on the certificate's
 prerequisites, and it closes when the certificate unit lands.
+
+## After stage 4 G (`tangent-joints-are-derived`)
+
+`UndeclaredTangency` is retired: a section joint its carriers decide
+tangent, cusp or smooth, validates and is recorded for the
+`unproven-coincidence` lint instead. The cusp door at authoring is
+`PathError::JunctionCusp` alone. Neither section here has a cusp, so the
+finding is unchanged.

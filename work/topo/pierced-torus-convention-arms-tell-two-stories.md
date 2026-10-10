@@ -63,7 +63,7 @@ first (`boolean::solid_contain::point_on_torus_in_face`'s
 `CurvedPierceUnsupported`'s declare menu or `Containment`'s "the solid
 itself is fine", as on main. Those two front-door stories are filed on
 CONTACT's slate:
-`work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`.
+`work/sector/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`.
 
 ## Closed (2026-09-30, PR 3506)
 

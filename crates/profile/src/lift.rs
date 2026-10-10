@@ -1,38 +1,37 @@
 //! **The v1 → program lift** (PROFILES-V2 §V5, LIB-SWITCH §7).
 //!
 //! A development-side authoring tool: it takes a v1-form
-//! [`ProfileLoop`] — vertices, canonical segments, and the
-//! declared-tangent joint set — and mints an equivalent chain- (or
-//! carrier-) vocabulary
-//! program. It is **not a load path and never runs at load** (LQ7a's
+//! [`ProfileLoop`] — vertices and canonical segments — and mints an
+//! equivalent chain- (or carrier-) vocabulary program. It is **not a load path and never runs at load** (LQ7a's
 //! clean break: a v1-form document predates the `id:` header line, so
 //! the persistence door refuses it `PersistError::HeaderId` with the
 //! regenerate recourse and never reads its body; nothing in that door
 //! reaches this module).
 //!
-//! # What the declared flags can pin
+//! # What the tangent junctions pin
 //!
 //! PATHS-DESIGN's harmonization paragraph says the v1 flags are what
 //! make the lift well-defined: "declared junctions become `.tangent()`
-//! calls, fillet-authored arcs become `.fillet(r)`". Measured against
-//! the actual v1 form, only the first half is a flag read:
-//! [`ProfileLoop::tangent_joints`] is the ONLY declared datum, and a
-//! fillet leaves no marker of its own — it is exactly *an arc whose
-//! two joints are both declared*, which is also what a hand-declared
-//! tangent arc looks like. Recovering `.fillet(r)` would mean
-//! un-trimming the corner (inference, not a flag read), and the
-//! reconstruction is anchor-sensitive in precisely the way finding F10
-//! describes. This tool therefore spells every declared junction
-//! `.tangent()` and leaves the fillet spelling banked; the census
-//! below counts the fillet-shaped loops it meets so the cost is
-//! measured rather than assumed.
+//! calls, fillet-authored arcs become `.fillet(r)`". A loop stores no
+//! flag; its tangent junctions are what validation derives from its
+//! carriers (D1: every zero-turn joint is a tangent joint), and the
+//! lift reads that set. A fillet leaves no marker of its own — it is
+//! exactly *an arc whose two joints are both tangent*, which is also
+//! what a hand-authored tangent arc looks like. Recovering `.fillet(r)`
+//! would mean un-trimming the corner (inference, not a set read), and
+//! the reconstruction is anchor-sensitive in precisely the way finding
+//! F10 describes. This tool therefore spells every tangent junction
+//! `.tangent()` and leaves the fillet spelling banked; the census below
+//! counts the fillet-shaped loops it meets so the cost is measured
+//! rather than assumed.
 //!
 //! # Two refusal layers, deliberately
 //!
 //! Mirroring [`ReplayErrorKind`]'s own split:
 //!
 //! - **Structural** walls are this tool's: a loop the chain vocabulary
-//!   has no shape for at all ([`LiftRefusal`]).
+//!   has no shape for at all, or whose tangent junctions cannot be
+//!   derived ([`LiftRefusal`]).
 //! - **Geometric** walls are the DRIVER's. The lift does not
 //!   re-implement a single predicate; it spells the natural program and
 //!   lets the binders refuse. A same-carrier junction, a tangent-line
@@ -43,22 +42,23 @@
 //!
 //! # The seam
 //!
-//! A chain binds its entry with `.at(p)`, which declares nothing. Since
-//! a loop is cyclic and the seam is authoring freedom, the lift ROTATES
-//! to the first undeclared joint and reports the rotation it used; the
+//! A chain binds its entry with `.at(p)`, which constructs nothing.
+//! Since a loop is cyclic and the seam is authoring freedom, the lift
+//! ROTATES to the first joint that is not tangent and reports the
+//! rotation it used; the
 //! differential comparison is against the correspondingly rotated
 //! source, which is pure reindexing (no arithmetic, so bit-exactness is
 //! preserved).
 //!
-//! A loop with NO undeclared joint — a fully filleted outline, a
-//! stadium — is seamed the other way round: the entry still declares
+//! A loop whose every joint is tangent — a fully filleted outline, a
+//! stadium — is seamed the other way round: the entry still constructs
 //! nothing, but the CLOSING TARGET does
 //! ([`Start::arrives_tangent`](crate::path::Start::arrives_tangent)),
-//! so the chain seams at 0 and joint 0's declaration rides the arrival.
+//! so the chain seams at 0 and joint 0's tangency rides the arrival.
 //! Every closing verb takes that target, including the continuation —
-//! which is why a declared joint whose leaving segment closes the loop
+//! which is why a tangent joint whose leaving segment closes the loop
 //! straight is `continue_to` and not `.tangent().line(len)`: the
-//! continuation verb declares the joint it mints, and it closes.
+//! continuation verb constructs the joint it mints, and it closes.
 //!
 //! # Directors
 //!
@@ -90,13 +90,17 @@ pub enum Fidelity {
     ValueEqual,
 }
 
-/// A structural wall: a loop the chain vocabulary has no shape for.
+/// A structural wall: a loop the chain vocabulary has no shape for, or
+/// whose tangent junctions cannot be derived.
 ///
-/// Geometric walls are NOT here — those are the driver's refusals,
-/// surfaced verbatim through [`LiftOutcome::ReplayRefused`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Geometric walls of the SPELLING are NOT here — those are the
+/// driver's refusals, surfaced verbatim through
+/// [`LiftOutcome::ReplayRefused`].
+#[derive(Clone, Debug, PartialEq)]
 pub enum LiftRefusal {
-    /// Fewer than two vertices: there is no loop to lift.
+    /// Fewer than two vertices: the chain vocabulary spells a loop
+    /// from two vertices up, so a one-segment loop (D1's full turn) has
+    /// no spelling here yet.
     TooFewVertices {
         /// How many the loop carried.
         vertices: usize,
@@ -108,22 +112,17 @@ pub enum LiftRefusal {
         /// The offending vertex index.
         vertex: usize,
     },
-    /// A declared-joint index does not name a vertex of this loop
-    /// (the validator's `TangentJointOutOfRange`, met earlier).
-    JointIndexOutOfRange {
-        /// The offending index.
-        joint: usize,
-        /// How many vertices the loop has.
-        vertices: usize,
-    },
+    /// The loop's tangent junctions could not be derived: a segment or
+    /// a joint validation refuses or cannot decide, so there is no set
+    /// to spell. The error reads the lifted loop as loop 0, the only
+    /// loop of a profile of its own, whatever loop it was elsewhere.
+    Unclassified(crate::ProfileError),
     /// A same-carrier arc run reaches the SEAM. `arc_continue` has no
     /// closing form (it mints a structural subdivision vertex mid-chain
     /// only), and closing with `arc_to(Start)` on the incoming carrier
-    /// leaves the seam's own zero-turn junction UNDECLARED, which
-    /// refuses `SeamTangent`. (It used to refuse `SameCarrierJunction`
-    /// — retired with the Q1 sixth round, Ev in-chat 2026-09-02:
-    /// carrier identity is not a reason for anything, and the seam's
-    /// declaration is `Start.arrives_tangent()`.)
+    /// leaves the seam's own zero-turn junction unconstructed, which
+    /// refuses `SeamTangent`; the seam's construction is
+    /// `Start.arrives_tangent()`.
     SameCarrierClose {
         /// The joint's vertex index in the SOURCE loop.
         joint: usize,
@@ -134,7 +133,10 @@ impl std::fmt::Display for LiftRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TooFewVertices { vertices } => {
-                write!(f, "a loop needs at least two vertices; found {vertices}")
+                write!(
+                    f,
+                    "the chain vocabulary spells a loop of at least two vertices; found {vertices}"
+                )
             }
             Self::NonFinite { vertex } => {
                 write!(
@@ -142,10 +144,13 @@ impl std::fmt::Display for LiftRefusal {
                     "vertex {vertex} carries a non-finite coordinate or arc field"
                 )
             }
-            Self::JointIndexOutOfRange { joint, vertices } => write!(
-                f,
-                "declared joint {joint} is out of range for a {vertices}-vertex loop"
-            ),
+            Self::Unclassified(error) => {
+                write!(
+                    f,
+                    "the loop's tangent junctions cannot be derived (read alone, as loop 0): \
+                     {error}"
+                )
+            }
             Self::SameCarrierClose { joint } => write!(
                 f,
                 "the same-carrier arc run at joint {joint} reaches the seam; arc_continue has \
@@ -165,20 +170,13 @@ impl std::error::Error for LiftRefusal {}
 #[derive(Clone, Debug)]
 pub enum LiftOutcome {
     /// Lifted, and replay reproduces the source loop (up to
-    /// `rotation`): its vertex table to `fidelity`, every joint the
-    /// source declared, and the joints in `declared`.
+    /// `rotation`): its vertex table to `fidelity`, and its tangent
+    /// junctions exactly, each one the replay's constructors made.
     Lifted {
         /// The minted program.
         program: Vec<Step<f64>>,
         /// How far the seam was rotated from the source's vertex 0.
         rotation: usize,
-        /// The joints the lift DECLARED that the source left
-        /// undeclared, as ascending source vertex indices. Every
-        /// zero-turn joint is a declared tangent joint, so where the
-        /// source's data turns zero at a joint the lattice's spelling
-        /// declares it, and the replay differs from the source in
-        /// exactly that declaration.
-        declared: Vec<usize>,
         /// Bit-identical, or value-equal with derived bits shifted.
         fidelity: Fidelity,
         /// The largest ulp distance over all compared values. NOT a
@@ -258,7 +256,7 @@ const VALUE_EQUAL_ABS: f64 = 1e-12;
 ///
 /// [`LiftRefusal`], naming the structural wall.
 pub fn lift(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Vec<Step<f64>>, LiftRefusal> {
-    lift_seamed(loop_, tol).map(|(program, _)| program)
+    lift_seamed(loop_, tol).map(|lifted| lifted.program)
 }
 
 /// **The differential harness**: lift, replay, and compare against the
@@ -267,8 +265,12 @@ pub fn lift(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Vec<Step<f64>>, LiftRe
 /// Total by construction — every path produces a census row rather than
 /// an error the caller must interpret.
 pub fn lift_checked(loop_: &ProfileLoop<f64>, tol: Tol) -> LiftOutcome {
-    let (program, rotation) = match lift_seamed(loop_, tol) {
-        Ok(pair) => pair,
+    let Seamed {
+        program,
+        rotation,
+        tangent,
+    } = match lift_seamed(loop_, tol) {
+        Ok(lifted) => lifted,
         Err(refusal) => return LiftOutcome::Refused(refusal),
     };
     let replayed = match replay(&program, tol) {
@@ -281,20 +283,11 @@ pub fn lift_checked(loop_: &ProfileLoop<f64>, tol: Tol) -> LiftOutcome {
             };
         }
     };
-    let want = rotated(loop_, rotation);
-    let verdict = compare(&want, replayed.as_loop());
+    let verdict = compare(&rotated(loop_, &tangent, rotation), &replayed);
     if verdict.equal {
-        let n = loop_.vertices.len();
-        let mut declared: Vec<usize> = verdict
-            .declared
-            .iter()
-            .map(|&j| (j + rotation) % n)
-            .collect();
-        declared.sort_unstable();
         LiftOutcome::Lifted {
             program,
             rotation,
-            declared,
             fidelity: if verdict.bit_identical {
                 Fidelity::BitIdentical
             } else {
@@ -317,8 +310,16 @@ pub fn lift_checked(loop_: &ProfileLoop<f64>, tol: Tol) -> LiftOutcome {
 // Minting
 // ------------------------------------------------------------------
 
-/// The lift proper: the program AND the seam rotation it authored at.
-fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, usize), LiftRefusal> {
+/// What the lift minted: the program, the seam rotation it authored
+/// at, and the source's tangent junctions it spelled.
+struct Seamed {
+    program: Vec<Step<f64>>,
+    rotation: usize,
+    tangent: Vec<usize>,
+}
+
+/// The lift proper ([`Seamed`]).
+fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Seamed, LiftRefusal> {
     let n = loop_.vertices.len();
     if n < 2 {
         return Err(LiftRefusal::TooFewVertices { vertices: n });
@@ -334,36 +335,39 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, us
             return Err(LiftRefusal::NonFinite { vertex: i });
         }
     }
-    let mut declared = vec![false; n];
-    for &j in &loop_.tangent_joints {
-        match declared.get_mut(j) {
-            Some(slot) => *slot = true,
-            None => {
-                return Err(LiftRefusal::JointIndexOutOfRange {
-                    joint: j,
-                    vertices: n,
-                });
-            }
-        }
-    }
+    // The lift reads one loop alone, as the only loop of its own
+    // profile, so a refusal names it loop 0.
+    let tangent =
+        crate::validate::table_tangent_joints(loop_, 0, tol).map_err(LiftRefusal::Unclassified)?;
 
     // The closed-carrier forms first: a loop that IS a carrier has no
     // seam to author, and `circle`/`circle_split` say so in one step.
-    if !declared.iter().any(|d| *d)
-        && let Some(found) = carrier_form(loop_, tol)
-    {
-        return Ok(found);
+    if let Some((program, rotation)) = carrier_form(loop_, &tangent, tol) {
+        return Ok(Seamed {
+            program,
+            rotation,
+            tangent,
+        });
     }
 
     // The seam is authoring freedom, so the lift rotates to a joint
-    // `.at(p)` can carry — an undeclared one — and reports the rotation
-    // it used. When every joint is declared there is no such rotation,
-    // and the seam is authored the other way round: `.at(p)` still
-    // declares nothing, but the CLOSER does
+    // `.at(p)` can carry — one that is not tangent — and reports the
+    // rotation it used. When every joint is tangent there is no such
+    // rotation, and the seam is authored the other way round: `.at(p)`
+    // still constructs nothing, but the CLOSER does
     // (`Start.arrives_tangent()`), so the chain seams at 0 and the
-    // arrival carries joint 0's declaration.
-    let rotation = declared.iter().position(|d| !*d).unwrap_or(0);
-    chain_form(loop_, &declared, rotation, tol).map(|program| (program, rotation))
+    // arrival carries joint 0's tangency.
+    let mut is_tangent = vec![false; n];
+    for &j in &tangent {
+        is_tangent[j] = true;
+    }
+    let rotation = is_tangent.iter().position(|t| !*t).unwrap_or(0);
+    let program = chain_form(loop_, &is_tangent, rotation, tol)?;
+    Ok(Seamed {
+        program,
+        rotation,
+        tangent,
+    })
 }
 
 /// Try the one-step carrier spellings, VERIFYING each by replay rather
@@ -373,7 +377,11 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, us
 /// the +x pole and `circle_split` at `phase`, so a hand-authored carrier
 /// loop generally corresponds to one of them ROTATED. Returns the
 /// program and the rotation it matched at, preferring an exact match.
-fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, usize)> {
+fn carrier_form(
+    loop_: &ProfileLoop<f64>,
+    tangent: &[usize],
+    tol: Tol,
+) -> Option<(Vec<Step<f64>>, usize)> {
     let n = loop_.vertices.len();
     // Only a loop that is arcs all the way round can be one carrier;
     // this guard keeps the search off every polygon.
@@ -388,7 +396,7 @@ fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, u
         };
         let (centre, radius) = (arc.centre, arc.radius);
         let phase = (a.y - centre.y).atan2(a.x - centre.x);
-        let want = rotated(loop_, r);
+        let want = rotated(loop_, tangent, r);
         let mut candidates = Vec::with_capacity(2);
         if n == 2 {
             candidates.push(vec![Step::Circle { centre, radius }]);
@@ -403,7 +411,7 @@ fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, u
             let Ok(replayed) = replay(&program, tol) else {
                 continue;
             };
-            let verdict = compare(&want, replayed.as_loop());
+            let verdict = compare(&want, &replayed);
             if !verdict.equal {
                 continue;
             }
@@ -425,7 +433,7 @@ fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, u
 /// repair driven by the DRIVER's own refusals.
 fn chain_form(
     loop_: &ProfileLoop<f64>,
-    declared: &[bool],
+    is_tangent: &[bool],
     rotation: usize,
     tol: Tol,
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
@@ -438,12 +446,12 @@ fn chain_form(
     for k in 0..n {
         let src = (rotation + k) % n;
         let (here, line) = (at(k), matches!(loop_.segments[src], Segment::Line));
-        // The seam joint is the one the entry cannot declare, so the
-        // closing target carries its declaration instead.
+        // The seam joint is the one the entry cannot construct, so the
+        // closing target carries its tangency instead.
         let target = if k + 1 == n {
-            // `declared` is per-vertex and `rotation < n`, both by
+            // `is_tangent` is per-vertex and `rotation < n`, both by
             // construction at the caller — indexing is the honest read.
-            if declared[rotation] {
+            if is_tangent[rotation] {
                 Target::StartArriving
             } else {
                 Target::Start
@@ -451,11 +459,11 @@ fn chain_form(
         } else {
             Target::Point(at(k + 1))
         };
-        if k > 0 && declared[src] {
+        if k > 0 && is_tangent[src] {
             if line {
-                // A straight leg off a declared joint IS the
-                // continuation verb, and the continuation verb declares
-                // the joint it mints — so no `.tangent()` precedes it,
+                // A straight leg off a tangent joint IS the
+                // continuation verb, and the continuation verb
+                // constructs the joint it mints — so no `.tangent()` precedes it,
                 // and unlike `.line(len)` it closes.
                 origin.push(src);
                 if k + 1 == n {
@@ -491,14 +499,14 @@ fn chain_form(
     repair_same_carrier(program, &origin, tol)
 }
 
-/// Declare the zero-turn joint wherever the DRIVER says an arc leg
-/// arrives at one undeclared (§5-1's class, met by the binder's own
+/// Construct the zero-turn joint wherever the DRIVER says an arc leg
+/// arrives at one unconstructed (§5-1's class, met by the binder's own
 /// refusal rather than by a re-derived predicate).
 ///
 /// A cocircular arc/arc junction has zero turn, so `arc_to` classifies
-/// it `JunctionTangent` — the UNDECLARED zero-turn junction, which is
-/// the one trigger left. The re-spelling is the lattice's own: the
-/// leg becomes `.tangent().tangent_arc_to(p)`, its joint DECLARED and
+/// it `JunctionTangent` — the unconstructed zero-turn junction, which
+/// is the one trigger left. The re-spelling is the lattice's own: the
+/// leg becomes `.tangent().tangent_arc_to(p)`, its joint constructed and
 /// its arc derived from the inherited tangent and the authored target
 /// — which mints the raw run's vertex and a carrier the raw run's own
 /// satisfies, the tangent-chord derivation being one it meets. Whether the derived arc reproduces the raw one is the
@@ -511,7 +519,7 @@ fn repair_same_carrier(
     origin: &[usize],
     tol: Tol,
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
-    // The declaration is two steps where the leg was one, so the
+    // The construction is two steps where the leg was one, so the
     // source-segment map grows alongside the program.
     let mut origin = origin.to_vec();
     // Each accepted substitution moves the refusal strictly later, so
@@ -539,7 +547,7 @@ fn repair_same_carrier(
                 origin.insert(error.step, src);
                 match replay(&program, tol) {
                     Ok(_) => return Ok(program),
-                    // Progress means past BOTH steps of the declaration.
+                    // Progress means past BOTH steps of the construction.
                     Err(next) if next.step > error.step + 1 => {}
                     Err(_) => return Ok(saved),
                 }
@@ -561,9 +569,9 @@ fn repair_same_carrier(
 /// Is this refusal the "the incoming carrier just continues" fact?
 ///
 /// One arm since the 2026-09-02 ruling: every zero-turn joint is a
-/// declared tangent joint, so the algebra no longer refuses carrier
-/// IDENTITY at all and `JunctionTangent` — the UNDECLARED zero-turn
-/// junction — is the whole of what this asks about.
+/// tangent joint, so the algebra no longer refuses carrier IDENTITY at
+/// all and `JunctionTangent` — the unconstructed zero-turn junction —
+/// is the whole of what this asks about.
 fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
     matches!(
         kind,
@@ -575,24 +583,29 @@ fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
 // Comparison
 // ------------------------------------------------------------------
 
-/// The source loop re-seamed at `rotation`: its (vertex, segment)
-/// chain reindexed, every stored bit carried verbatim.
-fn rotated(loop_: &ProfileLoop<f64>, rotation: usize) -> ProfileLoop<f64> {
+/// The source loop re-seamed at `rotation`, with its tangent junctions:
+/// its (vertex, segment) chain reindexed, every stored bit carried
+/// verbatim, and each junction carried to its new index.
+fn rotated(loop_: &ProfileLoop<f64>, tangent: &[usize], rotation: usize) -> Source {
     let n = loop_.vertices.len();
-    if rotation == 0 || n == 0 {
-        return loop_.clone();
-    }
-    let r = rotation % n;
+    let r = if n == 0 { 0 } else { rotation % n };
     let chain = (0..n).map(|k| {
         let i = (r + k) % n;
         (loop_.vertices[i], loop_.segments[i])
     });
-    let tangent_joints = loop_
-        .tangent_joints
-        .iter()
-        .map(|&j| (j % n + n - r) % n)
-        .collect();
-    ProfileLoop::from_chain(chain, tangent_joints)
+    let mut tangent: Vec<usize> = tangent.iter().map(|&j| (j % n + n - r) % n).collect();
+    tangent.sort_unstable();
+    Source {
+        loop_: ProfileLoop::from_chain(chain),
+        tangent,
+    }
+}
+
+/// A source loop as the comparison reads it: the table and its tangent
+/// junctions, ascending.
+struct Source {
+    loop_: ProfileLoop<f64>,
+    tangent: Vec<usize>,
 }
 
 /// The differential verdict for one loop pair.
@@ -605,8 +618,6 @@ struct Verdict {
     worst_ulps: u64,
     /// Largest absolute gap seen.
     worst_abs: f64,
-    /// Joints `got` declares and `want` does not, in their frame.
-    declared: Vec<usize>,
 }
 
 impl Verdict {
@@ -617,27 +628,18 @@ impl Verdict {
             bit_identical: false,
             worst_ulps: u64::MAX,
             worst_abs: f64::INFINITY,
-            declared: Vec::new(),
         }
     }
 }
 
-fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
-    if want.vertices.len() != got.vertices.len() {
-        return Verdict::incomparable();
-    }
-    let joints = |l: &ProfileLoop<f64>| {
-        let mut js = l.tangent_joints.clone();
-        js.sort_unstable();
-        js.dedup();
-        js
-    };
-    // The lift may declare a joint the source left undeclared — the
-    // lattice declares every zero-turn joint it spells, and the table
-    // comparison below holds the geometry to the source's — but it
-    // never drops a declaration the source made.
-    let (want_joints, got_joints) = (joints(want), joints(got));
-    if want_joints.iter().any(|j| !got_joints.contains(j)) {
+/// The source against the replay: the replay's constructors made
+/// exactly the source's tangent junctions, and its table holds the
+/// source's geometry.
+fn compare(want: &Source, got: &crate::ConstructedLoop<f64>) -> Verdict {
+    let (want_table, got_table) = (&want.loop_, got.as_loop());
+    if want_table.vertices.len() != got_table.vertices.len()
+        || want.tangent != got.constructed_joints()
+    {
         return Verdict::incomparable();
     }
     let mut verdict = Verdict {
@@ -645,10 +647,6 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
         bit_identical: true,
         worst_ulps: 0,
         worst_abs: 0.0,
-        declared: got_joints
-            .into_iter()
-            .filter(|j| !want_joints.contains(j))
-            .collect(),
     };
     // Each vertex with its leaving segment's stored fields: a line
     // stores none, an arc its centre, radius and sweep. Two loops whose
@@ -665,7 +663,7 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
             })
             .collect::<Vec<_>>()
     };
-    let (want_rows, got_rows) = (rows(want), rows(got));
+    let (want_rows, got_rows) = (rows(want_table), rows(got_table));
     if want_rows
         .iter()
         .zip(&got_rows)
@@ -717,34 +715,34 @@ fn ulps(a: f64, b: f64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::compare;
-    use crate::{ProfileLoop, Segment};
+    use super::{Source, compare};
+    use crate::{ConstructedLoop, ProfileLoop, Segment};
     use geom_core::Point2;
 
-    fn square(joints: Vec<usize>) -> ProfileLoop<f64> {
+    fn square() -> ProfileLoop<f64> {
         let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        ProfileLoop::from_chain(
-            corners.map(|(x, y)| (Point2::new(x, y), Segment::Line)),
-            joints,
-        )
+        ProfileLoop::from_chain(corners.map(|(x, y)| (Point2::new(x, y), Segment::Line)))
     }
 
-    /// **The comparator reads a declaration the lift added as the
-    /// same loop, and one it dropped as a different loop.** One table
-    /// throughout; only the declared-joint sets differ.
+    /// **The comparator reads a tangent junction the replay did not
+    /// construct, or one it constructed that the source does not have,
+    /// as a different loop.** One table throughout; only the joint sets
+    /// differ.
     ///
-    /// Red if a joint-set difference compares in both directions, or
-    /// in neither.
+    /// Red if a joint-set difference compares in either direction, or
+    /// equal sets do not.
     #[test]
-    fn an_added_declaration_compares_and_a_dropped_one_does_not() {
-        let added = compare(&square(vec![]), &square(vec![1]));
-        assert!(added.equal && added.bit_identical, "added: one table");
-        assert_eq!(added.declared, vec![1], "added: the joint declared");
-
-        let dropped = compare(&square(vec![1]), &square(vec![]));
-        assert!(!dropped.equal, "dropped: a declaration the replay lost");
-
-        let kept = compare(&square(vec![2]), &square(vec![2]));
-        assert!(kept.equal && kept.declared.is_empty(), "kept: none added");
+    fn a_joint_set_difference_either_way_does_not_compare() {
+        let source = |tangent: Vec<usize>| Source {
+            loop_: square(),
+            tangent,
+        };
+        let replay = |joints: Vec<usize>| ConstructedLoop::fixture(square(), joints);
+        let added = compare(&source(vec![]), &replay(vec![1]));
+        assert!(!added.equal, "added: a joint the source has not");
+        let dropped = compare(&source(vec![1]), &replay(vec![]));
+        assert!(!dropped.equal, "dropped: a joint the replay lost");
+        let kept = compare(&source(vec![2]), &replay(vec![2]));
+        assert!(kept.equal && kept.bit_identical, "kept: one loop");
     }
 }

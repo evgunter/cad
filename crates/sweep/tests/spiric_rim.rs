@@ -661,17 +661,15 @@ fn the_cavity_pcurves_certify_on_both_charts() {
                         .and_then(|g| g.certified())
                         .expect("certified")
                         .params();
-                    let window = derived.chart_box(t0, t1);
                     let carrier = cavity
                         .get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .expect("certified")
                         .carrier()
                         .clone();
-                    let cache = geom_brep::PcurveCache::certify(
-                        derived, t0, t1, &carrier, &surface, window, band,
-                    )
-                    .expect("the derived cap image certifies through the door");
+                    let cache =
+                        geom_brep::PcurveCache::certify(derived, t0, t1, &carrier, &surface, band)
+                            .expect("the derived cap image certifies through the door");
                     assert_eq!(
                         cache.certificate().statement,
                         geom_brep::EnvelopeStatement::MapResidualClosedForm
@@ -776,9 +774,8 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
         worst >= floor,
         "every sample sees at least (R - r)*2|sin(d/2)|: {worst:e} < {floor:e}"
     );
-    let window = moved.chart_box(t0, t1);
     assert!(
-        geom_brep::PcurveCache::certify(moved, t0, t1, &carrier, &surface, window, band).is_err(),
+        geom_brep::PcurveCache::certify(moved, t0, t1, &carrier, &surface, band).is_err(),
         "the schedule refuses a displaced azimuth constant"
     );
 }
@@ -1084,7 +1081,7 @@ mod interval_rows {
         let mut cavity = body.clone();
         let band = Band::linear(tol).expect("band");
         match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(topo::ReplaceFaceError::Escalated { source })
                 if tol.eps() < geom_core::tolerance::DEFAULT_EPS =>
             {

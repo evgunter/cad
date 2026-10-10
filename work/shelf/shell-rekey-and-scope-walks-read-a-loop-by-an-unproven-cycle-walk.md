@@ -22,8 +22,8 @@ operand that no entry gate validates:
 
 - `shell::loop_rekeyed` (`crates/topo/src/shell.rs:2344`, the walk
   at `:2360`): the walked
-  edges' specs go to `Body::set_edge_curve` through
-  `rename_loop_surface` and to `Body::set_face_surfaces_describing`.
+  edges' specs go to `Body::kfmrh_describing` (the rim glue) and to
+  `Body::set_face_surfaces_describing`.
 - `offset_together::Scope::walk`
   (`crates/topo/src/offset_together.rs:807`, the walk at `:822`): the
   walked starts and edges

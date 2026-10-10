@@ -4,14 +4,18 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 use sweep::ExtrudeSide;
 
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey};
+use topo::{Body, EdgeKey};
+
+use crate::common::stations::{construction_state, cut_stations, joined};
 
 /// `[0,w]×[0,2]` prism of height 2, bottom side split at `bottom`,
 /// top side split at `top` (x positions, descending order on the top
-/// as walked), merged.
+/// as walked), merged. The sweep carries each side as one rim edge per
+/// cap, so the splits are cut into the rims by hand
+/// (`common::stations`).
 fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
     let xs: Vec<f64> = bottom.iter().copied().chain([w]).collect();
     let mut b = Open
@@ -40,7 +44,7 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
     let v = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
         .unwrap();
-    let mut body = extrude(
+    let ex = extrude(
         &v,
         Extrusion::Distance {
             depth: 2.0,
@@ -48,9 +52,20 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
         },
         t,
     )
-    .unwrap()
-    .body;
-    body.merge_coplanar_faces(t).unwrap();
+    .unwrap();
+    let mut body = ex.body;
+    for wall in &ex.walls[0] {
+        let (y, xs) = match wall.segments[0] {
+            0 => (0.0, bottom),
+            s if s == bottom.len() + 2 => (2.0, top),
+            _ => continue,
+        };
+        for (rim, z) in [(wall.bottom_rim, 0.0), (wall.top_rim, 2.0)] {
+            let at: Vec<_> = xs.iter().map(|&x| Point3::new(x, y, z)).collect();
+            body = cut_stations(body, rim, &at, t);
+        }
+    }
+    topo::test_support::merge_unjoined(&mut body, t).unwrap();
     body
 }
 
@@ -70,35 +85,21 @@ fn vol(b: &Body<f64>, t: Tol) -> f64 {
     topo::mass_properties(b, t).unwrap().volume
 }
 
-fn band_radial_err(body: &Body<f64>, f: FaceKey) -> f64 {
-    let s = body.get_face(f).unwrap().surface;
-    let Some(geom::Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        ..
-    }) = body.get_surface(s)
-    else {
-        return f64::NAN;
-    };
-    let mut worst: f64 = 0.0;
-    for (v, p) in body.vertex_points() {
-        if !body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&f)) {
-            continue;
-        }
-        let d = p - *origin;
-        let along = d.dot(*axis);
-        let rad = (d - *axis * along).norm();
-        worst = worst.max((rad - radius).abs());
-    }
-    worst
-}
-
-/// Builds both verbs, tier 3, closed-form volume, feet on the band
-/// cylinder, naming totality.
-fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usize) {
+/// The hand-split prism is construction state — the at-rest gate
+/// refuses its joints (tier 3's check 11), so no blend door takes it —
+/// and joined, it is the plain box, which builds both verbs: tier 3,
+/// closed-form volume, one band per box edge and no joined band, naming
+/// totality. `joints` is how many joints the gate names.
+fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joints: usize) {
     let t = Tol::witness();
     let body = prism(w, bottom, top, t);
+    assert_eq!(
+        construction_state(&body, t).len(),
+        joints,
+        "{label}: the joints"
+    );
+    let (body, _) = joined(body, t);
+    let body = sweep::test_support::finished("body", body, t);
     let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let f = sweep::fillet::fillet_edges(&body, &req, r, t)
         .unwrap_or_else(|e| panic!("{label}: fillet: {e}"));
@@ -109,13 +110,7 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usiz
     );
     assert_eq!(f.body.faces().count(), 26, "{label}: one band per box edge");
     let rec = f.naming.as_ref().unwrap();
-    assert_eq!(rec.joined_blends.len(), joined, "{label}: joined bands");
-    for (fk, _) in &rec.joined_blends {
-        assert!(
-            band_radial_err(&f.body, *fk) <= 1e-14,
-            "{label}: a foot is off the band"
-        );
-    }
+    assert!(rec.joined_blends.is_empty(), "{label}: no joined band");
     let want = rounded(w, 2.0, 2.0, r);
     assert!(
         (vol(&f.body, t) - want).abs() <= 1e-12 * want,
@@ -137,18 +132,19 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usiz
 }
 
 /// Five-link chains, mixed link lengths, joints near corners on both
-/// rims, and a mid joint at r = 0.49.
+/// rims, and a mid joint at r = 0.49: each joint is construction state,
+/// and each prism, joined, is the plain box.
 #[test]
 fn joined_bands_build_across_link_counts_and_by_corners() {
-    builds("3 links", 2.0, &[0.7, 1.3], &[], 0.25, 2);
-    builds("5 links", 2.0, &[0.4, 0.8, 1.2, 1.6], &[], 0.1, 2);
+    builds("3 links", 2.0, &[0.7, 1.3], &[], 0.25, 4);
+    builds("5 links", 2.0, &[0.4, 0.8, 1.2, 1.6], &[], 0.1, 8);
     builds(
         "5 + 2 links, mixed, w = 7",
         7.0,
         &[1.3, 2.9, 4.4, 6.1],
         &[3.3],
         0.4,
-        4,
+        10,
     );
     builds(
         "joints 0.501 from a corner, on both rims",
@@ -161,63 +157,32 @@ fn joined_bands_build_across_link_counts_and_by_corners() {
     builds("r = 0.49 at a mid joint", 2.0, &[1.0], &[], 0.49, 2);
 }
 
-/// **The clearance screen reads a joined run as one feature.** Two
-/// links of one run are never a clearance pair and the run's
-/// neighbours are the edges at its ends, so a short interior link and
-/// a mid joint at the plain box's radii build: the joint caps nothing.
+/// **A joined run blends as one edge.** A short interior link and a mid
+/// joint at the plain box's radii: joined, each run is one edge, so the
+/// box builds at every radius it does unjoined.
 #[test]
-fn the_clearance_screen_lets_joined_chains_the_band_can_carve_build() {
-    builds("short interior link", 2.0, &[0.9, 0.95, 1.0], &[], 0.25, 2);
+fn a_joined_run_blends_as_one_edge_at_every_radius_it_does_unjoined() {
+    builds("short interior link", 2.0, &[0.9, 0.95, 1.0], &[], 0.25, 6);
     builds("mid joint, r = 0.51", 2.0, &[1.0], &[], 0.51, 2);
     builds("mid joint, r = 0.9", 2.0, &[1.0], &[], 0.9, 2);
 }
 
-/// **A joint inside a corner's reach still refuses — to the boundary,
-/// at every ε row.** At r = 0.25 the corner's foot sits 0.25 along the
-/// rim, which is where the screen's margin (the joint foot's distance
-/// to the end edge's trimline) crosses zero. The offsets are the run's
-/// own band, `(ε, K·ε)`: a joint two escalate-widths short of the foot
-/// is a definite Negative and refuses; one AT the foot reads Zero and
-/// refuses too (an un-certifiable clearance never passes); one two
-/// escalate-widths beyond is a definite Positive and builds. Between
-/// the halves the margin escalates, which this row does not pin.
+/// **A joint inside a corner's reach never reaches the blend.** At
+/// r = 0.25 the corner's foot sits 0.25 along the rim. A joint short of
+/// that foot, at it, or beyond it is construction state alike — the
+/// at-rest gate refuses it (tier 3's check 11) before any clearance is
+/// read — and joined, each is the plain box, which builds.
 #[test]
-fn a_joint_inside_a_corners_setback_refuses() {
+fn a_joint_anywhere_in_a_corners_reach_is_construction_state_and_builds_joined() {
     let t = Tol::witness();
     let band = geom_core::Band::linear(t).expect("the run's linear band");
     let step = 2.0 * band.escalate();
     let r = 0.25;
-    for (what, x) in [("short of the foot", r - step), ("at the foot", r)] {
-        let body = prism(2.0, &[x], &[], t);
-        let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-        for (verb, err) in [
-            (
-                "fillet",
-                sweep::fillet::fillet_edges(&body, &req, r, t).unwrap_err(),
-            ),
-            (
-                "chamfer",
-                sweep::chamfer::chamfer_edges(&body, &req, r, t).unwrap_err(),
-            ),
-        ] {
-            assert!(
-                matches!(
-                    err.error,
-                    sweep::blend::BlendError::FaceClearanceUncertified {
-                        cross_chain: false,
-                        ..
-                    }
-                ),
-                "{what} ({x}), {verb}: {err}"
-            );
-        }
+    for (what, x) in [
+        ("short of the foot", r - step),
+        ("at the foot", r),
+        ("beyond the foot", r + step),
+    ] {
+        builds(what, 2.0, &[x], &[], r, 2);
     }
-    builds(
-        "joint beyond the corner's foot",
-        2.0,
-        &[r + step],
-        &[],
-        r,
-        2,
-    );
 }

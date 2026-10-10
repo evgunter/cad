@@ -48,7 +48,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     let boss = cd.result.expect("the boss");
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -96,7 +96,7 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
     let ev = run(&doc, None, &EvalOptions::default());
     let frame = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -104,7 +104,9 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     let Some(Node::Loft { profiles, .. }) = doc.node(loft) else {
         panic!("the loft");
     };
-    let section = profiles[0];
+    let section = doc
+        .operation_of(profiles[0])
+        .expect("the section read is live");
     match ev.nodes.get(&loft) {
         Some(NodeResult::Failed(NodeError {
             kind:
@@ -160,7 +162,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     );
     let _ = plane;
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -179,8 +181,10 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     // A rigid transform keeps its input's name table verbatim, so the
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            lifted,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     // The document ends at the boss PROFILE: the row below measures the
@@ -198,7 +202,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
 /// **The memo recomputes a profile on a derived frame through the
 /// UPSTREAM KEY**: widening the parameter the frame's body reads
 /// re-keys the body, hence the frame, hence the profile
-/// (`Node::inputs` of a profile names its frame, and a profile's
+/// (a profile reads its frame's output, and a profile's
 /// content key folds every input's key in), so the widened placement
 /// cannot be served from the nominal memo entry. No placement feed of
 /// its own is needed for that, and none exists.
@@ -276,7 +280,7 @@ fn an_interval_extrude_of_a_widened_height() {
             vec![fixture::square(0.0, 0.0, 1.0)],
         );
         r.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::named(VarName::from_static("hh"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
@@ -340,13 +344,15 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(

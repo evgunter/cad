@@ -7,7 +7,6 @@ opened: 2026-10-05
 priority: P3
 cost: M
 refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, torn-body-refusal-families-beyond-the-six-doors]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -52,7 +51,8 @@ halves' faces) that answers its miss as absent — `None`, `continue`,
   curvature lever), the sector/contact `surface` closure (tangent read
   `false`), `pierced_kind` and the error-path `map_or(Nurbs, ..)`s;
 - `boolean/zip.rs` `split_across` (`chart_of`, `outer` over faces read
-  from loop records).
+  from loop records); since retired (PR 4139), its successor
+  `split_cones` reads a loop's face through `linked`.
 
 Unclear, to decide at the site: `finish.rs` `weld_pinches`' skip of a
 welded vertex that no longer resolves; `ops.rs`
@@ -87,7 +87,7 @@ walks (`section_boundary`), `ops.rs` `describe_edges` and
 `torus_chart_windows` / `sphere_chart_trim` / `point_in_face`,
 `surface_group.rs` `unmated_boundary`, `vtxfac.rs`
 `classify_vertex_on_face`'s pierced surface and kind, `zip.rs`
-`split_across`, `combine.rs` `graft_solids_impl`'s curve read, and the
+`split_across` (since retired, PR 4139), `combine.rs` `graft_solids_impl`'s curve read, and the
 sweep hit `sphere_region.rs` `sphere_face_region`. `weld_pinches`' skip
 stays: it asks whether a pierce copy survived the carve's kills.
 
@@ -128,3 +128,18 @@ Two sites still spell the iteration by hand, because they sit in files
 under another open PR: `boolean/rest.rs` `face_witnesses`
 (PR 4067) and `attach.rs` `check_moved_boundary` (PR 4060). Each moves to the helper
 once its PR lands.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: every held site reads a declaration or coincidence (DeclaredPairs, carrier identity/distinctness ladders, undeclared scan, verify_tangent_declaration); the stage-4 door rewrites them. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E deletes one held site, `reduce.rs` `face_edges` (the undeclared-coincidence scan). Every other held site is still there:
+
+- `mod.rs` `tangent_struts`, `border_held` and `locus_through_plane_face` (`crates/topo/src/boolean/mod.rs:1546`, `:5054`, `:5875`);
+- `ops.rs` `declared_surface_pairs` (`crates/topo/src/boolean/ops.rs:3592`);
+- `recl.rs` `carrier_of` and `require_same` (`crates/topo/src/boolean/recl.rs:53`, `:81`);
+- `reduce.rs` `edge_face_read`, `edge_covers`, `on_declared_shared_carrier` and `parents_distinct_from` (`crates/topo/src/boolean/reduce.rs:723`, `:1569`, `:2435`, `:2870`).
+
+The hold no longer applies to the coincidence sites. Under E they read the glue door's pairs, declared or not, and D10 keeps that machinery, so `recl`'s ladder, `edge_covers`, `parents_distinct_from` and `edge_face_read` can be converted now. The declared-pair-only sites (`build`'s declared-face side, `tangent_struts`, `declared_surface_pairs`) may instead leave with `declared-pairs-retire` (F), and need no conversion if they do.

@@ -258,17 +258,21 @@ class TestBoundaryPolylines(unittest.TestCase):
             self.assertNotEqual(line[0], line[-1])
 
         doc = Doc()
-        spine = doc.insert(Node.datum_axis((
+        frame = doc.insert(Node.datum_frame((
             Formula.length_in(0, m),
             Formula.length_in(0, m),
             Formula.length_in(0, m),
         ), (
+            Formula.literal(1.0),
             Formula.literal(0.0),
+            Formula.literal(0.0),
+        ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         ring = doc.insert(
-            Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
+            Node.tube(frame, Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
         )
         lines = body_of(doc, ring).tessellate(20 * mm).boundaries
         closed = [line for line in lines if line[0] == line[-1]]

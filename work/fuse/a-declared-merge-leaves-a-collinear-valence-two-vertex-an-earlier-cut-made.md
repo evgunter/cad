@@ -2,11 +2,13 @@
 id: a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made
 kind: issue
 title: A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order
-status: open
+status: closed
 priority: P1
 cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order, sweeps-build-one-rim-edge-per-segment-not-per-run, curved-joinable-vertices-are-left-unjoined]
+closed: 2026-10-09
+pr: 4373
 ---
 
 
@@ -218,6 +220,16 @@ landed both on main.
   curved joins land.
 
 
+## Step 2's sweep half (FUSE, PR 4200, 2026-10-06)
+
+`sweeps-build-one-rim-edge-per-segment-not-per-run`: extrude and the
+partial revolve collapse each run before they build, so no sweep
+output holds a station vertex, planar or curved. The partial revolve's
+arc runs needed no curved join (direct construction, one meridian per
+wedge cap). `run_walls_built` asserts `topo::joinable_vertices` empty
+on every swept body. Step 2's rest is the curved join
+(`curved-joinable-vertices-are-left-unjoined`).
+
 ## The refusing orders reach `SeamVertexParentage` (EMIT, 2026-10-06)
 
 The table's `[a, s, b]` and `[s, a, b]` refuse `DeclareResolve` today.
@@ -227,3 +239,27 @@ refuse `NamingError::SeamVertexParentage` instead, and
 meets it in `[0,2,1]`. Measured in
 `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
 "Re-measured on main (2026-10-06)".
+
+## Step 3 landed: the build order is complete (FUSE, PRs 4302, 4307, 4353, 4373, 2026-10-09)
+
+Step 3 shipped as the unit `a-finished-body-holds-no-joinable-vertex`,
+where its ruling (Ev, PR 4251) places the check: at rest, as tier 3's
+check 11, not tier 2. Every finisher ends with the join: the merge and
+offset doors, split, shell, blend surgery and import. A finished body
+holding a joinable vertex refuses `JoinableVertexAtRest`. One whose
+reading lands in the sliver band refuses `JoinUndecidedAtRest`, with the
+tighten-ε recourse.
+
+With steps 1–4 built, a union's finished body has maximal faces and
+maximal edges over its face partition in every member order: a vertex an
+earlier fold step's cut left is joined away, and the tier-3 gate fails
+loud if one survives. This finding closes. Its residue is held by other
+rows:
+- the refusing orders `[a, s, b]` and `[s, a, b]`: EMIT's
+  `union-refuses-in-some-member-orders-and-publishes-in-others`, and
+  INTENT stage 4;
+- naming a conventional vertex:
+  `a-conventional-vertex-mints-no-edge-derived-name`;
+- the curved-join arms still unbuilt: `joinable-has-no-wrap-edge-arm`,
+  `joining-a-spline-carrier-is-unbuilt` and
+  `chart-arm-joins-no-spline-or-fitted-iso-image`.

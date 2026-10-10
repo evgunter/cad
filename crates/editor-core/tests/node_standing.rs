@@ -15,14 +15,14 @@
 //!   it, each door's subject in front;
 //! - no door that runs no hit test says "hit test" for a standing;
 //! - a poisoned datum reaching the distance query carries `through`;
-//! - the checks registry's root refusal names the node the repair is
+//! - the checks registry's placement refusal names the node the repair is
 //!   at;
 //! - `RunStatus`, the standing's persisted projection, keeps its JSON
 //!   words and its key bytes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, minted, on_frame, step};
+use crate::fixture::{self, ang, insert, len, minted, on_frame, scl, step};
 use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
@@ -75,7 +75,7 @@ impl Standings {
         let (doc, failed) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -90,7 +90,8 @@ impl Standings {
             DocEdit::SetParam {
                 node: failed,
                 slot: SlotId::Distance,
-                expr: len(0.0),
+                value: len(0.0).into(),
+                fresh: Vec::new(),
             },
         );
         let broken = run(&doc, &CancelToken::new());
@@ -142,7 +143,7 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
 #[test]
 fn every_standing_renders_one_way_through_every_door() {
     let s = Standings::new();
-    let foreign = RecipeNodeId(9999);
+    let foreign = RecipeNodeId::new(0, 9999);
     let [failed, poisoned] = s.broken_standings();
     let cases = [
         (&s.broken, failed),
@@ -183,7 +184,7 @@ fn every_standing_renders_one_way_through_every_door() {
                 &[GeomPred::DatumDistance {
                     datum: node,
                     cmp: Cmp::Approx,
-                    value: editor_core::test_support::stored_expr(&len(0.0)),
+                    value: len(0.0),
                 }],
                 &s.doc.var_env::<f64>(),
                 Tol::witness(),
@@ -215,27 +216,43 @@ fn every_standing_renders_one_way_through_every_door() {
         );
     }
 
-    // The checks registry reads the document's roots, and a root is
-    // never an ancestor of another: the poisoned transform is the one
-    // root here, in the broken run and the canceled one, and the failed
-    // extrude is the root of a document of its own (below).
-    let (rooted, _) = step(
-        s.doc.clone(),
-        DocEdit::SetRoots {
-            roots: vec![s.poisoned],
-        },
-    );
+    // The checks registry and the gather read the document's
+    // placements: the poisoned transform placed is a placement poisoned
+    // through the failed extrude in the broken run, and one with no
+    // result in the canceled run.
+    let (placed, placement) = fixture::place(s.doc.clone(), s.poisoned);
+    let cancel = CancelToken::new();
+    cancel.cancel();
     for (eval, standing) in [
-        (&s.broken, poisoned),
-        (&s.canceled, NodeStanding::NotEvaluated { node: s.poisoned }),
+        (
+            run(&placed, &CancelToken::new()),
+            NodeStanding::Poisoned {
+                node: placement,
+                through: s.failed,
+            },
+        ),
+        (
+            run(&placed, &cancel),
+            NodeStanding::NotEvaluated { node: placement },
+        ),
     ] {
-        let checks = run_checks(&rooted, eval, &ChecksConfig::default(), Tol::witness())
-            .expect_err("a root with no value refuses the registry");
+        let checks = run_checks(&placed, &eval, &ChecksConfig::default(), Tol::witness())
+            .expect_err("a placement with no value refuses the registry");
         assert_eq!(checks, ChecksError::Root(standing));
-        speaks("the checks registry", "checks: root ", &checks, standing);
-        let gather = editor_core::product(&rooted, eval, Tol::witness())
-            .expect_err("a root with no value refuses the gather");
-        speaks("the product gather", "product: root ", &gather, standing);
+        speaks(
+            "the checks registry",
+            "checks: placement ",
+            &checks,
+            standing,
+        );
+        let gather = editor_core::product(&placed, &eval, Tol::witness())
+            .expect_err("a placement with no value refuses the gather");
+        speaks(
+            "the product gather",
+            "product: placement ",
+            &gather,
+            standing,
+        );
     }
 
     // The clearance engine replays the document itself, so its
@@ -307,39 +324,35 @@ fn every_standing_renders_one_way_through_every_door() {
     }
 }
 
-/// **The checks registry's root refusal names the node the repair is
-/// at.** A root with no value refuses the registry; a poisoned root's
-/// repair is upstream, at the failure that poisoned it, and a failed
-/// root's is its own. The refusal carries the standing, so it says
-/// which — where it used to tell the author to "fix or remove the
-/// failing root" about a root that had not failed.
+/// **The checks registry's placement refusal names the node the repair
+/// is at.** A placement with no value refuses the registry; a poisoned
+/// placement's repair is upstream, at the failure that poisoned it, and
+/// a failed placement's is its own. The refusal carries the standing,
+/// so it says which.
 #[test]
-fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
+fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     let s = Standings::new();
-    let (rooted, _) = step(
-        s.doc.clone(),
-        DocEdit::SetRoots {
-            roots: vec![s.poisoned],
-        },
-    );
-    let refusal = run_checks(&rooted, &s.broken, &ChecksConfig::default(), Tol::witness())
-        .expect_err("a poisoned root refuses the registry");
+    let (placed, placement) = fixture::place(s.doc.clone(), s.poisoned);
+    let ev = run(&placed, &CancelToken::new());
+    let refusal = run_checks(&placed, &ev, &ChecksConfig::default(), Tol::witness())
+        .expect_err("a poisoned placement refuses the registry");
     assert_eq!(
         refusal,
         ChecksError::Root(NodeStanding::Poisoned {
-            node: s.poisoned,
+            node: placement,
             through: s.failed
         })
     );
     assert!(
         refusal.to_string().contains(&format!(
             "the repair is upstream, at node {}",
-            test_utils::refusal::tag(s.failed.0)
+            test_utils::refusal::tag(s.failed.0.digest())
         )),
         "{refusal}"
     );
 
-    // A failed root, the leaf of a document of its own.
+    // A failed placement, of a body that builds: its pose's rotation
+    // axis has no direction.
     let (doc, profile) = on_frame(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
         [0.0; 3],
@@ -347,26 +360,40 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, failed) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
-            distance: len(0.0),
+            profile: profile.into(),
+            distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = step(
+    let (doc, placement) = step(
         doc,
-        DocEdit::SetRoots {
-            roots: vec![failed],
-        },
+        DocEdit::place(
+            body,
+            Some(
+                editor_core::Step::Rigid {
+                    translation: [len(0.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(0.0)],
+                    angle: ang(1.0),
+                }
+                .into(),
+            ),
+        ),
     );
+    let placement = placement.expect("a placement mints its node");
     let ev = run(&doc, &CancelToken::new());
-    let standing = NodeStanding::Failed { node: failed };
+    let standing = NodeStanding::Failed { node: placement };
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
-        .expect_err("a failed root refuses the registry");
+        .expect_err("a failed placement refuses the registry");
     assert_eq!(refusal, ChecksError::Root(standing));
-    speaks("the checks registry", "checks: root ", &refusal, standing);
+    speaks(
+        "the checks registry",
+        "checks: placement ",
+        &refusal,
+        standing,
+    );
 }
 
 /// **No door that runs no hit test says it ran one.** The pick-index
@@ -427,7 +454,7 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
         &[GeomPred::DatumDistance {
             datum: s.poisoned,
             cmp: Cmp::Approx,
-            value: editor_core::test_support::stored_expr(&len(0.0)),
+            value: len(0.0),
         }],
         &s.doc.var_env::<f64>(),
         Tol::witness(),
@@ -442,9 +469,10 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
         "the repair's node rides the refusal"
     );
     assert!(
-        refusal
-            .to_string()
-            .contains(&format!("at node {}", test_utils::refusal::tag(s.failed.0))),
+        refusal.to_string().contains(&format!(
+            "at node {}",
+            test_utils::refusal::tag(s.failed.0.digest())
+        )),
         "{refusal}"
     );
 }
@@ -506,7 +534,7 @@ fn run_status_round_trips_its_json_and_keeps_its_key_bytes() {
         .into_iter()
         .zip(1..)
         .map(|(outcome, id)| VerdictRow {
-            node: RecipeNodeId(id),
+            node: RecipeNodeId::new(0, id),
             outcome,
             verdicts: Vec::new(),
         })
@@ -514,7 +542,7 @@ fn run_status_round_trips_its_json_and_keeps_its_key_bytes() {
     }
     .key();
     assert_eq!(
-        key.0, 70_071_079_698_853_325_673_526_678_003_706_389_063,
+        key.0, 178_193_576_661_365_722_920_786_752_962_532_883_911,
         "the four outcomes' key bytes"
     );
 }
@@ -543,7 +571,7 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 11] = [
+const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
         25,
@@ -551,8 +579,16 @@ const READERS: [(&str, usize, &str); 11] = [
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        2,
-        "the op wiring holds the result map as it is written, and reads it through `usable_in`",
+        7,
+        "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
+         a read of a split's port copies the standing entries and writes the half it projects \
+         (`split_ports_projected`), every read still through `value_of`",
+    ),
+    (
+        "crates/editor-core/src/eval/measure.rs",
+        3,
+        "the observed binding holds the result map by type, as the op wiring does, and reads \
+         a measure's row only through `usable_in`",
     ),
     ("crates/editor-core/src/lib.rs", 1, "re-exports the type"),
     (

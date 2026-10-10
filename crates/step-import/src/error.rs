@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use geom_brep::recourse::Reading;
+use geom_core::FileCoincidence;
 
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
@@ -14,8 +14,8 @@ use geom_brep::recourse::Reading;
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
-    /// The certification/attachment gate's refusal, rendered at the
-    /// adoption reading (`geom_brep::recourse::Reading::Adopt`).
+    /// The certification/attachment gate's refusal, rendered as at rest
+    /// with the file's ε_in words (`topo::EulerOpError::render`).
     pub refusal: topo::EulerOpError,
 }
 
@@ -28,8 +28,9 @@ pub enum AdoptionCandidate {
     Intersection,
     /// Tangential contact locus of the two adjacent surfaces.
     TangentIntersection,
-    /// The parameterization seam of one closed surface.
-    Seam,
+    /// A wrap edge: the edge both of whose uses bound one face, across
+    /// which that face's periodic chart closes (D1).
+    Wrap,
     /// A NURBS wall's own `u ∈ {0, 1}` boundary iso-curve (M7-3): the
     /// loft/sweep wall–wall seam class, offered when the parsed
     /// carrier bitwise-matches an adjacent wall's boundary column.
@@ -44,7 +45,7 @@ impl fmt::Display for AdoptionCandidate {
         f.write_str(match self {
             Self::Intersection => "intersection",
             Self::TangentIntersection => "tangent intersection",
-            Self::Seam => "seam",
+            Self::Wrap => "wrap edge",
             Self::IsoCurve => "boundary iso-curve",
             Self::MappedCurve => "mapped curve",
         })
@@ -178,6 +179,9 @@ pub enum StepImportError {
         id: u64,
         /// The refusing operator's error, displayed.
         source: topo::EulerOpError,
+        /// The file's ε_in, which picks the words of a certification
+        /// refusal's ending (D4 ¶1).
+        file: FileCoincidence,
     },
     /// The D7 adoption ladder could not certify any intensional
     /// description for an edge: every candidate tried and its typed
@@ -189,6 +193,9 @@ pub enum StepImportError {
         id: u64,
         /// The candidates tried and their refusals, in ladder order.
         attempts: Vec<AdoptionAttempt>,
+        /// The file's ε_in, which picks the words of each refusal's
+        /// ending (D4 ¶1).
+        file: FileCoincidence,
     },
     /// An ARC cap rim adjacent to a NURBS wall failed the import-side
     /// residual gate (M7-3 fix pass, review F1): sampled against the
@@ -260,6 +267,18 @@ pub enum StepImportError {
     Pcurves {
         /// The minting pass's error, displayed.
         source: topo::PcurveMintError,
+    },
+    /// The join every finisher ends with (`docs/DESIGN.md`, maximal
+    /// edges; Ev's PR 4251 ruling) refused on the adopted solid: where
+    /// the file states two edges of one carrier meeting at a vertex, the
+    /// kernel joins them, and here it could not — most often because
+    /// whether the vertex is a regular point reads in the band, a size
+    /// finer than the run's tolerance.
+    Join {
+        /// The `MANIFOLD_SOLID_BREP` whose join refused.
+        solid: u64,
+        /// Why the join refused.
+        refusal: topo::JoinRefusal,
     },
     /// An assembly instance's rigid placement refused at the kernel's
     /// own [`topo::transform_rigid`] door (M7-4 Leg D): a map this
@@ -382,15 +401,17 @@ impl fmt::Display for StepImportError {
             Self::Topology { id, what } => {
                 write!(f, "step import: entity #{id}: {what}")
             }
-            Self::Assembly { id, source } => write!(
+            Self::Assembly { id, source, file } => write!(
                 f,
                 "step import: assembling entity #{id}: {}",
-                source.render(Reading::Adopt)
+                source.render(*file)
             ),
-            Self::Adoption { id, attempts } => {
+            Self::Adoption { id, attempts, file } => {
                 write!(
                     f,
-                    "step import: edge #{id}: no intensional description certifies — "
+                    "step import: edge #{id}: no intensional description certifies (a lever \
+                     applies to the model the file was exported from, which is then \
+                     re-exported) — "
                 )?;
                 for (i, attempt) in attempts.iter().enumerate() {
                     if i > 0 {
@@ -400,7 +421,7 @@ impl fmt::Display for StepImportError {
                         f,
                         "{}: {}",
                         attempt.candidate,
-                        attempt.refusal.render(Reading::Adopt)
+                        attempt.refusal.render(*file)
                     )?;
                 }
                 Ok(())
@@ -465,6 +486,31 @@ impl fmt::Display for StepImportError {
                     if errors.len() == 1 { "" } else { "s" },
                     verdicts.join("; ")
                 )
+            }
+            Self::Join { solid, refusal } => {
+                write!(
+                    f,
+                    "step import: joining the edges of the solid at #{solid}: "
+                )?;
+                // The import door reads the adopted body at rest.
+                match refusal {
+                    topo::JoinRefusal::Undecided(undecided) => match undecided.diag() {
+                        Some(diag) => write!(
+                            f,
+                            "{} is undecided ({}). {}",
+                            topo::JOIN_SUBJECT,
+                            diag.payload(),
+                            diag.ending_noted(
+                                topo::JOIN_LEVER,
+                                geom_brep::recourse::unreadable_margin_note(
+                                    geom_brep::recourse::Reading::AtRest
+                                )
+                            )
+                        ),
+                        None => write!(f, "{refusal}"),
+                    },
+                    _ => write!(f, "{refusal}"),
+                }
             }
             Self::Placement { transform, source } => write!(
                 f,

@@ -132,10 +132,9 @@ The contract is pinned in the kernel's own suite
 tour: a broken-on-purpose scene is not a use case (Ev's ruling on
 #413).
 
-## 3. Contact: the refusal that defines this kernel
+## 3. Contact: what the kernel decides, and what it refuses
 
-Here is the one that surprises people, and the one most worth
-understanding. Two boxes stacked so they share a face plane:
+Two boxes stacked so they share a face plane:
 
 ```
 use pncad::prelude::*;
@@ -153,47 +152,49 @@ let tol = Tol::witness();
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
 
-let refused = union(&lower, &upper, tol);
-assert!(matches!(refused, Err(BooleanError::UndeclaredCoincidence { .. })));
+// One 1 × 1 × 2 block: the two planes at z = 1 are one plane by
+// their margin, and so are the four pairs of walls.
+let glued = union(&lower, &upper, tol)?;
+assert!(glued.body().is_some());
+
+// A sliver: the upper box 2 nm above the lower one, inside the
+// tolerance's ambiguity band.
+let sliver = slab((1.0 + 2e-9, 2.0))?;
+let refused = union(&lower, &sliver, tol);
+assert!(matches!(refused, Err(BooleanError::Escalated { .. })));
 # Ok::<(), E>(())
 ```
 
-Those two boxes obviously form a 1 × 1 × 2 block, and most kernels
-will hand you one. This one will not, and the reason is worth stating
-carefully.
+The kernel compares the two planes by their **margin**: the
+displacement between them over the faces it consumes, against the
+tolerance. A margin inside the zero band decides them one plane, and
+the boolean glues them — whether or not you said they touch. A margin
+past the band decides them two, and the boxes stand apart. A margin in
+between, the **ambiguity band**, decides neither: two planes too far
+apart to call one and too near to call two are a sliver, and the
+kernel refuses rather than guess. The refusal names the margin and the
+band it fell in, and its recourse is to move the geometry clearly to
+one side or the other.
 
-The kernel has two floating-point planes that are equal *as far as it
-can tell at this tolerance*. Treating them as the same face means
-deciding that a numerical coincidence was intentional. Sometimes it
-is — you meant to glue these parts. Sometimes it is a 0.001 mm
-modelling error that a tolerant kernel will silently weld into a part
-that cannot be manufactured. **The kernel cannot tell the difference,
-so it refuses to guess, and asks you.**
+What the kernel glued is not forgotten. Every coincidence an operation
+decides from values is **recorded** on its result, and the document's
+`unproven-coincidence` check reports each one the document's own
+construction does not prove — two boxes whose sizes happen to agree,
+rather than one size read twice. The solid is the same under every
+setting of that check (D10): the check reports, it never changes what
+was built.
 
-You answer by *declaring* the contact. The declaration is data
-attached to the operation — `union_with(&a, &b, &decls)` — and it is
-verified, not believed: a declaration whose planes are in fact
-distinct is `DeclarationContradicted`. So the fail-loud property
-survives the escape hatch.
-
-Working examples of the declared path, in increasing order of realism:
-`demos/tour/src/booleans.rs` (the declare door itself),
-`demos/tour/src/crosslap.rs` (which asserts *live* that the
-undeclared version still refuses, with a "retire this if it ever
-stops refusing" panic), and the `table` corpus document, which
-declares every leg contact by name through the detect/declare
-protocol (`find_flush_candidates` → `declared_pairs`).
-
-Notice the shape of that protocol: detection *proposes*, a human or a
-recipe *declares*. Value equality never classifies on its own — there
-is no `detect_and_apply` anywhere in this codebase, and that absence
-is deliberate.
+A declaration still has a job. Declaring a contact
+(`union_with(&a, &b, &decls)`) bridges a margin in the ambiguity band —
+"these are one plane, the residue is noise" — and it is verified, not
+believed: a declaration whose planes are definitely apart is
+`DeclarationContradicted`.
 
 ## 4. The edit door: refusals before anything is evaluated
 
-Document edits are checked when applied. Deleting a node something
-else depends on would leave a dangling reference, so it is refused
-and the document is left untouched:
+Document edits are checked when applied. An operand reads a value of
+the kind its slot admits, so an extrude of a body — where the slot
+reads a profile — is refused, and the document is left untouched:
 
 ```
 use pncad::prelude::*;
@@ -217,18 +218,25 @@ let applied = apply(&doc, &DocEdit::InsertNode {
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
     })),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() })),
+    node: Box::new(Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() })),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
-let doc = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along }),
-}, tol, &pncad::document::RefusingReach)?.doc;
+let applied = apply(&doc, &DocEdit::InsertNode {
+    node: Box::new(Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along }),
+    fresh: Vec::new(),
+}, tol, &pncad::document::RefusingReach)?;
+let (doc, body) = (applied.doc, applied.record.minted.expect("minted"));
 
-let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);
-assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
+let refused = apply(&doc, &DocEdit::InsertNode {
+    node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0), side: ExtrudeSide::Along }),
+    fresh: Vec::new(),
+}, tol, &pncad::document::RefusingReach);
+assert!(matches!(refused, Err(EditError::SlotVarKind { .. })));
 assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -262,46 +270,33 @@ def slab(doc, z0, z1):
     return doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
 
 
-# The same undeclared coincidence as section 3, now inside a document.
+# Section 3's sliver, now inside a document: the upper slab stands
+# 2 nm above the lower one.
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
-upper = slab(doc, 10 * mm, 20 * mm)
-glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+upper = slab(doc, 10.000002 * mm, 20 * mm)
+fused = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
 
 ev = evaluate(doc)                     # does NOT raise
 assert ev.succeeded(lower)             # the operands are fine...
-assert not ev.succeeded(glued)         # ...the union is not
+assert not ev.succeeded(fused)         # ...the union is not
 
 # Reading a failed node's value is what raises, and the payload says why.
 try:
-    ev.value(glued)
+    ev.value(fused)
     raise AssertionError("expected a typed refusal")
 except EvaluationError as err:
     assert err.reason == "node_failed"
-    assert err.node == glued
+    assert err.node == fused
 ```
 
-And for this particular refusal, the payload does better than say
-why: **the refusal is the menu**. An undeclared-contact refusal
-carries the candidate declaration itself — the face pair by stable
-name, with the relation the verifier decided — as a typed
-`FlushFinding` on the exception, so the recourse is in the error, not
-in a doc. The menu has exactly two arms: declare that finding, or
-move the geometry. Here is the whole conversation, end to end —
-author the undeclared boolean, read the typed menu, declare, succeed:
+Flush, the same two slabs glue, and the union's value says what was
+decided to glue them: one coincidence row per pair of faces its
+margins decided one surface, each naming its two faces by the names
+their own operands gave them.
 
 ```python
-from pncad import (
-    BooleanCoincidence,
-    BooleanOp,
-    Doc,
-    EvaluationError,
-    Formula,
-    Node,
-    PlaneRelation,
-    evaluate,
-    mm,
-)
+from pncad import BooleanOp, Doc, Formula, Node, evaluate, mm
 
 
 def slab(doc, z0, z1):
@@ -322,42 +317,21 @@ def slab(doc, z0, z1):
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
 upper = slab(doc, 10 * mm, 20 * mm)   # they meet exactly at z = 10 mm
-naive = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
 
-# 1. The undeclared union refuses — with the typed menu attached.
 ev = evaluate(doc)
-try:
-    ev.value(naive)
-    raise AssertionError("the undeclared union must refuse")
-except EvaluationError as err:
-    assert err.kind == "undeclared_coincidence"
-    menu = err.finding                      # the candidate declaration
-    # The slabs share a footprint, so besides the resting contact at
-    # z = 10 mm their four walls carry on across it, one surface each:
-    # continuations. The menu names the first undeclared pair the
-    # boolean meets, which here is a wall.
-    assert menu.relation == PlaneRelation.SameOriented
-    assert menu.class_ == BooleanCoincidence.Continuation
-
-# 2. The declare arm: detect, INSPECT, declare. The detector is the
-#    boolean's own verifier run in candidate-generation mode, so a
-#    finding can never disagree with verify-at-use — and the menu's
-#    finding is drawn from the same inventory.
-findings = ev.find_flush_candidates(lower, upper)
-assert menu in findings
-doc.declare_all(naive, findings)            # or doc.declare(naive, menu)
-
-# 3. The SAME union, with the contact declared: verified and glued.
-body = evaluate(doc).value(naive).body()
+body = ev.value(glued).body()
 body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
 assert abs(body.mass_properties().volume - 2e-6) < 1e-15
-```
 
-Notice what is *not* here: no `detect_and_declare`. Findings pass
-through your hands as values — that pause is the enforceable
-intent-recording property, and the declaration is still verified at
-use (a declaration the geometry contradicts refuses loudly).
+# The rest at z = 10 mm, and the four walls carried on across it.
+relations = sorted(row.relation for row in ev.coincidences(glued))
+assert relations == ["same_opposite"] + ["same_oriented"] * 4
+# Two slabs of separately typed heights: nothing proves the planes
+# one, so each row is unproven and says what separates its faces.
+assert all(row.rung is None for row in ev.coincidences(glued))
+```
 
 A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
@@ -384,7 +358,7 @@ def slab(z0, z1):
 
 
 lower = slab(0 * mm, 10 * mm)
-upper = slab(10 * mm, 20 * mm)
+upper = slab(10.000002 * mm, 20 * mm)  # a sliver above `lower`
 broken = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
 third = slab(-20 * mm, -10 * mm)
 downstream = doc.insert(Node.boolean(BooleanOp.Union, broken, third))
@@ -446,9 +420,8 @@ assert revolved(1.0, 0 * rad) == ("revolve", "degenerate_angle")
 assert revolved(-0.5, 2 * math.pi * rad) == ("revolve", "vertex_crosses_axis")
 ```
 
-`inner_kind` is `None` where the refusal has no arms of its own — the
-undeclared-contact refusal above is one, and its payload is the
-`finding` instead. The edit door carries the same pair, spelled
+`inner_kind` is `None` where the refusal has no arms of its own. The
+edit door carries the same pair, spelled
 `variant` and `inner_variant`.
 
 ## 6. Validation: a vector, not the first complaint
@@ -599,6 +572,8 @@ in the one place the prose is weakest.
    genuinely in-band — a sliver — and the model is ill-conditioned at
    this ε. The recourse is to fix the geometry or state the intent,
    not to widen the band until the kernel stops noticing.
-5. **If it is a coincidence refusal, decide whether you meant it.**
-   If you did, declare it. If you did not, you just found a bug in
-   your model that a tolerant kernel would have shipped.
+5. **If it is a sliver between two faces, decide what you meant.** If
+   they should touch, move them flush — or declare the contact, which
+   bridges the band. If they should not, move them clearly apart:
+   you just found a bug in your model that a tolerant kernel would
+   have shipped.

@@ -1,23 +1,15 @@
-//! Corpus document **declared_tangency** — the #101 discipline as a
-//! recipe: a profile whose tangency is DECLARED by construction (the
-//! `ProfileLoop` fillet constructor, which records the two tangent
-//! joints it creates) alongside one whose tangency is declared BY
-//! HAND (the #100 bracket: a line meeting a quarter arc exactly
-//! tangentially at `(1.5,1)` and `(1,1.5)` — a definite-Zero joint,
-//! which #101 refuses `UndeclaredTangency` until the recipe states
-//! it).
+//! Corpus document **declared_tangency** — D1's profile tangency as a
+//! recipe: a profile whose tangency is CONSTRUCTED by the fillet
+//! constructor (which constructs the two tangent joints it creates)
+//! alongside one whose tangency is constructed BY HAND (the #100
+//! bracket: a line meeting a quarter arc exactly tangentially at
+//! `(1.5,1)` and `(1,1.5)`, spelled with `.tangent()`).
 //!
-//! Note the REFUSAL door this document sits beside: leaving the
-//! bracket's joints undeclared refuses `UndeclaredTangency`. It is
-//! pinned in `profile/tests/declared_tangency.rs`; the corpus carries
-//! the legal side.
-//!
-//! An earlier version of this note named a second door — declaring a
-//! same-carrier continuation, said to refuse
-//! `TangencyContradicted { same_carrier: true }`. That arm is retired
-//! (Ev, in-chat, 2026-09-02: every zero-turn joint is a declared
-//! tangent joint), and the refusal it named no longer exists in any
-//! form, so nothing pins it and nothing should.
+//! The same bracket with its joints left to the data, no constructor
+//! making them, builds all the same: validation decides them Zero and
+//! records them for the `unproven-coincidence` lint
+//! (`profile/tests/tangent_joints.rs`). The corpus carries the
+//! constructed side, which records nothing.
 //!
 //! Vocabulary: Profile (arc-bearing, fillet-constructed and
 //! hand-declared), Extrude, `InsertNode`, `SetParam`.
@@ -65,16 +57,15 @@ pub fn document() -> CorpusDoc {
     ]);
     let fillet_plane = r.insert(xy_frame());
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
-        plane: fillet_plane,
+        frame: fillet_plane.into(),
         loops: vec![filleted],
         ids: Vec::new(),
     }));
     let fillet_body = r.insert(Node::Extrude {
-        profile: fillet_p,
+        profile: fillet_p.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    let _ = fillet_body;
 
     // (b) Tangency BY HAND: the #100 bracket. The quarter arc leaving
     // (1.5,1) is exactly tangent to the line arriving there and to
@@ -103,15 +94,17 @@ pub fn document() -> CorpusDoc {
     // A parallel plane, so the two bodies never interact.
     let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
-        plane: tangent_plane,
+        frame: tangent_plane.into(),
         loops: vec![bracket],
         ids: Vec::new(),
     }));
     let tangent_body = r.insert(Node::Extrude {
-        profile: tangent_p,
+        profile: tangent_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
+    r.place(fillet_body);
+    r.place(tangent_body);
 
     CorpusDoc {
         name: "declared_tangency",
@@ -123,7 +116,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tangent_body,
             slot: SlotId::Distance,
-            expr: len(0.5),
+            value: len(0.5).into(),
+            fresh: Vec::new(),
         },
         bump_root: tangent_body,
     }

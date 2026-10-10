@@ -89,6 +89,8 @@ pub enum OpGroup {
     Pattern,
     /// Instantiate-part (ASM-2A's cross-document wrapper).
     InstantiatePart,
+    /// A world placement's copy.
+    PlaceInWorld,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::FromTarget`], which groups
     /// under [`OpGroup::Fillet`]: the tag names the SHAPE (an entity
@@ -153,6 +155,8 @@ seg_tags! {
     FromB,
     FromMember,
     Seam,
+    Crossing,
+    EdgeCrossing,
     Merged,
     Fragment,
     // Split
@@ -169,6 +173,8 @@ seg_tags! {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -183,6 +189,8 @@ seg_tags! {
     Instance,
     // Instantiate part
     InPart,
+    // World placement
+    Placed,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -249,6 +257,8 @@ impl SegTag {
             RoleSeg::FromB(..) => Self::FromB,
             RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
+            RoleSeg::Crossing { .. } => Self::Crossing,
+            RoleSeg::EdgeCrossing { .. } => Self::EdgeCrossing,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody(..) => Self::SplitBody,
@@ -263,6 +273,8 @@ impl SegTag {
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
             RoleSeg::FootVertex { .. } => Self::FootVertex,
             RoleSeg::EndArc { .. } => Self::EndArc,
+            RoleSeg::Mitre { .. } => Self::Mitre,
+            RoleSeg::TurnFoot { .. } => Self::TurnFoot,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -274,6 +286,7 @@ impl SegTag {
             RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Instance { .. } => Self::Instance,
             RoleSeg::InPart { .. } => Self::InPart,
+            RoleSeg::Placed { .. } => Self::Placed,
         }
     }
 
@@ -304,6 +317,8 @@ impl SegTag {
             // with, and this segment versions with the union's.
             | Self::FromMember
             | Self::Seam
+            | Self::Crossing
+            | Self::EdgeCrossing
             | Self::Merged
             | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
@@ -318,6 +333,8 @@ impl SegTag {
             | Self::TrimEdge
             | Self::FootVertex
             | Self::EndArc
+            | Self::Mitre
+            | Self::TurnFoot
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -327,6 +344,7 @@ impl SegTag {
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
             Self::InPart => OpGroup::InstantiatePart,
+            Self::Placed => OpGroup::PlaceInWorld,
         }
     }
 }
@@ -364,6 +382,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromB(_)
         | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(
             Qualifier::Borders(_)
@@ -377,6 +397,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross { .. }
@@ -386,6 +408,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
+        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. } => None,
     }
 }
@@ -417,6 +440,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
+        | RoleSeg::Mitre { vertex: n }
+        | RoleSeg::TurnFoot { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
@@ -428,8 +453,10 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::OnToolVertex { of: n, .. }
         | RoleSeg::BandTrim { edge: n, .. }
         | RoleSeg::Instance { of: n, .. }
+        | RoleSeg::Placed { of: n }
         | RoleSeg::InPart { of: n } => vec![n],
-        RoleSeg::Seam { a, b } => vec![a, b],
+        RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => vec![a, b],
+        RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
@@ -872,7 +899,7 @@ pub fn select<T: Decide>(
 ///
 /// # `params`
 ///
-/// [`GeomPred::DatumDistance`] states its value as an [`Expr`](crate::Expr), which
+/// [`GeomPred::DatumDistance`] states its value as a [`Formula`](crate::Formula), which
 /// cannot be evaluated without the document's parameter bindings
 /// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,

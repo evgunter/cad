@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 pub(super) use super::role::{
     CapEnd, EntityKind, MeridianEnd, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    RimSupport, SectionCircle, SplitHalf,
+    RimSupport, SectionCircle, Sense, SplitHalf,
 };
 pub(super) use crate::node::{RecipeNodeId, StepId};
 
@@ -108,7 +108,7 @@ pub(super) enum RoleSeg {
 
     Cap(CapEnd),
     Lateral(PieceRun),
-    RimEdge(CapEnd, ProfileEdgeRef),
+    RimEdge(CapEnd, PieceRun),
     LateralEdge(ProfileVertexRef),
     CapVertex(CapEnd, ProfileVertexRef),
 
@@ -123,7 +123,7 @@ pub(super) enum RoleSeg {
     MeridianVertex(MeridianEnd, ProfileVertexRef),
     RevolveCap(MeridianEnd),
     Pole(ProfileVertexRef),
-    AxisEdge(ProfileEdgeRef),
+    AxisEdge(PieceRun),
 
     FromA(NameRef),
     FromB(NameRef),
@@ -134,6 +134,17 @@ pub(super) enum RoleSeg {
     Seam {
         a: NameRef,
         b: NameRef,
+    },
+    Crossing {
+        edge: NameRef,
+        face: NameRef,
+        sense: Sense,
+    },
+    EdgeCrossing {
+        a: NameRef,
+        a_sense: Sense,
+        b: NameRef,
+        b_sense: Sense,
     },
     Merged(Vec<StableName>),
     Fragment(Qualifier),
@@ -154,6 +165,7 @@ pub(super) enum RoleSeg {
     CrossingVertex {
         side: SplitHalf,
         edge: NameRef,
+        sense: Sense,
     },
     OnToolVertex {
         side: SplitHalf,
@@ -174,6 +186,12 @@ pub(super) enum RoleSeg {
     EndArc {
         vertex: NameRef,
         edge: NameRef,
+    },
+    Mitre {
+        vertex: NameRef,
+    },
+    TurnFoot {
+        vertex: NameRef,
     },
     BandFace(Vec<StableName>),
     BandTrim {
@@ -199,6 +217,10 @@ pub(super) enum RoleSeg {
     },
 
     InPart {
+        of: NameRef,
+    },
+
+    Placed {
         of: NameRef,
     },
 

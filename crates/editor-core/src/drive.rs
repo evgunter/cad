@@ -23,8 +23,9 @@
 //!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
 //!    same signs, in order. "Certifying" is one exclusion and it is
 //!    named at [`crate::drive::certifying_vector`]: an `Assertion` node
-//!    reports and gates nothing (E10 v1), and certification is a gate,
-//!    so its rows are not in the comparison.
+//!    checks and never places (D10), so its rows are not in the
+//!    comparison. An assertion the leaf could not decide is still an
+//!    indeterminacy, and bisects under 1.
 //!
 //! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
 //! The numeric channel is `Interval`'s, verbatim and bit for bit —
@@ -486,10 +487,11 @@ impl Default for DriveConfig {
 /// A free function and not a method on the strict form: the form is
 /// `resolve::vdiff`'s, beside the population form it is the counterpart
 /// of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
-/// kind qualifies and it is [`Node::Assertion`], whose contract is that
-/// nothing downstream reads its verdict — "no gate consults it" (E10
-/// v1: assertions report; a gating mode is additive policy nobody has
-/// ratified), and certification IS a gate. The measure node itself is
+/// kind qualifies and it is [`Node::Assertion`]: an assertion checks
+/// and never places (D10), so a leaf whose verdict differs from the
+/// witness's is not a different build. Its comparison's escalation is
+/// still read by `classify_replay`'s definiteness step, so an
+/// assertion the leaf cannot decide bisects. The measure node itself is
 /// NOT dropped: a leaf where the measurement could not be taken is not
 /// the witness build, and that difference stays in the comparison.
 ///
@@ -646,9 +648,6 @@ pub enum RefusalReason {
 /// receipt reads only the name.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeasureRefusalClass {
-    /// The selection resolved to the wrong KIND of entity
-    /// ([`NodeErrorKind::MeasureSelectionKind`]).
-    SelectionKind,
     /// The clearance engine refused, with its own refusal
     /// ([`NodeErrorKind::MeasureClearanceRefused`]).
     Clearance(crate::clearance::ClearanceRefusal),
@@ -660,7 +659,6 @@ impl MeasureRefusalClass {
     #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
-            Self::SelectionKind => "selection_kind",
             Self::Clearance(r) => r.name(),
         }
     }
@@ -1548,15 +1546,13 @@ pub fn drive(
 /// The first `Measure` node reading a `min_clearance` primitive, if
 /// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
 fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
-        let Some(Node::Measure { expr, .. }) = doc.node(id) else {
-            return false;
-        };
-        let mut prims = Vec::new();
-        expr.primitives(&mut prims);
-        prims
-            .iter()
-            .any(|p| matches!(p, crate::measure::MeasurePrimitive::MinClearance { .. }))
+    doc.ids().iter().copied().find(|&id| {
+        matches!(
+            doc.node(id),
+            Some(Node::Measure {
+                primitive: crate::measure::MeasurePrimitive::MinClearance { .. }
+            })
+        )
     })
 }
 
@@ -2245,9 +2241,6 @@ pub fn assertion_at(
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
-        // The selection resolved to the wrong KIND of entity. Document
-        // structure; no parameter value moves it.
-        NodeErrorKind::MeasureSelectionKind { .. } => Some(MeasureRefusalClass::SelectionKind),
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
             let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));

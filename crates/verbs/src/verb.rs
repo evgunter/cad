@@ -106,8 +106,9 @@ pub enum Verb<T: Real> {
     Boolean {
         /// The regularized set operation.
         op: BooleanOp,
-        /// Declared coincidence intents, in operand arena keys.
-        declare: BooleanDeclarations,
+        /// Declared coincidence intents, in operand arena keys, boxed so
+        /// the verb stays one small value whatever the declarations hold.
+        declare: Box<BooleanDeclarations>,
     },
     /// Parts the operand body by a plane into its two sides.
     ///

@@ -33,20 +33,22 @@
 //!
 //! **Runs** (crate README, "Walls: one per run"): both cases build from
 //! the loop with each run of segments on one carrier collapsed to one
-//! ([`Collapsed`]), so a station inside a run has no entity here; the
+//! (`runs::Collapsed`), so a station inside a run has no entity here; the
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Point3, Real, Sign};
+use geom_core::{Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass, WallKind};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
+use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
-use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
+use super::turn::{TurnEnds, sweep_turn};
+use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
 use crate::swept::{face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
@@ -94,6 +96,7 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     let outer = collapse_runs(&loops[0], &classes[0], 0, band)?;
     let run = super::axis::analyze_contact(&outer.segs, &outer.cls, 0)?;
     let mut out = match run {
+        None if profile::is_full_turn(&outer.segs) => build_turn_lamina(frame, &outer, theta, tol),
         None => build_lamina(frame, 0, &outer, theta, band, tol),
         Some(run) => build_wire(frame, &outer, run, theta, band, tol),
     }?;
@@ -107,7 +110,11 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
             return Err(RevolveError::HoleTouchesAxis { loop_index: li });
         }
         let col = collapse_runs(segs, cls, li, band)?;
-        let hole = build_lamina(frame, li, &col, theta, band, tol)?;
+        let hole = if profile::is_full_turn(&col.segs) {
+            build_turn_lamina(frame, &col, theta, tol)
+        } else {
+            build_lamina(frame, li, &col, theta, band, tol)
+        }?;
         let hole_walls = hole.walls();
         let evidence = topo::VoidEvidence {
             shells: vec![(
@@ -237,8 +244,8 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
-        &mut body, loop_index, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3,
-        band, tol,
+        &mut body, loop_index, col, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
+        tol,
     )?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
@@ -315,7 +322,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         }
         let wall = face_surface_key(&body, f);
         let edge = he_edge(&body, *he);
-        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
         meridians[j] = Some(edge);
     }
 
@@ -349,6 +356,104 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         rims: vec![rims_c],
         // The lamina case is the no-axis-contact case: no profile
         // vertex is on-axis, so there are no poles.
+        poles: vec![vec![None; nc]],
+        kind: RevolvedKind::Full {
+            wire: false,
+            meridians: vec![mer_c],
+            pi_walls: vec![None; nc],
+            pi_meridians: vec![None; nc],
+            pi_rims: vec![None; nc],
+        },
+    })
+}
+
+/// The lamina case of a one-segment loop (D1's full turn): ONE torus
+/// face closed on itself both ways, its loop the fundamental polygon —
+/// the meridian (the loop's one segment, a wrap edge in `u`) and the
+/// latitude circle through its one vertex (a wrap edge in `v`), each
+/// used once each way at that vertex.
+///
+/// Built as the lamina case is, with one segment: the turn is swept
+/// whole (`turn::sweep_turn`), its far copy at the original coordinates
+/// and placement (a full period is the identity), and the same seam
+/// closure — `kfmrh` of the seed into the near face, the null-edge
+/// `mekr` and its `kev`, and the `kef` of the far copy — leaves the
+/// near meridian with both halves in the wall.
+fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
+    frame: &AxisFrame<T>,
+    col: &Collapsed<T>,
+    theta: T,
+    tol: Tol,
+) -> Result<Revolved<T>, RevolveError> {
+    let seg = &col.segs[0];
+    let q = frame.world(seg.a);
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
+    let seed = body.mvfs(q, true)?;
+    let (turn, swept) = sweep_turn(
+        &mut body,
+        frame,
+        &col.cls,
+        seg,
+        seed.r#loop,
+        &TurnEnds {
+            near: q,
+            far: q,
+            place_far: frame.place,
+            n_far: frame.n3,
+        },
+        theta,
+        turn_axis(Sign::Positive, frame.a3),
+        // A transient disc, killed by the closure, like the lamina's.
+        FaceSurface::New {
+            surface: Surface::nurbs_placeholder(),
+            sense: true,
+        },
+        tol,
+    )?;
+    body.kfmrh(turn.near_face, seed.face)?;
+    let near = he_edge(&body, turn.near_in_wall);
+    let target = body
+        .get_edge(near)
+        .unwrap_or_else(|| unreachable!("the near rim {near:?} was just minted"))
+        .he_minus;
+    let n0 = body.mekr(
+        MekrSite::Cycles {
+            target,
+            ring: turn.far_kept,
+        },
+        EdgeCurveSpec::self_loop_circle_at(q),
+        tol,
+    )?;
+    body.kev_describing(n0.he_plus, &[], tol)?;
+    body.kef(turn.far_kept)?;
+    let wall = face_surface_key(&body, turn.wall);
+    upgrade_meridian_wrap(&mut body, near, wall, tol)?;
+
+    #[cfg(debug_assertions)]
+    debug_assert_eq!(
+        topo::validate_closed(&body),
+        Ok(()),
+        "revolve (full, one-segment lamina) postcondition: result is not tier-2 valid (kernel bug)",
+    );
+
+    let nc = col.n_canon;
+    let mut walls_c = vec![None; nc];
+    let mut rims_c = vec![None; nc];
+    let mut mer_c = vec![None; nc];
+    body.close_already_checked();
+    rims_c[seg.canonical_vertex] = swept.rims[0];
+    for &m in &col.members[0] {
+        walls_c[m] = Some(turn.wall);
+        mer_c[m] = Some(near);
+    }
+    Ok(Revolved {
+        body: built,
+        solid: seed.solid,
+        shell: seed.shell,
+        cavities: Vec::new(),
+        bands: vec![super::bands_of(&walls_c, &col.members)],
+        rims: vec![rims_c],
         poles: vec![vec![None; nc]],
         kind: RevolvedKind::Full {
             wire: false,
@@ -527,9 +632,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |source| RevolveError::SliverJoin {
+            |reading, source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
+                reading,
                 source,
             },
             tol,
@@ -567,15 +673,15 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         // guarantee (its comment carries the argument).
         crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r, tol);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Scaffold(
-                geom_brep::MappedCurve::RevolvedPoint {
+            description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+                geom_brep::MappedSource::RevolvedPoint {
                     point: segs[wseg(i)].a,
                     place: place_pi,
                     axis_origin: frame.o3,
                     axis_dir: frame.a3,
                     angle: half,
                 },
-            ),
+            )),
             carrier: geom::Curve3::Circle {
                 center,
                 axis: axis_c,
@@ -613,9 +719,10 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |source| RevolveError::SliverJoin {
+            |reading, source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
+                reading,
                 source,
             },
             tol,
@@ -667,19 +774,18 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         unslit_plane_wall(&mut body, hes[i], end)?;
     }
 
-    // ---- Phase 5: meridian upgrades — angle-0 chain edges sit on the
-    // u = 0 seam of their (periodic) wall surfaces; the angle-π copies
-    // are NOT the seam, so they take the wall's chart image WITHOUT
-    // D1's seam obligation (module docs; D3's transience fence — the
-    // wall exists by now, so neither copy needs the scaffolding
-    // door). ----
+    // ---- Phase 5: meridian upgrades — both meridians part a wall's
+    // two π-bands, so each takes the wall's chart image at rest
+    // (`upgrade_meridian_wrap` reads that off its faces; D3's
+    // transience fence — the wall exists by now, so neither copy needs
+    // the scaffolding door). ----
     for i in 0..k {
         if plane[i] {
             continue;
         }
         let wall = face_surface_key(&body, faces[i]);
         let edge = he_edge(&body, hes[i]);
-        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
         if body.get_edge(tops[i]).is_some() {
             body.describe_at_rest(tops[i], wall, tol)?;
         }
@@ -822,63 +928,4 @@ fn unslit_plane_wall<T: Decide>(
         }
     }
     Ok(())
-}
-
-/// A full revolve's loop with each wall run collapsed to one segment
-/// (crate README, "Walls: one per run": a station inside a run has no
-/// entity in a full revolve, so the builders never see it). The run's
-/// segment is its first one carried to the run's end (an arc's sweep
-/// summed over the run), classified as the first one was — the run is
-/// one carrier by the cosurface verdict.
-pub(super) struct Collapsed<T: Real> {
-    /// The collapsed swept segments, in run order.
-    pub(super) segs: Vec<SweptSeg<T>>,
-    /// Their classes: each run's leading vertex and first wall.
-    pub(super) cls: LoopClasses<T>,
-    /// Per collapsed segment, the canonical segments its run holds, in
-    /// swept order.
-    pub(super) members: Vec<Vec<usize>>,
-    /// The canonical loop's segment count.
-    pub(super) n_canon: usize,
-}
-
-/// Collapses one loop's wall runs ([`Collapsed`]), from the cosurface
-/// verdicts between walled neighbours (the partial revolve's, which
-/// keeps each station on its wedge caps instead).
-pub(super) fn collapse_runs<T: Decide>(
-    segs: &[SweptSeg<T>],
-    cls: &LoopClasses<T>,
-    loop_index: usize,
-    band: Band,
-) -> Result<Collapsed<T>, RevolveError> {
-    let n = segs.len();
-    let pair = super::partial::loop_pairs(segs, cls, loop_index, band)?;
-    let joins = crate::swept::joins(segs, &pair, crate::swept::CurvedRuns::Whole);
-    let runs = crate::swept::wall_runs(&joins);
-    let mut out = Collapsed {
-        segs: Vec::with_capacity(runs.len()),
-        cls: LoopClasses {
-            verts: Vec::with_capacity(runs.len()),
-            walls: Vec::with_capacity(runs.len()),
-        },
-        members: Vec::with_capacity(runs.len()),
-        n_canon: n,
-    };
-    for run in runs {
-        let last = (run.first + run.len - 1) % n;
-        let kind = run
-            .segments(n)
-            .skip(1)
-            .fold(segs[run.first].kind, |kind, s| kind.continued(segs[s].kind));
-        out.segs.push(SweptSeg {
-            b: segs[last].b,
-            kind,
-            ..segs[run.first]
-        });
-        out.cls.verts.push(cls.verts[run.first]);
-        out.cls.walls.push(cls.walls[run.first]);
-        out.members
-            .push(run.segments(n).map(|s| segs[s].canonical_segment).collect());
-    }
-    Ok(out)
 }

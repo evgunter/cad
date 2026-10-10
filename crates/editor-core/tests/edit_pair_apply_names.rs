@@ -74,7 +74,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -93,6 +93,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
             node: profile,
             loops,
             ids,
+            fresh: Vec::new(),
         },
     );
     (doc, extrude)
@@ -147,10 +148,11 @@ impl Twins {
 
         let fourth = ename(
             sq,
-            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
         );
         let edit = DocEdit::InsertNode {
             node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
+            fresh: Vec::new(),
         };
         Self {
             square,
@@ -324,10 +326,11 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
 
     let fourth = ename(
         sq,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
     );
     let edit = DocEdit::InsertNode {
         node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
+        fresh: Vec::new(),
     };
     assert!(
         apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),
@@ -525,7 +528,8 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
                 &DocEdit::SetParam {
                     node: ext,
                     slot: SlotId::Distance,
-                    expr: len(distance),
+                    value: len(distance).into(),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -792,7 +796,8 @@ fn what_the_admitted_later_evaluation_answers() {
             &DocEdit::SetParam {
                 node: ext,
                 slot: SlotId::Distance,
-                expr: len(2.0),
+                value: len(2.0).into(),
+                fresh: Vec::new(),
             },
             tol,
             &editor_core::RefusingReach,
