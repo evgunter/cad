@@ -1591,6 +1591,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set,
+            side: None,
             lone: Lone::Whole,
         });
     }
@@ -1606,6 +1607,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set: Vec::new(),
+            side: None,
             lone: Lone::Whole,
         });
     }
@@ -1649,6 +1651,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie: inner.tied,
             edges,
             set: Vec::new(),
+            side: Some(root.operand()),
             lone,
         });
     }
@@ -1804,6 +1807,11 @@ struct EdgeGroup {
     edges: Vec<EdgeKey>,
     /// The operand edges a joined edge's set name lists, or empty.
     set: Vec<OpSide<EdgeKey>>,
+    /// The operand a carried edge descends from, or `None` for a seam
+    /// or a joined set. Its name's read is no side: both seats may read
+    /// one family (`xs[1] − xs[0]`), and the read keys the name either
+    /// way (REFERENCES DM4).
+    side: Option<topo::Operand>,
     /// What a lone piece of the parent is named for.
     lone: Lone,
 }
@@ -1833,12 +1841,13 @@ fn name_boolean_vertices<T: Decide>(
     let bug = |what| NamingError::Emission { what };
     // Each edge's parent, the head a vertex cites it by, and whether
     // that descends from a tie.
-    let edge_base: BTreeMap<EdgeKey, (&StableName, bool, &[OpSide<EdgeKey>])> = edge_groups
+    type EdgeBase<'g> = (&'g StableName, bool, &'g [OpSide<EdgeKey>], Option<topo::Operand>);
+    let edge_base: BTreeMap<EdgeKey, EdgeBase<'_>> = edge_groups
         .iter()
         .flat_map(|g| {
             g.edges
                 .iter()
-                .map(move |&e| (e, (&g.base, g.from_tie, g.set.as_slice())))
+                .map(move |&e| (e, (&g.base, g.from_tie, g.set.as_slice(), g.side)))
         })
         .collect();
     // The operand edges of a joined edge's set that hold vertex `v`:
@@ -1954,7 +1963,7 @@ fn name_boolean_vertices<T: Decide>(
         // name tie-descended too.
         let mut from_tie = false;
         for &e in edges {
-            let Some(&(ename, tied, set)) = edge_base.get(&e) else {
+            let Some(&(ename, tied, set, side)) = edge_base.get(&e) else {
                 return Err(bug("seam vertex incident to an unnamed edge"));
             };
             from_tie |= tied;
@@ -1971,8 +1980,11 @@ fn name_boolean_vertices<T: Decide>(
                         }
                     }
                 }
-                Some(RoleSeg::From { read, of: x }) if *read == a.read => a_edges.push(x.clone()),
-                Some(RoleSeg::From { read, of: x }) if *read == b.read => b_edges.push(x.clone()),
+                Some(RoleSeg::From { of: x, .. }) => match side {
+                    Some(topo::Operand::A) => a_edges.push(x.clone()),
+                    Some(topo::Operand::B) => b_edges.push(x.clone()),
+                    None => return Err(bug("a carried edge's group names no operand")),
+                },
                 // Zip-listed AND derived seams both qualify (M4 PR 5:
                 // declared merges reroute channel-cut chords into the
                 // derived-seam lane, so a seam vertex may lean on a

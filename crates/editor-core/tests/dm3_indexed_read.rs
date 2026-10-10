@@ -444,3 +444,59 @@ fn set_members_writes_indexed_members() {
     );
     assert!((volume(&ev, union) - 2.0).abs() < 1e-9);
 }
+
+/// **A subtract of two members of one family builds as the same pair
+/// read through two variables** (review r2, M1). Both seats read `xs`,
+/// so their names share one read; which seat an edge descends from is
+/// the operand it was taken from, never its name's read. Two unit cubes
+/// along `(1, 1, 1)` at spacing 0.5 overlap with no coplanar face, so
+/// the cut mints seam vertices whose parentage reads both seats.
+///
+/// Red if the pair emitter sides a carried edge by its read: every edge
+/// lands on one side and the seam vertex refuses `SeamVertexParentage`.
+#[test]
+fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() {
+    use crate::eval6_placers_over_instances::part;
+    let (doc, cube) = cube_doc("dm3-overlap-cut");
+    let (doc, xs) = insert(doc, linear(cube, [1.0, 1.0, 1.0], 0.5, 2));
+    let (doc, one) = insert(doc, part(xs, 1));
+    let (doc, zero) = insert(doc, part(xs, 0));
+    let (doc, by_parts) = insert(
+        doc,
+        Node::Subtract {
+            from: one.into(),
+            tool: zero.into(),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, by_index) = insert(
+        doc,
+        Node::Subtract {
+            from: member(xs, 1),
+            tool: member(xs, 0),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, reversed) = insert(
+        doc,
+        Node::Subtract {
+            from: member(xs, 0),
+            tool: member(xs, 1),
+            declare: Vec::new(),
+        },
+    );
+    let ev = eval(&doc);
+    let want = volume(&ev, by_parts);
+    for (cut, what) in [(by_index, "xs[1] − xs[0]"), (reversed, "xs[0] − xs[1]")] {
+        assert!(
+            (volume(&ev, cut) - want).abs() < 1e-9,
+            "{what} builds the parts' volume {want}: {}",
+            volume(&ev, cut)
+        );
+        assert_eq!(
+            names(&ev, cut).len(),
+            names(&ev, by_parts).len(),
+            "{what} names as many entities as the cut of the two parts"
+        );
+    }
+}
