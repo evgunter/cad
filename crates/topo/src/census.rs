@@ -2967,8 +2967,8 @@ fn sweep_conformal_patches<T: Decide>(
                     }
                     // Every other typed predicate refusal: the pair
                     // was not certified, and WHICH refusal said so is
-                    // carried rather than replaced. The twelve do not
-                    // share a cause — a stopped interior-witness
+                    // carried rather than replaced. They do not share
+                    // a cause — a stopped interior-witness
                     // search, an absent pcurve cache and a non-planar
                     // trim want three different repairs — so the one
                     // thing this arm may not do is restate them as
@@ -2993,11 +2993,12 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
-                        | ChartRegionError::WitnessBudgetExhausted { .. }
+                        | ChartRegionError::WitnessSegmentCapExceeded { .. }
+                        | ChartRegionError::WitnessCellCapExceeded { .. }
                         | ChartRegionError::Corrupt),
                     )) => {
                         // The refusal is CARRIED, not replaced. The
-                        // twelve say different things with different
+                        // refusals say different things with different
                         // recourses — a stopped witness search is not
                         // a thin overlap, and neither is an absent
                         // pcurve cache — and flattening them here made
@@ -3244,7 +3245,9 @@ fn boundary_axial<T: Decide>(
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let axial = match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
+                let axial = match crate::boolean::boxes::edge_box_rule(
+                    body.edge_curve_linked(ek, e).certified(),
+                ) {
                     // No axial-span closed form is written for the
                     // spiric (the boolean lane's own reading).
                     EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
@@ -6601,11 +6604,12 @@ fn confirm_curve_and_patch_records<T: Decide>(
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }
                 | ChartRegionError::RayExhausted
-                | ChartRegionError::WitnessBudgetExhausted { .. }
+                | ChartRegionError::WitnessSegmentCapExceeded { .. }
+                | ChartRegionError::WitnessCellCapExceeded { .. }
                 | ChartRegionError::Corrupt),
             )) => {
                 // Carried, as at the sweep arm and for the same
-                // reason: which of the twelve refused is the whole of
+                // reason: which refusal fired is the whole of
                 // what tells a reader which repair to make.
                 errors.push(ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
