@@ -1400,3 +1400,4 @@ Ev said go.
   - The orchestrator merged main once, a union of the slow-set line.
   - Next per the plan: unit 19, the NURBS × NURBS arm (`Section` handle, `branch_at`/`all()`), as ruled in PR 4515.
 - **Unit 19 dispatched** (2026-10-10 20:28Z): the NURBS × NURBS section arm, as ruled in PR 4515 (a `Section` handle with `branch_at` and `all()`). Session `session_01CdW9zFCmnxvk8MaZHdoV5w`, branch `shell/nurbs-nurbs-section`, H tier, dual review.
+- **Unit 19 review dispatched** (2026-10-10 23:40Z): PR 4597, frozen head 00506b1, concurrent dual Opus pair (H tier). The lane reported main red on perf12's census golden. That drift was already re-blessed on main by PR 4586 and is inside the head. The names-alike timing row is `work/tcost/a-names-alike-bound-sits-at-the-debug-builds-own-time.md`.
