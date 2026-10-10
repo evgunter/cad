@@ -1510,6 +1510,10 @@ impl Real for Probe {
         Self(x)
     }
 
+    fn from_computed(x: f64) -> Self {
+        Self(x)
+    }
+
     /// The recording scalar's value channel IS an `f64`, so the
     /// registered-identity witness is `f64`'s verbatim
     /// ([`Real::register_equal`]) — inexact ([`Real::WITNESS`] above
