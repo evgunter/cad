@@ -592,8 +592,6 @@ mod rv_onepred3_probes;
 mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
-#[path = "seat6_param_source.rs"]
-mod seat6_param_source;
 #[path = "seat7_sweep_lowering.rs"]
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
@@ -749,6 +747,8 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "glue_on_zero_rows.rs"]
+mod glue_on_zero_rows;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -773,3 +773,5 @@ mod intent_vars_2_table;
 mod intent_vars_3_readers;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "union_member_orders_decide_alike.rs"]
+mod union_member_orders_decide_alike;

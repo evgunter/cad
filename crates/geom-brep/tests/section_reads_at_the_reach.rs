@@ -12,8 +12,8 @@
 use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::intersect::{
-    ConeCylinderSection, EqualCylinderSection, PlaneCylinderSection, RadiusEvidence,
-    cone_cylinder_section, cylinder_cylinder_section, plane_cylinder_section,
+    ConeCylinderSection, EqualCylinderSection, PlaneCylinderSection, cone_cylinder_section,
+    cylinder_cylinder_section, plane_cylinder_section,
 };
 use geom_brep::{ExtentBall, Reach, TangentLocus, tangent_locus};
 use geom_core::{Point3, Vec3};
@@ -102,13 +102,7 @@ fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
             let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), toward, along2);
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                 let at = format!("stored {along1} m, {along2} m along, ({label})");
-                match cylinder_cylinder_section(
-                    a,
-                    b,
-                    RadiusEvidence::Declared,
-                    &Reach::Ball(reach),
-                    band(),
-                ) {
+                match cylinder_cylinder_section(a, b, &Reach::Ball(reach), band()) {
                     Ok(EqualCylinderSection::TangentLine(geom::Curve3::Line {
                         origin, ..
                     })) => {
@@ -140,8 +134,7 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), tilted(-Vec3::unit_y()), -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, &Reach::Ball(reach), band())
-        {
+        match cylinder_cylinder_section(a, b, &Reach::Ball(reach), band()) {
             Err(geom_brep::SectionError::Escalated(d)) => assert_eq!(
                 d.predicate,
                 Some("cc_axes_parallel"),
@@ -176,8 +169,7 @@ fn the_tilt_is_levered_from_the_nearer_foot() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), toward, -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, &Reach::Ball(reach), band())
-        {
+        match cylinder_cylinder_section(a, b, &Reach::Ball(reach), band()) {
             Ok(EqualCylinderSection::TangentLine(_)) => {}
             other => panic!("({label}): from the nearer foot the tilt is Zero: {other:?}"),
         }
@@ -205,7 +197,7 @@ fn a_measured_lever_reaches_the_pivots_distance() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 0.0);
     let c2 = cylinder(Point3::new(0.0, 0.5, 0.0), tilted(Vec3::unit_y()), 0.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, &reach, band()) {
+        match cylinder_cylinder_section(a, b, &reach, band()) {
             Err(geom_brep::SectionError::Escalated(d)) => assert_eq!(
                 d.predicate,
                 Some("cc_axes_parallel"),

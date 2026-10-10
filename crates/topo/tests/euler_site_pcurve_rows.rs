@@ -60,7 +60,6 @@ fn wall() -> (Body<f64>, FaceKey, VertexKey) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         tol(),
@@ -596,7 +595,7 @@ fn a_mekr_across_the_principal_azimuth_cut_mints_the_passs_rows() {
     let (ua, ub) = (4.6_f64, 4.8_f64);
     let frame = CylFrame::canonical(1.0);
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(&mut body, frame, None, (4.2, 5.2), (0.0, 1.0), tol());
+    let face = cyl_wall_sheet(&mut body, frame, (4.2, 5.2), (0.0, 1.0), tol());
     let rim = body
         .edges()
         .map(|(e, _)| e)
@@ -1312,7 +1311,6 @@ fn side_split() -> (Body<f64>, FaceKey, FaceKey, HalfEdgeKey, VertexKey) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         tol(),
@@ -1480,7 +1478,6 @@ fn chord_across_the_branch_jump() -> (Body<f64>, FaceKey, topo::MefCreated) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (4.2, 5.4),
         (0.0, 1.0),
         tol(),

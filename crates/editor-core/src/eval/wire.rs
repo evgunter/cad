@@ -51,7 +51,7 @@ use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
     Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, DATUM_UNIT_NORM,
-    FacePairDeclaration, GeomSource, VfContact, VvContact,
+    FacePairDeclaration, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfilePre, ProfileValue};
@@ -287,19 +287,12 @@ where
             };
             Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
         }
-        Node::Extrude { profile, side, .. } => wire_extrude(
-            id,
-            at(O::Profile, *profile)?,
-            *side,
-            doc,
-            results,
-            vals,
-            env,
-            tol,
-        ),
+        Node::Extrude { profile, side, .. } => {
+            wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
+        }
         Node::Revolve { profile, axis, .. } => {
             let (profile, axis) = (at(O::Profile, *profile)?, at(O::Axis, *axis)?);
-            wire_revolve(id, profile, axis, doc, results, vals, env, tol)
+            wire_revolve(id, profile, axis, doc, results, vals, tol)
         }
         Node::Loft { profiles, .. } => wire_loft(
             id,
@@ -330,7 +323,6 @@ where
             doc,
             results,
             vals,
-            env,
             tol,
         ),
         Node::Chamfer {
@@ -343,7 +335,6 @@ where
             doc,
             results,
             vals,
-            env,
             tol,
         ),
         Node::Shell { target, open, .. } => wire_shell(
@@ -354,7 +345,6 @@ where
             doc,
             results,
             vals,
-            env,
             tol,
         ),
         Node::Split { target, tool } => wire_split(
@@ -398,7 +388,7 @@ where
             )
         }
         Node::Transform { input, placement } => {
-            wire_transform(id, at(O::Input, *input)?, placement, results, vals, tol)
+            wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
         }
         Node::PlaceInWorld { body, pose } => {
             let at = at(O::Body, *body)?;
@@ -560,7 +550,7 @@ where
     // (`placement::Motion`): taken only for a BIT-exact identity, since
     // any other value could round, and `transform_rigid` is what
     // decides whether it stayed rigid.
-    let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
+    let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
     // instantiation UNCHANGED, because `transform_rigid` is key-stable
@@ -621,123 +611,9 @@ where
     })
 }
 
-/// Stamps every UNSOURCED description of `body` with this node's
-/// minted [`GeomSource`]s, one shared index space in deterministic
-/// arena order (D1/N6). Pass-through descriptions keep the source they
-/// arrived with. Per-evaluation identity, the scope N6 allows.
-fn stamp_minted<T: Decide>(body: &mut Body<T>, node: RecipeNodeId) {
-    let _ = stamp_minted_from(body, node, 0);
-}
-
-/// [`stamp_minted`] continuing an index space: stamps `body`'s
-/// unsourced descriptions from `first` up and returns the next free
-/// index. A node that mints SEVERAL bodies threads the index through
-/// all of them, because N6's same-source theorem (same `GeomSource` ⇒
-/// bit-identical descriptions) is per NODE: two bodies both carrying
-/// `minted(node, 0)` would be one source over two geometries, which
-/// the boolean's rung 1 reads as identity.
-fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u32) -> u32 {
-    let mut idx: u32 = first;
-    let surfaces: Vec<_> = body
-        .surfaces()
-        .map(|(k, _)| k)
-        .filter(|&k| body.surface_source(k).is_none())
-        .collect();
-    for k in surfaces {
-        // Stamping a just-enumerated live key cannot fail.
-        let _ = body.set_surface_source(k, GeomSource::minted(node.0.digest(), idx));
-        idx += 1;
-    }
-    let curves: Vec<_> = body
-        .curves()
-        .map(|(k, _)| k)
-        .filter(|&k| body.curve_source(k).is_none())
-        .collect();
-    for k in curves {
-        let _ = body.set_curve_source(k, GeomSource::minted(node.0.digest(), idx));
-        idx += 1;
-    }
-    let points: Vec<_> = body
-        .points()
-        .map(|(k, _)| k)
-        .filter(|&k| body.point_source(k).is_none())
-        .collect();
-    for k in points {
-        let _ = body.set_point_source(k, GeomSource::minted(node.0.digest(), idx));
-        idx += 1;
-    }
-    idx
-}
-
-/// **Which of a node's rigid maps placed a body, and which output body
-/// it became** — the two keys a placement stamps with, derived together
-/// so no caller can spell one without the other.
-///
-/// They are different keys because the two channels ask different
-/// questions. A description's `GeomSource` keys on the output `body`:
-/// distinct bodies of one node never share a source (a pattern's
-/// placement 0 is the master verbatim, never stamped, and differs from
-/// every placed body in the wrapping node). An axis row keys on the
-/// `map`: coaxiality survives a motion applied to both carriers, so
-/// every body one map places carries its axes to the same lines, and
-/// the ratified table's "both placed by one node/instance" row holds
-/// between bodies of one placement.
-#[derive(Clone, Copy, Debug)]
-struct Placing {
-    by: RecipeNodeId,
-    /// Which of `by`'s maps: 0 where the node has one, the placement
-    /// index for a pattern or a group boolean.
-    map: u32,
-    /// The body's output ordinal in `by`'s value: `map·per + i`.
-    body: u32,
-}
-
-impl Placing {
-    /// Node `by`'s map `map` applied to body `i` of a `per`-body
-    /// operand.
-    fn of(by: RecipeNodeId, map: usize, per: usize, i: usize) -> Result<Self, NodeErrorKind> {
-        let map = names::output_body(map).map_err(NodeErrorKind::Naming)?;
-        let body = names::output_body(per)
-            .and_then(|per| names::output_body(i).and_then(|i| names::flat_body_index(map, per, i)))
-            .map_err(NodeErrorKind::Naming)?;
-        Ok(Self { by, map, body })
-    }
-}
-
-/// Re-stamps `placed`'s descriptions with `input`'s sources wrapped by
-/// the placing node at the output ordinal `at.body` (N6), and its
-/// surfaces' axis rows by the same node at `at.map`
-/// ([`topo::AxisSource::placed`]) — see [`Placing`] for why the keys
-/// differ. Keys are stable across `transform_rigid`, so the input's
-/// rows map key-for-key. Unsourced input descriptions stay unsourced,
-/// and an axis row the input held `Cleared` stays so: there is no
-/// source left to place.
-fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing) {
-    let by = at.by.0.digest();
-    for (k, _) in input.surfaces() {
-        if let Some(src) = input.surface_source(k) {
-            let _ = placed.set_surface_source(k, src.placed(by, at.body));
-        }
-        if let Some(axis) = input.surface_axis_source(k) {
-            let _ = placed.set_surface_axis_source(k, axis.placed(by, at.map));
-        }
-    }
-    for (k, _) in input.curves() {
-        if let Some(src) = input.curve_source(k) {
-            let _ = placed.set_curve_source(k, src.placed(by, at.body));
-        }
-    }
-    for (k, _) in input.points() {
-        if let Some(src) = input.point_source(k) {
-            let _ = placed.set_point_source(k, src.placed(by, at.body));
-        }
-    }
-}
-
-/// **A rigid placement of `body`, stamped** — the one site that pairs
-/// `transform_rigid` with [`compose_placed`]. `None` is the bit-exact
-/// identity the instantiate door admits: a clone, so no
-/// re-certification is owed, stamped like any other placement.
+/// **A rigid placement of `body`**. `None` is the bit-exact identity
+/// the instantiate door admits: a clone, so no re-certification is
+/// owed.
 ///
 /// # Errors
 ///
@@ -746,15 +622,12 @@ fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing)
 fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
-    at: Placing,
     tol: Tol,
 ) -> Result<Body<T>, NodeErrorKind> {
-    let mut placed = match map {
-        None => body.clone(),
-        Some(map) => transform_rigid(body, map, tol).map_err(NodeErrorKind::Transform)?,
-    };
-    compose_placed(body, &mut placed, at);
-    Ok(placed)
+    match map {
+        None => Ok(body.clone()),
+        Some(map) => transform_rigid(body, map, tol).map_err(NodeErrorKind::Transform),
+    }
 }
 
 /// Every body of `bodies` placed by node `by`'s map number `j`, in
@@ -762,17 +635,11 @@ fn place<T: Decide + topo::AtRestPolicy>(
 fn place_each<T: Decide + topo::AtRestPolicy>(
     bodies: &[Arc<Body<T>>],
     map: &Affine3<T>,
-    by: RecipeNodeId,
-    j: usize,
     tol: Tol,
 ) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
     bodies
         .iter()
-        .enumerate()
-        .map(|(i, body)| {
-            let at = Placing::of(by, j, bodies.len(), i)?;
-            place(body, Some(map), at, tol).map(Arc::new)
-        })
+        .map(|body| place(body, Some(map), tol).map(Arc::new))
         .collect()
 }
 
@@ -1750,8 +1617,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 ///
 /// It shares a SHAPE with `wire_blend` and `wire_boolean` — build the
 /// verb, run it through its own door, read the birth record, emit
-/// names, stamp provenance, attach the declared flow — but no code,
-/// because the operand differs at every step.
+/// names — but no code, because the operand differs at every step.
 ///
 /// The verb ARGUMENTS come in already resolved: a revolve's axis is a
 /// node whose value must be an in-plane axis on the profile's own
@@ -1762,18 +1628,13 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 ///
 /// # What it writes
 ///
-/// The body, the name table (profile refs in canonical numbering), the
-/// provenance stamp on everything the sweep minted, and the per-edge
-/// parameter sources the verb's flow declares.
-#[allow(clippy::too_many_arguments)] // `verb` is the correspondence, as in `wire_blend`
+/// The body and the name table (profile refs in canonical numbering).
 fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
     profile: RecipeNodeId,
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
-    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let vp = operand(results, profile, super::family::PROFILE, |v| {
@@ -1782,45 +1643,25 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
             _ => None,
         }
     })?;
-    let built = (verb.build)(args);
-    // Where the verb's parameters land (VERB-SEAT-DESIGN V1).
-    let flow = built.param_flow();
-    let record = built
+    let record = (verb.build)(args)
         .run_profile(&vp.validated, tol)
         .map_err(verb_refused)?;
     // Eager N4 emission, BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
-    let table = out.table;
-    let mut body = out.body;
-    stamp_minted(&mut body, id);
-    // Attach-at-mint (VERB-SEAT-DESIGN P2), per EDGE: a swept wall's
-    // radius is the PROFILE's, so the token is the radius the operand
-    // profile draws that wall's edge at. A straight edge yields none.
-    let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-    let defs = crate::param_source::definitions_of(doc);
-    let tokens = crate::param_source::profile_radius_tokens(vp, scope, &defs);
-    crate::param_source::attach_swept(
-        &mut body,
-        flow,
-        crate::verbs::sweep::PROFILE_RADIUS,
-        &tokens,
-        &out.walls,
-    )
-    .map_err(NodeErrorKind::ParamSourceAttach)?;
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(out.body)),
+        out.table,
+    ))
 }
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
-#[allow(clippy::too_many_arguments)] // `wire_revolve`'s list, with the side for its axis
 fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     side: crate::node::ExtrudeSide,
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let distance = need_scalar(vals, SlotId::Distance)?;
@@ -1829,9 +1670,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         (distance, side),
         id,
         profile,
-        doc,
         results,
-        env,
         tol,
     )
 }
@@ -1856,7 +1695,6 @@ fn written_against(
 /// plane** — the document semantics (the axis operand, the same-frame
 /// rule, the full-vs-partial classification), and the generic lowering
 /// from there.
-#[allow(clippy::too_many_arguments)] // the doc and the env are read for the frame rule and the tokens' scope
 fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
@@ -1864,7 +1702,6 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     // Decides only ORDER (`wire_swept` re-checks it): a node whose
@@ -1914,9 +1751,7 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         (axis2, revolution),
         id,
         profile,
-        doc,
         results,
-        env,
         tol,
     )
 }
@@ -1978,11 +1813,10 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let a = tube_args(frame, window, results, vals)?;
-    let mut built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
+    let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
         names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
-    stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -2020,12 +1854,11 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let a = tube_args(frame, window, results, vals)?;
     let wall = need_scalar(vals, SlotId::TubeWall)?;
-    let mut built =
+    let built =
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
             .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
         names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
-    stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -2037,9 +1870,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 /// rather than re-deriving which door it called.
 ///
 /// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a new
-/// refusal shape breaks here. The boolean's undeclared-coincidence
-/// refusal is intercepted first by [`refusal_menu`], which needs the
-/// operands' naming context.
+/// refusal shape breaks here.
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
@@ -2093,17 +1924,15 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
-    let built = (verb.build)(edges, size);
-    // Where the verb's scalar lands (VERB-SEAT-DESIGN V1).
-    let flow = built.param_flow();
-    let out = built.run(&body, tol).map_err(verb_refused)?;
+    let out = (verb.build)(edges, size)
+        .run(&body, tol)
+        .map_err(verb_refused)?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
@@ -2117,31 +1946,8 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         b: None,
         tool: None,
     };
-    let coincidences = out.coincidences;
-    let mut body = out.body;
-    stamp_minted(&mut body, id);
-    // Attach-at-mint (VERB-SEAT-DESIGN P2): the size slot's expression
-    // lowers to an opaque token under THIS evaluation's scope, and the
-    // verb's DECLARED flow says which minted carriers it lands on. A
-    // slot the document does not hold cannot have produced `size`, but
-    // this is a lookup, so it falls back to attaching nothing rather
-    // than asserting.
-    if let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot)) {
-        let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-        crate::param_source::attach_blend(
-            &mut body,
-            flow,
-            verb.slots.size_param,
-            &crate::param_source::lower_var(
-                scope,
-                &crate::param_source::definitions_of(doc),
-                *expr,
-            ),
-            &rec,
-        )
-        .map_err(NodeErrorKind::ParamSourceAttach)?;
-    }
-    OpOut::plain(ValuePayload::Body(Arc::new(body)), table).recording(&coincidences, &inputs)
+    OpOut::plain(ValuePayload::Body(Arc::new(out.body)), table)
+        .recording(&out.coincidences, &inputs)
 }
 
 /// **The shell's lowering**, driven by the verb's correspondence
@@ -2176,7 +1982,6 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let body = finished_operand(results, target, tol)?;
@@ -2184,8 +1989,6 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let faces = resolve_open_faces(open, doc, &target_table)?;
     let built = (verb.build)(faces, thickness);
-    // Where the verb's scalar lands (VERB-SEAT-DESIGN V1).
-    let flow = built.param_flow();
     // A scalar that may not certify has no shell door and refuses here
     // rather than at an unvalidated hollow.
     let door = <T as topo::AtRestPolicy>::shell_door()
@@ -2194,29 +1997,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
-    let mut body = out.body;
-    stamp_minted(&mut body, id);
-    // Attach-at-mint (VERB-SEAT-DESIGN P2). The shell's flow row is
-    // declared EMPTY (its thickness becomes `r − t`, the identity of
-    // neither), so `flow_bearing` skips the lowering.
-    if crate::param_source::flow_bearing(verb.slots.size_param)
-        && let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot))
-    {
-        let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-        crate::param_source::attach_shell(
-            &mut body,
-            flow,
-            verb.slots.size_param,
-            &crate::param_source::lower_var(
-                scope,
-                &crate::param_source::definitions_of(doc),
-                *expr,
-            ),
-            &rec,
-        )
-        .map_err(NodeErrorKind::ParamSourceAttach)?;
-    }
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out.body)), table))
 }
 
 /// Resolves a shell's open-face designation against the target's name
@@ -2710,16 +2491,8 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let out = built.run_split(&body, tol).map_err(verb_refused)?;
     let coincidences = out.coincidences;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    // The fresh section planes get THIS node's sources (D1) in ONE
-    // index space across both halves: each half's section plane has its
-    // own outward normal, and a shared source would read as one plane
-    // at the rung 1 of a boolean that rejoins the halves.
-    let mut next = 0u32;
-    let mut side = |part: SplitPart<T>| match part {
-        SplitPart::Body(mut b) => {
-            next = stamp_minted_from(&mut b, id, next);
-            SplitSide::Body(Arc::new(b))
-        }
+    let side = |part: SplitPart<T>| match part {
+        SplitPart::Body(b) => SplitSide::Body(Arc::new(b)),
         SplitPart::Empty => SplitSide::Empty,
     };
     let above = side(out.above);
@@ -2941,7 +2714,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let body_b = finished_operand(results_b, b, tol)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
-        .map_err(|err| refusal_menu((a, &a_table), (b, &b_table), err))?
+        .map_err(verb_refused)?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -2972,8 +2745,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
-            let mut body = out.body.into_body();
-            stamp_minted(&mut body, id);
+            let body = out.body.into_body();
             OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: Arc::new(body),
@@ -3015,12 +2787,15 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// **Contact is judged before the fold, pairwise** (DM4's contact
 /// rule): [`judge_pairwise_contact`] runs each member pair whose boxes
 /// meet, or that carries a declaration, as its own two-member union,
-/// so an undeclared contact refuses in every member order, and the face
-/// pairs each judgement consumed are the union's face links (N2,
-/// [`names::UnionLinks`]). A fold step
-/// that refuses one is a bug ([`fold_step_refusal`]). A certified pair
-/// passes each step's census by being fed to the step that joins its
-/// sites as a declared face pair.
+/// so its verdicts and refusals are the same in every member order, and
+/// the face pairs each judgement consumed are the union's face links
+/// (N2, [`names::UnionLinks`]). **One verdict per carrier pair**: each
+/// pair a judgement glued ([`PairVerdict`]) is fed to every fold step
+/// as a declared pair between the accumulation's faces that descend
+/// from its first face (the fold's lineage, [`names::UnionFold`]) and
+/// its second face, and the step decides no carrier pair of its own
+/// ([`topo::Verdicts::Given`]). A refusal only a step raises names the
+/// member that step folds in ([`NodeErrorKind::UnionFoldStep`]).
 ///
 /// **Nothing ∅-absorbing is invented** (D3). A member that evaluates to
 /// an empty boolean refuses `EmptyOperand` naming that member. A fold
@@ -3094,7 +2869,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
-    let (links, coincidences) = judge_pairwise_contact(
+    let (links, coincidences, verdicts) = judge_pairwise_contact(
         id,
         members,
         &tables,
@@ -3104,7 +2879,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         |p, q, decls| {
             let out = (verb.build)(BooleanOp::Union, decls)
                 .run_pair(&operands[p].0, &operands[q].0, boolean_sweep, tol)
-                .map_err(|err| union_refusal(id, members, tables[p], tables[q], err))?;
+                .map_err(verb_refused)?;
             let verbs::PairOut::Out(out) = out else {
                 return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_PAIR_EMPTY,
@@ -3123,8 +2898,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
+            let verdicts = pair_verdicts(p, q, &out.coincidences);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => Ok((naming, rows)),
+                verbs::VerbRecord::Boolean { naming, .. } => Ok((naming, rows, verdicts)),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3145,18 +2921,22 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         // COLLAPSED — its `FromA`/`FromB` rows are the fold's internal
         // space, and a refusal names collapsed rows (`union_refusal`), so
         // this is the one space a caller can write.
-        let decls = if buckets[step].is_empty() {
+        let mut decls = if buckets[step].is_empty() {
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
             let resolved = drop_consumed(look_through_fold(&buckets[step], &acc_view)?, &acc_view);
             resolve_declarations(&resolved, doc, &acc_view, &member_table)?
         };
-        match (verb.build)(BooleanOp::Union, decls)
+        given_verdicts(&mut decls, &verdicts, step + 1, members, &fold, &acc_body)?;
+        let step_refusal = |refusal| NodeErrorKind::UnionFoldStep {
+            member: rest[step],
+            refusal: Box::new(refusal),
+        };
+        match (verb.build)(BooleanOp::Union, decls.clone())
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
-            .map_err(|err| {
-                fold_step_refusal(union_refusal(id, members, &acc_table, &member_table, err))
-            })? {
+            .map_err(|err| step_refusal(verb_refused(err)))?
+        {
             // A union of two REAL bodies cannot be empty, so this is a
             // kernel bug. It is NOT attributed to a member, which would
             // send a caller to edit a member that is fine.
@@ -3166,6 +2946,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 }));
             }
             verbs::PairOut::Out(out) => {
+                debug_assert_given(&out.coincidences, &decls);
                 let verbs::VerbRecord::Boolean {
                     kind,
                     contacts,
@@ -3217,10 +2998,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (table, published_groups) =
         names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
             .map_err(NodeErrorKind::Naming)?;
-    let mut body = (*acc_body).clone().into_body();
-    // ONCE, over the finished body: the stamp numbers from zero, so a
-    // per-step pass would reuse an earlier step's index.
-    stamp_minted(&mut body, id);
+    let body = (*acc_body).clone().into_body();
     // The LAST step's record is the result's, contacts included. A
     // contact fed at an earlier step is consumed there and does not
     // reach the value — the pair verb's carry rule, exactly as a chain
@@ -3253,9 +3031,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///
 /// Each pair of members whose closed boxes meet
 /// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
-/// only the declared pairs between `m` and `n`. An undeclared touching
-/// contact refuses `UndeclaredCoincidence` through [`union_refusal`]; a
-/// contradicted declaration refuses as the pair boolean does. A pair
+/// only the declared pairs between `m` and `n`: it glues what its
+/// margins decide one carrier, refuses a sliver, and refuses a
+/// contradicted declaration as the pair boolean does. A pair
 /// carrying a declaration is run whatever its boxes: the declaration is
 /// a claim to verify, and verifying it here keeps the verdict
 /// independent of whether the fold fed the pair or consumed its face
@@ -3274,7 +3052,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///
 /// Returns the member faces the judgements consumed
 /// ([`names::UnionLinks`]): the one place a union's faces are linked
-/// (N2), so the links are member order's no more than the verdict is.
+/// (N2), so the links are member order's no more than the verdict is;
+/// the judgements' rows; and the carrier pairs they glued, the fold's
+/// one verdict per pair ([`PairVerdict`]).
 fn judge_pairwise_contact(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -3287,10 +3067,21 @@ fn judge_pairwise_contact(
         usize,
         BooleanDeclarations,
     ) -> Result<
-        (topo::BooleanNaming, Vec<crate::coincide::NamedCoincidence>),
+        (
+            topo::BooleanNaming,
+            Vec<crate::coincide::NamedCoincidence>,
+            Vec<PairVerdict>,
+        ),
         NodeErrorKind,
     >,
-) -> Result<(names::UnionLinks, Vec<crate::coincide::NamedCoincidence>), NodeErrorKind> {
+) -> Result<
+    (
+        names::UnionLinks,
+        Vec<crate::coincide::NamedCoincidence>,
+        Vec<PairVerdict>,
+    ),
+    NodeErrorKind,
+> {
     // The declared pairs between two DIFFERENT members, the member the
     // author listed first as operand A. `route_declarations` already
     // sited these pairs through the same door, so a refusal here is a
@@ -3325,6 +3116,7 @@ fn judge_pairwise_contact(
     }
     let mut links = names::UnionLinks::default();
     let mut rows = Vec::new();
+    let mut verdicts = Vec::new();
     // Each pair once, in the author's list order (#4323: the list is
     // the author's stated order; nothing here sorts it away).
     for p in 0..members.len() {
@@ -3338,15 +3130,159 @@ fn judge_pairwise_contact(
             } else {
                 resolve_declarations(&pairs, doc, tables[p], tables[q])?
             };
-            let (naming, judged) = judge(p, q, decls)?;
+            let (naming, judged, glued) = judge(p, q, decls)?;
             links
                 .judged(members[p], members[q], &naming)
                 .map_err(NodeErrorKind::Naming)?;
             rows.extend(judged);
+            verdicts.extend(glued);
         }
     }
-    Ok((links, rows))
+    Ok((links, rows, verdicts))
 }
+
+/// **One carrier pair a union's pairwise judgement glued**: a face of
+/// each of two members, by member index, and the class its decided
+/// relation makes it. The fold reads it through lineage
+/// ([`given_verdicts`]) and decides the pair nowhere else.
+#[derive(Clone, Copy, Debug)]
+struct PairVerdict {
+    /// The listed-first member's face: `(member index, face)`.
+    a: (usize, topo::FaceKey),
+    /// The other member's face.
+    b: (usize, topo::FaceKey),
+    /// The class the judgement's relation makes the pair.
+    class: topo::BooleanCoincidence,
+}
+
+/// The carrier pairs the judgement of members `p` (operand A) and `q`
+/// (operand B) glued, read off its rows: each face pair of the two
+/// operands a row relates as one carrier or a tangency.
+fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerdict> {
+    rows.iter()
+        .filter_map(|row| {
+            let [
+                topo::RowCell::Input {
+                    input: topo::Operand::A,
+                    cell: topo::Cell::Face(fa),
+                },
+                topo::RowCell::Input {
+                    input: topo::Operand::B,
+                    cell: topo::Cell::Face(fb),
+                },
+            ] = row.cells
+            else {
+                return None;
+            };
+            let class = row.relation.glued_class()?;
+            Some(PairVerdict {
+                a: (p, fa),
+                b: (q, fb),
+                class,
+            })
+        })
+        .collect()
+}
+
+/// **The pass's verdicts for the fold step that folds in member
+/// `member`**, added to `decls` as declared pairs and `decls` marked
+/// [`topo::Verdicts::Given`]: each verdict whose second face is
+/// `member`'s, between that face and every accumulation face whose
+/// lineage holds the verdict's first face. A pair the step's routed
+/// declarations already name is left as declared.
+///
+/// # Errors
+///
+/// An emission bug ([`UNION_VERDICTS_DISAGREE`]) where two verdicts
+/// glue one accumulation face to one member face under two classes, or
+/// an accumulation face carries no lineage.
+fn given_verdicts<T: Decide>(
+    decls: &mut BooleanDeclarations,
+    verdicts: &[PairVerdict],
+    member: usize,
+    members: &[RecipeNodeId],
+    fold: &names::UnionFold,
+    acc: &topo::Body<T>,
+) -> Result<(), NodeErrorKind> {
+    let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
+    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), _> = decls
+        .coincident_faces
+        .iter()
+        .map(|d| ((d.a, d.b), (d.class, true)))
+        .collect();
+    for (f, _) in acc.faces() {
+        let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
+        for v in verdicts.iter().filter(|v| v.b.0 == member) {
+            if !parents.contains(&(members[v.a.0], v.a.1)) {
+                continue;
+            }
+            match given.entry((f, v.b.1)) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    slot.insert((v.class, false));
+                }
+                std::collections::btree_map::Entry::Occupied(held) => {
+                    let (class, routed) = *held.get();
+                    if !routed && class != v.class {
+                        return Err(bug(UNION_VERDICTS_DISAGREE));
+                    }
+                }
+            }
+        }
+    }
+    for (&(a, b), &(class, routed)) in &given {
+        if !routed {
+            decls
+                .coincident_faces
+                .push(topo::FacePairDeclaration::new(a, b, class));
+        }
+    }
+    decls.verdicts = topo::Verdicts::Given;
+    Ok(())
+}
+
+/// **Every face-pair row a fold step recorded is a pair it was given**
+/// (DM4, the fold re-glues no carrier pair): the verdict reuse, asserted
+/// where the step's rows come back. A step's face-pair rows are its
+/// declaration door's, so one naming a pair outside `decls` is a fresh
+/// glue on a piece — what a glue door or recording site that ignored
+/// `Verdicts::Given` would add. Readings that record no row are outside
+/// it: the merge's continuation reading, the maximal-faces gate and the
+/// join's coaxial frame read a step's carriers by their margins, as the
+/// pairwise pass read the members'.
+fn debug_assert_given(rows: &[topo::Coincidence], decls: &BooleanDeclarations) {
+    if cfg!(debug_assertions) {
+        for row in rows {
+            if let [
+                topo::RowCell::Input {
+                    input: topo::Operand::A,
+                    cell: topo::Cell::Face(fa),
+                },
+                topo::RowCell::Input {
+                    input: topo::Operand::B,
+                    cell: topo::Cell::Face(fb),
+                },
+            ] = row.cells
+            {
+                debug_assert!(
+                    decls
+                        .coincident_faces
+                        .iter()
+                        .any(|d| d.a == fa && d.b == fb),
+                    "a union fold step decided the carrier pair {fa:?}/{fb:?} itself: its \
+                     verdict is the pairwise judgement's, read through lineage"
+                );
+            }
+        }
+    }
+}
+
+/// An accumulation face the fold's lineage does not hold.
+const UNION_FACE_NO_LINEAGE: &str = "a union fold's accumulation face has no member-face lineage";
+
+/// Two of a union's pairwise verdicts glue one accumulation face to one
+/// member face under two classes.
+const UNION_VERDICTS_DISAGREE: &str =
+    "a union's pairwise judgements glue one accumulation face to one member face under two classes";
 
 /// A declared pair's site did not site in the pairwise judgement,
 /// after [`route_declarations`] sited the same pair through the same
@@ -3745,320 +3681,6 @@ const UNION_PAIR_EMPTY: &str =
 /// A union fold step returned the typed empty from two real bodies.
 const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
 
-/// **The fold mints no contact verdict** (DM4's contact rule): a fold
-/// step's refusal, with a contact refusal raised as the emission bug it
-/// is.
-///
-/// Every member pair that can touch was judged before the fold
-/// ([`judge_pairwise_contact`]), so a step that refuses
-/// `UndeclaredCoincidence` or `UndeclarableContact` would tell a caller to
-/// declare a contact the judgement already passed. Every other refusal
-/// passes through.
-fn fold_step_refusal(refused: NodeErrorKind) -> NodeErrorKind {
-    match refused {
-        NodeErrorKind::UndeclaredCoincidence { .. } | NodeErrorKind::UndeclarableContact { .. } => {
-            NodeErrorKind::Naming(names::NamingError::Emission {
-                what: UNION_FOLD_CONTACT_VERDICT,
-            })
-        }
-        other => other,
-    }
-}
-
-/// A union fold step refused a contact, after the pairwise judgement
-/// decided every contact between members.
-const UNION_FOLD_CONTACT_VERDICT: &str =
-    "a union fold step minted a contact verdict the pairwise judgement did not";
-
-/// A union's refusal, with every name it carries in the node's own
-/// published space.
-///
-/// From the second fold step on, the `a` table [`refusal_menu`]
-/// resolves through is the ACCUMULATED one, whose `FromA`/`FromB` rows
-/// no published table holds. Every name the refusal carries is
-/// therefore put through [`names::collapse_name`], the collapse the
-/// node's own table gets from `name_union`. A member-EDGE piece would
-/// still carry the fold's `Ends`, which `name_union` re-reads over the
-/// finished body, so one refuses as an emission bug
-/// ([`UNION_REFUSAL_FOLD_QUALIFIED_EDGE`]); a flush finding names faces.
-///
-/// The recourse offered is the pair boolean's: declared pairs on the
-/// union itself, each side SITED at the member that carries it
-/// ([`sited_member`]). A face the fold MERGED is handed back as a
-/// constituent of that merge, which [`look_through_fold`] resolves back
-/// to it; a row no member stands for refuses
-/// [`NodeErrorKind::UndeclarableContact`]. From
-/// [`judge_pairwise_contact`] both tables are member views, so only a
-/// fold step's refusal reaches those two arms.
-///
-/// A name that will not collapse is the fold's own table being
-/// malformed, and is raised as an emission bug rather than as a contact
-/// refusal that would send a caller to edit their model.
-fn union_refusal<T: geom_core::Bounds>(
-    id: RecipeNodeId,
-    members: &[RecipeNodeId],
-    a_table: &crate::names::NameTable,
-    b_table: &crate::names::NameTable,
-    err: verbs::VerbError<T>,
-) -> NodeErrorKind {
-    let refused = refusal_menu((id, a_table), (id, b_table), err);
-    let NodeErrorKind::UndeclaredCoincidence {
-        finding,
-        merged: _,
-        diag,
-    } = refused
-    else {
-        return refused;
-    };
-    let names::FlushFinding {
-        pair: (a, b),
-        class,
-        evidence,
-    } = *finding;
-    let (Ok(a), Ok(b)) = (
-        sited_member(id, members, &a.name),
-        sited_member(id, members, &b.name),
-    ) else {
-        return NodeErrorKind::Naming(names::NamingError::Emission {
-            what: UNION_REFUSAL_FOREIGN,
-        });
-    };
-    // A fold-minted row is answered for FIRST, A side before B: a
-    // refusal that has one has no pair to offer.
-    for subject in [&a, &b] {
-        if let DeclarationSubject::FoldMinted(row) = subject {
-            if names::is_fold_qualified_member_edge(row) {
-                return NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_REFUSAL_FOLD_QUALIFIED_EDGE,
-                });
-            }
-            return NodeErrorKind::UndeclarableContact {
-                row: Box::new(row.clone()),
-                diag,
-            };
-        }
-    }
-    let (sa, ca) = a.declarable();
-    let (sb, cb) = b.declarable();
-    let (Some(sa), Some(sb)) = (sa, sb) else {
-        // Unreachable: the loop above returned for every `FoldMinted`.
-        return NodeErrorKind::Naming(names::NamingError::Emission {
-            what: UNION_REFUSAL_FOREIGN,
-        });
-    };
-    NodeErrorKind::UndeclaredCoincidence {
-        finding: Box::new(names::FlushFinding {
-            pair: (sa, sb),
-            class,
-            evidence,
-        }),
-        merged: Box::new((ca, cb)),
-        diag,
-    }
-}
-
-/// **What one row of a union's fold space is, as a DECLARATION
-/// SUBJECT** — [`sited_member`]'s answer, total over the rows a
-/// refusal can name.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum DeclarationSubject {
-    /// A member's own entity: declarable verbatim, sited at that
-    /// member.
-    Member(SitedRef),
-    /// A face the fold MERGED. The row has no site, but a declaration
-    /// at any CONSTITUENT of its flat set (N3) resolves back to it
-    /// through [`look_through_fold`]. Ordered by the union's MEMBER
-    /// ORDER (D9), so taking the first is deterministic.
-    Merged(Vec<SitedRef>),
-    /// A row the fold minted that no member's entity stands for: a
-    /// fragment, the union's own body, a merge none of whose
-    /// constituents is a member's row. Carries the row, in the node's
-    /// published space.
-    FoldMinted(names::StableName),
-}
-
-impl DeclarationSubject {
-    /// The side a refusal carries and the merged set it came from:
-    /// `(None, _)` only for [`DeclarationSubject::FoldMinted`], which
-    /// has no site.
-    fn declarable(&self) -> (Option<SitedRef>, Vec<SitedRef>) {
-        match self {
-            Self::Member(r) => (Some(r.clone()), Vec::new()),
-            Self::Merged(set) => (set.first().cloned(), set.clone()),
-            Self::FoldMinted(_) => (None, Vec::new()),
-        }
-    }
-}
-
-/// **One row of a union's fold space as the MEMBER entity it stands
-/// for** — the member-keyed collapse, then the member edge read back
-/// off it.
-///
-/// [`names::member_name`]'s inverse where one exists: a published row
-/// of a MEMBER's own entity is exactly one `FromMember` segment, which
-/// says the site and the name at once. TOTAL over the rows that
-/// collapse; the error case is the COLLAPSE's alone.
-fn sited_member(
-    id: RecipeNodeId,
-    members: &[RecipeNodeId],
-    name: &names::StableName,
-) -> Result<DeclarationSubject, names::NamingError> {
-    use crate::names::RoleSeg;
-    let collapsed = names::collapse_name(id, name)?;
-    let member_of = |n: &names::StableName| match n.path.as_slice() {
-        [RoleSeg::FromMember { member, of }] => Some(SitedRef::new(*member, of.name().clone())),
-        _ => None,
-    };
-    if let Some(r) = member_of(&collapsed) {
-        return Ok(DeclarationSubject::Member(r));
-    }
-    Ok(match collapsed.path.as_slice() {
-        [RoleSeg::Merged(set)] => {
-            let mut sited: Vec<(usize, SitedRef)> = set
-                .iter()
-                .filter_map(member_of)
-                .map(|r| {
-                    (
-                        members
-                            .iter()
-                            .position(|m| *m == r.at)
-                            .unwrap_or(usize::MAX),
-                        r,
-                    )
-                })
-                .collect();
-            // Member order (D9); a constituent whose member has left
-            // the list sorts last and still declares the row.
-            sited.sort_by(|(i, x), (j, y)| i.cmp(j).then_with(|| x.name.cmp(&y.name)));
-            if sited.is_empty() {
-                DeclarationSubject::FoldMinted(collapsed)
-            } else {
-                DeclarationSubject::Merged(sited.into_iter().map(|(_, r)| r).collect())
-            }
-        }
-        _ => DeclarationSubject::FoldMinted(collapsed),
-    })
-}
-
-/// A union's refusal named a piece of a member edge by the fold's qualifier.
-const UNION_REFUSAL_FOLD_QUALIFIED_EDGE: &str = "a union fold's refusal names a piece of a member \
-     edge by the fold's qualifier, which no published table holds";
-
-/// A union's refusal named a row its own fold table cannot collapse.
-const UNION_REFUSAL_FOREIGN: &str =
-    "a union fold's refusal names a row the member-keying rule cannot collapse";
-
-/// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
-/// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
-/// [`NodeErrorKind::UndeclaredCoincidence`] carrying the raise site's
-/// face pair as the detector's own [`names::FlushFinding`] shape,
-/// keys resolved through the OPERANDS' name tables. NOTHING is
-/// re-detected and no decide runs on this error path (SEL2). Every
-/// other refusal falls through to [`verb_refused`]: among them
-/// [`topo::BooleanError::CoincidentShell`], which names a shell and no
-/// face pair, so there is no declaration to offer from it, and it
-/// crosses as the kernel's own refusal.
-///
-/// If either key resolves to no Face name — an emitter-coverage break
-/// (`vocabulary_coverage_is_total`) — the plain `Boolean` wrapping is
-/// kept, so the boolean's refusal is never masked by its own menu.
-///
-/// The operands are given as name TABLES because the union folds the
-/// same verb over an ACCUMULATION that is no node's result.
-fn refusal_menu<T: geom_core::Bounds>(
-    a: (RecipeNodeId, &crate::names::NameTable),
-    b: (RecipeNodeId, &crate::names::NameTable),
-    err: verbs::VerbError<T>,
-) -> NodeErrorKind {
-    let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
-        diag,
-        pair,
-        relation,
-    }) = err
-    else {
-        return verb_refused(err);
-    };
-    // The finding orders the pair (a-side, b-side); raise sites order
-    // it by discovery. Relation is orientation-symmetric.
-    let ordered = if pair[0].0 == topo::Operand::B && pair[1].0 == topo::Operand::A {
-        [pair[1], pair[0]]
-    } else {
-        pair
-    };
-    // A finding is SITED, so the pair a caller declares back is
-    // buildable from the refusal alone.
-    let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
-        let (at, table) = match operand {
-            topo::Operand::A => a,
-            topo::Operand::B => b,
-        };
-        face_name(table, face).map(|name| crate::node::SitedRef::new(at, name))
-    };
-    let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
-        return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
-            diag,
-            pair,
-            relation,
-        });
-    };
-    // The class comes from the one place a finding's class is minted,
-    // off the relation the refusal carries: an opposed pair is a `Rest`
-    // contact, an aligned one a continuation. A `Distinct` relation is
-    // no finding (`topo::flush::finding` refuses it as a kernel
-    // defect), so the kernel's own refusal is kept, unmasked, exactly
-    // as for a key that resolves to no name.
-    let Ok(finding) = topo::flush::finding(
-        (na, nb),
-        names::FlushEvidence {
-            relation,
-            // Shared-source pairs never refuse Undeclared (rung 1
-            // answers Ok), so this is always the geometric rung.
-            rung: names::FlushRung::DecidedCoincident,
-        },
-    ) else {
-        return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
-            diag,
-            pair,
-            relation,
-        });
-    };
-    NodeErrorKind::UndeclaredCoincidence {
-        // Filled only by [`union_refusal`].
-        merged: Box::new((Vec::new(), Vec::new())),
-        finding: Box::new(finding),
-        diag,
-    }
-}
-
-/// The reverse of a table lookup: the FACE name denoting `face` in
-/// one operand's value, or `None` (the caller's invariant-break
-/// fallback). A boolean operand is single-body, so a face key
-/// identifies its entity without a body check; a `Tied` entry
-/// containing the key still DENOTES it. Several denoting names resolve
-/// to the least, deterministically.
-fn face_name(
-    table: &crate::names::NameTable,
-    face: topo::FaceKey,
-) -> Option<crate::names::StableName> {
-    use crate::names::{EntityKey, EntityKind, EntityRef, Entry};
-    let mut found: Option<&crate::names::StableName> = None;
-    for (name, entry) in table.iter() {
-        if name.kind != EntityKind::Face {
-            continue;
-        }
-        let refs: &[EntityRef] = match entry {
-            Entry::Unique(e) => core::slice::from_ref(e),
-            Entry::Tied(t) => t,
-        };
-        if refs.iter().any(|ent| ent.key == EntityKey::Face(face))
-            && found.is_none_or(|prev| name < prev)
-        {
-            found = Some(name);
-        }
-    }
-    found.cloned()
-}
-
 /// Resolves one node's declared pairs against the two operand
 /// tables into the kernel's [`BooleanDeclarations`] (F5).
 ///
@@ -4381,9 +4003,7 @@ pub(crate) fn transform_map<T: Decide>(
 /// contributes NO `RolePath` segment. `transform_rigid` is key-stable,
 /// so the input's table holds verbatim — a name still points at the
 /// MINTING node (N1), and output-body indices are instance indices.
-/// Stamps: [`compose_placed`].
 fn wire_transform<T: Decide + topo::AtRestPolicy>(
-    id: RecipeNodeId,
     input: RecipeNodeId,
     placement: &crate::placement::Placement,
     results: &Results<T>,
@@ -4393,9 +4013,7 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
     let map = placement.motion(vals, band(tol)?)?;
-    let per = placeable.bodies().len();
-    let payload =
-        placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
+    let payload = placeable.map(|body, _| place(body, Some(&map), tol))?;
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
@@ -4457,7 +4075,7 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
-    let placed = place(&body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
+    let placed = place(&body, map.as_ref(), tol)?;
     let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut {
         contacts,
@@ -4607,8 +4225,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
             vals,
             tol,
         )?;
-        let j = usize::try_from(j).unwrap_or(usize::MAX);
-        instances.extend(place_each(master, &map, id, j, tol)?);
+        instances.extend(place_each(master, &map, tol)?);
     }
     let table =
         names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
@@ -4677,9 +4294,8 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
-    for (i, map) in maps.iter().enumerate() {
-        // Distinct instances are distinct sources, and distinct maps.
-        let placed = place(&body, Some(map), Placing::of(id, i, 1, 0)?, tol)?;
+    for map in &maps {
+        let placed = place(&body, Some(map), tol)?;
         // Every placement MINTS its own solids: the copies are certified
         // apart, so each is a piece of its own, and a body of N solids
         // is a boolean operand like any other.
@@ -4804,16 +4420,14 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
     }
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
-    let mut built =
-        sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
-            sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
-            other => NodeErrorKind::Loft(other),
-        })?;
+    let built = sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
+        sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
+        other => NodeErrorKind::Loft(other),
+    })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
     // so wall `k` is named by one locator per section.
     let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
-    stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -5632,46 +5246,6 @@ mod route_tests {
             "{refused:?}",
         );
     }
-
-    /// **`sited_member` is `member_name`'s inverse** on a member's own
-    /// row, round-tripped over rows of every entity kind and over a
-    /// member whose names are minted elsewhere (a transform).
-    #[test]
-    fn sited_member_inverts_member_name_over_every_row_kind() {
-        let (_doc, union, ms) = doc_with_members(3);
-        let (member, proto) = (ms[1], ms[2]);
-        let rows = vec![
-            StableName {
-                kind: EntityKind::Face,
-                node: proto,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            },
-            StableName {
-                kind: EntityKind::Edge,
-                node: member,
-                path: vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::Start)],
-            },
-            StableName {
-                kind: EntityKind::Vertex,
-                node: proto,
-                path: vec![RoleSeg::OutputBody],
-            },
-            StableName {
-                kind: EntityKind::Body,
-                node: member,
-                path: vec![RoleSeg::OutputBody],
-            },
-        ];
-        for row in rows {
-            let keyed = crate::names::member_name(union, member, &row);
-            let back = super::sited_member(union, &ms, &keyed).expect("the row collapses");
-            assert_eq!(
-                back,
-                super::DeclarationSubject::Member(SitedRef::new(member, row.clone())),
-                "{row}"
-            );
-        }
-    }
 }
 
 #[cfg(test)]
@@ -5697,189 +5271,6 @@ mod loop_coordinates_tests {
                 Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
             ),
             "one loop past u32::MAX is refused"
-        );
-    }
-}
-
-#[cfg(test)]
-mod place_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::{Placing, place, place_each};
-    use crate::node::RecipeNodeId;
-    use geom_core::{Affine3, Point3, Tol, Vec3};
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-    use topo::{AxisPlacement, AxisRecord, AxisSource, Body, FaceSurface, GeomSource, SurfaceKey};
-
-    /// A unit brick `dy` along y with one face on a cylinder — its axis
-    /// stamped `D`, its description minted `(7, 0)` — and a second
-    /// cylinder face whose axis row is already `Cleared`. Deterministic,
-    /// so every call returns the same keys.
-    fn fixture(dy: f64) -> (Body<f64>, SurfaceKey, SurfaceKey, AxisSource) {
-        let tol = Tol::witness();
-        let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (dy, dy + 1.0), (0.0, 1.0), tol);
-        let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-        let cylinder = |r: f64| FaceSurface::New {
-            surface: geom::Surface::Cylinder {
-                origin: Point3::new(0.5, dy + 0.5, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
-            sense: true,
-        };
-        // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
-        let stamped = b
-            .set_face_surface_unvouched_for_tests(faces[0], cylinder(0.25))
-            .unwrap();
-        // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
-        let pending = b
-            .set_face_surface_unvouched_for_tests(faces[1], cylinder(0.3))
-            .unwrap();
-        let axis = AxisSource::from_lowered(b"D");
-        b.set_surface_axis_source(stamped, axis.clone()).unwrap();
-        b.set_surface_axis_source(pending, axis.clone()).unwrap();
-        let aside = Affine3::translation(Vec3::new(3.0, 0.0, 0.0));
-        let mut b = topo::transform::transform_rigid(&b, &aside, tol).unwrap();
-        b.set_surface_axis_source(stamped, axis.clone()).unwrap();
-        b.set_surface_source(stamped, GeomSource::minted(7, 0))
-            .unwrap();
-        (b, stamped, pending, axis)
-    }
-
-    fn lift(dz: f64) -> Affine3<f64> {
-        Affine3::translation(Vec3::new(0.0, 0.0, dz))
-    }
-
-    /// **A placement composes the axis row** — the kernel clears it and
-    /// `place` re-stamps the input's token wrapped by the placing node
-    /// and map, at a real map and at the identity clone alike. A row
-    /// the input held `Cleared` has no source to place and stays
-    /// `Cleared`.
-    #[test]
-    fn a_placement_composes_the_axis_row() {
-        let (b, stamped, pending, axis) = fixture(0.0);
-        let map = Affine3::translation(Vec3::new(0.0, 5.0, 0.0));
-        for m in [Some(&map), None] {
-            let at = Placing::of(RecipeNodeId::new(0, 41), 2, 1, 0).unwrap();
-            let placed = place(&b, m, at, Tol::witness()).unwrap();
-            assert_eq!(
-                placed.surface_axis_source(stamped),
-                Some(&axis.placed(41, 2)),
-                "map {m:?}"
-            );
-            assert_eq!(
-                placed.surface_axis_record(pending),
-                Some(&AxisRecord::Cleared),
-                "map {m:?}"
-            );
-        }
-    }
-
-    /// **The ratified staleness table, through the placement door** —
-    /// every row of `docs/AXIS-DECLARATION-DESIGN.md`'s table on
-    /// carriers stamped by `place`, with the [`Placing`] each caller
-    /// derives. Row 2's carriers are two bodies of ONE Transform's
-    /// value (`wire_transform`'s spelling): one map, so one line, while
-    /// their description sources stay distinct.
-    #[test]
-    fn the_staleness_table_through_the_placement_door() {
-        let tol = Tol::witness();
-        let (a, wall, _, d) = fixture(0.0);
-        let (b, _, _, _) = fixture(3.0);
-        let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
-        let geom = |body: &Body<f64>| body.surface_source(wall).cloned().unwrap();
-        let transform = RecipeNodeId::new(0, 9);
-
-        // Row 1, neither placed: equal.
-        assert_eq!(axis(&a), axis(&b), "row 1: neither placed");
-        assert_eq!(axis(&a), d);
-
-        // Row 2, both placed by one node and map: equal.
-        let a1 = place(
-            &a,
-            Some(&lift(5.0)),
-            Placing::of(transform, 0, 2, 0).unwrap(),
-            tol,
-        )
-        .unwrap();
-        let b1 = place(
-            &b,
-            Some(&lift(5.0)),
-            Placing::of(transform, 0, 2, 1).unwrap(),
-            tol,
-        )
-        .unwrap();
-        assert_eq!(
-            axis(&a1),
-            axis(&b1),
-            "row 2: one Transform, two output bodies"
-        );
-        assert_ne!(
-            geom(&a1),
-            geom(&b1),
-            "distinct output bodies keep distinct description sources"
-        );
-
-        // Row 3, one placed: stale, naming the placement that broke it.
-        assert_ne!(axis(&a), axis(&a1), "row 3: one carrier placed");
-        assert!(axis(&a).same_base(&axis(&a1)), "one axis, moved");
-        assert_eq!(
-            axis(&a1).placements(),
-            &[AxisPlacement { node: 9, index: 0 }],
-            "the chain names the placing node"
-        );
-
-        // Row 3, both placed by different chains: stale.
-        let other = place(
-            &b,
-            Some(&lift(5.0)),
-            Placing::of(RecipeNodeId::new(0, 10), 0, 1, 0).unwrap(),
-            tol,
-        )
-        .unwrap();
-        assert_ne!(axis(&a1), axis(&other), "row 3: another placing node");
-    }
-
-    /// **A pattern keeps a two-body master's shared axis in every
-    /// placement**: `place_each` (`wire_pattern`'s loop) stamps both
-    /// bodies of placement `j` onto one line, different placements onto
-    /// different lines, and every placed body its own description
-    /// source.
-    #[test]
-    fn a_pattern_keeps_the_masters_shared_axis_in_every_placement() {
-        let tol = Tol::witness();
-        let (a, wall, _, d) = fixture(0.0);
-        let (b, _, _, _) = fixture(3.0);
-        let master = vec![Arc::new(a), Arc::new(b)];
-        let axis = |body: &Body<f64>| body.surface_axis_source(wall).cloned().unwrap();
-        let pattern = RecipeNodeId::new(0, 12);
-
-        // Placement 0 is the master verbatim.
-        assert_eq!(axis(&master[0]), axis(&master[1]), "placement 0");
-        assert_eq!(axis(&master[0]), d);
-
-        let mut lines = Vec::new();
-        let mut sources = BTreeSet::new();
-        for j in 1..=2 {
-            let placed = place_each(&master, &lift(5.0 * j as f64), pattern, j, tol).unwrap();
-            assert_eq!(placed.len(), 2);
-            assert_eq!(
-                axis(&placed[0]),
-                axis(&placed[1]),
-                "placement {j}: both master bodies on one line"
-            );
-            lines.push(axis(&placed[0]));
-            for body in &placed {
-                sources.insert(body.surface_source(wall).cloned().unwrap());
-            }
-        }
-        assert_ne!(lines[0], lines[1], "placements 1 and 2 are different maps");
-        assert_eq!(
-            sources.len(),
-            4,
-            "every placed body its own description source"
         );
     }
 }

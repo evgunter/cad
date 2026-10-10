@@ -47,7 +47,7 @@
 //! `tests/layer_guard.rs`: no serde, no `Expr`, no `StableName`, no
 //! `RecipeNodeId`. Those are the recipe vocabulary and they live above.
 //! What may sit beside the arenas is LOWERED pure data compared only
-//! for identity — the `GeomSource` precedent in `topo/src/source.rs`.
+//! for identity.
 //!
 //! # Why a crate of its own
 //!

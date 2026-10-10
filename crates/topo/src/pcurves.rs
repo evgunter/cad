@@ -5542,25 +5542,6 @@ pub(crate) mod staleness_posture {
                  certified description does",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
-            ("set_surface_source", Neither, "GeomSource metadata"),
-            ("set_curve_source", Neither, "GeomSource metadata"),
-            ("set_point_source", Neither, "GeomSource metadata"),
-            ("clear_geom_sources", Neither, "GeomSource metadata"),
-            (
-                "mark_imported",
-                Neither,
-                "origin metadata beside the GeomSource maps (`crate::GeomOrigin`)",
-            ),
-            (
-                "set_surface_field_source",
-                Neither,
-                "ParamSource metadata: a per-field side record beside the surface",
-            ),
-            (
-                "set_surface_axis_source",
-                Neither,
-                "axis-channel metadata: a per-component side record beside the surface",
-            ),
             (
                 "begin_surgery",
                 Neither,
@@ -7088,7 +7069,7 @@ mod turn_miss {
         let band = Band::linear(tol).unwrap();
         let mut body = Body::<f64>::new();
         let frame = CylFrame::canonical(1.0);
-        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let outer = body.get_face(face).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("the wall is bounded by a cycle")

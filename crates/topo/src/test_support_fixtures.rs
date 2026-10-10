@@ -1250,9 +1250,6 @@ pub enum CylKey {
 /// wall face with the cylinder key it is on: two rim arcs on exact
 /// circle carriers described as the cylinder cut by the plane at that
 /// height, and two meridian struts on certified chord lines.
-/// `source`, when given, is the recipe node id recorded on the
-/// cylinder key as `GeomSource::minted(source, 0)`; it is recorded
-/// whether the key was minted here or shared.
 ///
 /// The descending rim runs on the REVERSED axis so its own parameter
 /// still increases, which is how the split lane mints one.
@@ -1270,7 +1267,6 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
-    source: Option<u64>,
     (u0, u1): (f64, f64),
     (v0, v1): (f64, f64),
     tol: Tol,
@@ -1295,10 +1291,6 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         CylKey::Bare => body.add_surface(frame.surface()),
         CylKey::Shared(cyl) => cyl,
     };
-    if let Some(source) = source {
-        body.set_surface_source(cyl, crate::GeomSource::minted(source, 0))
-            .unwrap();
-    }
     let rim = |body: &mut Body<T>, v: f64, ccw: bool| {
         let centre = frame.centre(v).map(T::from_f64);
         let plane = body.add_surface(Surface::Plane {
@@ -1409,7 +1401,6 @@ pub(crate) fn unit_cyl_sheet(
         body,
         CylFrame::canonical(1.0),
         cyl.map_or(CylKey::Bare, CylKey::Shared),
-        None,
         (u0, u1),
         (z0, z1),
         tol,
@@ -1420,8 +1411,6 @@ pub(crate) fn unit_cyl_sheet(
 
 /// An open cylinder-wall sheet over `[u0, u1] x [v0, v1]` of `frame`,
 /// grown into `body` and returned, with every pcurve minted.
-/// `source`, when given, is the recipe node id recorded on the
-/// cylinder key as `GeomSource::minted(source, 0)`.
 ///
 /// The sheet is the seed face's complement ([`CylKey::OnSeed`]), so the
 /// cylinder key lives in the seed face's surface slot and the returned
@@ -1436,13 +1425,11 @@ pub(crate) fn unit_cyl_sheet(
 pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
-    source: Option<u64>,
     (u0, u1): (f64, f64),
     (v0, v1): (f64, f64),
     tol: Tol,
 ) -> FaceKey {
-    let (face, _) =
-        cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, source, (u0, u1), (v0, v1), tol);
+    let (face, _) = cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, (u0, u1), (v0, v1), tol);
     crate::pcurves::mint_pcurves(body, tol).unwrap();
     face
 }
@@ -1474,7 +1461,7 @@ pub fn arc_chain_over_the_jump(
 ) -> (Body<f64>, FaceKey, [HalfEdgeKey; 2], [HalfEdgeKey; 2]) {
     let frame = CylFrame::canonical(1.0);
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(&mut body, frame, None, (4.2, 5.4), (0.0, 1.0), tol);
+    let face = cyl_wall_sheet(&mut body, frame, (4.2, 5.4), (0.0, 1.0), tol);
     let rim = body
         .edges()
         .map(|(e, _)| e)
@@ -1579,7 +1566,7 @@ pub fn kill_under_a_null_strut(
 ) {
     let frame = CylFrame::canonical(1.0);
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+    let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
     // The bottom rim is the one circle edge whose interval is `[0.2,
     // 1.4]`, the ascending one, whose parameter IS the azimuth.
     let rim = body
@@ -1709,7 +1696,6 @@ mod tests {
         let face = cyl_wall_sheet(
             &mut body,
             CylFrame::canonical(1.0),
-            Some(11),
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),
@@ -1724,19 +1710,11 @@ mod tests {
             "the sheet solid alone, no scaffold: {counts:?}"
         );
 
-        // The wall and the seed face it was cut from share one
-        // cylinder key, and that key carries the source.
+        // The wall is on the frame's cylinder.
         let cyl = body.get_face(face).unwrap().surface;
         assert!(
             matches!(body.get_surface(cyl), Some(Surface::Cylinder { .. })),
             "the returned face is on the frame's cylinder"
-        );
-        assert_eq!(
-            body.surface_source(cyl),
-            Some(&crate::GeomSource::minted(11, 0)),
-            "the cylinder key carries the whole source the door mints, \
-             `node` and `expr` both — a row reading only `node` leaves \
-             the minted index asserted by nothing"
         );
 
         // No lone-vertex face is left behind: every loop this body
@@ -1787,7 +1765,6 @@ mod tests {
             &mut seeded,
             CylFrame::canonical(1.0),
             CylKey::OnSeed,
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),
@@ -1803,7 +1780,6 @@ mod tests {
             &mut bare,
             CylFrame::canonical(1.0),
             CylKey::Bare,
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),
