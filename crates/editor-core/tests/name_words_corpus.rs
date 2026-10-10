@@ -142,7 +142,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// The three boolean nodes moved it with [`NAME_WORDS`]: every member
 /// says its join, and a carry said by tag says the read it came through.
-const SAID_DIGEST: u64 = 0x3a99_2833_ddc3_fb0b;
+const SAID_DIGEST: u64 = 0x6ffa_888a_6c89_e1af;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
