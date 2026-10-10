@@ -1218,14 +1218,20 @@ impl<P> Doc<P> {
         let mut definers = vec![Vec::new(); ids.len()];
         let mut any = false;
         for (at, read_by) in reads.iter_mut().enumerate() {
-            let Some(expr) = self.vars.get(&ids[at]).and_then(|v| v.def().defined()) else {
+            // A pose definition is ordered by what it reads as a defined
+            // variable is: its reads and its scalars, so a walk in
+            // definition order (`observed`, the bindings) meets each
+            // after everything it reads.
+            if !matches!(
+                self.vars.get(&ids[at]).map(Var::def),
+                Some(VarDef::Defined(_) | VarDef::Pose(_))
+            ) {
                 continue;
-            };
-            let mut leaves = Vec::new();
-            expr.var_reads(&mut leaves);
-            let mut held: Vec<usize> = leaves
+            }
+            let mut held: Vec<usize> = self
+                .definition_reads(ids[at])
                 .into_iter()
-                .filter_map(|(read, _)| position.get(&read).copied())
+                .filter_map(|read| position.get(&read).copied())
                 .collect();
             held.sort_unstable();
             held.dedup();

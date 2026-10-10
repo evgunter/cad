@@ -723,3 +723,211 @@ fn both_annuli_of_a_revolved_washer_read_outward() {
     near(heights[0], -0.5, "the lower annulus");
     near(heights[1], 0.5, "the upper annulus");
 }
+
+/// **The same, when the scalar becomes observed later** (the dual
+/// review's second MAJOR): the standoff reads a free `k` the split's
+/// insert minted before any measure, and a later redefinition makes
+/// `k` a measured length. Definition order now sees the pose
+/// definition's reads, so the walk that finds observed variables meets
+/// the pose after `k` and the redefinition refuses.
+#[test]
+fn a_pose_whose_scalar_becomes_observed_refuses_the_redefinition() {
+    let (doc, cube) = unit_box();
+    let k = VarName::from_static("k");
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: k.clone(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.25)),
+        },
+    );
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    let (doc, _split) = split_by(
+        doc,
+        cube,
+        pose(PoseDef::Standoff {
+            plane: pose(PoseDef::Plane {
+                face: select(cube, cap),
+            }),
+            by: Formula::named(k.clone(), Dimension::Length),
+        }),
+    );
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            fixture::cap_ref(cube, CapEnd::Start),
+            fixture::cap_ref(cube, CapEnd::End),
+        ],
+    );
+    let out = fixture::output(&doc, measure);
+    let refused = editor_core::apply(
+        &doc,
+        &DocEdit::DefineVar {
+            var: k.into(),
+            def: editor_core::VarDecl::defined(
+                Formula::mul(Formula::var(out, Dimension::Length), scl(-0.25)).unwrap(),
+            ),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(EditError::ConstructionReadsObserved {
+                slot: editor_core::SlotId::Operand(OperandSlot::Tool),
+                ..
+            })
+        ),
+        "{refused:?}"
+    );
+}
+
+/// The flip-standoff document the door rows read: a split whose tool is
+/// the top cap's plane, flipped, moved by a free length; and that
+/// split's tool variable.
+fn flipped_standoff() -> (ProfileDoc, VarId) {
+    let (doc, cube) = unit_box();
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    split_by(
+        doc,
+        cube,
+        pose(PoseDef::Standoff {
+            plane: pose(PoseDef::Flip {
+                pose: pose(PoseDef::Plane {
+                    face: select(cube, cap),
+                }),
+            }),
+            by: len(0.25),
+        }),
+    )
+}
+
+/// **The edit door normalises a flip of a flip** (FORK-S3M: an
+/// involution normalised to one side): a tool written `Flip(Flip(p))`
+/// is stored as `p`'s definition, never a flip; a point flipped twice
+/// still refuses, because a flip admits only what has a sense.
+#[test]
+fn the_door_normalises_a_flip_of_a_flip() {
+    let (doc, cube) = unit_box();
+    let cap = fixture::fname(cube, RoleSeg::Cap(CapEnd::End));
+    let plane = || {
+        pose(PoseDef::Plane {
+            face: select(cube, cap.clone()),
+        })
+    };
+    let (doc, tool) = split_by(
+        doc,
+        cube,
+        pose(PoseDef::Flip {
+            pose: pose(PoseDef::Flip { pose: plane() }),
+        }),
+    );
+    assert!(
+        matches!(
+            doc.var(tool).map(editor_core::Var::def),
+            Some(editor_core::VarDef::Pose(PoseDef::Plane { .. }))
+        ),
+        "stored {:?}",
+        doc.var(tool).map(editor_core::Var::def)
+    );
+    let corner = fixture::cap_vertex(
+        cube,
+        CapEnd::End,
+        fixture::vpiece(&unit_box().0, cube, 0, 0),
+    );
+    let refused = fixture::insert_refused(
+        &unit_box().0,
+        Node::Split {
+            target: Operand::output(cube, 0),
+            tool: pose(PoseDef::Flip {
+                pose: pose(PoseDef::Flip {
+                    pose: pose(PoseDef::Point {
+                        of: select(cube, corner),
+                    }),
+                }),
+            }),
+        },
+    );
+    assert!(
+        matches!(
+            &refused,
+            EditError::SlotVarKind {
+                found: VarKind::Point,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+}
+
+/// **The load door refuses a pose definition no edit door writes**
+/// (`Walk::Pose`): a saved document, hand-edited three ways — a flip
+/// reading a length, a standoff by a plane, a flip of a flip — refuses
+/// `PoseShape` naming each fault, and the file as saved round-trips.
+#[test]
+fn the_load_door_refuses_a_malformed_pose_definition() {
+    let (doc, tool) = flipped_standoff();
+    let Some(editor_core::VarDef::Pose(PoseDef::Standoff { plane: flip, by })) =
+        doc.var(tool).map(editor_core::Var::def)
+    else {
+        panic!("a standoff tool");
+    };
+    let (flip, by) = (*flip, *by);
+    let Some(editor_core::VarDef::Pose(PoseDef::Flip { pose: face_plane })) =
+        doc.var(flip).map(editor_core::Var::def)
+    else {
+        panic!("a flipped plane");
+    };
+    let id = |var: VarId| serde_json::to_string(&var).unwrap();
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("saves");
+    let back = editor_core::persist::load(&text, Tol::witness()).expect("loads as saved");
+    assert_eq!(
+        editor_core::persist::save(&back.snapshot, &back.edits, Tol::witness()).unwrap(),
+        text,
+        "round-trips bit-identical"
+    );
+    let flip_reads = format!("\"pose\": {}", id(*face_plane));
+    let standoff = format!("\"plane\": {},\n              \"by\": {}", id(flip), id(by));
+    assert!(
+        text.contains(&flip_reads) && text.contains(&standoff),
+        "the wire spelling moved"
+    );
+    for (mutated, fault) in [
+        (
+            text.replace(&flip_reads, &format!("\"pose\": {}", id(by))),
+            "ReadKind",
+        ),
+        (
+            text.replace(
+                &standoff,
+                &format!(
+                    "\"plane\": {},\n              \"by\": {}",
+                    id(flip),
+                    id(*face_plane)
+                ),
+            ),
+            "ScalarKind",
+        ),
+        (
+            text.replace(
+                &format!("\"Standoff\": {{\n              {standoff}\n            }}"),
+                &format!(
+                    "\"Flip\": {{\n              \"pose\": {}\n            }}",
+                    id(flip)
+                ),
+            ),
+            "DoubleFlip",
+        ),
+    ] {
+        assert_ne!(mutated, text, "{fault}: the mutation applied");
+        let refused = editor_core::persist::load(&mutated, Tol::witness());
+        let said = format!("{refused:?}");
+        assert!(
+            refused.is_err() && said.contains("PoseShape") && said.contains(fault),
+            "{fault}: {said}"
+        );
+    }
+}

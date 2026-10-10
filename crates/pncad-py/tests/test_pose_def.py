@@ -118,11 +118,24 @@ class TestASeatHoldsItsKind(unittest.TestCase):
 
 class TestTheConstructors(unittest.TestCase):
     def test_a_flip_of_a_flip_is_the_pose_it_flips(self):
+        """The edit door normalises the involution: a split by a cap's
+        plane flipped twice cuts as the plane itself, and a point, which
+        has no sense, refuses even flipped twice."""
         doc = Doc()
         body = cube(doc)
-        cap = face_at(evaluate(doc), body, 1.0)
-        plane = PoseDef.plane(body, cap)
-        self.assertEqual(repr(PoseDef.flip(PoseDef.flip(plane))), repr(plane))
+        ev = evaluate(doc)
+        cap = face_at(ev, body, 1.0)
+        once = PoseDef.standoff(PoseDef.plane(body, cap), Formula.length_in(-0.25, m))
+        plain = doc.insert(Node.split(body, once))
+        twice = doc.insert(Node.split(body, PoseDef.flip(PoseDef.flip(once))))
+        halves = evaluate(doc)
+        for cut in (plain, twice):
+            above, _ = halves.value(cut).split()
+            self.assertAlmostEqual(above.mass_properties().volume, 0.25, delta=1e-12)
+        corner = ev.all_vertices(body)[0]
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.split(body, PoseDef.flip(PoseDef.flip(PoseDef.point(body, corner)))))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_a_kind_word_is_one_of_the_five(self):
         doc = Doc()

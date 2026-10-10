@@ -2758,7 +2758,8 @@ class PoseDef:
     @staticmethod
     def flip(pose: _Operand) -> PoseDef:
         """The opposite sense of a direction, an axis, a plane or a
-        frame. A flip of a flip defined here is the pose it flips."""
+        frame. A flip of a flip is the pose it flips: the edit door
+        normalises it, and a point, which has no sense, refuses."""
     @staticmethod
     def standoff(plane: _Operand, by: _LengthArg) -> PoseDef:
         """A plane moved along its own normal by `by`."""

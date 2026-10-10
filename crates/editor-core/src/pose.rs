@@ -205,7 +205,9 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
     },
     /// **The opposite sense** of a direction, axis, plane or frame (a
     /// frame turned a half-turn about its `x`). A flip of a flip is the
-    /// pose itself, so the door refuses it.
+    /// pose itself: the edit door normalises it to that pose, so a
+    /// document never stores one ([`PoseFault::DoubleFlip`] at the load
+    /// door).
     Flip {
         /// The pose flipped.
         pose: R,
@@ -400,7 +402,8 @@ pub enum PoseFault {
         /// What it admits.
         expected: crate::SlotKind,
     },
-    /// A flip of a flip: the pose itself, said a second way.
+    /// A flip of a flip: the pose itself, said a second way. The edit
+    /// door normalises one; a file holding one refuses at load.
     DoubleFlip,
     /// A projection the source kind has no arm to: a frame projects to
     /// a plane, an axis or a point, a plane or an axis to a direction.

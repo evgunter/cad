@@ -1273,9 +1273,10 @@ fn lower_operand<P: crate::ProfilePayload>(
 /// it minted there), each formula to the scalar its slot stores at the
 /// slot's dimension, and one anonymous pose variable minted for the
 /// seat to read, of the definition's kind (a flip's is its read's). A
-/// flip of a flip and a projection with no arm refuse
-/// ([`EditError::PoseShape`]). A pose defined at two seats is two
-/// variables; a seat shares one by reading it by id or name.
+/// flip of a flip is the pose it flips, normalised here rather than
+/// minted; a projection with no arm refuses ([`EditError::PoseShape`]).
+/// A pose defined at two seats is two variables; a seat shares one by
+/// reading it by id or name.
 fn mint_pose<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1288,6 +1289,18 @@ fn mint_pose<P: crate::ProfilePayload>(
         slot,
         fault,
     };
+    // A flip of a flip is the pose it flips: an involution the door
+    // normalises to one side (FORK-S3M), so the twice-flipped read is
+    // lowered where the inner flip's read would have been, at what a
+    // flip admits — a point, which has no sense, still refuses.
+    if let PoseDef::Flip {
+        pose: crate::Operand::Pose(inner),
+    } = def
+        && let PoseDef::Flip { pose: twice } = inner.as_ref()
+    {
+        let sensed = crate::SlotKind::Pose(crate::pose::PoseAdmits::Sensed);
+        return lower_operand(doc, spoken, slot, twice, None, sensed);
+    }
     let admits: Vec<crate::SlotKind> = def.reads().into_iter().map(|(_, _, k)| k).collect();
     let mut at = admits.into_iter();
     // Two passes, the reads then the formulas, each holding the document
@@ -1320,11 +1333,11 @@ fn mint_pose<P: crate::ProfilePayload>(
     })?;
     let kind = match &stored {
         PoseDef::Flip { pose } => {
-            if matches!(
-                doc.var(*pose).map(Var::def),
-                Some(VarDef::Pose(PoseDef::Flip { .. }))
-            ) {
-                return Err(shape(PoseFault::DoubleFlip));
+            // A flip of a flip defined elsewhere is its read, the same
+            // normalisation over a variable.
+            if let Some(VarDef::Pose(PoseDef::Flip { pose: twice })) = doc.var(*pose).map(Var::def)
+            {
+                return Ok(*twice);
             }
             doc.var(*pose)
                 .map(Var::kind)
@@ -2020,7 +2033,8 @@ pub enum EditError {
     },
     /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
     /// not one the document can store ([`crate::pose::PoseFault`]): a
-    /// flip of a flip, or a projection its source has no arm to. A
+    /// projection its source has no arm to. (A flip of a flip is the
+    /// pose it flips, which the door normalises rather than refuses.) A
     /// read of a kind the definition does not admit is the read's own
     /// [`EditError::SlotVarKind`].
     PoseShape {
@@ -3544,8 +3558,8 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!(
-                        "read the unflipped pose for a flip of a flip, and project a frame to \
-                         its plane, axis or origin, or a plane or an axis to its direction"
+                        "project a frame to its plane, axis or origin, or a plane or an axis to \
+                         its direction"
                     ),
                 )
             }

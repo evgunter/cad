@@ -23,8 +23,7 @@ use super::expr::SlotArg;
 #[pyclass(module = "pncad", frozen, from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PoseDef {
-    /// The authored operand: a pose definition, or for a flip of a flip
-    /// the pose it flips back to.
+    /// The authored operand: a pose definition.
     pub(crate) inner: d::Operand,
 }
 
@@ -186,19 +185,11 @@ impl PoseDef {
     }
 
     /// **The opposite sense** of a direction, an axis, a plane or a
-    /// frame. A flip of a flip defined here is the pose it flips, so
-    /// that is what comes back.
+    /// frame. A flip of a flip is the pose it flips: the edit door
+    /// normalises it there, and a point, which has no sense, refuses.
     #[staticmethod]
     fn flip(pose: OperandArg) -> Self {
-        match pose.read() {
-            d::Operand::Pose(inner) if matches!(*inner, Def::Flip { .. }) => {
-                let Def::Flip { pose } = *inner else {
-                    unreachable!("matched a flip")
-                };
-                Self { inner: pose }
-            }
-            read => def(Def::Flip { pose: read }),
-        }
+        def(Def::Flip { pose: pose.read() })
     }
 
     /// **A plane moved along its own normal** by the length `by`.
