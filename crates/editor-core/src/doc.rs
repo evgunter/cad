@@ -1196,6 +1196,11 @@ impl<P> Doc<P> {
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
             Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Pose(def)) => {
+                let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+                out.extend(def.scalars().into_iter().map(|(_, &s)| s));
+                return out;
+            }
             Some(VarDef::Free(_) | VarDef::Output { .. }) | None => {}
         }
         reads.into_iter().map(|(read, _)| read).collect()
@@ -1741,12 +1746,78 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **The operations and ports a read reaches** (D10: reading is the
+    /// only dependency): an output's own, a selection's body's, and for
+    /// a pose definition every one its reads reach, through nested
+    /// definitions, in read order, each once. Its scalars reach no
+    /// operation: a construction reads what was written. Empty for a
+    /// read this document does not resolve.
+    pub fn read_ports(&self, var: VarId) -> Vec<(RecipeNodeId, u8)> {
+        let mut out = Vec::new();
+        self.push_read_ports(var, &mut out, &mut BTreeSet::new());
+        out
+    }
+
+    fn push_read_ports(
+        &self,
+        var: VarId,
+        out: &mut Vec<(RecipeNodeId, u8)>,
+        seen: &mut BTreeSet<VarId>,
+    ) {
+        if !seen.insert(var) {
+            return;
+        }
+        let Some(held) = self.vars.get(&var) else {
+            return;
+        };
+        let at = match held.def() {
+            VarDef::Output { node, port } => Some((*node, *port)),
+            VarDef::Select(select) => self.defined_by(select.body),
+            VarDef::Pose(def) => {
+                for (_, &read, _) in def.reads() {
+                    self.push_read_ports(read, out, seen);
+                }
+                None
+            }
+            VarDef::Free(_) | VarDef::Defined(_) => None,
+        };
+        if let Some(at) = at
+            && !out.contains(&at)
+        {
+            out.push(at);
+        }
+    }
+
+    /// **The first variable a read reaches that the document does not
+    /// hold, or that names a body no live operation defines**: a
+    /// deleted operation leaves its readers unresolved (D10), and a
+    /// selection's or a pose definition's readers with them. `None`
+    /// when the read resolves.
+    pub fn unresolved_read(&self, var: VarId) -> Option<VarId> {
+        let Some(held) = self.vars.get(&var) else {
+            return Some(var);
+        };
+        match held.def() {
+            VarDef::Output { .. } => self.operation_of(var).is_none().then_some(var),
+            VarDef::Select(select) => self
+                .operation_of(select.body)
+                .is_none()
+                .then_some(select.body),
+            VarDef::Pose(def) => def
+                .reads()
+                .into_iter()
+                .find_map(|(_, &read, _)| self.unresolved_read(read)),
+            VarDef::Free(_) | VarDef::Defined(_) => Some(var),
+        }
+    }
+
     /// **The operations `node` depends on** (D10: reading is the only
     /// dependency): the operations defining the variables its operands
     /// read ([`Node::operand_rows`]), then those defining the measured
     /// values its expressions read through definitions
     /// ([`Self::observed_outputs`]: an assertion's value); a selection
-    /// read is its body's operation ([`Self::read_operation`]). In read
+    /// read is its body's operation, and a pose definition's every one
+    /// its reads reach ([`Self::read_ports`]). In read
     /// order, each once; a read this document does not resolve
     /// contributes nothing (an unresolved read is the reader's refusal at
     /// evaluation, not an edge). Empty for a node this document does not
@@ -1779,7 +1850,8 @@ impl<P> Doc<P> {
         let at = node
             .operand_rows()
             .into_iter()
-            .filter_map(|(_, var)| self.read_operation(var))
+            .flat_map(|(_, var)| self.read_ports(var))
+            .map(|(at, _)| at)
             .chain(observed);
         for id in at {
             if !out.contains(&id) {
@@ -2265,7 +2337,9 @@ impl<P> Doc<P> {
                 crate::VarDef::Defined(defined) => self
                     .anonymous_expansion(&crate::Formula::from(defined))
                     .ok(),
-                crate::VarDef::Output { .. } | crate::VarDef::Select(_) => None,
+                crate::VarDef::Output { .. }
+                | crate::VarDef::Select(_)
+                | crate::VarDef::Pose(_) => None,
             }
         })
     }

@@ -208,6 +208,14 @@ pub(crate) fn quoted_residual<T: SolveScalar>(g: Subgroup<T>) -> Subgroup {
             point: pt(point),
             direction: dir(direction),
         },
+        Subgroup::Spherical { point } => Subgroup::Spherical { point: pt(point) },
+        Subgroup::Parallel { direction } => Subgroup::Parallel {
+            direction: dir(direction),
+        },
+        Subgroup::Translation => Subgroup::Translation,
+        Subgroup::PlaneTranslation { normal } => Subgroup::PlaneTranslation {
+            normal: dir(normal),
+        },
     }
 }
 
@@ -1231,10 +1239,11 @@ fn mate_coset<T: SolveScalar>(
             }
             (
                 fa,
-                side_symmetry(&SideFrame {
+                SideFrame {
                     placement: fa,
                     axis,
-                }),
+                }
+                .symmetry(),
             )
         }
         MatePrimitive::Coaxial => match alignment.clocking {
@@ -1245,11 +1254,11 @@ fn mate_coset<T: SolveScalar>(
                 (target, Subgroup::Prismatic { direction: axis })
             }
             None => {
-                let axis = topo::query::DatumValue::Axis {
+                let axis = crate::PoseValue::Axis {
                     origin: Point3::origin() + fa.translation,
                     dir: axis,
                 };
-                (fa, side_symmetry(&axis))
+                (fa, axis.symmetry())
             }
         },
         MatePrimitive::PlanarRest { offset } => {
@@ -1260,11 +1269,11 @@ fn mate_coset<T: SolveScalar>(
                 return Err(Box::new(MateFault::TableLacks { mate, what }));
             }
             let target = fa * Affine3::translation(local_z * T::from_f64(offset));
-            let plane = topo::query::DatumValue::Plane {
+            let plane = crate::PoseValue::Plane {
                 origin: Point3::origin() + fa.translation,
                 normal: axis,
             };
-            (target, side_symmetry(&plane))
+            (target, plane.symmetry())
         }
         MatePrimitive::Clocking => {
             // The table's other static gap, from the same home
@@ -1323,6 +1332,14 @@ fn invert<T: SolveScalar>(c: Coset<T>, band: Band) -> Result<Coset<T>, FrameErro
         Subgroup::Revolute { point, direction } => Subgroup::Revolute {
             point: pt(point),
             direction: dir(direction)?,
+        },
+        Subgroup::Spherical { point } => Subgroup::Spherical { point: pt(point) },
+        Subgroup::Parallel { direction } => Subgroup::Parallel {
+            direction: dir(direction)?,
+        },
+        Subgroup::Translation => Subgroup::Translation,
+        Subgroup::PlaneTranslation { normal } => Subgroup::PlaneTranslation {
+            normal: dir(normal)?,
         },
     };
     Ok(Coset {
@@ -1387,14 +1404,6 @@ pub(crate) fn part_of<P>(
 /// composed with its offset denotes, in the side's part coordinates,
 /// and its local +Z as a witness the coset table reads — at the solve's
 /// scalar.
-/// **The subgroup a mate side's pose folds** ([`PoseSymmetry`]): the
-/// side read as the pose its primitive pins — a frame, an axis or a
-/// plane, each of which has one.
-fn side_symmetry<T: Real>(pose: &impl PoseSymmetry<T>) -> Subgroup<T> {
-    pose.symmetry()
-        .unwrap_or_else(|| unreachable!("a frame, an axis and a plane each have a subgroup"))
-}
-
 #[derive(Debug, Clone, Copy)]
 struct SideFrame<T: Real> {
     /// The frame's placement.
@@ -1405,8 +1414,8 @@ struct SideFrame<T: Real> {
 
 /// A resolved side is a frame: known outright.
 impl<T: Real> PoseSymmetry<T> for SideFrame<T> {
-    fn symmetry(&self) -> Option<Subgroup<T>> {
-        Some(Subgroup::Trivial)
+    fn symmetry(&self) -> Subgroup<T> {
+        Subgroup::Trivial
     }
 }
 
@@ -1878,6 +1887,12 @@ fn fold_pair<P: crate::ProfilePayload, T: SolveScalar>(
                         clash,
                     }));
                 }
+                Err(FoldStop::NoRepresentative { held, added }) => unreachable!(
+                    "a mate pins a frame, an axis or a plane, whose closure the representative \
+                     stage covers: {} against {}",
+                    held.name(),
+                    added.name()
+                ),
             };
             if matches!(held.subgroup, Subgroup::Empty) {
                 return Err(Box::new(MateFault::Contradictory {
@@ -2512,6 +2527,9 @@ fn check_offsets<P: crate::ProfilePayload, T: SolveScalar>(
                     unchecked(instance, OffsetCheck::Unleverable(*refusal))
                 }
                 FoldStop::OutOfRange => unchecked(instance, OffsetCheck::OutOfRange),
+                FoldStop::NoRepresentative { .. } => {
+                    unreachable!("membership of the trivial group constructs no representative")
+                }
             })
         };
         // The check decides where the tree's pair placed the member,

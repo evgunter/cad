@@ -71,7 +71,7 @@
 //! the user.
 
 use geom_core::{Decide, Tol};
-use topo::query::DatumValue;
+use crate::PoseValue;
 use topo::splitting::SplitNaming;
 use topo::{Body, SplitPlane};
 use verbs::{Verb, VerbRecord};
@@ -102,7 +102,7 @@ pub(crate) struct SplitVerb<T: Decide> {
     /// value as a parting plane, per instance: a plane datum is one, an
     /// axis or a point is not. `None` is the document-layer refusal's
     /// cue, never a default plane.
-    pub(crate) tool: fn(&DatumValue<T>) -> Option<SplitPlane<T>>,
+    pub(crate) tool: fn(&PoseValue<T>) -> Option<SplitPlane<T>>,
     /// What the tool operand is EXPECTED to be, in the words the
     /// `WrongOperand` refusal carries when it is not.
     pub(crate) tool_expected: &'static str,
@@ -144,23 +144,22 @@ fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
     }
 }
 
-/// A plane datum is a parting plane; no other datum kind is. A FRAME
-/// carries a plane's worth of placement and is still refused: a frame
-/// is a sketch's coordinate system, and reading one as a parting
-/// plane would let a split be authored against a profile's frame
-/// silently rather than against a plane the document names. The
-/// datum's normal is the [`UnitVec3`](geom_core::UnitVec3) witness the
-/// kernel's split plane takes.
-fn plane_of<T: Decide>(datum: &DatumValue<T>) -> Option<SplitPlane<T>> {
+/// A plane pose is a parting plane; no other pose kind is. A FRAME
+/// carries a plane's worth of placement and is still refused: a slot
+/// holds its kind, and a frame reaches a split as its plane only
+/// through the projection that says so (D10). The pose's normal is the
+/// [`UnitVec3`](geom_core::UnitVec3) witness the kernel's split plane
+/// takes, and its sense says which half is above.
+fn plane_of<T: Decide>(datum: &PoseValue<T>) -> Option<SplitPlane<T>> {
     match datum {
-        DatumValue::Plane { origin, normal } => Some(SplitPlane {
+        PoseValue::Plane { origin, normal } => Some(SplitPlane {
             origin: *origin,
             normal: *normal,
         }),
-        DatumValue::Axis { .. }
-        | DatumValue::Point { .. }
-        | DatumValue::Frame { .. }
-        | DatumValue::AxisInPlane { .. } => None,
+        PoseValue::Axis { .. }
+        | PoseValue::Point { .. }
+        | PoseValue::Direction { .. }
+        | PoseValue::Frame { .. } => None,
     }
 }
 
@@ -219,16 +218,16 @@ mod tests {
         let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), DATUM_UNIT_NORM, band)
             .expect("a unit direction");
         let origin = Point3::new(0.0, 0.0, 0.5);
-        let plane = (corr.tool)(&DatumValue::Plane { origin, normal: up })
+        let plane = (corr.tool)(&PoseValue::Plane { origin, normal: up })
             .expect("a plane datum is a parting plane");
         assert_eq!(plane.normal.get().z, 1.0);
         assert_eq!(plane.origin.z, 0.5);
         assert!(
-            (corr.tool)(&DatumValue::Axis { origin, dir: up }).is_none(),
+            (corr.tool)(&PoseValue::Axis { origin, dir: up }).is_none(),
             "an axis was read as a parting plane"
         );
         assert!(
-            (corr.tool)(&DatumValue::Point { position: origin }).is_none(),
+            (corr.tool)(&PoseValue::Point { position: origin }).is_none(),
             "a point was read as a parting plane"
         );
         // Byte-exact, not `contains`: this label is DOCUMENT-REACHABLE

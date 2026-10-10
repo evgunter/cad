@@ -39,7 +39,6 @@ macro_rules! name_free_node {
                 | $crate::node::Datum::Axis { .. }
                 | $crate::node::Datum::Point { .. }
                 | $crate::node::Datum::Frame { .. }
-                | $crate::node::Datum::AxisInPlane { .. }
                 | $crate::node::Datum::FaceFrame { .. },
         ) | $crate::node::Node::Profile(_)
             | $crate::node::Node::Extrude { .. }
@@ -972,45 +971,6 @@ pub enum Datum<S: Slot = crate::VarId> {
         /// ([`SlotId::V`]). Orthogonalized against `u`, so only its
         /// component perpendicular to `u` is read.
         v: [S; 3],
-    },
-    /// **An axis that lives IN a sketch frame**, authored in that
-    /// frame's own 2-D coordinates — a revolve's axis of revolution.
-    ///
-    /// [`Datum::Axis`] is a world-space line, and a revolve's axis has
-    /// to lie in the profile's plane. Spelling that axis in 3-D means
-    /// authoring six numbers whose legality is a *coincidence* the
-    /// evaluator then has to check, and checking it is a tolerance
-    /// decision on a direction residual — the audit's F15 row, whose
-    /// executed consequence is that a tilt classifies in-plane at
-    /// every model scale while the deviation it induces crosses the
-    /// band between a millimetre and a ten-metre profile.
-    ///
-    /// Four numbers in the frame's own coordinates cannot be out of
-    /// plane. So this variant does not make the check cheaper — it
-    /// makes the error **unrepresentable**, and the residual question
-    /// ("is this the SAME plane the profile is drawn on?") is answered
-    /// by comparing `plane` against the profile's, an identity of node
-    /// ids with no band and no scale.
-    ///
-    /// Nothing is lost by it: every 3-D axis a revolve could legally
-    /// have taken lay in the profile's plane by definition, so it was
-    /// always expressible here — and here it is expressible only in
-    /// the ways that are legal.
-    AxisInPlane {
-        /// The frame this axis lives in ([`crate::OperandSlot::Frame`]),
-        /// read exactly as a profile's frame is: the frame is the
-        /// meaning of the two coordinate pairs below, so an axis
-        /// without it is four numbers about nothing.
-        frame: S::Read,
-        /// A point on the axis, in the frame's 2-D coordinates —
-        /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
-        /// the third coordinate of a point in a plane is not a number
-        /// somebody may type.
-        origin: [S; 2],
-        /// The axis direction in the frame's 2-D coordinates — Scalar,
-        /// [`SlotId::Direction`]`(X | Y)`. Normalized at evaluation,
-        /// where a degenerate pair refuses loudly.
-        direction: [S; 2],
     },
     /// **A sketch frame DERIVED from a face**
     /// (`crates/editor-core/REFERENCES.md` DM1): a [`Datum::Frame`] whose
@@ -1965,12 +1925,32 @@ pub enum Node<P, S: Slot = crate::VarId> {
         #[serde(with = "crate::persist::kernel_wire::extrude_side")]
         side: ExtrudeSide,
     },
-    /// Revolve an upstream profile about a datum axis.
+    /// Revolve an upstream profile about an axis in its own plane.
+    ///
+    /// # The axis is written in the profile's own plane
+    ///
+    /// The axis of revolution is two coordinate pairs in the profile's
+    /// 2-D axes, and its lift to 3-D is the node's `axis` output. A
+    /// revolve's axis has to lie in the profile's plane, and a 3-D axis
+    /// would make that a coincidence the evaluator checks, a tolerance
+    /// decision on a direction residual that classifies a tilt in-plane
+    /// at one model scale and not another (the audit's F15 row). Four
+    /// numbers in the plane cannot leave it: the error is
+    /// unrepresentable rather than checked, and every axis a revolve
+    /// could legally take is expressible here.
     Revolve {
         /// The profile node revolved.
         profile: S::Read,
-        /// The datum-axis node revolved about.
-        axis: S::Read,
+        /// A point on the axis, in the profile's 2-D coordinates —
+        /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
+        /// the third coordinate of a point in a plane is not a number
+        /// somebody may type.
+        axis_origin: [S; 2],
+        /// The axis direction in the profile's 2-D coordinates —
+        /// Scalar, [`SlotId::Direction`]`(X | Y)`. The kernel's
+        /// `RevolveAxis` takes any definitely nonzero vector and
+        /// refuses a sliver at its own door.
+        axis_direction: [S; 2],
         /// Sweep angle ([`SlotId::RevolveAngle`]).
         angle: S,
     },
@@ -2735,16 +2715,6 @@ macro_rules! node_rows {
                 axis_rows!(S::Direction, direction, $out);
             }
             Node::Datum(Datum::Point { position }) => axis_rows!(S::Origin, position, $out),
-            // X and Y only: the frame supplies the third coordinate,
-            // and a slot for it would be a number nobody may set.
-            Node::Datum(Datum::AxisInPlane {
-                frame: _,
-                origin,
-                direction,
-            }) => {
-                axis_rows!(S::Origin, origin, $out);
-                axis_rows!(S::Direction, direction, $out);
-            }
             Node::Datum(Datum::Frame { origin, u, v }) => {
                 axis_rows!(S::Origin, origin, $out);
                 axis_rows!(S::U, u, $out);
@@ -2777,11 +2747,19 @@ macro_rules! node_rows {
                 selection: _,
             } => $out.push((S::ChamferDistance, distance)),
             Node::Shell { thickness, open: _ } => $out.push((S::ShellThickness, thickness)),
+            // X and Y only: the profile's plane supplies the third
+            // coordinate, and a slot for it would be a number nobody
+            // may set.
             Node::Revolve {
                 profile: _,
-                axis: _,
+                axis_origin,
+                axis_direction,
                 angle,
-            } => $out.push((S::RevolveAngle, angle)),
+            } => {
+                axis_rows!(S::Origin, axis_origin, $out);
+                axis_rows!(S::Direction, axis_direction, $out);
+                $out.push((S::RevolveAngle, angle));
+            }
             Node::Tube {
                 frame: _,
                 major_radius,
@@ -3181,11 +3159,6 @@ impl<P> Node<P> {
                 .collect()
         };
         match self {
-            Node::Datum(Datum::AxisInPlane {
-                frame: plane,
-                origin: _,
-                direction: _,
-            }) => vec![(O::Frame, *plane)],
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
             Node::Datum(
                 Datum::Plane {
@@ -3236,9 +3209,10 @@ impl<P> Node<P> {
             } => vec![(O::Profile, *profile)],
             Node::Revolve {
                 profile,
-                axis,
+                axis_origin: _,
+                axis_direction: _,
                 angle: _,
-            } => vec![(O::Profile, *profile), (O::Axis, *axis)],
+            } => vec![(O::Profile, *profile)],
             Node::Tube {
                 frame,
                 major_radius: _,
@@ -3330,11 +3304,6 @@ impl<P> Node<P> {
         // to a node does not compile until it is stated here too, so
         // the writable twin cannot fall behind the reading one.
         match self {
-            Node::Datum(Datum::AxisInPlane {
-                frame: plane,
-                origin: _,
-                direction: _,
-            }) => vec![(O::Frame, plane)],
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, face)],
             Node::Datum(
                 Datum::Plane {
@@ -3385,9 +3354,10 @@ impl<P> Node<P> {
             } => vec![(O::Profile, profile)],
             Node::Revolve {
                 profile,
-                axis,
+                axis_origin: _,
+                axis_direction: _,
                 angle: _,
-            } => vec![(O::Profile, profile), (O::Axis, axis)],
+            } => vec![(O::Profile, profile)],
             Node::Tube {
                 frame,
                 major_radius: _,
@@ -3907,15 +3877,6 @@ impl<S: Slot> Datum<S> {
                 u: map_array(u, f)?,
                 v: map_array(v, f)?,
             },
-            Datum::AxisInPlane {
-                frame: plane,
-                origin,
-                direction,
-            } => Datum::AxisInPlane {
-                frame: read(crate::OperandSlot::Frame, plane)?,
-                origin: map_array(origin, f)?,
-                direction: map_array(direction, f)?,
-            },
             Datum::FaceFrame { face, spin } => Datum::FaceFrame {
                 face: read(crate::OperandSlot::Face, face)?,
                 spin: f(spin)?,
@@ -4045,9 +4006,7 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Self::Datum(datum) => vec![match datum {
                 Datum::Plane { .. } => OutputPort::of("plane", VarKind::Plane),
-                Datum::Axis { .. } | Datum::AxisInPlane { .. } => {
-                    OutputPort::of("axis", VarKind::Axis)
-                }
+                Datum::Axis { .. } => OutputPort::of("axis", VarKind::Axis),
                 Datum::Point { .. } => OutputPort::of("point", VarKind::Point),
                 Datum::Frame { .. } | Datum::FaceFrame { .. } => {
                     OutputPort::of("frame", VarKind::Frame)
@@ -4133,11 +4092,13 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Revolve {
                 profile,
-                axis,
+                axis_origin,
+                axis_direction,
                 angle,
             } => Node::Revolve {
                 profile: read(O::Profile, profile)?,
-                axis: read(O::Axis, axis)?,
+                axis_origin: map_array(axis_origin, f)?,
+                axis_direction: map_array(axis_direction, f)?,
                 angle: f(angle)?,
             },
             Node::Tube {

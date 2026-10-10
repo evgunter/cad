@@ -918,7 +918,7 @@ fn datum_kind_is_key_separated() {
     );
     assert!(matches!(
         &e2.value(n2).unwrap().payload,
-        ValuePayload::Datum(editor_core::DatumValue::Axis { .. })
+        ValuePayload::Datum(editor_core::PoseValue::Axis { .. })
     ));
 }
 

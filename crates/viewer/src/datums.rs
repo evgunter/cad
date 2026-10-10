@@ -85,7 +85,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
+    PoseValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::geom_core::{Point3, UnitVec3, Vec3};
 
@@ -574,7 +574,7 @@ const POINT_ARM_PX: f64 = 14.0;
 /// say what it is pointing at without re-reading the document.
 ///
 /// **A partition of the datum VALUES by how they are drawn**, which is
-/// why four members cover `DatumValue`'s five arms: `AxisInPlane` is a
+/// why four members cover `PoseValue`'s five arms: `AxisInPlane` is a
 /// line in space and is drawn as the axis it is, so it carries this
 /// same tag as `Axis`. `draw_one` is where each datum value is given
 /// its tag.
@@ -719,24 +719,24 @@ pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> D
 }
 
 /// One datum value's wireframe.
-fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDraw {
+fn draw_one(node: RecipeNodeId, datum: &PoseValue<f64>, view: View) -> DatumDraw {
     match datum {
-        DatumValue::Plane { origin, normal } => DatumDraw {
+        PoseValue::Plane { origin, normal } => DatumDraw {
             node,
             kind: DatumKind::Plane,
             segments: plane_segments(*origin, *normal, view),
         },
-        DatumValue::Axis { origin, dir } => DatumDraw {
+        PoseValue::Axis { origin, dir } => DatumDraw {
             node,
             kind: DatumKind::Axis,
             segments: axis_segments(*origin, *dir, view),
         },
-        DatumValue::Point { position } => DatumDraw {
+        PoseValue::Point { position } => DatumDraw {
             node,
             kind: DatumKind::Point,
             segments: point_segments(*position, view),
         },
-        DatumValue::Frame(f) => DatumDraw {
+        PoseValue::Frame(f) => DatumDraw {
             node,
             kind: DatumKind::Frame,
             segments: frame_segments(f.origin(), f.u().get(), f.v().get(), view),
@@ -745,7 +745,7 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
         // sketch coordinates it was authored in are what a revolve
         // reads, not what a viewport shows, and a line in space looks
         // the same however it was written down.
-        DatumValue::AxisInPlane { origin, dir, .. } => DatumDraw {
+        PoseValue::AxisInPlane { origin, dir, .. } => DatumDraw {
             node,
             kind: DatumKind::Axis,
             segments: axis_segments(*origin, *dir, view),

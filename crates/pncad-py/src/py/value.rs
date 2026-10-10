@@ -1035,7 +1035,7 @@ impl Value {
     /// The datum this value denotes.
     fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
         match &self.payload {
-            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => {
+            d::ValuePayload::Datum(d::PoseValue::Plane { origin, normal }) => {
                 let n = normal.get();
                 Ok(Datum {
                     kind: "plane",
@@ -1045,7 +1045,7 @@ impl Value {
                     axes: None,
                 })
             }
-            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => {
+            d::ValuePayload::Datum(d::PoseValue::Axis { origin, dir }) => {
                 let v = dir.get();
                 Ok(Datum {
                     kind: "axis",
@@ -1055,14 +1055,14 @@ impl Value {
                     axes: None,
                 })
             }
-            d::ValuePayload::Datum(d::DatumValue::Point { position }) => Ok(Datum {
+            d::ValuePayload::Datum(d::PoseValue::Point { position }) => Ok(Datum {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
                 in_plane: None,
                 axes: None,
             }),
-            d::ValuePayload::Datum(d::DatumValue::Frame(f)) => {
+            d::ValuePayload::Datum(d::PoseValue::Frame(f)) => {
                 let (x, y) = (f.u().get(), f.v().get());
                 let n = f.w().get();
                 Ok(Datum {
@@ -1077,7 +1077,7 @@ impl Value {
             // world line, so a reader that only wants to know where the
             // axis IS treats it like any other axis, and `in_plane`
             // carries the sketch numbers a revolve consumes.
-            d::ValuePayload::Datum(d::DatumValue::AxisInPlane {
+            d::ValuePayload::Datum(d::PoseValue::AxisInPlane {
                 plane_origin,
                 plane_dir,
                 origin,

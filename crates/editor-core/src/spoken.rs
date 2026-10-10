@@ -1308,7 +1308,6 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Datum(Datum::Plane { .. }) => "Datum plane",
         Node::Datum(Datum::Frame { .. }) => "Datum frame",
         Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
-        Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
         Node::Datum(Datum::Axis { .. }) => "Datum axis",
         Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Fillet { .. } => "Fillet",

@@ -21,7 +21,7 @@ use editor_core::{
     RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
-use topo::{DatumValue, validate_closed};
+use topo::{PoseValue, validate_closed};
 
 fn run(
     doc: &ProfileDoc,
@@ -60,7 +60,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
             "{lift:?}: {:?}",
             corpus::failures(&ev)
         );
-        let ValuePayload::Datum(DatumValue::Frame(f)) =
+        let ValuePayload::Datum(PoseValue::Frame(f)) =
             &ev.value(frame).expect("the frame").payload
         else {
             panic!("a frame value");

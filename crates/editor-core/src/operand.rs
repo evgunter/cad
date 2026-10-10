@@ -17,7 +17,7 @@ use crate::var::{VarId, VarKind};
 
 /// **An operand as an author writes it**: what the edit door lowers to
 /// the read a node stores.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Operand {
     /// A node, read through its one output (spec Q5). A node with
     /// several outputs — a revolve's body and axis, a split's two halves
@@ -47,6 +47,11 @@ pub enum Operand {
         /// The entities, by name.
         names: Vec<crate::names::StableName>,
     },
+    /// **A pose defined at this seat** (D10): the door lowers its reads
+    /// and formulas, mints one anonymous pose variable of the
+    /// definition's kind ([`crate::VarDef::Pose`]) and the seat reads
+    /// it, as a selection authored at a seat is minted there.
+    Pose(Box<crate::pose::PoseDef<Operand, crate::Formula>>),
 }
 
 impl From<RecipeNodeId> for Operand {
@@ -84,6 +89,11 @@ impl Operand {
                 held.extend(names);
                 held
             }
+            Self::Pose(def) => def
+                .reads()
+                .into_iter()
+                .flat_map(|(_, read, _)| read.selected_names())
+                .collect(),
             Self::Node(_) | Self::Output { .. } | Self::Var(_) | Self::Name(_) => Vec::new(),
         }
     }
@@ -108,6 +118,10 @@ impl core::fmt::Display for Operand {
             Self::Select { body, names } => {
                 write!(f, "the selection of {} names in {body}", names.len())
             }
+            Self::Pose(def) => match def.kind() {
+                Some(kind) => write!(f, "{} {kind} defined here", crate::sentence::article(&kind.to_string())),
+                None => f.write_str("a flipped pose defined here"),
+            },
         }
     }
 }
@@ -229,6 +243,9 @@ pub enum SlotKind {
     /// What a reference of this primitive admits
     /// ([`crate::MeasureVerb::admits`]).
     Measured(crate::MeasureVerb),
+    /// What a pose definition's read admits beyond one kind
+    /// ([`crate::pose::PoseAdmits::kinds`]).
+    Pose(crate::pose::PoseAdmits),
 }
 
 impl SlotKind {
@@ -240,6 +257,7 @@ impl SlotKind {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
             Self::Measured(verb) => verb.admits(kind),
+            Self::Pose(admits) => admits.kinds().contains(&kind),
         }
     }
 
@@ -263,6 +281,15 @@ impl SlotKind {
                 E::Body => None,
             },
             Self::Placeable => None,
+            Self::Pose(admits) => {
+                let kind = match entity {
+                    E::Face => VarKind::Face,
+                    E::Edge => VarKind::Edge,
+                    E::Vertex => VarKind::Vertex,
+                    E::Body => return None,
+                };
+                admits.kinds().contains(&kind).then_some(kind)
+            }
         }
     }
 }
@@ -273,6 +300,22 @@ impl core::fmt::Display for SlotKind {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
             Self::Measured(verb) => f.write_str(&verb.admitted()),
+            Self::Pose(admits) => {
+                let said: Vec<String> = admits
+                    .kinds()
+                    .iter()
+                    .map(|kind| {
+                        let word = kind.to_string();
+                        format!("{} {word}", crate::sentence::article(&word))
+                    })
+                    .collect();
+                match said.as_slice() {
+                    [init @ .., last] if !init.is_empty() => {
+                        write!(f, "{} or {last}", init.join(", "))
+                    }
+                    _ => f.write_str(&said.concat()),
+                }
+            }
         }
     }
 }

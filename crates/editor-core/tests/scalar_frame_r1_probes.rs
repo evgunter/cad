@@ -12,7 +12,7 @@
 
 use crate::fixture;
 
-use editor_core::{CancelToken, DatumValue, EvalOptions, ProfileDoc, ValuePayload, evaluate};
+use editor_core::{CancelToken, PoseValue, EvalOptions, ProfileDoc, ValuePayload, evaluate};
 use geom_core::linalg::frame::{path_start_frame, point_at};
 use geom_core::{Affine3, Band, Mat3, OrthoFrame, Point3, Tol, Vec3};
 use profile::SketchPlane;
@@ -174,7 +174,7 @@ fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
 /// **A frame datum evaluates to the witness, and the fixture's plane
 /// is the evaluator's** — the two roads to a sketch plane off a frame
 /// node agree bit for bit, which is what carrying the witness through
-/// `DatumValue::Frame` buys. The node's literals are deliberately
+/// `PoseValue::Frame` buys. The node's literals are deliberately
 /// neither unit nor perpendicular.
 #[test]
 fn a_datum_frame_node_evaluates_to_the_witness_and_the_fixture_plane_agrees() {
@@ -190,7 +190,7 @@ fn a_datum_frame_node_evaluates_to_the_witness_and_the_fixture_plane_agrees() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let ValuePayload::Datum(DatumValue::Frame(f)) = &ev.value(plane).expect("evaluated").payload
+    let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(plane).expect("evaluated").payload
     else {
         panic!("not a frame")
     };

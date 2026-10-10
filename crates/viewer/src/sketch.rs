@@ -49,7 +49,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram,
+    PoseValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram,
     Node, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
     StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
@@ -564,7 +564,7 @@ pub fn frame_placement(
     if !admits(doc, frame, NodeKindWanted::Frame) {
         return None;
     }
-    let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
+    let ValuePayload::Datum(PoseValue::Frame(f)) = &evaluation.value(frame)?.payload else {
         return None;
     };
     Some(SketchPlane::from_frame(*f))

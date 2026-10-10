@@ -54,6 +54,7 @@ pub mod parse;
 pub mod part;
 pub mod persist;
 pub mod placement;
+pub mod pose;
 pub mod product;
 pub mod program;
 /// The certified locally-valid range of ONE field — the on-demand
@@ -134,7 +135,7 @@ pub use edit::{
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
+    ContentBits, ContentKey, PoseValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
     EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
     ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,

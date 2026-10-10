@@ -36,67 +36,31 @@
 //!   set are both answers a caller would act on. So it refuses typed
 //!   ([`RimError`]) at every point a predicate would answer NO, and
 //!   the totality is in the refusals rather than in the `false`.
-//! - **DECIDED** — [`datum_distance_sign`] is a real numeric
-//!   comparison and therefore a `k_stats::decide` site with a named
-//!   `sel_*` predicate ([`SEL_DATUM_DISTANCE`]), an honest
-//!   [`Margin`] door, and a typed indeterminate on an in-band
-//!   comparand. It participates in the K census exactly like any
-//!   kernel site (SELECT-DESIGN GS-Q1: the naming convention does the
-//!   separating, not a second funnel).
+//! - **The decided position predicate is the document layer's.** A
+//!   selector measuring an entity against a pose decides through
+//!   `editor-core`'s pose module, because the pose value is a value
+//!   that layer owns. The entity → point convention it reads is
+//!   [`crate::readback`]'s: a vertex's stored position
+//!   ([`readback::vertex_point`](crate::readback::vertex_point)), an
+//!   edge's certified carrier frame origin
+//!   ([`readback::edge_pose`](crate::readback::edge_pose)), a face's
+//!   carrier frame origin
+//!   ([`readback::face_pose`](crate::readback::face_pose)).
 //!
-//!   **The `sel_*` convention covers the SELECTOR sites, and this
-//!   module has one that is not a selector site.** The datum a
-//!   selection is measured against carries a decision of its own, one
-//!   layer earlier: [`UnitVec3::new`] under this module's
-//!   [`DATUM_UNIT_NORM`] (no `sel_` prefix) decides that a direction
-//!   has a finite, nonzero length before normalizing it. It is
-//!   deliberately outside the convention — it decides nothing about a
-//!   candidate and answers no selection question; it is a constructor
-//!   refusing a value the type cannot hold, and a `sel_` name on it
-//!   would tell a census reader it belongs to a selector margin
-//!   population it is not part of. What it buys the door above is that
-//!   [`datum_distance`] is arithmetic all the way down.
-//!
-//!   **The body is `geom-core`'s, and the NAME is this module's.** The
-//!   witness type and its decision
-//!   ([`geom_core::decide_unit_direction`], the workspace's one
-//!   `Margin::norm3` decide-then-normalize body) live in `geom-core`;
-//!   what this seat owns is the funnel name a datum direction is
-//!   decided under, because the datum is a value this layer owns. The
-//!   passer is the evaluation layer (`editor-core`'s `datum_unit`,
-//!   which builds every [`DatumValue`]); its own direction door passes
-//!   its own name to the same body: two ratified funnel names, one
-//!   body.
-//!
-//! # Where an entity IS, for the decided door
-//!
-//! The decided door measures a POINT against a [`DatumValue`]. The
-//! entity → point convention is [`crate::readback`]'s, not a second
-//! one minted here: a vertex's stored position
-//! ([`readback::vertex_point`](crate::readback::vertex_point)), an
-//! edge's certified carrier frame origin
-//! ([`readback::edge_pose`](crate::readback::edge_pose)), a face's
-//! carrier frame origin
-//! ([`readback::face_pose`](crate::readback::face_pose)) — and the
-//! read-back refusals travel with those doors (a NURBS face has no
-//! canonical frame, so it refuses rather than being silently dropped).
-//! Datum-node RESOLUTION — a recipe reference becoming a
-//! [`DatumValue`] — stays in the document layer; this seat takes the
-//! resolved value. One half of what used to be up there came down with
-//! the type: the document layer no longer normalizes a datum's
-//! direction by hand, because [`UnitVec3`] admits no unnormalized
-//! spelling, so the normalization and its typed refusal are the
-//! kernel type's, decided under this seat's name, and the document
-//! layer maps that refusal onto its own node error.
+//!   **This module names one decision that is not a selector site.**
+//!   A pose direction is decided by [`UnitVec3::new`](geom_core::UnitVec3::new) under
+//!   [`DATUM_UNIT_NORM`] (no `sel_` prefix): it decides that a
+//!   direction has a finite, nonzero length before normalizing it, a
+//!   constructor refusing a value the type cannot hold, not a margin a
+//!   candidate is judged by. The body is `geom-core`'s
+//!   ([`geom_core::decide_unit_direction`]); the name is this seat's,
+//!   and the evaluation layer passes it.
 //! Stable names themselves never appear below the G1 line, which is
 //! the point.
 
 use geom::Curve3;
 use geom_brep::SurfaceKey;
-use geom_core::k_stats::decide;
-use geom_core::{
-    Band, Decide, Indeterminate, Margin, OrthoFrame, Point2, Point3, Real, Sign, UnitVec3, Vec2,
-};
+use geom_core::Real;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -292,173 +256,21 @@ pub fn edge_adjacent_matches<T: Real>(
 }
 
 // ---------------------------------------------------------------
-// The DECIDED door and the funnel name of the type it measures
-// against: the datum's own unit-direction constructor is
-// `geom_core::UnitVec3::new` under this module's name, and the
-// distance-sign door has an honest Margin and a typed
-// indeterminate.
+// The funnel name a pose direction is decided under: its
+// constructor is `geom_core::UnitVec3::new` under this module's name.
 // ---------------------------------------------------------------
 
 /// **The funnel site name** of a datum direction's length decision —
-/// the name this crate passes to [`UnitVec3::new`] when a datum's
+/// the name this crate passes to [`UnitVec3::new`](geom_core::UnitVec3::new) when a datum's
 /// normal or axis direction is decided, because a datum is a value
 /// this layer owns. Its comparand is a genuine length (the vector's
-/// norm), so it goes through the plain [`Margin::norm3`] door and
+/// norm), so it goes through the plain [`Margin::norm3`](geom_core::Margin::norm3) door and
 /// owes NO `docs/predicate-dimension-audit.md` row.
 ///
 /// A K row name reaching the funnel through a const, not a literal at
 /// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
 /// "The inventory method, restated").
 pub const DATUM_UNIT_NORM: &str = "datum_unit_norm";
-
-/// A resolved datum: geometry VALUES, not kernel entities and not
-/// recipe references. Normals and axis directions are [`UnitVec3`],
-/// which is unit by construction — nothing here re-normalizes (not
-/// bit-preserving) and nothing needs to: an unnormalized datum has no
-/// spelling.
-#[derive(Debug, Clone)]
-pub enum DatumValue<T: Real> {
-    /// A plane through `origin` with `normal`.
-    Plane {
-        /// A point on the plane.
-        origin: Point3<T>,
-        /// The normal.
-        normal: UnitVec3<T>,
-    },
-    /// An axis through `origin` along `dir`.
-    Axis {
-        /// A point on the axis.
-        origin: Point3<T>,
-        /// The direction.
-        dir: UnitVec3<T>,
-    },
-    /// A point.
-    Point {
-        /// Its position.
-        position: Point3<T>,
-    },
-    /// **An oriented plane** — origin plus a right-handed pair of
-    /// in-plane directions, so the surface AND the spin about its
-    /// normal are pinned.
-    ///
-    /// A [`DatumValue::Plane`] fixes five of a placement's six rigid
-    /// degrees of freedom; the sixth, the rotation about the normal,
-    /// is exactly what a sketch's `u` and `v` axes are. Anything that
-    /// only measures against the SURFACE (a section cut,
-    /// [`datum_distance`]) wants the plane and would have to ignore
-    /// the spin; anything that reads or writes 2D coordinates on the
-    /// plane needs the frame, because there is nothing else to hang an
-    /// `(x, y)` pair on. The two are separate variants for that
-    /// reason, not as a naming accident.
-    ///
-    /// The payload is the frame WITNESS: `u` (sketch +x) and `v`
-    /// (sketch +y) are unit and orthogonal as a property of the type,
-    /// decided where the frame was minted, and `w = u × v` is the
-    /// normal — carried by the witness rather than recomputed at each
-    /// reader, which is where two spellings would drift apart.
-    Frame(OrthoFrame<T>),
-    /// **An axis that lives in a sketch frame**, carried in BOTH
-    /// spellings — the frame's own 2-D coordinates, and the world
-    /// line those coordinates name.
-    ///
-    /// Neither is derivable from this value alone (the frame is not in
-    /// it), and the two have different readers: a revolve consumes the
-    /// sketch pair, because a `RevolveAxis` IS sketch-plane metres and
-    /// a round trip out to world and back would round the numbers a
-    /// person typed; everything that measures or draws in 3-D consumes
-    /// the world line. Carrying one and deriving the other at each
-    /// reader would put the lift in two places.
-    AxisInPlane {
-        /// A point on the axis in the frame's 2-D coordinates, as
-        /// authored.
-        plane_origin: Point2<T>,
-        /// The axis direction in the frame's 2-D coordinates, as
-        /// authored and NOT normalized: `RevolveAxis` takes "any
-        /// definitely nonzero vector" and refuses a sliver at its own
-        /// door, so normalizing here would be a second opinion about
-        /// the same vector. The lift below is unit because a 3-D
-        /// direction in this vocabulary always is, and because the
-        /// frame's axes are orthonormal the two refusals coincide
-        /// exactly: `|lift(d)| = |d|`.
-        plane_dir: Vec2<T>,
-        /// The same axis lifted through its frame — a point on it in
-        /// world space.
-        origin: Point3<T>,
-        /// The same axis lifted through its frame — its world
-        /// direction, unit.
-        dir: UnitVec3<T>,
-    },
-}
-
-/// **The funnel site name** of the decided position predicate — the
-/// `sel_*` prefix SELECT-DESIGN §1 proposes, so any K-census consumer
-/// can tell selector margins from kernel ones by name alone (GS-Q1's
-/// separation mechanism). Its comparand is a genuine length (the
-/// signed/unsigned distance minus the stated value), so it goes
-/// through the plain [`Margin::of`] door and owes NO
-/// `docs/predicate-dimension-audit.md` row — the flagged lane is for
-/// comparands that cannot honestly be lengths.
-///
-/// A K row name reaching the funnel through a const, not a literal at
-/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
-/// "The inventory method, restated").
-pub const SEL_DATUM_DISTANCE: &str = "sel_datum_distance";
-
-/// The distance of `p` from a datum: SIGNED along a plane's or a
-/// frame's normal (which is unit by construction, so the dot product
-/// is already a length), UNSIGNED to an axis or a point.
-///
-/// A frame answers as the plane it lies in — its spin about the normal
-/// is exactly the datum this measurement does not read.
-///
-/// Arithmetic only, so [`Real`] is the whole bound: deciding what the
-/// distance MEANS is [`datum_distance_sign`]'s job, and that is where
-/// [`Decide`] enters.
-#[must_use]
-pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
-    match datum {
-        DatumValue::Plane { origin, normal } => (p - *origin).dot(normal.get()),
-        DatumValue::Axis { origin, dir } => {
-            let d = dir.get();
-            let v = p - *origin;
-            (v - d * v.dot(d)).norm()
-        }
-        DatumValue::Point { position } => (p - *position).norm(),
-        DatumValue::Frame(f) => (p - f.origin()).dot(f.w().get()),
-        // The world lift, by the same arithmetic the 3-D axis uses —
-        // an axis is an axis to a measurement, whichever coordinates
-        // it was written in.
-        DatumValue::AxisInPlane { origin, dir, .. } => {
-            let d = dir.get();
-            let v = p - *origin;
-            (v - d * v.dot(d)).norm()
-        }
-    }
-}
-
-/// DECIDED: which side of the stated `value` the point's
-/// [`datum_distance`] lands on, through the [`SEL_DATUM_DISTANCE`]
-/// funnel. The comparand is the distance MINUS the stated value — a
-/// length minus a length, so [`Margin::of`] is the honest door.
-///
-/// # Errors
-///
-/// The funnel's [`Indeterminate`] when the margin lands strictly
-/// inside the ambiguity band: neither side of the comparison is
-/// certified, and a caller must neither include nor drop the
-/// candidate silently.
-pub fn datum_distance_sign<T: Decide>(
-    datum: &DatumValue<T>,
-    p: Point3<T>,
-    value: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    decide(
-        SEL_DATUM_DISTANCE,
-        Margin::of(datum_distance(datum, p) - value),
-        band,
-    )
-}
 
 // ---------------------------------------------------------------
 // The rim door: the whole closed rim one arc belongs to. EXACT —
@@ -771,7 +583,7 @@ fn continuation<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::{Tol, UnitVec3Error, Vec3};
+    use geom_core::{Band, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
 
     use super::*;
     use crate::fixtures::{plane_surface, raw_prism};
@@ -978,82 +790,5 @@ mod tests {
         // symmetry loop above is exercised on a TRUE answer with two
         // DIFFERENT sets, not only on false ones.
         assert!(mixed_pair_hit, "the fixture carries a Plane x Nurbs rim");
-    }
-
-    /// **A datum built from any scale measures a LENGTH.** The
-    /// constructor normalizes however far from unit the input started
-    /// (its own rows, in `geom-core`), and the decided door downstream
-    /// is what that buys: the same plane spelled at scale 1e6 answers
-    /// the same distance.
-    #[test]
-    fn a_datum_built_at_any_scale_measures_a_length() {
-        let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
-        let p = Point3::new(3.0, 4.0, -2.0);
-        let at = |v| DatumValue::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a vector with a length"),
-        };
-        assert_eq!(
-            datum_distance(&at(Vec3::new(0.0, 0.0, 1e6)), p),
-            datum_distance(&at(Vec3::new(0.0, 0.0, 1.0)), p)
-        );
-    }
-
-    #[test]
-    fn the_decided_door_partitions_on_the_band() {
-        let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
-        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), DATUM_UNIT_NORM, band).expect("a unit z");
-        let plane = DatumValue::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: up,
-        };
-        let axis = DatumValue::Axis {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: up,
-        };
-        let point = DatumValue::Point {
-            position: Point3::new(0.0, 0.0, 0.0),
-        };
-        let p = Point3::new(3.0, 4.0, -2.0);
-        // SIGNED along a plane's normal, UNSIGNED to an axis or point.
-        assert_eq!(datum_distance(&plane, p), -2.0);
-        assert_eq!(datum_distance(&axis, p), 5.0);
-        assert!((datum_distance(&point, p) - 29.0_f64.sqrt()).abs() < 1e-12);
-        // The stated value is `d - dv`, so the margin the funnel sees
-        // is `d - (d - dv)` — dv up to a rounding ulp, which is why
-        // each row sits comfortably inside its region rather than on
-        // the band's exact boundary (the boundary-inclusive semantics
-        // are `sign_within`'s own pinned contract in geom-core).
-        for datum in [&plane, &axis, &point] {
-            let d = datum_distance(datum, p);
-            // |margin| <= zero: definite Zero.
-            for dv in [0.0, 1e-7, -1e-7] {
-                assert_eq!(
-                    datum_distance_sign(datum, p, d - dv, band),
-                    Ok(Sign::Zero),
-                    "dv={dv}"
-                );
-            }
-            // Strictly inside the gray zone: refuses, either side.
-            for dv in [5e-4, -5e-4, 2e-6, -2e-6] {
-                assert!(
-                    datum_distance_sign(datum, p, d - dv, band).is_err(),
-                    "dv={dv}"
-                );
-            }
-            // |margin| >= escalate: the definite sign of (distance - value).
-            for dv in [2e-3, 1.0] {
-                assert_eq!(
-                    datum_distance_sign(datum, p, d - dv, band),
-                    Ok(Sign::Positive),
-                    "dv={dv}"
-                );
-                assert_eq!(
-                    datum_distance_sign(datum, p, d + dv, band),
-                    Ok(Sign::Negative),
-                    "dv={dv}"
-                );
-            }
-        }
     }
 }

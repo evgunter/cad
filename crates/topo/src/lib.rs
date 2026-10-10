@@ -912,8 +912,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 pub use face_boxes::{FaceBox, FaceBoxes};
 pub use pieces::PieceSortError;
 pub use query::{
-    CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
-    SurfaceKind, SurfaceKindSet,
+    CurveKind, CurveKindSet, DATUM_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{

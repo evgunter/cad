@@ -11,7 +11,7 @@
 use crate::fixture;
 
 use editor_core::{
-    Axis3, CancelToken, DatumValue, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult,
+    Axis3, CancelToken, PoseValue, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult,
     ProfileDoc, SlotId, ValuePayload, evaluate,
 };
 use fixture::insert;
@@ -43,7 +43,7 @@ fn evaluated(
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
     match run(doc).nodes.get(&id) {
         Some(NodeResult::Ok(val)) => match &val.payload {
-            ValuePayload::Datum(DatumValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),
+            ValuePayload::Datum(PoseValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),
             other => panic!("expected a frame value, got {other:?}"),
         },
         other => panic!("expected Ok, got {other:?}"),

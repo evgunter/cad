@@ -710,7 +710,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 /// **One length decision, two funnel names, ratified.** A circular
 /// rule's direction is a DATUM's axis direction, and this derivation
 /// re-derives it from the recipe expressions rather than reading the
-/// evaluated `DatumValue` whose `UnitVec3` normalized the same
+/// evaluated `PoseValue` whose `UnitVec3` normalized the same
 /// triple. So one datum direction is decided under two predicate
 /// names depending on which road reaches it — same body, same
 /// refusal shape, different name in the K census. That split is

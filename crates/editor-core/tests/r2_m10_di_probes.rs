@@ -44,7 +44,7 @@ use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, DatumValue, Dimension,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, PoseValue, Dimension,
     EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProductError, ProfileProgram,
     SplitSide, ValuePayload, assemble, evaluate, product_recorded,
 };
@@ -275,21 +275,21 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
-                    ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                    ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(origin);
                         d.v3(&normal.get());
                     }
-                    ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                    ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(origin);
                         d.v3(&dir.get());
                     }
-                    ValuePayload::Datum(DatumValue::Point { position }) => {
+                    ValuePayload::Datum(PoseValue::Point { position }) => {
                         d.u64(12);
                         d.p3(position);
                     }
-                    ValuePayload::Datum(DatumValue::Frame(f)) => {
+                    ValuePayload::Datum(PoseValue::Frame(f)) => {
                         d.u64(23);
                         d.p3(&f.origin());
                         d.v3(&f.u().get());
@@ -298,7 +298,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     // Tag 24, appended: both spellings of an in-plane
                     // axis, so a drift in the numbers a revolve
                     // actually consumes cannot hide behind the lift.
-                    ValuePayload::Datum(DatumValue::AxisInPlane {
+                    ValuePayload::Datum(PoseValue::AxisInPlane {
                         plane_origin,
                         plane_dir,
                         origin,

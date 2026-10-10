@@ -468,7 +468,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
-    use editor_core::{Datum, DatumValue, Node, SplitSide};
+    use editor_core::{Datum, PoseValue, Node, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, prof) = fixture::on_frame(
         doc,
@@ -503,7 +503,7 @@ fn split_evaluates_both_parts_role_tagged() {
     let ev = run(&doc, None, false);
     // The datum evaluated with a NORMALIZED normal.
     match &ev.value(plane).unwrap().payload {
-        ValuePayload::Datum(DatumValue::Plane { normal, .. }) => {
+        ValuePayload::Datum(PoseValue::Plane { normal, .. }) => {
             let normal = normal.get();
             assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         }

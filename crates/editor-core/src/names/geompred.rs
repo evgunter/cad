@@ -66,7 +66,7 @@
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
-use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
+use crate::eval::{PoseValue, Evaluation, NodeStanding, ValuePayload};
 use crate::expr::{Dimension, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
@@ -76,7 +76,8 @@ use crate::node::RecipeNodeId;
 // The kernel query seat's vocabulary, re-exported at its historical
 // home so this crate's public surface is unchanged (see the module
 // docs' layering note).
-pub use topo::query::{CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet};
+pub use crate::pose::SEL_DATUM_DISTANCE;
+pub use topo::query::{CurveKind, CurveKindSet, SurfaceKindSet};
 
 /// The comparison a [`GeomPred::DatumDistance`] makes against its
 /// stated value: the SIGN trilean, never a bare float equality.
@@ -497,7 +498,7 @@ pub(crate) enum Prepared<'a, T: Decide> {
     /// [`GeomPred::DatumDistance`], resolved.
     Distance {
         /// The datum's evaluated geometry.
-        datum: &'a DatumValue<T>,
+        datum: &'a PoseValue<T>,
         /// Which side of `value` a candidate must land on.
         cmp: Cmp,
         /// The stated length, evaluated.
@@ -530,11 +531,14 @@ pub(crate) fn prepare<'a, T: Decide>(
                 }
                 let v = ev.usable(*datum).map_err(SelectRefusal::DatumHasNoValue)?;
                 match &v.payload {
-                    ValuePayload::Datum(d) => Ok(Prepared::Distance {
-                        datum: d,
-                        cmp: *cmp,
-                        value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
-                    }),
+                    ValuePayload::Datum(d) if !matches!(d, PoseValue::Direction { .. }) => {
+                        Ok(Prepared::Distance {
+                            datum: d,
+                            cmp: *cmp,
+                            value: crate::expr::eval(value, params)
+                                .map_err(SelectRefusal::BadValue)?,
+                        })
+                    }
                     other => Err(SelectRefusal::NotADatum {
                         datum: *datum,
                         found: other.kind_name(),
@@ -589,7 +593,9 @@ pub(crate) fn candidate_matches<T: Decide>(
                         error,
                     }
                 })?;
-                match query::datum_distance_sign(datum, point, *value, band) {
+                let sign = crate::pose::datum_distance_sign(datum, point, *value, band)
+                    .unwrap_or_else(|| unreachable!("`prepare` admits no direction"));
+                match sign {
                     Ok(sign) => match cmp {
                         Cmp::Approx => sign == Sign::Zero,
                         Cmp::Greater => sign == Sign::Positive,

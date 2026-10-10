@@ -33,7 +33,7 @@ use editor_core::{
 use geom::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
-use topo::{CurveKind, DatumValue};
+use topo::{CurveKind, PoseValue};
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -419,7 +419,7 @@ fn frame_of(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ValuePayload::Datum(DatumValue::Frame(f)) =
+    let ValuePayload::Datum(PoseValue::Frame(f)) =
         &ev.value(node).expect("the frame evaluated").payload
     else {
         panic!("a frame value");

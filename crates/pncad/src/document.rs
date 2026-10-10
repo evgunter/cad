@@ -287,7 +287,7 @@ pub use editor_core::DocParamField;
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
-// `DatumValue`'s direction fields are `geom_core::UnitVec3`, reached
+// `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
 // a consumer cannot read a datum's normal, or build a datum at all,
 // without naming the type that makes it unit, and it names it at the
@@ -327,7 +327,7 @@ pub use editor_core::DocParamField;
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, PoseValue,
     DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
     ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,

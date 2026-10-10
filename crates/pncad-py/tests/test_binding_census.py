@@ -556,7 +556,7 @@ def audit_gap_ids():
 #:   verbs plus their `_with` siblings arrive as ONE `Node.boolean`
 #:   taking a `BooleanOp` — the arm split moved from the verb to an
 #:   argument.
-#: - **A type became the door that reads it.** `DatumValue` is what
+#: - **A type became the door that reads it.** `PoseValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
 #:   no spelling in Rust either; not a curated façade name, since it
@@ -634,7 +634,7 @@ BOUND_AS = {
     "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
-    "DatumValue": "Value.datum",
+    "PoseValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
     "M": "m",

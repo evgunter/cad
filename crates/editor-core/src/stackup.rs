@@ -138,7 +138,7 @@ use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
-    BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
+    BooleanValue, CancelToken, ContentKey, PoseValue, EvalOptions, EvalOutcome, Evaluation,
     NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
@@ -901,46 +901,29 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
     // `value_digest_tags_reuse_no_retired_number` reads: each arm's
     // first `d.u64` after its `=>` is its tag.
     match payload {
-        ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+        ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
             d.u64(10);
             d.point3(*origin);
             d.vec3(normal.get());
         }
-        ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+        ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
             d.u64(11);
             d.point3(*origin);
             d.vec3(dir.get());
         }
-        ValuePayload::Datum(DatumValue::Point { position }) => {
+        ValuePayload::Datum(PoseValue::Point { position }) => {
             d.u64(12);
             d.point3(*position);
         }
-        ValuePayload::Datum(DatumValue::Frame(f)) => {
+        ValuePayload::Datum(PoseValue::Frame(f)) => {
             d.u64(13);
             d.point3(f.origin());
             d.vec3(f.u().get());
             d.vec3(f.v().get());
         }
-        ValuePayload::Datum(DatumValue::AxisInPlane {
-            plane_origin,
-            plane_dir,
-            origin,
-            dir,
-        }) => {
-            // 24, not a number among the datum arms above: the tags
-            // are the digest's wire and renumbering one would move
-            // every pinned digest that carries a later arm.
-            d.u64(24);
-            // All four fields, not just the world pair. The authored
-            // 2-D numbers are what a revolve actually reads, and this
-            // digest's contract is every scalar the payload stores —
-            // so the lift being derived from them is a reason they
-            // agree, not a reason to digest only one of the two.
-            d.scalar(plane_origin.x);
-            d.scalar(plane_origin.y);
-            d.scalar(plane_dir.x);
-            d.scalar(plane_dir.y);
-            d.point3(*origin);
+        // 24 is retired (`RETIRED_VALUE_DIGEST_TAGS`).
+        ValuePayload::Datum(PoseValue::Direction { dir }) => {
+            d.u64(27);
             d.vec3(dir.get());
         }
         ValuePayload::Profile(p) => {
@@ -1034,7 +1017,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
 /// The tag numbers [`payload_digest`]'s arms may not use: retired with
 /// the payloads that held them, and dead for good.
 #[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
+const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations"), (24, "AxisInPlane")];
 
 // ------------------------------------------------- the verdict's tie
 

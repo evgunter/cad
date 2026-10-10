@@ -267,6 +267,8 @@ pub(crate) enum Held {
         /// The names.
         names: Vec<crate::names::StableName>,
     },
+    /// A pose definition, by its reads and scalars.
+    Pose(crate::pose::PoseDef),
 }
 
 impl Held {
@@ -283,6 +285,7 @@ impl Held {
                 body: select.body,
                 names: select.names.clone(),
             },
+            WrittenDef::Pose(_, def) => Self::Pose(def.clone()),
         }
     }
 }

@@ -21,7 +21,7 @@ use crate::corpus::documents;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
+    CancelToken, Datum, PoseValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
 use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
@@ -136,7 +136,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                     p.validated.plane().map(T::from_f64)
                 }
                 _ => {
-                    let ValuePayload::Datum(DatumValue::Frame(f)) =
+                    let ValuePayload::Datum(PoseValue::Frame(f)) =
                         &ev.value(frame).expect("the frame evaluates").payload
                     else {
                         panic!("{}: {:?} is a frame", d.name, program.frame);

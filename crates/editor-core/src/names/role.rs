@@ -1978,11 +1978,6 @@ pub(crate) fn lift<P>(
         Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
             seat(*face, Lift::Dropped).into_iter().collect()
         }
-        Node::Datum(Datum::AxisInPlane {
-            frame: plane,
-            origin: _,
-            direction: _,
-        }) => seat(*plane, Lift::Dropped).into_iter().collect(),
         Node::Measure { primitive } => primitive
             .refs()
             .iter()
@@ -2002,14 +1997,10 @@ pub(crate) fn lift<P>(
         } => seat(*profile, Lift::Dropped).into_iter().collect(),
         Node::Revolve {
             profile,
-            axis,
+            axis_origin: _,
+            axis_direction: _,
             angle: _,
-        } => {
-            [seat(*profile, Lift::Dropped), seat(*axis, Lift::Dropped)]
-                .into_iter()
-                .flatten()
-                .collect()
-        }
+        } => seat(*profile, Lift::Dropped).into_iter().collect(),
         Node::Tube {
             frame,
             major_radius: _,
