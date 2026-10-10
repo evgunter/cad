@@ -413,6 +413,12 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                      them",
                     limb.name()
                 ),
+                SsiLimb::HullValue => write!(
+                    f,
+                    "{} measured {margin:e} m against the run tolerance — the declared carrier \
+                     is off the surface point its description names",
+                    limb.name()
+                ),
                 SsiLimb::OnLocus | SsiLimb::Tube => write!(
                     f,
                     "{} measured {margin:e} m against the run tolerance — the declared carrier \
@@ -914,7 +920,7 @@ impl AnalyticRung3Refusal {
     pub fn check(limb: SsiLimb) -> CertCheck {
         match limb {
             SsiLimb::HullSup => CertCheck::AnalyticHull,
-            SsiLimb::OnLocus | SsiLimb::Tube => limb.check(),
+            SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => limb.check(),
         }
     }
 

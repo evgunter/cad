@@ -81,7 +81,12 @@ search's limbs do not yet, which is why their rung-3 arms are
 unretired), and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
-bound. (3) The uniqueness tube: over a chain of boxes of certified radius
+bound. Where the bound does not clear the band, the composite's
+uncleared spans are halved round by round under a budget
+(`SSI_HULL_ROUNDS`, `SSI_HULL_CUTS`): the limb passes once the bound
+clears, refuses as a measured residual where the composite's certified
+value at a break lies past the band's zero, and refuses on the bound
+where the budget is spent first. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary

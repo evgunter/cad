@@ -913,7 +913,7 @@ impl core::fmt::Display for SsiError {
                      {margin:e} m, past the tolerance",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
                     f,
                     "ssi: the fitted carrier failed {} at {margin:e} m — the cache is not \
                      within tolerance of the locus it claims",
