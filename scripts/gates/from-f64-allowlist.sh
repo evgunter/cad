@@ -44,9 +44,11 @@
 #   constant      a constant of the model or the algorithm: a count, a
 #                 sample schedule's fraction, a tolerance or band, a
 #                 float bit pattern chosen by the code, an authored
-#                 value `f64` by type in the document; and the door
-#                 itself, a `Real` impl's `from_f64` or `from_computed`
-#                 forwarding to its value scalar's;
+#                 value `f64` by type in the document, a value at a
+#                 concrete scalar that is never `Sym` (`Interval` by
+#                 type); and the door itself, a `Real` impl's
+#                 `from_f64` or `from_computed` forwarding to its value
+#                 scalar's, or a helper whose `f64` is its caller's;
 #   fixture       test-support code compiled into the library;
 #   launders(R)   a computed value re-entered as a constant, owed to the
 #                 work item R, which owns its fix;
@@ -86,7 +88,7 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-FROM_F64_CRATES=(editor-core geom geom-brep geom-core profile sweep topo)
+FROM_F64_CRATES=(editor-core geom geom-brep geom-core pncad profile sweep topo)
 FROM_F64_LIST=scripts/gates/from-f64-sites.tsv
 
 FROM_F64_RULES=(UNLISTED STALE CLASS)

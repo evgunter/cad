@@ -3,16 +3,16 @@
 # The classes and what each one means are in the gate's header.
 crates/editor-core/src/analysis.rs	2	constant	value	a free variable's authored nominal; the box's offset is the variable
 crates/editor-core/src/clearance.rs	1	constant	c	the authored clearance, at the concrete Interval (never Sym)
-crates/editor-core/src/clearance.rs	2	constant	x	a query cell's f64 corner, at the concrete Interval (never Sym)
+crates/editor-core/src/clearance.rs	2	constant	x	a query cell's f64 corner, at the concrete Interval: never Sym
 crates/editor-core/src/doc.rs	1	constant	value	a free variable's authored nominal, bound unvaried
-crates/editor-core/src/eval/wire.rs	1	constant	<fn>	the pinned lift (ProfileLift::Pinned): profile geometry is the nominal f64 elaboration by construction; the symbolic lane elaborates it at T (Guided)
+crates/editor-core/src/eval/wire.rs	1	launders(the-pinned-profile-lift-launders-at-sym)	<fn>	the pinned lift: the nominal f64 elaboration of profile geometry, a function of the variables, entered as constants
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's index
 crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
 crates/editor-core/src/mate.rs	1	constant	radians	the authored clocking angle, f64 by type in the document
-crates/editor-core/src/mate.rs	2	constant	arm	a lever's arm (Arm::of): a positive scale no sign or Zero of the levered margin depends on
-crates/editor-core/src/mate/coset.rs	4	constant	arm.get()	a lever's arm (Arm::of): a positive scale on the margin, or cancelling the arm a levered sine carries
+crates/editor-core/src/mate.rs	2	launders(editor-core-keeps-computed-values-in-t)	arm	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
+crates/editor-core/src/mate/coset.rs	4	launders(editor-core-keeps-computed-values-in-t)	arm.get()	a lever's arm (Arm::of): the parts' reach and the datum's terms, upper bounds read out of the resolved origins
 crates/editor-core/src/mate/solve.rs	1	constant	offset	the authored planar-rest offset, f64 by type in the document
 crates/editor-core/src/mate/solve.rs	1	constant	theta	the authored clocking angle, f64 by type in the document
 crates/editor-core/src/mate/solve.rs	3	constant	<fn>	the identity's and the opposed flip's literal entries
@@ -81,7 +81,7 @@ crates/geom-brep/src/tangent.rs	1	constant	f64::from(crate::certify::CERT_SAMPLE
 crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
-crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed (never Sym); its callers' arguments are theirs
+crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	*a	a derivative coefficient from the knot vector's differences
 crates/geom-core/src/spline/basis.rs	2	stored-carrier-data(nurbs-weights-and-knots-are-the-scalar)	denom	a knot difference
@@ -115,12 +115,15 @@ crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-
 crates/geom/src/surfaces/projection.rs	1	launders(geom-keeps-computed-values-in-t)	vn - v	a Newton step of the surface projection
 crates/geom/src/surfaces/projection.rs	2	launders(geom-keeps-computed-values-in-t)	u	a Newton iterate of the surface projection
 crates/geom/src/surfaces/projection.rs	2	launders(geom-keeps-computed-values-in-t)	v	a Newton iterate of the surface projection
+crates/pncad/src/authoring.rs	2	constant	z	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
+crates/pncad/src/authoring.rs	5	constant	y	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
+crates/pncad/src/authoring.rs	6	constant	x	an authoring helper's argument: the caller's literal (a door, KNOWN GAPS)
 crates/profile/src/path.rs	1	constant	k as f64	a vertex index of a circle's split
 crates/profile/src/path.rs	1	constant	n as f64	a circle's split count
 crates/profile/src/seg.rs	1	constant	band.escalate() / (ulps * f64::EPSILON)	a resolution threshold from the band and an ulp count
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	4	constant	<fn>	the pinned lift (ProfileLift::Pinned): profile geometry is the nominal f64 elaboration by construction; the symbolic lane elaborates it at T (Guided)
+crates/profile/src/validate.rs	4	launders(the-pinned-profile-lift-launders-at-sym)	<fn>	the pinned lift: the nominal f64 elaboration of profile geometry, a function of the variables, entered as constants
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count

@@ -81,6 +81,9 @@ struct Found {
     opaque: usize,
     /// Predicates whose re-valued margin is not the `p1` build's.
     laundered: BTreeSet<&'static str>,
+    /// The same, after a decision the builds answered with different
+    /// signs: possibly two margins under one name ([`tally`]).
+    after_flip: BTreeSet<&'static str>,
     /// How the variables moved.
     mode: Option<Move>,
     /// Every predicate the `p0` build decided, with its count.
@@ -179,16 +182,73 @@ fn compare_prefix(doc: &ProfileDoc) -> Found {
     if a.compared >= b.compared { a } else { b }
 }
 
-/// How many decisions the two builds took in step: the same predicate,
-/// answered with the same sign. A sign that differs is a branch the two
-/// builds parted at even where the next predicate they decide has one
-/// name — `topo`'s volume backstop decides `volume_backstop` on its
-/// open arm and on its magnitude arm alike, over two different margins.
+/// How many decisions the two builds took by the same predicate.
 fn in_step(p0: &[Decision], p1: &[Decision]) -> usize {
     p0.iter()
         .zip(p1)
-        .take_while(|(a, b)| a.predicate == b.predicate && a.sign == b.sign)
+        .take_while(|(a, b)| a.predicate == b.predicate)
         .count()
+}
+
+/// Reads the first `common` decisions of the two builds into `found`:
+/// each `p0` margin re-valued at `p0` (`env0`, the drift self-check)
+/// and at `p1` (`env`) against the `p1` build's.
+///
+/// A margin that re-values away from the `p1` build's is a laundering,
+/// unless an earlier decision was answered with another sign at `p1`:
+/// from there the builds may decide one predicate over two different
+/// margins (`topo`'s volume backstop decides `volume_backstop` on its
+/// open arm and on its magnitude arm alike), so the mismatch is kept
+/// apart, in `after_flip`. A sign difference parts nothing by itself —
+/// a decision whose `Zero` and `Positive` take one path (`join.rs`'s
+/// `nearer`) leaves the rest paired, and a margin that re-values to
+/// the `p1` build's bit for bit is read as paired.
+fn tally(
+    found: &mut Found,
+    p0: &[Decision],
+    p1: &[Decision],
+    common: usize,
+    env0: &dyn Fn(ParamSymbol) -> Option<f64>,
+    env: &dyn Fn(ParamSymbol) -> Option<f64>,
+) {
+    let mut flipped = None;
+    for (k, (a, b)) in p0.iter().zip(p1).take(common).enumerate() {
+        found.compared += 1;
+        *found.seen.entry(a.predicate).or_default() += 1;
+        let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
+        let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
+        if revalue(a.node, env0).is_some_and(|r| !same(r, v0)) {
+            found.drifted += 1;
+        }
+        match revalue(a.node, env) {
+            None => found.opaque += 1,
+            Some(r) => {
+                if !same(v0, v1) {
+                    found.moved += 1;
+                }
+                if !same(r, v1) {
+                    let after = flipped.is_some();
+                    if std::env::var_os("REVALUE_DETAIL").is_some() {
+                        eprintln!(
+                            "  {} #{} {}: p0 {v0:e}, re-valued {r:e}, p1 {v1:e}{}",
+                            if after { "after_flip" } else { "laundered" },
+                            k + 1,
+                            a.predicate,
+                            flipped.map_or(String::new(), |(f, p)| format!(" (flip #{f} {p})"))
+                        );
+                    }
+                    if after {
+                        found.after_flip.insert(a.predicate);
+                    } else {
+                        found.laundered.insert(a.predicate);
+                    }
+                }
+            }
+        }
+        if flipped.is_none() && a.sign != b.sign {
+            flipped = Some((k + 1, a.predicate));
+        }
+    }
 }
 
 /// `None` when the two builds did not take the same decisions, unless
@@ -208,22 +268,6 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
         let p0 = build(doc, &options(&at_p0));
         let common = in_step(&p0, &p1);
         let parts = common < p0.len().max(p1.len());
-        if let (true, Some(a), Some(b)) = (
-            parts && std::env::var_os("REVALUE_DETAIL").is_some(),
-            p0.get(common),
-            p1.get(common),
-        ) {
-            eprintln!(
-                "  parted #{}: p0 {} {:?} {:?}, p1 {} {:?} {:?}",
-                common + 1,
-                a.predicate,
-                a.sign,
-                a.value,
-                b.predicate,
-                b.sign,
-                b.value
-            );
-        }
         if parts && !prefix {
             return None;
         }
@@ -235,35 +279,14 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
             }),
             ..Found::default()
         };
-        for (a, b) in p0.iter().zip(&p1).take(common) {
-            found.compared += 1;
-            *found.seen.entry(a.predicate).or_default() += 1;
-            let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
-            let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
-            if revalue(a.node, &|s| env0.get(&s).copied()).is_some_and(|r| !same(r, v0)) {
-                found.drifted += 1;
-            }
-            match revalue(a.node, &|s| env.get(&s).copied()) {
-                None => found.opaque += 1,
-                Some(r) if same(r, v1) => {
-                    if !same(v0, v1) {
-                        found.moved += 1;
-                    }
-                }
-                Some(r) => {
-                    if !same(v0, v1) {
-                        found.moved += 1;
-                    }
-                    if std::env::var_os("REVALUE_DETAIL").is_some() {
-                        eprintln!(
-                            "  laundered #{} {}: p0 {v0:e}, re-valued {r:e}, p1 {v1:e}",
-                            found.compared, a.predicate
-                        );
-                    }
-                    found.laundered.insert(a.predicate);
-                }
-            }
-        }
+        tally(
+            &mut found,
+            &p0,
+            &p1,
+            common,
+            &|s| env0.get(&s).copied(),
+            &|s| env.get(&s).copied(),
+        );
         Some(found)
     })
 }
@@ -272,28 +295,12 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
-///
-/// `parts`: where the row's builds part, for a document whose move
-/// changes a branch — the decisions before it are compared, and a
-/// parting anywhere else is read.
-fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)], parts: Option<&str>) {
+fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
         .unwrap_or_else(|| panic!("{name} is not a corpus document"));
-    let found = match parts {
-        None => compare(name, &cd.doc),
-        Some(at) => {
-            let found =
-                compare_moved(&cd.doc, mode, true).expect("a prefix comparison always answers");
-            assert_eq!(
-                found.parted.map(|(_, _, p)| p),
-                Some(at),
-                "{name}: the row's builds part somewhere other than its pin ({found:?})"
-            );
-            found
-        }
-    };
+    let found = compare(name, &cd.doc);
     assert_eq!(
         found.drifted, 0,
         "{name}: a decision's DAG re-valued at p0 is not the p0 build's own bits — revalue no \
@@ -319,6 +326,12 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)], parts: Opt
         "{name}: the predicates whose margin re-values away from the p1 build (laundered: a \
          computed value re-entered as a constant) — {found:?}"
     );
+    assert!(
+        found.after_flip.is_empty(),
+        "{name}: a margin re-values away from the p1 build after a decision the builds answered \
+         with different signs — a laundering, or two margins decided under one name; read which \
+         with REVALUE_DETAIL=1 ({found:?})"
+    );
 }
 
 // The corpus documents this row runs: those a debug build replays twice
@@ -332,26 +345,13 @@ macro_rules! rows {
     ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*];)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, Move::$mode, $floor, &[$($owed),*], None);
+            holds($doc, Move::$mode, $floor, &[$($owed),*]);
         }
     )*};
 }
 
-/// Parts under both moves at `bool_join_nearest`, decision 6423: a
-/// distance exactly zero at `p0` is 2.5e-8 (in step) or 3.9e-7 (apart)
-/// at `p1`, and re-values to it bit for bit. Compared to there.
-#[test]
-fn revalue_plate_param() {
-    holds(
-        "plate_param",
-        Move::Apart,
-        290,
-        &[],
-        Some("bool_join_nearest"),
-    );
-}
-
 rows! {
+    revalue_plate_param: "plate_param", Apart, 650, [];
     revalue_boss_union: "boss_union", Apart, 560, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
@@ -398,13 +398,14 @@ fn revalue_census() {
             drifted,
             opaque,
             laundered,
+            after_flip,
             mode,
             seen,
             parted,
         } = &found;
         eprintln!(
             "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
-             laundered {laundered:?}, parted {parted:?}",
+             laundered {laundered:?}, after_flip {after_flip:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
         );
@@ -466,54 +467,68 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
     );
 }
 
-/// Two builds that decide one predicate with different signs have
-/// parted there, even where the decisions after it share their names:
-/// the shape of `topo`'s volume backstop, whose exact-band violation
-/// read answers `Zero` on a margin that cancels exactly at `p0` and
-/// `Negative` on its rounding at `p1`, and whose next decision is
-/// `volume_backstop` either way, over the open arm's `lo` at `p1` and
-/// the magnitude arm's `hi` at `p0`. Paired by name, the `p0` margin
-/// re-valued at `p1` is not the `p1` build's and reads as a laundering
-/// (`die`'s census candidate at decision #10548).
+/// A decision the two builds answer with different signs: a later
+/// mismatch is kept apart from the launderings, and a later match still
+/// counts. The branching build has the shape of `topo`'s volume
+/// backstop, whose exact-band violation read answers `Zero` on a margin
+/// that cancels exactly at `p0` and `Negative` on its rounding at `p1`,
+/// and whose next decision is `volume_backstop` either way, over two
+/// margins (`die`'s census candidate at decision #10548). The other
+/// build's split steers nothing, as `join.rs`'s `nearer` reads `Zero`
+/// and `Positive` alike.
 #[test]
-fn a_decision_answered_with_another_sign_parts_the_builds() {
+fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
     use geom_core::Real;
-    use geom_core::predicate::{Band, Margin};
+    use geom_core::predicate::{Band, Margin, Sign};
     let band = Band::new(1.0e-9, 1.0e-8).unwrap();
     let w = ParamSymbol::new(9);
     let decide =
         |name: &'static str, m: Sym<f64>| geom_core::k_stats::decide(name, Margin::of(m), band);
-    let build = |d: f64| {
+    let build = |d: f64, branches: bool| {
         let x = Sym::param(w, d);
         record(|| {
             let split = decide("revalue_split", x);
-            let arm = if matches!(split, Ok(geom_core::predicate::Sign::Zero)) {
-                x
-            } else {
+            let arm = if branches && !matches!(split, Ok(Sign::Zero)) {
                 x * Sym::from_f64(3.0)
+            } else {
+                x
             };
             let _ = decide("revalue_arm", arm);
         })
         .1
     };
-    let p1 = session(|| build(1.0e-6));
-    let (paired_by_name_differs, steps) = session(|| {
-        let p0 = build(0.0);
-        let names = |d: &[Decision]| d.iter().map(|x| x.predicate).collect::<Vec<_>>();
-        assert_eq!(names(&p0), names(&p1), "both builds decide the same names");
-        let r = revalue(p0[1].node, &|s| (s == w).then_some(1.0e-6)).unwrap();
-        (
-            r.to_bits() != p1[1].value.unwrap().to_bits(),
-            in_step(&p0, &p1),
-        )
-    });
+    let tallied = |branches: bool| {
+        let p1 = session(|| build(1.0e-6, branches));
+        session(|| {
+            let p0 = build(0.0, branches);
+            assert_ne!(
+                p0[0].sign, p1[0].sign,
+                "the split answers differently at p0 and p1"
+            );
+            let mut found = Found::default();
+            tally(
+                &mut found,
+                &p0,
+                &p1,
+                in_step(&p0, &p1),
+                &|s| (s == w).then_some(0.0),
+                &|s| (s == w).then_some(1.0e-6),
+            );
+            found
+        })
+    };
+    let branching = tallied(true);
     assert!(
-        paired_by_name_differs,
-        "the fixture's second decisions are over different margins"
+        branching.laundered.is_empty() && branching.after_flip == BTreeSet::from(["revalue_arm"]),
+        "the arm after the split is two margins under one name: kept apart, never a laundering \
+         ({branching:?})"
     );
-    assert_eq!(
-        steps, 0,
-        "the builds part at the split their signs differ on, so the arm is never compared"
+    let steering_nothing = tallied(false);
+    assert!(
+        steering_nothing.laundered.is_empty()
+            && steering_nothing.after_flip.is_empty()
+            && steering_nothing.moved == 2,
+        "a split that steers nothing leaves the arm paired and compared ({steering_nothing:?})"
     );
 }
 

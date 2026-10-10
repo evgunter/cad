@@ -43,7 +43,7 @@ pub struct Decision {
     pub value: Option<f64>,
     /// The sign the decision answered; `None` where it answered none
     /// (indeterminate, or refused). Two builds that decided one
-    /// predicate with different signs took different branches after it.
+    /// predicate with different signs may have branched after it.
     pub sign: Option<Sign>,
 }
 
