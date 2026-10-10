@@ -2,13 +2,15 @@
 id: split-straddles-and-disagreements-carry-their-reading
 kind: unit
 title: split's straddles and disagreements mint INVALID: a straddle goes on the log as its enclosure, a disagreement is typed (mints C6-C9)
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [split-escalations-end-a-poisoned-margin-in-the-plane-lever]
 branch: cleave/split-straddles-carry-reading
+closed: 2026-10-10
+pr: 4578
 ---
 
 Unit 2 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -128,3 +130,17 @@ Endings were pinned before and after at the three ε rows.
 - Not reached: editor-core's `clearance.rs` `is_invalid()` route. Its
   `source` is the clearance site's own `decide` on the bound's margin,
   so no straddle reaches it.
+
+## Closed (PR 4578, 2026-10-10)
+
+The split's straddles carry their enclosure on the log through `k_stats::straddle`, which takes
+two `Decided` bounds. The one gate-rejection mint is `k_stats::gate_rejection`, sharing
+`classify_gated_reported`'s path. Disposition per site:
+- **C6:** both containment straddles are enclosures.
+- **C7:** decided once (`CarrierLoop::place_off`).
+- **C8:** one rejection of the member nearest to passing, pinned.
+- **C9:** `agreed_section` takes one `WallReach`, and a parting other than conic against ruled is
+  `unreachable!`.
+- **`split_join_frame_axis`:** `unreachable!` by pigeonhole.
+
+Two endings moved to the lever and the coincidence menu, and both are pinned.
