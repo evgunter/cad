@@ -2590,3 +2590,129 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::all, clippy::pedantic)]
+mod fork3_probe {
+    use super::*;
+    use crate::real::Bounds;
+    use crate::spline::knots::KnotVector;
+
+    /// PROBE (fork3): Bézier decomposition of a B-spline row by the
+    /// sequential full-multiplicity fold (`insert_once_ring`) against the
+    /// direct per-span blossom (de Boor from the span's own window at
+    /// the span ends), under the env-selected step form.
+    #[test]
+    fn decomposition_fold_versus_direct_blossom() {
+        let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+        for &(p, m) in &[(2usize, 30usize), (3, 16), (6, 16)] {
+            let mut knot_list = vec![0.0; p + 1];
+            for j in 1..=m {
+                knot_list.push(j as f64 / (m + 1) as f64);
+            }
+            knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let n = kv.control_count();
+            let coeffs: Vec<Interval> = (0..n)
+                .map(|i| Interval::point(if i % 2 == 0 { 1.0 + i as f64 } else { -(1.0 + i as f64) }))
+                .collect();
+            let scale = (n as f64).max(1.0);
+            // (a) the fold
+            let folded = to_bezier_spans_extra(kv.with_coeffs(&coeffs).unwrap(), &[]);
+            // (b) direct blossom per span
+            let t = kv.knots();
+            let mut direct: Vec<Vec<Interval>> = Vec::new();
+            for s in p..(t.len() - p - 1) {
+                if t[s] == t[s + 1] {
+                    continue;
+                }
+                let (a, b) = (t[s], t[s + 1]);
+                let line: Vec<Interval> = coeffs[s - p..=s].to_vec();
+                let row: Vec<Interval> = (0..=p)
+                    .map(|k| {
+                        let mut d = line.clone();
+                        for r in 1..=p {
+                            let x = if r <= p - k { a } else { b };
+                            for i in (r..=p).rev() {
+                                let (lo, hi) = (t[s + i - p], t[s + i + 1 - r]);
+                                d[i] = convex_step(d[i - 1], d[i], lo, hi, x);
+                            }
+                        }
+                        d[p]
+                    })
+                    .collect();
+                direct.push(row);
+            }
+            assert_eq!(folded.spans.len(), direct.len());
+            let stat = |rows: &[Vec<Interval>]| {
+                let ws: Vec<f64> = rows.iter().flatten().map(|c| (c.hi() - c.lo()) / (scale * f64::EPSILON)).collect();
+                (ws.iter().cloned().fold(0.0, f64::max), ws.iter().sum::<f64>() / ws.len() as f64)
+            };
+            let (fw, fm) = stat(&folded.spans);
+            let (dw, dm) = stat(&direct);
+            // containment cross-check: the two enclose the same rows, so their meet is non-empty
+            let mut disjoint = 0;
+            for (fr, dr) in folded.spans.iter().zip(&direct) {
+                for (fc, dc) in fr.iter().zip(dr) {
+                    if fc.hi() < dc.lo() || dc.hi() < fc.lo() { disjoint += 1; }
+                }
+            }
+            println!(
+                "form={form} p={p} m={m}: fold widest {fw:.1} mean {fm:.2} ulps of scale | direct blossom widest {dw:.1} mean {dm:.2} | disjoint slots {disjoint}"
+            );
+        }
+    }
+
+    /// PROBE (fork3): the 254-cut row's widest coefficient per degree,
+    /// and per depth level, under the env-selected step form.
+    #[test]
+    fn many_cuts_width_by_degree() {
+        let base = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
+        let extra: Vec<f64> = (1..255).map(|k| f64::from(k) / 255.0).collect();
+        let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+        for p in 1..=5usize {
+            let kv = KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap();
+            let row: Vec<Interval> = base[..=p].iter().map(|x| Interval::point(*x)).collect();
+            let got = to_bezier_spans_extra(kv.with_coeffs(&row).unwrap(), &extra);
+            let widest = got.spans.iter().flatten().map(|c| c.hi() - c.lo()).fold(0.0f64, f64::max);
+            let mean = got.spans.iter().flatten().map(|c| c.hi() - c.lo()).sum::<f64>()
+                / (got.spans.len() * (p + 1)) as f64;
+            println!(
+                "form={form} degree {p}: widest {:.2} ulps of 1, mean {:.2} ulps",
+                widest / f64::EPSILON,
+                mean / f64::EPSILON
+            );
+        }
+        // Worst slots at p = 3, by piece and coefficient.
+        {
+            let p = 3usize;
+            let kv = KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap();
+            let row: Vec<Interval> = base[..=p].iter().map(|x| Interval::point(*x)).collect();
+            let got = to_bezier_spans_extra(kv.with_coeffs(&row).unwrap(), &extra);
+            let mut slots: Vec<(f64, usize, usize, Interval)> = Vec::new();
+            for (k, sp) in got.spans.iter().enumerate() {
+                for (i, c) in sp.iter().enumerate() {
+                    slots.push(((c.hi() - c.lo()) / f64::EPSILON, k, i, *c));
+                }
+            }
+            slots.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+            for (w, k, i, c) in slots.iter().take(4) {
+                println!("form={form} p=3 worst: piece {k} coeff {i} width {w:.1} ulps, value [{:.17e}, {:.17e}]", c.lo(), c.hi());
+            }
+        }
+        // One piece, one coefficient, level by level: p = 3, cut [100/255, 101/255], coefficient i = 1.
+        let p = 3usize;
+        let row: Vec<Interval> = base[..=p].iter().map(|x| Interval::point(*x)).collect();
+        let (a, b) = (100.0 / 255.0, 101.0 / 255.0);
+        let i = 1usize;
+        let mut r = row.clone();
+        for level in 0..p {
+            let t = if level < p - i { a } else { b };
+            for j in 0..p - level {
+                r[j] = convex_step(r[j], r[j + 1], 0.0, 1.0, t);
+            }
+            let ws: Vec<String> = r[..p - level].iter().map(|c| format!("{:.1}", (c.hi() - c.lo()) / f64::EPSILON)).collect();
+            println!("form={form} level {level} (t={t:.4}): widths in ulps of 1: {}", ws.join(" "));
+        }
+    }
+}

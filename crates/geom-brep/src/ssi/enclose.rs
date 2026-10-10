@@ -1436,7 +1436,26 @@ fn bezier_on(
                     let lo = Interval::point(lo);
                     let alpha = (x - lo) / (Interval::point(hi) - lo);
                     let (d0, d1) = (d[i - 1], d[i]);
-                    d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
+                    // PROBE (fork3): env-selected step form.
+                    let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+                    if form.starts_with("corner") {
+                        let x_f = if r <= p - k { a } else { b };
+                        let beta = (Interval::point(hi) - x) / (Interval::point(hi) - lo);
+                        let near_lo = x_f - t[s + i - p] <= hi - x_f;
+                        d[i] = core::array::from_fn(|c| {
+                            let (xl, yl) = (Interval::point(d0[c].lo()), Interval::point(d1[c].lo()));
+                            let (xh, yh) = (Interval::point(d0[c].hi()), Interval::point(d1[c].hi()));
+                            if !(d0[c].is_certified() && d1[c].is_certified()) {
+                                Interval::refused()
+                            } else if near_lo {
+                                Interval::hull(xl + (yl - xl) * alpha, xh + (yh - xh) * alpha)
+                            } else {
+                                Interval::hull(yl + (xl - yl) * beta, yh + (xh - yh) * beta)
+                            }
+                        });
+                    } else {
+                        d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
+                    }
                 }
             }
             Some(d[p])
@@ -2643,6 +2662,83 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+
+    /// PROBE (fork3): the cut block's derivative box against the whole
+    /// cells' box, under the env-selected `bezier_on` form.
+    #[test]
+    fn fork3_cut_box_versus_whole_box() {
+        use test_utils::fuzz;
+        let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+        let mut rng = fuzz::start("enclose::fork3_cut_box_versus_whole_box");
+        let clamped = |rng: &mut fuzz::Rng, p: usize, spans: usize| {
+            let mut k = vec![0.0; p + 1];
+            let mut inner: Vec<f64> = (1..spans).map(|_| rng.range(0.05, 0.95)).collect();
+            inner.sort_by(f64::total_cmp);
+            k.extend(inner);
+            k.extend(vec![1.0; p + 1]);
+            geom_core::spline::KnotVector::clamped(k, p).expect("clamped")
+        };
+        let (mut n, mut wider, mut sum_ratio, mut sum_log_ratio) = (0usize, 0usize, 0.0f64, 0.0f64);
+        let mut by_width: Vec<(f64, f64)> = Vec::new();
+        for case in 0..200 {
+            let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
+            let (su, sv) = (1 + rng.below(3), 1 + rng.below(3));
+            let (ku, kv) = (clamped(&mut rng, pu, su), clamped(&mut rng, pv, sv));
+            let (nu, nv) = (ku.knots().len() - pu - 1, kv.knots().len() - pv - 1);
+            let far = if case % 3 == 0 { 100.0 } else { 0.0 };
+            let flat_v = case % 2 == 0;
+            let mut control = Vec::with_capacity(nu * nv);
+            let mut weights = Vec::with_capacity(nu * nv);
+            for _ in 0..nu {
+                let row = Point3::new(far + rng.range(-1.0, 1.0), far + rng.range(-1.0, 1.0), far + rng.range(-1.0, 1.0));
+                let w = rng.range(0.5, 2.0);
+                for _ in 0..nv {
+                    let p = if flat_v { row } else { Point3::new(far + rng.range(-1.0, 1.0), far + rng.range(-1.0, 1.0), far + rng.range(-1.0, 1.0)) };
+                    control.push(p);
+                    weights.push(if flat_v { w } else { rng.range(0.5, 2.0) });
+                }
+            }
+            let net = NurbsSurface::new(ku, kv, control, weights).expect("a valid net");
+            let boxes = NurbsBoxes::new(&net);
+            for _ in 0..8 {
+                let side = |rng: &mut fuzz::Rng| {
+                    let width = 10f64.powf(rng.range(-6.0, 0.0));
+                    let lo = rng.range(0.0, 1.0 - width);
+                    (lo, lo + width)
+                };
+                let ((u0, u1), (v0, v1)) = (side(&mut rng), side(&mut rng));
+                for along_u in [true, false] {
+                    // the cut alone: fold with the cut, hulling (no meet with the whole)
+                    let cut_alone = boxes
+                        .fold_cells(win((u0, u1, v0, v1)), true, |net| net.derivative_box(along_u), |_, c| c, Box3::hull)
+                        .unwrap_or_else(refused_box);
+                    let whole = boxes.cell_deriv_box(win((u0, u1, v0, v1)), along_u);
+                    for (c, w) in [(cut_alone.x, whole.x), (cut_alone.y, whole.y), (cut_alone.z, whole.z)] {
+                        if !(c.is_certified() && w.is_certified()) { continue; }
+                        n += 1;
+                        let (cw, ww) = (c.hi() - c.lo(), w.hi() - w.lo());
+                        if cw > ww { wider += 1; }
+                        if ww > 0.0 { sum_ratio += cw / ww; sum_log_ratio += (cw / ww).max(1e-300).ln(); }
+                        by_width.push(((u1 - u0).min(v1 - v0), cw / ww.max(1e-300)));
+                    }
+                }
+            }
+        }
+        println!(
+            "form={form}: {n} axis readings; cut alone wider than the whole cells on {wider} ({:.1}%); mean width ratio cut/whole {:.3}, geometric mean {:.3}",
+            100.0 * wider as f64 / n as f64, sum_ratio / n as f64, (sum_log_ratio / n as f64).exp()
+        );
+        // ratio by window width decade
+        for d in -6..0 {
+            let lo = 10f64.powi(d); let hi = 10f64.powi(d + 1);
+            let xs: Vec<f64> = by_width.iter().filter(|(w, _)| *w >= lo && *w < hi).map(|(_, r)| *r).collect();
+            if xs.is_empty() { continue; }
+            let gm = (xs.iter().map(|r| r.max(1e-300).ln()).sum::<f64>() / xs.len() as f64).exp();
+            let wider = xs.iter().filter(|r| **r > 1.0).count();
+            println!("form={form}: window width in [1e{d}, 1e{}): {} readings, geometric mean ratio {gm:.3}, wider than whole {wider}", d + 1, xs.len());
         }
     }
 

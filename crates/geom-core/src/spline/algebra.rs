@@ -45,6 +45,7 @@
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
+use crate::real::Bounds;
 use crate::readable::Readable;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
@@ -401,12 +402,52 @@ impl CurvePlan {
 /// pins that; `compose`'s `the_ring_fold_encloses_the_exact_refined_net`
 /// pins containment against exact rationals (both `#[cfg(test)]`).
 pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+    let (lo_f, hi_f, u_f) = (lo, hi, u);
     let (lo, hi) = (Interval::point(lo), Interval::point(hi));
     let u = Interval::point(u);
     let span = hi - lo;
     let alpha = (u - lo) / span;
     let beta = (hi - u) / span;
-    (x * beta + y * alpha).meet(Interval::hull(x, y))
+    // PROBE (fork3): the step's form is selected at run time.
+    let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+    let hull = Interval::hull(x, y);
+    let convex = x * beta + y * alpha;
+    let lerp = x + (y - x) * alpha;
+    let corner = {
+        let (xl, yl) = (Interval::point(x.lo()), Interval::point(y.lo()));
+        let (xh, yh) = (Interval::point(x.hi()), Interval::point(y.hi()));
+        if x.is_certified() && y.is_certified() {
+            Interval::hull(xl + (yl - xl) * alpha, xh + (yh - xh) * alpha)
+        } else {
+            Interval::refused()
+        }
+    };
+    // Nearer-end corner form: the correction is added to the nearer
+    // source, so the chord term is at most half the chord.
+    let corner2 = {
+        let (xl, yl) = (Interval::point(x.lo()), Interval::point(y.lo()));
+        let (xh, yh) = (Interval::point(x.hi()), Interval::point(y.hi()));
+        if !(x.is_certified() && y.is_certified()) {
+            Interval::refused()
+        } else if u_f - lo_f <= hi_f - u_f {
+            Interval::hull(xl + (yl - xl) * alpha, xh + (yh - xh) * alpha)
+        } else {
+            Interval::hull(yl + (xl - yl) * beta, yh + (xh - yh) * beta)
+        }
+    };
+    match form.as_str() {
+        "corner2" => corner2,
+        "corner2_hull" => corner2.meet(hull),
+        "corner2_convex" => corner2.meet(convex),
+        "convex_raw" => convex,
+        "lerp" => lerp,
+        "lerp_hull" => lerp.meet(hull),
+        "convex_lerp_hull" => convex.meet(lerp).meet(hull),
+        "corner" => corner,
+        "corner_hull" => corner.meet(hull),
+        "corner_convex" => corner.meet(convex),
+        _ => convex.meet(hull),
+    }
 }
 
 /// Validates weights against a knot vector: count, positivity,
@@ -1679,6 +1720,154 @@ mod tests {
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
                 "no recourse in: {msg}"
+            );
+        }
+    }
+}
+
+/// PROBE (fork3): per-step width of the candidate forms against the
+/// exact true set, and the growth of a deep fold on wide inputs.
+#[cfg(test)]
+#[allow(clippy::all, clippy::pedantic)]
+mod fork3_probe {
+    use super::*;
+    use crate::real::Bounds;
+    use crate::spline::knots::KnotVector;
+
+    fn pt(x: f64) -> Interval {
+        Interval::point(x)
+    }
+    fn wid(x: f64, w: f64) -> Interval {
+        Interval::from_bounds(x - w, x + w)
+    }
+    // The candidate forms over an already-formed ratio enclosure `a`
+    // (and its knot-derived complement `b`).
+    fn convex_hull(x: Interval, y: Interval, a: Interval, b: Interval) -> Interval {
+        (x * b + y * a).meet(Interval::hull(x, y))
+    }
+    fn lerp(x: Interval, y: Interval, a: Interval) -> Interval {
+        x + (y - x) * a
+    }
+    fn corner(x: Interval, y: Interval, a: Interval) -> Interval {
+        let (xl, yl) = (pt(x.lo()), pt(y.lo()));
+        let (xh, yh) = (pt(x.hi()), pt(y.hi()));
+        Interval::hull(xl + (yl - xl) * a, xh + (yh - xh) * a)
+    }
+    // Corner form with the chord formed once: `d = y - x` on the
+    // corner points, then `x + d*a` — identical ops, kept for symmetry.
+    fn centred(x: Interval, y: Interval, a: Interval) -> Interval {
+        let (xm, ym) = (0.5 * (x.lo() + x.hi()), 0.5 * (y.lo() + y.hi()));
+        let rx = (x.hi() - xm).max(xm - x.lo());
+        let ry = (y.hi() - ym).max(ym - y.lo());
+        let r = rx.max(ry).next_up();
+        let m = pt(xm) + (pt(ym) - pt(xm)) * a;
+        m + Interval::from_bounds(-r, r)
+    }
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+    }
+
+    /// Mean and max EXCESS width (result width minus the true set's
+    /// width (1-λ)w(x)+λw(y)) in ulps of |x|, for each form, over
+    /// random steps. Columns: input half-width, ratio half-width.
+    #[test]
+    fn per_step_excess_width_by_form() {
+        let mut rng = Lcg(7);
+        let scales = [1.0, 1e6];
+        let chords = [1e-3, 1.0];
+        let in_w = [0.0, 2.0 * f64::EPSILON, 1e-12];
+        let ratio_w = [0.0, 1e-10];
+        for &scale in &scales {
+            for &chord in &chords {
+                for &w0 in &in_w {
+                    for &rw in &ratio_w {
+                        let mut acc = [[0.0f64; 2]; 4];
+                        let n = 20000;
+                        for _ in 0..n {
+                            let x = scale * (2.0 * rng.next() - 1.0);
+                            let y = x + chord * (2.0 * rng.next() - 1.0);
+                            // knots lo<u<hi, random, non-dyadic
+                            let lo = rng.next();
+                            let hi = lo + rng.next() + 1e-3;
+                            let u = lo + (hi - lo) * (0.02 + 0.96 * rng.next());
+                            let (xi, yi) = (wid(x, w0 * scale), wid(y, w0 * scale));
+                            let (lo_i, hi_i, u_i) = (pt(lo), pt(hi), pt(u));
+                            let span = hi_i - lo_i;
+                            let mut a = (u_i - lo_i) / span;
+                            let mut b = (hi_i - u_i) / span;
+                            if rw > 0.0 {
+                                a = a + Interval::from_bounds(-rw, rw);
+                                b = b + Interval::from_bounds(-rw, rw);
+                            }
+                            let lam = (u - lo) / (hi - lo);
+                            let truth_w = 2.0 * w0 * scale + rw * 2.0 * (y - x).abs();
+                            let outs = [
+                                convex_hull(xi, yi, a, b),
+                                lerp(xi, yi, a),
+                                corner(xi, yi, a),
+                                centred(xi, yi, a),
+                            ];
+                            let _ = lam;
+                            for (k, o) in outs.iter().enumerate() {
+                                let ex = ((o.hi() - o.lo()) - truth_w) / (x.abs().max(1e-300) * f64::EPSILON);
+                                acc[k][0] += ex;
+                                acc[k][1] = acc[k][1].max(ex);
+                            }
+                        }
+                        println!(
+                            "scale={scale:e} chord={chord:e} w0={w0:e} rw={rw:e} | excess ulps of |x| (mean/max): convex∧hull {:.2}/{:.1}  lerp {:.2}/{:.1}  corner {:.2}/{:.1}  centred {:.2}/{:.1}",
+                            acc[0][0] / n as f64, acc[0][1], acc[1][0] / n as f64, acc[1][1],
+                            acc[2][0] / n as f64, acc[2][1], acc[3][0] / n as f64, acc[3][1]
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The p=6, 80-insertion fold of `compose`'s inflation row, run on
+    /// inputs of half-width `w0`, per form, via the env-selected
+    /// `convex_step`. Prints the widest slot and the ratio to the
+    /// widest INPUT width (growth factor).
+    #[test]
+    fn deep_fold_growth_on_wide_inputs() {
+        for &w0 in &[0.0, 1e-15, 1e-12, 1e-9] {
+            let p = 6usize;
+            let m = 16usize;
+            let mut knot_list = vec![0.0; p + 1];
+            for j in 1..=m {
+                knot_list.push(j as f64 / (m + 1) as f64);
+            }
+            knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let n = kv.control_count();
+            let coeffs: Vec<f64> = (0..n)
+                .map(|i| if i % 2 == 0 { 1.0 + i as f64 } else { -(1.0 + i as f64) })
+                .collect();
+            // full-multiplicity insertion as a plan chain through apply_certified
+            let mut cur_kv = kv.clone();
+            let mut ring: Vec<Interval> = coeffs.iter().map(|&c| wid(c, w0)).collect();
+            let mut steps = 0;
+            for (v, s) in kv.interior_knots().collect::<Vec<_>>() {
+                let plans = insert_knot_plan(&cur_kv, &vec![1.0; cur_kv.control_count()], v, p - s).unwrap();
+                for plan in &plans {
+                    ring = plan.apply_certified(&ring);
+                    cur_kv = plan.knots().clone();
+                    steps += 1;
+                }
+            }
+            let worst = ring.iter().fold(0.0f64, |a, r| a.max(r.hi() - r.lo()));
+            let scale = coeffs.iter().fold(0.0f64, |a, c| a.max(c.abs()));
+            println!(
+                "form={} w0={w0:e}: {steps} insertions, widest slot {worst:.3e} = {:.1} ulps of scale, growth x{:.2} over the input width",
+                std::env::var("CAD_STEP_FORM").unwrap_or_default(),
+                worst / (scale * f64::EPSILON),
+                if w0 > 0.0 { worst / (2.0 * w0) } else { f64::NAN }
             );
         }
     }
