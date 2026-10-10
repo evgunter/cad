@@ -38,7 +38,8 @@ taken on the records' word:
   `ve_face_backed`, `ee_bound_backed`'s face-pair arms), and the
   edge-on-face bounds `ef_bound_backed`'s face-pair arms back where the
   pair verifies (`Declared::vf_face_backed_confined`, PR 4559): confined
-  to the pair's verified interface, but still on its word.
+  to where the pair verifies (the closed intersection of its regions),
+  but still on its word.
 
 An overlap those meetings hide with no vertex strictly inside therefore
 clears. No such pose has been built. The half-overlap shape cannot be

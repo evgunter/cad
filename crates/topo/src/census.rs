@@ -102,9 +102,9 @@
 //! rungs' backing consult ([`pair_region_verified`], for a crossing and
 //! for an edge-on-face bound) answers `false`, so an event the pair
 //! would have backed stays an [`ValidationError::UndeclaredContact`].
-//! `validate_pseudomanifold` hands `Some(RegionLane::certified())`; its `_structural` twin hands
-//! `None` at every scalar it is called at — a dual's only route, and
-//! an `f64` caller's when it chooses that door.
+//! `validate_pseudomanifold` hands `Some(RegionLane::certified())`; its
+//! `_structural` twin hands `None` at every scalar it is called at — a
+//! dual's only route, and an `f64` caller's when it chooses that door.
 //!
 //! **Sense-invariant** (M5 S10 audit), with ONE named exception.
 //! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
@@ -970,12 +970,12 @@ fn planar_face<T: Real>(geo: &Geo<T>, key: FaceKey) -> Option<&FaceGeo<T>> {
     geo.faces.iter().find(|f| f.key == key)
 }
 
-/// The REGION half of the unified strength's confinement: the event
+/// The crossing rung's region confinement: the event
 /// point lies ON the declared pair's shared carrier (a signed
 /// point-to-plane residual per face — metres, [`Margin::of`]'s door)
 /// and within both faces' CLOSED regions. Closed, not strict: the
-/// events this confines — a crossing of two boundary edges, a bound
-/// of an overlap cell — lie on the trims' boundaries by construction,
+/// event this confines (a crossing of two boundary edges, for the
+/// crossing rung) lies on the trims' boundaries by construction,
 /// so `In`, `OnEdge` and `OnVertex` all hold the point; only a
 /// definite `Out` (or a containment the census cannot decide, already
 /// pushed by [`contain`]) exiles it. A definitely-off-carrier point
