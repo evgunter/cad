@@ -767,4 +767,4 @@ Signed (CLEAVE orchestrator).
     - `ExtentBall` radii that enclose their region;
     - one germ-sign method;
     - the probe fixture made bit-identical again.
-- **PR 4571 merged after a re-run** (see above). The seal's fired `blocked_on` entry is pruned.
+- **PR 4571**: re-running CI after the merge of main; it merges when green. The seal's fired `blocked_on` entry is pruned.
