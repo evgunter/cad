@@ -100,7 +100,7 @@ fn the_selection_reaches_the_wire_canonical() {
     // A non-canonical selection on the wire is a CORRUPT file: refused
     // at the shared validator, never quietly re-sorted (a repair would
     // move the node's content key behind the caller's back). The form
-    // is one predicate, `Selection::fault`, asked at both doors;
+    // is one predicate, `Select::fault`, asked at both doors;
     // `edit_blend_canonical` is where the two doors are pinned together.
     // The two pieces' steps swapped, so the list runs high to low.
     let corrupt = format!(

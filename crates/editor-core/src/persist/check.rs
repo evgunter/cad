@@ -605,7 +605,7 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.vars.iter().find_map(|(&id, var)| {
         let select = var.def().select()?;
         let spoken = || snapshot.spoken_var(id);
-        if let Some(fault) = crate::var::Selection::fault(var.kind(), &select.names) {
+        if let Some(fault) = crate::var::Select::fault(var.kind(), &select.names) {
             return Some(SnapshotError::SelectionShape {
                 var: spoken(),
                 fault,

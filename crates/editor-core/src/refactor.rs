@@ -414,7 +414,7 @@ fn carry<E>(
                     let kind = source.var(var).map_or(crate::VarKind::Faces, Var::kind);
                     crate::Operand::select(
                         crate::Operand::Var(body),
-                        crate::var::Selection::canonical(kind, names),
+                        crate::var::Select::canonical(kind, names),
                     )
                 }
             };
@@ -3716,7 +3716,7 @@ pub fn split(
         let read = match doc.selection(var) {
             Some(select) => crate::Operand::select(
                 crate::Operand::Var(instance_body),
-                crate::var::Selection::canonical(
+                crate::var::Select::canonical(
                     doc.var(var).map_or(crate::VarKind::Faces, Var::kind),
                     select
                         .names
@@ -4513,7 +4513,7 @@ pub fn inline(
             let read = match doc.selection(var) {
                 Some(select) => crate::Operand::select(
                     crate::Operand::Var(heir),
-                    crate::var::Selection::canonical(
+                    crate::var::Select::canonical(
                         doc.var(var).map_or(crate::VarKind::Faces, Var::kind),
                         select
                             .names

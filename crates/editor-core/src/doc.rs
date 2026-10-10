@@ -1689,7 +1689,7 @@ impl<P> Doc<P> {
     }
 
     /// **The selection `var` is defined by**, if it is one.
-    pub fn selection(&self, var: VarId) -> Option<&crate::var::Selection> {
+    pub fn selection(&self, var: VarId) -> Option<&crate::var::Select> {
         self.vars.get(&var)?.def().select()
     }
 
@@ -1697,7 +1697,7 @@ impl<P> Doc<P> {
     /// all at once, returning how many it rewrote: `map` answers the
     /// name a selection now holds, or `None` to leave it. Each selection
     /// rewritten returns to its kind's stored form
-    /// ([`crate::var::Selection::canonical`]), so a rewrite onto an
+    /// ([`crate::var::Select::canonical`]), so a rewrite onto an
     /// already-selected entity shrinks the set by one; a singleton keeps
     /// its one name. `Rebind`'s reach into the selections (N5's one
     /// repair, addressed by body and name).
@@ -1724,7 +1724,7 @@ impl<P> Doc<P> {
             }
             if here > 0 {
                 select.names =
-                    crate::var::Selection::canonical(kind, core::mem::take(&mut select.names));
+                    crate::var::Select::canonical(kind, core::mem::take(&mut select.names));
                 hits += here;
             }
         }

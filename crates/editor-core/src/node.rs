@@ -1412,14 +1412,18 @@ use expr_table;
 /// resolved through it still points at the minting node while the
 /// geometry has moved.
 ///
-/// **One reader: [`Node::Measure`].** Its reference reads the carrier
-/// out of `at`'s evaluated value, so `at` is an ordinary DAG edge
-/// ([`crate::Doc::upstream`]) and `name` resolves against `at`'s own evaluated
-/// name table, through the N5 ladder every other authored name takes —
-/// the carrier has to be findable there or the measure has nothing to
-/// read. `name` is a bare [`StableName`] because a measure reads a
-/// LENGTH between entities of any kind: a face, an edge, a vertex, a
-/// whole body.
+/// **A measure is authored in it, and stores a read.** A measure's
+/// reference is written as a `SitedRef` and lowers
+/// (`impl From<SitedRef> for Operand`) to the read the node stores: a
+/// whole body's name to a read of `at`'s output, any other name to a
+/// one-name selection of that output (`Operand::Select`), which the
+/// door mints as a `Face`, `Edge` or `Vertex` variable. The selection's
+/// body read is an ordinary DAG edge ([`crate::Doc::upstream`]) and its
+/// name resolves against `at`'s own evaluated name table, through the
+/// N5 ladder every other authored name takes. `name` is a bare
+/// [`StableName`] because a measure reads a LENGTH between entities of
+/// any kind: a face, an edge, a vertex, a whole body. A declared pair's
+/// sides ([`DeclaredPair`]) are the other reader, and keep the shape.
 ///
 /// A mate's head is the other sited reference in the vocabulary and is
 /// its own type, [`SitedFace`] — not this one with a different name in
@@ -1431,11 +1435,13 @@ use expr_table;
 /// There is no `Option` on `at`: "as authored" is spelled
 /// [`SitedRef::at_mint`].
 ///
-/// **`Rebind` never moves a measure's `at`.** A measure's `at` is a
-/// DAG edge the author chose, and an edit that rewrote it would be
-/// re-pointing a dependency behind the author's back; only the NAME
-/// is repaired (`Node::rebind_payload_names`). [`SitedFace`]'s doc
-/// states the other half of that one repair.
+/// **`Rebind` never moves a reference's `at`.** `at` is a DAG edge
+/// the author chose, and an edit that rewrote it would be re-pointing
+/// a dependency behind the author's back; only the NAME is repaired
+/// (a measure's through its selection, `DocEdit::Rebind` with the
+/// selection's body; a declared pair's through
+/// `Node::rebind_payload_names`). [`SitedFace`]'s doc states the other
+/// half of that one repair.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -4865,7 +4871,7 @@ impl<P> Node<P, crate::Formula> {
 
     /// Builds a [`Node::Fillet`] over the selection of `selection` in
     /// the body `target` reads, the names in their stored order (sorted,
-    /// deduplicated, [`crate::var::Selection::canonical`]), so a recipe's
+    /// deduplicated, [`crate::var::Select::canonical`]), so a recipe's
     /// bits do not depend on the order a user clicked in. The door mints
     /// the selection.
     pub fn fillet(
@@ -4894,7 +4900,7 @@ impl<P> Node<P, crate::Formula> {
 
     /// Builds a [`Node::Shell`] over the selection of `open` in the body
     /// `target` reads, in designation order with each name's first
-    /// occurrence kept ([`crate::var::Selection::canonical`]): the first
+    /// occurrence kept ([`crate::var::Select::canonical`]): the first
     /// designated face of a chart carries the rim's identity, so the
     /// order is authored data.
     pub fn shell(
@@ -4906,7 +4912,7 @@ impl<P> Node<P, crate::Formula> {
             thickness,
             open: crate::Operand::select(
                 target,
-                crate::var::Selection::canonical(crate::VarKind::Faces, open),
+                crate::var::Select::canonical(crate::VarKind::Faces, open),
             ),
         }
     }
@@ -4917,7 +4923,7 @@ impl<P> Node<P, crate::Formula> {
 fn edges_of(target: impl Into<crate::Operand>, names: Vec<StableName>) -> crate::Operand {
     crate::Operand::select(
         target,
-        crate::var::Selection::canonical(crate::VarKind::Edges, names),
+        crate::var::Select::canonical(crate::VarKind::Edges, names),
     )
 }
 

@@ -234,7 +234,7 @@ pub enum VarDef {
     /// **A selection** (D10): entities of the body `body` reads, named
     /// by `StableName`. The kind is the variable's (a `Face`, an
     /// `Edge`, or a set of either); a singleton holds one name.
-    Select(Selection),
+    Select(Select),
 }
 
 /// **What a selection names** ([`VarDef::Select`]): one body read, and
@@ -249,17 +249,17 @@ pub enum VarDef {
 /// authored data); a singleton holds exactly one.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Selection {
+pub struct Select {
     /// The body the names are read in.
     pub body: VarId,
     /// The entities, by name.
     pub names: Vec<crate::names::StableName>,
 }
 
-impl Selection {
+impl Select {
     /// **Why `names` is not a stored selection of `kind`**, or `None`:
     /// a kind that is not a selection, a singleton not holding exactly
-    /// one name, or a set out of its stored order ([`Selection`]). What
+    /// one name, or a set out of its stored order ([`Select`]). What
     /// each name denotes is evaluation's to check, where the name
     /// resolves (`NodeErrorKind::SelectKind`).
     #[must_use]
@@ -286,7 +286,7 @@ impl Selection {
     }
 
     /// `names` in the stored order of a `kind` selection
-    /// ([`Selection`]): sorted and deduplicated for edges, first
+    /// ([`Select`]): sorted and deduplicated for edges, first
     /// occurrence kept for faces.
     #[must_use]
     pub fn canonical(
@@ -312,7 +312,7 @@ impl Selection {
     }
 }
 
-/// **Why a list of names is not a stored selection** ([`Selection::fault`]).
+/// **Why a list of names is not a stored selection** ([`Select::fault`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectionFault {
     /// The kind is not a selection kind.
@@ -403,7 +403,7 @@ impl VarDef {
 
     /// The selection, when the definition is one.
     #[must_use]
-    pub fn select(&self) -> Option<&Selection> {
+    pub fn select(&self) -> Option<&Select> {
         match self {
             Self::Select(select) => Some(select),
             Self::Free(_) | Self::Defined(_) | Self::Output { .. } => None,
@@ -444,7 +444,7 @@ pub enum WrittenDef {
     /// A variable defined by an expression over other variables.
     Defined(Expr),
     /// A selection of the stated kind.
-    Select(VarKind, Selection),
+    Select(VarKind, Select),
 }
 
 impl WrittenDef {
@@ -613,7 +613,7 @@ impl Var {
 
     /// The selection, writable, when the definition is one: its kind
     /// stays.
-    pub(crate) fn select_mut(&mut self) -> Option<&mut Selection> {
+    pub(crate) fn select_mut(&mut self) -> Option<&mut Select> {
         match &mut self.def {
             VarDef::Select(select) => Some(select),
             VarDef::Free(_) | VarDef::Defined(_) | VarDef::Output { .. } => None,

@@ -256,8 +256,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
-    Selection, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName,
-    VarNameFault, VarNameReason, VarRef, WrittenDef,
+    Select, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault,
+    VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the

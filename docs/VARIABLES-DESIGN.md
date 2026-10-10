@@ -34,8 +34,8 @@ definition may not reach its own variable (refused at the edit door and
 at load). Distributions live only on free variables; a defined
 variable's uncertainty is the pushforward of its inputs'. Later stages
 add kinds (`Point` … `Frame`, the discrete kinds, `Face`, `Edge`,
-`Body`) and the `Output { node, port }` definition as arms of the same
-enums. A `Count` may be defined as an index, `index(N)` or
+their sets `Faces` and `Edges`, `Body`) and the `Output { node, port }`
+and `Select { body, names }` definitions as arms of the same enums. A `Count` may be defined as an index, `index(N)` or
 `index(N) within j`, ranging over `0..N`, and `Count` arithmetic is
 exact and includes `mod`. Every kind has a family, keyed by index
 tuples, which no free variable holds: only a definition or output whose

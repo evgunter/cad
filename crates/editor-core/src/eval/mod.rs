@@ -1247,12 +1247,14 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
 /// of entity it is, refuse* — and, unlike a door built out of a
 /// convention, one a road cannot go around.
 ///
-/// Four refusals in `eval::wire` ask that question — a shell's open
-/// designation, a blend's selection, a derived frame's face, a
-/// measure's scope. They differ in the entity they admit, in the word
-/// they use for the road, and in what else the refusal carries (a
-/// name, a verb). They do NOT differ in how the answer to *"what was
-/// it instead"* is obtained, and that half is this module's.
+/// Two refusals in `eval::wire` ask that question — a selection's
+/// (`SelectKind`, whichever node reads it: a blend's edges, a shell's
+/// open faces, a derived frame's face, a measure's reference) and a
+/// measure's scope (`MeasureSelectionKind`). They differ in the entity
+/// they admit, in the word they use for the road, and in what else the
+/// refusal carries (a name, a verb). They do NOT differ in how the
+/// answer to *"what was it instead"* is obtained, and that half is this
+/// module's.
 ///
 /// # Why a token rather than a rule
 ///
@@ -1264,21 +1266,20 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
 /// that: it carries the kind, its field is private to this module, and
 /// [`entity_door::entity`] is the only thing that can mint one.
 ///
-/// The refusals therefore keep their own identities — four variants,
-/// four sentences — while the one fact they share has one source.
+/// The refusals therefore keep their own identities — two variants,
+/// two sentences — while the one fact they share has one source.
 ///
 /// # Why the door is in two files
 ///
-/// [`entity_door::entity`] is here and `eval::wire`'s `named_entity` — the
-/// designation road, which resolves an authored name and then comes
+/// [`entity_door::entity`] is here and `eval::wire`'s `select` — the
+/// designation road, which resolves a selection's names and then comes
 /// here — is there. That split is not a preference: [`entity_door::Found`]'s field
 /// must be private to a module that is NOT an ancestor of the roads,
 /// and the roads live in `eval::wire`, so the minting site cannot live
 /// there with them. Putting [`entity_door::Found`] beside
 /// [`crate::names::EntityKind`] instead would need a crate-visible
 /// constructor, which every road could call — the guarantee would be
-/// gone. `named_entity`'s own docs carry the other half of this
-/// sentence.
+/// gone. `select`'s own docs carry the other half of this sentence.
 ///
 /// **What an outside reader gets from this module is [`entity_door::Found`]**, which
 /// a refusal renders and a test reads through [`entity_door::Found::kind`]. The door
@@ -5355,7 +5356,7 @@ fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placeme
 fn content_key<'d, T>(
     node: &crate::node::Node<ProfileProgram>,
     defs: crate::param_source::Definitions<'_, '_>,
-    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Selection>,
+    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
     slot_values: &slots::SlotValues<T>,
     nominal_values: &slots::SlotValues<f64>,
     payload_values: Option<&Payload<T>>,
@@ -6528,7 +6529,7 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
 /// The names the selection `var` holds, as a content key feeds them:
 /// none for a read that is no selection.
 fn selected<'d>(
-    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Selection>,
+    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
     var: crate::VarId,
 ) -> &'d [StableName] {
     selections(var).map_or(&[], |select| select.names.as_slice())

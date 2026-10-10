@@ -5,7 +5,7 @@
 //! `Node::fillet`/`Node::chamfer` are the construction doors that put
 //! it in that form; the variants are public, so a hand-built one can be
 //! handed to `DocEdit::InsertNode` and a corrupt file can be handed to
-//! `load`. Both doors ask the one predicate (`Selection::fault`) and
+//! `load`. Both doors ask the one predicate (`Select::fault`) and
 //! refuse alike, never repairing — a repair would move the content key
 //! behind the caller's back.
 //!
@@ -20,8 +20,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, Node, NodeErrorKind,
-    NodeResult, Operand, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, Selection,
-    SelectionFault, SnapshotError, StableName, VarKind, apply, evaluate, load, save,
+    NodeResult, Operand, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, Select, SelectionFault,
+    SnapshotError, StableName, VarKind, apply, evaluate, load, save,
 };
 use geom_core::Tol;
 use sweep::blend::BlendKind;
@@ -277,7 +277,7 @@ fn the_construction_doors_canonicalize() {
         };
         assert_eq!(names, &canonical, "sorted and deduplicated");
         assert!(
-            Selection::fault(VarKind::Edges, names).is_none(),
+            Select::fault(VarKind::Edges, names).is_none(),
             "and therefore canonical"
         );
     }
@@ -296,7 +296,7 @@ fn an_empty_selection_is_canonical() {
         radius: fixture::len(0.0625),
         selection: editor_core::Operand::select(solid, Vec::new()),
     };
-    assert!(Selection::fault(VarKind::Edges, &[]).is_none());
+    assert!(Select::fault(VarKind::Edges, &[]).is_none());
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -382,7 +382,7 @@ fn both_doors_forward_one_sentence() {
 // survived the suite. These rows kill it.
 // ---------------------------------------------------------------
 
-/// `Selection::fault` directly, at each position of a three-name selection,
+/// `Select::fault` directly, at each position of a three-name selection,
 /// and with both faults present at once — the answer is the FIRST
 /// break, whichever kind it is.
 #[test]
@@ -401,7 +401,7 @@ fn at_names_each_position() {
     ];
     for (what, segs, want) in cases {
         let names: Vec<StableName> = segs.iter().map(|s| edge(&doc, solid, *s)).collect();
-        let got = match Selection::fault(VarKind::Edges, &names) {
+        let got = match Select::fault(VarKind::Edges, &names) {
             Some(SelectionFault::NotCanonical { at }) => Some(at),
             None => None,
             other => panic!("{what}: unexpected fault {other:?}"),
@@ -451,7 +451,7 @@ fn the_load_door_reports_a_non_zero_position() {
 /// **`Rebind` re-establishes the form it repairs.** The rewrite goes
 /// through the same canonicalizer the construction doors use, so a
 /// rebind onto an already-selected edge shrinks the set by one and
-/// what it writes answers `Selection::fault` with `None` — the repair
+/// what it writes answers `Select::fault` with `None` — the repair
 /// cannot leave behind a shape a door would refuse.
 #[test]
 fn a_rebind_leaves_a_canonical_selection() {
@@ -501,7 +501,7 @@ fn a_rebind_leaves_a_canonical_selection() {
         "the repair re-establishes the canonical form, shrinking by one"
     );
     assert!(
-        Selection::fault(VarKind::Edges, names).is_none(),
+        Select::fault(VarKind::Edges, names).is_none(),
         "so the repaired selection passes the predicate every door asks"
     );
 }

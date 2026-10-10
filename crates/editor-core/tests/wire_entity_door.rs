@@ -4,18 +4,19 @@
 //! The question is one question — *read a name, test what kind of
 //! entity it denotes, refuse* — and the crate used to answer it in
 //! three copies of five lines plus a fourth spelling over a selection.
-//! It is one door now (`entity`, and `named_entity` for the roads that
-//! resolve an authored name first), and what the door owns is the half
-//! a caller must not write: `found:`, the kind the entity ACTUALLY
+//! It is one door now (`entity`, and `select` for the road that
+//! resolves a selection's names first), and what the door owns is the
+//! half a caller must not write: `found:`, the kind the entity ACTUALLY
 //! has.
 //!
-//! Four roads over three found kinds, so two independent things are
+//! Four readers over three found kinds, so two independent things are
 //! pinned and a door that lost either goes red:
 //!
-//! - **The sentence varies with the ROAD.** A shell designation, a
-//!   blend's selection under its verb, a derived frame's face and a
-//!   measure's scope are four refusals with four identities, and a door
-//!   that flattened them into one fails every row but one.
+//! - **The sentence varies with the READER.** A shell's open faces, a
+//!   blend's edges, a derived frame's face and a measure's reference
+//!   are one refusal (`SelectKind`) spoken by four nodes at four slots,
+//!   and a sentence that lost the reader's slot fails every row but
+//!   one; a measure's scope is a second refusal of its own.
 //! - **`found:` varies with the ENTITY, under a fixed road.** The two
 //!   shell rows differ only in what was designated, and so do the two
 //!   measure rows — so a door that answered a constant, or the negation

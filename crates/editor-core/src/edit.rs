@@ -1294,7 +1294,7 @@ fn mint_selection<P: crate::ProfilePayload>(
     let kind = expected
         .selection_kind(entity)
         .ok_or_else(|| shape(crate::var::SelectionFault::Seat { entity }))?;
-    if let Some(fault) = crate::var::Selection::fault(kind, names) {
+    if let Some(fault) = crate::var::Select::fault(kind, names) {
         return Err(shape(fault));
     }
     for name in names {
@@ -1309,7 +1309,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         doc,
         WrittenDef::Select(
             kind,
-            crate::var::Selection {
+            crate::var::Select {
                 body,
                 names: names.to_vec(),
             },
@@ -1398,7 +1398,7 @@ pub fn selection_into<P>(
         .expect("a seat that reads a selection of these names");
     let def = WrittenDef::Select(
         kind,
-        crate::var::Selection {
+        crate::var::Select {
             body,
             names: names.to_vec(),
         },

@@ -570,7 +570,7 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
 
 /// **The load door refuses a repeated `open` entry** as a corrupt file,
 /// never quietly deduplicating it — through the one definition the
-/// insert door asks too (`Selection::fault`), so the two doors refuse
+/// insert door asks too (`Select::fault`), so the two doors refuse
 /// alike (`lib_g17_r2_probes::p2_*` is the insert door's half).
 #[test]
 fn a_repeated_open_entry_is_refused_at_load() {

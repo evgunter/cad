@@ -2290,7 +2290,7 @@ NOT_BOUND = {
     # `EditError.inner_variant` (the row in `BOUND_AS`), and a load's as
     # `PersistError.inner_variant` `selection_shape` / `selection_body`
     # and its sentence.
-    "Selection": SHAPE,
+    "Select": SHAPE,
     "SelectionBodyFault": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,

@@ -2372,6 +2372,11 @@ pub(super) struct Selected {
 /// a slot reads is resolved; a declared pair's names are the ladder's
 /// other caller.
 ///
+/// The road supplies the key and never the word for what it found:
+/// that word arrives as a token only `entity_door` can mint, which is
+/// why the door lives in a module this one is not an ancestor of
+/// (`eval::entity_door`'s docs carry the other half).
+///
 /// # Errors
 ///
 /// [`NodeErrorKind::UnresolvedRead`] for a body read no live operation

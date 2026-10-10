@@ -6,9 +6,9 @@
 //! is never a gate).
 //!
 //! What schedules it instead is the standing claim underneath the
-//! comparison: the error family carries a `BlendKind` verb, one shared
-//! `resolve_selection` ladder serves both nodes, and the fillet's
-//! three selection texts must stay EXACTLY what they were (the op
+//! comparison: one shared selection evaluation (`eval::wire::select`)
+//! serves both nodes and speaks through the node that reads it, so the
+//! fillet's selection texts must stay EXACTLY what they are (the op
 //! row's kernel tail is prefix-pinned instead) while the chamfer's
 //! say "chamfer". A `write!` that loses the verb, or a well-meant
 //! reword of the shared ladder, moves a user-visible string that

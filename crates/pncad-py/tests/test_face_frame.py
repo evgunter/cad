@@ -460,7 +460,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         self.assertIn("torus", str(err))
         self.assertIs(ev.face_carrier_kind(torus, face), SurfaceKind.Torus)
 
-    def test_a_name_that_does_not_denote_here_refuses_face_frame_resolve(self):
+    def test_a_name_that_does_not_denote_here_refuses_select_resolve(self):
         """The N5 failure mode, and the evidence that the frame is
         READ: a transcribed frame could not fail this way. The repair
         is a rebind, not an edit of nine numbers."""
