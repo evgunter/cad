@@ -2,8 +2,9 @@
 id: poses-are-variables
 kind: issue
 title: D10 stage 3 PR A: a pose is a defined variable of its kind, read off geometry or constructed; one Subgroup; the revolve's axis is a 2-D line on the node
-status: dispatched
+status: closed
 opened: 2026-10-08
+closed: 2026-10-10
 priority: P0
 cost: H
 refs: [explicit-placement-frames-hold-floats, intent-stage3-is-built]
@@ -25,3 +26,7 @@ Pose definitions are bound mid-evaluation by `eval_pose`, which replaces `wire_d
 Absolute datums survive A as the operations that define the poses constructions read. D retires them, once constructions read no frame and a placement can say where a body is.
 
 Waits on stage 2 E (`select-defines-face-and-edge-variables`: a face's plane reads a `Face` variable). Independent of B.
+
+## Closed
+
+Built by PR #4556 (dual review DR-146). `VarDef::Pose` defines a pose read off geometry (a face's plane with its outward normal, a carrier's axis or centre, a vertex), written `InFrame`, constructed (`Through`, `Meet`, `Flip`, `Standoff`) or projected, minted at the reading seat and bound at the reader by `eval_pose`. `AxisInPlane` retired into `Revolve`'s axis slots, its port 1 the lift; `PoseSymmetry` answers one `Subgroup` on `PoseValue`, with the four new families' representatives owed by `a-mate-relates-two-poses`. Geometry is bit-equal (the id-free fence with pointless datum outcomes dropped, base against head). A `FaceFrame` read as a frame stays until C or D restates its reader; no corpus document read one as a plane. Follow-ups filed: `refactor-remaps-no-pose-definition`, `datum-distance-reads-a-datum-node-not-a-pose`, `a-pose-defined-split-tool-names-no-tool-cell`, `a-meet-decides-a-sine-against-a-length-band`.
