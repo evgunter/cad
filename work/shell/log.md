@@ -1399,3 +1399,4 @@ Ev said go.
   - Filed `a-move-past-a-fitted-solids-reach-refuses-op-not-the-collapse` (P3).
   - The orchestrator merged main once, a union of the slow-set line.
   - Next per the plan: unit 19, the NURBS × NURBS arm (`Section` handle, `branch_at`/`all()`), as ruled in PR 4515.
+- **Unit 19 dispatched** (2026-10-10 20:28Z): the NURBS × NURBS section arm, as ruled in PR 4515 (a `Section` handle with `branch_at` and `all()`). Session `session_01CdW9zFCmnxvk8MaZHdoV5w`, branch `shell/nurbs-nurbs-section`, H tier, dual review.
