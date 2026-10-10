@@ -615,7 +615,19 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             None if snapshot.mint.has_var(select.body) => return None,
             None => SelectionBodyFault::Unminted { body: select.body },
             Some(held) => {
-                match snapshot.read_fault(held, crate::SlotKind::Is(crate::VarKind::Body), None)? {
+                // A mate side reads a face of a pattern's copy in the
+                // pattern's `Bodies`; every other reader reads a `Body`.
+                let only_mate_sides = snapshot.nodes.values().all(|node| {
+                    node.operand_rows().into_iter().all(|(slot, read)| {
+                        read != id || matches!(slot, crate::OperandSlot::Side(_))
+                    })
+                });
+                let expected = if only_mate_sides {
+                    crate::SlotKind::Placeable
+                } else {
+                    crate::SlotKind::Is(crate::VarKind::Body)
+                };
+                match snapshot.read_fault(held, expected, None)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
@@ -2010,7 +2022,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // carrier enumeration rather than a payload walk inside the node
     // loop above and a store walk down here, hundreds of lines apart
     // and neither reading as half of one list. An id the mint log lacks
-    // inside a mate head, a fillet selection or an appearance key is
+    // inside a mate side, a fillet selection or an appearance key is
     // as corrupt as one inside a declared pair, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
@@ -2721,8 +2733,9 @@ mod tests {
             node: instance,
             path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
         };
-        // A mate head is a `SitedFace`, so the fixture's claim that
-        // the name it just built is a face is made where it is built.
+        // A mate side is authored as a `SitedFace`, so the fixture's
+        // claim that the name it just built is a face is made where it
+        // is built.
         let face_head = |name: crate::names::StableName| {
             crate::node::SitedFace::at_mint(
                 crate::names::FaceName::new(name).expect("the fixture names a face"),

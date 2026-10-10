@@ -195,7 +195,7 @@ Gauge { parent: None, placement: Placement { steps: [Rigid { translation: [#0, #
   #4 RotationAxis(Y)
   #5 RotationAxis(Z)
   #6 RotationAngle
-Mate { a: SitedFace { at: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), name: FaceName(StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), path: [Cap(Start)] }) }, b: SitedFace { at: RecipeNodeId(MintId { ordinal: 0, digest: 2 }), name: FaceName(StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 0, digest: 2 }), path: [Cap(End)] }) }, class: Rest, alignment: Alignment { a: MateFrame { base: Part, offset: Placement { steps: [Literal(Frame { columns: [[0.0, -1.0, 0.0], [1.0, 0.0, -0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 0.0] })] } }, b: MateFrame { base: Face, offset: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 1.0] }), Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }, primitive: Coaxial, sense: Aligned, clocking: None } }
+Mate { a: @0, b: @1, class: Rest, alignment: Alignment { a: MateFrame { base: Part, offset: Placement { steps: [Literal(Frame { columns: [[0.0, -1.0, 0.0], [1.0, 0.0, -0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 0.0] })] } }, b: MateFrame { base: Face, offset: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 1.0] }), Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }, primitive: Coaxial, sense: Aligned, clocking: None } }
   #0 MateFrameStep { side: B, step: 1, arg: Translation(X) }
   #1 MateFrameStep { side: B, step: 1, arg: Translation(Y) }
   #2 MateFrameStep { side: B, step: 1, arg: Translation(Z) }
@@ -203,6 +203,8 @@ Mate { a: SitedFace { at: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), name: 
   #4 MateFrameStep { side: B, step: 1, arg: RotationAxis(Y) }
   #5 MateFrameStep { side: B, step: 1, arg: RotationAxis(Z) }
   #6 MateFrameStep { side: B, step: 1, arg: RotationAngle }
+  @0 Operand(Side(A))
+  @1 Operand(Side(B))
 Measure { primitive: Distance { a: @0, b: @1 } }
   @0 Operand(Measured(Distance, 0))
   @1 Operand(Measured(Distance, 1))

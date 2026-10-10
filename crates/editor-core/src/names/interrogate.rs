@@ -578,7 +578,7 @@ pub(crate) fn output_body<T: Decide>(
             }
         }
         ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
-        // The families that denote no body at all. A12: a mate denotes
+        // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a
         // measurement or its verdict. The word is the payload's own

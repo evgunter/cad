@@ -557,13 +557,11 @@ fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName 
 /// The two references a mate carries are different kinds of thing. The
 /// head is a `StableName` — resolved through the N5 ladder, repairable
 /// by `Rebind` — so its minting node going is a strand and is reported.
-/// The operand is a bare node id (`Node::payload_read_sites`, the A12
-/// reading edge): nothing resolves it through a ladder and `Rebind`
-/// cannot touch it, so a delete that takes it away is the solve's to
-/// refuse, and this door says nothing about it. One row per head is
-/// therefore the whole report, although the deleted instance was both.
+/// A mate side is a read (D10): deleting the instance it is read in
+/// strands the read, reported once, typed by the side's slot. The
+/// side's name rides its selection and is not a second row.
 #[test]
-fn a_mates_head_strands_and_its_read_site_does_not() {
+fn a_mates_side_strands_as_a_read() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_mate_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
@@ -590,16 +588,15 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     );
 
     let applied = delete(&doc, ia);
+    let _ = head_a;
     assert_eq!(
-        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
-        vec![(mate, head_a)],
-        "the head is a name and is reported; the operand at the same id is not"
-    );
-    assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance).len(),
-        1,
-        "deleting a placed member records no frame: {:?}",
-        crate::fixture::without_anonymous(&applied.maintenance)
+        crate::fixture::without_anonymous(&applied.maintenance),
+        vec![Maintenance::StrandedRead {
+            node: doc.spoken(mate),
+            slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
+            var: doc.spoken_var(doc.output(ia, 0).expect("the instance's body")),
+        }],
+        "the side's read is reported, once"
     );
 }
 
@@ -819,10 +816,10 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![
-            Maintenance::Strand {
+            Maintenance::StrandedRead {
                 node: doc.spoken(mate),
-                name: doc.spoken_name(&head_a),
-                took: editor_core::Took::Node
+                slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
+                var: doc.spoken_var(doc.output(ia, 0).expect("the instance's body")),
             },
             Maintenance::StrandedAppearance {
                 name: doc.spoken_name(&painted),

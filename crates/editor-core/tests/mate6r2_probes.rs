@@ -238,7 +238,7 @@ fn p1_both_bad_mates_refuse_badref_heading_the_list() {
             if matches!(
                 refusals.as_slice(),
                 [
-                    editor_core::MintRefusal::Reference { .. },
+                    editor_core::MintRefusal::Unevaluated { .. },
                     editor_core::MintRefusal::NoAtRestRecord { .. },
                 ]
             )
@@ -287,7 +287,7 @@ fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
                 refusals.as_slice(),
                 [
                     editor_core::MintRefusal::NoAtRestRecord { .. },
-                    editor_core::MintRefusal::Reference { .. },
+                    editor_core::MintRefusal::Unevaluated { .. },
                 ]
             )
     ));

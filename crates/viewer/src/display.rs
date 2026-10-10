@@ -383,7 +383,10 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
-            Some(Node::Mate { a, b, .. }) => a.name.node == instance || b.name.node == instance,
+            Some(Node::Mate { a, b, .. }) => [*a, *b].into_iter().any(|side| {
+                doc.selection(side)
+                    .is_some_and(|select| select.names.iter().any(|name| name.node == instance))
+            }),
             _ => false,
         })
         .collect()

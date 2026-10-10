@@ -502,7 +502,11 @@ fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
     )
     .expect("the mate deletes");
     assert_eq!(groups(&applied.doc).len(), 2, "the group split");
-    assert!(applied.maintenance.is_empty(), "no frame is recorded");
+    assert!(
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+        "no frame is recorded: {:?}",
+        applied.maintenance
+    );
     let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
     assert_eq!(
         poses.unplaced(ids[1]),
@@ -527,7 +531,7 @@ fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
 /// survivor's group, which no member places, is unplaced.
 #[test]
 fn row4c_deleting_the_root_unplaces_the_survivor() {
-    let (doc, ids, _, store, body) = stacked_pair("asm-r2a-row4c");
+    let (doc, ids, _, store, _body) = stacked_pair("asm-r2a-row4c");
     let before = doc.clone();
     let applied = apply(
         &doc,
@@ -547,17 +551,17 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
     // instances in order.
     let placement = doc.placements()[0];
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::StrandedRead {
                 node: doc.spoken(placement),
                 slot: editor_core::OperandSlot::Body,
                 var: doc.spoken_var(doc.output(ids[0], 0).expect("the root's body")),
             },
-            Maintenance::Strand {
+            Maintenance::StrandedRead {
                 node: doc.spoken(mate_node),
-                name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
-                took: editor_core::Took::Node
+                slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
+                var: doc.spoken_var(doc.output(ids[0], 0).expect("the root's body")),
             }
         ],
         "the strands are the whole report: no frame is recorded"
@@ -1159,7 +1163,11 @@ fn row6b_a_mate_insert_and_delete_place_nothing() {
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate_id }, Tol::witness(), &reach)
         .expect("deleting an under-determined mate is its recourse");
-    assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
+    assert!(
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+        "{:?}",
+        applied.maintenance
+    );
     let doc = applied.doc;
     assert_eq!(doc.placements(), placed, "and leaves them as it found them");
 }
@@ -1221,15 +1229,21 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
         .fault(mate_id)
         .expect("the solve refuses")
         .clone();
-    let editor_core::MateFault::DanglingHead { head, .. } = &fault else {
-        panic!("expected DanglingHead, got {fault:?}");
-    };
-    assert_eq!(*head, ids[1]);
-    assert!(fault.to_string().contains("rebind"), "{fault}");
+    assert!(
+        matches!(
+            &fault,
+            editor_core::MateFault::SideUnresolved {
+                side: editor_core::MateSide::B,
+                ..
+            }
+        ),
+        "expected the stranded side, got {fault:?}"
+    );
+    assert!(fault.to_string().contains("re-author the side"), "{fault}");
     let ev = run(&doc, &o);
     assert!(matches!(
-        mate_fault(&ev, mate_id),
-        editor_core::MateFault::DanglingHead { .. }
+        ev.node_error(mate_id).map(|e| &e.kind),
+        Some(NodeErrorKind::UnresolvedRead { .. })
     ));
 }
 
@@ -1295,13 +1309,12 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
 // ---- Row 6f–6j: A12's repair path, and the three doors ----
 // ---- that keep a head honest                              ----
 
-/// A12: *"A dangling head (N5) contributes no edge until `Rebind`"* —
-/// the rebind of a stranded head IS the repair, and the reading edge
-/// comes back with it. Here the head is the document's ONLY reference
-/// to the stranded name, so the edit's own reference count is what
-/// decides whether the repair runs at all.
+/// A side whose body is deleted is an unresolved read (D10), and its
+/// repair is the side's slot door: re-pointing the side at a face of
+/// another instance resolves it again. No door re-points it for the
+/// author.
 #[test]
-fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
+fn row6f_the_slot_door_repairs_a_stranded_side() {
     let (doc, ids, store, body) = assembly("asm-r2a-rebind-only-ref", 3);
     let (doc, mate_id) = mint(
         doc,
@@ -1327,40 +1340,44 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     );
     let applied = doc
         .apply(
-            &DocEdit::Rebind {
-                body: None,
-                from: in_part(ids[1], body, CapEnd::Start),
-                to: in_part(ids[2], body, CapEnd::Start),
+            &DocEdit::SetParam {
+                node: mate_id,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(
+                    editor_core::MateSide::B,
+                )),
+                value: editor_core::SlotValue::Read(
+                    crate::fixture::head(in_part(ids[2], body, CapEnd::Start)).into(),
+                ),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("a mate head is a rebind site");
+        .expect("a side is re-pointed by its slot door");
     assert_eq!(
         crate::fixture::mate_edges(&applied.doc),
         vec![(mate_id, ids[0]), (mate_id, ids[2])],
-        "the repaired head reads through the instance it now names"
+        "the repaired side reads through the instance it now names"
     );
     assert!(
         applied.record.structural,
-        "a mate payload moved, so its content key moved with it"
+        "a mate's read moved, so its content key moved with it"
     );
     let o = with_resolver(store);
     assert!(
-        !matches!(
-            solve(&applied.doc, &o, Tol::witness()).fault(mate_id),
-            Some(editor_core::MateFault::DanglingHead { .. })
-        ),
-        "and the solve no longer refuses the head"
+        solve(&applied.doc, &o, Tol::witness())
+            .fault(mate_id)
+            .is_none_or(|f| !matches!(f, editor_core::MateFault::SideUnresolved { .. })),
+        "and the solve no longer refuses the side"
     );
 }
 
-/// The same repair with a union's declared pair referencing the
-/// stranded name too: the declaration's rewrite is what makes the edit acceptable, so a
-/// mate head skipped here is skipped SILENTLY — the loud arm never
-/// fires.
+/// A `Rebind` with no body reaches the names no selection holds — here
+/// a union's declared pair — and never a mate side, which is a
+/// selection: the declaration's rewrite is what makes the edit
+/// acceptable, and the stranded side stays unresolved.
 #[test]
-fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
+fn row6g_a_bodiless_rebind_repairs_a_declared_pair_and_not_a_mate_side() {
     let (doc, ids, _, body) = assembly("asm-r2a-rebind-with-declare", 3);
     let (doc, mate_id) = mint(
         doc,
@@ -1433,15 +1450,13 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     );
     assert_eq!(
         crate::fixture::mate_edges(&applied.doc),
-        vec![(mate_id, ids[0]), (mate_id, ids[2])],
-        "and so was the mate head — one rebind repairs every site, or none of them"
+        vec![(mate_id, ids[0])],
+        "the mate's stranded side is a read, which no rebind re-points"
     );
 }
 
-/// The insert door's own claim (`Node::named_nodes`): a mate's two
-/// heads carry the declared-pair carve-out, so a head naming a node that
-/// never existed is a typo and is refused THERE — the only door that
-/// checks.
+/// A mate side read at a node that never existed is a typo, refused at
+/// the insert door as the unresolved read it is.
 #[test]
 fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
     let (doc, ids, _, body) = assembly("asm-r2a-mate-insert-door", 1);
@@ -1466,13 +1481,13 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
         )
         .expect_err("the head names no node");
     assert!(
-        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.name().node == ghost),
+        matches!(&err, EditError::UnresolvedInput { input } if input.id() == ghost),
         "{err:?}"
     );
 }
 
-/// A saved file is DATA: a mate head naming an id past the mint counter
-/// is as corrupt as a declared pair naming one, and worse to let in —
+/// A saved file is DATA: a mate side's name naming an id past the mint
+/// counter is as corrupt as a declared pair naming one, and worse to let in —
 /// `Rebind`'s source door refuses a never-minted id, so the document
 /// would load unrepairable.
 #[test]
@@ -1500,11 +1515,15 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     // field-order change breaks the probe instead of silently moving it
     // onto an unrelated id.
     let corrupt = doctored(&text, |wire| {
-        let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"]["name"];
+        let read: editor_core::VarId = serde_json::from_value(
+            wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"].clone(),
+        )
+        .expect("a mate side is a variable id");
+        let head = &mut wire["snapshot"]["vars"][read.0.to_string()]["def"]["Select"]["names"][0];
         assert_eq!(
             head["node"],
             serde_json::json!(ids[2].0),
-            "the probe is aimed at the `b` head"
+            "the probe is aimed at the `b` side's name"
         );
         head["node"] = serde_json::json!(RecipeNodeId::new(0, 99).0);
     });
@@ -1517,8 +1536,8 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
 }
 
 /// The name-level edit door (`apply_with_names`, PR 3's R6 obligation)
-/// reads a mate's heads under the rule it has always applied to a
-/// declared pair: checkable exactly when the minting node evaluated
+/// reads a mate side's selection under the rule it has always applied to
+/// a declared pair: checkable exactly when the minting node evaluated
 /// `Ok`, deferred otherwise. An instance-qualified head the tables
 /// carry passes; a role the part's product does not have is refused
 /// there rather than at the solve.

@@ -906,7 +906,11 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         ),
     ] {
         let applied = applied.expect("deleting a placing mate is never refused");
-        assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
+        assert!(
+            crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+            "{:?}",
+            applied.maintenance
+        );
         assert!(
             matches!(
                 applied.doc.node(ids[0]),
@@ -1026,11 +1030,14 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             .apply(&DocEdit::DeleteNode { id }, tol, &counting)
             .expect("a delete is never refused for the placement it removes");
         assert!(
-            applied.maintenance.iter().all(|row| matches!(
-                row,
-                editor_core::Maintenance::Strand { .. }
-                    | editor_core::Maintenance::StrandedAppearance { .. }
-            )),
+            crate::fixture::without_anonymous(&applied.maintenance)
+                .iter()
+                .all(|row| matches!(
+                    row,
+                    editor_core::Maintenance::Strand { .. }
+                        | editor_core::Maintenance::StrandedRead { .. }
+                        | editor_core::Maintenance::StrandedAppearance { .. }
+                )),
             "a delete reports what it stranded and records no frame: {:?}",
             applied.maintenance
         );
@@ -1443,7 +1450,7 @@ fn a6_an_indeterminate_groups_mate_deletes_like_any_other() {
         ),
     ] {
         let applied = applied.expect("deleting a mate is never refused");
-        assert!(applied.maintenance.is_empty());
+        assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
     }
 }
 

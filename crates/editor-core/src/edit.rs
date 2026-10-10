@@ -434,8 +434,7 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// The explicit name repair (N5, spec D3), addressed by body and
     /// name (D10): rewrite every selection of `body` that names `from`
     /// EXACTLY to name `to`; with no body, every site no selection holds
-    /// (declared pairs, mate heads, an instance's crossings, appearance
-    /// keys). A name is scoped by the body it is read in (N1), so the
+    /// (declared pairs, an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
     /// body says which entity the repair is about.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
@@ -1268,6 +1267,16 @@ fn lower_operand<P: crate::ProfilePayload>(
     check_read(doc, spoken, slot, var, half, expected, unresolved)
 }
 
+/// **What a selection authored at `slot` may be read in**: a `Body`, or
+/// at a mate side a `Bodies` too — a pattern's copies, the name's
+/// `Instance(i)` saying which one, as the member walk reads it.
+pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
+    match slot {
+        SlotId::Operand(crate::OperandSlot::Side(_)) => crate::SlotKind::Placeable,
+        _ => crate::SlotKind::Is(VarKind::Body),
+    }
+}
+
 /// **A selection authored at a seat, minted** (D10): the body read
 /// lowered as a `Body` operand, the names checked live and in the
 /// stored form of the seat's selection kind, and one anonymous
@@ -1281,14 +1290,7 @@ fn mint_selection<P: crate::ProfilePayload>(
     names: &[StableName],
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
-    let body = lower_operand(
-        doc,
-        spoken,
-        slot,
-        body,
-        None,
-        crate::SlotKind::Is(VarKind::Body),
-    )?;
+    let body = lower_operand(doc, spoken, slot, body, None, selection_body_kind(slot))?;
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -4642,10 +4644,10 @@ impl core::fmt::Display for Maintenance {
 /// measure's arguments), then store keys in the store's own
 /// `BTreeMap` order, which is `StableName`'s. Nothing is sorted here.
 ///
-/// [`Node::payload_read_sites`] — a mate's two operands — are NOT
+/// [`Node::payload_read_sites`] — a declared pair's sites — are NOT
 /// here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
-/// one is the solve's to refuse (A12), not this door's to report.
+/// one is the evaluation's to refuse, not this door's to report.
 ///
 /// **Cost.** One pass over the document's name carriers per accepted
 /// delete, so a cascade of `n` nodes pays `n` passes. That is the
@@ -5723,8 +5725,8 @@ fn check_written_node<P: crate::ProfilePayload>(
             None,
         )?;
     }
-    // A gauge reference is a reading edge, as a mate's operand
-    // is: a never-live or wrong-kind one is a typo, refused here.
+    // A gauge reference is a placement chain, not a read: a
+    // never-live or wrong-kind one is a typo, refused here.
     check_gauge_ref(new, id, node.gauge_ref(), spoken)?;
     // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
     // the one place a node is asked whether its alignment datum

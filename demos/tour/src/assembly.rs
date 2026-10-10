@@ -224,10 +224,10 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 /// The head is the part-local face as the instance names it — the
 /// kernel's own wrapper (`FaceName::in_part`), the inverse of the
 /// unwrap a face frame reads its face through.
-fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
+fn head(instance: RecipeNodeId, local: &StableName) -> Operand {
     let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
-    SitedFace::at_mint(name.in_part(instance))
+    SitedFace::at_mint(name.in_part(instance)).into()
 }
 
 /// Inserts a node that is not a mate and returns its minted id.
@@ -1595,11 +1595,18 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             tol,
             &reach,
         );
+        // Each side re-authored as the face it read: the deleted mate's
+        // selections went with it.
+        let side = |read| {
+            pncad::document::head_of(&tangent.doc, read)
+                .expect("the mate read two faces")
+                .into()
+        };
         insert_mate(
             &mut swapped,
             Node::Mate {
-                a,
-                b,
+                a: side(a),
+                b: side(b),
                 class: ContactClass::Tangent,
                 alignment: alignment.authored(),
             },

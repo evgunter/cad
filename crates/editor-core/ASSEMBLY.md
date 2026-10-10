@@ -19,7 +19,7 @@ is documented in `crates/topo/README.md`; the user-facing walk is
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
-| A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
+| A3, A11 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
@@ -157,10 +157,11 @@ value of it, and no node is a pattern.
 `Node::Mate { a, b, class, alignment }` is one contact declaration that
 also places:
 
-- `a`/`b` are `SitedFace`s: an instance-qualified face name
-  (`names::FaceName`, whose one constructor is the only way a face name
-  is made) plus the operand node it is read at, so a mate naming an
-  edge is a program that does not compile.
+- `a`/`b` each read one `Face` variable (`OperandSlot::Side`): a
+  selection of the body the side is read in by an instance-qualified
+  face name (D10). The authored spelling is a `SitedFace`, a
+  `names::FaceName` (whose one constructor is the only way a face name
+  is made) and the node whose body it is read in.
 - `class` is the kernel `topo::ContactClass`.
 - `alignment` is an `Alignment`: two `MateFrame`s, a `MatePrimitive`,
   and an authored `AxisSense` (so no π-flip is inferred). Each
@@ -186,23 +187,16 @@ table both the solve and the mint door read: `Rest` solves and mints;
 `NO_AT_REST_RECORD_RECOURSE`); anything else, including the reserved
 and unbuilt `Fit { gap }`, refuses at the solve door.
 
-**A12 — Mate edges and roots.** Each of a mate's two `SitedFace`s
-contributes a *reading edge* to the member its operand resolves to: the
-walk's minting instance, whatever the depth of the copy chain above it.
-Reading edges are recomputed by `reading_edges`, never stored, and are
-not operand reads: a mate reads no operand. A9's partition runs over
-operand ∪ reading edges and A11's groups over placing mates. A mate
-places nothing in the world, so it is never in the product (A10).
-
-A dangling reference (name or operand) contributes no edge, and the
-fault names the node the walk stopped at; `Rebind` repairs a name and
-carries an at-mint operand with it, and a stranded operand is
-re-authored. A cut that would leave a mate and one of its operands on
-opposite sides refuses at the split door
-(`SplitError::OperandSeveredFromMate`), the reading edge's twin of D-2's
-closure rule. The exception is the interface crossing itself, where a
-kept mate's at-mint operand re-anchors through the minted instance with
-the name it is authored on.
+**A12 — Mate sides are reads.** Retired by D10: a mate side is a
+read like any other, so a mate depends on the bodies its faces are read
+in, A9's partition runs over reads (D10, Operations), and a cut that
+separates a mate from a body it reads is D-2's ordinary severed read. The
+member a side lands on is the walk from the selection's body down to its
+name's minting instance, whatever the depth of the copy chain above it
+(`mate::member_of`). A side whose body is deleted leaves the mate
+unresolved and typed, and a name that stops resolving is the selection's
+refusal, repaired by `Rebind` addressed by the body. A mate places
+nothing in the world, so it is never in the product (A10).
 
 ## Identity, pins, split and inline
 
@@ -312,32 +306,22 @@ Undeclared contact between instances is a hard error, never blessed.
 (every finding declined, none refuted). A disjoint assembly certifies as
 a multi-solid tier-3 body.
 
-*Where a declaration is minted.* Minting reads each reference's name
-where the mate reads it, in its operand's table, and carries it up the
-operand's consumers to the product's roots, each consumer spelling it as
-it carries it (`names::lift`, exhaustive over node kinds: a `Part` and a
-split's target carry it verbatim, a union as its member's name, a pair
-boolean as `FromA`/`FromB`, a fillet, chamfer or shell as `FromTarget`;
-a transform, pattern or placed union places it again). Where the operand
-is a root, or reaches one through `Part` selections and split targets
-alone, the lift is the identity. Exactly one product face reached is the
-face minted on; otherwise the reference refuses with one of three
-`RefusedRef` arms:
-
-- `Ambiguous`: two or more product faces are reached.
-- `MovedAbove { at, by }`: no route carries the face to the product
-  unmoved, and `by` is a placer on the way up. A route through a placer
-  never succeeds, because the product holds the face where the placer
-  put it, not where the mate reads it. The recourse is to re-pick the
-  face on `by` (naming the copy, when `by` places copies).
-- `Vanished { by }`: `by` is a consumer that merges or cuts the face,
-  or, when none does, a consumer reading the body in a seat that holds
-  no face of it. A name the operand does not spell is
-  `Vanished { by: None }`.
-
-There is no kind arm, and the gate asks no kind question: a head is a
-`SitedFace` over a `FaceName` (A3), so what the name denotes is fixed by
-the type.
+*Where a declaration is minted.* A mate's declaration is minted on the
+world copies of its members, read through those copies' placements
+(#4220). Each side's face is resolved once, at its selection, where the
+mate's own evaluation resolves it: its entity in the body the selection
+reads. The copy is the world placement reading that body, or reading
+the `Part` that picks the entity's copy out of a pattern's bodies; a
+placement moves its body and re-mints nothing, so the copy holds the
+entity under the same key, and the graft carries it into the product.
+Nothing is resolved against the product's table. A side whose body no
+placement reads has no world copy, and the mate mints nothing: such a
+mate relates a boolean's operands in the workbench, which is the
+boolean's coincidence door's business, not an at-rest fact of the
+product. A body placed twice refuses `RefusedRef::Ambiguous`, since a
+declaration names one pair of faces, and a mate with no value in the
+evaluation refuses `MintRefusal::Unevaluated` rather than passing the
+gate silently.
 
 *Across the seam.* A sub-assembly's declarations ride through the seam
 as records (`PartValue::contacts`), and so does the bookkeeping that
@@ -412,7 +396,7 @@ declarations are not exported.
 
 **A9 — Relative freedom is component structure.** Two instances are
 relatively unconstrained exactly when they lie in different connected
-components of the DAG under consuming ∪ reading edges
+components of the recipe under its reads and its gauge references
 (`relative_freedom_components`); no solver, no geometry. Evaluation
 stays deterministic, and every placed group has a world pose, so the
 placed part of an assembly is one body. A group nothing places lives in
@@ -616,13 +600,13 @@ states the cause on its own row, and the mate points there.
 - **AQ8 — the crossing record's reachability.** A placing mate welds
   its ends into one group and never crosses a cut; a declaring mate
   (its ends on different gauges) may, and populates `InterfaceRecord`,
-  so no conversion door is needed. **Only a mate EDGE can cross**
-  (ruled: option (b), SKIP): a mate that is not an A12 edge — a head
-  outside A11's member vocabulary, or a node not in the document —
-  contributes no interface crossing however its names fall across a
-  cut. Such a mate never solved, and a record minted from it would
+  so no conversion door is needed. **Only a mate whose two face reads
+  resolve can cross** (ruled: option (b), SKIP): a mate a side of which
+  resolves to no member — a head outside A11's member vocabulary, or a
+  read of nothing live — contributes no interface crossing however its
+  names fall across a cut. Such a mate never solved, and a record minted from it would
   assert a relationship evaluation never established: trusted-at-rest
   state, which this design forbids. The mate stays in the document and
   its names rebind like any other (N5); it says nothing about the seam.
-  The split collector gates on `member_of` for both heads, the same
-  predicate A12's reading edges and A11's groups ask.
+  The split collector gates on `member_of` for both sides, the same
+  predicate A11's groups ask.

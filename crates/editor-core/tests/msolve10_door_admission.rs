@@ -1119,9 +1119,8 @@ fn corpus() -> Vec<Row> {
         ("msolve10-corpus-stranded", doc, opts)
     });
     rows.push({
-        // One member on both sides, by a rebind after insert: the
-        // name-repair door moves a head read at its own mint with its
-        // name, so `b`'s head lands on `a`.
+        // One member on both sides, by a re-point after insert: the
+        // side's slot door writes `b`'s side onto `a`.
         let (doc, ids, opts, body) = instances("msolve10-corpus-self", 2);
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let (doc, _) = step_with(
@@ -1132,12 +1131,16 @@ fn corpus() -> Vec<Row> {
             },
             &reach,
         );
+        let mate_id = *doc.ids().last().expect("the mate is the last node");
         let (doc, _) = step_with(
             doc,
-            DocEdit::Rebind {
-                body: None,
-                from: in_part(ids[1], body, CapEnd::Start),
-                to: in_part(ids[0], body, CapEnd::Start),
+            DocEdit::SetParam {
+                node: mate_id,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(MateSide::B)),
+                value: editor_core::SlotValue::Read(
+                    fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
+                ),
+                fresh: Vec::new(),
             },
             &reach,
         );

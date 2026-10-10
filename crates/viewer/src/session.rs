@@ -1636,8 +1636,8 @@ impl DocSession {
                 alignment,
             } => self.commit(DocEdit::InsertNode {
                 node: Box::new(Node::Mate {
-                    a,
-                    b,
+                    a: a.into(),
+                    b: b.into(),
                     class,
                     alignment,
                 }),

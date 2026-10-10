@@ -486,17 +486,13 @@ class TestBenchStand(BenchWorkspace):
         # member agrees on it.
         for node in (post_a, shelf_i, post_b):
             self.assertEqual(pncad.root_of(doc, node), post_a)
-        # A mate's references are not recipe edges; the READING edges
-        # are what couples the graph, recomputed from the name heads.
-        self.assertEqual(
-            set(pncad.reading_edges(doc)),
-            {
-                (mate_1, post_a),
-                (mate_1, shelf_i),
-                (mate_2, shelf_i),
-                (mate_2, post_b),
-            },
+        # A mate's sides are reads, so the mates couple the three
+        # instances into one relative-freedom component.
+        component = next(
+            c for c in pncad.relative_freedom_components(doc) if mate_1 in c
         )
+        for node in (post_a, shelf_i, post_b, mate_2):
+            self.assertIn(node, component)
 
     def test_last_maintenance_describes_the_last_accepted_edit_at_every_door(self):
         """`last_maintenance` says "the LAST accepted edit", and `Doc`

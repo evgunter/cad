@@ -1570,11 +1570,11 @@ fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
     }
 }
 
-/// **Gauge references are reading edges** (A12, A11 (2)): an instance
-/// reads its gauge and a gauge its parent, so A9 puts two instances on
-/// one gauge, with no mate between them, in one component — the gauge
+/// **Gauge references couple A9's components** (A11 (2)): an instance
+/// references its gauge and a gauge its parent, so A9 puts two instances
+/// on one gauge, with no mate between them, in one component — the gauge
 /// fixes their frames relative to each other — and an instance on
-/// another gauge in another. A reference to a deleted gauge reads
+/// another gauge in another. A reference to a deleted gauge couples
 /// nothing.
 #[test]
 fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
@@ -1609,19 +1609,16 @@ fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
         c,
         Some(h),
     );
-    let edges = crate::fixture::mate_edges(&doc);
-    for edge in [(g, outer), (a, g), (b, g), (c, h)] {
-        assert!(edges.contains(&edge), "{edge:?} in {edges:?}");
-    }
     let components = editor_core::relative_freedom_components(&doc);
     let of = |id| components.iter().position(|comp| comp.contains(&id));
     assert_eq!(of(a), of(b), "one gauge, one component");
+    assert_eq!(of(g), of(outer), "a gauge is one component with its parent");
+    assert_eq!(of(c), of(h), "an instance is one component with its gauge");
     assert_ne!(of(a), of(c), "another gauge, another component");
     let (dead, _) = step(doc, DocEdit::DeleteNode { id: h });
+    let components = editor_core::relative_freedom_components(&dead);
     assert!(
-        !crate::fixture::mate_edges(&dead)
-            .iter()
-            .any(|&(r, _)| r == c),
-        "a reference to a deleted gauge reads nothing"
+        components.iter().any(|comp| comp == &vec![c]),
+        "a reference to a deleted gauge couples nothing: {components:?}"
     );
 }

@@ -375,49 +375,57 @@ fn saved_mate(label: &str) -> (String, RecipeNodeId) {
     (text, id)
 }
 
-/// Retypes one head of a saved mate — its KIND and nothing else.
-fn retype_head(text: &str, mate: RecipeNodeId, side: &str, kind: EntityKind) -> String {
-    doctored(text, |wire| {
+/// Retypes the name one side of a saved mate selects — its KIND and
+/// nothing else — returning the side's selection variable too.
+fn retype_head(
+    text: &str,
+    mate: RecipeNodeId,
+    side: &str,
+    kind: EntityKind,
+) -> (String, editor_core::VarId) {
+    let mut select = None;
+    let doctored = doctored(text, |wire| {
+        let read: editor_core::VarId = serde_json::from_value(
+            wire["snapshot"]["nodes"][mate.0.to_string()]["Mate"][side].clone(),
+        )
+        .expect("a mate side is a variable id");
+        select = Some(read);
         let field =
-            &mut wire["snapshot"]["nodes"][mate.0.to_string()]["Mate"][side]["name"]["kind"];
+            &mut wire["snapshot"]["vars"][read.0.to_string()]["def"]["Select"]["names"][0]["kind"];
         assert_eq!(
             *field,
             serde_json::json!("Face"),
-            "the surgery is aimed at a face head"
+            "the surgery is aimed at a face side"
         );
         *field = serde_json::json!(format!("{kind:?}"));
-    })
+    });
+    (doctored, select.expect("the side was read"))
 }
 
-/// **A saved mate head that is not a face refuses at the load door.**
+/// **A saved mate side that selects no face resolves to no head.**
 ///
-/// There is no edit-door twin to pair this with, and that is the
-/// shape rather than a gap: a head is an `editor_core::SitedFace`
-/// over a `FaceName`, so a mate naming an edge is a program that does
-/// not compile (`SitedFace`'s own `compile_fail` row). What a FILE
-/// can still carry is an edge head spelled in bytes, and the rule is
-/// asked there by the same one constructor — `FaceName`'s
-/// `Deserialize` — so the refusal is the load door's own
-/// `Unreadable`: the reader accepted the bytes and this build's TYPES
-/// rejected them, which is exactly what that arm says.
+/// A side is a `Face` selection, and what each of its names denotes is
+/// asked where the name resolves (`Select::fault` leaves it to
+/// evaluation's `SelectKind`). The member walk asks it first, in the
+/// side's head (`editor_core::head_of`, through the one face-name
+/// constructor), so a file whose side names a body, an edge or a vertex
+/// loads, and the solve refuses the mate (`MateFault::SideUnresolved`)
+/// rather than walking a name that is not a face.
 ///
-/// Both heads and all three non-face kinds, because the type fixes
-/// one question and both heads ask it.
+/// Both sides and all three non-face kinds.
 #[test]
-fn a_saved_mate_head_that_is_not_a_face_refuses_at_the_load_door() {
+fn a_saved_mate_side_that_is_not_a_face_resolves_to_no_head() {
     for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
         for side in ["a", "b"] {
-            let (text, mate) = saved_mate("onepred-matehead");
-            let corrupt = retype_head(&text, mate, side, kind);
-            match load(&corrupt, Tol::witness()) {
-                Err(PersistError::Unreadable { detail, .. }) => {
-                    assert!(
-                        detail.contains(kind_noun(kind)),
-                        "the refusal names what the head denoted, got {detail:?}"
-                    );
-                }
-                other => panic!("a {kind:?} mate head must refuse typed at load, got {other:?}"),
-            }
+            let (text, _mate) = saved_mate("onepred-matehead");
+            let (corrupt, read) = retype_head(&text, _mate, side, kind);
+            let loaded = load(&corrupt, Tol::witness())
+                .unwrap_or_else(|e| panic!("a {kind:?} side loads: {e:?}"));
+            assert_eq!(
+                editor_core::head_of(&loaded.doc, read),
+                None,
+                "a {kind:?} side on {side} is no face head"
+            );
         }
     }
 }

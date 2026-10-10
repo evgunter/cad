@@ -726,10 +726,11 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         "{fault:?}"
     );
 
+    let base_out = doc.output(base, 0).expect("the base's body");
     let (doc, _) = step_with(
         doc,
         DocEdit::Rebind {
-            body: None,
+            body: Some(base_out),
             from: old_head,
             to: in_part(base, new_body, CapEnd::End),
         },
@@ -748,10 +749,11 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     );
 }
 
-/// **A head rebound onto another part's instance reads that part's
+/// **A side re-pointed onto another part's instance reads that part's
 /// face.** Two bases built alike — the same node ids, one cap name
 /// row for row — at different heights and places; the top seated on
-/// the first's cap, then its head rebound onto the second's. The frame
+/// the first's cap, then its side re-pointed by its slot door onto the
+/// second's. The frame
 /// reads the second base's cap, in the second part: the top lands
 /// there, at the second's height and place, and nowhere a name read in
 /// the wrong part could put it.
@@ -784,12 +786,14 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     assert_eq!(on_low[2], 1.0_f64.to_bits());
 
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let _ = low_head;
     let (doc, _) = step_with(
         doc,
-        DocEdit::Rebind {
-            body: None,
-            from: low_head,
-            to: in_part(high, high_body, CapEnd::End),
+        DocEdit::SetParam {
+            node: m,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(MateSide::B)),
+            value: editor_core::SlotValue::Read(head(in_part(high, high_body, CapEnd::End)).into()),
+            fresh: Vec::new(),
         },
         &reach,
     );

@@ -785,13 +785,13 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
     scene.doc = doc;
     let f = scene.fault();
     assert!(
-        matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),
+        matches!(&f, MateFault::SideUnresolved { mate, .. } if *mate == scene.mate),
         "{f:?}"
     );
 }
 
-/// A stranded operand stops the walk — still `DanglingHead`, naming
-/// the node the walk stopped at.
+/// A stranded body leaves the side unresolved — `SideUnresolved`,
+/// naming the side.
 #[test]
 fn a_stranded_operand_is_still_a_dangling_head() {
     let scene = patterned(
@@ -813,7 +813,7 @@ fn a_stranded_operand_is_still_a_dangling_head() {
         .cloned()
         .expect("the stranded mate refuses");
     assert!(
-        matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),
+        matches!(&f, MateFault::SideUnresolved { mate, .. } if *mate == scene.mate),
         "{f:?}"
     );
 }

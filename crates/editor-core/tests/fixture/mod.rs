@@ -308,6 +308,19 @@ pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
 }
 
+/// **`name` as the union `union` carries it from its member `member`**
+/// — the name a read at the union says for that member's entity.
+pub fn member_name(union: RecipeNodeId, member: RecipeNodeId, name: StableName) -> StableName {
+    StableName {
+        kind: name.kind,
+        node: union,
+        path: vec![editor_core::RoleSeg::FromMember {
+            member,
+            of: name.into(),
+        }],
+    }
+}
+
 /// **The face name a document's mate side selects** — the one name of
 /// the side's `Face` selection.
 pub fn side_name(doc: &ProfileDoc, side: editor_core::VarId) -> StableName {

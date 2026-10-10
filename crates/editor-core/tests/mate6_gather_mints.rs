@@ -671,8 +671,8 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         "the bad reference is a ROW, not a stop"
     );
     assert!(
-        matches!(gathered.unminted[0], MintRefusal::Reference { .. }),
-        "recorded under the reference arm: {:?}",
+        matches!(gathered.unminted[0], MintRefusal::Unevaluated { .. }),
+        "recorded under the mate's own refusal: {:?}",
         gathered.unminted
     );
 }
@@ -806,7 +806,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     );
     assert!(
         matches!(gathered.unminted[0], MintRefusal::NoAtRestRecord { .. })
-            && matches!(gathered.unminted[1], MintRefusal::Reference { .. }),
+            && matches!(gathered.unminted[1], MintRefusal::Unevaluated { .. }),
         "each under its own arm: {:?}",
         gathered.unminted
     );

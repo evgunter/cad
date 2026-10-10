@@ -778,14 +778,14 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
         DocEdit::InsertNode {
             node: Box::new(seat(
                 crate::fixture::head(a.clone()),
-                crate::fixture::head_at(x1, b.clone()),
+                crate::fixture::head_at(union, crate::fixture::member_name(union, x1, b.clone())),
             )),
             fresh: Vec::new(),
         },
     );
     let far_corner = Node::Mate {
         a: crate::fixture::head(a).into(),
-        b: crate::fixture::head_at(x2, b).into(),
+        b: crate::fixture::head_at(union, crate::fixture::member_name(union, x2, b)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -821,9 +821,9 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
 /// The gate is where a declaring mate is verified — the solve places
 /// on the tree edge and never checks the loop (A11 rule 4) — so a
 /// fixture whose CONSISTENT pair the gate also refuses would make
-/// this row vacuous. Both halves are asserted. (A placer ABOVE an
-/// operand is a different document, refused `MovedAbove`:
-/// `msolve13_read_at_operand`'s A1(b).)
+/// this row vacuous. Both halves are asserted. Each side reads the
+/// placed union, naming its transform's member, so each mate mints on
+/// the union's world copy.
 #[test]
 fn a5_two_operands_over_one_instance_are_two_members() {
     for (what, label, extra_lift) in [
@@ -1016,14 +1016,14 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         )
         .expect_err("a never-existed operand is a typo");
     assert!(
-        matches!(&err, EditError::ReadSiteMissingNode { at } if at.id() == ghost),
-        "expected ReadSiteMissingNode, got {err:?}"
+        matches!(&err, EditError::UnresolvedInput { input } if input.id() == ghost),
+        "expected the unresolved read, got {err:?}"
     );
 }
 
-/// **A8(b).** Deleting the transform a mate reads at strands the
-/// operand: N5's dangling semantics, refused at the SOLVE naming the
-/// side and the head, with no edge until the mate is re-authored.
+/// **A8(b).** Deleting the transform a mate reads at strands the side:
+/// D10's unresolved reader, refused at the solve naming the side and at
+/// evaluation as the unresolved read, until the side is re-authored.
 #[test]
 fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let s = scene("msolve1-a8b", &[], &[LIFT]);
@@ -1032,17 +1032,27 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.b_at }, &reach);
     let poses = solve(&doc, &s.opts, Tol::witness());
     let fault = poses.fault(s.mate).expect("the stranded mate refuses");
-    // The head the fault names is where the WALK STOPPED — the
-    // stranded operand — not the reference's own head node, which is
-    // still live and still fine.
+    // The side read a body the delete took: the solve names the side,
+    // and the mate's evaluation refuses the unresolved read.
     assert!(
         matches!(
             fault,
-            MateFault::DanglingHead { mate, side, head }
-                if *mate == s.mate && *side == MateSide::B && *head == s.b_at
+            MateFault::SideUnresolved { mate, side, .. }
+                if *mate == s.mate && *side == MateSide::B
         ),
-        "expected a dangling head at the deleted operand ({:?}), got {fault:?}",
-        s.b_at
+        "expected the stranded side, got {fault:?}"
+    );
+    let ev = run(&doc, &s.opts);
+    assert!(
+        matches!(
+            ev.node_error(s.mate).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Side(MateSide::B),
+                ..
+            })
+        ),
+        "{:?}",
+        ev.node_error(s.mate)
     );
     // The stranded SIDE contributes no edge; the live side still
     // does, which is what makes the refusal a per-side one.

@@ -3603,6 +3603,7 @@ MEMBERS_BOUND_AS = {
     # branches on for ONE refused mate rides the row, not the gate.
     "MintRefusal::Reference": "MintRefusal.variant",
     "MintRefusal::NoAtRestRecord": "MintRefusal.variant",
+    "MintRefusal::Unevaluated": "MintRefusal.variant",
     # A route is three facts and Python reads all three, without
     # holding the type: the same spelling `Attribution` and
     # `CarriedDeclaration` use.
@@ -3812,6 +3813,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::Band": "MateFault.variant",
     "MateFault::Contradictory": "MateFault.variant",
     "MateFault::Under": "MateFault.variant",
+    "MateFault::SideUnresolved": "MateFault.variant",
     "MateFault::DanglingHead": "MateFault.variant",
     "MateFault::PlacerRefused": "MateFault.variant",
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
@@ -3897,8 +3899,6 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
-    "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
@@ -3926,7 +3926,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
-    "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
     "SplitError::SeveredGauge": "SplitError.variant",
     "SplitError::TwoAnchors": "SplitError.variant",

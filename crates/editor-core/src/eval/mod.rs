@@ -4166,6 +4166,16 @@ where
     {
         return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
     }
+    // A mate the solve faulted refuses in its own words even where the
+    // instances it reads failed with it: the solve's fault is about the
+    // mate, and the instances' is the same fault seen from the group,
+    // so poisoning the mate through them would lose the one sentence
+    // that names it.
+    if matches!(node, crate::node::Node::Mate { .. })
+        && let Some(fault) = op_env.poses.fault(id)
+    {
+        return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
+    }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
     for input in doc.upstream_of(node) {
         // Every input the document has precedes this node in the

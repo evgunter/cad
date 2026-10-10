@@ -1,5 +1,5 @@
 //! **Mates** — the A3 declaration node and its constructive solve
-//! (ASSEMBLY-DESIGN A3/A11/A12; ASM-R2a spec D-1…D-5).
+//! (ASSEMBLY-DESIGN A3/A11; ASM-R2a spec D-1…D-5).
 //!
 //! A mate states one relation between two instances: which frames
 //! coincide, with which axis senses, at which clocking. That statement

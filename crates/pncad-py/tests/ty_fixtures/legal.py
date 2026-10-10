@@ -147,7 +147,6 @@ from pncad import (
     product,
     product_named,
     random_document_id,
-    reading_edges,
     relative_freedom_components,
     run_checks,
     solve_document,
@@ -643,7 +642,6 @@ why_unplaced: str | None = poses.unplaced(instance)
 in_space: tuple[NodeId, str] | None = evaluate(doc).unplaced(instance)
 placed_groups: list[list[NodeId]] = groups(doc)
 keyed_by: NodeId = root_of(doc, instance)
-edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 admission: ClassAdmission = class_admission(ContactClass.Rest)
 mintable: bool = admission.mints

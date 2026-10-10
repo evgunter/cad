@@ -542,6 +542,13 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             residual: Some(*residual),
             ..none
         },
+        // The side's read rides the sentence; the payload names the
+        // mate and the side.
+        MateFault::SideUnresolved { mate, side, read: _ } => MateFaultPayload {
+            mate: Some(*mate),
+            side: Some(*side),
+            ..none
+        },
         MateFault::DanglingHead { mate, side, head } => MateFaultPayload {
             mate: Some(*mate),
             side: Some(*side),

@@ -204,7 +204,7 @@ fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
         out.part_maintenance
     );
     assert!(
-        out.remainder_maintenance.is_empty(),
+        crate::fixture::without_anonymous(&out.remainder_maintenance).is_empty(),
         "{:?}",
         out.remainder_maintenance
     );

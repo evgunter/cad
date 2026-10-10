@@ -2174,8 +2174,8 @@ fn remap_rule(
 }
 
 /// Rewrites a Boolean's or Union's declared pairs. Each half remaps
-/// like a mate's head: the NAME through the name door and the SITE
-/// through the id door, because a site is a node id. Either one the cut
+/// the NAME through the name door and the SITE through the id door,
+/// because a site is a node id. Either one the cut
 /// severed makes the remap MISS loudly.
 ///
 /// # Errors
@@ -2811,6 +2811,58 @@ pub fn split(
     // only where it reads a body a cut placement places, which the part
     // delivers; it is re-pointed to the instance's body below. Any other
     // dependency refuses.
+    // A cut name re-anchors as the part's product spells it: under the
+    // one cut placement whose copy holds its entity
+    // ([`RoleSeg::Placed`]), since a part delivers only its world. The
+    // copy holds the names its body minted, those a transform below it
+    // carried whole (N1's `Whole` edge), and a pattern copy's names
+    // where a part picks that copy: the name's own `Instance` index
+    // against the pick's, at the document's values, as the member walk
+    // judges a pick (`mate::member`). That match is positional and
+    // interim: it retires with `[ev]` #4341's `Member` keys. A split
+    // half's pick is not followed, since which half holds a split's
+    // name is the geometry's answer. A name of material no cut
+    // placement places, or two do, names nothing the instance carries.
+    let env = doc.var_env::<f64>();
+    let placing_of = |name: &StableName| -> Option<RecipeNodeId> {
+        let copy_of_name = match name.path.first() {
+            Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
+            _ => None,
+        };
+        let holds = |placed: Option<RecipeNodeId>| -> bool {
+            let mut at = placed;
+            let mut picked: Option<i64> = None;
+            while let Some(node) = at {
+                if node == name.node {
+                    return picked.is_none_or(|k| copy_of_name == Some(k));
+                }
+                at = match doc.node(node).and_then(crate::names::verbatim_edge) {
+                    Some(crate::names::VerbatimEdge::Whole { input }) => doc.operation_of(input),
+                    Some(crate::names::VerbatimEdge::Selected {
+                        of,
+                        select: crate::node::PartSelect::Instance(index),
+                    }) if picked.is_none() => {
+                        picked = crate::expr::eval_var_count(*index, &env).ok();
+                        picked.and_then(|_| doc.operation_of(of))
+                    }
+                    Some(
+                        crate::names::VerbatimEdge::Selected { .. }
+                        | crate::names::VerbatimEdge::Intact,
+                    )
+                    | None => None,
+                };
+            }
+            false
+        };
+        let mut placing = cut.iter().copied().filter(|&p| {
+            matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
+                if holds(doc.operation_of(*body)))
+        });
+        match (placing.next(), placing.next()) {
+            (Some(placement), None) => Some(placement),
+            _ => None,
+        }
+    };
     let cut_placed: BTreeSet<VarId> = cut
         .iter()
         .filter_map(|&id| match doc.node(id) {
@@ -2827,10 +2879,19 @@ pub fn split(
         let mut carried: BTreeSet<RecipeNodeId> = BTreeSet::new();
         if !consumer_is_cut {
             for (slot, var) in node.operand_rows() {
-                let body = doc.selection(var).map_or(var, |select| select.body);
-                if cut_placed.contains(&body)
-                    && let Some(input) = doc.operation_of(body)
-                {
+                // A selection crosses when each of its names is held by
+                // one cut placement's copy, re-anchored there below; a
+                // whole body when a cut placement places it.
+                let (body, crosses) = match doc.selection(var) {
+                    Some(select) => (
+                        select.body,
+                        doc.operation_of(select.body)
+                            .is_some_and(|at| cut.contains(&at))
+                            && select.names.iter().all(|name| placing_of(name).is_some()),
+                    ),
+                    None => (var, cut_placed.contains(&var)),
+                };
+                if crosses && let Some(input) = doc.operation_of(body) {
                     crossing_reads.push((consumer, slot, var));
                     carried.insert(input);
                 }
@@ -2848,8 +2909,12 @@ pub fn split(
     }
     // A remainder reader re-pointed to the instance's body reads the
     // part's whole world: by inline's rule ([`world_heir`]), the cut's
-    // placements must be one at the identity, or it refuses.
-    if let Some(&(reader, _, _)) = crossing_reads.first() {
+    // placements must be one at the identity, or it refuses. A
+    // selection names the copy it reads, so it asks no such thing.
+    if let Some(&(reader, _, _)) = crossing_reads
+        .iter()
+        .find(|(_, _, var)| doc.selection(*var).is_none())
+    {
         let world: Vec<RecipeNodeId> = doc
             .placements()
             .into_iter()
@@ -2901,8 +2966,8 @@ pub fn split(
             });
         }
     }
-    // A4's gauge rules. A gauge reference is a reading edge, not an
-    // input, so the severed-edge loop never saw one: a kept instance or
+    // A4's gauge rules. A gauge reference is a placement chain, not a
+    // read, so the severed-edge loop never saw one: a kept instance or
     // gauge hanging from a cut gauge refuses here.
     for kept in doc.ids() {
         if cut.contains(&kept) {
@@ -3248,16 +3313,14 @@ pub fn split(
                 }
                 classify(name)?;
             }
-            // A remainder selection whose body a cut placement places is
-            // authored afresh on the instance below; any other is
-            // classified as a payload name is.
+            // A remainder selection that crosses is authored afresh on
+            // the instance below; any other is classified as a payload
+            // name is.
             NameCarrier::Select { var, name } => {
                 let remainder_read = select_readers
                     .get(&var)
                     .is_some_and(|readers| readers.iter().any(|r| !cut.contains(r)));
-                let crossing = doc
-                    .selection(var)
-                    .is_some_and(|select| cut_placed.contains(&select.body));
+                let crossing = crossing_reads.iter().any(|&(_, _, read)| read == var);
                 if remainder_read && !crossing {
                     classify(name)?;
                 }
@@ -3391,48 +3454,12 @@ pub fn split(
     // half's pick is not followed, since which half holds a split's
     // name is the geometry's answer. A name of material no cut
     // placement places, or two do, names nothing the instance carries.
-    let env = doc.var_env::<f64>();
     let in_world = |name: &StableName| -> Result<StableName, SplitError> {
         let of = remap_name(name, &node_map, &step_map)
             .map_err(|missing| SplitError::straddles(doc, name, missing))?;
-        let copy_of_name = match name.path.first() {
-            Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
-            _ => None,
-        };
-        let holds = |placed: Option<RecipeNodeId>| -> bool {
-            let mut at = placed;
-            let mut picked: Option<i64> = None;
-            while let Some(node) = at {
-                if node == name.node {
-                    return picked.is_none_or(|k| copy_of_name == Some(k));
-                }
-                at = match doc.node(node).and_then(crate::names::verbatim_edge) {
-                    Some(crate::names::VerbatimEdge::Whole { input }) => doc.operation_of(input),
-                    Some(crate::names::VerbatimEdge::Selected {
-                        of,
-                        select: crate::node::PartSelect::Instance(index),
-                    }) if picked.is_none() => {
-                        picked = crate::expr::eval_var_count(*index, &env).ok();
-                        picked.and_then(|_| doc.operation_of(of))
-                    }
-                    Some(
-                        crate::names::VerbatimEdge::Selected { .. }
-                        | crate::names::VerbatimEdge::Intact,
-                    )
-                    | None => None,
-                };
-            }
-            false
-        };
-        let mut placing = in_order.iter().copied().filter(|&p| {
-            matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
-                if holds(doc.operation_of(*body)))
-        });
-        let (Some(placement), None) = (placing.next(), placing.next()) else {
-            return Err(SplitError::NameOutsidePartWorld {
-                name: doc.spoken_name(name),
-            });
-        };
+        let placement = placing_of(name).ok_or_else(|| SplitError::NameOutsidePartWorld {
+            name: doc.spoken_name(name),
+        })?;
         let Some(&placement) = node_map.get(&placement) else {
             unreachable!("a cut placement is carried")
         };
@@ -3454,13 +3481,12 @@ pub fn split(
     // touched the cut. Collected in the pre-split document's node
     // order, which is what makes the record D9-deterministic.
     //
-    // **Only a mate EDGE can cross.** A4 says "every mate EDGE
-    // crossing the cut", and an A12 reading edge exists exactly when
-    // both heads resolve to live MEMBERS of A11's vocabulary — a live
+    // **Only a mate whose two face reads resolve can cross** (AQ8):
+    // both sides resolve to live MEMBERS of A11's vocabulary — a live
     // instance, or a pattern-placed instance (`Pattern` node +
-    // `Instance(i)`). The gate is `crate::mate::member_of`
-    // ITSELF, not a re-spelling of it: this collector, A12's reading
-    // edges and A11's groups ask ONE predicate.
+    // `Instance(i)`). The gate is `crate::mate::member_of` ITSELF, not
+    // a re-spelling of it: this collector and A11's groups ask ONE
+    // predicate.
     //
     // # Which mates cross
     //
@@ -3469,11 +3495,11 @@ pub fn split(
     // a union of whole groups. Three facts make the name reading below
     // agree with that instance reading:
     //
-    // 1. `Node::Mate::payload_names()` is exactly `[a, b]`, so a kept
-    //    mate's two references are classified above: each is wholly
-    //    inside the cut or wholly disjoint from it, never straddling
-    //    (`NameStraddlesCut` refuses the third case). So `!inside`
-    //    here means DISJOINT, not merely "not contained".
+    // 1. A kept mate's two sides are selections the remainder reads,
+    //    classified above: each name is wholly inside the cut or wholly
+    //    disjoint from it, never straddling (`NameStraddlesCut` refuses
+    //    the third case). So `!inside` here means DISJOINT, not merely
+    //    "not contained".
     // 2. A pattern reads its `input` (`Doc::upstream`), so D-2's closure
     //    check refuses any cut with the pattern on one side and its
     //    input instance on the other: `pattern ∈ cut` iff
@@ -3488,8 +3514,8 @@ pub fn split(
     // `rev_fix_xsplit_unreachable.rs` exhausts the placing half over
     // every subset of two recipes.
     //
-    // A mate with a DANGLING reference — one resolving to no member at
-    // all — is not an edge and contributes NO crossing, however its
+    // A mate with a DANGLING side — one resolving to no member at
+    // all — contributes NO crossing, however its
     // names fall across the cut. Such a mate never solved, so a record
     // minted from it would be trusted-at-rest state. Unlike (1)-(3),
     // this arm is NOT forced by the cut rules: a nested-pattern head
@@ -4074,7 +4100,12 @@ pub fn inline(
         |p| identity(p) || dropped == Some(p),
         |p| part.spoken(p),
     );
-    if let (Some(&(reader, _, _)), Err(why)) = (readers.first(), &heir_placement) {
+    // A selection names the copy it reads, so only a whole-body reader
+    // needs the one heir; a selection's own placement is asked below.
+    let whole_reader = readers
+        .iter()
+        .find(|(_, _, var)| doc.selection(*var).is_none());
+    if let (Some(&(reader, _, _)), Err(why)) = (whole_reader, &heir_placement) {
         return Err(InlineError::InstanceReadUncarried {
             reader: doc.spoken(reader),
             why: why.clone(),
@@ -4452,8 +4483,59 @@ pub fn inline(
         })??;
     }
     // The readers of the instance read the inlined body, and its host
-    // placements at the identity go with it.
-    if let Some(heir) = heir(current.doc()) {
+    // placements at the identity go with it. A selection reads the body
+    // of the one part placement its names' copies are on, which must
+    // stand where the instance did: at the identity, or the one a posed
+    // host placement reads through.
+    let selection_heir = |host: &ProfileDoc, var: VarId| -> Result<VarId, InlineError> {
+        let reader = || {
+            doc.spoken(
+                readers
+                    .iter()
+                    .find(|r| r.2 == var)
+                    .map_or(instance, |r| r.0),
+            )
+        };
+        let placements: BTreeSet<RecipeNodeId> = doc
+            .selection(var)
+            .map(|select| select.names.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|name| match name.path.as_slice() {
+                [RoleSeg::InPart { of }] if name.node == instance => {
+                    of.copy_of().map(|(placement, _)| placement)
+                }
+                _ => None,
+            })
+            .collect();
+        let mut placements = placements.into_iter();
+        let (Some(placement), None) = (placements.next(), placements.next()) else {
+            return heir(host).ok_or_else(|| InlineError::InstanceReadUncarried {
+                reader: reader(),
+                why: heir_placement.clone().err().unwrap_or(Uncarried::Bodies {
+                    count: part_placements.len(),
+                }),
+            });
+        };
+        if !(identity(placement) || dropped == Some(placement)) {
+            return Err(InlineError::InstanceReadUncarried {
+                reader: reader(),
+                why: Uncarried::Posed {
+                    placement: part.spoken(placement),
+                },
+            });
+        }
+        part_heir(placement)
+            .and_then(|body| part.defined_by(body))
+            .and_then(|(at, port)| host.output(*node_map.get(&at)?, port))
+            .ok_or_else(|| InlineError::InstanceReadUncarried {
+                reader: reader(),
+                why: Uncarried::Bodies {
+                    count: part_placements.len(),
+                },
+            })
+    };
+    {
         // Once per selection, as split authors them: a named one keeps
         // its name on the new variable, which every other reader reads.
         let mut reauthored: BTreeMap<VarId, VarId> = BTreeMap::new();
@@ -4461,7 +4543,7 @@ pub fn inline(
             let read = match (doc.selection(var), reauthored.get(&var)) {
                 (Some(_), Some(&fresh)) => crate::Operand::Var(fresh),
                 (Some(select), None) => crate::Operand::select(
-                    crate::Operand::Var(heir),
+                    crate::Operand::Var(selection_heir(current.doc(), var)?),
                     crate::var::Select::canonical(
                         selection_kind(doc, var),
                         select
@@ -4477,7 +4559,10 @@ pub fn inline(
                             .collect::<Result<Vec<_>, _>>()?,
                     ),
                 ),
-                (None, _) => crate::Operand::Var(heir),
+                (None, _) => match heir(current.doc()) {
+                    Some(heir) => crate::Operand::Var(heir),
+                    None => unreachable!("a whole-body reader of the instance has its heir"),
+                },
             };
             step(
                 &mut current,
@@ -4503,6 +4588,8 @@ pub fn inline(
                 }
             }
         }
+    }
+    if let Some(heir) = heir(current.doc()) {
         for &placement in &posed {
             step(
                 &mut current,

@@ -4530,6 +4530,7 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Measure { .. }, O::Measured(_, i)) => {
                 Some(("measure", format!("reference {i}")))
             }
+            (Node::Mate { .. }, O::Side(side)) => Some(("mate", format!("side {}", side.name()))),
             _ => None,
         }
     }
@@ -4747,7 +4748,35 @@ impl<P> Node<P, crate::Formula> {
             Node::Shell { open, .. } => vec![open],
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            _ => Vec::new(),
+            Node::Mate { a, b, .. } => vec![a, b],
+            // Exhaustive, so a selection seat added to a node is stated
+            // here or does not compile: an operand that is a whole body
+            // authors no selection.
+            Node::Datum(
+                Datum::Plane { .. }
+                | Datum::Axis { .. }
+                | Datum::Point { .. }
+                | Datum::Frame { .. }
+                | Datum::AxisInPlane { .. },
+            )
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Transform { .. }
+            | Node::PlaceInWorld { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
+            | Node::Assertion { .. } => Vec::new(),
         };
         seats
             .into_iter()

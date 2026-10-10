@@ -18,8 +18,9 @@
 //! (the table refuses a name whose kind disagrees with its entity).
 //!
 //! **One caller does want the kind at COMPILE time**, and gets it from
-//! a type beside the tag rather than instead of it: a mate head is a
-//! [`FaceName`], a `StableName` whose tag is `Face` by construction.
+//! a type beside the tag rather than instead of it: a mate side is
+//! authored as a [`FaceName`], a `StableName` whose tag is `Face` by
+//! construction, and so is an interface crossing's reference.
 //! The tag is still the runtime fact everything else reads — the
 //! wrapper adds a door, it does not replace the field — and it exists
 //! for the one place where what the name denotes is fixed by the
@@ -526,7 +527,7 @@ impl core::fmt::Display for FaceName {
 }
 
 // THE WIRE'S DOOR. `Deserialize` goes through [`FaceName::new`], so a
-// file whose mate head names an edge is refused where the bytes are
+// file whose interface crossing names an edge is refused where the bytes are
 // read — in the load door's own `PersistError::Unreadable` class,
 // which is what "this build's types rejected these bytes" means — and
 // no walk downstream has to re-ask the question.

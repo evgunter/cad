@@ -264,42 +264,18 @@ pub(crate) struct RefusedRef(d::RefusedRef, SpokenFrom);
 
 #[pymethods]
 impl RefusedRef {
-    /// The stable tag: `ref_vanished`, `ref_moved_above`,
-    /// `ref_ambiguous`.
+    /// The stable tag: `ref_ambiguous`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
     }
 
-    /// The operand the reference is read at, when a node above it
-    /// places the face again before the product holds it.
+    /// How many world copies answer. A mate declaration must name ONE
+    /// face, and a tie is never broken by picking.
     #[getter]
-    fn at(&self) -> Option<NodeId> {
+    fn width(&self) -> usize {
         match self.0 {
-            d::RefusedRef::MovedAbove { at, .. } => Some(NodeId(at)),
-            d::RefusedRef::Vanished { by: _ } | d::RefusedRef::Ambiguous { width: _ } => None,
-        }
-    }
-
-    /// The node above the operand that places the face again
-    /// (`ref_moved_above`), or that consumed it on its way to the
-    /// product (`ref_vanished`, when the operand spells the name).
-    #[getter]
-    fn by(&self) -> Option<NodeId> {
-        match self.0 {
-            d::RefusedRef::MovedAbove { by, .. } => Some(NodeId(by)),
-            d::RefusedRef::Vanished { by } => by.map(NodeId),
-            d::RefusedRef::Ambiguous { width: _ } => None,
-        }
-    }
-
-    /// How many faces answer. A mate declaration must name ONE face,
-    /// and a tie is never broken by picking.
-    #[getter]
-    fn width(&self) -> Option<usize> {
-        match self.0 {
-            d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished { .. } | d::RefusedRef::MovedAbove { .. } => None,
+            d::RefusedRef::Ambiguous { width } => width,
         }
     }
 
@@ -470,8 +446,10 @@ impl AtRestFinding {
 }
 
 /// One mate whose declaration the gather could not mint: which mate,
-/// and why — a reference that named no product face (`why`), or a
-/// class that carries no kernel record at rest (`class_`).
+/// and why — a reference that named no one product face (`why`), a
+/// class that carries no kernel record at rest (`class_`), or a mate
+/// with no value in the evaluation (`mate_unevaluated`, whose sentence
+/// says why).
 ///
 /// A row of `AssemblyError.refusals`, which is the WHOLE list the
 /// gather recorded: a document with two broken mates answers with two
@@ -486,13 +464,14 @@ pub(crate) struct MintRefusal(d::MintRefusal, SpokenFrom);
 
 #[pymethods]
 impl MintRefusal {
-    /// The stable tag: `mate_reference_refused`, `no_at_rest_record`.
+    /// The stable tag: `mate_reference_refused`, `no_at_rest_record`,
+    /// `mate_unevaluated`.
     #[getter]
     fn variant(&self) -> &'static str {
         mint_refusal_tag(&self.0)
     }
 
-    /// The mate that did not mint. Both arms carry one.
+    /// The mate that did not mint. Every arm carries one.
     #[getter]
     fn mate(&self) -> NodeId {
         NodeId(self.0.mate())
@@ -504,7 +483,7 @@ impl MintRefusal {
     fn side(&self) -> Option<MateSide> {
         match &self.0 {
             d::MintRefusal::Reference { side, .. } => Some(MateSide::from_kernel(*side)),
-            d::MintRefusal::NoAtRestRecord { .. } => None,
+            d::MintRefusal::NoAtRestRecord { .. } | d::MintRefusal::Unevaluated { .. } => None,
         }
     }
 
@@ -513,7 +492,7 @@ impl MintRefusal {
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
             d::MintRefusal::Reference { name, .. } => name_text(py, name).map(Some),
-            d::MintRefusal::NoAtRestRecord { .. } => Ok(None),
+            d::MintRefusal::NoAtRestRecord { .. } | d::MintRefusal::Unevaluated { .. } => Ok(None),
         }
     }
 
@@ -529,7 +508,7 @@ impl MintRefusal {
     fn why(&self) -> Option<RefusedRef> {
         match &self.0 {
             d::MintRefusal::Reference { why, .. } => Some(RefusedRef(why.clone(), self.1.clone())),
-            d::MintRefusal::NoAtRestRecord { .. } => None,
+            d::MintRefusal::NoAtRestRecord { .. } | d::MintRefusal::Unevaluated { .. } => None,
         }
     }
 
@@ -540,7 +519,7 @@ impl MintRefusal {
             d::MintRefusal::NoAtRestRecord { class, .. } => {
                 super::flush::contact_class(py, *class).map(Some)
             }
-            d::MintRefusal::Reference { .. } => Ok(None),
+            d::MintRefusal::Reference { .. } | d::MintRefusal::Unevaluated { .. } => Ok(None),
         }
     }
 

@@ -6246,13 +6246,9 @@ def root_of(doc: Doc, instance: NodeId) -> NodeId:
     gauge chain names a deleted gauge (the group is then unplaced). Answers the node itself when it is not a
     live instance."""
 
-def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
-    """For each mate, the instantiate node each of its references
-    resolves through. Recomputed every time, never stored."""
-
 def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
-    """The relative-freedom partition: components over consuming
-    union reading edges, so mates couple what they constrain. Coarser
+    """The relative-freedom partition: components over reads and
+    gauge references, so mates couple what they constrain. Coarser
     than `groups`, which partitions instances alone."""
 
 class Maintenance:
@@ -6342,37 +6338,21 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     coordinate. Raises ProductError, typed."""
 
 class RefusedRef:
-    """Why a mate reference named no product face.
+    """Why a mate side named no one product face.
 
-    The gate reads the name in the table of the operand the mate reads
-    it at, and carries it up the operand's consumers to the product.
-    `ref_vanished` is a name the operand does not spell, or one a
-    consumer merges, cuts or drops on its way up (`by`);
-    `ref_moved_above` is a face a node above the operand places again
-    before the product holds it (`at`, `by`); `ref_ambiguous` is more
-    than one product face. A head's KIND is not among the questions: a
-    mate head is a face by its type, refused where the name is made
-    (`mate_head_not_a_face`)."""
+    The face is resolved at the side's selection, so a name that does
+    not resolve refuses the mate itself (`mate_unevaluated` at the
+    gate). What is left here is the copy: `ref_ambiguous` is a body
+    placed more than once, so more than one world copy answers."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_moved_above`, or `ref_ambiguous`."""
+        """`ref_ambiguous`."""
 
     @property
-    def at(self) -> Optional[NodeId]:
-        """The operand the reference is read at, for
-        `ref_moved_above`."""
-
-    @property
-    def by(self) -> Optional[NodeId]:
-        """The node above the operand that places the face again
-        (`ref_moved_above`), or that consumed it on its way to the
-        product (`ref_vanished`, when the operand spells the name)."""
-
-    @property
-    def width(self) -> Optional[int]:
-        """How many faces answer. A mate declaration must name ONE
-        face, and a tie is never broken by picking."""
+    def width(self) -> int:
+        """How many world copies answer. A mate declaration must name
+        ONE face, and a tie is never broken by picking."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.
@@ -6459,11 +6439,13 @@ class MintRefusal:
 
     @property
     def variant(self) -> str:
-        """`mate_reference_refused` or `no_at_rest_record`."""
+        """`mate_reference_refused`, `no_at_rest_record` or
+        `mate_unevaluated` (the mate has no value in the evaluation, so
+        it declares nothing; `str(refusal)` says why)."""
 
     @property
     def mate(self) -> NodeId:
-        """The mate that did not mint. Both arms carry one."""
+        """The mate that did not mint. Every arm carries one."""
 
     @property
     def side(self) -> Optional[MateSide]:

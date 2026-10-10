@@ -265,9 +265,11 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     }
 }
 
-/// **A `Rebind` of an `outer` rewrites the record and the mate that
-/// carries the same head TOGETHER** — one list, so the two cannot
-/// disagree about the seam after a repair.
+/// **A `Rebind` of an `outer` rewrites the record**, and the mate
+/// carrying the same name is repaired by the same edit addressed by its
+/// side's body: a mate side is a selection (D10), so the record's
+/// payload name and the mate's selection are the two halves of one
+/// repair.
 #[test]
 fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     let (doc_ref, body) = part_ref("crossnames-rebind-part");
@@ -290,10 +292,19 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
         ),
     );
 
+    let a_body = doc.output(a, 0).expect("the instance's body");
     let (rebound, _) = step(
         doc,
         DocEdit::Rebind {
             body: None,
+            from: from.clone(),
+            to: to.clone(),
+        },
+    );
+    let (rebound, _) = step(
+        rebound,
+        DocEdit::Rebind {
+            body: Some(a_body),
             from: from.clone(),
             to: to.clone(),
         },
@@ -309,7 +320,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     assert_eq!(
         crate::fixture::side_name(&rebound, *head),
         to,
-        "the mate carrying the same head followed it too"
+        "the mate's selection of the same face followed its own repair"
     );
 }
 
@@ -323,7 +334,7 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
     let outer = in_part(a, body, CapEnd::End);
-    // The rebind's subject is the mate's OTHER head, so the edit has a
+    // The rebind's subject is the mate's OTHER side, so the edit has a
     // site and is accepted (a rebind with no site is refused).
     let elsewhere = in_part(b, body, CapEnd::End);
     let (doc, _) = insert(doc, mate(outer.clone(), elsewhere.clone()));
@@ -340,11 +351,12 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
         ),
     );
     let before = record_of(&doc, instance);
+    let b_body = doc.output(b, 0).expect("the instance's body");
 
     let (rebound, _) = step(
         doc,
         DocEdit::Rebind {
-            body: None,
+            body: Some(b_body),
             from: elsewhere,
             to: in_part(b, body, CapEnd::Start),
         },
@@ -361,10 +373,9 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
 /// for every other payload.
 ///
 /// The fixture is the shape a split mints: the crossing's `outer` is
-/// the remainder-side head of the crossing's own mate, so the one
-/// delete strands the SAME name on two carriers and the row reads
-/// both, in document order. The instance's row is the one this unit
-/// added; the mate's was there before it.
+/// the face the crossing's own mate reads on the remainder's side, so
+/// the one delete strands the name on the instance and the mate's read
+/// with it, each reported in its own vocabulary.
 #[test]
 fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     // `target` and `keeper` are mated, so deleting `target` moves that
@@ -417,8 +428,16 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .collect();
     assert_eq!(
         strands,
-        vec![(crossing_mate, outer.clone()), (instance, outer)],
-        "the instance is a surviving carrier of the stranded `outer`, beside the mate"
+        vec![(instance, outer)],
+        "the instance is a surviving carrier of the stranded `outer`"
+    );
+    assert!(
+        applied.maintenance.iter().any(|row| matches!(
+            row,
+            Maintenance::StrandedRead { node, .. } if node.id() == crossing_mate
+        )),
+        "and the mate's side is a stranded read: {:?}",
+        applied.maintenance
     );
 }
 
@@ -464,11 +483,12 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
         ),
     );
     let before = record_of(&doc, instance);
+    let collide_body = doc.output(collide, 0).expect("the instance's body");
 
     let (rebound, _) = step(
         doc,
         DocEdit::Rebind {
-            body: None,
+            body: Some(collide_body),
             from: (*inner).clone(),
             to: in_part(collide, body, CapEnd::End),
         },
@@ -493,21 +513,24 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
 /// variants that answer nothing or does not compile — which is what
 /// keeps this answer honest as `Node` grows.
 ///
-/// The mate beside it is the CONTROL: the same call on the same
-/// document answers that mate's two operands, so an empty answer here
-/// is the instance's and not a list that stopped working.
+/// The union beside it is the CONTROL: the same call on the same
+/// document answers its declared pair's two sites, so an empty answer
+/// here is the instance's and not a list that stopped working.
 #[test]
 fn an_instances_record_answers_no_read_site() {
     let (doc_ref, body) = part_ref("crossnames-readsite-part");
     let doc = ProfileDoc::empty(DocumentId::derive("crossnames-readsite"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, crossing_mate) = insert(
+    let (doc, control) = insert(
         doc,
-        mate(
-            in_part(a, body, CapEnd::End),
-            in_part(b, body, CapEnd::Start),
-        ),
+        Node::Union {
+            members: vec![a.into(), b.into()],
+            declare: editor_core::declare_rest(vec![(
+                editor_core::SitedRef::new(a, in_part(a, body, CapEnd::End)),
+                editor_core::SitedRef::new(b, in_part(b, body, CapEnd::Start)),
+            )]),
+        },
     );
     // Two crossings, so a per-crossing answer would be visible.
     let record = InterfaceRecord {
@@ -543,11 +566,11 @@ fn an_instances_record_answers_no_read_site() {
         vec![a, b],
         "its references are NAMES, and they are checked as names"
     );
-    let control = doc.node(crossing_mate).expect("the mate is live");
+    let control = doc.node(control).expect("the union is live");
     assert_eq!(
         control.payload_read_sites(),
         vec![a, b],
-        "the same list answers a mate's two operands — the empty answer above \
+        "the same list answers a declared pair's two sites — the empty answer above \
          is the instance's own"
     );
 }

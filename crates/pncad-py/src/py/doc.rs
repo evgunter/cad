@@ -3429,8 +3429,8 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Mate {
-                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
-                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
+                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?).into(),
+                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?).into(),
                 class: class_.to_kernel(py)?,
                 alignment: alignment.0.clone(),
             },

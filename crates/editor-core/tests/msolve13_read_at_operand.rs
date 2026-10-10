@@ -22,10 +22,12 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
     Formula, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedFace, StableName, member_of, product,
+    RecipeNodeId, SitedFace, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{gate, head, head_at, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
+use fixture::{
+    gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve, step, xform,
+};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -171,19 +173,6 @@ fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     (doc, id.expect("the mate inserts"))
 }
 
-/// `name` as the union `union` re-mints member `member`'s entity: the
-/// one `FromMember` segment under the union's node.
-fn member_name(union: RecipeNodeId, member: RecipeNodeId, name: StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: union,
-        path: vec![RoleSeg::FromMember {
-            member,
-            of: name.into(),
-        }],
-    }
-}
-
 /// `top` lifted by `t1` (z + 10) and `t2` (z + 20), each mated to its
 /// own slab, and the two transforms fused by a union `U` — the gather's
 /// recourse for `PlacedUnderTwoRoots`, followed. `t1`'s mate reads the
@@ -212,7 +201,7 @@ fn fused(s: &Scene, at_t1: impl Fn(RecipeNodeId, RecipeNodeId) -> SitedFace) -> 
     );
     let (doc, _) = crate::fixture::place(doc, union);
     let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at_t1(t1, union)));
-    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
+    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), at_t1(t2, union)));
     Fused {
         doc,
         t1,
@@ -242,25 +231,17 @@ fn assert_placed(s: &Scene, f: &Fused, what: &str) {
 
 // ---- A1 (a): the recourse, followed ----
 
-/// **A union over two transforms of a mated instance mints both
-/// contacts.** Each mate reads the block's cap at its own transform;
-/// the union carries each as its member's face, and the gate verifies
-/// both seats in the product.
+/// **A union placed over two transforms of a mated instance**: each
+/// mate reads the block's cap at its own transform, which no placement
+/// reads, so neither mints; read at the union instead, both do (A1(c)).
 #[test]
-fn a1a_a_union_over_two_transforms_of_a_mated_instance_mints_both_contacts() {
+fn a1a_mates_read_at_the_transforms_below_a_placed_union_mint_nothing() {
     let s = scene("msolve13-a1a");
-    let f = fused(&s, |t1, _| head_at(t1, s.top_cap()));
+    let f = fused(&s, |t, _| head_at(t, s.top_cap()));
     assert_placed(&s, &f, "A1(a)");
     let ev = run(&f.doc, &s.opts);
-    assert!(
-        product(&f.doc, &ev, Tol::witness()).is_ok(),
-        "the product gathers"
-    );
-    let gated = gate(&f.doc, &ev);
-    assert!(
-        gated.is_ok(),
-        "A1(a): the union carries each mate's face up to the product: {gated:?}"
-    );
+    crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
+    crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m2);
 }
 
 // ---- A1 (b): a transform above the operand ----
@@ -338,7 +319,13 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
-    let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
+    let (doc, m2) = mated(
+        doc,
+        seat(
+            s.base_cap(s.base2),
+            head_at(union, member_name(union, t2, s.top_cap())),
+        ),
+    );
     let (doc, coax) = mated(
         doc,
         seat_with(

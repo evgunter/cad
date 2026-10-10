@@ -1430,7 +1430,8 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
 /// (`topo::transform_rigid`), and the graft bridge carries it into the
 /// product. Nothing is resolved against the product's table.
 ///
-/// - **One placement** reads the body: its copy's face.
+/// - **One placement** reads the body, or the `Part` that picks the
+///   entity's copy out of a pattern's bodies: its copy's face.
 /// - **Two or more** ([`RefusedRef::Ambiguous`]): the body is placed
 ///   twice, and a declaration names ONE pair of faces.
 fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
@@ -1445,10 +1446,46 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
     let Some(select) = doc.selection(read) else {
         unreachable!("a live mate's side is a selection: the mate evaluated")
     };
+    // The entity the mate's evaluation resolved: a live mate's selection
+    // landed on one face of `head.at`'s table (`eval::wire::select`), and
+    // the ladder's landing is that table's row under the name.
+    let ent = evaluation
+        .value(head.at)
+        .and_then(|value| match value.name_table.lookup(&head.name) {
+            Some(Entry::Unique(ent)) if ent.key.face().is_some() => Some(ent),
+            Some(Entry::Unique(_) | Entry::Tied(_)) | None => None,
+        })
+        .unwrap_or_else(|| {
+            unreachable!(
+                "a live mate's side resolved to one face of its body: the mate's evaluation \
+                 reads the selection"
+            )
+        });
+    let Some(key) = ent.key.face() else {
+        unreachable!("the landing is a face")
+    };
+    // The copies of the side's body: a placement of the body itself, or
+    // of the one copy a `Part` picks from a pattern's bodies — the copy
+    // the entity is in. A `Part` moves nothing and re-mints nothing, so
+    // the copy holds the entity under the same key.
+    let env = doc.var_env::<f64>();
+    let copies_body = |body: crate::VarId| {
+        body == select.body
+            || matches!(
+                doc.operation_of(body).and_then(|at| doc.node(at)),
+                Some(Node::Part {
+                    of,
+                    select: crate::node::PartSelect::Instance(index),
+                }) if *of == select.body
+                    && crate::expr::eval_var_count(*index, &env).ok() == Some(i64::from(ent.body))
+            )
+    };
     let placements: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
-        .filter(|&p| matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. }) if *body == select.body))
+        .filter(
+            |&p| matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. }) if copies_body(*body)),
+        )
         .collect();
     let placement = match placements.as_slice() {
         [] => return Ok(None),
@@ -1464,21 +1501,6 @@ fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
             });
         }
     };
-    // The entity the mate's evaluation resolved: a live mate's selection
-    // landed on one face of `head.at`'s table (`eval::wire::select`), and
-    // the ladder's landing is that table's row under the name.
-    let key = evaluation
-        .value(head.at)
-        .and_then(|value| match value.name_table.lookup(&head.name) {
-            Some(Entry::Unique(ent)) => ent.key.face(),
-            Some(Entry::Tied(_)) | None => None,
-        })
-        .unwrap_or_else(|| {
-            unreachable!(
-                "a live mate's side resolved to one face of its body: the mate's evaluation \
-                 reads the selection"
-            )
-        });
     // A placement whose copy is empty grafted nothing, and one in another
     // space is not in this gather: either way no product face is its.
     Ok(copies(placement).and_then(|keys| keys.face(key)))

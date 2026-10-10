@@ -232,20 +232,6 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        // The reading edge's own severed case: the MATE takes the
-        // `node` slot and the OPERAND the `input` slot, which is the
-        // pair a caller reads off `severed_edge` too — one shape for
-        // "these two ended up on opposite sides".
-        E::OperandSeveredFromMate { mate, operand, .. } => (
-            id(mate),
-            none(),
-            id(operand),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
         E::TornGroup {
             root: g,
             instance: i,

@@ -1,9 +1,8 @@
-//! **The member vocabulary** — what a mate reference resolves to, and
-//! the static offset the resolution derives (A11's member rule, A12's
-//! reading edges).
+//! **The member vocabulary** — what a mate side resolves to, and the
+//! static offset the resolution derives (A11's member rule).
 //!
-//! One walk answers both questions. It runs from a reference's OPERAND
-//! down the consuming edges to its name's head, through the nodes that
+//! One walk answers both questions. It runs from the body a side's
+//! selection reads down the reads to its name's head, through the nodes that
 //! place a body without renaming it and the unions whose member the
 //! name says, and it yields the MEMBER (the
 //! identity the solve keys pairs by) together with the CHAIN of
