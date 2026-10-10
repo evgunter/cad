@@ -25,6 +25,7 @@ Scope: D10's **Operations** paragraph (`docs/DESIGN.md` §D10), as `work/intent/
   - Both axis datums define an `Axis`, and `Revolve` defines `body: Body` and `axis: Axis`.
   - A pose kind names its symmetry as the mates' `Subgroup` (A11 (1)): `Frame` the trivial group, `Plane` the planar, `Axis` the cylindrical. `Point` and `Direction` name none until a reader needs theirs.
 - **FORK-3** (#4222, approved): sets. A selection is a definition, not a node, stating its body once, and the selection kinds are `Face`, `Edge`, `Faces` and `Edges`.
+- **FORK-VTX** (#PRNUM): a vertex is a selection. `Vertex` joins `Face` and `Edge` as a selection kind, with no `Vertices` set until a slot reads one. A measure reads the `Vertex` selection, as it reads a face or an edge; a pose reader reads `Point { of: v }` off it, as a face reads as a plane.
 - **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`, hits H1–H14) is applied: §11 maps each hit to the unit that retires it.
 
 D10's last paragraph retires two things here: **A10's sink rule** and **A12's reading edges**. Stage 2 also closes `a-measured-part-is-not-a-product-root` and `a-failed-requirement-refuses-the-whole-product`, and completes VR4's interim exception (a `Measure`'s arithmetic stays in the node "until stage 2 makes `Measure` an operation").
@@ -47,7 +48,7 @@ The state of these mechanisms at the baseline:
 | B | `operands-are-reads` | every operand field holds a `VarId` read of an output. `inputs()` is derived from reads. Kind-typed operand slots. Delete leaves readers unresolved | **reading is the only dependency** (for operands) | re-blessed: ids move. Roots and geometry unmoved |
 | C | `the-product-is-an-explicit-list` (id kept; the unit is "the product is the world") | `PlaceInWorld { body, pose }` and a derived product. `roots.rs` and A10's invariants and maintenance retire, and so do `PlacedUnderTwoRoots`/N4's once-per-product rule, D-2's consumer-ward closure (narrowed) and `InstanceConsumed` | **the product is the world** | re-blessed. A one-time migration check: one placement per body-denoting root, in root order |
 | D | `measure-is-an-operation` | one `Measure` is one primitive defining one *observed* scalar. Its arithmetic moves to a `Defined` variable, and `Assertion` reads a scalar variable. A construction slot reading an observed variable refuses | **VR4's exception closes** | re-blessed. Measured bits unmoved |
-| E | `select-defines-face-and-edge-variables` | `Face`/`Edge` kinds and `Select`. Fillet/chamfer/shell/face-frame/measure names become reads, and the eval-time ladder moves into `Select` | **a name reference is a read** (outside mates) | re-blessed. Geometry unmoved |
+| E | `select-defines-face-and-edge-variables` | `Face`/`Edge`/`Vertex` kinds and `Select`. Fillet/chamfer/shell/face-frame/measure names become reads, and the eval-time ladder moves into `Select` | **a name reference is a read** (outside mates) | re-blessed. Geometry unmoved |
 | F | `a-mate-reads-face-variables` | mate sides read `Face` variables. `reading_edges`, the mates-are-not-edges carve-out and A5's minting lift through consumers retire | **A12 retires** | re-blessed. Poses unmoved |
 
 Why this order:
@@ -78,7 +79,7 @@ Each intermediate state is a whole representation:
 
 **Kinds and definitions** (`var.rs`):
 
-- `VarKind` gains the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the shapes, which only an operation defines: `Body`, `Bodies` (an ordered list whose length is a `Count`) and `Profile`. It also gains the selections `Face`, `Edge`, `Faces` and `Edges` (FORK-3).
+- `VarKind` gains the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the shapes, which only an operation defines: `Body`, `Bodies` (an ordered list whose length is a `Count`) and `Profile`. It also gains the selections `Face`, `Edge`, `Vertex`, `Faces` and `Edges` (FORK-3, FORK-VTX).
 - A pose kind names its symmetry as the mates' `Subgroup` family: `Frame` → trivial, `Plane` → planar, `Axis` → cylindrical. `Point` and `Direction` name none, since the family has no entry for theirs yet.
 - `VarDef` gains `Output { node: RecipeNodeId, port: u8 }` and `Select { body, names }`. A selection is a definition, not a node.
 - A reference-kind variable has no free arm. It is never an analysis axis, has no unit and has no distribution.
@@ -136,7 +137,7 @@ Each intermediate state is a whole representation:
 
 **Measure** (D):
 
-- `Node::Measure { primitive: MeasurePrimitive<S> }` holds one `Distance`, `Angle`, `MinClearance` or `Gap`. Its operands are slots, which read `Face`/`Edge` variables after E.
+- `Node::Measure { primitive: MeasurePrimitive<S> }` holds one `Distance`, `Angle`, `MinClearance` or `Gap`. Its operands are slots, which read selection variables after E: one selection of the kinds its primitive admits, or a `Body` (`distance` a `Face`, `Edge` or `Vertex`; `angle` a `Face` or `Edge`; `min_clearance` a `Body` or `Face`; `gap` a `Face`).
 - It defines one scalar output of the primitive's dimension.
 - `MeasureExpr` and `MeasureKind` are deleted: arithmetic over measures is a `Defined` variable (`Expr` already has `Min`/`Max`).
 - `Assertion { value: S, bound: S, dir }` reads any scalar variable of the bound's dimension. `AssertionBoundFault::TargetNotMeasure` retires, and the dimension check stays.
@@ -145,7 +146,7 @@ Each intermediate state is a whole representation:
   - The load door refuses it in a new walk, `ObservedRead`.
   - Driven dimensions are deferred, not refused for good (Ev: "no need to support it now").
 
-**Select** (E; FORK-3): a selection variable (`Face`/`Edge`, or the sets `Faces`/`Edges` that #4222 writes) is defined by `VarDef::Select { body: VarId /* Body */, names }`, a definition, not a node. Evaluation runs `eval/wire.rs`'s three-rung ladder (`live` → `Tied` → `Absent`) **in the select and nowhere else**. A failed select poisons its readers with the `ResolveError`, and the post-evaluation diagnostic ladder (`resolve/mod.rs`) diagnoses that select.
+**Select** (E; FORK-3): a selection variable (`Face`/`Edge`/`Vertex`, or the sets `Faces`/`Edges` that #4222 writes) is defined by `VarDef::Select { body: VarId /* Body */, names }`, a definition, not a node. Evaluation runs `eval/wire.rs`'s three-rung ladder (`live` → `Tied` → `Absent`) **in the select and nowhere else**. A failed select poisons its readers with the `ResolveError`, and the post-evaluation diagnostic ladder (`resolve/mod.rs`) diagnoses that select.
 
 - Sets (FORK-3): `Fillet.selection` and `Chamfer.selection` read one `Edges` variable, and `Shell.open` reads one `Faces`, stating the body once. A selection authored at two sites is two variables, and the GUI offers the existing one.
 - `Datum::FaceFrame { at, face }` becomes `{ face: S }`, because the body is the select's.
@@ -322,12 +323,13 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
 
 ## 6. PR E — `select-defines-face-and-edge-variables` (cost H; ~200 files, 5–8k lines)
 
-- `VarKind::{Face, Edge}` and `Select` per FORK-3. Its evaluation is `named_entity` (`wire.rs:2317`) plus the kind check that `BlendSelectionKind`, `ShellOpenKind`, `FaceFrameKind` and `MeasureSelectionKind` each make today. That is four error families folded into one, `SelectKind { expected, found }`.
+- `VarKind::{Face, Edge, Vertex}` and `Select` per FORK-3 and FORK-VTX. Its evaluation is `named_entity` (`wire.rs:2317`) plus the kind check that `BlendSelectionKind`, `ShellOpenKind`, `FaceFrameKind` and `MeasureSelectionKind` each make today. That is four error families folded into one, `SelectKind { expected, found }`.
 - **Converted payloads:**
   - `Fillet`/`Chamfer.selection`: 12 src and 25 test non-empty sites, 25 in the viewer and 1 in the tour.
   - `Shell.open`: 11 src, 12 tests, 16 viewer, 4 tour and 1 py.
   - `Datum::FaceFrame.face`: 16 src, 37 tests and 10 viewer.
-  - Measure refs: 20 `SitedRef::` sites in src and 252 in the tests.
+  - Measure refs: 20 `SitedRef::` sites in src and 252 in the tests. A vertex ref becomes a `Vertex` select, as a face ref becomes a `Face` select.
+- **A measure operand's kind is checked at the door.** A selection's kind is fixed at minting, so each primitive's admitted kinds (`distance`: `Face`, `Edge`, `Vertex`; `angle`: `Face`, `Edge`; `min_clearance`: `Body`, `Face`; `gap`: `Face`) refuse as the ordinary `SlotVarKind`, at the edit door and the load door. So `MeasureSelectionKind`'s kind half is a door refusal rather than part of `SelectKind`, and `scope_of` (`wire.rs`) stops being `min_clearance`'s kind check. The carrier-class refusals (a cone face in `distance`) stay at evaluation, since a surface class is not a kind.
 - `StableName {` literals (266 in src, 341 in tests, 55 viewer, 9 tour) mostly stay: a select stores one.
 - The authored sugar `Formula::select(body, name)`, and a `Vec<StableName>` given to a selection slot, lower at the door to one selection definition: one set variable under #4222's sets, or one per name under singletons. That keeps the 41 + 12 + 20 `Node::fillet/chamfer/shell(` test sites unchanged.
 - **Not converted:** `Boolean.declare` and `Union.declare` (`DeclaredPair`, `node.rs:3192`; Q2).
@@ -335,7 +337,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
   - `resolve::resolve` and `resolve_with_prior` diagnose a failed select. Their callers are the appearance store (`appearance.rs:465`, `:495`, `:518`), the viewer's `session.rs:977` and `matetool.rs:575`, and `pncad-py` `value.rs:1610`.
 - **`Rebind`** (`edit.rs:377`, applied at `:5673`) rewrites selects. `rebind_payload_names` (`node.rs:3744`) shrinks to the declared pairs. Its refusals keep their names.
 - **SELECT-DESIGN.** The materializer doctrine stands: a select stores a name, never a query, and `select_where` still returns `Vec<StableName>` for the caller to store. §4's one-type rule ("a GUI selection is the `Vec<StableName>` a recipe stores") is FORK-3's to restate.
-- **Viewer.** Picks become select edits. The pick-to-name inversion (`hit.rs`, `pick.rs`) is unchanged.
+- **Viewer.** Picks become select edits, a vertex pick a `Vertex` select. The pick-to-name inversion (`hit.rs`, `pick.rs`) is unchanged.
 
 ## 7. PR F — `a-mate-reads-face-variables` (cost H; ~120 files, 3–5k lines)
 
@@ -503,6 +505,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
   - distinct by authoring, with the GUI offering the existing one;
   - repair addressed by body and name (`Rebind { body, from, to }`).
 - **Ev chose sets** (`Faces`/`Edges`). The edges that sharing a variable replaces are dependency-graph edges.
+- A vertex is a selection too (FORK-VTX): `FaceFrame` and a mate side read one `Face`; a `Measure` operand reads one selection of the kinds its primitive admits, or a `Body`.
 - E builds it.
 
 **FORK-4 — Re-pointing an operand.** *Ruled* (#4221, merged; row `an-operand-slot-is-re-pointed-by-the-slot-door`).
