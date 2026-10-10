@@ -164,6 +164,32 @@ impl<T: Real> Affine3<T> {
         )
     }
 
+    /// The point `p` turned by `angle` radians (right-hand rule) about
+    /// the axis through `point` with direction `axis`, spelled
+    /// `q + R·(p − q)`: the offset from the axis is turned, then the
+    /// axis point added back, in exactly that order (D9). `R` is
+    /// [`Mat3::rotation_about`], same axis normalization and poison.
+    ///
+    /// This is the spelling of a single turned point, chosen by W1
+    /// (`crates/geom-core/README.md`): the angle's width reaches the
+    /// answer times the radius `|p − q|`, where
+    /// `rotation_about_axis(..).transform_point(p)`, `R·p + (I − R)·q`,
+    /// levers it by the coordinates `|p| + |q|`. What it gives up is the
+    /// start sample's independence from the axis: `q` is mentioned
+    /// twice, so at `Interval` an axis of width `w` reaches every turned
+    /// point, the zero turn included, at up to `2·w`. On an axis
+    /// through the coordinate origin it equals the composite map's
+    /// `R·p`. [`Self::rotation_about_axis`] remains the map for
+    /// composing placements.
+    pub fn rotate_point_about_axis(
+        point: Point3<T>,
+        axis: Vec3<T>,
+        angle: T,
+        p: Point3<T>,
+    ) -> Point3<T> {
+        point + Mat3::rotation_about(axis, angle) * (p - point)
+    }
+
     /// Applies the map to a point: `linear·p + translation`, where `p`'s
     /// coordinates are read as the displacement from the coordinate
     /// origin (the chart identification), the linear part is applied

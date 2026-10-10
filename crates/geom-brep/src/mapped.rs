@@ -189,7 +189,7 @@ pub enum MappedSource<T: Real> {
         /// A point on the revolution axis.
         axis_origin: Point3<T>,
         /// The axis direction (normalized internally by the rotation —
-        /// `Affine3::rotation_about_axis`'s documented posture).
+        /// `Affine3::rotate_point_about_axis`'s documented posture).
         axis_dir: Vec3<T>,
         /// The **full** signed revolve angle of the whole sweep
         /// (radians, right-hand rule about `axis_dir`): its normalized
@@ -342,7 +342,7 @@ impl<T: Real> MappedSource<T> {
                 angle,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotation_about_axis(axis_origin, axis_dir, u * angle).transform_point(p)
+                Affine3::rotate_point_about_axis(axis_origin, axis_dir, u * angle, p)
             }
         }
     }

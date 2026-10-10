@@ -2711,23 +2711,30 @@ fn reauthor<T: Decide>(
             angle,
             ..
         } => {
-            // The sketch plane turned `theta` about the axis: `place`
-            // itself at a whole sweep's exact start. A moved start is
-            // read on its own plane turned by the measured turn, and
-            // its range moves by that turn over the angle.
-            let plane = |theta: Option<T>| match theta {
-                None => place,
-                Some(theta) => {
-                    geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, theta) * place
-                }
+            // A corner read on the sketch plane turned `theta` about
+            // the axis: turned back on its offset from the axis, then
+            // through `place⁻¹` — `place` itself at a whole sweep's
+            // exact start. A moved start is read on its own plane
+            // turned by the measured turn, and its range moves by that
+            // turn over the angle.
+            let inv = place.inverse();
+            let read = |theta: Option<T>, p: Point3<T>| {
+                inv.transform_point(match theta {
+                    None => p,
+                    Some(theta) => geom_core::Affine3::rotate_point_about_axis(
+                        axis_origin,
+                        axis_dir,
+                        -theta,
+                        p,
+                    ),
+                })
             };
             let turn = |name, theta: Option<T>, s: T, moved: Point3<T>| {
-                let old = mapped.eval(s);
                 azimuth_turn(
                     name,
-                    plane(theta),
+                    read(theta, moved).z,
                     (axis_origin, axis_dir),
-                    old,
+                    mapped.eval(s),
                     moved,
                     band,
                 )
@@ -2749,7 +2756,7 @@ fn reauthor<T: Decide>(
                 start_turn.map(|phi| phi / angle),
                 end_turn.map(|phi| phi / angle),
             );
-            let q = plane(read_at).inverse().transform_point(p_start);
+            let q = read(read_at, p_start);
             if start_turn.is_some() {
                 match decide("offset_axial_reauthor_azimuth", Margin::of(q.z), band) {
                     Ok(Sign::Zero) => {}
@@ -2778,19 +2785,18 @@ fn reauthor<T: Decide>(
 }
 
 /// How far about the axis a revolved point's end moved: `None` when the
-/// moved corner still stands in that end's own sketch plane `plane`
-/// (its out-of-plane coordinate, a length, decided under `name`), and
+/// moved corner still stands in that end's own sketch plane (`off`, its
+/// out-of-plane coordinate there, a length, decided under `name`), and
 /// otherwise the signed turn about `axis` from the old corner's
 /// azimuth to the moved one's.
 fn azimuth_turn<T: Decide>(
     name: &'static str,
-    plane: geom_core::Affine3<T>,
+    off: T,
     (origin, dir): (Point3<T>, Vec3<T>),
     old: Point3<T>,
     moved: Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ReplaceFaceError<T>> {
-    let off = plane.inverse().transform_point(moved).z;
     match decide(name, Margin::of(off), band) {
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
