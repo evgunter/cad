@@ -43,8 +43,10 @@ N2, and D10 Repetition state it:
   every `Bodies` reader takes. Naming an enumeration as a definition
   several readers share is not built here (no immediate need; nothing
   forbids it, and it is a small later change);
-  a mix is ill-typed (`SlotVarKind`). A list of one is its member; an
-  empty list is the typed empty body.
+  a mix is ill-typed (`SlotVarKind`). A union or intersect of one body
+  builds that body (no boolean runs; names are `From { read, of }` as in
+  any union), and of none builds the typed empty body, so a family whose
+  `N` is 1 or 0 builds instead of refusing.
 - **A family member.** `xs[i]` is a read of the family `xs` at one `Count`
   expression per index, not a variable; it keys by `xs`, the index said
   once in `Member`; `Union(xs)` and `Union([xs[0], …])` name alike.
@@ -76,8 +78,9 @@ N2, and D10 Repetition state it:
 - The argument: `Union`/`Intersect` hold one `Bodies` operand, a family
   read or a spelled list of reads (the shape a placement's shape list
   takes); a mix refuses `SlotVarKind` at the insert, `SetMembers` and load
-  doors; the floor of two goes (a list of one builds its member, an empty
-  list the typed empty body).
+  doors; the floor of two goes (`EditError::TooFewMembers` retires): a
+  union or intersect of one body builds that body with no boolean run and
+  `From { read, of }` names, and of none builds the typed empty body.
 - The indexed read: a slot reading one member holds the family's
   `VarId` and one `Count` variable per index (VR4), carried through
   `Operand`, lowering, persistence, `upstream` and the keys; DM3's member

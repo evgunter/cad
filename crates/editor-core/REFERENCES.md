@@ -166,8 +166,10 @@ not built, for lack of immediate need, and nothing in the design forbids
 it. It is the argument a placement's
 shape list takes (S3M). A mix (`[xs, a]`) puts a `Bodies` where a `Body`
 goes and is ill-typed at the door (`SlotVarKind`), so a list beside an
-individual cannot be written. A list of one is its member, and an empty
-list is the typed empty body.
+individual cannot be written. A union or intersect of one body builds that
+body (no boolean runs; names are `From { read, of }` as in any union), and
+of none builds the typed empty body, so a family whose `N` is 1 or 0
+builds instead of refusing.
 
 **Why.** A multi-shell tool assembled as a chain of pairwise unions is an
 artifact of the vocabulary rather than of the model. A pair node wraps every
