@@ -1041,8 +1041,8 @@ fn child_band_refusal_rows() {
         &asm,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: face_of(a),
-                b: face_of(b),
+                a: face_of(a).into(),
+                b: face_of(b).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame.clone(),
@@ -1764,8 +1764,8 @@ fn snapshot_mate(
     // unit-length, and its re-minted axis does not clear a band of 16).
     let frame = MateFrame::on_part(pncad::document::Placement::IDENTITY);
     Node::Mate {
-        a: face_of(a),
-        b: face_of(b),
+        a: face_of(a).into(),
+        b: face_of(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame.clone(),

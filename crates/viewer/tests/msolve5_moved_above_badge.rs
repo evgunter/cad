@@ -1,12 +1,11 @@
-//! **The at-rest badge names the operand and the placer for a mate
-//! read below a pattern.**
+//! **The at-rest badge on a mate read below a pattern.**
 //!
-//! The badge renders the gate's own `Display`, so the viewer needs no
-//! code for the arm: this row pins that the sentence a user reads on
-//! the issue's document — a pattern over a transform over the shelf,
-//! the mate read AT the transform — IS the gate's `MovedAbove`
-//! refusal, word for word. The words themselves are pinned once, in
-//! `editor-core`'s `display_contract`.
+//! A mate's declaration is minted on the world copies of the bodies its
+//! sides read. On the issue's document — a pattern over a transform
+//! over the shelf, the mate read AT the transform — no placement reads
+//! the transform, so the mate declares nothing, and the seat it would
+//! have declared reaches the gate as an undeclared contact: the badge
+//! turns red with the gate's own refusal.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -16,10 +15,7 @@ use crate::common;
 use crate::common::{ang, insert_into, len, scl};
 
 use common::asm;
-use pncad::document::{
-    AssemblyError, DocumentId, Formula, MateSide, MintRefusal, Node, PatternKind, ProfileDoc,
-    RefusedRef,
-};
+use pncad::document::{DocumentId, Formula, Node, PatternKind, ProfileDoc};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
@@ -30,7 +26,7 @@ use viewer::session::{AtRestBadge, DocSession, SessionOp};
 /// post and both copies placed, and the seat mate read AT the
 /// transform. Stored beside the bench's
 /// parts so the session's resolver finds them.
-fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyError) {
+fn moved_above(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
     let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
@@ -85,35 +81,23 @@ fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyErr
     let mate = insert_into(
         &mut asm,
         Node::Mate {
-            a: common::head(asm::in_part(post, &bench.post_top)),
-            b: common::head_at(lifted, b.clone()),
+            a: common::head(asm::in_part(post, &bench.post_top)).into(),
+            b: common::head_at(lifted, b.clone()).into(),
             class: ContactClass::Rest,
             alignment: asm::middle_seat_alignment(),
         },
         tol,
     );
+    let _ = mate;
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");
-    let path = ws.create(&asm, tol).expect("the assembly stores");
-    let expected = AssemblyError::Mint {
-        refusals: vec![MintRefusal::Reference {
-            mate,
-            side: MateSide::B,
-            name: Box::new(b),
-            why: RefusedRef::MovedAbove {
-                at: lifted,
-                by: pattern,
-                copies: true,
-            },
-        }],
-    };
-    (path, expected)
+    ws.create(&asm, tol).expect("the assembly stores")
 }
 
 #[test]
-fn the_badge_names_the_operand_and_the_placer_of_a_mate_read_below_a_pattern() {
+fn a_mate_read_below_a_pattern_declares_nothing_and_the_badge_turns_red() {
     let tol = Tol::witness();
     let bench = asm::bench("msolve5-badge", tol);
-    let (path, expected) = moved_above(&bench, tol);
+    let path = moved_above(&bench, tol);
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived("msolve5-boot", tol),
         tol,
@@ -127,10 +111,9 @@ fn the_badge_names_the_operand_and_the_placer_of_a_mate_read_below_a_pattern() {
         session.product_fault()
     );
     match session.at_rest() {
-        Some(AtRestBadge::Refused { message }) => assert_eq!(
-            *message,
-            expected.spoken(session.committed_doc()),
-            "the badge is the gate's own refusal, word for word"
+        Some(AtRestBadge::Refused { message }) => assert!(
+            message.contains("is an undeclared contact"),
+            "the seat the mate does not declare is the gate's undeclared contact: {message}"
         ),
         other => panic!("a mate read below a pattern turns the badge red, got {other:?}"),
     }

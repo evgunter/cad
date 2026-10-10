@@ -75,15 +75,16 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
-            a: common::head(StableName {
+            a: (common::head(StableName {
                 kind: EntityKind::Face,
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
                     of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
-            }),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)),
+            }))
+            .into(),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -244,8 +245,8 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
-            a,
-            b: common::head(in_part(cap, top_body, CapEnd::Start)),
+            a: a.into(),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),

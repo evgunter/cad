@@ -544,7 +544,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         },
         // The side's read rides the sentence; the payload names the
         // mate and the side.
-        MateFault::SideUnresolved { mate, side, read: _ } => MateFaultPayload {
+        MateFault::SideUnresolved {
+            mate,
+            side,
+            read: _,
+        } => MateFaultPayload {
             mate: Some(*mate),
             side: Some(*side),
             ..none

@@ -564,6 +564,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
+        S::Side(_) => "side",
         S::Measured(..) => "measured",
         S::Tool => "tool",
         S::A => "a",

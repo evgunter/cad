@@ -3846,8 +3846,8 @@ fn asm_r2a_mated_assembly(
         // The second instance is the mate's first operand: the mate
         // places its group on the first's.
         Node::Mate {
-            a: face_head(name(ids[1])),
-            b: face_head(name(ids[0])),
+            a: face_head(name(ids[1])).into(),
+            b: face_head(name(ids[0])).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([0.0, 0.0, 0.0]),

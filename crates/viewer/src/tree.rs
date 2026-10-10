@@ -1300,6 +1300,8 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::PlacerRefused { placer, .. } => Some(*placer),
         // Named beside the mate, and not the repair (module header).
         MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
+        // The side's read is repaired at the mate itself.
+        MateFault::SideUnresolved { .. } => None,
         // Name no node beside the mate, or name one only as evidence
         // of where the refusal held.
         MateFault::Frame { .. }
@@ -1362,6 +1364,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::TableLacks { mate, .. }
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }

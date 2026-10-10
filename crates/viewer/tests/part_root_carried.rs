@@ -437,15 +437,16 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let (sub, _mate) = common::inserted(
         &sub,
         Node::Mate {
-            a: common::head(StableName {
+            a: (common::head(StableName {
                 kind: EntityKind::Face,
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
                     of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
                 }],
-            }),
-            b: common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
+            }))
+            .into(),
+            b: common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),

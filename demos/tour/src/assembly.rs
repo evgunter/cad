@@ -224,10 +224,10 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 /// The head is the part-local face as the instance names it — the
 /// kernel's own wrapper (`FaceName::in_part`), the inverse of the
 /// unwrap a face frame reads its face through.
-fn head(instance: RecipeNodeId, local: &StableName) -> Operand {
+fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
     let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
-    SitedFace::at_mint(name.in_part(instance)).into()
+    SitedFace::at_mint(name.in_part(instance))
 }
 
 /// Inserts a node that is not a mate and returns its minted id.
@@ -746,8 +746,8 @@ fn stand_doc(
     let mate_1 = mate_onto(
         &mut doc,
         Node::Mate {
-            a: head(shelf_i, shelf_bottom),
-            b: head(post_a, post_top),
+            a: head(shelf_i, shelf_bottom).into(),
+            b: head(post_a, post_top).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_A, tol),
@@ -767,8 +767,8 @@ fn stand_doc(
     let mate_2 = mate_onto(
         &mut doc,
         Node::Mate {
-            a: head(post_b, post_top),
-            b: head(shelf_i, shelf_bottom),
+            a: head(post_b, post_top).into(),
+            b: head(shelf_i, shelf_bottom).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::from_face(),
@@ -821,8 +821,8 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench
     let crate_mate = mate_onto(
         &mut doc,
         Node::Mate {
-            a: head(crate_i, &parts.crate_bottom),
-            b: head(stand.shelf_i, &parts.shelf_top),
+            a: head(crate_i, &parts.crate_bottom).into(),
+            b: head(stand.shelf_i, &parts.shelf_top).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::from_face(),
@@ -1531,8 +1531,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert_mate(
         &mut contra.doc,
         Node::Mate {
-            a: head(contra.post_a, post_top),
-            b: head(contra.shelf_i, shelf_bottom),
+            a: head(contra.post_a, post_top).into(),
+            b: head(contra.shelf_i, shelf_bottom).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::from_face(),
@@ -1598,15 +1598,13 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         // Each side re-authored as the face it read: the deleted mate's
         // selections went with it.
         let side = |read| {
-            pncad::document::head_of(&tangent.doc, read)
-                .expect("the mate read two faces")
-                .into()
+            pncad::document::head_of(&tangent.doc, read).expect("the mate read two faces")
         };
         insert_mate(
             &mut swapped,
             Node::Mate {
-                a: side(a),
-                b: side(b),
+                a: side(a).into(),
+                b: side(b).into(),
                 class: ContactClass::Tangent,
                 alignment: alignment.authored(),
             },

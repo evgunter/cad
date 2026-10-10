@@ -923,10 +923,17 @@ fn run_at<T: editor_core::EvalScalar>(
 /// And again for INTENT stage 4 E (all three rows): the bodies this
 /// digest feeds carry no provenance side tables, and a node error is
 /// the value-decided refusal or the glued build. The id-free rows held.
+///
+/// And again for INTENT stage 2 F (all three rows): a mate's sides are
+/// selections, minted at its insert, so every id after a mate moved,
+/// and a mate's content key reads its bodies' keys. Each instance's
+/// solved and world pose, each mate's role and whether it faulted,
+/// keyed by document position, measured equal on main and on the
+/// branch at all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xf9da_f3ab_4ed2_9f5d),
-    (1e-6, 0xa478_da69_176e_4cc2),
-    (1e-12, 0x34bc_8b8f_3e80_4166),
+    (1e-9, 0x4de1_7e41_a850_351e),
+    (1e-6, 0x4113_c9aa_797f_22a7),
+    (1e-12, 0xb82f_69cb_4afc_2bbb),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
