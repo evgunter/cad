@@ -42,8 +42,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
     };
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: surface,
-            s2,
+            pair: geom_brep::SurfacePair::new(surface, s2),
             witness: carrier.mid_point(t0, t1),
         },
         carrier,
