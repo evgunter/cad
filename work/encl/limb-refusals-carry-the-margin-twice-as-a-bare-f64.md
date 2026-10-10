@@ -18,4 +18,4 @@ cost: M
 
 ## Repair shape
 
-Decide what `refine.rs` actually needs to route on: a decided verdict, or a refinement quantity that is not the reporting margin. Give it that, with one source of truth, and have the `Display`s read the margin. If the foot-orthogonality limb is retired (`[ev]` PR 4498), `RoundMargin::Over` stops seeing a non-residual quantity, which simplifies this.
+Decide what `refine.rs` actually needs to route on: a decided verdict, or a refinement quantity that is not the reporting margin. Give it that, with one source of truth, and have the `Display`s read the margin. The foot-orthogonality limb is retired (PR 4517, under Ev's ruling in PR 4498), so `RoundMargin::Over` no longer sees a non-residual quantity.
