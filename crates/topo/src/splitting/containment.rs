@@ -1567,28 +1567,26 @@ pub(crate) fn carrier_ball<T: Decide>(
                 speed * (t1 - t0).abs() * T::from_f64(0.5),
             ))
         }
-        geom::Curve3::Nurbs(ref n) => control_ball(n.control()),
+        // Positive weights put a NURBS curve inside its control
+        // hull, so inside any ball holding every control point: the
+        // one about the control points' bounding-box centre, to the
+        // farthest of them.
+        geom::Curve3::Nurbs(ref n) => {
+            let control = n.control();
+            let first = *control.first()?;
+            let (mut lo, mut hi) = (first, first);
+            for p in control {
+                lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+                hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+            }
+            let center = lo + (hi - lo) * T::from_f64(0.5);
+            let mut reach = T::zero();
+            for p in control {
+                reach = reach.max((*p - center).norm());
+            }
+            Some((center, reach))
+        }
     }
-}
-
-/// **A ball holding a spline's control net**, and so the spline:
-/// positive weights put a NURBS curve inside its control hull, so
-/// inside any ball holding every control point — the one about the
-/// control points' bounding-box centre, to the farthest of them.
-/// `None` for an empty net.
-pub(crate) fn control_ball<T: geom_core::Real>(control: &[Point3<T>]) -> Option<(Point3<T>, T)> {
-    let first = *control.first()?;
-    let (mut lo, mut hi) = (first, first);
-    for p in control {
-        lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-        hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-    }
-    let center = lo + (hi - lo) * T::from_f64(0.5);
-    let mut reach = T::zero();
-    for p in control {
-        reach = reach.max((*p - center).norm());
-    }
-    Some((center, reach))
 }
 
 /// **How far from `q` the loop reaches**: the radius of a ball about

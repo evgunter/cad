@@ -4019,8 +4019,8 @@ fn footprints_may_overlap<T: Decide>(
 /// ([`ArcPiece`]): each piece crosses at its chord's ends' sides, and a
 /// piece whose ball reaches `L` adds the ball's cut, since the region
 /// between an arc and its chord lies in that ball. Pieces that reach
-/// `L` are halved until their cut is within the band, so the set read
-/// holds the true one and exceeds it by about the band. Crossings are
+/// `L` are halved until their ball is within the band, so the set read
+/// holds the true one and exceeds it by a few bands. Crossings are
 /// ordered by decided comparisons, a pair the band cannot order is a
 /// tie; the overlap is then computed in `T` and decided, and an
 /// undecided vertex side, overlap or touch escalates rather than
@@ -4034,7 +4034,7 @@ fn footprints_may_overlap<T: Decide>(
 /// On [`shell_open`] the read runs on the closed cavity, before the rim
 /// stage lifts a designated face's counterpart back out, so a crossing
 /// within `t` of the opening is the lift's to refuse, not this gate's.
-fn moved_walls_cross<T: Decide + geom_core::Bounds>(
+fn moved_walls_cross<T: Decide>(
     cavity: &Body<T>,
     partition: &crate::offset_together::Scope,
     thickness: T,
@@ -4201,18 +4201,20 @@ enum EdgeArc<T: Real> {
 }
 
 /// **A spiric or spline arc as [`MovedWall::cut`] refines it.** Each
-/// piece holds its arc, and so the region between the arc and its
-/// chord, in a ball read off the carrier ([`carrier_ball`]); a piece
-/// splits at its parameter midpoint into two that do the same.
+/// piece is its carrier over a parameter window, and holds its arc, and
+/// so the region between the arc and its chord, in the ball about the
+/// window's midpoint point whose radius is a bound on the carrier's
+/// speed times the window's half-width: a spiric's
+/// ([`carrier_ball`]'s), or [`spline_speed`] for a spline. A piece
+/// splits at its window's midpoint into two that do the same.
 ///
 /// [`carrier_ball`]: crate::splitting::containment::carrier_ball
 #[derive(Clone)]
 enum ArcPiece<T: Real> {
     /// The spiric `carrier` over its parameter window.
     Spiric(geom::Curve3<T>, (T, T)),
-    /// A clamped spline over its whole domain, so its ends are its
-    /// first and last control points.
-    Spline(geom::NurbsCurve3<T>),
+    /// The spline, a bound on its speed, and its parameter window.
+    Spline(std::sync::Arc<geom::NurbsCurve3<T>>, T, (T, T)),
 }
 
 impl<T: Decide> ArcPiece<T> {
@@ -4221,32 +4223,70 @@ impl<T: Decide> ArcPiece<T> {
         match self {
             Self::Spiric(carrier, window) => {
                 crate::splitting::containment::carrier_ball(carrier, *window)
+                    .unwrap_or_else(|| unreachable!("a spiric has a ball"))
             }
-            Self::Spline(spline) => crate::splitting::containment::control_ball(spline.control()),
+            Self::Spline(spline, speed, (t0, t1)) => (
+                spline.eval((*t0 + *t1) * T::from_f64(0.5)),
+                *speed * (*t1 - *t0).abs() * T::from_f64(0.5),
+            ),
         }
-        .unwrap_or_else(|| unreachable!("a spiric or a certified spline has a ball"))
     }
 
-    /// The two halves of this piece and the carrier point between them,
-    /// or `None` once the parameter cannot be halved.
+    /// The two halves of this piece and the carrier point between them.
     fn split(&self) -> Option<(Self, geom_core::Point3<T>, Self)> {
-        match self {
+        Some(match self {
             Self::Spiric(carrier, (t0, t1)) => {
                 let mid = (*t0 + *t1) * T::from_f64(0.5);
-                Some((
+                (
                     Self::Spiric(carrier.clone(), (*t0, mid)),
                     carrier.eval(mid),
                     Self::Spiric(carrier.clone(), (mid, *t1)),
-                ))
+                )
             }
-            Self::Spline(spline) => {
-                let (d0, d1) = spline.domain();
-                let (left, right) = spline.split_at(0.5 * (d0 + d1)).ok()?;
-                let mid = *right.control().first()?;
-                Some((Self::Spline(left), mid, Self::Spline(right)))
+            Self::Spline(spline, speed, (t0, t1)) => {
+                let mid = (*t0 + *t1) * T::from_f64(0.5);
+                (
+                    Self::Spline(spline.clone(), *speed, (*t0, mid)),
+                    spline.eval(mid),
+                    Self::Spline(spline.clone(), *speed, (mid, *t1)),
+                )
             }
-        }
+        })
     }
+}
+
+/// **A bound on a spline's speed**, metres per unit of its parameter.
+/// About a control point `c`, the curve is `A/w` with
+/// `A = Σ Nᵢ wᵢ (Pᵢ − c)`, so `C′ = (A′ − (C − c) w′)/w`. A spline's
+/// derivative is a convex combination of its derivative coefficients
+/// `p·(Xᵢ₊₁ − Xᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so `|A′|` and `|w′|` are at most
+/// their largest; positive weights put the curve in its control hull,
+/// so `|C − c|` is at most the farthest control point's distance `d`;
+/// and `w` is at least the least weight. Hence
+/// `|C′| ≤ (max |A′ coefficient| + d · max |w′ coefficient|) / min w`.
+/// A coefficient over an empty knot span is skipped: its basis
+/// function's derivative is zero.
+fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
+    let (control, weights) = (spline.control(), spline.weights());
+    let (knots, p) = (spline.knots().knots(), spline.degree());
+    let c = control[0];
+    let reach = control
+        .iter()
+        .fold(T::zero(), |r, q| r.max((*q - c).norm()));
+    let least = weights.iter().copied().fold(f64::INFINITY, f64::min);
+    let (mut point_rate, mut weight_rate) = (T::zero(), 0.0_f64);
+    for i in 0..control.len().saturating_sub(1) {
+        let du = knots[i + p + 1] - knots[i + 1];
+        if du == 0.0 {
+            continue;
+        }
+        let k = p as f64 / du;
+        let step = (control[i + 1] - c) * T::from_f64(weights[i + 1])
+            - (control[i] - c) * T::from_f64(weights[i]);
+        point_rate = point_rate.max(step.norm() * T::from_f64(k));
+        weight_rate = weight_rate.max((weights[i + 1] - weights[i]).abs() * k);
+    }
+    (point_rate + reach * T::from_f64(weight_rate)) / T::from_f64(least)
 }
 
 impl<T: Decide> MovedWall<T> {
@@ -4347,9 +4387,9 @@ impl<T: Decide> MovedWall<T> {
                 // Refined breadth first, so a budget spent near one
                 // crossing leaves no other coarser than its neighbours.
                 // A piece whose ball misses `L` is on one side with its
-                // chord; one that reaches it splits until its ball cuts
-                // `L` within the band, or the budget or the parameter
-                // runs out, and then adds that cut to the set. Either
+                // chord; one that reaches it splits until its ball is
+                // within the band, or the budget or the parameter runs
+                // out, and then adds the ball's cut to the set. Either
                 // way the piece's chord crosses at its ends' sides.
                 let mut work = std::collections::VecDeque::from([(
                     arc.clone(),
@@ -4361,19 +4401,17 @@ impl<T: Decide> MovedWall<T> {
                     let (c, rho) = piece.ball();
                     let w = c - p0;
                     let along = w.dot(d);
-                    let perp2 = (w.dot(w) - along.powi(2)).max(T::zero());
+                    // The offset off `L` as a vector, not `|w|² − along²`,
+                    // which cancels to noise when a small ball sits close.
+                    let perp = (w - d * along).norm();
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
-                        decide(
-                            "shell_moved_wall_ball_reach",
-                            Margin::of(rho - perp2.sqrt()),
-                            band
-                        ),
+                        decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
                         Ok(Sign::Negative)
                     ) {
-                        let half = (rho.powi(2) - perp2).max(T::zero()).sqrt();
+                        let half = ((rho - perp) * (rho + perp)).max(T::zero()).sqrt();
                         let wide = matches!(
-                            decide("shell_moved_wall_ball_cut", Margin::of(half), band),
+                            decide("shell_moved_wall_ball_radius", Margin::of(rho), band),
                             Ok(Sign::Positive)
                         );
                         if wide
@@ -4431,7 +4469,7 @@ impl<T: Decide> MovedWall<T> {
 /// Every planar face of the moved `cavity`, read for
 /// [`moved_walls_cross`].
 #[track_caller]
-fn moved_walls<T: Decide + geom_core::Bounds>(
+fn moved_walls<T: Decide>(
     cavity: &Body<T>,
     partition: &crate::offset_together::Scope,
 ) -> Vec<MovedWall<T>> {
@@ -4505,9 +4543,11 @@ fn moved_walls<T: Decide + geom_core::Bounds>(
                             geom::Curve3::Spiric { .. } => {
                                 EdgeArc::Arc(ArcPiece::Spiric(curve.carrier().clone(), (t0, t1)))
                             }
-                            geom::Curve3::Nurbs(ref spline) => {
-                                EdgeArc::Arc(ArcPiece::Spline(spline_window(spline, (t0, t1))))
-                            }
+                            geom::Curve3::Nurbs(ref spline) => EdgeArc::Arc(ArcPiece::Spline(
+                                spline.clone(),
+                                spline_speed(spline),
+                                (t0, t1),
+                            )),
                         }
                     }
                 };
@@ -4566,24 +4606,9 @@ fn moved_walls<T: Decide + geom_core::Bounds>(
 
 /// How many times [`MovedWall::cut`] may halve one arc edge for one
 /// line. A transversal crossing reaches the band in about fifty
-/// halvings; an arc lying along the line would halve without end, and
-/// its pieces past the budget are read as their balls.
-const ARC_SPLIT_BUDGET: usize = 512;
-
-/// `spline` cut down to the edge's parameter `window`, widened to the
-/// window's `f64` bracket so the piece holds the whole edge. A split the
-/// spline refuses (at or past an end of its domain) keeps that end,
-/// which holds the edge too.
-fn spline_window<T: Decide + geom_core::Bounds>(
-    spline: &geom::NurbsCurve3<T>,
-    (t0, t1): (T, T),
-) -> geom::NurbsCurve3<T> {
-    let (lo, hi) = (t0.lo().min(t1.lo()), t0.hi().max(t1.hi()));
-    let tail = spline
-        .split_at(lo)
-        .map_or_else(|_| spline.clone(), |(_, r)| r);
-    tail.split_at(hi).map_or_else(|_| tail.clone(), |(l, _)| l)
-}
+/// levels of a few pieces each; an arc lying along the line would halve
+/// without end, and its pieces past the budget are read as their balls.
+const ARC_SPLIT_BUDGET: usize = 1024;
 
 /// Are the two walls' boxes definitely apart on some axis? `false` on
 /// any ambiguity, which reads the pair.
@@ -4996,7 +5021,7 @@ mod tests {
     /// `(−1, 0), (0, 2), (1, 0)`, closed by its diameter: cut by
     /// `x = 0.5` the region covers `[0, 0.75]`. The control net's ball,
     /// centred at `(0, 1)` with radius `√2`, would cover `[−0.32, 2.32]`;
-    /// the refined read covers the true interval to within the band at
+    /// the refined read covers the true interval to within a few bands at
     /// either end. Cut by `x = 1.5` it covers nothing, though the ball
     /// still reaches that line.
     #[test]
@@ -5025,7 +5050,11 @@ mod tests {
                     edge: EdgeKey::default(),
                     start: west,
                     end: east,
-                    curve: EdgeArc::Arc(ArcPiece::Spline(spline_window(&parabola, (0.0, 1.0)))),
+                    curve: EdgeArc::Arc(ArcPiece::Spline(
+                        std::sync::Arc::new(parabola.clone()),
+                        spline_speed(&parabola),
+                        (0.0, 1.0),
+                    )),
                 },
                 BoundaryEdge {
                     edge: EdgeKey::default(),
@@ -5042,7 +5071,9 @@ mod tests {
         let got = wall.cut(Point3::new(0.5, 0.0, 0.0), up, band).unwrap();
         let lo = got.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
         let hi = got.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
-        let slack = band.escalate();
+        // A leaf's ball is within the band, and its cut lies within
+        // twice its radius of the arc the ball holds.
+        let slack = 4.0 * band.escalate();
         assert!(
             lo.abs() <= slack && (hi - 0.75).abs() <= slack,
             "the parabola at x = 0.5 covers [0, 0.75], got {got:?}"
