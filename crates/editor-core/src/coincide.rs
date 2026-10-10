@@ -264,6 +264,8 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
         topo::Relation::TangentContact { seam: false } => "touches tangentially against",
         topo::Relation::TangentContact { seam: true } => "continues tangentially into",
+        topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
 
@@ -276,6 +278,10 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
+        topo::DecisionSite::BatterySupportAxis => {
+            "a blend's two supports read as sharing the axis its band is minted on"
+        }
         topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
         topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
         topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",

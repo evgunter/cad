@@ -2681,11 +2681,11 @@ impl Coincidence {
 
     /// What was decided between them: `same_oriented`,
     /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
-    /// `tangent_contact` or `seam`. A `profile_junction` row is `tangent`
-    /// or `cusp` between two carriers and `same_oriented` where its
-    /// pieces continue one; a `tangent_witness` row is `tangent_contact`
-    /// (outward sides opposed) or `seam` (one face carried on into the
-    /// other).
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
     #[getter]
     fn relation(&self) -> &'static str {
         self.relation
@@ -2693,8 +2693,8 @@ impl Coincidence {
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
-    /// `profile_junction`, `vertex_fusion`, `census_at_rest` or
-    /// `import_anchor`.
+    /// `battery_joint`, `battery_support_axis`, `profile_junction`,
+    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

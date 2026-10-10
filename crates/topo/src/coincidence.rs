@@ -57,6 +57,15 @@ impl RowCell {
             cell: Cell::Face(face),
         }
     }
+
+    /// An edge of input `input`.
+    #[must_use]
+    pub const fn edge(input: Operand, edge: crate::EdgeKey) -> Self {
+        Self::Input {
+            input,
+            cell: Cell::Edge(edge),
+        }
+    }
 }
 
 /// What was decided between a row's two cells.
@@ -71,9 +80,10 @@ pub enum Relation {
     /// The two cells make equal angles with a third (an isosceles
     /// turn, whose mitre lands on that third edge).
     EqualAngles,
-    /// Two curves meet in first-order contact at a junction: the second
-    /// carrying on the first's heading (`aligned`, a smooth joint) or
-    /// reversing it (a cusp).
+    /// The two cells meet in first-order contact: their tangent lines
+    /// at the common point are one line, the second carrying on the
+    /// first's heading through it (`aligned`, a smooth joint) or
+    /// turning back along it (a cusp).
     Tangent {
         /// Whether the second carries on the first rather than
         /// reversing it.
@@ -86,6 +96,12 @@ pub enum Relation {
         /// The outward sides agree: a seam.
         seam: bool,
     },
+    /// The two cells' carriers' axes of revolution are one line.
+    Coaxial,
+    /// The two cells' carriers are ruled along one direction, so one
+    /// cross-section plane sections both into curves that do not vary
+    /// along it (a cylinder and a plane parallel to its axis).
+    CoRuled,
 }
 
 impl Relation {
@@ -101,7 +117,11 @@ impl Relation {
             Self::SameOriented => Some(C::Continuation),
             Self::TangentContact { seam: false } => Some(C::TANGENT),
             Self::TangentContact { seam: true } => Some(C::Seam),
-            Self::Tangent { .. } | Self::OnCarrier | Self::EqualAngles => None,
+            Self::Tangent { .. }
+            | Self::OnCarrier
+            | Self::EqualAngles
+            | Self::Coaxial
+            | Self::CoRuled => None,
         }
     }
 }
@@ -127,6 +147,13 @@ pub enum DecisionSite {
     SplitOn,
     /// The blend battery's isosceles turn (`fillet3_turn_isosceles`).
     BatteryTurn,
+    /// The blend battery's chain junction, its two links decided
+    /// tangent so one band runs through it (`fillet3_chain_g1`).
+    BatteryJoint,
+    /// The blend battery's curved support pair, decided to share the
+    /// axis or ruling its band is minted on
+    /// (`fillet3_support_coaxiality`).
+    BatterySupportAxis,
     /// A profile's junction no constructor made, its carriers' margin
     /// decided Zero (`profile`'s joint pass).
     ProfileJunction,

@@ -5016,6 +5016,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coincidence_relation_tag",
         values: &[
+            "co_ruled",
+            "coaxial",
             "cusp",
             "equal_angles",
             "on_carrier",
@@ -5056,6 +5058,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "decision_site_tag",
         values: &[
+            "battery_joint",
+            "battery_support_axis",
             "battery_turn",
             "carrier_ladder",
             "census_at_rest",
@@ -6589,6 +6593,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
     ("circle_circle", 2),
+    ("coaxial", 2),
     ("contact_contradicted", 2),
     ("corrupt", 2),
     ("cosurface_escalated", 2),

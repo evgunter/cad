@@ -2996,6 +2996,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: false } => "cusp",
         R::TangentContact { seam: false } => "tangent_contact",
         R::TangentContact { seam: true } => "seam",
+        R::Coaxial => "coaxial",
+        R::CoRuled => "co_ruled",
     }
 }
 
@@ -3010,6 +3012,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CoaxialSphere => "coaxial_sphere",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
+        S::BatteryJoint => "battery_joint",
+        S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
         S::CensusAtRest => "census_at_rest",
         S::ImportAnchor => "import_anchor",
