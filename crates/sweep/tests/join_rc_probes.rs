@@ -81,7 +81,7 @@ fn rc_wide_battery() {
 /// **A strut in the entry beside its pair's fan builds.** At each pose
 /// `b ∖ a`'s four-germ corner runs a fan and a strut in the two entries
 /// of one physical sector, and the fan moves the half that bounds the
-/// strut's corner (`work/join/four-germ-vertex-pairs-run-b-in-a-order`).
+/// strut's corner (`four-germ-vertex-pairs-run-b-in-a-order`, JOIN, closed by PR 4036).
 /// The pair's struts mint before its fans (`insert::SideRun::shared`),
 /// so every op builds `SOUND` at the closed form. One pose for each
 /// turned profile `rc_wide_battery` once aborted on. Red as
