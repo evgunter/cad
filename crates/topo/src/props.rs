@@ -239,9 +239,9 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { .. } => write!(
                 f,
                 "the kernel cannot yet measure the volume of a curved face with a hole, \
-                 other than a cone wall, or a cylinder or torus wall bounded by circles about \
-                 its axis and its own meridians. Recourse: move the cut so it crosses the face's edge instead of closing \
-                 inside the face"
+                 other than a cone wall, or a cylinder or torus wall bounded by circles \
+                 about its axis and its own meridians. Recourse: move the cut so it \
+                 crosses the face's edge instead of closing inside the face"
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -267,7 +267,8 @@ impl std::error::Error for MassPropsError {}
 /// # Errors
 ///
 /// [`MassPropsError`] — a misconfigured band, an out-of-inventory
-/// face, rings on a curved face, or unresolvable structure.
+/// face, a ring on a curved face no closed form reads, or unresolvable
+/// structure.
 ///
 /// **Not every valid body computes**, and the sentence that used to
 /// stand here (*"bodies that pass the structural tiers and were built
@@ -2428,9 +2429,9 @@ fn face_loops<T: Decide>(
 /// **A face's closed form**, at whatever scalar its geometry is read
 /// at: a plane, a cylinder, a torus and a cone over every loop, a
 /// sphere over its outer loop and its sense (a ring there is refused
-/// before this is reached, `RingOnCurvedFace`). The face walk runs it at the walk's
-/// scalar, and [`QuadLane`]'s `closed_form` at the interval scalar over
-/// the same geometry lifted.
+/// before this is reached, `RingOnCurvedFace`). The face walk runs it
+/// at the walk's scalar, and [`QuadLane`]'s `closed_form` at the
+/// interval scalar over the same geometry lifted.
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
@@ -2475,9 +2476,9 @@ fn face_flux<T: Decide>(
             closed_form_of(surface, &face_loops(body, face)?, face.sense, band).map_err(wrap)?
         }
         _ => {
-            // A cone face's closed form reads every loop, whatever trims
-            // it, and a cylinder or torus face's every loop of rims and
-            // rulings (`geom_brep::props::curved_face_loops`); no other
+            // A cone face's closed form reads every loop of lines and
+            // conics, and a cylinder or torus face's every loop of rims
+            // and rulings (`geom_brep::props::curved_face_loops`); no other
             // curved kind, and no quadrature lane, reads a ring.
             let mut rings = Vec::with_capacity(face.rings.len());
             for &lk in &face.rings {

@@ -393,6 +393,12 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
                     (_, true) => 153,
                     (_, false) => 152,
                 };
+                let rings = usize::from(keeps_the_wall && place == "inside one wall face");
+                assert_eq!(
+                    ringed_cone_faces(&got),
+                    rings,
+                    "the turned cube {place} on the {wall} wall, {op_label}: ringed cone faces"
+                );
                 solid_truth::assert_is_but(
                     &format!("the turned cube {place} on the {wall} wall, {op_label}"),
                     &got,
@@ -526,4 +532,86 @@ fn an_edge_grazing_the_wall_keeps_the_frontier() {
     assert_sweep_refuses("a brick grazing the wall", FULL, &other, |e| {
         matches!(e, BooleanError::CurvedPierceUnsupported { .. })
     });
+}
+
+/// How many of `got`'s body's cone faces carry a ring.
+fn ringed_cone_faces(got: &Result<topo::BooleanResult<f64>, BooleanError>) -> usize {
+    let Ok(topo::BooleanResult::Body(bb)) = got else {
+        return 0;
+    };
+    bb.body
+        .faces()
+        .filter(|&(k, f)| {
+            !f.rings.is_empty()
+                && topo::query::face_surface_kind(&bb.body, k) == Some(geom::SurfaceKind::Cone)
+        })
+        .count()
+}
+
+/// The frustum the cone-ring fuzz drew as seed 15 at ε = 1e-12.
+const SEED_15: Frustum = Frustum {
+    y0: 0.0,
+    y1: 19.689,
+    r0: 3.6339,
+    k: 0.5513,
+};
+
+/// The cube's side, centre and turn for [`SEED_15`]: side 4.748, its
+/// centre 0.08 outside the wall at `y = 15.2`, azimuth 3.952 from `+x`
+/// towards `+z`, turned 1.2567 about `(−0.342, 0.22, −0.0995)`.
+fn seed_15_cube() -> (f64, Point3<f64>, Affine3<f64>) {
+    let (y, az, out) = (15.2f64, 3.952f64, 0.08);
+    let r = SEED_15.r(y) + out;
+    let axis = Vec3::new(-0.342, 0.22, -0.0995);
+    let turn = Affine3::rotation_about_axis(Point3::origin(), axis / axis.norm(), 1.2567);
+    (4.748, Point3::new(r * az.cos(), y, r * az.sin()), turn)
+}
+
+/// The overlap of the cube [`seed_15_cube`] with [`SEED_15`], by a
+/// midpoint rule over the cube's own coordinates at 1600³ cells outside
+/// the kernel, stable to 4e-6 from 800³.
+const SEED_15_OVERLAP: f64 = 50.088_746;
+
+/// **A ring on a cone wall whose winding sums to rounding answers at
+/// every ε row.** The cone-ring fuzz's seed 15: a turned cube through
+/// the wall of a frustum, inside one wall face, so ∪ and A ∖ B keep
+/// its footprint as a ring on the cone face. Re-derived in interval
+/// arithmetic for check 7, the ring's winding about the axis encloses
+/// zero to ±1.7e-12, and a zero test of it escalated at ε = 1e-12;
+/// decided against half a turn, it does not. Every op builds, its
+/// volume the closed form from the frustum's, the cube's and their
+/// overlap, through tier 3.
+#[test]
+fn a_ring_on_a_cone_wall_whose_winding_sums_to_rounding_answers() {
+    let tol = Tol::witness();
+    let cone = SEED_15.body();
+    let (side, c, turn) = seed_15_cube();
+    let h = side / 2.0;
+    let raw = sweep::test_support::brick((-h, h), (-h, h), (-h, h), tol);
+    let to = Affine3::translation(c - Point3::origin());
+    let cube = finished(
+        "the cube",
+        topo::transform_rigid(&raw, &(to * turn), tol).unwrap(),
+        tol,
+    );
+    let f = SEED_15;
+    let va = PI * (f.y1 - f.y0) / 3.0 * (f.r0.powi(2) + f.r0 * f.r(f.y1) + f.r(f.y1).powi(2));
+    let (vb, vi) = (side.powi(3), SEED_15_OVERLAP);
+    for (op, got, want, rings) in [
+        ("∪", topo::union(&cone, &cube, tol), va + vb - vi, 1),
+        ("∩", topo::intersect(&cone, &cube, tol), vi, 0),
+        ("A ∖ B", topo::subtract(&cone, &cube, tol), va - vi, 1),
+        ("B ∖ A", topo::subtract(&cube, &cone, tol), vb - vi, 0),
+    ] {
+        let bb = match got.as_ref().map(topo::BooleanResult::body) {
+            Ok(Some(bb)) => bb,
+            _ => panic!("{op}: wanted a body, got {got:?}"),
+        };
+        assert_eq!(ringed_cone_faces(&got), rings, "{op}: ringed cone faces");
+        topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
+        let v = topo::mass_properties(&bb.body, tol)
+            .unwrap_or_else(|e| panic!("{op}: the volume refused {e:?}"))
+            .volume;
+        assert!((v - want).abs() <= 1e-5, "{op}: volume {v} against {want}");
+    }
 }

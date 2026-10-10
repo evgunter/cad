@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
-use crate::shared::tol::band;
+use crate::shared::tol::{band, eps};
 use crate::shared::topo;
 use geom::{Curve3, Surface};
 use geom_brep::props::{LoopEdge, PropsError, curved_face_loops};
@@ -117,6 +117,41 @@ fn a_window_with_a_hole_measures_the_window_less_the_hole() {
             (flux.abs() - want * SIN_A).abs() <= 1e-12 * want,
             "traversal {with}: flux {flux} against ±{}",
             want * SIN_A
+        );
+    }
+}
+
+/// **A hole whose joints close within the band is a hole.** The hole's
+/// inner rim starts `δ` of azimuth past its generator's foot, a gap of
+/// `0.95·ε` there, which the loop's closure admits; summed over its
+/// edges alone, the ring's winding is `−δ`, which at the outer rim's
+/// arm is `1.17·ε`, inside the escalation band. The winding is a whole
+/// number of turns, decided against half a turn, so the face measures
+/// the window less the hole, within the `ε` the gap moves it by. Red at
+/// a zero test of the winding.
+#[test]
+fn a_hole_whose_joints_close_within_the_band_is_a_hole() {
+    let ((v0, v1), (u0, u1)) = HOLE;
+    let delta = 0.95 * eps() / (v0 * SIN_A);
+    let against = vec![
+        generator(u0, v0, v1, 0, 3),
+        rim(v1, u0, u1, 3, 2),
+        generator(u1, v1, v0, 2, 1),
+        rim(v0, u1 + delta, u0, 1, 0),
+    ];
+    let with = vec![
+        rim(v0, u0, u1 + delta, 0, 1),
+        generator(u1, v0, v1, 1, 2),
+        rim(v1, u1, u0, 2, 3),
+        generator(u0, v1, v0, 3, 0),
+    ];
+    let want = area(OUTER.0, PI) - area(HOLE.0, 1.0);
+    for (outer, hole) in [(true, against), (false, with)] {
+        let (_, got) = measure(&[window(OUTER.0, OUTER.1, outer), hole])
+            .unwrap_or_else(|e| panic!("traversal {outer}: refused {e:?}"));
+        assert!(
+            (got - want).abs() <= eps().max(1e-12 * want),
+            "traversal {outer}: area {got} against {want}"
         );
     }
 }
