@@ -411,9 +411,19 @@ pub mod test_support {
         T::gate_volume_backstop(op, a, b, result, band, tol)
     }
 
-    /// The two operand clones as the boolean's join leaves them, A's
-    /// first.
-    pub type JoinedOperands = (Body<f64>, Body<f64>);
+    /// The two operand clones as the boolean's join leaves them, and
+    /// the interior-loop guard's verdict on them.
+    #[derive(Debug)]
+    pub struct JoinedOperands {
+        /// The A operand as the join leaves it.
+        pub a: Body<f64>,
+        /// The B operand as the join leaves it.
+        pub b: Body<f64>,
+        /// The interior-loop guard's verdict, which the pipeline raises
+        /// on the built body after tier validation, and this door does
+        /// not raise.
+        pub interior_loops: Result<(), crate::BooleanError>,
+    }
 
     /// The boolean pipeline through its join: both operand clones with
     /// every null edge killed, before the finish and the closing mint
@@ -827,9 +837,8 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    ConeJoin, PlantedDegradation, boolean_admitting_cones, join_admitting_cones,
-    section_report_admitting_cones, sweep_records, sweep_split_admitting_cones, sweep_traces,
-    sweep_traces_with_pad, take_shared_points,
+    PlantedDegradation, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
+    take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;

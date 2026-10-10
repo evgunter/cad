@@ -34,11 +34,12 @@ sector algebra has no cone arm"). A pose whose edge meets the apex
 refuses `CrossingAtConeApex` first, and one whose rim lies on the cone
 `CurvedPierceUnsupported`.
 
-`topo::sweep_split_admitting_cones` (`sweep-testing`) reaches the same
+`topo::sweep_split` (`sweep-testing`) reaches the same
 point from a finished body without the experiment, and
 `sweep/tests/reach_cone_root_lane.rs` holds its splits against an
-oracle; `every_op_refuses_a_cone_operand_at_the_pair_gate` there pins
-the gate and goes red when this lane, with `VERBS-CONE`, opens it.
+oracle; `every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
+there pins every op's answer now that `VERBS-CONE`'s U7 has put the cone
+on the operand gate's roster.
 
 ## What
 
@@ -151,9 +152,10 @@ PR 4369 (`germ/cone-sector-normals`).
 - **D4, D5.** `bool_connect` dispatches `(Plane, Cone)` as `PlaneWall`
   and `(Cone, Plane)` as `WallPlane`, and `bool_planar_chord_spec`
   admits the cone.
-- **U-S0.** `topo::join_admitting_cones` (`sweep-testing`) runs the
-  production pipeline with `Cone` on the gate's roster and stops after
-  the join. Measured through it, B4, C1 and T1 join in every op and
+- **U-S0.** A `sweep-testing` door ran the production pipeline with
+  `Cone` on the gate's roster and stopped after the join; with the cone
+  on the production roster, `topo::test_support::boolean_through_the_join`
+  is that door. Measured through it, B4, C1 and T1 join in every op and
   member order, each chord the closed-form section on both sides. Every
   pose then meets D6, the interior-loop guard.
 
