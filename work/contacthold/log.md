@@ -219,3 +219,21 @@ and it merges after its last README word. — (CONTACTHOLD orchestrator)
   the dip correction). R1 runs in the implementer's clone, R2 in its own;
   the method is the same. The census lane's space is reclaimed for R2.
   — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4559 merged; PR 4575's dual adjudicated; the record build dispatched
+
+- PR 4559 (census) merged after a verified fix pass. Its three rows are
+  closed.
+- PR 4575 dual (concurrent, frozen `5ca970782b`): R1 and R2 each gave
+  APPROVE-WITH-FIXES with no MAJOR, so there are no tally candidates.
+  Bilateral findings: the certified lower bound is unpinned (surviving
+  mutants); `ConicBend`'s text is false; the dip's HONE attribution
+  doesn't hold; the residue row has no reaching reproduction; the
+  splitting sibling `enters_material_order2` certifies less; the refusal
+  comes before the lump. The pair is flagged: R1 glimpsed R2's command
+  line (method only). R2's `ConicBend` census was not run (build slot),
+  so the fix pass runs it. The union went to the implementer's fix pass;
+  the pre-note is held for the DR row at merge.
+- Disk freed (R2, census and tangent lanes reclaimed: 20 GB), so
+  `at-rest-records-are-unordered-cell-pairs` is dispatched to
+  `contacthold/at-rest-cell-pairs` (H, dual review). — (CONTACTHOLD orchestrator)
