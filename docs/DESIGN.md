@@ -344,13 +344,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
      within one shell), whose interiors meet, plus its backing: a
-     coincidence an op decided Zero, recorded (D10). Records carry
-     three granularities: vertex (`VvContact`, `VeContact`,
-     `VfContact`: a vertex on a vertex, on an edge's interior, on a
-     face's interior); edge (`EeContact`: two edges whose interiors
-     meet, crossing or overlapping); and face (`CurveContact`,
-     `PatchContact`; CONTACT-DESIGN C3), whose rungs back a subordinate
-     vertex event. Edge-on-face and coincident-edge *segments* are
+     coincidence an op decided Zero, recorded (D10). The record is
+     that pair and nothing else: an unordered pair of the body's own
+     cells, in canonical order, in one list a citation addresses by
+     position. It carries no operand label, no stored granularity and
+     no witness. Its kind (vertex–vertex, vertex–edge, vertex–face,
+     edge–edge, edge–face, face–face) is the two cells' dimensions, and
+     whether it touches at a point, along a curve or over a patch is
+     read from the two cells' geometry by the census (CONTACT-DESIGN
+     C3), whose rungs back a subordinate vertex event. An operation's
+     own working vocabulary (the boolean's operand-tagged cells) stays
+     inside it and is dropped at its carry. Edge-on-face and coincident-edge *segments* are
      certified by reconstruction from their bounding vertex records
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
@@ -360,9 +364,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      edge split moves a `(vertex, edge)` record onto the piece the
      vertex rests on, and an `(edge, edge)` record onto every pair of
      pieces whose interiors still meet, by the split's own lineage.
-   - **Certification strength equals its skeleton**: a `CurveContact`
-     is certified at its jet samples plus hull bounds, a `PatchContact`
-     by definitely-positive region overlap in the shared chart, a
+   - **Certification strength equals its skeleton**: a curve touch is
+     certified at its jet samples plus hull bounds, a patch by
+     definitely-positive region overlap in the shared chart, a
      vertex-granularity area contact via its corner/segment records.
      Nested-shell pure containment (a void, zero coincidences) is
      census-invisible and certifies — the voids story below, not a
