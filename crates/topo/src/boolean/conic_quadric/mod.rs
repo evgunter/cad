@@ -133,6 +133,9 @@ mod cone_rows;
 #[cfg(test)]
 mod ellipse_rows;
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod in_band_sweep;
+#[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod shallow_sweep;
 

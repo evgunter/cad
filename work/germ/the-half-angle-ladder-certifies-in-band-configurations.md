@@ -2,10 +2,12 @@
 id: the-half-angle-ladder-certifies-in-band-configurations
 kind: issue
 title: The shared half-angle ladder certifies Miss (and roots) for configurations inside the zero band, where the trilean says escalate
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-10
+branch: germ/half-angle-meters
 ---
 
 
@@ -71,3 +73,46 @@ in-band grazes of 50 m and 500 m walls (circle) and a 5 m wall
 `conic_quadric::ellipse_rows::a_graze_is_read_by_its_depth`, and
 `conic_quadric::ellipse_rows::fuzz_rows` (a true-distance oracle at three bands, with
 the counterexample's seed pinned). This row can close with that PR.
+
+## Closed (branch `germ/half-angle-meters`, 2026-10-10)
+
+Re-measured on main through the current door (`conic_quadric_roots`,
+the ladder for its escalations, `certified_subdivision` for the
+answer), against the double-double oracle (`conic_oracle::exact`), at
+ε = 1e-6, 1e-9 and 1e-12 (`Band::new(ε, 10ε)`). Circles tangent to a
+wall of radius 0.01–100 m at a chosen signed depth, ρ 0.01–2000 m, at
+tilts drawn over the whole turn, 6,000 poses per ε:
+
+- **Sub-band crossings** (|depth| ≤ ε, about 1,500 per ε): no `Miss`,
+  no certified count. Every one answered `Uncertain` or escalated.
+- **Exact tangencies** (depth 0, about 1,500 per ε): no definite
+  answer. Every one `Uncertain` or escalated, at every tilt, the review's
+  1.01ε included.
+- **Gap depths** (ε < |depth| < 10ε): the same, no definite answer.
+- **ρ = 1500 against a unit wall** (3,000 poses per ε, depths 0.01ε to
+  0.1 m): at ε = 1e-9, where the noise reads in the gap on every pose,
+  the worst certified root is 3.5e-10 m from the oracle (the review saw
+  1.09–1.23e-9 m). At 1e-6 the worst is 1.9e-9 m. At 1e-12 it is
+  1.33e-12 m, on two roots that are 0.64 and 4 ulp of θ from the
+  oracle's: that is the f64 parameter's own grid at this radius
+  (ρ·ulp(2π) = 1.3e-12 m), not the door. No `Miss` on a true crossing
+  at any ε.
+
+What decides these is not the width row. A graze's in-band stretch of
+arc, about √(Kερ), is far wider than the band's arc. The walk refuses
+there because no split share of the piece reads a definite sign. The
+slack meter refuses a root it cannot place: made to accept its `Err`,
+it certifies roots 1.08–1.10e-9 m off at ε = 1e-9, which is the review's
+reading back.
+
+Rows, in `crates/topo/src/boolean/conic_quadric/in_band_sweep.rs`,
+each with the mutant that turns it red:
+
+- `no_pose_inside_the_band_is_answered` (fuzz): red when a piece with no
+  definite split share reads as clear (`continue` for the `Uncertain` at
+  the split in `certified_subdivision`).
+- `an_exact_tangency_is_escalated_at_every_tilt` (edge table): red under
+  the same mutant, with 159 tangencies answered.
+- `a_circle_of_radius_1500_places_its_roots_within_the_zero_band`
+  (fuzz): red under the same mutant (72 wrong), and when the slack meter
+  accepts `Err` (50 wrong, up to 1.10e-9 m at ε = 1e-9).
