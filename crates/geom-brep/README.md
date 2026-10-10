@@ -660,7 +660,11 @@ pcurve channels refuse `QuadratureUnsupported`; exhaustion is
 `QuadratureBudget`, never a silent Gaussian. A sphere face whose
 boundary circles are tilted against its chart has no conic or spline
 trim and is on the closed-form lane, measured by Gauss–Bonnet over its
-circle arcs (`props/curved.rs`, `sphere_circle_loop`). (8) In-house SVD and
+circle arcs (`props/curved.rs`, `sphere_circle_loop`). A chart
+singularity inside a face is a vertex of it, so a sphere face lies on
+the side of its loop that holds no chart pole. The closed-form lane and
+tier 3 read that side to cross-check the face's sense bit, and refuse a
+contradiction, wherever at least one pole lies off the loop. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
