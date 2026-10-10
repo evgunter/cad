@@ -2,11 +2,10 @@
 id: an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses
 kind: issue
 title: An edge tangent to a curved face at a point touch no declaration can cover refuses in both operand orders
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 Found while building `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`,
@@ -46,3 +45,7 @@ cover is a design question for the cover clause.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: asks which declarations can cover a touch; stage 4 retires declared Tangent and the undeclared-tangency refusals. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E changes where a cover can come from. The glue door declares a plane × cylinder pair `Tangent` itself wherever the witness lane verifies it, and it reads only the two faces' boxes (`crates/topo/src/boolean/glue.rs:72`–`:83`, `:98`). The wall × fillet pair here may now be covered without a declaration. Not measured: the repro has no fixture in the tree. If the witness lane verifies the ruling though the faces share one point, the union may build or move to another refusal. If not, the design question for the cover clause stands as written.

@@ -975,6 +975,12 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # Which primitive a measure is, without its references: Python reads
+    # it as the primitive's verb word.
+    "MeasureVerb": "MeasurePrimitive.verb",
+    # `SelectionFault` is what `EditError::SelectionShape` carries, and
+    # its arms cross at the carrier's second word.
+    "SelectionFault": "EditError.inner_variant",
     # The authored-step doors. `StepHandleRefusal` crosses as its own
     # class under the door's name, its arms at `variant`; `keep_grid`
     # is the lowering `DocEdit.set_program` runs on its `keep` dicts;
@@ -2280,6 +2286,15 @@ NOT_BOUND = {
     # `output_signature` and its sentence, and the subgroup family is
     # the value-free name of a `Subgroup.variant` Python already reads.
     "OutputFault": SHAPE,
+    # A selection's definition and its two refusals' faults: Python
+    # authors a selection through the node that reads it (`Node.fillet`
+    # takes the names) and repairs one through `DocEdit.rebind` with
+    # `body=`; an edit door's shape refusal crosses as
+    # `EditError.inner_variant` (the row in `BOUND_AS`), and a load's as
+    # `PersistError.inner_variant` `selection_shape` / `selection_body`
+    # and its sentence.
+    "Select": SHAPE,
+    "SelectionBodyFault": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
     # An operand's address and what it admits: Python names a refused
@@ -2915,13 +2930,11 @@ NOT_BOUND = {
     # or `None`.
     "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
-    # four refusals that test an `EntityKey`'s kind
-    # (`shell_open_kind`, `face_frame_kind`, the two blend selection
-    # kinds, `measure_selection_kind`). Carried in Rust because a Rust
-    # consumer can match those variants and would otherwise be unable
-    # to NAME the field's type; interior here because Python never
-    # holds one. Those refusals cross as a tag word plus the prose the
-    # kind is already rendered into — `an edge`, `a vertex` — so a
+    # refusal that tests an `EntityKey`'s kind (`select_kind`). Carried
+    # in Rust because a Rust consumer can match that variant and would
+    # otherwise be unable to NAME the field's type; interior here
+    # because Python never holds one. The refusal crosses as a tag word
+    # plus the prose the kind is already rendered into — `an edge`, `a vertex` — so a
     # Python caller reads the answer in the message and branches on the
     # tag. Its field is private to the door that mints it, so a bound
     # constructor could not exist even if a caller wanted one.
@@ -3636,12 +3649,13 @@ MEMBERS_BOUND_AS = {
     # So the arm is bound, tagged and readable, and no Python program
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
-    # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound.
+    # `Maintenance::StrandedSelection` has no such gap: `Node.fillet`
+    # takes a name selection and `DocEdit.delete_node` is bound.
     "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedRead": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
+    "Maintenance::StrandedSelection": "Maintenance.variant",
     "Maintenance::LabelDropped": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
@@ -3652,8 +3666,7 @@ MEMBERS_BOUND_AS = {
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
     "EditError::DuplicateInput": "EditError.variant",
-    "EditError::RepeatedDesignation": "EditError.variant",
-    "EditError::SelectionNotCanonical": "EditError.variant",
+    "EditError::SelectionShape": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetDeclareOnNonDeclaring": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
@@ -3666,7 +3679,6 @@ MEMBERS_BOUND_AS = {
     "EditError::DefinesNothing": "EditError.variant",
     "EditError::PartHalfPort": "EditError.variant",
     "EditError::ReadsWorldCopy": "EditError.variant",
-    "EditError::MeasuresWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",

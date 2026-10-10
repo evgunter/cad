@@ -2,11 +2,10 @@
 id: loft-walls-keyed-per-segment-on-a-declared-carrier
 kind: issue
 title: loft: a declared continuation's two walls get two NURBS surface keys, so no merge rung can join them
-status: parked
+status: open
 opened: 2026-09-25
 priority: P2
 cost: M
-blocked_on: [intent-stage4-is-built]
 design: true
 ---
 
@@ -39,3 +38,7 @@ The row is about a DECLARED straight continuation and the declared merge rung th
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: a declared continuation and the declared merge rung, which stage 4 replaces with canonical carrier forms at the door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E removes both rungs this row's fix named. `GeomSource` is deleted, so walls cannot share one. The declared continuation now changes nothing, because the merge reads each pair by its margin, declared or not (`crates/topo/src/merge_faces.rs:2255`, `faces_continue`). The defect stands: the two lofted walls are NURBS on two keys, and the merge's margin rung has no NURBS carrier. `face_carrier` answers `None` for a net (`crates/topo/src/boolean/carrier_pair.rs:243`), `carriers_continue` reads that as "no merge" (`merge_faces.rs:2354`), and so the walls stay split. What remains is the first shape, one skin surface over a same-carrier run, or a NURBS arm in the carrier ladder. It is still latent behind the boolean's spline-edge refusal.

@@ -21,10 +21,9 @@
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
-//! the badge family beside it. **The draft and the offers a refused
-//! batch leaves behind** ([`retype_draft`], [`creation_offer`],
-//! [`declare_offer`]), **and the one a failed instance makes**
-//! ([`version_offer`]).
+//! the badge family beside it. **The draft and the offer a refused
+//! batch leaves behind** ([`retype_draft`], [`creation_offer`]), **and
+//! the one a failed instance makes** ([`version_offer`]).
 //! **What a folded event stream amounts to** ([`folded_moved`],
 //! [`fold_status`]), **what a frame says about work outstanding**
 //! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
@@ -250,8 +249,8 @@ use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{
-    AtRestBadge, DeclareOffer, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal,
-    Selection, SessionOp, VersionOffer,
+    AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
+    SessionOp, VersionOffer,
 };
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
@@ -1501,15 +1500,15 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 ///
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
-/// - A stranded payload name is retold only where its CARRIER fails on
-///   it, and this door cannot know that it will. Any carrier poisoned
+/// - A stranded payload or selected name is retold only where its
+///   CARRIER fails on it, and this door cannot know that it will. Any carrier poisoned
 ///   by an upstream failure has a row that names the ancestor, not the
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
-        Maintenance::Strand { .. } => Retold::Never,
+        Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
         // next evaluation, before any poison from upstream, naming the
         // operand.
@@ -2967,47 +2966,6 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
         | ParseError::UnknownFunction { .. }
         | ParseError::WrongArity { .. }
         | ParseError::Dimension { .. } => None,
-    }
-}
-
-/// **The declare offer a refused batch leaves behind** — the offer a
-/// boolean's undeclared-contact refusal makes
-/// ([`crate::session::RefusedBoolean::offer`]), for the frame loop to
-/// hold for the boolean tool the way it holds [`creation_offer`]'s name
-/// for the add-variable form. `None` for every other refusal and for a
-/// clean batch.
-///
-/// The two offers go stale differently, and each says how where it is
-/// shown: a name to create stands until the name field moves past it,
-/// while a declaration is sited in one document, so it stands only at
-/// the generation it was refused at ([`DeclareOffer::is_for`]).
-pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
-    match refusal? {
-        Refusal::Contact(refused) => refused.offer(),
-        Refusal::DrivenByExpression { .. }
-        | Refusal::NoSuchSlot { .. }
-        | Refusal::NoSuchVariable(_)
-        | Refusal::VariableIsDefined(_)
-        | Refusal::NotOffered(_)
-        | Refusal::OfferIsNamed(_)
-        | Refusal::ConstantRefused { .. }
-        | Refusal::EmptyName
-        | Refusal::WrongNodeKind { .. }
-        | Refusal::Duplicate(_)
-        | Refusal::Edit(_)
-        | Refusal::Dimension(_)
-        | Refusal::Parse(_)
-        | Refusal::NoGesture
-        | Refusal::GestureInFlight
-        | Refusal::WrongGesture
-        | Refusal::Io(_)
-        | Refusal::NothingToDo { .. }
-        | Refusal::Display(_)
-        | Refusal::SlotUnit(_)
-        | Refusal::NoDocumentDirectory
-        | Refusal::Workspace(_)
-        | Refusal::SelfInstance { .. }
-        | Refusal::ProfileEditStale { .. } => None,
     }
 }
 

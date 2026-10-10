@@ -3,7 +3,7 @@
 //! WIDENED parameter the split's body reads, and each Part's body is
 //! the half's or the instance's own, read off the split's or the
 //! pattern's value at the same lane; and the amendment's `Sym<Interval>`
-//! pin of the relaxed same-source assertions on the exact document.
+//! pin of the exact document.
 //!
 //! The widening is scaled to the row's ε because the hosted matrix
 //! runs this row at every ε row and the widened split must certify at
@@ -290,9 +290,9 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
 }
 
 /// **The `Sym<Interval>` pin** (the amendment, item 2): the exact
-/// corpus document — whose union rejoins two pieces carrying one
-/// pass-through source — evaluates green at the symbolic scalar, which
-/// has no bit channel either.
+/// corpus document — whose union rejoins the two halves of one split
+/// — evaluates green at the symbolic scalar, which has no bit channel
+/// either.
 #[test]
 fn the_part_select_document_evaluates_at_sym_interval() {
     let cd = corpus::part_select::document();

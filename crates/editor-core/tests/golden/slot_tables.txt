@@ -32,9 +32,9 @@ Datum(Frame { origin: [#0, #1, #2], u: [#3, #4, #5], v: [#6, #7, #8] })
   #6 V(X)
   #7 V(Y)
   #8 V(Z)
-Datum(FaceFrame { at: @0, face: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 0, digest: 0 }), path: [Cap(Start)] }, spin: #0 })
+Datum(FaceFrame { face: @0, spin: #0 })
   #0 Spin
-  @0 Operand(At)
+  @0 Operand(Face)
 Profile(ProfileProgram { frame: @0, loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [] })
   #0 Profile { loop_: 0, step: 0, arg: PointX }
   #1 Profile { loop_: 0, step: 0, arg: PointY }
@@ -78,15 +78,15 @@ Sweep { profile: @0, path: @1, stations: #0, v_degree: #1 }
   #1 VDegree
   @0 Operand(Profile)
   @1 Operand(Path)
-Fillet { target: @0, radius: #0, selection: [] }
+Fillet { radius: #0, selection: @0 }
   #0 Radius
-  @0 Operand(Target)
-Chamfer { target: @0, distance: #0, selection: [] }
+  @0 Operand(Selection)
+Chamfer { distance: #0, selection: @0 }
   #0 ChamferDistance
-  @0 Operand(Target)
-Shell { target: @0, thickness: #0, open: [] }
+  @0 Operand(Selection)
+Shell { thickness: #0, open: @0 }
   #0 ShellThickness
-  @0 Operand(Target)
+  @0 Operand(Open)
 Split { target: @0, tool: @1 }
   @0 Operand(Target)
   @1 Operand(Tool)
@@ -203,5 +203,7 @@ Mate { a: SitedFace { at: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), name: 
   #4 MateFrameStep { side: B, step: 1, arg: RotationAxis(Y) }
   #5 MateFrameStep { side: B, step: 1, arg: RotationAxis(Z) }
   #6 MateFrameStep { side: B, step: 1, arg: RotationAngle }
-Measure { primitive: Distance { a: SitedRef { at: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), path: [Cap(Start)] } }, b: SitedRef { at: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 0, digest: 1 }), path: [Cap(End)] } } } }
+Measure { primitive: Distance { a: @0, b: @1 } }
+  @0 Operand(Measured(Distance, 0))
+  @1 Operand(Measured(Distance, 1))
 Assertion { value: VarId(MintId { ordinal: 1, digest: 11183020936580787592 }), bound: VarId(MintId { ordinal: 2, digest: 2287397637766653602 }), relation: AtLeast }

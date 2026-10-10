@@ -2,14 +2,13 @@
 id: torus-declared-rest-lane-banked
 kind: issue
 title: Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966
-status: parked
+status: open
 opened: 2026-08-23
 github: 968
 refs: [966, 1477, 1488, 1489]
 priority: P3
 cost: H
 design: true
-blocked_on: [intent-stage4-is-built]
 ---
 
 ## From GitHub issue 968
@@ -60,3 +59,7 @@ and `a-torus-meridian-lying-on-a-torus-is-unsettled`.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the remainder is the declared torus Rest/Tangent kissing arm; the declared lane retires at stage 4 and torus pairs glue on Zero. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E makes torus pairs glue on their verdicts. A torus pair the carrier ladder decides one carrier is declared by the glue door (`crates/topo/src/boolean/glue.rs:72`–`:78`; `face_carrier` reads a torus, `crates/topo/src/boolean/carrier_pair.rs:230`). A G1 rim verifies as a seam through `rim_wedge::shared_rim` (`glue.rs:98`). The kissing arm this row banks is still unbuilt. Away from a shared rim, the glue door asks the witness lane of plane and cylinder pairs only (`glue.rs:113`), so a torus × torus kiss has no witness and nothing glues it. The lily's stem waits on `a-torus-seam-graze-needs-the-rim-root-deflated`. Still banked under Ev's #966 ruling.

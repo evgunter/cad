@@ -1427,14 +1427,6 @@ const CITED_GROUP_NOT_ONE_SEAM: &str = "several vertices of a union share one na
 const CITED_GROUP_NO_MEMBER_EDGE: &str = "several vertices of a union share one seam name once \
      they cite member edges whole, and neither side of it is an edge to rank them along";
 
-/// Whether `name` is a QUALIFIED piece of a member edge. In a name
-/// collapsed out of a fold that did not finish — a refusal's — that
-/// qualifier is the fold's, over vertices no published table names, so
-/// such a name cannot be handed out.
-pub(crate) fn is_fold_qualified_member_edge(name: &StableName) -> bool {
-    member_edge_piece(name).is_some_and(|(_, _, qualified)| qualified)
-}
-
 /// The [`SegRewrite`] of [`cite_member_edges`]: an embedded qualified piece
 /// of a member edge becomes the member edge. Only names the UNION
 /// minted are rewritten or entered: the name a `FromMember` carries is
@@ -1487,9 +1479,9 @@ type MemberFace = (RecipeNodeId, topo::FaceKey);
 /// **The member faces a union links** (N2): the pairs each pairwise
 /// judgement (DM4) consumed. A judgement is the two members' own union,
 /// so a pair it merged (`BooleanNaming::merge_groups`) or whose region
-/// it held through the other face (`BooleanNaming::covered`) is one the
-/// recipe declared coincident, or gave one source, and that lies with
-/// one orientation: the kernel merges and covers no other. A certified
+/// it held through the other face (`BooleanNaming::covered`) is one its
+/// margins decided one carrier (declared or not, D10), and that lies
+/// with one orientation: the kernel merges and covers no other. A certified
 /// pair the judgement never brought together is in neither record and
 /// links nothing.
 #[derive(Default)]
@@ -1559,6 +1551,13 @@ impl Fold {
             obstacles: Obstacles::new(),
             senses: CrossingSenses::new(),
         }
+    }
+
+    /// The member faces accumulation face `face` descends from — the
+    /// lineage a fold step reads its pairs' verdicts through. `None`
+    /// for a face the accumulation does not hold.
+    pub(crate) fn member_faces(&self, face: topo::FaceKey) -> Option<&BTreeSet<MemberFace>> {
+        self.lineage.get(&face)
     }
 
     /// One fold step: `member` folded into the accumulation, giving
@@ -1702,8 +1701,8 @@ impl Parents {
         // What the fold merged does not link: a finished face whose member
         // faces are of several parents has no one parent to take. A
         // bug, not a recipe: a fold step merges two member faces only
-        // where they meet on a plane under a declaration or a shared
-        // source. A union only adds material, so they meet there in
+        // where their margins decide them one carrier. A union only adds
+        // material, so they meet there in
         // their own pair's union too, whose boxes therefore meet and
         // which is judged under the same declarations. That judgement
         // merges or covers them. A curved run the pair leaves unmerged
@@ -2386,9 +2385,8 @@ fn orient<'s>(
             // space, each collapsed by this same rule.
             //
             // The pair emitter mints `Merged` for the kernel's merge
-            // groups — faces that share a recipe source, or a declared
-            // coincidence, which a union carries through its own
-            // declared pairs — so a fold step's table carries these rows.
+            // groups — faces whose margins decide them one carrier — so a
+            // fold step's table carries these rows.
             //
             // The constituent set is FLAT (N3): a constituent is never
             // itself a bare merged face. The mint (`emit_topo`'s
