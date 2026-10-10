@@ -22,7 +22,7 @@ use std::sync::Arc;
 use editor_core::NodeStanding;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
+    CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
     RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SitedRef,
     SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
@@ -135,6 +135,10 @@ struct Slide {
     b0: RecipeNodeId,
     transform: RecipeNodeId,
     union: RecipeNodeId,
+    /// `a`'s read, the union's first member.
+    a_read: editor_core::VarId,
+    /// The transform's read, the union's second member.
+    t_read: editor_core::VarId,
 }
 
 fn slide_union(tx: f64) -> Slide {
@@ -156,12 +160,11 @@ fn slide_union(tx: f64) -> Slide {
     // and named in `b0`'s vocabulary, which the transform carries
     // verbatim (N1).
     let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
+    let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, transform));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: transform.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
             declare: decl,
         },
     );
@@ -171,6 +174,8 @@ fn slide_union(tx: f64) -> Slide {
         b0,
         transform,
         union,
+        a_read,
+        t_read,
     }
 }
 
@@ -222,13 +227,19 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     let wrapped = minted(
         EntityKind::Face,
         s.union,
-        RoleSeg::FromA(cap.clone().into()),
+        RoleSeg::From {
+            read: s.a_read,
+            of: cap.clone().into(),
+        },
     );
     let cap_b = minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = minted(
         EntityKind::Face,
         s.union,
-        RoleSeg::FromB(cap_b.clone().into()),
+        RoleSeg::From {
+            read: s.t_read,
+            of: cap_b.clone().into(),
+        },
     );
     let mut constituents = vec![wrapped.clone(), wrapped_b];
     constituents.sort_unstable();
@@ -286,10 +297,9 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -739,10 +749,8 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -792,7 +800,14 @@ fn rebind_suggestions_offer_wrapping_derivations() {
     // row — the suggestion ladder offers the MERGED name (whose
     // constituents embed the cap's wrap); nothing is followed
     // automatically — these are Rebind candidates only.
-    let wrapped = minted(EntityKind::Face, s.union, RoleSeg::FromA(cap.into()));
+    let wrapped = minted(
+        EntityKind::Face,
+        s.union,
+        RoleSeg::From {
+            read: s.a_read,
+            of: cap.into(),
+        },
+    );
     assert!(
         suggestions.iter().any(|n| matches!(
             n.path.first(),
@@ -817,14 +832,13 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
+    let (ra, rb) = (fixture::out(&doc, a), fixture::out(&doc, b));
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
     // A real pair: accepted.
@@ -834,8 +848,8 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             &DocEdit::SetDeclare {
                 node: u,
                 pairs: editor_core::declare_rest(vec![(
-                    SitedRef::at_mint(cap_a.clone()),
-                    SitedRef::at_mint(cap_b),
+                    SitedRef::new(ra, cap_a.clone()),
+                    SitedRef::new(rb, cap_b),
                 )]),
             },
             &ev,
@@ -855,8 +869,8 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         &DocEdit::SetDeclare {
             node: u,
             pairs: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(cap_a.clone()),
-                SitedRef::at_mint(bogus.clone()),
+                SitedRef::new(ra, cap_a.clone()),
+                SitedRef::new(ra, bogus.clone()),
             )]),
         },
         &ev,
@@ -892,8 +906,8 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         &DocEdit::SetDeclare {
             node: u,
             pairs: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(cap_a.clone()),
-                SitedRef::at_mint(bogus_b),
+                SitedRef::new(ra, cap_a.clone()),
+                SitedRef::new(rb, bogus_b),
             )]),
         },
         &ev_early,
@@ -917,8 +931,8 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             &DocEdit::SetDeclare {
                 node: u,
                 pairs: editor_core::declare_rest(vec![(
-                    SitedRef::at_mint(cap_a),
-                    SitedRef::new(b, cap_c.clone()),
+                    SitedRef::new(ra, cap_a),
+                    SitedRef::new(rb, cap_c.clone()),
                 )]),
             },
             &ev,
@@ -1023,15 +1037,12 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
     let under = |n: &StableName| n == needle || occurs(n, needle, partners);
     hay.path.iter().any(|seg| match seg {
         // One embedded operand name: the entity derives from it.
-        RoleSeg::FromA(x)
-        | RoleSeg::FromB(x)
-        | RoleSeg::FromMember { of: x, .. }
+        RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::FromTarget(x)
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -1198,10 +1209,9 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: _a.into(),
-            b: tr.into(),
+        Node::Subtract {
+            from: _a.into(),
+            tool: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -1270,7 +1280,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let (doc1, bl) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -1279,8 +1289,8 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let member_cap = |m: RecipeNodeId| StableName {
         kind: EntityKind::Face,
         node: bl,
-        path: vec![RoleSeg::FromMember {
-            member: m,
+        path: vec![RoleSeg::From {
+            read: fixture::out(&doc1, m),
             of: minted(EntityKind::Face, m, RoleSeg::Cap(CapEnd::End)).into(),
         }],
     };
@@ -1302,7 +1312,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc1.clone(),
         DocEdit::SetMembers {
             node: bl,
-            members: vec![a.into(), c.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
         },
     );
     // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
@@ -1377,7 +1387,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b.into(), d.into()],
+            members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
             declare: Vec::new(),
         },
     );
@@ -1397,7 +1407,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc1,
         DocEdit::SetMembers {
             node: x,
-            members: vec![c.into(), d.into()],
+            members: editor_core::Bodies::Spelled(vec![c.into(), d.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -1489,14 +1499,19 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
 // ---- Review Finding 1 ruling: the qualifier-delta rung, for a ----
 // ---- face piece the border delta ----
 
-/// A body-kind piece name `[FromA(f), Fragment(Borders(walls))]` at
-/// `node` — the hand-built shape for the border-delta pins.
+/// A body-kind piece name `[From(read, f), Fragment(Borders(walls))]`
+/// at `node` — the hand-built shape for the border-delta pins, `read`
+/// an arbitrary fixed operand read (the evaluation is hand-built, so no
+/// document holds it).
 fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableName {
     StableName {
         kind: EntityKind::Body,
         node,
         path: vec![
-            RoleSeg::FromA(f.clone().into()),
+            RoleSeg::From {
+                read: editor_core::VarId::new(0, 1),
+                of: f.clone().into(),
+            },
             RoleSeg::Fragment(Qualifier::Borders(
                 walls.iter().map(|&w| w.clone()).collect(),
             )),

@@ -3169,7 +3169,10 @@ impl EditError {
                 )
             }
             Self::LoftSectionsSpelled { node } => {
-                write!(f, "{node} is a loft, whose sections are spelled one read each")?;
+                write!(
+                    f,
+                    "{node} is a loft, whose sections are spelled one read each"
+                )?;
                 tail.recourse(f, format_args!("list the sections the loft passes through"))
             }
             Self::SetMembersOnNonList { node } => {
@@ -6212,7 +6215,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             };
             let spoken = || doc.spoken(*node);
             let mut lower = |slot: crate::OperandSlot, member: &crate::Operand| {
-                lower_operand(new, &spoken, SlotId::Operand(slot), member, None, slot.kind())
+                lower_operand(
+                    new,
+                    &spoken,
+                    SlotId::Operand(slot),
+                    member,
+                    None,
+                    slot.kind(),
+                )
             };
             let mut rewritten = current.clone();
             match &mut rewritten {

@@ -8,10 +8,11 @@
 
 use crate::fixture::{Recorder, ang, len, scl};
 use editor_core::ExtrudeSide;
+use topo::BooleanOp;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Formula,
-    Node, NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Formula, Node,
+    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
     RoleSeg, SplitHalf, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };
 use geom_core::Tol;
@@ -50,13 +51,33 @@ fn block(
     })
 }
 
+/// The document's node for the kernel verb `op` over `a` and `b`: a
+/// two-member union or intersect, or `a` cut by `b`.
+fn boolean_node(
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    declare: Vec<editor_core::DeclaredPair>,
+) -> editor_core::AuthoredNode {
+    match op {
+        BooleanOp::Union => Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
+        BooleanOp::Intersect => Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
+        BooleanOp::Subtract => Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+            declare,
+        },
+    }
+}
+
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    r.insert(Node::Boolean {
-        op,
-        a: a.into(),
-        b: b.into(),
-        declare: Vec::new(),
-    })
+    r.insert(boolean_node(op, a, b, Vec::new()))
 }
 
 /// The answer a boolean node holds: `None` for the typed empty result,
@@ -141,7 +162,7 @@ fn two_parts_of_one_half_answer_under_every_op() {
     let (p, q) = two_parts_of_one_half(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
-        members: vec![p.into(), q.into()],
+        members: editor_core::Bodies::Spelled(vec![p.into(), q.into()]),
         declare: Vec::new(),
     });
     let ev = eval(&r.doc);
@@ -191,7 +212,10 @@ fn the_kept_copy_is_named_from_the_a_seat() {
         .map(|n| StableName {
             kind: EntityKind::Face,
             node: joined,
-            path: vec![RoleSeg::FromA(n.into())],
+            path: vec![RoleSeg::From {
+                read: FOLD_A,
+                of: n.into(),
+            }],
         })
         .collect();
     want.sort();
@@ -356,18 +380,13 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
         );
     }
 
-    let findings = find_flush_candidates(&ev, s, t, Tol::witness()).unwrap();
+    let findings = find_flush_candidates(&ev, &r.doc, s, t, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 6, "one finding per face pair: {findings:?}");
     let pairs = declared_pairs(&findings);
     let rows: Vec<Row> = OPS
         .iter()
         .map(|&op| {
-            let id = r.insert(Node::Boolean {
-                op,
-                a: s.into(),
-                b: t.into(),
-                declare: pairs.clone(),
-            });
+            let id = r.insert(boolean_node(op, s, t, pairs.clone()));
             (
                 format!("S {op:?} T, declared"),
                 id,

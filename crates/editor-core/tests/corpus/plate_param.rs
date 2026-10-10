@@ -29,8 +29,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, VarName,
+    Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, VarName,
 };
 
 use crate::fixture::{frame, len, xy_frame};
@@ -129,10 +129,8 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
 
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: plate.into(),
-        b: tab.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![plate.into(), tab.into()]),
         declare: Vec::new(),
     });
 

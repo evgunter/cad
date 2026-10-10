@@ -95,7 +95,9 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
 /// with `h`, `h`'s x = 1.0 wall resting on `a`'s x = 1 wall (a `Rest`).
 /// `b` covers that contact, and it is a contact of the pair all the
 /// same (DM4).
-fn declared(f: &Fixture) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
+fn declared(
+    f: &Fixture,
+) -> Vec<((SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>), BooleanCoincidence)> {
     let mut pairs: Vec<_> = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b))
         .into_iter()
         .map(|p| (p, BooleanCoincidence::Continuation))
@@ -103,8 +105,11 @@ fn declared(f: &Fixture) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
     pairs.extend(f.h.map(|h| {
         (
             (
-                SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
-                SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
+                SitedRef::new(
+                    crate::fixture::out(&f.doc, f.a),
+                    fname(f.a, wall(&f.doc, f.a, 1)),
+                ),
+                SitedRef::new(crate::fixture::out(&f.doc, h), fname(h, wall(&f.doc, h, 3))),
             ),
             BooleanCoincidence::REST,
         )
@@ -143,8 +148,8 @@ fn crossing(
     } else {
         Sense::Leaves
     };
-    let rim = member_entity(union, a, rim_of_a, EntityKind::Edge);
-    let g_x0 = member_face(union, g, fname(g, wall(doc, g, 3)));
+    let rim = member_entity(union, crate::fixture::out(doc, a), rim_of_a, EntityKind::Edge);
+    let g_x0 = member_face(union, crate::fixture::out(doc, g), fname(g, wall(doc, g, 3)));
     StableName {
         kind: EntityKind::Vertex,
         node: union,

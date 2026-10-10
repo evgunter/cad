@@ -61,9 +61,9 @@ use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
     Axis3, Datum, DeclaredPair, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef, SlotId,
 };
-use topo::BooleanOp;
 use crate::program::ProfileProgram;
 use crate::resolve::FoldConsumption;
+use topo::BooleanOp;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 
@@ -3027,9 +3027,8 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         .project(index)
                         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
                     names::check_total(&table, body, 0).map_err(NodeErrorKind::Naming)?;
-                    let body = T::gate_at_rest_kept((**body).clone(), tol).map_err(|errors| {
-                        NodeErrorKind::UnfinishedOperand { input: at, errors }
-                    })?;
+                    let body = T::gate_at_rest_kept((**body).clone(), tol)
+                        .map_err(|errors| NodeErrorKind::UnfinishedOperand { input: at, errors })?;
                     Ok(Member {
                         read: *read,
                         body: Arc::new(body),
@@ -3226,14 +3225,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = views.iter().map(AsRef::as_ref).collect();
-    let judged = judge_pairwise_contact(
-        id,
-        &own,
-        &tables,
-        &hulls,
-        declared,
-        doc,
-        |p, q, decls| {
+    let judged =
+        judge_pairwise_contact(id, &own, &tables, &hulls, declared, doc, |p, q, decls| {
             let out = (verb.build)(op, decls)
                 .run_pair(&members[p].body, &members[q].body, boolean_sweep, tol)
                 .map_err(|err| union_refusal(id, &reads, tables[p], tables[q], err))?;
@@ -3264,8 +3257,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     what: verb.foreign_record,
                 })),
             }
-        },
-    )?;
+        })?;
     let Some((links, coincidences)) = judged else {
         return empty();
     };
@@ -3394,7 +3386,10 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
     let table = names::name_lone_member(id, one.read, &one.table).map_err(NodeErrorKind::Naming)?;
     let body = (*one.body).clone().into_body();
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), Arc::new(table)))
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(body)),
+        Arc::new(table),
+    ))
 }
 
 /// A union's or an intersect's fold of two members or more ran no step.
@@ -3444,8 +3439,7 @@ fn judge_pairwise_contact(
         Option<(topo::BooleanNaming, Vec<crate::coincide::NamedCoincidence>)>,
         NodeErrorKind,
     >,
-) -> Result<Option<(names::UnionLinks, Vec<crate::coincide::NamedCoincidence>)>, NodeErrorKind>
-{
+) -> Result<Option<(names::UnionLinks, Vec<crate::coincide::NamedCoincidence>)>, NodeErrorKind> {
     // The declared pairs between two DIFFERENT members, the member the
     // author listed first as operand A. `route_declarations` already
     // sited these pairs through the same door, so a refusal here is a
@@ -3597,26 +3591,25 @@ fn side_by_operand<'n>(
     (b, b_table): (crate::VarId, &NameTable),
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
-    let side = |r: &'n SitedRef<crate::VarId>,
-                reference: usize|
-     -> Result<Side<'n>, NodeErrorKind> {
-        let live = ladder::live(&r.name, doc)
-            .map_err(|error| NodeErrorKind::DeclareResolve { error, reference })?;
-        let holds = |table: &NameTable| table.lookup(&r.name).is_some();
-        let op = match (r.at == a, r.at == b) {
-            (true, false) => topo::Operand::A,
-            (false, true) => topo::Operand::B,
-            (true, true) if holds(a_table) != holds(b_table) => {
-                if holds(a_table) {
-                    topo::Operand::A
-                } else {
-                    topo::Operand::B
+    let side =
+        |r: &'n SitedRef<crate::VarId>, reference: usize| -> Result<Side<'n>, NodeErrorKind> {
+            let live = ladder::live(&r.name, doc)
+                .map_err(|error| NodeErrorKind::DeclareResolve { error, reference })?;
+            let holds = |table: &NameTable| table.lookup(&r.name).is_some();
+            let op = match (r.at == a, r.at == b) {
+                (true, false) => topo::Operand::A,
+                (false, true) => topo::Operand::B,
+                (true, true) if holds(a_table) != holds(b_table) => {
+                    if holds(a_table) {
+                        topo::Operand::A
+                    } else {
+                        topo::Operand::B
+                    }
                 }
-            }
-            _ => return Err(NodeErrorKind::DeclareSiteNotAnOperand { at: r.at }),
+                _ => return Err(NodeErrorKind::DeclareSiteNotAnOperand { at: r.at }),
+            };
+            Ok((op, SidedName::Live(live), reference))
         };
-        Ok((op, SidedName::Live(live), reference))
-    };
     pairs
         .iter()
         .enumerate()
@@ -5073,7 +5066,11 @@ mod route_tests {
     /// segment, so its table is its input's verbatim). It is the one
     /// shape that tells a routing by SITE from a routing by the name's
     /// minting node.
-    fn at_minted_at(member: RecipeNodeId, mint: RecipeNodeId, end: CapEnd) -> SitedRef<crate::VarId> {
+    fn at_minted_at(
+        member: RecipeNodeId,
+        mint: RecipeNodeId,
+        end: CapEnd,
+    ) -> SitedRef<crate::VarId> {
         SitedRef::new(
             read(member),
             StableName {
@@ -5087,7 +5084,10 @@ mod route_tests {
     fn pair(
         a: SitedRef<crate::VarId>,
         b: SitedRef<crate::VarId>,
-    ) -> ((SitedRef<crate::VarId>, SitedRef<crate::VarId>), BooleanCoincidence) {
+    ) -> (
+        (SitedRef<crate::VarId>, SitedRef<crate::VarId>),
+        BooleanCoincidence,
+    ) {
         ((a, b), BooleanCoincidence::REST)
     }
 
@@ -5129,13 +5129,17 @@ mod route_tests {
         assert_eq!((*o1, *o2), (Operand::A, Operand::B));
         assert_eq!(
             *n1.name(),
-            crate::names::member_name(union, read(members[1]),
+            crate::names::member_name(
+                union,
+                read(members[1]),
                 &at_minted_at(members[1], proto, CapEnd::Start).name
             )
         );
         assert_eq!(
             *n2.name(),
-            crate::names::member_name(union, read(members[3]),
+            crate::names::member_name(
+                union,
+                read(members[3]),
                 &at_minted_at(members[3], proto, CapEnd::End).name
             )
         );
@@ -5228,8 +5232,8 @@ mod route_tests {
     fn the_joining_member_is_operand_b_and_the_accumulation_is_operand_a() {
         let (doc, union, ms) = doc_with_members(4);
         let sided = |p| {
-            let buckets =
-                route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc).expect("routes");
+            let buckets = route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc)
+                .expect("routes");
             buckets.into_iter().flatten().next().expect("one bucket")
         };
         // An earlier member against a later one: A then B, and each

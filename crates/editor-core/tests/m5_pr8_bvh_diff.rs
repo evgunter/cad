@@ -130,8 +130,21 @@ fn corpus_boolean_operands_superset_pin() {
     for d in documents() {
         let ev: Evaluation<f64> = eval_with(&d.doc, SweepStrategy::Realized);
         for &id in &ev.order {
-            let Some(Node::Boolean { a, b, .. }) = d.doc.node(id) else {
-                continue;
+            // The pair booleans: a subtract's two seats, and a union or
+            // intersect of two spelled members.
+            let (a, b) = match d.doc.node(id) {
+                Some(Node::Subtract { from, tool, .. }) => (from, tool),
+                Some(
+                    Node::Union {
+                        members: editor_core::Bodies::Spelled(members),
+                        ..
+                    }
+                    | Node::Intersect {
+                        members: editor_core::Bodies::Spelled(members),
+                        ..
+                    },
+                ) if members.len() == 2 => (&members[0], &members[1]),
+                _ => continue,
             };
             let at = |read| {
                 d.doc

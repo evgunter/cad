@@ -29,8 +29,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanCoincidence, BooleanOp, CancelToken, EvalOptions, Evaluation, FlushRung, LoopProgram,
-    Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal, ValuePayload,
+    BooleanCoincidence, CancelToken, EvalOptions, Evaluation, FlushRung, LoopProgram, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal, ValuePayload,
     declared_pairs, evaluate, find_flush_candidates,
 };
 use geom::SurfaceKind;
@@ -156,7 +156,7 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
         assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident, "{f:?}");
     }
 
-    let names = find_flush_candidates(&ev, peg, block, Tol::witness())
+    let names = find_flush_candidates(&ev, &doc, peg, block, Tol::witness())
         .expect("the document seat decides the same pairs");
     assert_eq!(
         names.len(),
@@ -168,7 +168,13 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
         assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite, "{f:?}");
         assert_eq!(f.pair.0.name.node, peg);
         assert_eq!(f.pair.1.name.node, block);
-        assert_eq!((f.pair.0.at, f.pair.1.at), (peg, block));
+        assert_eq!(
+            (f.pair.0.at, f.pair.1.at),
+            (
+                crate::fixture::out(&doc, peg),
+                crate::fixture::out(&doc, block)
+            )
+        );
     }
 }
 
@@ -191,8 +197,8 @@ fn a_bore_on_another_carrier_is_no_finding_at_either_seat() {
         keys.is_empty(),
         "distinct cylinders are no contact: {keys:?}"
     );
-    let names =
-        find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the document seat decides");
+    let names = find_flush_candidates(&ev, &doc, peg, block, Tol::witness())
+        .expect("the document seat decides");
     assert!(names.is_empty(), "{names:?}");
 }
 
@@ -216,7 +222,7 @@ fn a_declared_curved_finding_verifies_and_the_mate_builds() {
     let (doc, peg, block) = peg_in_bore(PEG_R);
     let ev = eval(&doc);
     let findings =
-        find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the pairs decide");
+        find_flush_candidates(&ev, &doc, peg, block, Tol::witness()).expect("the pairs decide");
     assert!(!findings.is_empty());
     let want = [peg, block]
         .map(|n| {
@@ -228,10 +234,8 @@ fn a_declared_curved_finding_verifies_and_the_mate_builds() {
         .sum::<f64>();
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: peg.into(),
-            b: block.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![peg.into(), block.into()]),
             declare: declared_pairs(&findings),
         },
     );
@@ -301,7 +305,7 @@ fn a_curved_in_band_pair_refuses_the_query_naming_the_carrier_site() {
     }
     // The document seat refuses the same pair, in its own vocabulary
     // and off the same site: one door under both.
-    match find_flush_candidates(&ev, peg, block, tol) {
+    match find_flush_candidates(&ev, &doc, peg, block, tol) {
         Err(SelectRefusal::PairInBand { predicate, .. }) => {
             assert_eq!(predicate, "carrier_cyl_radius");
         }

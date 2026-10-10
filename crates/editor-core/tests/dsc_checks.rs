@@ -24,9 +24,9 @@ use test_utils::refusal::tagged;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Advisory, BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind,
-    ChecksConfig, ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc,
-    RecipeNodeId, Severity, enforce_checks, run_checks, subject_body,
+    Advisory, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind, ChecksConfig,
+    ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
+    enforce_checks, run_checks, subject_body,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -70,10 +70,8 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     )
@@ -87,10 +85,9 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     )
@@ -222,10 +219,8 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: a.into(),
-            b: b.into(),
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     )
@@ -363,20 +358,17 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
     let (doc, hollow) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
     let (doc, root) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: hollow.into(),
-            b: c.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![hollow.into(), c.into()]),
             declare: Vec::new(),
         },
     );

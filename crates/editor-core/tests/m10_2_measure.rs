@@ -18,11 +18,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf,
-    StableName, ValuePayload, VarName, apply, evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName, ValuePayload, VarName,
+    apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::{Point3, Tol};
@@ -1446,10 +1446,9 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
     );
     let (doc, cut) = mint(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: ex.into(),
-            b: tool.into(),
+        Node::Subtract {
+            from: ex.into(),
+            tool: tool.into(),
             declare: Vec::new(),
         },
     );

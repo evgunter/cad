@@ -183,9 +183,9 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                 let u = up_e(m)?;
                 super::join_names::Member::Image {
                     seg: RoleSeg::From {
-                    read: target_read,
-                    of: u.name,
-                },
+                        read: target_read,
+                        of: u.name,
+                    },
                     tied: u.tied,
                 }
             }
@@ -226,9 +226,9 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                     let u = up_e(source)?;
                     let seg = match rim.side {
                         topo::RimShell::Outer => RoleSeg::From {
-                    read: target_read,
-                    of: u.name,
-                },
+                            read: target_read,
+                            of: u.name,
+                        },
                         topo::RimShell::Void => RoleSeg::Inner(u.name),
                     };
                     v.insert((seg, u.tied, Vec::new()))
@@ -272,10 +272,13 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                     });
                 }
                 let u = up(key)?;
-                (RoleSeg::From {
-                    read: target_read,
-                    of: u.name,
-                }, u.tied)
+                (
+                    RoleSeg::From {
+                        read: target_read,
+                        of: u.name,
+                    },
+                    u.tied,
+                )
             }
         };
         put_row(
@@ -537,8 +540,15 @@ mod tests {
             4,
             "two on the ring, two on its twin"
         );
-        let t = name_shell(NODE, TARGET, crate::VarId::new(1, 77), &target, &shelled.body, &shelled.naming)
-            .expect("the shell is named");
+        let t = name_shell(
+            NODE,
+            TARGET,
+            crate::VarId::new(1, 77),
+            &target,
+            &shelled.body,
+            &shelled.naming,
+        )
+        .expect("the shell is named");
         let names: BTreeSet<_> = shelled
             .body
             .edges()
@@ -574,8 +584,15 @@ mod tests {
             tol,
         )
         .expect("the split window opens");
-        let t = name_shell(NODE, TARGET, crate::VarId::new(1, 77), &target, &shelled.body, &shelled.naming)
-            .expect("the shell is named");
+        let t = name_shell(
+            NODE,
+            TARGET,
+            crate::VarId::new(1, 77),
+            &target,
+            &shelled.body,
+            &shelled.naming,
+        )
+        .expect("the shell is named");
         let mut sets = 0;
         for (e, _) in shelled.body.edges() {
             let name = t.name_of(&ent(0, EntityKey::Edge(e))).unwrap();
@@ -616,8 +633,15 @@ mod tests {
             12,
             "three per arc, ring and twin"
         );
-        let t = name_shell(NODE, TARGET, crate::VarId::new(1, 77), &target, &shelled.body, &shelled.naming)
-            .expect("the shell is named");
+        let t = name_shell(
+            NODE,
+            TARGET,
+            crate::VarId::new(1, 77),
+            &target,
+            &shelled.body,
+            &shelled.naming,
+        )
+        .expect("the shell is named");
         let names: BTreeSet<_> = shelled
             .body
             .edges()

@@ -39,16 +39,11 @@
 //! whose `kind` is `"body"` — that tag is the PAYLOAD's shape. Telling
 //! the recipes apart is what this vocabulary is for.
 
-use pncad::document::{BooleanOp, Node};
+use pncad::document::Node;
 
 /// The stable Python word for `node`'s kind.
 ///
-/// One word per [`Node`] variant, except [`Node::Boolean`], which
-/// answers a word per OPERATION: union, intersect and subtract are
-/// three kernel operations sharing one payload shape, and a caller
-/// asking "does this recipe spend a subtract" is asking about the
-/// operation. The unprefixed `union` is the different node — the
-/// n-ary one that folds a member list.
+/// One word per [`Node`] variant.
 ///
 /// The full vocabulary is pinned by
 /// `the_node_kind_vocabulary_matches_its_committed_roster` in
@@ -67,12 +62,9 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Chamfer { .. } => "chamfer",
         Node::Shell { .. } => "shell",
         Node::Split { .. } => "split",
-        Node::Boolean { op, .. } => match op {
-            BooleanOp::Union => "boolean_union",
-            BooleanOp::Intersect => "boolean_intersect",
-            BooleanOp::Subtract => "boolean_subtract",
-        },
         Node::Union { .. } => "union",
+        Node::Intersect { .. } => "intersect",
+        Node::Subtract { .. } => "subtract",
         Node::Transform { .. } => "transform",
         Node::Pattern { .. } => "pattern",
         Node::Part { .. } => "part",

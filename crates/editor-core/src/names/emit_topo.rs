@@ -798,7 +798,12 @@ impl<K: Copy> OpSide<K> {
 
     /// The [`RoleSeg::From`] segment wrapping a name read on this side,
     /// keyed by that side's read.
-    fn wrap<T: Decide>(self, a: &OperandCtx<'_, T>, b: &OperandCtx<'_, T>, inner: NameRef) -> RoleSeg {
+    fn wrap<T: Decide>(
+        self,
+        a: &OperandCtx<'_, T>,
+        b: &OperandCtx<'_, T>,
+        inner: NameRef,
+    ) -> RoleSeg {
         let (op, _) = self.of(a, b);
         RoleSeg::From {
             read: op.read,
@@ -1010,10 +1015,11 @@ pub(crate) fn name_boolean<T: Decide>(
             // (re-wrapped by that chain, then by this side) and never
             // its `Merged` name.
             match merged::constituents_through_wrappers(&up.name) {
-                Some(cs) => constituents.extend(
-                    cs.into_iter()
-                        .map(|inner| name1(EntityKind::Face, node, d.wrap(a, b, NameRef::new(inner)))),
-                ),
+                Some(cs) => {
+                    constituents.extend(cs.into_iter().map(|inner| {
+                        name1(EntityKind::Face, node, d.wrap(a, b, NameRef::new(inner)))
+                    }))
+                }
                 None => constituents.push(name1(EntityKind::Face, node, d.wrap(a, b, up.name))),
             }
         }
@@ -1780,7 +1786,10 @@ fn set_name<T: Decide>(
     for &r in set {
         let (op, k) = r.of(a, b);
         let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-        names.push((name1(EntityKind::Edge, node, r.wrap(a, b, up.name)), up.tied));
+        names.push((
+            name1(EntityKind::Edge, node, r.wrap(a, b, up.name)),
+            up.tied,
+        ));
     }
     Ok(super::join_names::joined_name(node, names))
 }
@@ -4358,7 +4367,10 @@ mod tests {
             name1(
                 EntityKind::Face,
                 bool_node,
-                RoleSeg::From { read: crate::names::FOLD_A, of: inner.clone().into() },
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: inner.clone().into(),
+                },
             )
         };
         let mut want = vec![
@@ -4376,7 +4388,10 @@ mod tests {
         let nested = t.iter().any(|(n, _)| {
             n.path.iter().any(|seg| match seg {
                 RoleSeg::Merged(cs) => cs.iter().any(|c| match c.path.first() {
-                    Some(RoleSeg::From { read: crate::names::FOLD_A, of: inner }) => {
+                    Some(RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: inner,
+                    }) => {
                         matches!(inner.path.first(), Some(RoleSeg::Merged(_)))
                     }
                     _ => false,
@@ -4561,7 +4576,11 @@ mod split_carries_candidates {
         );
         let (doc, sub) = ins(
             doc,
-            Node::Subtract { from: a.into(), tool: b.into(), declare: Vec::new() },
+            Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
+                declare: Vec::new(),
+            },
         );
         let (doc, tool) = ins(
             doc,
@@ -4853,7 +4872,11 @@ mod crossings_rank_along_the_line {
         );
         let (doc, notched) = ins(
             doc,
-            Node::Subtract { from: disc.into(), tool: notch.into(), declare: Vec::new() },
+            Node::Subtract {
+                from: disc.into(),
+                tool: notch.into(),
+                declare: Vec::new(),
+            },
         );
         let ev = evaluate::<f64>(
             &doc,
@@ -5404,7 +5427,11 @@ mod edge_pieces_of_one_line_tie {
         );
         let (doc, cut) = ins(
             doc,
-            Node::Subtract { from: rod.into(), tool: top.into(), declare: Vec::new() },
+            Node::Subtract {
+                from: rod.into(),
+                tool: top.into(),
+                declare: Vec::new(),
+            },
         );
         let ev = evaluate::<f64>(
             &doc,
@@ -5460,7 +5487,10 @@ mod edge_pieces_of_one_line_tie {
             StableName {
                 kind: EntityKind::Edge,
                 node: cut,
-                path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(p) }],
+                path: vec![RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(p),
+                }],
             }
         };
         let (p1, p2) = (

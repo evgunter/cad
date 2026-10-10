@@ -16,7 +16,7 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
+    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
     Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
@@ -608,17 +608,16 @@ pub enum SessionOp {
         /// turn.
         angle: Formula,
     },
-    /// Insert one regularized boolean of two existing bodies — the
-    /// boolean tool's one committed action (GAUTH-4).
+    /// Insert one boolean of existing bodies — the boolean tool's one
+    /// committed action (GAUTH-4).
     ///
-    /// **The operand order is data**: `Subtract` keeps `a` and removes
-    /// `b`, so the two seats are not interchangeable and the form says
-    /// which pick is which. Either seat's non-body pick refuses
-    /// [`Refusal::WrongNodeKind`] at this layer; one node in BOTH
-    /// seats is refused by the edit door, as
-    /// `EditError::DuplicateInput` — the pairwise-distinct rule is a
-    /// fact about any node's inputs, not about booleans, so it is
-    /// stated once where every node kind reaches it.
+    /// **The spec is the node's shape** ([`super::BooleanSpec`]): a
+    /// union or an intersect of a list of members, any count, or a
+    /// subtraction of exactly two operands whose order is data — `from`
+    /// is kept and `tool` removed. Any operand's non-body pick refuses
+    /// [`Refusal::WrongNodeKind`] at this layer. A node listed twice is
+    /// not refused: a repeated read glues, so it is a document like any
+    /// other.
     ///
     /// **The findings become the boolean's own declared pairs**: an
     /// empty `declare` authors an undeclared boolean, and a non-empty
@@ -633,14 +632,10 @@ pub enum SessionOp {
     /// accepted is the tool's gesture, not a property of the findings'
     /// type.
     AddBoolean {
-        /// The operation — the KERNEL's enum, which the recipe node
-        /// carries unconverted.
-        op: BooleanOp,
-        /// The first operand: the body a subtraction keeps.
-        a: RecipeNodeId,
-        /// The second operand: the body a subtraction removes.
-        b: RecipeNodeId,
-        /// The contacts declared, in the refusals' own finding shape.
+        /// The operation and its operands.
+        spec: super::BooleanSpec,
+        /// The contacts declared, in the refusals' own finding shape,
+        /// each sited at the operand READS it names.
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum

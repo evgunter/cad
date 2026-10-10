@@ -330,7 +330,7 @@ fn legal_placements_still_gather() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1.into(), t2.into()],
+            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
             declare: Vec::new(),
         },
     );
@@ -589,10 +589,9 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
     );
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Subtract,
-            a: a.into(),
-            b: c.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: c.into(),
             declare: Vec::new(),
         },
     )

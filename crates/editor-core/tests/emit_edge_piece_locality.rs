@@ -13,8 +13,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ang, insert, len, point, scl, step, table};
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId,
-    StableName,
+    Axis3, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,
 };
 use geom_core::Tol;
 
@@ -55,10 +54,8 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     let (doc, rib) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.5);
     let (doc, joined) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: rib.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), rib.into()]),
             declare: Vec::new(),
         },
     );
@@ -79,19 +76,16 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     );
     let (doc, notches) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: n1.into(),
-            b: tr.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![n1.into(), tr.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: joined.into(),
-            b: notches.into(),
+        Node::Subtract {
+            from: joined.into(),
+            tool: notches.into(),
             declare: Vec::new(),
         },
     );

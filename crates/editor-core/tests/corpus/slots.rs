@@ -25,8 +25,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
-    StableName,
+    CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName,
 };
 
 use crate::fixture::len;
@@ -71,10 +70,9 @@ pub fn document() -> CorpusDoc {
     });
     // Nothing is coincident yet (the tool pierces the plate top and
     // overhangs both ends), so this subtract declares nothing.
-    let sub1 = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: plate.into(),
-        b: slot1.into(),
+    let sub1 = r.insert(Node::Subtract {
+        from: plate.into(),
+        tool: slot1.into(),
         declare: Vec::new(),
     });
 
@@ -96,16 +94,21 @@ pub fn document() -> CorpusDoc {
     let cavity_floor = StableName {
         kind: EntityKind::Face,
         node: sub1,
-        path: vec![RoleSeg::FromB(cap(slot1, CapEnd::Start).into())],
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&r.doc, slot1),
+            of: cap(slot1, CapEnd::Start).into(),
+        }],
     };
     let decl = editor_core::declare_rest(vec![(
-        SitedRef::new(sub1, cavity_floor),
-        SitedRef::new(slot2, cap(slot2, CapEnd::Start)),
+        SitedRef::new(crate::fixture::out(&r.doc, sub1), cavity_floor),
+        SitedRef::new(
+            crate::fixture::out(&r.doc, slot2),
+            cap(slot2, CapEnd::Start),
+        ),
     )]);
-    let sub2 = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: sub1.into(),
-        b: slot2.into(),
+    let sub2 = r.insert(Node::Subtract {
+        from: sub1.into(),
+        tool: slot2.into(),
         declare: decl,
     });
 

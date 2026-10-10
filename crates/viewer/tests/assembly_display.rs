@@ -13,6 +13,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use viewer::session::BooleanSpec;
+use pncad::document::Bodies;
 use crate::common;
 
 use common::asm;
@@ -297,10 +299,8 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
     );
     let weld = common::insert_into(
         &mut doc,
-        pncad::document::Node::Boolean {
-            op: pncad::document::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        pncad::document::Node::Union {
+            members: Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
         tol,
@@ -978,9 +978,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     assert!(session.display().is_hidden(bench.post_b));
 
     let outcome = session.perform(SessionOp::AddBoolean {
-        op: pncad::document::BooleanOp::Union,
-        a: bench.post_b,
-        b: bench.post_a,
+        spec: BooleanSpec::Union(vec![bench.post_b, bench.post_a]),
         declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

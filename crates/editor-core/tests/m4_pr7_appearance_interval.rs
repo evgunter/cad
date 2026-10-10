@@ -10,8 +10,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, AttrKind, BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
-    Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    Attr, AttrKind, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
 use fixture::{declare_x_offset_flush, insert, len, on_frame, step};
 use geom_core::Interval;
@@ -63,10 +63,8 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl,
         },
     );

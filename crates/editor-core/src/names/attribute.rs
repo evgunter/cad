@@ -297,7 +297,10 @@ mod tests {
             kind: EntityKind::Face,
             node: CUT,
             path: vec![
-                RoleSeg::From { read: crate::names::FOLD_A, of: cap().into() },
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: cap().into(),
+                },
                 RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
             ],
         };
@@ -308,8 +311,20 @@ mod tests {
     /// fillet is still the extrude's.
     #[test]
     fn the_walk_descends_as_far_as_the_carry_through_goes() {
-        let cut = at(CUT, RoleSeg::From { read: crate::names::FOLD_A, of: cap().into() });
-        let filleted = at(FILLET, RoleSeg::From { read: crate::VarId::new(1, 77), of: cut.into() });
+        let cut = at(
+            CUT,
+            RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: cap().into(),
+            },
+        );
+        let filleted = at(
+            FILLET,
+            RoleSeg::From {
+                read: crate::VarId::new(1, 77),
+                of: cut.into(),
+            },
+        );
         let it = attribute(&filleted);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, CUT, EXTRUDE].as_slice());

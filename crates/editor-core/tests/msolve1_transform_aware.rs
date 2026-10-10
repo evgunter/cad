@@ -693,7 +693,7 @@ fn two_operands(label: &str, extra_lift: f64) -> (ProfileDoc, EvalOptions, [Reci
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![x1.into(), x2.into()],
+            members: editor_core::Bodies::Spelled(vec![x1.into(), x2.into()]),
             declare: Vec::new(),
         },
     );

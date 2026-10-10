@@ -233,9 +233,9 @@ pub use resolve::{
     NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
     ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
     UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
-    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name, enrich_appearance_loss,
-    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
-    resolve_with_prior, vertex_name,
+    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

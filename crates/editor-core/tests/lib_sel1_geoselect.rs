@@ -515,10 +515,7 @@ fn kind_sets_carry_exactly_their_members() {
 /// The composed die's fillet target and the two operand nodes, read
 /// out of the document itself (the `lib_u7_select` recovery, verbatim
 /// — nothing here restates an id the document already knows).
-fn composed_ids(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
         .ids()
         .iter()
@@ -527,20 +524,14 @@ fn composed_ids(
             _ => None,
         })
         .expect("the composed die has a fillet node");
-    let operand = |pick: fn(&editor_core::RoleSeg) -> Option<&editor_core::StableName>| {
-        editor_core::all_edges(ev, pipped)
-            .iter()
-            .find_map(|n| n.path.first().and_then(pick).map(|inner| inner.node))
-            .expect("the target's table carries this operand")
+    let Some(Node::Subtract { from, tool, .. }) = doc.node(pipped) else {
+        panic!("the fillet's target is the die's subtract");
     };
-    let cube = operand(|s| match s {
-        editor_core::RoleSeg::FromA(inner) => Some(&**inner),
-        _ => None,
-    });
-    let ball = operand(|s| match s {
-        editor_core::RoleSeg::FromB(inner) => Some(&**inner),
-        _ => None,
-    });
+    let operand = |read| {
+        doc.operation_of(read)
+            .expect("an operand read has a producer")
+    };
+    let (cube, ball) = (operand(*from), operand(*tool));
     (cube, ball, pipped)
 }
 
@@ -579,7 +570,7 @@ fn composed_ids(
 fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     let doc = corpus::die_composed::document();
     let ev = eval(&doc.doc);
-    let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
+    let (cube, ball, pipped) = composed_ids(&doc.doc);
 
     let edges = all(EntityKind::Edge);
     let straight = select_where(

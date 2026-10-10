@@ -15,9 +15,9 @@ use editor_core::ExtrudeSide;
 
 use editor_core::NodeStanding;
 use editor_core::{
-    AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Diagnosis, DocEdit,
-    EditError, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Resolution,
-    ResolveError, ResolveIndeterminate, Rgba8, RoleSeg, RunCtx, SlotId, StableName,
+    AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Diagnosis, DocEdit, EditError,
+    EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError,
+    ResolveIndeterminate, Rgba8, RoleSeg, RunCtx, SlotId, StableName,
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
@@ -108,10 +108,9 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -129,10 +128,8 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -378,10 +375,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -497,7 +492,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     let target = union_suggestion(&suggestions, &cap, uni);
     assert!(
-        matches!(target.path.first(), Some(RoleSeg::FromA(inner)) if **inner == cap),
+        matches!(target.path.first(), Some(RoleSeg::From { read, of: inner }) if *read == fixture::out(&doc, a) && **inner == cap),
         "the offered name wraps the painted one: {target:?}"
     );
 

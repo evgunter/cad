@@ -167,15 +167,18 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
         node: RecipeNodeId::new(0, tagged(node)),
         path: vec![RoleSeg::Cap(end)],
     };
-    let carried = |seg: fn(NameRef) -> RoleSeg, inner| StableName {
+    let carried = |read: u64, inner| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(9)),
-        path: vec![seg(NameRef::new(inner))],
+        path: vec![RoleSeg::From {
+            read: editor_core::VarId::new(0, tagged(read)),
+            of: NameRef::new(inner),
+        }],
     };
     let refusal = SelectRefusal::PairInBand {
         pair: Box::new((
-            carried(RoleSeg::FromA, operand(2, CapEnd::End)),
-            carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
+            carried(2, operand(2, CapEnd::End)),
+            carried(5, operand(5, CapEnd::Start)),
         )),
         at: (
             RecipeNodeId::new(0, tagged(9)),
@@ -1133,7 +1136,6 @@ test_utils::f6_variants! {
         PlacementRule,
         MeasureRefs,
         InputList,
-        DuplicateInput,
         AssertionTarget,
         AssertionBound,
         MetadataUnversioned,
@@ -1573,17 +1575,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::InputList {
-                node: held(5, "Union"),
-                fault: ListFault::TooFew { found: 1 },
+                node: held(5, "Shell"),
+                fault: ListFault::RepeatedDesignation { first: 0, again: 2 },
             },
-            vec!["Union 000000000005: a list input takes two or more entries"],
-        ),
-        (
-            SnapshotError::DuplicateInput {
-                node: held(5, "Union"),
-                input: held(9, "Revolve"),
-            },
-            vec!["Union 000000000005: Revolve 000000000009 is taken as an input twice"],
+            vec![
+                "Shell 000000000005: the open-face designation names one face twice (entries 0 \
+                 and 2)",
+            ],
         ),
         (
             SnapshotError::AssertionTarget {
@@ -1949,8 +1947,8 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     let member_wall = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(8)),
-        path: vec![RoleSeg::FromMember {
-            member: RecipeNodeId::new(0, tagged(7)),
+        path: vec![RoleSeg::From {
+            read: editor_core::VarId::new(0, tagged(7)),
             of: NameRef::new(wall(2)),
         }],
     };
@@ -2932,7 +2930,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::MemberEdgeTied {
-                member: RecipeNodeId::new(0, tagged(37)),
+                member: editor_core::VarId::new(0, tagged(37)),
                 edge: Box::new(StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId::new(0, tagged(37)),
@@ -3814,7 +3812,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                     },
                     held(4, "Extrude"),
                 ),
-                site: held(4, "Extrude"),
+                site: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(4)), None),
             },
             vec![held(6, "Union"), held(4, "Extrude")],
         ),

@@ -42,7 +42,7 @@
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
 use editor_core::ExtrudeSide;
-use editor_core::{BooleanOp, DocEdit, Node, RecipeNodeId, SlotId};
+use editor_core::{DocEdit, Node, RecipeNodeId, SlotId};
 
 use crate::fixture::len;
 
@@ -69,16 +69,13 @@ fn plate_with_tube(r: &mut Recorder) -> RecipeNodeId {
     let plate = block(r, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
     let outer = block(r, (1.0, 3.0), (1.0, 3.0), 0.5, 2.5);
     let hole = block(r, (1.5, 2.5), (1.5, 2.5), 0.25, 3.0);
-    let tube = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: outer.into(),
-        b: hole.into(),
+    let tube = r.insert(Node::Subtract {
+        from: outer.into(),
+        tool: hole.into(),
         declare: Vec::new(),
     });
-    r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: plate.into(),
-        b: tube.into(),
+    r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![plate.into(), tube.into()]),
         declare: Vec::new(),
     })
 }
@@ -88,10 +85,8 @@ pub fn document_105() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
-    let u2 = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: u1.into(),
-        b: pillar.into(),
+    let u2 = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
         declare: Vec::new(),
     });
     CorpusDoc {
@@ -120,10 +115,8 @@ pub fn document_106_depth1() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
-    let cut = r.insert(Node::Boolean {
-        op: BooleanOp::Intersect,
-        a: u1.into(),
-        b: slab.into(),
+    let cut = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), slab.into()]),
         declare: Vec::new(),
     });
     CorpusDoc {
@@ -153,17 +146,13 @@ pub fn document_106_depth2() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
-    let u2 = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: u1.into(),
-        b: pillar.into(),
+    let u2 = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
         declare: Vec::new(),
     });
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
-    let cut = r.insert(Node::Boolean {
-        op: BooleanOp::Intersect,
-        a: u2.into(),
-        b: slab.into(),
+    let cut = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![u2.into(), slab.into()]),
         declare: Vec::new(),
     });
     CorpusDoc {

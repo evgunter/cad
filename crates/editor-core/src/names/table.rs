@@ -775,7 +775,10 @@ mod tests {
             n = StableName {
                 kind: EntityKind::Body,
                 node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(n) }],
+                path: vec![RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(n),
+                }],
             };
         }
         n

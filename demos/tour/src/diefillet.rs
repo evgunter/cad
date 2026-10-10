@@ -45,7 +45,7 @@
 // whatever the picker shows.
 
 use pncad::document::ExtrudeSide;
-use pncad::document::{BooleanOp, BooleanValue, RefusingReach, save};
+use pncad::document::{Bodies, BooleanValue, RefusingReach, save};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
@@ -325,17 +325,16 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     let tool = insert(
         doc,
         Node::Union {
-            members: members.into_iter().map(Into::into).collect(),
+            members: Bodies::Spelled(members.into_iter().map(Into::into).collect()),
             declare: Vec::new(),
         },
         tol,
     );
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube.into(),
-            b: tool.into(),
+        Node::Subtract {
+            from: cube.into(),
+            tool: tool.into(),
             declare: Vec::new(),
         },
         tol,

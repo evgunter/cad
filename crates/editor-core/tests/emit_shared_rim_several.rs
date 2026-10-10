@@ -15,11 +15,11 @@ use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
-use crate::fixture::{edge_of, table};
+use crate::fixture::{edge_of, out, table};
 
 use editor_core::{
     CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
-    StableName,
+    StableName, VarId,
 };
 use geom_core::Tol;
 
@@ -59,14 +59,14 @@ pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<Re
     (doc, ids)
 }
 
-/// Whether `n` is a published piece of member `m`'s edge `edge`: the
-/// member-keyed name, bare or, when the edge is in several pieces,
-/// qualified by its ends.
-pub(crate) fn is_rim_piece(n: &StableName, m: RecipeNodeId, edge: &StableName) -> bool {
+/// Whether `n` is a published piece of edge `edge` of the member read
+/// as `m`: the read-keyed name, bare or, when the edge is in several
+/// pieces, qualified by its ends.
+pub(crate) fn is_rim_piece(n: &StableName, m: VarId, edge: &StableName) -> bool {
     n.kind == EntityKind::Edge
         && match n.path.as_slice() {
-            [RoleSeg::FromMember { member, of }, tail @ ..] => {
-                *member == m
+            [RoleSeg::From { read, of }, tail @ ..] => {
+                *read == m
                     && **of == *edge
                     && matches!(tail, [] | [RoleSeg::Fragment(Qualifier::Ends(_))])
             }
@@ -92,7 +92,7 @@ fn x_span(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, n: &StableName
     (x0.min(x1), x0.max(x1))
 }
 
-/// Every published edge named `FromMember(m, <edge of m>)`, ranked or
+/// Every published edge named `From(m, <edge of m>)`, ranked or
 /// not, lies within that edge of member `m`'s own body: both of its
 /// ends on the segment. Every edge named `Merged` of member edges lies
 /// along each of them, and each of its ends lies on one of them. No
@@ -101,6 +101,7 @@ fn x_span(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, n: &StableName
 /// where it lies along member edges, fails here even when the table is
 /// otherwise well formed.
 pub(crate) fn every_member_edge_lies_on_its_source(
+    doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -112,8 +113,10 @@ pub(crate) fn every_member_edge_lies_on_its_source(
         let v = b.get_half_edge(he).unwrap().start;
         *b.get_point(b.get_vertex(v).unwrap().point).unwrap()
     };
-    // The source segment of member edge `of` of `member`.
-    let source = |member: RecipeNodeId, of: &StableName| {
+    // The source segment of member edge `of` of the member read as
+    // `read`.
+    let source = |read: VarId, of: &StableName| {
+        let member = doc.operation_of(read).expect("a member read is live");
         let src_body = body_of(ev, member);
         let src = edge_of(table(ev, member), "the member's edge", of);
         let se = src_body.get_edge(src).unwrap();
@@ -139,8 +142,8 @@ pub(crate) fn every_member_edge_lies_on_its_source(
         let edge = body.get_edge(k).unwrap();
         let ends = [point(body, edge.he_plus), point(body, edge.he_minus)];
         match name.path.first() {
-            Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Edge => {
-                let seg = source(*member, of);
+            Some(RoleSeg::From { read, of }) if of.kind == EntityKind::Edge => {
+                let seg = source(*read, of);
                 for p in ends {
                     assert!(
                         on(place(p, seg)),
@@ -152,7 +155,7 @@ pub(crate) fn every_member_edge_lies_on_its_source(
                 let segs: Vec<_> = set
                     .iter()
                     .map(|c| match c.path.as_slice() {
-                        [RoleSeg::FromMember { member, of }] => source(*member, of),
+                        [RoleSeg::From { read, of }] => source(*read, of),
                         _ => panic!("{at}: {name:?} lists a constituent that is no member edge"),
                     })
                     .collect();
@@ -226,13 +229,13 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
     let t = table(&ev, union);
     let pieces: Vec<(i64, i64)> = t
         .iter()
-        .filter(|(n, _)| is_rim_piece(n, a, &rim(a, 2)))
+        .filter(|(n, _)| is_rim_piece(n, out(&docx, a), &rim(a, 2)))
         .map(|(n, _)| span(n))
         .collect();
     assert_eq!(pieces, vec![(0, micro(0.3))], "a's rim pieces");
     let mut set = vec![
-        crate::fixture::member_entity(union, a, rim(a, 2), EntityKind::Edge),
-        crate::fixture::member_entity(union, b, rim(b, 2), EntityKind::Edge),
+        crate::fixture::member_entity(union, out(&docx, a), rim(a, 2), EntityKind::Edge),
+        crate::fixture::member_entity(union, out(&docx, b), rim(b, 2), EntityKind::Edge),
     ];
     set.sort();
     let joined = StableName {
@@ -308,6 +311,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             match failure(&ev, union) {
                 None => {
                     every_member_edge_lies_on_its_source(
+                        &docx,
                         &ev,
                         union,
                         &ids,
@@ -349,7 +353,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
     let rim = |m: RecipeNodeId| {
         crate::fixture::member_entity(
             union,
-            m,
+            out(&docx, m),
             StableName {
                 kind: EntityKind::Edge,
                 node: m,
@@ -376,7 +380,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
     let corner = |m: RecipeNodeId| {
         crate::fixture::member_entity(
             union,
-            m,
+            out(&docx, m),
             StableName {
                 kind: EntityKind::Vertex,
                 node: m,
@@ -431,7 +435,13 @@ fn fused_tables(
         let ev = run(&docx);
         match failure(&ev, union) {
             None => {
-                every_member_edge_lies_on_its_source(&ev, union, &ids, &format!("{order:?}"));
+                every_member_edge_lies_on_its_source(
+                    &docx,
+                    &ev,
+                    union,
+                    &ids,
+                    &format!("{order:?}"),
+                );
                 out.push((
                     order,
                     union,
@@ -458,11 +468,8 @@ fn one_table(label: &str, fused: &[(Vec<usize>, RecipeNodeId, BTreeMap<StableNam
 }
 
 /// The set-named edges of a published table, each as the x-sorted
-/// member indices its constituents name.
-fn sets(
-    table: &BTreeMap<StableName, String>,
-    ids: impl Fn(RecipeNodeId) -> usize,
-) -> Vec<Vec<usize>> {
+/// member indices its constituents name, by the members' reads.
+fn sets(table: &BTreeMap<StableName, String>, ids: impl Fn(VarId) -> usize) -> Vec<Vec<usize>> {
     let mut out: Vec<Vec<usize>> = table
         .keys()
         .filter(|n| n.kind == EntityKind::Edge)
@@ -470,7 +477,7 @@ fn sets(
             [RoleSeg::Merged(set)] => Some(
                 set.iter()
                     .map(|c| match c.path.as_slice() {
-                        [RoleSeg::FromMember { member, .. }] => ids(*member),
+                        [RoleSeg::From { read, .. }] => ids(*read),
                         _ => panic!("{n:?} lists a constituent that is no member edge"),
                     })
                     .collect::<std::collections::BTreeSet<_>>()
@@ -497,8 +504,9 @@ fn four_flush_boxes_in_a_line_publish_one_table_in_every_order() {
     let fused = fused_tables(&blocks, &[(0, 1), (1, 2), (2, 3)]);
     assert_eq!(fused.len(), 24, "every order fuses");
     one_table("four in a line", &fused);
-    let (_, ids) = document(&blocks, &[0, 1, 2, 3]);
-    let index = |m: RecipeNodeId| ids.iter().position(|&i| i == m).unwrap();
+    let (d0, ids) = document(&blocks, &[0, 1, 2, 3]);
+    let reads: Vec<VarId> = ids.iter().map(|&i| out(&d0, i)).collect();
+    let index = |r: VarId| reads.iter().position(|&i| i == r).unwrap();
     assert_eq!(sets(&fused[0].2, index), vec![vec![0, 1, 2, 3]; 4]);
 }
 
@@ -518,15 +526,17 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
     let flush = [(0, 1), (1, 2), (2, 3)];
     let fused = fused_tables(&[a, b, c, d], &flush);
     one_table("partial overlaps", &fused);
-    let (_, ids) = document(&[a, b, c, d], &[0, 1, 2, 3]);
-    let index = |m: RecipeNodeId| ids.iter().position(|&i| i == m).unwrap();
+    let (d0, ids) = document(&[a, b, c, d], &[0, 1, 2, 3]);
+    let reads: Vec<VarId> = ids.iter().map(|&i| out(&d0, i)).collect();
+    let index = |r: VarId| reads.iter().position(|&i| i == r).unwrap();
     assert_eq!(sets(&fused[0].2, index), vec![vec![0, 1, 2, 3]; 4]);
 
     let slab = ((2.6, 2.7), (-1.0, 2.0), (0.5, 3.0));
     let fused = fused_tables(&[a, b, c, d, slab], &flush);
     one_table("partial overlaps under a slab", &fused);
     let (doc, ids) = document(&[a, b, c, d, slab], &[0, 1, 2, 3, 4]);
-    let index = |m: RecipeNodeId| ids.iter().position(|&i| i == m).unwrap();
+    let reads: Vec<VarId> = ids.iter().map(|&i| out(&doc, i)).collect();
+    let index = |r: VarId| reads.iter().position(|&i| i == r).unwrap();
     assert_eq!(
         sets(&fused[0].2, index),
         vec![
@@ -549,7 +559,7 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
     let ev = run(&docx);
     let rim = crate::fixture::member_entity(
         union,
-        ids[2],
+        out(&docx, ids[2]),
         StableName {
             kind: EntityKind::Edge,
             node: ids[2],
@@ -600,7 +610,8 @@ fn a_member_inside_two_others_is_in_their_rims_set() {
     let blocks = [row(0.0, 2.0), row(1.5, 3.0), row(1.0, 2.5)];
     let fused = fused_tables(&blocks, &[(0, 1), (0, 2), (1, 2)]);
     one_table("one inside two", &fused);
-    let (_, ids) = document(&blocks, &[0, 1, 2]);
-    let index = |m: RecipeNodeId| ids.iter().position(|&i| i == m).unwrap();
+    let (d0, ids) = document(&blocks, &[0, 1, 2]);
+    let reads: Vec<VarId> = ids.iter().map(|&i| out(&d0, i)).collect();
+    let index = |r: VarId| reads.iter().position(|&i| i == r).unwrap();
     assert_eq!(sets(&fused[0].2, index), vec![vec![0, 1, 2]; 4]);
 }

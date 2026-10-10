@@ -423,10 +423,8 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     let (doc, xf_pattern) = insert(doc, skew(pattern));
     let refusal = fixture::insert_refused(
         &doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: pattern.into(),
-            b: cube.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![pattern.into(), cube.into()]),
             declare: Vec::new(),
         },
     );
@@ -434,7 +432,7 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
         matches!(
             &refusal,
             EditError::SlotVarKind {
-                slot: editor_core::SlotId::Operand(OperandSlot::A),
+                slot: editor_core::SlotId::Operand(OperandSlot::Member(0)),
                 found: VarKind::Bodies,
                 expected: SlotKind::Is(VarKind::Body),
                 ..

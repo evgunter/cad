@@ -1846,9 +1846,16 @@ pub(super) mod tests {
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
                 R::AxisEdge(e2.into()),
-                R::From { read: crate::names::FOLD_A, of: r(a) },
-                R::From { read: crate::names::FOLD_B, of: r(b) },
-                R::From { read: crate::VarId::new(1, 3),
+                R::From {
+                    read: crate::names::FOLD_A,
+                    of: r(a),
+                },
+                R::From {
+                    read: crate::names::FOLD_B,
+                    of: r(b),
+                },
+                R::From {
+                    read: crate::VarId::new(1, 3),
                     of: r(a),
                 },
                 R::Seam { a: r(a), b: r(b) },
@@ -1890,7 +1897,10 @@ pub(super) mod tests {
                     side: SplitHalf::Above,
                     of: r(b),
                 },
-                R::From { read: crate::VarId::new(1, 77), of: r(a) },
+                R::From {
+                    read: crate::VarId::new(1, 77),
+                    of: r(a),
+                },
                 R::BlendFace(r(b)),
                 R::CornerFace(r(a)),
                 R::TrimEdge {
@@ -1952,7 +1962,10 @@ pub(super) mod tests {
                 named(
                     EntityKind::Face,
                     10,
-                    vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(n.clone()) }],
+                    vec![RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: NameRef::new(n.clone()),
+                    }],
                 )
             };
             let (a, b) = (over(&x), over(&y));
@@ -2137,7 +2150,10 @@ pub(super) mod tests {
         for level in 0..DEEP {
             let r = NameRef::new(n.clone());
             let seg = match level % 7 {
-                0 => RoleSeg::From { read: crate::names::FOLD_A, of: r },
+                0 => RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: r,
+                },
                 1 => RoleSeg::Instance { i: 1, of: r },
                 2 => RoleSeg::InPart { of: r },
                 3 => RoleSeg::Merged(vec![n]),
@@ -2293,10 +2309,7 @@ pub(super) mod tests {
                 vec![RoleSeg::Merged(vec![leaf(1), leaf(2)])],
             );
             let constituents = super::super::merged::constituents_through_wrappers(&wrapped(
-                merged,
-                DEEP,
-                6,
-                from_a,
+                merged, DEEP, 6, from_a,
             ))
             .expect("a merged face under its wrappers");
             assert_eq!(
@@ -2334,7 +2347,8 @@ pub(super) mod tests {
             let member = named(
                 EntityKind::Face,
                 9,
-                vec![RoleSeg::From { read: crate::VarId::new(1, 4),
+                vec![RoleSeg::From {
+                    read: crate::VarId::new(1, 4),
                     of: NameRef::new(leaf(4)),
                 }],
             );
@@ -2370,14 +2384,17 @@ pub(super) mod tests {
             named(
                 EntityKind::Face,
                 2,
-                vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(named(
-                    EntityKind::Face,
-                    1,
-                    vec![RoleSeg::Instance {
-                        i: 0,
-                        of: NameRef::new(piece(i)),
-                    }],
-                )) }],
+                vec![RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(named(
+                        EntityKind::Face,
+                        1,
+                        vec![RoleSeg::Instance {
+                            i: 0,
+                            of: NameRef::new(piece(i)),
+                        }],
+                    )),
+                }],
             )
         };
         let wide = named(
@@ -2407,7 +2424,8 @@ pub(super) mod tests {
                         named(
                             EntityKind::Face,
                             9,
-                            vec![RoleSeg::From { read: crate::VarId::new(1, 100 + i as u64),
+                            vec![RoleSeg::From {
+                                read: crate::VarId::new(1, 100 + i as u64),
                                 of: NameRef::new(leaf(4)),
                             }],
                         )
@@ -2465,11 +2483,12 @@ pub(super) mod tests {
         let deep = wrapped(leaf(1), 20, 3, from_a);
         let text = deep.to_json().unwrap();
         let pretty = serde_json::to_string_pretty(&deep).unwrap();
-        let wrap =
-            |inner: &str| {
-                let read = serde_json::to_string(&crate::names::FOLD_A).unwrap();
-                format!(r#"{{"kind":"Face","node":3,"path":[{{"From":{{"read":{read},"of":{inner}}}}}]}}"#)
-            };
+        let wrap = |inner: &str| {
+            let read = serde_json::to_string(&crate::names::FOLD_A).unwrap();
+            format!(
+                r#"{{"kind":"Face","node":3,"path":[{{"From":{{"read":{read},"of":{inner}}}}}]}}"#
+            )
+        };
         let leaf_text = leaf(1).to_json().unwrap();
         let texts = [
             text.clone(),

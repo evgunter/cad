@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
+    Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarId,
     VarName,
 };
@@ -210,8 +210,6 @@ pub(crate) struct Drafts {
     pub(crate) extrude_distance: f64,
     /// The revolve tool's angle, radians.
     pub(crate) revolve_angle: f64,
-    /// The boolean tool's operation choice.
-    pub(crate) boolean_op: BooleanOp,
     /// The offer an undeclared-contact refusal made
     /// ([`crate::frame::declare_offer`]); shown in the boolean tool
     /// while it stands ([`DeclareOffer::is_for`]).
@@ -696,7 +694,6 @@ impl Default for Drafts {
             profile_extent: [0.01, 0.01],
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
-            boolean_op: BooleanOp::Union,
             declare_offer: None,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],

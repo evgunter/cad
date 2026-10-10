@@ -1,14 +1,14 @@
 //! **A flush partner folded onto an edge contact, through the public
 //! door.** `a` and `b` are flush along x; `c` touches them along one
 //! edge only. Every member order of `Node::Union`, and every order of
-//! two chained `Node::Boolean` unions, builds at the three blocks'
+//! two chained two-member `Node::Union`s, builds at the three blocks'
 //! volume — the kernel rows are `topo`'s suite of the same name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
-use crate::fixture::{flush_segs, fname, insert};
-use editor_core::{BooleanOp, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef};
+use crate::fixture::{flush_segs, fname, insert, out};
+use editor_core::{Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, VarId};
 use geom_core::Tol;
 
 /// `c`'s x-range: over `b` alone, inside `a ∩ b`, and across `a`'s
@@ -25,10 +25,6 @@ const ORDERS: [[usize; 3]; 6] = [
 ];
 
 const NAMES: [&str; 3] = ["a", "b", "c"];
-
-/// The role segment an operand's surviving face is named through in a
-/// pair boolean's result: `FromA` or `FromB`.
-type Side = fn(editor_core::NameRef) -> RoleSeg;
 
 /// The three blocks, in `a, b, c` order.
 fn blocks(span: (f64, f64)) -> (ProfileDoc, [RecipeNodeId; 3]) {
@@ -124,11 +120,18 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
     for span in C_SPANS {
         for [p, q, r] in ORDERS {
             let (doc, ids) = blocks(span);
-            let flush = |doc: &ProfileDoc,
-                         (at, i): (Option<(RecipeNodeId, Side)>, usize),
-                         (other_at, j): (RecipeNodeId, usize)| {
+            // `i`'s flush faces, read directly or (`at`) through the
+            // inner union, which names a member's face `From` that
+            // member's read; against `j`'s, read directly.
+            let flush = |doc: &ProfileDoc, (at, i): (Option<RecipeNodeId>, usize), j: usize| {
                 let wrap = |seg: RoleSeg| match at {
-                    Some((inner, seg_of)) => fname(inner, seg_of(fname(ids[i], seg).into())),
+                    Some(inner) => fname(
+                        inner,
+                        RoleSeg::From {
+                            read: out(doc, ids[i]),
+                            of: fname(ids[i], seg).into(),
+                        },
+                    ),
                     None => fname(ids[i], seg),
                 };
                 flush_segs(doc, ids[i])
@@ -136,8 +139,8 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
                     .zip(flush_segs(doc, ids[j]))
                     .map(|(s, t)| {
                         (
-                            SitedRef::new(at.map_or(ids[i], |(inner, _)| inner), wrap(s)),
-                            SitedRef::new(other_at, fname(ids[j], t)),
+                            SitedRef::new(out(doc, at.unwrap_or(ids[i])), wrap(s)),
+                            SitedRef::new(out(doc, ids[j]), fname(ids[j], t)),
                         )
                     })
                     .collect::<Vec<_>>()
@@ -145,13 +148,11 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
             let pair = |doc: ProfileDoc,
                         x: RecipeNodeId,
                         y: RecipeNodeId,
-                        pairs: Option<Vec<(SitedRef, SitedRef)>>| {
+                        pairs: Option<Vec<(SitedRef<VarId>, SitedRef<VarId>)>>| {
                 insert(
                     doc,
-                    Node::Boolean {
-                        op: BooleanOp::Union,
-                        a: x.into(),
-                        b: y.into(),
+                    Node::Union {
+                        members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
                         declare: pairs
                             .map(editor_core::declare_continuation)
                             .unwrap_or_default(),
@@ -159,15 +160,12 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
                 )
             };
             let is_ab = |i: usize, j: usize| i != j && i < 2 && j < 2;
-            let inner_pairs = is_ab(p, q).then(|| flush(&doc, (None, p), (ids[q], q)));
+            let inner_pairs = is_ab(p, q).then(|| flush(&doc, (None, p), q));
             let (doc, inner) = pair(doc, ids[p], ids[q], inner_pairs);
             // The inner union's copy of `r`'s flush partner, if it holds
-            // one: its faces are named through the side it entered on.
-            let partner = [(p, RoleSeg::FromA as Side), (q, RoleSeg::FromB as Side)]
-                .into_iter()
-                .find(|&(m, _)| is_ab(m, r));
-            let outer_pairs =
-                partner.map(|(m, seg_of)| flush(&doc, (Some((inner, seg_of)), m), (ids[r], r)));
+            // one: its faces are named through the read it entered by.
+            let partner = [p, q].into_iter().find(|&m| is_ab(m, r));
+            let outer_pairs = partner.map(|m| flush(&doc, (Some(inner), m), r));
             let (doc, outer) = pair(doc, inner, ids[r], outer_pairs);
             let ev = run(&doc);
             let label = [p, q, r].map(|i| NAMES[i]);

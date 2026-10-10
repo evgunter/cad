@@ -434,7 +434,7 @@ pass through your hands as values, never straight into a recipe.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{BooleanOp, BooleanValue, NodeErrorKind, NodeResult};
+use pncad::document::{Bodies, BooleanValue, NodeErrorKind, NodeResult};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -476,7 +476,7 @@ let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: l
 // from values (the coincidence ladder).
 let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base.into(), b: block.into(), declare: Vec::new() },
+    Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]), declare: Vec::new() },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
@@ -494,7 +494,7 @@ assert_eq!(finding.class, BooleanCoincidence::REST);
 // and the SAME node that refused now verifies the declared contact.
 // (Declaring the menu's own finding — `declare(&doc, uni, finding)`
 // — is the same door; the detector shows the full inventory.)
-let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
+let findings = find_flush_candidates(&ev, &doc, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, BooleanCoincidence::REST);
 let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");

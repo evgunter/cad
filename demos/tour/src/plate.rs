@@ -30,9 +30,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -278,7 +278,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
     };
     let subtract = |doc: &mut ProfileDoc, a: RecipeNodeId, b: RecipeNodeId| {
-        let found = find_flush_candidates(&eval_here(doc), a, b, tol)
+        let found = find_flush_candidates(&eval_here(doc), doc, a, b, tol)
             .expect("the hole's caps are definite flush pairs");
         // The inspection: the hole's two caps, each continuing the
         // blank's cap it lies in.
@@ -292,30 +292,26 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         );
         insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: a.into(),
-                b: b.into(),
+            Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
                 declare: declared_pairs(&found),
             },
             tol,
         )
     };
     // Where each bore wall is read, and the name that picks it there.
-    // On the cut part a name records its lineage operand by operand,
-    // so "the faces hole a cut" is spelled through both cuts: the
-    // second's A side, then the first's B side.
+    // On the cut part a name records its lineage read by read, so "the
+    // faces hole a cut" is spelled through both cuts: the second's
+    // `from` read, then the first's `tool` read.
     let face = || NamePat::of_kind(EntityKind::Face);
-    let from = |side: SegTag, inner: NamePat| face().seg(SegPat::tag(side).of([inner]));
+    let from = |inner: NamePat| face().seg(SegPat::tag(SegTag::From).of([inner]));
     let sites = if cut {
         let drilled = subtract(&mut doc, blank, hole_a);
         let part = subtract(&mut doc, drilled, hole_b);
         [
-            (
-                part,
-                from(SegTag::FromA, from(SegTag::FromB, face().node(hole_a))),
-            ),
-            (part, from(SegTag::FromB, face().node(hole_b))),
+            (part, from(from(face().node(hole_a)))),
+            (part, from(face().node(hole_b))),
         ]
     } else {
         [(hole_a, face()), (hole_b, face())]

@@ -81,13 +81,13 @@ pub use interrogate::{
 };
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
-pub(crate) use role::{FOLD_A, FOLD_B, is_fold_side, read_edge};
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,
     Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
+pub(crate) use role::{FOLD_A, FOLD_B, is_fold_side, read_edge};
 pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub(crate) use seam_pair::face_descends_from;

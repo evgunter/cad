@@ -125,8 +125,8 @@ use crate::names::groups::{CrossingSenses, Rederived};
 use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
-    is_fold_side, Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, Sense, StableName, edge_line,
-    never_in_a_boolean_table,
+    Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, Sense, StableName, edge_line,
+    is_fold_side, never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -182,7 +182,11 @@ pub(crate) fn name_lone_member(
     )?;
     for (name, entry) in table.iter_refs() {
         if name.kind != EntityKind::Body {
-            put_entry(&mut out, keyed(union, member, name.clone(), name.kind), entry)?;
+            put_entry(
+                &mut out,
+                keyed(union, member, name.clone(), name.kind),
+                entry,
+            )?;
         }
     }
     Ok(out)
@@ -198,11 +202,7 @@ pub(crate) fn name_lone_member(
 /// row here rather than there is what keeps the member-keying rule to
 /// ONE definition — the view and the door cannot disagree about what
 /// a member's entity is called.
-pub(crate) fn member_name(
-    union: RecipeNodeId,
-    member: VarId,
-    name: &StableName,
-) -> StableName {
+pub(crate) fn member_name(union: RecipeNodeId, member: VarId, name: &StableName) -> StableName {
     keyed(union, member, NameRef::new(name.clone()), name.kind)
 }
 
@@ -1772,7 +1772,9 @@ impl Parents {
             let mut from = BTreeSet::new();
             let mut tied = false;
             for &(m, f) in &entities {
-                let member = members.get(m).ok_or_else(|| bug("a union's member face names no member"))?;
+                let member = members
+                    .get(m)
+                    .ok_or_else(|| bug("a union's member face names no member"))?;
                 let of = member
                     .table
                     .name_ref_of(&ent(0, EntityKey::Face(f)))
@@ -2565,18 +2567,31 @@ mod tests {
     fn member_cap(union: RecipeNodeId, m: u64) -> StableName {
         face(
             union,
-            vec![RoleSeg::From { read: crate::VarId::new(1, m),
+            vec![RoleSeg::From {
+                read: crate::VarId::new(1, m),
                 of: face(RecipeNodeId::new(0, m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
             }],
         )
     }
 
     fn from_a(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::From { read: crate::names::FOLD_A, of: inner.into() }])
+        face(
+            union,
+            vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: inner.into(),
+            }],
+        )
     }
 
     fn from_b(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::From { read: crate::names::FOLD_B, of: inner.into() }])
+        face(
+            union,
+            vec![RoleSeg::From {
+                read: crate::names::FOLD_B,
+                of: inner.into(),
+            }],
+        )
     }
 
     #[test]
@@ -2723,7 +2738,8 @@ mod tests {
         StableName {
             kind: EntityKind::Edge,
             node: union,
-            path: vec![RoleSeg::From { read: crate::VarId::new(1, m),
+            path: vec![RoleSeg::From {
+                read: crate::VarId::new(1, m),
                 of: StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId::new(0, m),
@@ -2744,7 +2760,10 @@ mod tests {
         StableName {
             kind: inner.kind,
             node: inner.node,
-            path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: inner.into() }],
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: inner.into(),
+            }],
         }
     }
 
@@ -2867,7 +2886,10 @@ mod tests {
                 kind: EntityKind::Edge,
                 node: union,
                 path: vec![
-                    RoleSeg::From { read: crate::names::FOLD_A, of: seam_edge(union, swap).into() },
+                    RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: seam_edge(union, swap).into(),
+                    },
                     RoleSeg::Fragment(Qualifier::Ends(ends.clone())),
                 ],
             };

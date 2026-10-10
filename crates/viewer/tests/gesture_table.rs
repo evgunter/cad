@@ -87,6 +87,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use viewer::session::BooleanSpec;
 use crate::common;
 use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
@@ -95,7 +96,7 @@ use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
+    Alignment, AxisSense, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
     MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
@@ -281,9 +282,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: node,
-            b: node,
+            spec: BooleanSpec::Union(vec![node, node]),
             declare: Vec::new(),
         },
         SessionOp::AddSplit {

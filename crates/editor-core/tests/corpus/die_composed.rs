@@ -49,9 +49,9 @@
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
-    Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef,
-    Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    SegPat, SegTag, Selector, SlotId, StableName,
+    Axis3, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
+    SegTag, Selector, SlotId, StableName,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len, len2, prism_edges, scl, xy_frame};
@@ -75,16 +75,16 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 
 /// **The selection: fourteen names, each with its provenance.**
 ///
-/// The target is the pipped cube (`Node::Boolean::Subtract`), whose
+/// The target is the pipped cube (`Node::Subtract`), whose
 /// edge table has exactly sixteen rows. The selection is fourteen of
 /// them — everything except the two cavity meridians:
 ///
 /// | count | name | what it is |
 /// |---|---|---|
-/// | 8 | `FromA(RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
-/// | 4 | `FromA(LateralEdge(vertex))` | the cube's four vertical struts |
+/// | 8 | `From(cube, RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
+/// | 4 | `From(cube, LateralEdge(vertex))` | the cube's four vertical struts |
 /// | 2 | `Seam { Cap(End), Band(0) \| BandPi(0) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
-/// | *2 excluded* | `FromB(Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
+/// | *2 excluded* | `From(ball, Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
 ///
 /// **Why the meridians are excluded, and why this document exists.**
 /// The two half-cap faces of the cavity share ONE sphere surface, so a
@@ -133,7 +133,12 @@ pub fn selection(
     let lower = crate::fixture::piece(doc, ball, 0, 0);
     let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
         .into_iter()
-        .map(|e| at(RoleSeg::FromA(e.into())))
+        .map(|e| {
+            at(RoleSeg::From {
+                read: crate::fixture::out(doc, cube),
+                of: e.into(),
+            })
+        })
         .collect();
     for band in [RoleSeg::Band(lower.into()), RoleSeg::BandPi(lower.into())] {
         out.push(at(RoleSeg::Seam {
@@ -151,11 +156,11 @@ pub fn selection(
 ///
 /// Two alternatives, one per row of `selection`'s table:
 ///
-/// 1. `FromA(_)` — every edge the subtraction carried through from
-///    operand A, i.e. the cube's twelve box edges (eight cap rims and
-///    four struts). Saying "carried through from A" is exactly the
-///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was
-///    the P10 relocation.
+/// 1. `From(RimEdge | LateralEdge)` — every box edge the subtraction
+///    carried in, i.e. the cube's twelve box edges (eight cap rims and
+///    four struts). Saying "a box edge carried through" is exactly the
+///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was the
+///    P10 relocation.
 /// 2. `Seam { a: Cap(End), b: Band | BandPi }` — the pip rim, the two
 ///    arcs the zip minted where the cube's end cap crosses the ball's
 ///    lower band. A full revolve's band is two half-faces split at the
@@ -163,8 +168,8 @@ pub fn selection(
 ///    variants; the union says both.
 ///
 /// What is NOT selected falls out of the shapes: the cavity meridians
-/// are `FromB(Meridian(..))`, and neither alternative admits a `FromB`
-/// segment. The co-surface refusal stays EXCLUDED by description
+/// are `From(Meridian(..))`, and neither alternative admits a carried
+/// meridian. The co-surface refusal stays EXCLUDED by description
 /// rather than by a hand-maintained omission.
 ///
 /// No geometric field appears anywhere above — no carrier kind, no
@@ -177,8 +182,11 @@ pub fn selector() -> Selector {
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let pip_rim =
         |band: SegTag| edge().seg(SegPat::tag(SegTag::Seam).of([cap_top.clone(), face(band)]));
+    let carried =
+        |tag: SegTag| edge().seg(SegPat::tag(SegTag::From).of([edge().seg(SegPat::tag(tag))]));
     Selector::any_of([
-        edge().seg(SegPat::tag(SegTag::FromA)),
+        carried(SegTag::RimEdge),
+        carried(SegTag::LateralEdge),
         pip_rim(SegTag::Band),
         pip_rim(SegTag::BandPi),
     ])
@@ -198,14 +206,17 @@ pub fn excluded_meridians(
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| {
-            let head = RoleSeg::FromB(NameRef::new(StableName {
-                kind: EntityKind::Edge,
-                node: ball,
-                path: vec![RoleSeg::Meridian(
-                    end,
-                    crate::fixture::piece(doc, ball, 0, 0).into(),
-                )],
-            }));
+            let head = RoleSeg::From {
+                read: crate::fixture::out(doc, ball),
+                of: NameRef::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: ball,
+                    path: vec![RoleSeg::Meridian(
+                        end,
+                        crate::fixture::piece(doc, ball, 0, 0).into(),
+                    )],
+                }),
+            };
             let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
                 .iter()
                 .map(|(n, _)| n)
@@ -268,10 +279,9 @@ pub fn document() -> CorpusDoc {
             angle: ang(0.0),
         },
     ));
-    let pipped = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: cube.into(),
-        b: pip.into(),
+    let pipped = r.insert(Node::Subtract {
+        from: cube.into(),
+        tool: pip.into(),
         declare: Vec::new(),
     });
     // The fourteen selected edges — twelve box edges and the pip

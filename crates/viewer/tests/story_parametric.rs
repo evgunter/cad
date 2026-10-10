@@ -28,13 +28,14 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use viewer::session::BooleanSpec;
 use crate::common;
 
 use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
+    Axis3, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
     SlotId, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
@@ -308,9 +309,7 @@ fn the_parametric_living_walk() {
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: base,
-            b: tower_up,
+            spec: BooleanSpec::Union(vec![base, tower_up]),
             declare: Vec::new(),
         },
     );
@@ -383,9 +382,7 @@ fn the_parametric_living_walk() {
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: hull,
-            b: lamp_up,
+            spec: BooleanSpec::Union(vec![hull, lamp_up]),
             declare: Vec::new(),
         },
     );

@@ -33,16 +33,25 @@ use std::time::Instant;
 use crate::corpus::Recorder;
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanCoincidence, BooleanOp, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions,
-    ExtrudeSide, MeasureExpr, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult,
-    PieceRole, ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf,
-    StableName, StepId,
+    BooleanCoincidence, CapEnd, Datum, EntityKey, EntityKind, EntityRef, EvalOptions, ExtrudeSide,
+    MeasureExpr, MeasurePrimitive, NameRef, NameTable, NameTables, Node, NodeResult, PieceRole,
+    ProfileEdgeRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, Speaker, SplitHalf, StableName,
+    StepId, VarId,
 };
 use test_utils::fuzz;
 
 const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
 const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
 const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
+/// The read a carry into [`OP`] comes through. No document holds it,
+/// so the words never say it.
+const READ: VarId = VarId::new(0, 4 << 16);
+
+/// One of three reads a carry comes through, none of them held by a
+/// document.
+fn read_of(rng: &mut fuzz::Rng) -> VarId {
+    VarId::new(0, (11 + rng.below(3) as u64) << 16)
+}
 
 fn wall(step: u64) -> StableName {
     StableName {
@@ -159,16 +168,18 @@ fn random_cited(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         4 => StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, (5 + rng.below(2) as u64) << 16),
-            path: vec![RoleSeg::FromB(NameRef::new(wall_of(rng)))],
+            path: vec![RoleSeg::From {
+                read: read_of(rng),
+                of: NameRef::new(wall_of(rng)),
+            }],
         },
         _ => StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, 7 << 16),
-            path: vec![RoleSeg::FromB(NameRef::new(random_cited(
-                rng,
-                depth - 1,
-                pool,
-            )))],
+            path: vec![RoleSeg::From {
+                read: read_of(rng),
+                of: NameRef::new(random_cited(rng, depth - 1, pool)),
+            }],
         },
     }
 }
@@ -183,7 +194,10 @@ fn random_minted(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
             kind: EntityKind::Face,
             node: OP,
             path: vec![
-                RoleSeg::FromA(NameRef::new(end_cap())),
+                RoleSeg::From {
+                    read: READ,
+                    of: NameRef::new(end_cap()),
+                },
                 RoleSeg::Fragment(Qualifier::Borders(members)),
             ],
         }
@@ -265,16 +279,21 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
             StableName {
                 kind: base.kind,
                 node: node(rng),
-                path: vec![RoleSeg::FromA(NameRef::new(base)), RoleSeg::Fragment(q)],
+                path: vec![
+                    RoleSeg::From {
+                        read: read_of(rng),
+                        of: NameRef::new(base),
+                    },
+                    RoleSeg::Fragment(q),
+                ],
             }
         }
-        6 => face(node(rng), RoleSeg::FromB(inner(rng))),
-        7 => {
-            let member = node(rng);
+        6 | 7 => {
+            let read = read_of(rng);
             face(
                 node(rng),
-                RoleSeg::FromMember {
-                    member,
+                RoleSeg::From {
+                    read,
                     of: inner(rng),
                 },
             )
@@ -307,7 +326,8 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
 }
 
 /// `name` with the node of every carry its words never say set to one
-/// node: a primary carry's (`FromA`), and a split's or a copy's. Two
+/// node, and every carry's read set to one read: a carry (`From`),
+/// whose read no document here holds, and a split's or a copy's. Two
 /// names this makes equal differ only where the full form is silent.
 fn unsaid_nodes_erased(name: &StableName) -> StableName {
     let erase = |n: &NameRef| NameRef::new(unsaid_nodes_erased(n));
@@ -316,10 +336,8 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
         .path
         .iter()
         .map(|seg| match seg {
-            RoleSeg::FromA(of) => RoleSeg::FromA(erase(of)),
-            RoleSeg::FromB(of) => RoleSeg::FromB(erase(of)),
-            RoleSeg::FromMember { member, of } => RoleSeg::FromMember {
-                member: *member,
+            RoleSeg::From { of, .. } => RoleSeg::From {
+                read: READ,
                 of: erase(of),
             },
             RoleSeg::SplitFragment { parent, side } => RoleSeg::SplitFragment {
@@ -347,7 +365,7 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
         .collect();
     let unsaid = matches!(
         path.first(),
-        Some(RoleSeg::FromA(_) | RoleSeg::SplitFragment { .. } | RoleSeg::Instance { .. })
+        Some(RoleSeg::From { .. } | RoleSeg::SplitFragment { .. } | RoleSeg::Instance { .. })
     );
     StableName {
         kind: name.kind,
@@ -384,7 +402,10 @@ fn a_list_ending_in_a_list_or_a_join_reads_one_way() {
     let through_b = |name: StableName| StableName {
         kind: name.kind,
         node: OTHER,
-        path: vec![RoleSeg::FromB(NameRef::new(name))],
+        path: vec![RoleSeg::From {
+            read: READ,
+            of: NameRef::new(name),
+        }],
     };
     let member_joined = bordering(cap.clone(), vec![through_b(wall(3))]);
     let name_joined = through_b(bordering(cap, vec![wall(3)]));
@@ -408,7 +429,10 @@ fn a_join_beneath_a_wrap_reads_apart_from_one_above_it() {
     let through_b = |name: StableName| StableName {
         kind: name.kind,
         node: OTHER,
-        path: vec![RoleSeg::FromB(NameRef::new(name))],
+        path: vec![RoleSeg::From {
+            read: READ,
+            of: NameRef::new(name),
+        }],
     };
     let copy = |name: StableName| StableName {
         kind: name.kind,
@@ -422,7 +446,10 @@ fn a_join_beneath_a_wrap_reads_apart_from_one_above_it() {
         kind: name.kind,
         node: OP,
         path: vec![
-            RoleSeg::FromA(NameRef::new(name)),
+            RoleSeg::From {
+                read: READ,
+                of: NameRef::new(name),
+            },
             RoleSeg::Fragment(Qualifier::Borders(vec![wall(3)])),
         ],
     };
@@ -609,10 +636,9 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let cut = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: block.into(),
-        b: pin.into(),
+    let cut = r.insert(Node::Subtract {
+        from: block.into(),
+        tool: pin.into(),
         declare: Vec::new(),
     });
     (block, cut)
@@ -681,17 +707,21 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let mut r = Recorder::new();
     let (block, split) = block_and_split(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: block.into(),
-        b: editor_core::Operand::Output {
-            node: split,
-            port: 0,
-        },
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            block.into(),
+            editor_core::Operand::Output {
+                node: split,
+                port: 0,
+            },
+        ]),
         declare: vec![(
             (
-                SitedRef::new(block, cap.clone()),
-                SitedRef::new(split, cap.clone()),
+                SitedRef::new(fixture::out(&r.doc, block), cap.clone()),
+                SitedRef::new(
+                    r.doc.output(split, 0).expect("the split's port 0"),
+                    cap.clone(),
+                ),
             ),
             BooleanCoincidence::REST,
         )],
@@ -711,8 +741,9 @@ fn a_resolve_row_names_the_slot_that_failed() {
 fn a_strand_row_names_the_node_the_delete_took() {
     use editor_core::{Attr, DocEdit, RefusingReach, Rgba8, apply};
     let mut r = Recorder::new();
-    let (_, cut) = block_and_cut(&mut r);
+    let (block, cut) = block_and_cut(&mut r);
     let doc = r.doc;
+    let from_read = fixture::out(&doc, block);
     let ev = fixture::run(&doc, &EvalOptions::default());
     let painted = ev
         .value(cut)
@@ -720,7 +751,13 @@ fn a_strand_row_names_the_node_the_delete_took() {
         .name_table
         .iter()
         .map(|(n, _)| n.clone())
-        .find(|n| n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::FromA(_)]))
+        .find(|n| {
+            n.kind == EntityKind::Face
+                && matches!(
+                    n.path.as_slice(),
+                    [RoleSeg::From { read, .. }] if *read == from_read
+                )
+        })
         .expect("a face carried through A");
     let tol = fixture::tol();
     let doc = apply(
@@ -831,9 +868,12 @@ fn a_union_resolve_row_names_its_declared_pairs_second_side() {
     let (block, cut) = block_and_cut(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::Start));
     let union = r.insert(Node::Union {
-        members: vec![block.into(), cut.into()],
+        members: editor_core::Bodies::Spelled(vec![block.into(), cut.into()]),
         declare: vec![(
-            (SitedRef::new(block, cap.clone()), SitedRef::new(cut, cap)),
+            (
+                SitedRef::new(fixture::out(&r.doc, block), cap.clone()),
+                SitedRef::new(fixture::out(&r.doc, cut), cap),
+            ),
             BooleanCoincidence::REST,
         )],
     });
@@ -863,7 +903,7 @@ fn a_strand_row_names_a_deleted_union() {
         side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
-        members: vec![block.into(), boss.into()],
+        members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
         declare: Vec::new(),
     });
     let doc = r.doc;

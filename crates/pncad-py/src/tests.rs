@@ -2434,7 +2434,6 @@ fn node_error_tags_are_the_published_words() {
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
-        MembersShareAnOperation => "members_share_an_operation",
         InstanceOutOfRange => "instance_out_of_range",
         DegenerateDirection => "degenerate_direction",
         NonFiniteDirection => "non_finite_direction",
@@ -2821,9 +2820,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::DeclaredSiteNotAnOperand {
             node: sp(1),
             name: named(),
-            site: sp(2),
+            site: pncad::document::SpokenVar::new(
+                pncad::document::VarId(id(2).0),
+                Some(pncad::document::VarName::new("lid").expect("a var name")),
+            ),
         },
-        &["node", "input", "name"],
+        &["node", "param", "name"],
     );
     carries(
         &E::DeclaredNameNotUpstream {
@@ -2928,13 +2930,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::UpdateOnNonInstance { node: sp(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
     carries(
-        &E::DuplicateInput {
-            node: sp(1),
-            input: sp(2),
-        },
-        &["node", "input"],
-    );
-    carries(
         &E::AssertionTarget {
             node: sp(1),
             measure: sp(2),
@@ -2982,7 +2977,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: SlotId::Operand(OperandSlot::B),
+            slot: SlotId::Operand(OperandSlot::Cut),
         },
         &["input", "slot"],
     );
@@ -3000,9 +2995,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
-    let twice = E::DuplicateInput {
+    let twice = E::AssertionTarget {
         node: sp(4),
-        input: sp(9),
+        measure: sp(9),
     };
     let payload = edit_payload(&twice);
     assert_eq!(payload.node, Some(id(4)));
@@ -3160,13 +3155,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- the list-shape arms ----
     carries(
-        &E::TooFewMembers {
-            node: sp(1),
-            found: 1,
-        },
-        &["node", "count"],
-    );
-    carries(
         &E::RepeatedDesignation {
             node: sp(1),
             first: 0,
@@ -3180,15 +3168,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::SelectionNotCanonical { node: sp(1), at: 2 },
         &["node", "first"],
     );
-    // `found` on a short list is a COUNT and takes the `count`
-    // attribute, so it never lands where a dimension word would.
-    let short = E::TooFewMembers {
-        node: sp(1),
-        found: 1,
-    };
-    let payload = edit_payload(&short);
-    assert_eq!(payload.count, Some(1));
-    assert_eq!(payload.found, None);
 
     // ---- names, kinds and appearance ----
     for arm in [
@@ -4016,7 +3995,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // An unproven coincidence: its two words and the residual's
     // sentence; the cells cross on the Python value, not the payload.
     let tool = pncad::document::NamedCell::Tool {
-        input: RecipeNodeId::new(0, 3),
+        input: pncad::document::VarId(RecipeNodeId::new(0, 3).0),
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {

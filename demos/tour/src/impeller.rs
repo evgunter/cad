@@ -56,7 +56,7 @@ use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
+    Bodies, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
     Formula, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
     RefusingReach, ValuePayload, VarName, apply, evaluate, parse_formula,
 };
@@ -259,10 +259,8 @@ fn build_doc(tol: Tol) -> Recipe {
     );
     let solid = insert(
         &mut doc,
-        Box::new(Node::Boolean {
-            op: BooleanOp::Union,
-            a: hub_e.into(),
-            b: group.into(),
+        Box::new(Node::Union {
+            members: Bodies::Spelled(vec![hub_e.into(), group.into()]),
             declare: Vec::new(),
         }),
     );

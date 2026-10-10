@@ -300,11 +300,9 @@ impl SegTag {
             | Self::RevolveCap
             | Self::Pole
             | Self::AxisEdge => OpGroup::Revolve,
-            Self::Seam
-            | Self::Crossing
-            | Self::EdgeCrossing
-            | Self::Merged
-            | Self::Fragment => OpGroup::Boolean,
+            Self::Seam | Self::Crossing | Self::EdgeCrossing | Self::Merged | Self::Fragment => {
+                OpGroup::Boolean
+            }
             Self::SplitBody
             | Self::SectionFace
             | Self::SectionEdge

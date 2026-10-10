@@ -233,7 +233,12 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter()
                 .enumerate()
-                .map(|(i, read)| (OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)), read))
+                .map(|(i, read)| {
+                    (
+                        OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
+                        read,
+                    )
+                })
                 .collect(),
         }
     }
@@ -245,7 +250,12 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter_mut()
                 .enumerate()
-                .map(|(i, read)| (OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)), read))
+                .map(|(i, read)| {
+                    (
+                        OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
+                        read,
+                    )
+                })
                 .collect(),
         }
     }
@@ -275,7 +285,12 @@ impl<R> Bodies<R> {
                 reads
                     .iter()
                     .enumerate()
-                    .map(|(i, read)| f(OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)), read))
+                    .map(|(i, read)| {
+                        f(
+                            OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
+                            read,
+                        )
+                    })
                     .collect::<Result<_, _>>()?,
             ),
         })

@@ -12,7 +12,7 @@ use editor_core::{
     BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
     CapEnd, Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
     ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, WitnessAge,
-    WitnessBifurcation, WitnessDatum, evaluate, resolve,
+    VarId, WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -58,10 +58,10 @@ fn cap(node: RecipeNodeId) -> StableName {
     }
 }
 
-/// The same cap, read at the node that mints it — what a declaration
-/// sited at that node says.
-fn sited(node: RecipeNodeId) -> SitedRef {
-    SitedRef::at_mint(cap(node))
+/// The same cap, read through `read` — the read of the node that mints
+/// it, what a declaration sited at that node's output says.
+fn sited(read: VarId, node: RecipeNodeId) -> SitedRef<VarId> {
+    SitedRef::new(read, cap(node))
 }
 
 /// Disjoint blocks A, B, C, D, plus a union `decl` of A, C and D whose
@@ -80,8 +80,11 @@ struct Three {
     a: RecipeNodeId,
     b: RecipeNodeId,
     c: RecipeNodeId,
-    d: RecipeNodeId,
     decl: RecipeNodeId,
+    /// `a`'s read.
+    ra: VarId,
+    /// `d`'s read.
+    rd: VarId,
 }
 
 fn three() -> Three {
@@ -90,18 +93,19 @@ fn three() -> Three {
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
     let (doc, _, d) = block(doc, (6.0, 7.0), (0.0, 1.0));
+    let (ra, rd) = (fixture::out(&doc, a), fixture::out(&doc, d));
     let (doc, decl) = insert(
         doc,
         Node::Union {
-            members: vec![a.into(), b.into(), d.into()],
-            declare: editor_core::declare_rest(vec![(sited(a), SitedRef::new(d, cap(b)))]),
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), d.into()]),
+            declare: editor_core::declare_rest(vec![(sited(ra, a), SitedRef::new(rd, cap(b)))]),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::SetMembers {
             node: decl,
-            members: vec![a.into(), c.into(), d.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), c.into(), d.into()]),
         },
     );
     Three {
@@ -109,8 +113,9 @@ fn three() -> Three {
         a,
         b,
         c,
-        d,
         decl,
+        ra,
+        rd,
     }
 }
 
@@ -142,7 +147,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
     assert_eq!(
         declared(&applied.doc, t.decl),
         [(
-            (sited(t.a), SitedRef::new(t.d, cap(t.c))),
+            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.c))),
             BooleanCoincidence::REST
         )]
     );
@@ -168,7 +173,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
     assert_eq!(
         declared(&t.doc, t.decl),
         [(
-            (sited(t.a), SitedRef::new(t.d, cap(t.b))),
+            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.b))),
             BooleanCoincidence::REST
         )]
     );
@@ -197,7 +202,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     assert_eq!(
         declared(&doc, t.decl),
         [(
-            (sited(t.a), SitedRef::new(t.d, cap(t.c))),
+            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.c))),
             BooleanCoincidence::REST
         )]
     );
@@ -218,7 +223,12 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
 #[test]
 fn set_declare_replaces_the_whole_list_and_refuses_typed() {
     let t = three();
-    let pair = |x, y| editor_core::declare_rest(vec![(sited(x), SitedRef::new(t.d, cap(y)))]);
+    let pair = |x, y| {
+        editor_core::declare_rest(vec![(
+            sited(fixture::out(&t.doc, x), x),
+            SitedRef::new(t.rd, cap(y)),
+        )])
+    };
     let set = |doc: &ProfileDoc, node, pairs| {
         doc.apply(
             &DocEdit::SetDeclare { node, pairs },
@@ -236,7 +246,7 @@ fn set_declare_replaces_the_whole_list_and_refuses_typed() {
     assert_eq!(
         declared(&applied.doc, t.decl),
         [(
-            (sited(t.a), SitedRef::new(t.d, cap(t.c))),
+            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.c))),
             BooleanCoincidence::REST
         )],
         "the list is REPLACED, not appended to"

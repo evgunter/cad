@@ -971,10 +971,9 @@ fn role<'n, 's>(
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its
         // own, so such a path reads apart from every other.
-        RoleSeg::From { read, of } => vec![
-            cites.one(of),
-            text(format!(" through {}", by.read(*read))),
-        ],
+        RoleSeg::From { read, of } => {
+            vec![cites.one(of), text(format!(" through {}", by.read(*read)))]
+        }
         RoleSeg::SplitFragment { parent, side } => vec![
             text(format!("the part {} of ", half(*side))),
             cites.one(parent),
@@ -1064,11 +1063,17 @@ mod tests {
         let carried = name(
             EntityKind::Face,
             OP,
-            vec![RoleSeg::From { read: crate::VarId::new(1, 10), of: NameRef::new(name(
-                EntityKind::Face,
-                OTHER,
-                vec![RoleSeg::From { read: crate::VarId::new(1, 77), of: NameRef::new(cap(CapEnd::End)) }],
-            )) }],
+            vec![RoleSeg::From {
+                read: crate::VarId::new(1, 10),
+                of: NameRef::new(name(
+                    EntityKind::Face,
+                    OTHER,
+                    vec![RoleSeg::From {
+                        read: crate::VarId::new(1, 77),
+                        of: NameRef::new(cap(CapEnd::End)),
+                    }],
+                )),
+            }],
         );
         assert_eq!(said(&carried), "the end cap of node 000000000001");
         assert_eq!(role_leaf(&carried).node, EXTRUDE);
@@ -1113,7 +1118,10 @@ mod tests {
                 EntityKind::Face,
                 OP,
                 vec![
-                    RoleSeg::From { read: crate::VarId::new(1, 10), of: NameRef::new(cap(CapEnd::End)) },
+                    RoleSeg::From {
+                        read: crate::VarId::new(1, 10),
+                        of: NameRef::new(cap(CapEnd::End)),
+                    },
                     RoleSeg::Fragment(q),
                 ],
             )
@@ -1365,7 +1373,10 @@ mod tests {
             let top = name(
                 EntityKind::Face,
                 OP,
-                vec![RoleSeg::From { read: crate::VarId::new(1, 10), of: NameRef::new(cap(CapEnd::End)) }],
+                vec![RoleSeg::From {
+                    read: crate::VarId::new(1, 10),
+                    of: NameRef::new(cap(CapEnd::End)),
+                }],
             );
             let said = within(&[&x, &w, &r, &top]);
             for (i, one) in said.iter().enumerate() {

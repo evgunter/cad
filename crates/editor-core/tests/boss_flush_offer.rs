@@ -14,8 +14,8 @@
 use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ang, desc, fname, insert, len};
 use editor_core::{
-    BooleanCoincidence, BooleanOp, BooleanValue, CapEnd, DeclaredPair, ExtrudeSide, Node,
-    NodeErrorKind, ProfileDoc, RoleSeg, ValuePayload,
+    BooleanCoincidence, BooleanValue, CapEnd, DeclaredPair, ExtrudeSide, Node, NodeErrorKind,
+    ProfileDoc, RoleSeg, ValuePayload,
 };
 use geom_core::Tol;
 
@@ -63,10 +63,8 @@ fn accepting_each_offer_in_turn_builds_the_flush_boss_union() {
     let volume = loop {
         let (doc, union) = insert(
             doc.clone(),
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: blk.into(),
-                b: boss.into(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![blk.into(), boss.into()]),
                 declare: accepted.clone(),
             },
         );

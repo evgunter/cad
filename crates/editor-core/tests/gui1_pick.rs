@@ -248,10 +248,8 @@ fn unusable_nodes_surface_typed_errors() {
     );
     let (doc, poisoned) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: bad.into(),
-            b: good.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![bad.into(), good.into()]),
             declare: Vec::new(),
         },
     );

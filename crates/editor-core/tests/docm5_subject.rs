@@ -32,7 +32,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Advisory, Assembly, AssemblyError, BooleanOp, CheckId, ChecksConfig, ChecksError, ChecksReport,
+    Advisory, Assembly, AssemblyError, CheckId, ChecksConfig, ChecksError, ChecksReport,
     DocumentId, Evaluation, Node, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject,
     assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
 };
@@ -596,10 +596,8 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = slab(doc, 1.0, 1.0);
     insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     )

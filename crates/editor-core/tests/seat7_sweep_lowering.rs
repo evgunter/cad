@@ -1374,10 +1374,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
     let (doc, b) = spin(doc, b, [0.0, 1.0, 0.0], PHI);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );

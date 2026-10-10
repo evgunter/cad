@@ -29,7 +29,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, name_from_text, name_text};
+use crate::py::doc::{NodeId, Var, name_from_text, name_text};
 use crate::py::expr::{Formula, lower_fault_err};
 use crate::py::step::Piece;
 use crate::py::typed_err;
@@ -107,6 +107,7 @@ pub(crate) fn entity_kind(kind: s::EntityKind) -> EntityKind {
 pub(crate) enum SegTag {
     // Shared
     OutputBody,
+    From,
     // Extrude
     Cap,
     Lateral,
@@ -127,9 +128,6 @@ pub(crate) enum SegTag {
     Pole,
     AxisEdge,
     // Boolean
-    FromA,
-    FromB,
-    FromMember,
     Seam,
     Crossing,
     EdgeCrossing,
@@ -143,7 +141,6 @@ pub(crate) enum SegTag {
     CrossingVertex,
     OnToolVertex,
     // Fillet
-    FromTarget,
     BlendFace,
     CornerFace,
     TrimEdge,
@@ -171,6 +168,7 @@ impl SegTag {
     fn to_kernel(self) -> s::SegTag {
         match self {
             Self::OutputBody => s::SegTag::OutputBody,
+            Self::From => s::SegTag::From,
             Self::Cap => s::SegTag::Cap,
             Self::Lateral => s::SegTag::Lateral,
             Self::RimEdge => s::SegTag::RimEdge,
@@ -187,9 +185,6 @@ impl SegTag {
             Self::RevolveCap => s::SegTag::RevolveCap,
             Self::Pole => s::SegTag::Pole,
             Self::AxisEdge => s::SegTag::AxisEdge,
-            Self::FromA => s::SegTag::FromA,
-            Self::FromB => s::SegTag::FromB,
-            Self::FromMember => s::SegTag::FromMember,
             Self::Seam => s::SegTag::Seam,
             Self::Crossing => s::SegTag::Crossing,
             Self::EdgeCrossing => s::SegTag::EdgeCrossing,
@@ -201,7 +196,6 @@ impl SegTag {
             Self::SplitFragment => s::SegTag::SplitFragment,
             Self::CrossingVertex => s::SegTag::CrossingVertex,
             Self::OnToolVertex => s::SegTag::OnToolVertex,
-            Self::FromTarget => s::SegTag::FromTarget,
             Self::BlendFace => s::SegTag::BlendFace,
             Self::CornerFace => s::SegTag::CornerFace,
             Self::TrimEdge => s::SegTag::TrimEdge,
@@ -964,6 +958,7 @@ mod growth_tripwire {
     fn seg_tag(k: s::SegTag) -> SegTag {
         match k {
             s::SegTag::OutputBody => SegTag::OutputBody,
+            s::SegTag::From => SegTag::From,
             s::SegTag::Cap => SegTag::Cap,
             s::SegTag::Lateral => SegTag::Lateral,
             s::SegTag::RimEdge => SegTag::RimEdge,
@@ -980,9 +975,6 @@ mod growth_tripwire {
             s::SegTag::RevolveCap => SegTag::RevolveCap,
             s::SegTag::Pole => SegTag::Pole,
             s::SegTag::AxisEdge => SegTag::AxisEdge,
-            s::SegTag::FromA => SegTag::FromA,
-            s::SegTag::FromB => SegTag::FromB,
-            s::SegTag::FromMember => SegTag::FromMember,
             s::SegTag::Seam => SegTag::Seam,
             s::SegTag::Crossing => SegTag::Crossing,
             s::SegTag::EdgeCrossing => SegTag::EdgeCrossing,
@@ -994,7 +986,6 @@ mod growth_tripwire {
             s::SegTag::SplitFragment => SegTag::SplitFragment,
             s::SegTag::CrossingVertex => SegTag::CrossingVertex,
             s::SegTag::OnToolVertex => SegTag::OnToolVertex,
-            s::SegTag::FromTarget => SegTag::FromTarget,
             s::SegTag::BlendFace => SegTag::BlendFace,
             s::SegTag::CornerFace => SegTag::CornerFace,
             s::SegTag::TrimEdge => SegTag::TrimEdge,
@@ -1140,8 +1131,10 @@ pub(crate) fn meridian_vertex(
 }
 
 /// **The name a survivor of `node` takes**: the name `inner` it had
-/// in the target's table, wrapped — the single-operand pass-through a
-/// blend's shrunk support or a shell's outer wall wears one op later.
+/// in the table of `read` — the target read `node` takes its body in
+/// through, `Doc.output(target, 0)` — wrapped: the single-operand
+/// pass-through a blend's shrunk support or a shell's outer wall wears
+/// one op later.
 ///
 /// `inner` is a name TEXT like any other, and the kind is its own: a
 /// survivor is the same entity carried through one op, so the wrapper
@@ -1149,8 +1142,8 @@ pub(crate) fn meridian_vertex(
 /// refuses here, the boundary `ValueError` every door reading a name
 /// raises.
 #[pyfunction]
-pub(crate) fn carried(py: Python<'_>, node: &NodeId, inner: &str) -> PyResult<String> {
-    name_text(py, &s::carried(node.0, name_from_text(inner)?))
+pub(crate) fn carried(py: Python<'_>, node: &NodeId, read: &Var, inner: &str) -> PyResult<String> {
+    name_text(py, &s::carried(node.0, read.0, name_from_text(inner)?))
 }
 
 /// Register the selector surface on the module.

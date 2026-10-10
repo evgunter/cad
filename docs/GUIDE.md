@@ -912,7 +912,7 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import BooleanOp, Doc, Formula, Node, evaluate, import_step, mm
+from pncad import Doc, Formula, Node, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z):
@@ -933,9 +933,9 @@ def slab(doc, x, y, z):
 doc = Doc()
 base = slab(doc, (0 * mm, 80 * mm), (0 * mm, 40 * mm), (0 * mm, 8 * mm))
 web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (4 * mm, 34 * mm))
-bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
+bracket = doc.insert(Node.union([base, web]))
 pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (-2 * mm, 5 * mm))
-lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
+lightened = doc.insert(Node.subtract(bracket, pocket))
 
 # Evaluation is TOTAL: it never raises. Ask which nodes succeeded.
 ev = evaluate(doc)
@@ -984,7 +984,7 @@ the ladder's claims are checkable from Python — closure on INDICES,
 volume on the triangles:
 
 ```python
-from pncad import BooleanOp, Doc, Formula, Node, evaluate, m, mm
+from pncad import Doc, Formula, Node, evaluate, m, mm
 
 doc = Doc()
 profile = doc.insert(
@@ -1228,7 +1228,6 @@ they match neither filter, so the refusal falls out of the geometry.
 import math
 
 from pncad import (
-    BooleanOp,
     Bulge,
     CurveKind,
     Doc,
@@ -1299,7 +1298,7 @@ pip = doc.insert(
         Formula.literal(1.0),
     ), Formula.angle_in(0, rad))
 )
-pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
+pipped = doc.insert(Node.subtract(cube, pip))
 
 # The two filters, materialized off ONE evaluation and stored. A
 # list of atoms is a conjunction; a union is two calls concatenated.
@@ -1559,12 +1558,12 @@ assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
 
 # The cup's own vocabulary: one rim (named for the top it replaced)
 # and five cavity twins group as the SHELL's; the five outer faces are
-# carried through and speak as `FromTarget`, the blend's group, because
+# carried through and speak as `From`, a shared group, because
 # the tag names the shape and the minting node says which op.
 ev = evaluate(doc)
 assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))) == 1
 assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) == 6
-assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))) == 5
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.From))))) == 5
 
 # A wall that is not a wall is the kernel's refusal, not the binding's.
 flat = doc.insert(Node.shell(box, Formula.length_in(0, m), top))
@@ -1675,7 +1674,7 @@ ev.value(rolled).body().validate()
 # The minted names are the evaluation's own: the three bands that
 # survived the hollowing wear exactly `carried` of what they were.
 faces = NamePat.of_kind(EntityKind.Face)
-survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
+survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.From))))
 assert sorted(survivors) == sorted(carried(cup, band(ring, piece(leg))) for leg in (bottom, outer, section))
 ```
 
@@ -1858,7 +1857,7 @@ one identifier) with a `VarNameFault`:
 
 ```
 use pncad::prelude::*;
-use pncad::document::{BooleanOp, BooleanValue, NodeResult};
+use pncad::document::{Bodies, BooleanValue, NodeResult};
 
 let tol = Tol::witness();
 let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
@@ -1923,10 +1922,8 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
 doc = next;
 let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25), side: ExtrudeSide::Along });
 doc = next;
-let (next, solid) = insert(&doc, Node::Boolean {
-    op: BooleanOp::Union,
-    a: plate.into(),
-    b: tab.into(),
+let (next, solid) = insert(&doc, Node::Union {
+    members: Bodies::Spelled(vec![plate.into(), tab.into()]),
     declare: Vec::new(),
 });
 doc = next;

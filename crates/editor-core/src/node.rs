@@ -3208,9 +3208,7 @@ pub fn declare_rest(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<Decla
 /// Declared pairs that each assert a CONTINUATION — one carrier,
 /// aligned senses: two stacked parts' outer walls. Named at the call
 /// site for the reason [`declare_rest`] gives.
-pub fn declare_continuation(
-    pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>,
-) -> Vec<DeclaredPair> {
+pub fn declare_continuation(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<DeclaredPair> {
     pairs
         .into_iter()
         .map(|p| (p, BooleanCoincidence::Continuation))
@@ -3814,7 +3812,9 @@ impl<P> Node<P> {
             // the consumer — and moving it would re-author which
             // member the declaration is about, which is not a repair
             // for a name whose minting node went away.
-            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => {
+            Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. } => {
                 for r in declare.iter_mut().flat_map(|((a, b), _)| [a, b]) {
                     hits += rewrite(&mut r.name, map);
                 }
@@ -4721,7 +4721,9 @@ impl<P, S: Slot> Node<P, S> {
             // A declared pair's two NAMES. The sites beside them
             // are node ids, not names, and are listed by
             // [`Node::payload_read_sites`].
-            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => declare
+            Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. } => declare
                 .iter()
                 .flat_map(|((a, b), _)| [&a.name, &b.name])
                 .collect(),
@@ -4841,7 +4843,9 @@ impl<P, S: Slot> Node<P, S> {
     #[must_use]
     pub fn declared_pairs(&self) -> &[DeclaredPair] {
         match self {
-            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => declare,
+            Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. } => declare,
             _ => &[],
         }
     }
@@ -4876,7 +4880,9 @@ impl<P, S: Slot> Node<P, S> {
                 let held = refs.get(reference)?;
                 (held.name == *name).then(|| ("measure", format!("reference {reference}")))
             }
-            Node::Subtract { declare, .. } | Node::Union { declare, .. } | Node::Intersect { declare, .. } => {
+            Node::Subtract { declare, .. }
+            | Node::Union { declare, .. }
+            | Node::Intersect { declare, .. } => {
                 let ((a, b), _) = declare.get(reference / 2)?;
                 let (held, side) = if reference.is_multiple_of(2) {
                     (a, "first")
@@ -4904,7 +4910,6 @@ impl<P, S: Slot> Node<P, S> {
             _ => None,
         }
     }
-
 
     /// What is wrong with this node's measured expression, if anything
     /// — the one answer the construction door and the persistence

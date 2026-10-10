@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use editor_core::eval::WitnessSlot;
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
+    Axis3, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName, UpstreamCause,
     evaluate, resolve_with_prior,
@@ -93,10 +93,9 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, tr) = placed(doc, b0);
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: tr.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -178,12 +177,18 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
             crate::fixture::piece(&doc, *bar1, 0, segment).into(),
         )],
     };
+    let Some(Node::Subtract { tool: tool_read, .. }) = doc.node(cut1) else {
+        panic!("slot() cuts the plate with a subtract");
+    };
     let mut vanished = 0;
     for name in &names {
         // The plate's fragments; the bar's edges are lone pieces whose
         // ends the slide moves.
         if ev2.value(cut1).unwrap().name_table.lookup(name).is_some()
-            || matches!(name.path.first(), Some(RoleSeg::FromB(_)))
+            || matches!(
+                name.path.first(),
+                Some(RoleSeg::From { read, .. }) if read == tool_read
+            )
         {
             continue;
         }
@@ -233,30 +238,30 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let (doc, tr) = placed(doc, b2);
     let (doc, cutter) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: b1.into(),
-            b: tr.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![b1.into(), tr.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: cutter.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: cutter.into(),
             declare: Vec::new(),
         },
     );
     let ev1 = run(&doc, None);
     let doc2 = slide(doc.clone(), tr, Axis3::Y, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
+    let from_read = crate::fixture::out(&doc, a);
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
         .filter(|n| {
-            matches!(n.path.first(), Some(RoleSeg::FromA(_)))
-                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+            matches!(
+                n.path.first(),
+                Some(RoleSeg::From { read, .. }) if *read == from_read
+            ) && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
                 && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
         })
         .collect();
@@ -310,7 +315,7 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
         doc,
         DocEdit::SetMembers {
             node,
-            members: members.into_iter().map(Into::into).collect(),
+            members: editor_core::Bodies::Spelled(members.into_iter().map(Into::into).collect()),
         },
     )
     .0
@@ -366,23 +371,22 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, p) = insert(
         doc,
         Node::Union {
-            members: vec![c1.into(), c2.into()],
+            members: editor_core::Bodies::Spelled(vec![c1.into(), c2.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![tr.into(), p.into()],
+            members: editor_core::Bodies::Spelled(vec![tr.into(), p.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: x.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: x.into(),
             declare: Vec::new(),
         },
     );
@@ -447,7 +451,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b1.into(), b2.into()],
+            members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
             declare: Vec::new(),
         },
     );
@@ -490,17 +494,16 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![bar.into(), f1.into()],
+            members: editor_core::Bodies::Spelled(vec![bar.into(), f1.into()]),
             declare: Vec::new(),
         },
     );
     let (doc, tr) = placed(doc, u);
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: tr.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -560,10 +563,9 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: part.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: part.into(),
             declare: Vec::new(),
         },
     );
@@ -616,7 +618,10 @@ fn the_border_delta_outranks_an_upstream_flip() {
         kind: EntityKind::Body,
         node: n,
         path: vec![
-            RoleSeg::FromA(f.clone().into()),
+            RoleSeg::From {
+                read: FOLD_A,
+                of: f.clone().into(),
+            },
             RoleSeg::Fragment(Qualifier::Borders(ws.iter().map(|&w| w.clone()).collect())),
         ],
     };
@@ -728,7 +733,10 @@ fn collapsing_group(cut: RecipeNodeId) -> (NameTable, NameTable, StableName) {
     let base = StableName {
         kind: EntityKind::Body,
         node: cut,
-        path: vec![RoleSeg::FromA(f.clone().into())],
+        path: vec![RoleSeg::From {
+            read: FOLD_A,
+            of: f.clone().into(),
+        }],
     };
     let ranked = |rank| {
         let mut name = base.clone();

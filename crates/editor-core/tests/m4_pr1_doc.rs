@@ -204,10 +204,9 @@ fn author_die() -> Die {
                 d2,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Box::new(Node::Boolean {
-                        op: editor_core::BooleanOp::Subtract,
-                        a: body.into(),
-                        b: placed.unwrap().into(),
+                    node: Box::new(Node::Subtract {
+                        from: body.into(),
+                        tool: placed.unwrap().into(),
                         declare: Vec::new(),
                     }),
                     fresh: Vec::new(),

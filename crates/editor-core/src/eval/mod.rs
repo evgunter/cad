@@ -2229,7 +2229,10 @@ struct UndeclaredCoincidenceFinding<'a> {
     finding: &'a crate::names::FlushFinding,
     /// Each side's merged constituent set, empty where the side is a
     /// row of one node.
-    merged: &'a (Vec<crate::node::SitedRef<crate::VarId>>, Vec<crate::node::SitedRef<crate::VarId>>),
+    merged: &'a (
+        Vec<crate::node::SitedRef<crate::VarId>>,
+        Vec<crate::node::SitedRef<crate::VarId>>,
+    ),
     /// The refusing predicate's diagnostics.
     diag: &'a Indeterminate,
 }
@@ -2278,7 +2281,12 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
 /// when neither side is a merged row, and otherwise counting the
 /// constituents the fold retired into it (their names ride the
 /// payload, so the sentence stays one length however many there are).
-struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef<crate::VarId>>, Vec<crate::node::SitedRef<crate::VarId>>));
+struct MergedSides<'a>(
+    &'a (
+        Vec<crate::node::SitedRef<crate::VarId>>,
+        Vec<crate::node::SitedRef<crate::VarId>>,
+    ),
+);
 
 impl core::fmt::Display for MergedSides<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

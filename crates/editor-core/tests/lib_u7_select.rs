@@ -30,7 +30,7 @@ use crate::fixture::len;
 use corpus::die_composed;
 use editor_core::{
     CancelToken, CapEnd, EntityKind, EvalOptions, NamePat, Node, OpGroup, ProfileDoc, RecipeNodeId,
-    RoleSeg, SegPat, SegTag, Selector, StableName, evaluate,
+    RoleSeg, SegPat, SegTag, Selector, evaluate,
 };
 use geom_core::Tol;
 
@@ -230,12 +230,9 @@ fn an_empty_selector_matches_nothing() {
 
 /// The composed die's fillet node, the target it blends, and the two
 /// operand nodes the authored list needs — all recovered from the
-/// document and its own table, exactly as `m6_composed_node.rs` does
+/// document exactly as `m6_composed_node.rs` does
 /// (nothing here restates an id the document already knows).
-fn composed_ids(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
         .ids()
         .iter()
@@ -244,20 +241,14 @@ fn composed_ids(
             _ => None,
         })
         .expect("the composed die has a fillet node");
-    let operand = |pick: fn(&RoleSeg) -> Option<&StableName>| {
-        editor_core::all_edges(ev, pipped)
-            .iter()
-            .find_map(|n| n.path.first().and_then(pick).map(|inner| inner.node))
-            .expect("the target's table carries this operand")
+    let Some(Node::Subtract { from, tool, .. }) = doc.node(pipped) else {
+        panic!("the fillet's target is the die's subtract");
     };
-    let cube = operand(|s| match s {
-        RoleSeg::FromA(inner) => Some(&**inner),
-        _ => None,
-    });
-    let ball = operand(|s| match s {
-        RoleSeg::FromB(inner) => Some(&**inner),
-        _ => None,
-    });
+    let operand = |read| {
+        doc.operation_of(read)
+            .expect("an operand read has a producer")
+    };
+    let (cube, ball) = (operand(*from), operand(*tool));
     (cube, ball, pipped)
 }
 
@@ -277,7 +268,7 @@ fn composed_ids(
 fn the_selector_materializes_exactly_the_authored_die_composed_selection() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
-    let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
+    let (cube, ball, pipped) = composed_ids(&doc.doc);
 
     let materialized = editor_core::select(&ev, pipped, &die_composed::selector());
     let mut authored = die_composed::selection(&doc.doc, cube, ball, pipped);
@@ -301,7 +292,7 @@ fn the_selector_materializes_exactly_the_authored_die_composed_selection() {
 fn the_stored_selection_is_the_materialized_set() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
-    let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
+    let (cube, ball, pipped) = composed_ids(&doc.doc);
     let stored = match doc.doc.node(doc.result.expect("a result node")) {
         Some(Node::Fillet { selection, .. }) => selection.clone(),
         other => panic!("expected a fillet, got {other:?}"),
@@ -320,7 +311,7 @@ fn the_stored_selection_is_the_materialized_set() {
 fn the_selector_excludes_the_cavity_meridians_by_shape() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
-    let (_, ball, pipped) = composed_ids(&doc.doc, &ev);
+    let (_, ball, pipped) = composed_ids(&doc.doc);
     let selected = editor_core::select(&ev, pipped, &die_composed::selector());
     let all = editor_core::all_edges(&ev, pipped);
     assert_eq!(all.len(), 16, "the target's edge table");
@@ -341,7 +332,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
 fn a_seam_pattern_may_constrain_only_its_a_side() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
-    let (_, _, pipped) = composed_ids(&doc.doc, &ev);
+    let (_, _, pipped) = composed_ids(&doc.doc);
     let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).seg(
         SegPat::tag(SegTag::Seam).of([
             NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),

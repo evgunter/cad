@@ -6,10 +6,11 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
+use viewer::session::BooleanSpec;
 use crate::common;
 use pncad::document::ExtrudeSide;
 
-use pncad::document::{BooleanOp, Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, ProfilePlane, SessionOp};
@@ -329,9 +330,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Intersect,
-            a: block,
-            b: moved,
+            spec: BooleanSpec::Intersect(vec![block, moved]),
             declare: Vec::new(),
         },
         "overlap",
@@ -601,9 +600,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
         &mut session,
         &[
             SessionOp::AddBoolean {
-                op: BooleanOp::Union,
-                a: extrude,
-                b: extrude,
+                spec: BooleanSpec::Union(vec![extrude, extrude]),
                 declare: Vec::new(),
             },
             SessionOp::SetLabel {

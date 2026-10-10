@@ -371,7 +371,10 @@ fn support_face(f: &Ruled, support: u32) -> StableName {
     minted(
         EntityKind::Face,
         f.fillet,
-        RoleSeg::FromTarget(NameRef::new(wall(&f.doc, f.rod, support))),
+        RoleSeg::From {
+            read: editor_core::VarId::new(1, 77),
+            of: NameRef::new(wall(&f.doc, f.rod, support)),
+        },
     )
 }
 
@@ -587,7 +590,10 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
                         &minted(
                             EntityKind::Vertex,
                             f.fillet,
-                            RoleSeg::FromTarget(NameRef::new(cap_vertex(&f.doc, f.rod, end, v))),
+                            RoleSeg::From {
+                                read: editor_core::VarId::new(1, 77),
+                                of: NameRef::new(cap_vertex(&f.doc, f.rod, end, v)),
+                            },
                         ),
                     ),
                 });

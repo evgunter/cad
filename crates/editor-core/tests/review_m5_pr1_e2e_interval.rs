@@ -36,7 +36,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -99,10 +99,9 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube.into(),
-            b: placed.into(),
+        Node::Subtract {
+            from: cube.into(),
+            tool: placed.into(),
             declare: Vec::new(),
         },
     );

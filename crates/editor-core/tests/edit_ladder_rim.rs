@@ -331,10 +331,10 @@ fn host_support(block: RecipeNodeId, fillet: RecipeNodeId) -> StableName {
     minted(
         EntityKind::Face,
         fillet,
-        RoleSeg::FromTarget(NameRef::new(fixture::fname(
-            block,
-            RoleSeg::Cap(CapEnd::End),
-        ))),
+        RoleSeg::From {
+            read: editor_core::VarId::new(1, 77),
+            of: NameRef::new(fixture::fname(block, RoleSeg::Cap(CapEnd::End))),
+        },
     )
 }
 

@@ -37,11 +37,12 @@ use std::time::Instant;
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanOp, Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula,
-    HitTestError, InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind,
-    PatternKind, PickHit, ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg,
-    SelectRefusal, Speaker, StableName,
+    Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula, HitTestError,
+    InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PatternKind, PickHit,
+    ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker,
+    StableName,
 };
+use topo::BooleanOp;
 
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
@@ -534,11 +535,21 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    r.insert(Node::Boolean {
-        op,
-        a: a.into(),
-        b: b.into(),
-        declare: Vec::new(),
+    let declare = Vec::new();
+    r.insert(match op {
+        BooleanOp::Subtract => Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+            declare,
+        },
+        BooleanOp::Union => Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
+        BooleanOp::Intersect => Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        },
     })
 }
 
@@ -801,6 +812,7 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
+        let pin_read = fixture::out(&r.doc, pin);
         let join = format!(
             ", {verb} at {noun} {}",
             test_utils::refusal::tag(at.0.digest())
@@ -808,7 +820,12 @@ fn each_boolean_join_says_its_operation() {
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)
-            .filter(|name| matches!(name.path.as_slice(), [RoleSeg::FromB(_)]))
+            .filter(|name| {
+                matches!(
+                    name.path.as_slice(),
+                    [RoleSeg::From { read, .. }] if *read == pin_read
+                )
+            })
             .map(|name| by.name(name).to_string())
             .collect();
         assert!(
@@ -834,7 +851,7 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, one, two, fixture::tol())
+    let findings = editor_core::find_flush_candidates(&ev, &doc, one, two, fixture::tol())
         .expect("the copies' flush faces are decided");
     let alike = findings
         .iter()

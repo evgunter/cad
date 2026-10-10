@@ -7,6 +7,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use viewer::session::BooleanSpec;
 use crate::common;
 
 use common::asm;
@@ -451,9 +452,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let fused = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: pncad::document::BooleanOp::Union,
-            a: bench.post_b,
-            b: bench.post_a,
+            spec: BooleanSpec::Union(vec![bench.post_b, bench.post_a]),
             declare: Vec::new(),
         },
     );

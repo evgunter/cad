@@ -2,7 +2,7 @@
 //! `crates/editor-core/src/names/README.md`): a merged face or a joined
 //! edge of the outer union that takes in one of the inner union's lists
 //! the inner set's constituents, each re-wrapped as the outer union's
-//! `FromMember(inner, c)`, never `FromMember(inner, Merged{…})` as one
+//! `From(inner's read, c)`, never `From(inner's read, Merged{…})` as one
 //! constituent — in every member order of both unions.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -11,11 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::signature;
-use crate::fixture::{flush_segs, fname, insert, member_entity, table};
+use crate::fixture::{flush_segs, fname, insert, member_entity, out, table};
 
-use editor_core::{
-    BooleanOp, EntityKind, Node, NodeErrorKind, RecipeNodeId, RoleSeg, SitedRef, StableName,
-};
+use editor_core::{EntityKind, Node, NodeErrorKind, RoleSeg, SitedRef, StableName, VarId};
 
 /// `a` and `b` overlap and are declared flush in the inner union, so its
 /// two y-walls and two caps are merged faces and its four x-running rims
@@ -30,32 +28,26 @@ const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
 const C: Bx = ((1.0, 2.0), (0.0, 1.0), (0.0, 1.0));
 const G: Bx = ((1.6, 1.7), (-0.5, 0.5), (0.5, 3.0));
 
-/// Whether `n`, read through every `FromA`/`FromB`/`FromMember` wrapper,
-/// is a bare merged name: the constituent N3 forbids.
+/// Whether `n`, read through every `From` wrapper, is a bare merged
+/// name: the constituent N3 forbids.
 fn bare_merge_through_wrappers(n: &StableName) -> bool {
     match n.path.as_slice() {
         [RoleSeg::Merged(_)] => true,
-        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)]
-        | [RoleSeg::FromMember { of: inner, .. }] => bare_merge_through_wrappers(inner),
+        [RoleSeg::From { of: inner, .. }] => bare_merge_through_wrappers(inner),
         _ => false,
     }
 }
 
-/// One order's label, the outer union's signature, the member ids and
-/// the inner union.
-type Order = (
-    String,
-    BTreeMap<StableName, String>,
-    Vec<RecipeNodeId>,
-    RecipeNodeId,
-);
+/// One order's label, the outer union's signature, the member reads and
+/// the inner union's read.
+type Order = (String, BTreeMap<StableName, String>, Vec<VarId>, VarId);
 
 /// Every order of both unions, the member ids being `[a, b, c, g]`.
 /// `c` and `g` are made after the inner union, so its member-keyed names
 /// order before theirs and a set's reader meets its constituents first.
 fn orders() -> Vec<Order> {
     let (doc, ab) = document(&[A, B], &[0, 1]);
-    let mut out = Vec::new();
+    let mut found = Vec::new();
     for inner in permutations(&[0, 1]) {
         let io: Vec<_> = inner.iter().map(|&i| ab[i]).collect();
         let (d1, u1) = declared_union(
@@ -66,7 +58,11 @@ fn orders() -> Vec<Order> {
         let ((cx, cy, cz), (gx, gy, gz)) = (C, G);
         let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
         let (d1, g) = block(d1, gx, gy, gz.0, gz.1);
-        let ids = vec![ab[0], ab[1], c, g];
+        let ids: Vec<VarId> = [ab[0], ab[1], c, g]
+            .into_iter()
+            .map(|m| out(&d1, m))
+            .collect();
+        let u1_read = out(&d1, u1);
         // The inner union's merged face over `b`'s face of each family,
         // as its own table publishes it.
         let ev1 = run(&d1);
@@ -75,7 +71,7 @@ fn orders() -> Vec<Order> {
             "{inner:?}: the inner union refused"
         );
         let merged_over = |seg: RoleSeg| -> StableName {
-            let b_face = member_entity(u1, ab[1], fname(ab[1], seg), EntityKind::Face);
+            let b_face = member_entity(u1, ids[1], fname(ab[1], seg), EntityKind::Face);
             table(&ev1, u1)
                 .iter()
                 .map(|(n, _)| n)
@@ -83,13 +79,13 @@ fn orders() -> Vec<Order> {
                 .unwrap_or_else(|| panic!("{inner:?}: no merged face holds {b_face:?}"))
                 .clone()
         };
-        let outer_pairs: Vec<(SitedRef, SitedRef)> = flush_segs(&d1, ab[1])
+        let outer_pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)> = flush_segs(&d1, ab[1])
             .into_iter()
             .zip(flush_segs(&d1, c))
             .map(|(s, t)| {
                 (
-                    SitedRef::new(u1, merged_over(s)),
-                    SitedRef::new(c, fname(c, t)),
+                    SitedRef::new(u1_read, merged_over(s)),
+                    SitedRef::new(ids[2], fname(c, t)),
                 )
             })
             .collect();
@@ -103,10 +99,10 @@ fn orders() -> Vec<Order> {
                 "{at}: the outer union refused: {:?}",
                 failure(&ev, top)
             );
-            out.push((at, signature(&ev, top), ids.clone(), u1));
+            found.push((at, signature(&ev, top), ids.clone(), u1_read));
         }
     }
-    out
+    found
 }
 
 /// **The outer union's merged faces and joined edges list faces and
@@ -117,8 +113,8 @@ fn orders() -> Vec<Order> {
 /// set, `Merged` of the three blocks' rims, so (`g` cuts the y = 0 top
 /// rim, and its piece along all three blocks is a piece of that set).
 ///
-/// Red while `FromMember` is not read through: those sets list
-/// `FromMember(inner, Merged{a's, b's})` and `c`'s, two constituents.
+/// Red while a member's `From` is not read through: those sets list
+/// `From(inner's read, Merged{a's, b's})` and `c`'s, two constituents.
 #[test]
 fn a_union_over_a_union_publishes_flat_sets_in_every_order() {
     let orders = orders();
@@ -134,9 +130,9 @@ fn a_union_over_a_union_publishes_flat_sets_in_every_order() {
                         "{at}: {name:?} lists a merged name as one constituent: {c:?}"
                     );
                 }
-                let of = |m: RecipeNodeId| {
+                let of = |m: VarId| {
                     set.iter()
-                        .filter(|c| matches!(c.path.as_slice(), [RoleSeg::FromMember { member, .. }] if *member == m))
+                        .filter(|c| matches!(c.path.as_slice(), [RoleSeg::From { read, .. }] if *read == m))
                         .count()
                 };
                 if set.len() == 3 && of(*u1) == 2 && of(ids[2]) == 1 {
@@ -198,7 +194,7 @@ fn a_nested_unions_merged_face_divided_in_the_fold_is_never_read_as_consumed() {
     let ev1 = run(&d1);
     assert!(failure(&ev1, u1).is_none(), "the inner union refused");
     let merged_over = |seg: RoleSeg| -> StableName {
-        let b_face = member_entity(u1, ab[1], fname(ab[1], seg), EntityKind::Face);
+        let b_face = member_entity(u1, out(&d1, ab[1]), fname(ab[1], seg), EntityKind::Face);
         table(&ev1, u1)
             .iter()
             .map(|(n, _)| n)
@@ -206,7 +202,7 @@ fn a_nested_unions_merged_face_divided_in_the_fold_is_never_read_as_consumed() {
             .unwrap_or_else(|| panic!("no merged face holds {b_face:?}"))
             .clone()
     };
-    let pairs: Vec<(SitedRef, SitedRef)> = more[..2]
+    let pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)> = more[..2]
         .iter()
         .flat_map(|&k| {
             flush_segs(&d1, ab[1])
@@ -216,8 +212,8 @@ fn a_nested_unions_merged_face_divided_in_the_fold_is_never_read_as_consumed() {
         })
         .map(|(s, k, t)| {
             (
-                SitedRef::new(u1, merged_over(s)),
-                SitedRef::new(k, fname(k, t)),
+                SitedRef::new(out(&d1, u1), merged_over(s)),
+                SitedRef::new(out(&d1, k), fname(k, t)),
             )
         })
         .collect();
@@ -259,23 +255,21 @@ fn a_nested_unions_merged_face_divided_in_the_fold_is_never_read_as_consumed() {
     );
 }
 
-/// **A union over a pair boolean publishes flat sets too.** `a` and `b`
-/// in a declared `Boolean { Union }`, its merged faces and joined rims
-/// `Merged{FromA(…), FromB(…)}`, and that boolean in a union with `c`
-/// declared flush with them: in both member orders, each of the four
-/// flush families is one face set and each x-running rim one edge set of
-/// all three blocks, listing `a`'s and `b`'s through the boolean, never
-/// `FromMember(boolean, Merged{…})` as one constituent, and the table is
-/// one table.
+/// **A union over a two-member union publishes flat sets too.** `a`
+/// and `b` in a declared two-member `Union`, its merged faces and joined
+/// rims `Merged{From(a's read, …), From(b's read, …)}`, and that union
+/// in a union with `c` declared flush with them: in both member orders,
+/// each of the four flush families is one face set and each x-running
+/// rim one edge set of all three blocks, listing `a`'s and `b`'s through
+/// the inner union, never `From(inner's read, Merged{…})` as one
+/// constituent, and the table is one table.
 #[test]
 fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
     let (doc, ab) = document(&[A, B], &[0, 1]);
     let (d1, inner) = insert(
         doc.clone(),
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: ab[0].into(),
-            b: ab[1].into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![ab[0].into(), ab[1].into()]),
             declare: editor_core::declare_continuation(flush_pairs(
                 &doc,
                 (ab[0], ab[0]),
@@ -287,6 +281,7 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
     let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
     let ev1 = run(&d1);
     assert!(failure(&ev1, inner).is_none(), "the pair boolean refused");
+    let b_read = out(&d1, ab[1]);
     let merged_over = |seg: RoleSeg| -> StableName {
         let b_face = fname(ab[1], seg);
         table(&ev1, inner)
@@ -295,19 +290,20 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
             .find(|n| match n.path.as_slice() {
                 [RoleSeg::Merged(set)] => set
                     .iter()
-                    .any(|c| matches!(c.path.as_slice(), [RoleSeg::FromB(f)] if **f == b_face)),
+                    .any(|c| matches!(c.path.as_slice(), [RoleSeg::From { read, of: f }] if *read == b_read && **f == b_face)),
                 _ => false,
             })
             .unwrap_or_else(|| panic!("no merged face holds {b_face:?}"))
             .clone()
     };
-    let pairs: Vec<(SitedRef, SitedRef)> = flush_segs(&d1, ab[1])
+    let (inner_read, c_read) = (out(&d1, inner), out(&d1, c));
+    let pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)> = flush_segs(&d1, ab[1])
         .into_iter()
         .zip(flush_segs(&d1, c))
         .map(|(s, t)| {
             (
-                SitedRef::new(inner, merged_over(s)),
-                SitedRef::new(c, fname(c, t)),
+                SitedRef::new(inner_read, merged_over(s)),
+                SitedRef::new(c_read, fname(c, t)),
             )
         })
         .collect();
@@ -332,12 +328,12 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
                         "{at}: {name:?} lists a merged name as one constituent: {k:?}"
                     );
                 }
-                let of = |m: RecipeNodeId| {
+                let of = |m: VarId| {
                     set.iter()
-                        .filter(|k| matches!(k.path.as_slice(), [RoleSeg::FromMember { member, .. }] if *member == m))
+                        .filter(|k| matches!(k.path.as_slice(), [RoleSeg::From { read, .. }] if *read == m))
                         .count()
                 };
-                if set.len() == 3 && of(inner) == 2 && of(c) == 1 {
+                if set.len() == 3 && of(inner_read) == 2 && of(c_read) == 1 {
                     sets.entry(name.kind).or_default().insert(set);
                 }
             }
@@ -359,15 +355,15 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
 }
 
 /// Whether `n`, read through every descent wrapper a set is read
-/// through (`merged::peel`: a boolean's `FromA`/`FromB`, a union's
-/// `FromMember`, a one-operand door's `FromTarget`, the shell's
-/// `Inner`), is a bare merged name.
+/// through (`merged::peel`: an operand's `From`, whether a boolean's
+/// member or a one-operand door's target, and the shell's `Inner`), is
+/// a bare merged name.
 fn bare_merge_through_every_wrapper(n: &StableName) -> bool {
     match n.path.as_slice() {
         [RoleSeg::Merged(_)] => true,
-        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)]
-        | [RoleSeg::FromTarget(inner) | RoleSeg::Inner(inner)]
-        | [RoleSeg::FromMember { of: inner, .. }] => bare_merge_through_every_wrapper(inner),
+        [RoleSeg::From { of: inner, .. } | RoleSeg::Inner(inner)] => {
+            bare_merge_through_every_wrapper(inner)
+        }
         _ => false,
     }
 }
@@ -394,19 +390,19 @@ fn vertical_edge_at(body: &topo::Body<f64>, x: f64, y: f64) -> topo::EdgeKey {
 }
 
 /// **A union over a filleted body whose rims are already sets lists
-/// edges, never sets** (N3; `merged::peel` reads a blend's `FromTarget`
-/// as it reads a boolean's wrappers). The inner union of `a` and `b`
-/// joins its four x-running rims into sets; a fillet on the vertical
+/// edges, never sets** (N3; `merged::peel` reads a blend's target
+/// `From` as it reads a boolean's wrappers). The inner union of `a` and
+/// `b` joins its four x-running rims into sets; a fillet on the vertical
 /// edge at `a`'s `(0, 0)` corner trims the two y = 0 rims and carries
-/// the two y = 1 rims untouched, as `FromTarget(Merged{a's, b's})`.
-/// The outer union over the fillet and `c`, declared flush with the
-/// carried merged faces, joins each y = 1 rim with `c`'s: one set of
+/// the two y = 1 rims untouched, as `From(target read, Merged{a's,
+/// b's})`. The outer union over the fillet and `c`, declared flush with
+/// the carried merged faces, joins each y = 1 rim with `c`'s: one set of
 /// the three blocks' rims, `a`'s and `b`'s each read out through
-/// `FromMember(fillet, FromTarget(…))`.
+/// `From(fillet's read, From(target read, …))`.
 ///
-/// Red while `FromTarget` is not peeled: those sets list
-/// `FromMember(fillet, FromTarget(Merged{a's, b's}))` and `c`'s, two
-/// constituents.
+/// Red while the target's `From` is not peeled: those sets list
+/// `From(fillet's read, From(target read, Merged{a's, b's}))` and `c`'s,
+/// two constituents.
 #[test]
 fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
     let (doc, ab) = document(&[A, B], &[0, 1]);
@@ -437,25 +433,27 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
     let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
     let ev1 = run(&d1);
     assert!(failure(&ev1, fillet).is_none(), "the fillet refused");
+    let (u1_read, fillet_read, c_read) = (out(&d1, u1), out(&d1, fillet), out(&d1, c));
     let carried_over = |seg: RoleSeg| -> StableName {
-        let b_face = member_entity(u1, ab[1], fname(ab[1], seg), EntityKind::Face);
+        let b_face = member_entity(u1, out(&d1, ab[1]), fname(ab[1], seg), EntityKind::Face);
         table(&ev1, fillet)
             .iter()
             .map(|(n, _)| n)
             .find(|n| {
-                matches!(n.path.as_slice(), [RoleSeg::FromTarget(inner)]
-                if matches!(inner.path.as_slice(), [RoleSeg::Merged(set)] if set.contains(&b_face)))
+                matches!(n.path.as_slice(), [RoleSeg::From { read, of: inner }]
+                if *read == u1_read
+                    && matches!(inner.path.as_slice(), [RoleSeg::Merged(set)] if set.contains(&b_face)))
             })
             .unwrap_or_else(|| panic!("the fillet carries no merged face holding {b_face:?}"))
             .clone()
     };
-    let pairs: Vec<(SitedRef, SitedRef)> = flush_segs(&d1, ab[1])
+    let pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)> = flush_segs(&d1, ab[1])
         .into_iter()
         .zip(flush_segs(&d1, c))
         .map(|(s, t)| {
             (
-                SitedRef::new(fillet, carried_over(s)),
-                SitedRef::new(c, fname(c, t)),
+                SitedRef::new(fillet_read, carried_over(s)),
+                SitedRef::new(c_read, fname(c, t)),
             )
         })
         .collect();
@@ -463,8 +461,8 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Edge
-                && matches!(n.path.as_slice(), [RoleSeg::FromTarget(inner)]
-                    if matches!(inner.path.as_slice(), [RoleSeg::Merged(_)]))
+                && matches!(n.path.as_slice(), [RoleSeg::From { read, of: inner }]
+                    if *read == u1_read && matches!(inner.path.as_slice(), [RoleSeg::Merged(_)]))
         })
         .count();
     assert_eq!(carried_rims, 2, "the y = 1 rims are carried as sets");
@@ -490,9 +488,9 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
                     .iter()
                     .filter(|k| {
                         matches!(k.path.as_slice(),
-                        [RoleSeg::FromMember { member, of }]
-                            if *member == fillet
-                                && matches!(of.path.as_slice(), [RoleSeg::FromTarget(_)]))
+                        [RoleSeg::From { read, of }]
+                            if *read == fillet_read
+                                && matches!(of.path.as_slice(), [RoleSeg::From { read: target, .. }] if *target == u1_read))
                     })
                     .count();
                 if name.kind == EntityKind::Edge && set.len() == 3 && through_fillet == 2 {

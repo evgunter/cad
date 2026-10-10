@@ -13,8 +13,8 @@ use crate::docm7_union_declare::{block, failure, flush_pairs, run};
 use crate::fixture::{insert, table};
 
 use editor_core::{
-    BooleanOp, EntityKind, NameRef, Node, ProfileDoc, Qualifier, Resolution, RoleSeg, RunCtx,
-    StableName, resolve,
+    EntityKind, NameRef, Node, ProfileDoc, Qualifier, Resolution, RoleSeg, RunCtx, StableName,
+    resolve,
 };
 use geom_core::Tol;
 
@@ -26,22 +26,24 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
     let (doc, g) = block(doc, (0.3, 0.4), (-1.0, 0.5), -0.5, 2.5);
     let (doc, bg) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: b.into(),
-            b: g.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![b.into(), g.into()]),
             declare: Vec::new(),
         },
     );
     // `b`'s faces, sited at the operand that holds them: `bg`'s A side.
+    let (bg_read, b_read) = (crate::fixture::out(&doc, bg), crate::fixture::out(&doc, b));
     let pairs = flush_pairs(&doc, (b, b), (a, a))
         .into_iter()
         .map(|(mut l, r)| {
-            l.at = bg;
+            l.at = bg_read;
             l.name = StableName {
                 kind: EntityKind::Face,
                 node: bg,
-                path: vec![RoleSeg::FromA(NameRef::new(l.name))],
+                path: vec![RoleSeg::From {
+                    read: b_read,
+                    of: NameRef::new(l.name),
+                }],
             };
             (l, r)
         })
@@ -49,10 +51,8 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
     let decl = editor_core::declare_continuation(pairs);
     let (doc, pair) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: bg.into(),
-            b: a.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![bg.into(), a.into()]),
             declare: decl,
         },
     );

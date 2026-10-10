@@ -1372,7 +1372,7 @@ fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
     let unplaced = set_offset(doc.clone(), top, None);
     let ev = run(&unplaced, &o);
     assert!(ev.unplaced.contains_key(&top) && !ev.unplaced.contains_key(&base));
-    match editor_core::find_flush_candidates(&ev, base, top, Tol::witness()) {
+    match editor_core::find_flush_candidates(&ev, &unplaced, base, top, Tol::witness()) {
         Err(editor_core::SelectRefusal::AcrossSpaces { group, cause }) => {
             assert_eq!((group, cause), (top, editor_core::Unplaced::NoOffset));
         }
@@ -1380,7 +1380,7 @@ fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
     }
     // Placed at the world origin, the same pair is flush.
     let ev = run(&doc, &o);
-    let found = editor_core::find_flush_candidates(&ev, base, top, Tol::witness())
+    let found = editor_core::find_flush_candidates(&ev, &doc, base, top, Tol::witness())
         .expect("one space decides");
     assert!(!found.is_empty(), "the placed pair is flush");
 }

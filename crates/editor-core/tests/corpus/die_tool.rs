@@ -55,7 +55,7 @@
 //! against the pairwise Transform + Union chain it replaces.
 
 use editor_core::ExtrudeSide;
-use editor_core::{BooleanOp, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
+use editor_core::{DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{ang, axis_in_plane, frame, len, xy_frame};
 
@@ -140,10 +140,9 @@ pub fn document() -> CorpusDoc {
         editor_core::Operand::output(ball, 0),
         placements(),
     ));
-    let pipped = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: cube.into(),
-        b: tool.into(),
+    let pipped = r.insert(Node::Subtract {
+        from: cube.into(),
+        tool: tool.into(),
         declare: Vec::new(),
     });
 

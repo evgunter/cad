@@ -9,9 +9,9 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
-    resolve, resolve_with_prior,
+    CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate, resolve,
+    resolve_with_prior,
 };
 
 use super::{ang, insert, len, minted, on_frame, scl, step};
@@ -100,10 +100,8 @@ where
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: tr.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
             declare: Vec::new(),
         },
     );
@@ -128,7 +126,10 @@ where
         .iter()
         .find_map(|(n, e)| {
             let hit = n.kind == EntityKind::Edge
-                && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                && matches!(
+                    n.path.first(),
+                    Some(RoleSeg::From { read, of: _ }) if *read == crate::fixture::out(&doc, a)
+                )
                 && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
             (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
@@ -232,10 +233,9 @@ where
     );
     let (docu, us) = insert(
         docu,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: ua.into(),
-            b: ub.into(),
+        Node::Subtract {
+            from: ua.into(),
+            tool: ub.into(),
             declare: Vec::new(),
         },
     );

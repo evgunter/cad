@@ -12,10 +12,9 @@ use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
-    EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
-    RoleSeg, RunCtx, SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name,
-    evaluate, resolve,
+    BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef, EvalOptions,
+    Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
+    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -171,10 +170,8 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let decl = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl,
         },
     );
@@ -265,10 +262,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: ext.into(),
-            b: ext2.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
             declare: Vec::new(),
         },
     );

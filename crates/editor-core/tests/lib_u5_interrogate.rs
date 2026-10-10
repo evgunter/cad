@@ -360,10 +360,8 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
     );
     let (doc, poisoned) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: failed.into(),
-            b: good.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![failed.into(), good.into()]),
             declare: Vec::new(),
         },
     );

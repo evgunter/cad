@@ -251,7 +251,7 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Formula, Node, evaluate, mm
+from pncad import Doc, EvaluationError, Formula, Node, evaluate, mm
 
 
 def slab(doc, z0, z1):
@@ -273,7 +273,7 @@ def slab(doc, z0, z1):
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
 upper = slab(doc, 10 * mm, 20 * mm)
-glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+glued = doc.insert(Node.union([lower, upper]))
 
 ev = evaluate(doc)                     # does NOT raise
 assert ev.succeeded(lower)             # the operands are fine...
@@ -300,7 +300,6 @@ author the undeclared boolean, read the typed menu, declare, succeed:
 ```python
 from pncad import (
     BooleanCoincidence,
-    BooleanOp,
     Doc,
     EvaluationError,
     Formula,
@@ -329,7 +328,7 @@ def slab(doc, z0, z1):
 doc = Doc()
 lower = slab(doc, 0 * mm, 10 * mm)
 upper = slab(doc, 10 * mm, 20 * mm)   # they meet exactly at z = 10 mm
-naive = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+naive = doc.insert(Node.union([lower, upper]))
 
 # 1. The undeclared union refuses — with the typed menu attached.
 ev = evaluate(doc)
@@ -370,7 +369,7 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Formula, Node, evaluate, mm
+from pncad import Doc, EvaluationError, Formula, Node, evaluate, mm
 
 doc = Doc()
 
@@ -392,9 +391,9 @@ def slab(z0, z1):
 
 lower = slab(0 * mm, 10 * mm)
 upper = slab(10 * mm, 20 * mm)
-broken = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+broken = doc.insert(Node.union([lower, upper]))
 third = slab(-20 * mm, -10 * mm)
-downstream = doc.insert(Node.boolean(BooleanOp.Union, broken, third))
+downstream = doc.insert(Node.union([broken, third]))
 
 ev = evaluate(doc)
 try:

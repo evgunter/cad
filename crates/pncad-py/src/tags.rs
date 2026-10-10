@@ -552,8 +552,11 @@ pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
 }
 
 /// The stable tag for an operand slot — the field a node reads an
-/// output through. A loft's section and a union's member are one word
-/// each: the position rides the payload's `index`.
+/// output through. A loft's section and a union's or an intersect's
+/// member are one word each: the position rides the payload's `index`.
+/// A subtract's tool is `cut`, not `tool`, which is a split's plane: a
+/// word names ONE slot, because [`crate::slot_word::slot_from_word`]
+/// reads it back without the node it was refused at.
 pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
     use pncad::document::OperandSlot as S;
     match slot {
@@ -564,9 +567,10 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Frame => "frame",
         S::Target => "target",
         S::Tool => "tool",
-        S::A => "a",
-        S::B => "b",
+        S::From => "from",
+        S::Cut => "cut",
         S::Member(_) => "member",
+        S::Members => "members",
         S::Input => "input",
         S::Of => "of",
         S::Measure => "measure",
@@ -586,20 +590,16 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
-        // The list-input door's three (DM4/DM5), reached from Python
-        // through `Node.union` and `DocEdit.set_members` — the node
-        // whose members are a list and the edit that rewrites one.
-        EditError::DuplicateInput { .. } => "duplicate_input",
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
         EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
         EditError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
-        EditError::TooFewMembers { .. } => "too_few_members",
         // The read doors: a read that resolves to no output, a node
         // named alone that defines two or nothing, and a part over a
         // split reading the other half. A read of a kind its slot does
@@ -1091,8 +1091,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // material, and an instance index outside the pattern's count.
         C::EmptyHalf => "empty_half",
         C::InstanceOutOfRange => "instance_out_of_range",
-        // A union of two members read out of one operation.
-        C::MembersShareAnOperation => "members_share_an_operation",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -1217,7 +1215,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
-        NodeErrorKind::MembersShareAnOperation { .. } => None,
         NodeErrorKind::InstanceOutOfRange { .. } => None,
         NodeErrorKind::DegenerateDirection { .. } => None,
         NodeErrorKind::NonFiniteDirection { .. } => None,
@@ -1316,10 +1313,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
-        EditError::DuplicateInput { .. } => None,
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetDeclareOnNonDeclaring { .. } => None,
         EditError::DeclaredSiteNotAnOperand { .. } => None,
         EditError::DeclaredNameNotUpstream { .. } => None,
@@ -1327,7 +1324,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
-        EditError::TooFewMembers { .. } => None,
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
@@ -2113,7 +2109,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementRule { .. } => "placement_rule",
         SnapshotError::MeasureRefs { .. } => "measure_refs",
         SnapshotError::InputList { .. } => "input_list",
-        SnapshotError::DuplicateInput { .. } => "duplicate_input",
         SnapshotError::AssertionTarget { .. } => "assertion_target",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
@@ -2695,6 +2690,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
+        InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
     }

@@ -354,11 +354,23 @@ mod tests {
     }
 
     fn from_a(node: u64, inner: StableName) -> StableName {
-        face(node, vec![RoleSeg::From { read: crate::names::FOLD_A, of: inner.into() }])
+        face(
+            node,
+            vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: inner.into(),
+            }],
+        )
     }
 
     fn from_b(node: u64, inner: StableName) -> StableName {
-        face(node, vec![RoleSeg::From { read: crate::names::FOLD_B, of: inner.into() }])
+        face(
+            node,
+            vec![RoleSeg::From {
+                read: crate::names::FOLD_B,
+                of: inner.into(),
+            }],
+        )
     }
 
     fn merged(node: u64, mut set: Vec<StableName>) -> StableName {
@@ -415,7 +427,8 @@ mod tests {
     fn from_member(union: u64, member: u64, inner: StableName) -> StableName {
         face(
             union,
-            vec![RoleSeg::From { read: crate::VarId::new(1, member),
+            vec![RoleSeg::From {
+                read: crate::VarId::new(1, member),
                 of: inner.into(),
             }],
         )

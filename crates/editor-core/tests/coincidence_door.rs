@@ -7,14 +7,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ang, fname, insert, len, len2, on_frame, scl, table};
+use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, BooleanCoincidence, BooleanOp, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum,
-    EntityKey, EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
+    Advisory, BooleanCoincidence, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey,
+    EntityKind, Entry, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell,
     NamedCoincidence, Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, Proof, RecipeNodeId, RoleSeg, Rung, Severity, SitedRef, SplitHalf, StableName,
-    ValuePayload, coincide, spoken_by,
+    ValuePayload, VarId, coincide, spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -46,7 +46,7 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
         .to_vec()
 }
 
-fn entity(input: RecipeNodeId, name: &StableName) -> NamedCell {
+fn entity(input: VarId, name: &StableName) -> NamedCell {
     NamedCell::Entity {
         input,
         name: name.clone(),
@@ -66,16 +66,15 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
     let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
+    let (base_read, plate_read) = (out(&doc, base), out(&doc, plate));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base.into(),
-            b: plate.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
             declare: vec![(
                 (
-                    SitedRef::at_mint(top.clone()),
-                    SitedRef::at_mint(bottom.clone()),
+                    SitedRef::new(base_read, top.clone()),
+                    SitedRef::new(plate_read, bottom.clone()),
                 ),
                 BooleanCoincidence::REST,
             )],
@@ -87,7 +86,10 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     let row = &got[0];
     assert_eq!(
         row.cells,
-        [entity(base, &top), entity(plate, &bottom)],
+        [
+            entity(out(&doc, base), &top),
+            entity(out(&doc, plate), &bottom)
+        ],
         "the cells are the operands' own cap names"
     );
     assert_eq!(
@@ -221,8 +223,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
         discharge: topo::Discharge::Numeric,
     };
     let halves = row([
-        entity(above, &wall(above, 0.75)),
-        entity(below, &wall(below, 0.25)),
+        entity(out(&doc, above), &wall(above, 0.75)),
+        entity(out(&doc, below), &wall(below, 0.25)),
     ]);
     assert_eq!(
         coincide::prove(&doc, &halves),
@@ -231,8 +233,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     );
     let unplaced = face_on(&ev, the_box, [0.0, 0.5, 0.5], [-1.0, 0.0, 0.0]);
     let across = row([
-        entity(the_box, &unplaced),
-        entity(above, &wall(above, 0.75)),
+        entity(out(&doc, the_box), &unplaced),
+        entity(out(&doc, above), &wall(above, 0.75)),
     ]);
     assert!(
         matches!(coincide::prove(&doc, &across), Proof::Unproven { .. }),
@@ -266,12 +268,12 @@ fn a_unions_rows_follow_its_member_order() {
                 (Relation::SameOriented, DecisionSite::PlaneLadder)
             );
             let input = |c: &NamedCell| match c {
-                NamedCell::Entity { input, name } if name.node == *input => *input,
+                NamedCell::Entity { input, name } if out(&doc, name.node) == *input => *input,
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
             };
             assert_eq!(
                 row.cells.each_ref().map(input),
-                members,
+                members.map(|m| out(&doc, m)),
                 "{members:?}: the listed-first member's cell first"
             );
         }
@@ -331,8 +333,8 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         discharge: topo::Discharge::Numeric,
     };
     let one = row([
-        entity(first, &top_at(first, 3.5)),
-        entity(again, &top_at(again, 3.5)),
+        entity(out(&doc, first), &top_at(first, 3.5)),
+        entity(out(&doc, again), &top_at(again, 3.5)),
     ]);
     assert_eq!(
         coincide::prove(&doc, &one),
@@ -340,8 +342,8 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         "one instance read twice"
     );
     let two = row([
-        entity(first, &top_at(first, 3.5)),
-        entity(second, &top_at(second, 6.5)),
+        entity(out(&doc, first), &top_at(first, 3.5)),
+        entity(out(&doc, second), &top_at(second, 6.5)),
     ]);
     let Proof::Unproven { residual, .. } = coincide::prove(&doc, &two) else {
         panic!("two instances are two placements")
@@ -416,7 +418,9 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
                 panic!("a turn's cells are edges: {cell:?}")
             };
             assert!(
-                *input == the_box && edges.contains(name) && name.kind == EntityKind::Edge,
+                *input == out(&doc, the_box)
+                    && edges.contains(name)
+                    && name.kind == EntityKind::Edge,
                 "{cell:?} is a requested rim edge of the box"
             );
         }
@@ -565,24 +569,23 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         "the premise: each cap is a section face of the split, {above_cap:?}, {below_cap:?}"
     );
     let wall = |node, z| face_on(&ev, node, [0.0, 0.5, z], [-1.0, 0.0, 0.0]);
+    let (above_read, below_read) = (out(&doc, above), out(&doc, below));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: above.into(),
-            b: below.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
             declare: vec![
                 (
                     (
-                        SitedRef::new(above, above_cap.clone()),
-                        SitedRef::new(below, below_cap.clone()),
+                        SitedRef::new(above_read, above_cap.clone()),
+                        SitedRef::new(below_read, below_cap.clone()),
                     ),
                     BooleanCoincidence::REST,
                 ),
                 (
                     (
-                        SitedRef::new(above, wall(above, 0.75)),
-                        SitedRef::new(below, wall(below, 0.25)),
+                        SitedRef::new(above_read, wall(above, 0.75)),
+                        SitedRef::new(below_read, wall(below, 0.25)),
                     ),
                     BooleanCoincidence::Continuation,
                 ),
@@ -592,7 +595,10 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let got = rows(&ev, union);
-    let caps = [entity(above, &above_cap), entity(below, &below_cap)];
+    let caps = [
+        entity(out(&doc, above), &above_cap),
+        entity(out(&doc, below), &below_cap),
+    ];
     let row = got
         .iter()
         .find(|r| r.cells == caps)
@@ -639,24 +645,29 @@ fn a_reunited_splits_section_caps_are_one_construction() {
 /// Two unit blocks `gap` apart along x, their flush caps and y-walls
 /// declared continuations, joined by `op`: the boolean's own rows and
 /// its node.
-fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
+fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId, usize) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let pairs = crate::fixture::flush_pairs(&doc, (a, a), (b, b));
     let n = pairs.len();
-    let (doc, node) = insert(
-        doc,
-        Node::Boolean {
-            op,
-            a: a.into(),
-            b: b.into(),
-            declare: pairs
-                .into_iter()
-                .map(|p| (p, BooleanCoincidence::Continuation))
-                .collect(),
-        },
-    );
+    let declare = pairs
+        .into_iter()
+        .map(|p| (p, BooleanCoincidence::Continuation))
+        .collect();
+    let boolean = if subtract {
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+            declare,
+        }
+    } else {
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            declare,
+        }
+    };
+    let (doc, node) = insert(doc, boolean);
     let ev = run(&doc);
     assert!(failure(&ev, node).is_none(), "{:?}", failure(&ev, node));
     (doc, ev, node, n)
@@ -670,11 +681,11 @@ fn apart(op: BooleanOp, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId,
 /// before the fallback was chosen.
 #[test]
 fn the_fallbacks_carry_the_declared_rows() {
-    for (op, id) in [
-        (BooleanOp::Union, "coincide-apart-union"),
-        (BooleanOp::Subtract, "coincide-apart-subtract"),
+    for (op, subtract, id) in [
+        ("union", false, "coincide-apart-union"),
+        ("subtract", true, "coincide-apart-subtract"),
     ] {
-        let (doc, ev, node, n) = apart(op, id);
+        let (doc, ev, node, n) = apart(subtract, id);
         assert!(n > 0, "the premise: flush faces to declare");
         let got = rows(&ev, node);
         assert_eq!(got.len(), n, "{op:?}: one row per declared pair: {got:?}");

@@ -518,7 +518,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
 ///     best-diagnostics door).
 #[test]
 fn r4_stablename_node_refs_escape_ref_validation() {
-    use editor_core::{BooleanOp, EntityKind, Node, StableName};
+    use editor_core::{EntityKind, Node, StableName};
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness());
     let (doc, a) = body(doc);
     let (doc, b) = body(doc);
@@ -533,15 +533,13 @@ fn r4_stablename_node_refs_escape_ref_validation() {
             path: vec![],
         };
         editor_core::declare_rest(vec![(
-            SitedRef::new(a, name.clone()),
-            SitedRef::new(second, name),
+            SitedRef::new(crate::fixture::out(&doc, a), name.clone()),
+            SitedRef::new(crate::fixture::out(&doc, second), name),
         )])
     };
     let boolean = |node, second: RecipeNodeId| Edit::InsertNode {
-        node: Box::new(Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: second.into(),
+        node: Box::new(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), second.into()]),
             declare: pairs(node, second),
         }),
         fresh: Vec::new(),
@@ -561,7 +559,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
         .apply(
             &Edit::SetParam {
                 node: boolean_id,
-                slot: SlotId::Operand(editor_core::OperandSlot::B),
+                slot: SlotId::Operand(editor_core::OperandSlot::Member(1)),
                 value: editor_core::Operand::Node(b).into(),
                 fresh: Vec::new(),
             },
@@ -579,10 +577,10 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     assert!(after.doc.node(target).is_none());
     // The boolean survives, holding a stale id.
     match after.doc.node(boolean_id).unwrap() {
-        Node::Boolean { declare, .. } => {
+        Node::Union { declare, .. } => {
             assert_eq!(declare[0].0.0.name.node, target, "stale RecipeNodeId held");
         }
-        n => panic!("expected Boolean, got {n:?}"),
+        n => panic!("expected Union, got {n:?}"),
     }
     // (2) Declared pairs naming an id that never existed: REFUSED, at
     // the insert and at `SetDeclare` alike.
@@ -675,10 +673,8 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: editor_core::BooleanOp::Union,
-                a: extrude.into(),
-                b: next_would_be.into(),
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![extrude.into(), next_would_be.into()]),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -1045,10 +1041,8 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let (doc, boolean) = apply_all(
         doc,
         &[Edit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: editor_core::BooleanOp::Union,
-                a: input.into(),
-                b: other.into(),
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![input.into(), other.into()]),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),

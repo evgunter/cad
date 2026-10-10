@@ -57,7 +57,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
+    Assembly, AssemblyError, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
     HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
     ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
@@ -90,7 +90,7 @@ pub mod probe;
 pub mod refuse;
 pub mod select;
 
-pub use author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
+pub use author::{BooleanSpec, DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{
     CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
@@ -1657,7 +1657,7 @@ impl DocSession {
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
-            SessionOp::AddBoolean { op, a, b, declare } => self.add_boolean(op, a, b, declare),
+            SessionOp::AddBoolean { spec, declare } => self.add_boolean(spec, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -2818,39 +2818,20 @@ impl DocSession {
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies, carrying
-    /// the declaration of the contacts it names
-    /// ([`SessionOp::AddBoolean`]).
-    fn add_boolean(
-        &mut self,
-        op: BooleanOp,
-        a: RecipeNodeId,
-        b: RecipeNodeId,
-        declare: Vec<FlushFinding>,
-    ) -> OpOutcome {
-        for seat in [a, b] {
+    /// Insert one boolean of existing bodies, carrying the declaration
+    /// of the contacts it names ([`SessionOp::AddBoolean`]).
+    fn add_boolean(&mut self, spec: BooleanSpec, declare: Vec<FlushFinding>) -> OpOutcome {
+        for seat in spec.operands() {
             if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
             }
         }
-        // One node in both seats is NOT pre-checked here: the edit
-        // door refuses it typed (`EditError::DuplicateInput`, off
-        // `Node::input_fault`'s pairwise-distinct rule), and a flat arm
-        // must not restate a refusal a door already gives
-        // (`crates/viewer/README.md`). The kind gate above still speaks
-        // first, which is what keeps two PROFILES in both seats
-        // reported as "that is not a body" — the fact the user can act
-        // on — rather than as the narrower complaint about the pair.
-        // An empty list is the undeclared boolean.
+        // A node spelled twice is not refused: a repeated read glues
+        // (A∪A = A∩A = A, A−A the typed empty body), so it is a
+        // document like any other. An empty list is the undeclared
+        // boolean.
         let pairs = declared_pairs(&declare);
-        let staged = self.stage_run(|run| {
-            run.insert(Node::Boolean {
-                op,
-                a: a.into(),
-                b: b.into(),
-                declare: pairs,
-            })
-        });
+        let staged = self.stage_run(|run| run.insert(spec.node(pairs)));
         let (staged, node) = match staged {
             Ok(staged) => staged,
             Err(refusal) => return OpOutcome::refused(refusal),
@@ -2861,14 +2842,9 @@ impl DocSession {
         let resolver = self.run_resolver();
         let memo = self.memo_under(&resolver);
         let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
-        if let Some(refused) = RefusedBoolean::read(
-            &staged.doc,
-            &judged,
-            node,
-            (op, [a, b]),
-            declare,
-            self.generation,
-        ) {
+        if let Some(refused) =
+            RefusedBoolean::read(&staged.doc, &judged, node, spec, declare, self.generation)
+        {
             return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
         }
         self.record_run(staged)
@@ -3421,8 +3397,9 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,

@@ -120,7 +120,7 @@ fn declaring_each_refusals_finding_converges_on_a_union_that_builds() {
     let (mut doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![low.into(), mid.into(), top.into()],
+            members: editor_core::Bodies::Spelled(vec![low.into(), mid.into(), top.into()]),
             declare: Vec::new(),
         },
     );
@@ -174,7 +174,7 @@ fn a_declared_union_survives_a_split_and_an_inline() {
                     && declare
                         .iter()
                         .flat_map(|((one, two), _)| [one.at, two.at])
-                        .all(|at| members.iter().any(|&m| doc.operation_of(m) == Some(at)))
+                        .all(|at| members.reads().any(|&m| m == at))
             }
             _ => false,
         })

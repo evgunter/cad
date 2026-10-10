@@ -138,10 +138,10 @@ fn assert_rim_pieces(
     };
     let pieces: Vec<StableName> = t
         .iter()
-        .filter(|(n, _)| is_rim_piece(n, a, &rim(a)))
+        .filter(|(n, _)| is_rim_piece(n, crate::fixture::out(doc, a), &rim(a)))
         .map(|(n, _)| n.clone())
         .collect();
-    let whole = crate::fixture::member_entity(union, a, rim(a), EntityKind::Edge);
+    let whole = crate::fixture::member_entity(union, crate::fixture::out(doc, a), rim(a), EntityKind::Edge);
     let [piece] = pieces.as_slice() else {
         panic!("{order:?}: a's rim stands alone once: {pieces:?}");
     };
@@ -155,7 +155,7 @@ fn assert_rim_pieces(
     assert_eq!(span(piece), (0, micro(0.3)), "{order:?}: a's rim");
     let mut set = vec![
         whole,
-        crate::fixture::member_entity(union, b, rim(b), EntityKind::Edge),
+        crate::fixture::member_entity(union, crate::fixture::out(doc, b), rim(b), EntityKind::Edge),
     ];
     set.sort();
     let joined = StableName {

@@ -7,10 +7,11 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said,
+    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said,
     Speaker, SpokenNode,
 };
 use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -175,7 +176,7 @@ pub(crate) fn seats_row(
 pub(crate) fn declare_offer_rows(
     ui: &mut egui::Ui,
     held: &mut Option<DeclareOffer>,
-    (now, op, tool): (Generation, BooleanOp, BooleanTool),
+    (now, tool): (Generation, &BooleanTool),
     doc: &Doc<ProfileProgram>,
     ops: &mut Vec<SessionOp>,
     theme: &Theme,
@@ -183,7 +184,7 @@ pub(crate) fn declare_offer_rows(
     let Some(offer) = held.as_ref() else {
         return;
     };
-    if !offer.is_for(now, op, tool.a(), tool.b()) {
+    if !offer.is_for(now, tool.spec().ok().as_ref()) {
         *held = None;
         return;
     }
@@ -205,6 +206,17 @@ pub(crate) fn declare_offer_rows(
     });
     if declined {
         *held = None;
+    }
+}
+
+/// **What the boolean tool asks for under `op`**: any number of bodies
+/// for union and intersect, the two seats in order for subtract.
+pub(crate) fn boolean_prompt(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union | BooleanOp::Intersect => {
+            "pick the bodies, one or more, then commit"
+        }
+        BooleanOp::Subtract => "pick the body to keep, then the body to remove",
     }
 }
 
@@ -1374,12 +1386,14 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The boolean tool's panel: activation, the two held picks named
-    /// by ROLE, the operation choice, and the one committed edit.
+    /// The boolean tool's panel: activation, the operation choice, the
+    /// held picks — a member list for union and intersect, the two seats
+    /// named by ROLE for subtract — and the one committed edit.
     ///
-    /// The role naming is the point of the panel: `subtract` removes
-    /// the second pick from the first, so a user who cannot see which
-    /// is which cannot author the operation they mean.
+    /// The role naming is the point of the subtract panel: it removes
+    /// one pick from the other, so a user who cannot see which is which
+    /// cannot author the operation they mean. A union or an intersect
+    /// commits whatever members are held, one or more.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
             if ui.button(ToolKind::Boolean.button()).clicked() {
@@ -1387,34 +1401,45 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Boolean.says(&"pick the first body, then the second"),
-        );
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        let mut op = tool.operation();
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
             // the form offers the vocabulary, never a copy of it.
-            for &op in BooleanOp::ALL {
-                ui.radio_value(&mut self.drafts.boolean_op, op, boolean_op_label(op));
+            for &choice in BooleanOp::ALL {
+                ui.radio_value(&mut op, choice, boolean_op_label(choice));
             }
         });
-        if self.drafts.boolean_op == BooleanOp::Subtract {
-            crate::widgets::message_toned(
-                ui,
-                "subtract removes the second pick from the first",
-                &self.theme,
-                Tone::Advisory,
-            );
+        if op != tool.operation()
+            && let Some(open) = self.tools.boolean_mut()
+        {
+            open.set_operation(op);
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |drafts, _| {
-            Ok(tool.op(drafts.boolean_op)?)
-        });
+        let Some(tool) = self.tools.boolean() else {
+            return;
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Boolean.says(&boolean_prompt(tool.operation())),
+        );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(self.session.doc()),
+            &self.theme,
+            Tone::Advisory,
+        );
+        if ui
+            .add_enabled(!tool.is_empty(), egui::Button::new("Clear picks"))
+            .clicked()
+            && let Some(open) = self.tools.boolean_mut()
+        {
+            open.clear();
+        }
+        self.tool_commit_row(ui, ToolKind::Boolean, |_, _| Ok(tool.op()?));
         declare_offer_rows(
             ui,
             &mut self.drafts.declare_offer,
-            (self.session.generation(), self.drafts.boolean_op, tool),
+            (self.session.generation(), &tool),
             self.session.doc(),
             self.ops,
             &self.theme,
@@ -2833,10 +2858,8 @@ mod declared_union {
         let tool = holding(&session, block, boss);
 
         let (refusal, offer) = refused_union(&mut session, &tool);
-        let plain = Node::Boolean {
-            op: BooleanOp::Union,
-            a: block.into(),
-            b: boss.into(),
+        let plain = Node::Union {
+            members: Bodies::Spelled(vec![block.into(), boss.into()]),
             declare: Vec::new(),
         };
         let (eval, union) = evaluated_insert(&before, plain, tol);
@@ -2904,7 +2927,10 @@ mod declared_union {
         let doc = session.committed_doc();
         assert!(matches!(
             doc.node(union),
-            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare })
+            Some(Node::Union {
+                members: Bodies::Spelled(vec![a, b]),
+                declare,
+            })
                 if (Some(*a), Some(*b)) == (doc.output(block, 0), doc.output(boss, 0))
                     && declare[..] == [(finding.pair.clone(), BooleanCoincidence::REST)]
         ));

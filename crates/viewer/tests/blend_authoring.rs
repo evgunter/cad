@@ -23,6 +23,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use viewer::session::BooleanSpec;
 use crate::common;
 
 use common::{ang, len, len3, plate_index, scl3, session_insert};
@@ -956,9 +957,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: pncad::document::BooleanOp::Union,
-            a,
-            b,
+            spec: BooleanSpec::Union(vec![a, b]),
             declare: Vec::new(),
         },
     );

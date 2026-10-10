@@ -26,8 +26,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind,
-    RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
+    Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
+    RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -111,13 +111,17 @@ pub fn document() -> CorpusDoc {
     // declared contact, named through the split's own vocabulary
     // because each Part carries the split's names verbatim.
     let rest = editor_core::declare_rest(vec![(
-        SitedRef::new(above, section_face(split, SplitHalf::Above)),
-        SitedRef::new(below, section_face(split, SplitHalf::Below)),
+        SitedRef::new(
+            crate::fixture::out(&r.doc, above),
+            section_face(split, SplitHalf::Above),
+        ),
+        SitedRef::new(
+            crate::fixture::out(&r.doc, below),
+            section_face(split, SplitHalf::Below),
+        ),
     )]);
-    let whole = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: above.into(),
-        b: below.into(),
+    let whole = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
         declare: rest,
     });
 

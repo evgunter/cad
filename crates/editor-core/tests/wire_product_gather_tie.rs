@@ -32,8 +32,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, NameTable,
-    Node, PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
+    Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, NameTable, Node,
+    PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
 };
 use fixture::{ang, insert, len, on_frame, scl, table};
 use geom_core::Tol;
@@ -100,10 +100,9 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );

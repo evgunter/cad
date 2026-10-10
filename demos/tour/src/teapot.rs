@@ -155,7 +155,7 @@
 //!    Wall 2 is past the operand gate and past the maximal-faces
 //!    precondition, and stops where the vessel's sphere face meets the
 //!    handle's torus, which the Boolean cannot yet trace. **Both refusals arrive through the
-//!    DOCUMENT**: each join is a `Node::Boolean` that lowers to the
+//!    DOCUMENT**: each join is a `Node::Union` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
 //!    measurement of it.
@@ -281,7 +281,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
 };
@@ -1005,10 +1005,8 @@ fn build_doc(tol: Tol) -> Recipe {
     let union_node = |doc: &mut Doc<ProfileProgram>, b| {
         insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: cup.into(),
-                b,
+            Node::Union {
+                members: Bodies::Spelled(vec![cup.into(), b]),
                 declare: Vec::new(),
             },
             tol,
@@ -2389,7 +2387,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
               spout, with the same frames lofted a second time WITHOUT the bore as its \
               volume's denominator; \
               Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \
-              as Node::Boolean(Union) nodes that refuse at evaluate",
+              as Node::Union nodes that refuse at evaluate",
         delta: DELTA,
         note: Some(format!(
             "ONE RECIPE DOCUMENT, AND EVERY BODY HERE IS A NODE'S VALUE — the mouth and \
@@ -2525,7 +2523,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              become joinable; the refusal moved off a pair nobody modelled and onto the \
              body's own edges. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
-             ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Boolean` that lowers \
+             ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Union` that lowers \
              to the same kernel `union` and fails at `evaluate`, so what is quoted here \
              is the evaluation's own carried refusal. NEITHER PROBE PINS AN ARENA KEY, which is \
              why both survived a re-authoring that moved one — the mouth-rim annulus at \

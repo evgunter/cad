@@ -29,10 +29,9 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Alignment, Attr, AttrKind, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive,
-    Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
-    cascade_delete_order,
+    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId,
+    EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{ang, flush_pairs, fname, insert, len, wall};
 use geom_core::Tol;
@@ -121,7 +120,7 @@ fn union_released_from_a_declared_member(
         &declared,
         &DocEdit::SetMembers {
             node: union,
-            members: vec![a.into(), c.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -191,7 +190,7 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
         pairs
             .iter()
             .flat_map(|((x, y), _)| [x, y])
-            .all(|r| r.name.node == r.at),
+            .all(|r| doc.operation_of(r.at) == Some(r.name.node)),
         "every side is sited at the member whose table holds it"
     );
 
@@ -304,13 +303,11 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // strands them without taking an operand.
     let (doc, boolean) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: body.into(),
-            b: victim.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![body.into(), victim.into()]),
             declare: editor_core::declare_rest(vec![(
-                SitedRef::new(body, f1.clone()),
-                SitedRef::new(victim, f2.clone()),
+                SitedRef::new(crate::fixture::out(&doc, body), f1.clone()),
+                SitedRef::new(crate::fixture::out(&doc, victim), f2.clone()),
             )]),
         },
     );
@@ -318,7 +315,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
         doc,
         DocEdit::SetParam {
             node: boolean,
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::B),
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(1)),
             value: editor_core::Operand::Node(other).into(),
             fresh: Vec::new(),
         },
@@ -342,11 +339,12 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             Node::Datum(Datum::FaceFrame { .. }) => expected.push((id, f3.clone())),
             // Argument order, which is meaning for a measure.
             Node::Measure { .. } => expected.extend([(id, f4.clone()), (id, f0.clone())]),
-            Node::Boolean { .. } => expected.extend([(id, f1.clone()), (id, f2.clone())]),
-            // A union's declared pairs ride the same payload as a
-            // boolean's; its row is
-            // `deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing`.
-            Node::Union { .. } => panic!("this fixture builds no union"),
+            Node::Union { .. } => expected.extend([(id, f1.clone()), (id, f2.clone())]),
+            // A subtract's and an intersect's declared pairs ride the
+            // same payload as a union's; this fixture builds neither.
+            Node::Subtract { .. } | Node::Intersect { .. } => {
+                panic!("this fixture builds no subtract or intersect")
+            }
             // A mate's heads need an instance to be minted by, which
             // this document has none of: its row is
             // `a_mates_head_strands_and_its_read_site_does_not`.

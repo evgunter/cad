@@ -96,6 +96,23 @@ fn fillet_and_target(
     panic!("the composed die has a fillet node")
 }
 
+/// The read a fillet node's target comes through.
+fn target_read(doc: &editor_core::ProfileDoc, fillet: editor_core::RecipeNodeId) -> editor_core::VarId {
+    match doc.node(fillet) {
+        Some(Node::Fillet { target, .. }) => *target,
+        other => panic!("{fillet} is a fillet, got {other:?}"),
+    }
+}
+
+/// The read a subtract node's tool comes through — the side the
+/// cavity's names arrive by.
+fn tool_read(doc: &editor_core::ProfileDoc, subtract: editor_core::RecipeNodeId) -> editor_core::VarId {
+    match doc.node(subtract) {
+        Some(Node::Subtract { tool, .. }) => *tool,
+        other => panic!("{subtract} is a subtract, got {other:?}"),
+    }
+}
+
 /// **The blocker, flipped**: the composed-die recipe now EVALUATES —
 /// one node, one `fillet_edges` call, the box blends and the pip-rim
 /// torus band together (the F-e form, measured in
@@ -124,10 +141,11 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
     // `FromB` payloads name the revolve node — recovered here from the
     // target's own table rather than restated.
     let ev0 = eval(&doc.doc);
+    let tool = tool_read(&doc.doc, target);
     let ball = edge_names(&ev0, target)
         .into_iter()
         .find_map(|n| match n.path.first() {
-            Some(RoleSeg::FromB(inner)) => Some(inner.node),
+            Some(RoleSeg::From { read, of: inner }) if *read == tool => Some(inner.node),
             _ => None,
         })
         .expect("the cavity contributes FromB edges");
@@ -191,10 +209,12 @@ fn the_selection_is_every_target_edge_except_the_cavity_meridians() {
     );
     let left_out: Vec<_> = live.difference(&chosen).cloned().collect();
     assert_eq!(left_out.len(), 2, "exactly the two cavity meridians");
+    let tool = tool_read(&doc.doc, target);
     for n in &left_out {
         assert!(
-            matches!(n.path.first(), Some(RoleSeg::FromB(inner))
-                if matches!(inner.path.first(), Some(RoleSeg::Meridian(..)))),
+            matches!(n.path.first(), Some(RoleSeg::From { read, of: inner })
+                if *read == tool
+                    && matches!(inner.path.first(), Some(RoleSeg::Meridian(..)))),
             "the excluded names are the cavity's meridians, got {n:?}"
         );
     }
@@ -228,9 +248,10 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
     );
     // Every fillet vocabulary segment in use is a fillet segment (no
     // leakage of another op's roles into this node's names).
+    let survivor_read = target_read(&doc.doc, fillet_and_target(&doc.doc).0);
     let role = |n: &StableName| match n.path.first().expect("a role path") {
         RoleSeg::OutputBody => "body",
-        RoleSeg::FromTarget(_) => "survivor",
+        RoleSeg::From { read, .. } if *read == survivor_read => "survivor",
         RoleSeg::BlendFace(_) => "blend",
         RoleSeg::CornerFace(_) => "octant",
         RoleSeg::TrimEdge { .. } => "trim",
@@ -251,9 +272,12 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
                     Some(
                         RoleSeg::BandTrim { .. }
                             | RoleSeg::TrimEdge { .. }
-                            | RoleSeg::FromTarget(_)
+                            | RoleSeg::From { .. }
                     )
-                )
+                ) && c.path.first().is_none_or(|seg| match seg {
+                    RoleSeg::From { read, .. } => *read == survivor_read,
+                    _ => true,
+                })
             }) =>
         {
             "joined"

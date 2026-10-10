@@ -338,6 +338,22 @@ pub(crate) fn runs(
     case: &Case,
     mut each: impl FnMut(&str, &editor_core::Evaluation<f64>, &[RecipeNodeId], &[(&str, RecipeNodeId)]),
 ) {
+    runs_in(case, |at, _, ev, ids, unions| each(at, ev, ids, unions));
+}
+
+/// [`runs`], handing `each` the document each run evaluated as well, so
+/// a member's READ (which a carried name is keyed by) reads back as its
+/// node.
+pub(crate) fn runs_in(
+    case: &Case,
+    mut each: impl FnMut(
+        &str,
+        &editor_core::ProfileDoc,
+        &editor_core::Evaluation<f64>,
+        &[RecipeNodeId],
+        &[(&str, RecipeNodeId)],
+    ),
+) {
     let (doc, mut ids) = document(&case.blocks, &case.creation);
     let doc = match case.shift {
         None => doc,
@@ -396,6 +412,7 @@ pub(crate) fn runs(
                 let ev = run(&docx);
                 each(
                     &format!("{inner:?}{olab:?}"),
+                    &docx,
                     &ev,
                     &ids,
                     &[("U1", u1), ("U", top)],
@@ -412,7 +429,7 @@ pub(crate) fn runs(
             declared_union(doc.clone(), &members, flush(&ids))
         };
         let ev = run(&docx);
-        each(&format!("{order:?}"), &ev, &ids, &[("U", union)]);
+        each(&format!("{order:?}"), &docx, &ev, &ids, &[("U", union)]);
     }
 }
 
@@ -787,7 +804,7 @@ fn a_member_face_another_holds_is_a_constituent_in_every_order() {
     ] {
         let case = cases().into_iter().find(|c| c.label == label).unwrap();
         let mut fused = 0;
-        runs(&case, |at, ev, ids, unions| {
+        runs_in(&case, |at, doc, ev, ids, unions| {
             let union = unions[0].1;
             assert!(
                 failure(ev, union).is_none(),
@@ -796,7 +813,7 @@ fn a_member_face_another_holds_is_a_constituent_in_every_order() {
             );
             fused += 1;
             let of = |n: &StableName| match n.path.as_slice() {
-                [RoleSeg::FromMember { member, .. }] => Some(*member),
+                [RoleSeg::From { read, .. }] => doc.operation_of(*read),
                 _ => None,
             };
             let merged = table(ev, union)
@@ -842,7 +859,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
             .map(|&m| {
                 crate::fixture::member_entity(
                     union,
-                    m,
+                    crate::fixture::out(&doc, m),
                     StableName {
                         kind: EntityKind::Edge,
                         node: m,
@@ -883,7 +900,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
 fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
     let mut cited = 0;
     for case in cases() {
-        runs(&case, |at, ev, _, unions| {
+        runs_in(&case, |at, doc, ev, _, unions| {
             for &(tag, union) in unions {
                 if failure(ev, union).is_some() {
                     continue;
@@ -917,9 +934,12 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                                 !matches!(side.path.first(), Some(RoleSeg::Merged(_))),
                                 "{here} cites a set of edges, not one it lies on: {side:?}"
                             );
-                            let Some(RoleSeg::FromMember { member, of }) = side.path.first() else {
+                            let Some(RoleSeg::From { read, of }) = side.path.first() else {
                                 continue;
                             };
+                            let member = &doc
+                                .operation_of(*read)
+                                .unwrap_or_else(|| panic!("{here}: {read:?} is no live read"));
                             assert_eq!(side.path.len(), 1, "{here} cites a piece: {side:?}");
                             let Some(Entry::Unique(me)) = table(ev, *member).lookup(of) else {
                                 panic!("{here}: its member does not name {of:?} once")
@@ -995,10 +1015,20 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
     let x = |a: f64, b: f64| vec![(a * 1e6).round() as i64, (b * 1e6).round() as i64];
     let ((u1, first), (u2, second)) = (along([a, b, c]), along([b, a, c]));
     for (union, table) in [(u1, &first), (u2, &second)] {
-        let whole = crate::fixture::member_entity(union, a, rim(a), EntityKind::Edge);
+        let whole = crate::fixture::member_entity(
+            union,
+            crate::fixture::out(&doc, a),
+            rim(a),
+            EntityKind::Edge,
+        );
         let mut set = vec![
             whole.clone(),
-            crate::fixture::member_entity(union, b, rim(b), EntityKind::Edge),
+            crate::fixture::member_entity(
+                union,
+                crate::fixture::out(&doc, b),
+                rim(b),
+                EntityKind::Edge,
+            ),
         ];
         set.sort();
         let joined = StableName {
@@ -1030,10 +1060,10 @@ fn a_h_contact(
     doc: &editor_core::ProfileDoc,
     a: RecipeNodeId,
     h: RecipeNodeId,
-) -> (SitedRef, SitedRef) {
+) -> (SitedRef<editor_core::VarId>, SitedRef<editor_core::VarId>) {
     (
-        SitedRef::new(a, fname(a, wall(doc, a, 1))),
-        SitedRef::new(h, fname(h, wall(doc, h, 3))),
+        SitedRef::new(crate::fixture::out(doc, a), fname(a, wall(doc, a, 1))),
+        SitedRef::new(crate::fixture::out(doc, h), fname(h, wall(doc, h, 3))),
     )
 }
 
@@ -1124,7 +1154,10 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
                 Some(editor_core::NodeErrorKind::UndeclaredCoincidence { finding, .. }) => {
                     let mut sites = [finding.pair.0.at, finding.pair.1.at];
                     sites.sort();
-                    let mut ah = [ids[0], ids[3]];
+                    let mut ah = [
+                        crate::fixture::out(&doc, ids[0]),
+                        crate::fixture::out(&doc, ids[3]),
+                    ];
                     ah.sort();
                     assert_eq!(
                         sites, ah,

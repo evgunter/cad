@@ -15,7 +15,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
+    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
     EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
     RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
     held_by,
@@ -38,6 +38,7 @@ use crate::docio::DocIoError;
 use crate::frame::Tone;
 use crate::generation::Generation;
 use crate::history::History;
+use crate::session::author::BooleanSpec;
 use crate::props::{self, Notation, SlotValue};
 use crate::session::{FaceSelection, SessionOp};
 
@@ -144,8 +145,9 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Shell { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
@@ -779,10 +781,22 @@ impl Refusal {
         };
         format!(
             "a face of {} against a face of {} — {what}",
-            doc.spoken(one.at),
-            doc.spoken(other.at),
+            read_spoken(doc, one.at),
+            read_spoken(doc, other.at),
         )
     }
+}
+
+/// **An operand read, as a sentence names it**: the node whose output
+/// it is, through the chrome's one spelling of a node — a declared pair
+/// is sited at the operand's READ, and the node defining that read is
+/// the operand the author picked. A read no node of `doc` defines is
+/// said as the variable it is.
+pub(crate) fn read_spoken(doc: &Doc<ProfileProgram>, read: VarId) -> String {
+    doc.operation_of(read).map_or_else(
+        || doc.spoken_var(read).to_string(),
+        |node| doc.spoken(node).to_string(),
+    )
 }
 
 impl core::fmt::Display for Refusal {
@@ -886,16 +900,14 @@ impl core::error::Error for Refusal {}
 /// it refused a contact nobody declared** — [`Refusal::Contact`]'s
 /// payload, and the one source of the offer to declare that contact.
 ///
-/// It holds the attempt — the operation, its two operands, the findings
+/// It holds the attempt — the operation and its operands, the findings
 /// it already declared, the generation it was judged at — beside the
 /// kernel's refusal as the kernel raised it, so the sentence a person
 /// reads is the kernel's own and the offer declares exactly the pair
 /// that sentence is about.
 #[derive(Debug)]
 pub struct RefusedBoolean {
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    spec: BooleanSpec,
     declared: Vec<FlushFinding>,
     at: Generation,
     /// Always the kernel's `NodeErrorKind::UndeclaredCoincidence`: the one
@@ -907,22 +919,23 @@ pub struct RefusedBoolean {
 }
 
 impl RefusedBoolean {
-    /// **What the boolean `op` of `a` and `b`, evaluated as `node` in
-    /// `eval` (of `doc`) with `declared` already declared, refused** — `None` when
+    /// **What the boolean `spec`, evaluated as `node` in `eval` (of
+    /// `doc`) with `declared` already declared, refused** — `None` when
     /// the node has no failure of its own ([`crate::tree::own_error`]:
     /// a poisoned node's cause is an ancestor's, sited at that
     /// ancestor's operands), or fails for any reason but an undeclared
     /// contact the node can declare.
     ///
-    /// A contact between two faces of ONE operand is not one it can:
-    /// the pair boolean resolves a declared pair only across its two
-    /// operands, so declaring it would commit a boolean that refuses
-    /// the declaration instead. That refusal stays the node's own.
+    /// A contact between two faces read through ONE operand read is not
+    /// one it can: the node judges a declared pair only between two
+    /// different reads (a pair at one read is that member's carried
+    /// contact, judged by no pair), so declaring it would not answer
+    /// the refusal. That refusal stays the node's own.
     pub(crate) fn read(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         node: RecipeNodeId,
-        attempt: (BooleanOp, [RecipeNodeId; 2]),
+        attempt: BooleanSpec,
         declared: Vec<FlushFinding>,
         at: Generation,
     ) -> Option<Self> {
@@ -940,7 +953,7 @@ impl RefusedBoolean {
     fn of(
         doc: &Doc<ProfileProgram>,
         refused: &NodeErrorKind,
-        (op, [a, b]): (BooleanOp, [RecipeNodeId; 2]),
+        spec: BooleanSpec,
         declared: Vec<FlushFinding>,
         at: Generation,
     ) -> Option<Self> {
@@ -956,9 +969,7 @@ impl RefusedBoolean {
             return None;
         }
         Some(Self {
-            op,
-            a,
-            b,
+            spec,
             declared,
             at,
             refused: NodeErrorKind::UndeclaredCoincidence {
@@ -1002,9 +1013,7 @@ impl RefusedBoolean {
     pub fn offer(&self) -> Option<DeclareOffer> {
         (!self.re_raised()).then(|| DeclareOffer {
             at: self.at,
-            op: self.op,
-            a: self.a,
-            b: self.b,
+            spec: self.spec.clone(),
             findings: self
                 .declared
                 .iter()
@@ -1043,9 +1052,7 @@ impl core::fmt::Display for RefusedBoolean {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DeclareOffer {
     at: Generation,
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    spec: BooleanSpec,
     findings: Vec<FlushFinding>,
 }
 
@@ -1064,26 +1071,19 @@ impl DeclareOffer {
 
     /// **Whether the offer still stands**: the session is at the
     /// generation the boolean was refused at — no edit, undo or open
-    /// since — and the tool holds the same operation over the same two
-    /// picks. An offer failing either is about a document or a pair of
-    /// operands nobody is looking at.
-    pub fn is_for(
-        &self,
-        now: Generation,
-        op: BooleanOp,
-        a: Option<RecipeNodeId>,
-        b: Option<RecipeNodeId>,
-    ) -> bool {
-        self.at == now && self.op == op && a == Some(self.a) && b == Some(self.b)
+    /// since — and the tool would commit the same operation over the
+    /// same picks in the same order (`held`, the tool's spec, `None`
+    /// while it would refuse). An offer failing either is about a
+    /// document or operands nobody is looking at.
+    pub fn is_for(&self, now: Generation, held: Option<&BooleanSpec>) -> bool {
+        self.at == now && held == Some(&self.spec)
     }
 
     /// **Accepting the offer**: the boolean again, declaring every
     /// finding — one action at the session door, so one undo.
     pub fn accept(&self) -> SessionOp {
         SessionOp::AddBoolean {
-            op: self.op,
-            a: self.a,
-            b: self.b,
+            spec: self.spec.clone(),
             declare: self.findings.clone(),
         }
     }
@@ -1456,10 +1456,8 @@ mod refused_boolean {
         let (doc, block, boss) = boss_on_block("refused-boolean", tol);
         let (judged, eval, union) = inserted_and_evaluated(
             &doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: block.into(),
-                b: boss.into(),
+            Node::Union {
+                members: Bodies::Spelled(vec![block.into(), boss.into()]),
                 declare: Vec::new(),
             },
             tol,

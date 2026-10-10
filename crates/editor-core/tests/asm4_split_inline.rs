@@ -1120,14 +1120,15 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let straddler = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
-        path: vec![RoleSeg::FromA(
-            StableName {
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&doc, cut_e),
+            of: StableName {
                 kind: EntityKind::Edge,
                 node: cut_e,
                 path: vec![RoleSeg::OutputBody],
             }
             .into(),
-        )],
+        }],
     };
     let partner = StableName {
         kind: EntityKind::Edge,
@@ -1146,10 +1147,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: vec![kept_e.into(), kept_twin.into()],
+            members: editor_core::Bodies::Spelled(vec![kept_e.into(), kept_twin.into()]),
             declare: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(straddler.clone()),
-                SitedRef::at_mint(partner),
+                SitedRef::new(crate::fixture::out(&doc, kept_e), straddler.clone()),
+                SitedRef::new(crate::fixture::out(&doc, kept_e), partner),
             )]),
         },
     );
@@ -1225,29 +1226,29 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
 /// A's block, and A's block is named.
 #[test]
 fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
-    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
     let table = &ev.value(u).expect("the union evaluates").name_table;
+    let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| {
             n.kind == EntityKind::Face
-                && n.path
+                && n
+                    .path
                     .first()
-                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+                    .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
         .expect("the union keeps a face of operand A");
     let reached = derivation_nodes(&from_a);
@@ -1318,29 +1319,29 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
 /// deleted node that sorts first.
 #[test]
 fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
-    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
     let table = &ev.value(u).expect("the union evaluates").name_table;
+    let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| {
             n.kind == EntityKind::Face
-                && n.path
+                && n
+                    .path
                     .first()
-                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+                    .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
         .expect("the union keeps a face of operand A");
     let reached = derivation_nodes(&from_a);
@@ -1488,8 +1489,9 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let foreign = StableName {
         kind: EntityKind::Face,
         node: kept_e,
-        path: vec![RoleSeg::FromA(
-            wrap(
+        path: vec![RoleSeg::From {
+            read: FOLD_A,
+            of: wrap(
                 inst,
                 &StableName {
                     kind: EntityKind::Face,
@@ -1498,7 +1500,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 },
             )
             .into(),
-        )],
+        }],
     };
     let (host, _) = step(
         host,
@@ -1600,7 +1602,10 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             StableName {
                 kind: EntityKind::Edge,
                 node: body,
-                path: vec![RoleSeg::FromA(at_extra.into())],
+                path: vec![RoleSeg::From {
+                    read: crate::fixture::out(&part_doc, extra),
+                    of: at_extra.into(),
+                }],
             }
         } else {
             at_extra
@@ -1622,13 +1627,17 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         let (part_doc, union) = insert(
             part_doc,
             Node::Union {
-                members: vec![body.into(), twin.into(), extra.into()],
+                members: editor_core::Bodies::Spelled(vec![
+                    body.into(),
+                    twin.into(),
+                    extra.into(),
+                ]),
                 // Both sides are READ at the surviving body; the
                 // stranded side's NAME derives from the extra node,
                 // which is what the delete below strands.
                 declare: editor_core::declare_rest(vec![(
-                    SitedRef::new(anchor.node, stranded.clone()),
-                    SitedRef::at_mint(anchor),
+                    SitedRef::new(crate::fixture::out(&part_doc, anchor.node), stranded.clone()),
+                    SitedRef::new(crate::fixture::out(&part_doc, anchor.node), anchor),
                 )]),
             },
         );
@@ -1636,7 +1645,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             part_doc,
             DocEdit::SetMembers {
                 node: union,
-                members: vec![body.into(), twin.into()],
+                members: editor_core::Bodies::Spelled(vec![body.into(), twin.into()]),
             },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });

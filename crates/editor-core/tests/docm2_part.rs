@@ -20,10 +20,10 @@ use crate::corpus;
 use crate::fixture::{Recorder, ang, len, scl};
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
-    StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
+    CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
+    Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind,
+    ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide, StableName,
+    ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
 use geom_core::{Affine3, Dual, Mat3, Tol, Vec3};
 use topo::{Body, BooleanResult, mass_properties, transform_rigid};
@@ -262,10 +262,8 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         // are served from the memo, only the new nodes compute.
         let selection = all_edges(&first, p);
         assert!(!selection.is_empty(), "the half has edges");
-        let joined = r.insert(Node::Boolean {
-            op: BooleanOp::Union,
-            a: p.into(),
-            b: other.into(),
+        let joined = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![p.into(), other.into()]),
             declare: Vec::new(),
         });
         let rounded = r.insert(Node::fillet(p, len(RADIUS), selection.clone()));
@@ -334,10 +332,8 @@ fn a2_the_instance_is_the_instance() {
     let p0 = part(&mut r, pat, instance(0));
     let p1 = part(&mut r, pat, instance(1));
     let p2 = part(&mut r, pat, instance(2));
-    let joined = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: p1.into(),
-        b: p2.into(),
+    let joined = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
         declare: Vec::new(),
     });
     let ev = eval(&r.doc);
@@ -817,10 +813,9 @@ fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
         1.0,
         2.0,
     );
-    r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: a.into(),
-        b: b.into(),
+    r.insert(Node::Subtract {
+        from: a.into(),
+        tool: b.into(),
         declare: Vec::new(),
     })
 }
@@ -942,20 +937,27 @@ fn a_side_naming_a_tie_both_halves_hold_refuses() {
         })
         .expect("the premise: a face tie straddling the two halves");
     let section = corpus::part_select::section_face(split, SplitHalf::Below);
-    let joined = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: editor_core::Operand::output(split, SplitHalf::Above.port()),
-        b: editor_core::Operand::output(split, SplitHalf::Below.port()),
+    let half = |h: SplitHalf| {
+        r.doc
+            .output(split, h.port())
+            .expect("the split defines both halves")
+    };
+    let (above, below) = (half(SplitHalf::Above), half(SplitHalf::Below));
+    let joined = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::Operand::output(split, SplitHalf::Above.port()),
+            editor_core::Operand::output(split, SplitHalf::Below.port()),
+        ]),
         declare: editor_core::declare_rest(vec![(
-            editor_core::SitedRef::new(split, tied),
-            editor_core::SitedRef::new(split, section),
+            editor_core::SitedRef::new(above, tied),
+            editor_core::SitedRef::new(below, section),
         )]),
     });
     let ev = eval(&r.doc);
     assert!(
         matches!(
             error_of(&ev, joined),
-            NodeErrorKind::DeclareSiteNotAnOperand { at } if *at == split
+            NodeErrorKind::DeclareSiteNotAnOperand { at } if *at == above
         ),
         "{:?}",
         error_of(&ev, joined)

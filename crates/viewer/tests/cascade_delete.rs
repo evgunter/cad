@@ -22,7 +22,7 @@ use crate::common;
 use pncad::document::ExtrudeSide;
 
 use pncad::document::{
-    BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
+    Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
 };
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, SessionOp};
@@ -87,10 +87,9 @@ fn die_shaped(tol: Tol) -> Die {
         );
         let (next, cut) = common::inserted(
             &next,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: body.into(),
-                b: placed.into(),
+            Node::Subtract {
+                from: body.into(),
+                tool: placed.into(),
                 declare: Vec::new(),
             },
             tol,

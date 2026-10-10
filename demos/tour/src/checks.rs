@@ -30,11 +30,12 @@ use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
+    Bodies, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
     Evaluation, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
     RefusingReach, Severity, apply, enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
+use pncad::topo::BooleanOp;
 
 /// Inserts a node and returns its minted id.
 fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
@@ -101,11 +102,20 @@ fn boolean_doc(
     let b = slab(&mut doc, b.0, b.1, b.2, b.3, tol);
     let root = insert(
         &mut doc,
-        Node::Boolean {
-            op,
-            a: a.into(),
-            b: b.into(),
-            declare: Vec::new(),
+        match op {
+            BooleanOp::Union => Node::Union {
+                members: Bodies::Spelled(vec![a.into(), b.into()]),
+                declare: Vec::new(),
+            },
+            BooleanOp::Intersect => Node::Intersect {
+                members: Bodies::Spelled(vec![a.into(), b.into()]),
+                declare: Vec::new(),
+            },
+            BooleanOp::Subtract => Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
+                declare: Vec::new(),
+            },
         },
         tol,
     );

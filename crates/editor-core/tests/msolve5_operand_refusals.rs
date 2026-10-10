@@ -41,11 +41,11 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
-    EntityKind, Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
-    PartSelect, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg,
-    SitedFace, StableName, product,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
+    Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame, MatePrimitive,
+    MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding, PartSelect,
+    PatternKind, ProductError, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg, SitedFace,
+    StableName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -120,10 +120,9 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, _) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: body.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: body.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -480,10 +479,8 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
     );
     let (doc, empty) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: s.xf.into(),
-            b: far.into(),
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![s.xf.into(), far.into()]),
             declare: Vec::new(),
         },
     );

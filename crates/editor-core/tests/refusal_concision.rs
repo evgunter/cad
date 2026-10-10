@@ -11,8 +11,9 @@
 use crate::corpus::eval;
 use crate::fixture::{Recorder, ang, axis_in_plane, frame, len};
 use editor_core::ExtrudeSide;
+use topo::BooleanOp;
 
-use editor_core::{BooleanOp, LoopProgram, Node, NodeResult, ProfileProgram};
+use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
 /// A cone frustum (a full revolve about `y`) unioned with a block that
 /// straddles its slanted wall: the block's faces along the axis cut the
@@ -47,10 +48,11 @@ fn cone_block_union_refusal() -> String {
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: editor_core::Operand::output(cone, 0),
-        b: block.into(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![
+            editor_core::Operand::output(cone, 0),
+            block.into(),
+        ]),
         declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);

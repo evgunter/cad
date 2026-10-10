@@ -25,15 +25,16 @@ use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
     EntityKey, EntityKind, Entry, Evaluation, Node, NodeErrorKind, RecipeNodeId, RoleSeg,
-    StableName,
+    StableName, VarId,
 };
 
-/// The member faces a published face name cites: its own, or each of a
-/// `Merged` set's, through any `Fragment`.
-fn member_faces(name: &StableName, out: &mut BTreeSet<(RecipeNodeId, StableName)>) {
+/// The member faces a published face name cites, each with the read it
+/// came through: its own, or each of a `Merged` set's, through any
+/// `Fragment`.
+fn member_faces(name: &StableName, out: &mut BTreeSet<(VarId, StableName)>) {
     match name.path.first() {
-        Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
-            out.insert((*member, (**of).clone()));
+        Some(RoleSeg::From { read, of }) if of.kind == EntityKind::Face => {
+            out.insert((*read, (**of).clone()));
         }
         Some(RoleSeg::Merged(set)) => set.iter().for_each(|c| member_faces(c, out)),
         _ => {}
@@ -57,30 +58,24 @@ fn point(body: &topo::Body<f64>, v: topo::VertexKey) -> geom_core::Point3<f64> {
 /// **Every vertex a union names for a member vertex is that vertex**:
 /// at its point, and bordering a face of the member that the member
 /// vertex lies on. Returns how many such vertices were checked.
+///
+/// A name carries the member's READ, and an evaluation holds no map
+/// from a read back to the node that defines it, so the member is
+/// found among the evaluated nodes whose own table holds the vertex
+/// (a pass-through transform's table is its input's verbatim, so there
+/// can be more than one); the vertex must be that vertex of one of
+/// them.
 fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize {
     let body = body_of(ev, union);
     let t = table(ev, union);
     let mut checked = 0;
     for (name, entry) in t.iter() {
-        let (Entry::Unique(e), [RoleSeg::FromMember { member, of }]) =
-            (entry, name.path.as_slice())
-        else {
+        let (Entry::Unique(e), [RoleSeg::From { read, of }]) = (entry, name.path.as_slice()) else {
             continue;
         };
         let (EntityKey::Vertex(v), EntityKind::Vertex) = (e.key, of.kind) else {
             continue;
         };
-        let (mbody, mtable) = (body_of(ev, *member), table(ev, *member));
-        let Some(Entry::Unique(w)) = mtable.lookup(of) else {
-            panic!("{at}: {name:?} names no vertex of its member")
-        };
-        let EntityKey::Vertex(w) = w.key else {
-            panic!("{at}: {name:?} is not a member vertex")
-        };
-        assert!(
-            (point(body, v) - point(mbody, w)).norm() < 1e-9,
-            "{at}: {name:?} is not at its member vertex"
-        );
         let mut cited = BTreeSet::new();
         for f in body.faces_of_vertex(v).unwrap() {
             if let Some(fname) = t.name_of(&editor_core::EntityRef {
@@ -90,17 +85,44 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
                 member_faces(fname, &mut cited);
             }
         }
-        let borders = mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
-            mtable
-                .name_of(&editor_core::EntityRef {
-                    body: 0,
-                    key: EntityKey::Face(g),
+        let candidates: Vec<RecipeNodeId> = ev
+            .nodes
+            .keys()
+            .copied()
+            .filter(|&n| {
+                n != union
+                    && ev.value(n).is_some_and(|v| {
+                        matches!(v.name_table.lookup(of), Some(Entry::Unique(w))
+                            if matches!(w.key, EntityKey::Vertex(_)))
+                    })
+            })
+            .collect();
+        assert!(
+            !candidates.is_empty(),
+            "{at}: {name:?} names no vertex of its member"
+        );
+        let holds = candidates.iter().any(|&member| {
+            let (mbody, mtable) = (body_of(ev, member), table(ev, member));
+            let Some(Entry::Unique(w)) = mtable.lookup(of) else {
+                return false;
+            };
+            let EntityKey::Vertex(w) = w.key else {
+                return false;
+            };
+            (point(body, v) - point(mbody, w)).norm() < 1e-9
+                && mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
+                    mtable
+                        .name_of(&editor_core::EntityRef {
+                            body: 0,
+                            key: EntityKey::Face(g),
+                        })
+                        .is_some_and(|g| cited.contains(&(*read, g.clone())))
                 })
-                .is_some_and(|g| cited.contains(&(*member, g.clone())))
         });
         assert!(
-            borders,
-            "{at}: {name:?} borders no face of its member that the member vertex lies on"
+            holds,
+            "{at}: {name:?} is not at its member vertex, or borders no face of its member that \
+             the member vertex lies on"
         );
         checked += 1;
     }
@@ -156,9 +178,9 @@ fn seam_sides_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize
 /// The member faces a parent name lists: its one member face, or each
 /// of a flat `Merged` set's, and `None` for any other shape.
 fn parent_members(parent: &StableName) -> Option<BTreeSet<StableName>> {
-    let one = |n: &StableName| matches!(n.path.as_slice(), [RoleSeg::FromMember { of, .. }] if of.kind == EntityKind::Face);
+    let one = |n: &StableName| matches!(n.path.as_slice(), [RoleSeg::From { of, .. }] if of.kind == EntityKind::Face);
     match parent.path.as_slice() {
-        [RoleSeg::FromMember { .. }] if one(parent) => Some(BTreeSet::from([parent.clone()])),
+        [RoleSeg::From { .. }] if one(parent) => Some(BTreeSet::from([parent.clone()])),
         [RoleSeg::Merged(set)] if set.len() >= 2 && set.iter().all(one) => {
             Some(set.iter().cloned().collect())
         }
@@ -340,6 +362,24 @@ fn a_union_cites_only_what_the_finished_body_holds() {
     assert!(vertices > 1000, "only {vertices} member vertices checked");
 }
 
+/// The read member `m` comes through, as the union's table spells it:
+/// the read of any carried name whose entity `m` minted. (An
+/// evaluation holds no map from a node to its read; `m` minting its own
+/// names — no pass-through between it and the union — is the premise.)
+fn read_of(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> VarId {
+    fn find(name: &StableName, m: RecipeNodeId) -> Option<VarId> {
+        name.path.iter().find_map(|seg| match seg {
+            RoleSeg::From { read, of } if of.node == m => Some(*read),
+            RoleSeg::Merged(set) => set.iter().find_map(|c| find(c, m)),
+            _ => None,
+        })
+    }
+    table(ev, union)
+        .iter()
+        .find_map(|(name, _)| find(name, m))
+        .unwrap_or_else(|| panic!("the union carries a name {m:?} minted"))
+}
+
 /// The union-space name of member `m`'s face whose vertices all lie on
 /// y = 0.
 fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> StableName {
@@ -357,8 +397,8 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
     StableName {
         kind: EntityKind::Face,
         node: union,
-        path: vec![RoleSeg::FromMember {
-            member: m,
+        path: vec![RoleSeg::From {
+            read: read_of(ev, union, m),
             of: editor_core::NameRef::new(on.expect("a face at y = 0")),
         }],
     }
@@ -574,7 +614,7 @@ fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
     let cites_pillar = |wall: &StableName| {
         let mut members = BTreeSet::new();
         member_faces(wall, &mut members);
-        members.iter().any(|(m, _)| *m == pillar)
+        members.iter().any(|(_, of)| of.node == pillar)
     };
     for (at, names) in &faces {
         for n in names {
@@ -620,7 +660,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         let (doc, u1) = insert(
             doc,
             Node::Union {
-                members: vec![ids[0].into(), ids[1].into()],
+                members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
                 declare: Vec::new(),
             },
         );

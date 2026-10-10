@@ -15,8 +15,8 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    evaluate,
 };
 use fixture::{declare_x_offset_flush, insert, len, on_frame, table};
 use geom_core::Tol;
@@ -58,10 +58,8 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
     let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: decl,
         },
     );
@@ -81,11 +79,12 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
         .collect();
     assert_eq!(long.len(), 4, "the four long edges are joined: {edges:?}");
     for set in &long {
+        let (a_read, b_read) = (fixture::out(&doc, a), fixture::out(&doc, b));
         let sides: Vec<_> = set
             .iter()
             .map(|c| match c.path.as_slice() {
-                [RoleSeg::FromA(_)] => 'a',
-                [RoleSeg::FromB(_)] => 'b',
+                [RoleSeg::From { read, of: _ }] if *read == a_read => 'a',
+                [RoleSeg::From { read, of: _ }] if *read == b_read => 'b',
                 _ => panic!("a set constituent is an operand edge: {c:?}"),
             })
             .collect();

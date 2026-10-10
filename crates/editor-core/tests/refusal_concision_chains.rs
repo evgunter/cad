@@ -1214,7 +1214,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId::new(0, tagged(3)),
+                at: editor_core::VarId::new(0, tagged(3)),
             },
         ),
         row(
@@ -3511,7 +3511,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let sited = |node| SitedRef {
-        at: RecipeNodeId::new(0, tagged(node)),
+        at: editor_core::VarId::new(0, tagged(node)),
         name: stable(EntityKind::Face, node),
     };
     let finding = |relation| FlushFinding {

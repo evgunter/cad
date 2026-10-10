@@ -20,8 +20,8 @@ use crate::docm7_union_declare::{
 };
 use crate::fixture::{ang, fname, insert, len, scl, step, wall};
 use editor_core::{
-    BooleanOp, CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveError, RoleSeg, SitedRef, find_flush_candidates,
+    CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
+    RoleSeg, SitedRef, find_flush_candidates,
 };
 use geom_core::Tol;
 
@@ -80,7 +80,7 @@ fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
         // listed-first member first, and the first of them refuses.
         let side = |m: RecipeNodeId| {
             let end = if m == d { CapEnd::Start } else { CapEnd::End };
-            SitedRef::new(m, fname(m, RoleSeg::Cap(end)))
+            SitedRef::new(crate::fixture::out(&doc, m), fname(m, RoleSeg::Cap(end)))
         };
         let want = (0..3)
             .flat_map(|i| (i + 1..3).map(move |j| (order[i], order[j])))
@@ -107,8 +107,14 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
     let rests = |m: RecipeNodeId| {
         (
-            SitedRef::new(m, fname(m, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
+            SitedRef::new(
+                crate::fixture::out(&doc, m),
+                fname(m, RoleSeg::Cap(CapEnd::End)),
+            ),
+            SitedRef::new(
+                crate::fixture::out(&doc, d),
+                fname(d, RoleSeg::Cap(CapEnd::Start)),
+            ),
         )
     };
     let mut pairs: Vec<_> = flush_pairs(&doc, (a, a), (c, c))
@@ -120,7 +126,10 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
     let ev = run(&only_c);
     assert!(
         matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
-            if [finding.pair.0.at, finding.pair.1.at] == if a < d { [a, d] } else { [d, a] }),
+        if [finding.pair.0.at, finding.pair.1.at] == {
+            let (a, d) = (crate::fixture::out(&doc, a), crate::fixture::out(&doc, d));
+            if a < d { [a, d] } else { [d, a] }
+        }),
         "{:?}",
         failure(&ev, union)
     );
@@ -147,16 +156,17 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let (base, a) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, b0) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, tr) = placed(base, b0, 0.5);
-    let boolean = |declare| Node::Boolean {
-        op: BooleanOp::Union,
-        a: a.into(),
-        b: tr.into(),
-        declare,
+    let boolean = |declare| Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
+        declare: declare,
     };
     // Sited at the minting node, which is not an operand.
     let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(a, wall(&base, a, 0))),
-        SitedRef::new(b0, fname(b0, wall(&base, b0, 0))),
+        SitedRef::new(crate::fixture::out(&base, a), fname(a, wall(&base, a, 0))),
+        SitedRef::new(
+            crate::fixture::out(&base, b0),
+            fname(b0, wall(&base, b0, 0)),
+        ),
     )]);
     let refused = base.apply(
         &DocEdit::InsertNode {
@@ -167,14 +177,14 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == b0),
+        matches!(&refused, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == crate::fixture::out(&base, b0)),
         "{refused:?}"
     );
     // Sited at the transform, naming a row the block does not have.
     let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(a, wall(&base, a, 0))),
+        SitedRef::new(crate::fixture::out(&base, a), fname(a, wall(&base, a, 0))),
         SitedRef::new(
-            tr,
+            crate::fixture::out(&base, tr),
             fname(
                 b0,
                 editor_core::RoleSeg::Lateral(crate::fixture::no_piece_of(&base).into()),
@@ -217,13 +227,11 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let (doc, x) = block(doc, (12.0, 13.0), (0.0, 1.0), 0.0, 1.0);
     // The name is `c`'s; the site is `x`, live but not an operand.
     let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-        SitedRef::new(x, fname(c, wall(&doc, c, 0))),
+        SitedRef::new(crate::fixture::out(&doc, a), fname(a, wall(&doc, a, 0))),
+        SitedRef::new(crate::fixture::out(&doc, x), fname(c, wall(&doc, c, 0))),
     )]);
-    let boolean = Node::Boolean {
-        op: BooleanOp::Union,
-        a: a.into(),
-        b: b.into(),
+    let boolean = Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: decl.clone(),
     };
     let insert_into = |doc: &ProfileDoc| {
@@ -238,7 +246,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     };
     let live = insert_into(&doc);
     assert!(
-        matches!(&live, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == x),
+        matches!(&live, Err(EditError::DeclaredSiteNotAnOperand { site, .. }) if site.id() == crate::fixture::out(&doc, x)),
         "with the name's node live, the foreign site is the fault: {live:?}"
     );
     let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: c });
@@ -256,7 +264,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         doc,
         DocEdit::SetMembers {
             node: u,
-            members: vec![a.into(), b.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&stranded);
@@ -291,11 +299,16 @@ fn every_declaring_corpus_document_replays_in_document_order() {
         let positions = |id: RecipeNodeId| doc.ids().iter().position(|n| *n == id);
         let mut has_declare = false;
         for id in doc.ids() {
-            if let Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) = doc.node(id)
+            if let Some(
+                Node::Subtract { declare, .. }
+                | Node::Union { declare, .. }
+                | Node::Intersect { declare, .. },
+            ) = doc.node(id)
             {
                 has_declare |= !declare.is_empty();
                 for r in declare.iter().flat_map(|((x, y), _)| [x, y]) {
-                    assert!(positions(r.at) < positions(id), "{}: site forward", d.name);
+                    let site = doc.operation_of(r.at).expect("a site is a live read");
+                    assert!(positions(site) < positions(id), "{}: site forward", d.name);
                     assert!(
                         positions(r.name.node) < positions(id),
                         "{}: name forward",
@@ -346,16 +359,17 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let ev = run(&doc);
-    let findings = find_flush_candidates(&ev, m1, m2, Tol::witness()).expect("detects");
+    let findings = find_flush_candidates(&ev, &doc, m1, m2, Tol::witness()).expect("detects");
     assert_eq!(findings.len(), 4, "{findings:?}");
+    let reads = (crate::fixture::out(&doc, m1), crate::fixture::out(&doc, m2));
     for f in &findings {
-        assert_eq!((f.pair.0.at, f.pair.1.at), (m1, m2));
+        assert_eq!((f.pair.0.at, f.pair.1.at), reads);
         assert_eq!((f.pair.0.name.node, f.pair.1.name.node), (proto, proto));
     }
     let (bare, union) = insert(
         doc,
         Node::Union {
-            members: vec![m1.into(), m2.into()],
+            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
             declare: Vec::new(),
         },
     );

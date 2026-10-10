@@ -32,9 +32,7 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    BooleanOp, CapEnd, DocEdit, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName,
-};
+use editor_core::{CapEnd, DocEdit, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName};
 
 use crate::fixture;
 use crate::fixture::{len, vname};
@@ -86,10 +84,8 @@ pub fn document() -> CorpusDoc {
     });
     // The kiss union: nothing is declared — the v-v kiss at (1,1,1) is
     // DISCOVERED by the op and recorded in the result's contacts.
-    let u1 = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: a.into(),
-        b: b.into(),
+    let u1 = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     });
 
@@ -112,21 +108,28 @@ pub fn document() -> CorpusDoc {
     // and the record survives into the second union's contacts.
     let kiss_a = vname(
         u1,
-        RoleSeg::FromA(outer_cap_vertex(&r.doc, a, CapEnd::End, 2).into()),
+        RoleSeg::From {
+            read: fixture::out(&r.doc, a),
+            of: outer_cap_vertex(&r.doc, a, CapEnd::End, 2).into(),
+        },
     );
     let kiss_b = vname(
         u1,
-        RoleSeg::FromB(outer_cap_vertex(&r.doc, b, CapEnd::Start, 0).into()),
+        RoleSeg::From {
+            read: fixture::out(&r.doc, b),
+            of: outer_cap_vertex(&r.doc, b, CapEnd::Start, 0).into(),
+        },
     );
     // Both names are rows of `u1`'s table — the same-operand
     // carried pair — so both are sited there, which is what says
     // they are operand A's carry and not a cross-operand contact.
-    let decl =
-        editor_core::declare_rest(vec![(SitedRef::new(u1, kiss_a), SitedRef::new(u1, kiss_b))]);
-    let u2 = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: u1.into(),
-        b: c.into(),
+    let u1_out = fixture::out(&r.doc, u1);
+    let decl = editor_core::declare_rest(vec![(
+        SitedRef::new(u1_out, kiss_a),
+        SitedRef::new(u1_out, kiss_b),
+    )]);
+    let u2 = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), c.into()]),
         declare: decl,
     });
 

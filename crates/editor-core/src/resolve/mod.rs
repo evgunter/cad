@@ -2343,8 +2343,11 @@ pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
 /// that only visits embedded names would leave it out of every id check
 /// built on [`derivation_nodes`].
 pub fn derivation_reads(name: &StableName) -> BTreeSet<crate::VarId> {
-    let mut reads: BTreeSet<crate::VarId> =
-        name.path.iter().filter_map(crate::names::read_edge).collect();
+    let mut reads: BTreeSet<crate::VarId> = name
+        .path
+        .iter()
+        .filter_map(crate::names::read_edge)
+        .collect();
     for_each_inner(name, &mut |inner| {
         reads.extend(inner.path.iter().filter_map(crate::names::read_edge));
     });
@@ -2669,7 +2672,10 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: NODE,
-            path: vec![RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(top()) }],
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: NameRef::new(top()),
+            }],
         }
     }
 
@@ -2678,7 +2684,8 @@ mod tests {
         StableName {
             kind: inner.kind,
             node: NODE,
-            path: core::iter::once(RoleSeg::From { read: crate::VarId::new(1, member),
+            path: core::iter::once(RoleSeg::From {
+                read: crate::VarId::new(1, member),
                 of: NameRef::new(inner),
             })
             .chain(tail.iter().cloned())
@@ -2725,7 +2732,14 @@ mod tests {
 
     /// A pair boolean's reading of `prior` against `now`.
     fn pair(prior: Vec<StableName>, now: Vec<StableName>) -> GroupCutters {
-        group_cutters(&table(prior), &table(now), &base(), false, Some(crate::names::FOLD_A), false)
+        group_cutters(
+            &table(prior),
+            &table(now),
+            &base(),
+            false,
+            Some(crate::names::FOLD_A),
+            false,
+        )
     }
 
     fn read(gone: Vec<StableName>, new: Vec<StableName>) -> GroupCutters {
@@ -2806,7 +2820,14 @@ mod tests {
         assert_eq!(group_reading(&tied, &base()).unwrap().parents, 2);
         let rows = || table(vec![seam(EntityKind::Edge, top(), face(5, 1), &[])]);
         assert_eq!(
-            group_cutters(&rows(), &rows(), &base(), false, Some(crate::names::FOLD_A), true),
+            group_cutters(
+                &rows(),
+                &rows(),
+                &base(),
+                false,
+                Some(crate::names::FOLD_A),
+                true
+            ),
             GroupCutters::TiedParents
         );
     }
@@ -2887,7 +2908,10 @@ mod walk_tests {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, node),
             path: vec![
-                RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(inner) },
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(inner),
+                },
                 RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
             ],
         }

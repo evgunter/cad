@@ -120,6 +120,8 @@ mod coincidence_door;
 mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "dm4_reads_key_booleans.rs"]
+mod dm4_reads_key_booleans;
 #[path = "dm7_delete_strands.rs"]
 mod dm7_delete_strands;
 #[path = "docm1_face_frame.rs"]

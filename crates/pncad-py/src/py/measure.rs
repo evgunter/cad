@@ -317,7 +317,7 @@ impl AssertionDir {
 /// Every kernel direction has a member on the Python mirror.
 ///
 /// The direction is the load-bearing one, exactly as it is for
-/// `BooleanOp`: `to_kernel` matches on `Self`, a closed local enum, so
+/// `ExtrudeSide`: `to_kernel` matches on `Self`, a closed local enum, so
 /// it says nothing about the kernel growing. This match is over the
 /// KERNEL enum, so a direction added there breaks this build and the
 /// binding must be written. Never called; the type-checked match is

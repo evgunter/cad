@@ -559,7 +559,8 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, node),
-            path: vec![RoleSeg::From { read: crate::VarId::new(1, member),
+            path: vec![RoleSeg::From {
+                read: crate::VarId::new(1, member),
                 of: NameRef::new(StableName {
                     kind: EntityKind::Face,
                     node: RecipeNodeId::new(0, member),
@@ -825,7 +826,10 @@ mod tests {
                 EntityKind::Edge,
                 12,
                 vec![
-                    RoleSeg::From { read: crate::names::FOLD_A, of: NameRef::new(inner) },
+                    RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: NameRef::new(inner),
+                    },
                     ends(vertex(12, 1), vertex(12, 2)),
                 ],
             )

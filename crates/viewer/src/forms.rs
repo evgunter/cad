@@ -37,7 +37,8 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{BooleanOp, Dimension, MatePrimitive};
+use pncad::document::{Dimension, MatePrimitive};
+use pncad::topo::BooleanOp;
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
 

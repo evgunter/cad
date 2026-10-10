@@ -2493,19 +2493,16 @@ fn the_export_door_refuses_typed_not_vaguely() {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: pncad::document::BooleanOp::Subtract,
-            a: first_box.into(),
-            b: second_box.into(),
+        Node::Subtract {
+            from: first_box.into(),
+            tool: second_box.into(),
             declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
         doc,
-        Node::Boolean {
-            op: pncad::document::BooleanOp::Union,
-            a: cut.into(),
-            b: first_box.into(),
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
             declare: Vec::new(),
         },
     );
@@ -2574,7 +2571,7 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
 /// §3.2 pinned with a `compile_fail` doctest (now flipped to the same
 /// authoring as a passing one).
 fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{BooleanOp, FreeVar, VarName};
+    use pncad::document::{FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
         radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
@@ -2648,10 +2645,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     );
     let (doc, solid) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate.into(),
-            b: tab.into(),
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
             declare: Vec::new(),
         },
     );

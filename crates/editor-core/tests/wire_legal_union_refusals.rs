@@ -22,7 +22,7 @@ use crate::fixture::{fname, wall};
 
 use editor_core::{
     BooleanCoincidence, CapEnd, Diagnosis, FoldConsumption, NamingError, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, ResolveError, RoleSeg, SitedRef,
+    RecipeNodeId, ResolveError, RoleSeg, SitedRef, VarId,
 };
 use geom_core::Tol;
 
@@ -62,8 +62,8 @@ fn a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug() 
         let mut v = flush_pairs(&doc, (a, a), (c, c));
         for seg in [0, 2] {
             v.push((
-                SitedRef::new(a, fname(a, wall(&doc, a, seg))),
-                SitedRef::new(s, fname(s, wall(&doc, s, seg))),
+                SitedRef::new(crate::fixture::out(&doc, a), fname(a, wall(&doc, a, seg))),
+                SitedRef::new(crate::fixture::out(&doc, s), fname(s, wall(&doc, s, seg))),
             ));
         }
         v
@@ -176,8 +176,8 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 /// Each wall pair as the continuation it is: the fixtures' walls carry
 /// on into one another with aligned senses.
 fn continuations(
-    pairs: &[(SitedRef, SitedRef)],
-) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
+    pairs: &[(SitedRef<VarId>, SitedRef<VarId>)],
+) -> Vec<((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence)> {
     pairs
         .iter()
         .map(|p| (p.clone(), BooleanCoincidence::Continuation))
@@ -196,7 +196,7 @@ fn continuations(
 fn every_order(
     doc: &ProfileDoc,
     members: &[(&str, RecipeNodeId)],
-    pairs: &[((SitedRef, SitedRef), BooleanCoincidence)],
+    pairs: &[((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence)],
     fused_volume: f64,
     want: &[(&str, Seen)],
 ) {
@@ -256,7 +256,11 @@ fn every_order(
 /// contact the pairwise pre-pass did not.
 fn area_overlap_fixture(
     doc: ProfileDoc,
-) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedRef, SitedRef)>) {
+) -> (
+    ProfileDoc,
+    [RecipeNodeId; 3],
+    Vec<(SitedRef<VarId>, SitedRef<VarId>)>,
+) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     let (doc, big) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
@@ -264,8 +268,8 @@ fn area_overlap_fixture(
         .into_iter()
         .map(|seg| {
             (
-                SitedRef::new(a, fname(a, wall(&doc, a, seg))),
-                SitedRef::new(s, fname(s, wall(&doc, s, seg))),
+                SitedRef::new(crate::fixture::out(&doc, a), fname(a, wall(&doc, a, seg))),
+                SitedRef::new(crate::fixture::out(&doc, s), fname(s, wall(&doc, s, seg))),
             )
         })
         .collect();
@@ -312,8 +316,14 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
     let mut pairs = continuations(&pairs);
     pairs.push((
         (
-            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+            SitedRef::new(
+                crate::fixture::out(&doc, a),
+                fname(a, RoleSeg::Cap(CapEnd::End)),
+            ),
+            SitedRef::new(
+                crate::fixture::out(&doc, p),
+                fname(p, RoleSeg::Cap(CapEnd::Start)),
+            ),
         ),
         BooleanCoincidence::REST,
     ));

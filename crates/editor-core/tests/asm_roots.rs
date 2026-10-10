@@ -111,10 +111,8 @@ fn row1b_consuming_insert_replaces_at_earliest_position() {
     assert_eq!(doc.roots(), &[a, b, c][..]);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            a: b.into(),
-            b: c.into(),
-            op: editor_core::BooleanOp::Union,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
             declare: Vec::new(),
         },
     );
@@ -138,10 +136,8 @@ fn row1c_root_delete_rereoots_orphans_in_document_order() {
     let (doc, pb, b) = block(doc, 10.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            a: a.into(),
-            b: b.into(),
-            op: editor_core::BooleanOp::Union,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -186,10 +182,8 @@ fn row1e_undo_restores_the_prior_root_list() {
     for edit in [
         DocEdit::SetRoots { roots: vec![b, a] },
         DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                a: a.into(),
-                b: b.into(),
-                op: editor_core::BooleanOp::Union,
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),

@@ -428,10 +428,8 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         distance: len(L),
         side: ExtrudeSide::Along,
     });
-    let boolean = r.insert(Node::Boolean {
-        op: editor_core::BooleanOp::Intersect,
-        a: a.into(),
-        b: b.into(),
+    let boolean = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);

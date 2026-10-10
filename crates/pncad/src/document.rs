@@ -101,15 +101,14 @@ pub use editor_core::{
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
 
-// Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
-// carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module. `CountMismatch`
+// Node vocabulary. A union or intersect takes one `Bodies` argument (a
+// family read, or spelled reads); a subtract is binary. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
 // `EditError::PlacementRuleMismatch` carry. An operand field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
+    Axis3, Bodies, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
     MeasureNodeFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
     PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
     declare_continuation, declare_rest,

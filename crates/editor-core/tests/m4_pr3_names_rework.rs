@@ -9,8 +9,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc,
-    RecipeNodeId, RoleSeg, evaluate,
+    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    RoleSeg, evaluate,
 };
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -61,10 +61,8 @@ fn union_cross_bar_names_totally() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -85,10 +83,8 @@ fn union_cross_bar_swapped_names_totally() {
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -107,10 +103,9 @@ fn subtract_cross_bar_names_totally() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );
@@ -129,10 +124,9 @@ fn subtract_block_from_bar_never_fails_in_naming() {
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: b.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
             declare: Vec::new(),
         },
     );

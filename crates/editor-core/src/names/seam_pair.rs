@@ -77,7 +77,10 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
         | RoleSeg::Fragment(
-            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_) | Qualifier::OrderAlong { .. },
+            Qualifier::Borders(_)
+            | Qualifier::Keeps(_)
+            | Qualifier::Ends(_)
+            | Qualifier::OrderAlong { .. },
         )
         | name_free_seg!() => Head::Stop,
     }
@@ -224,10 +227,7 @@ mod tests {
     #[test]
     fn the_sides_are_read_off_the_faces_descent() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let (fa, fb) = (
-            wrap(from_a, a.clone()),
-            wrap(from_b, b.clone()),
-        );
+        let (fa, fb) = (wrap(from_a, a.clone()), wrap(from_b, b.clone()));
         assert_eq!(a_side_is_first(&fa, &fb, &a, &b), Some(true));
         assert_eq!(a_side_is_first(&fb, &fa, &a, &b), Some(false));
     }
@@ -243,20 +243,14 @@ mod tests {
     #[test]
     fn two_faces_each_merged_across_both_sides_decide_nothing() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let both = merged(vec![
-            wrap(from_a, a.clone()),
-            wrap(from_b, b.clone()),
-        ]);
+        let both = merged(vec![wrap(from_a, a.clone()), wrap(from_b, b.clone())]);
         assert_eq!(a_side_is_first(&both, &both, &a, &b), None);
     }
 
     #[test]
     fn a_face_merged_across_both_sides_is_resolved_by_the_other_face() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let both = merged(vec![
-            wrap(from_a, a.clone()),
-            wrap(from_b, b.clone()),
-        ]);
+        let both = merged(vec![wrap(from_a, a.clone()), wrap(from_b, b.clone())]);
         let fb = wrap(from_b, b.clone());
         assert_eq!(a_side_is_first(&both, &fb, &a, &b), Some(true));
         assert_eq!(a_side_is_first(&fb, &both, &a, &b), Some(false));

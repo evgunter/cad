@@ -16,8 +16,8 @@ use test_utils::refusal::tagged;
 
 use crate::fixture::len;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Formula, LoopProgram, Node,
-    NodeResult, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, LoopProgram, Node, NodeResult,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 
@@ -79,19 +79,16 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let cut = insert(
         &mut doc,
-        Box::new(Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: outer.into(),
-            b: inner.into(),
+        Box::new(Node::Subtract {
+            from: outer.into(),
+            tool: inner.into(),
             declare: Vec::new(),
         }),
     );
     let downstream = insert(
         &mut doc,
-        Box::new(Node::Boolean {
-            op: BooleanOp::Union,
-            a: cut.into(),
-            b: outer.into(),
+        Box::new(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![cut.into(), outer.into()]),
             declare: Vec::new(),
         }),
     );

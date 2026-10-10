@@ -10,8 +10,8 @@ use editor_core::ExtrudeSide;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ValuePayload, evaluate,
+    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, PatternKind,
+    ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, on_frame_keeping, scl};
 use geom_core::Tol;
@@ -241,10 +241,8 @@ fn linear_pattern_evaluates_instances_as_data() {
     let (doc2, other) = unit_cube(doc.clone(), 10.0, 10.0);
     let refusal = crate::fixture::insert_refused(
         &doc2,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: pat.into(),
-            b: other.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![pat.into(), other.into()]),
             declare: Vec::new(),
         },
     );
@@ -443,10 +441,8 @@ fn typed_refusal_doors() {
     let (doc, second) = unit_cube(doc, 5.0, 5.0);
     let refusal = crate::fixture::insert_refused(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: split_node.into(),
-            b: second.into(),
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
             declare: Vec::new(),
         },
     );
@@ -953,10 +949,8 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
     let pairs = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, boolean) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: Vec::new(),
         },
     );
@@ -982,7 +976,7 @@ fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
         )
         .expect("a live boolean takes a declared-pair list");
     assert_eq!(declared.record.minted, None, "the edit mints nothing");
-    let Some(Node::Boolean { declare, .. }) = declared.doc.node(boolean) else {
+    let Some(Node::Union { declare, .. }) = declared.doc.node(boolean) else {
         panic!("the boolean is live under its own id");
     };
     assert_eq!(declare, &pairs, "the list is the one set");
