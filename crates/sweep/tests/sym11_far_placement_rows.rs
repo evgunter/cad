@@ -11,8 +11,7 @@
 //! ADOPTED FROM R2's review probe, which drove a body the table did not
 //! name at a magnitude between two that it did; they are what found the
 //! `(1e-9, 3.7e7)` cell below, where the bare lift refuses all three
-//! bodies and the symbolic lanes build two of them with nothing
-//! disputed — the tier discharging identities the point channel could
+//! bodies and `Sym<f64>` builds all three with nothing disputed — the tier discharging identities the point channel could
 //! not, which no cell of the original table showed.
 //!
 //! Driven at `Sym<f64>`, `Sym<Probe>` and `Sym<Interval>` inside a
@@ -179,11 +178,11 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///
 /// - **The dispute set is exactly four cells** — `(1e-9, 1e9)` and all
 ///   three non-origin placements at `1e-12` — and in every one of them
-///   the count is `2`: the stadium's and the washer's. The triangle
-///   refuses at those points too and disputes nothing.
+///   the count is `3`. It is the session's count of disputed theorems,
+///   not a tally by body: each body driven alone disputes one there.
 /// - **At `(1e-9, 3.7e7)` the symbolic lanes BEAT the bare lift**: the
-///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds the
-///   stadium and the triangle with zero disputes. The tier discharged
+///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds all
+///   three with zero disputes. The tier discharged
 ///   identities the point channel could not certify — which is the
 ///   whole point of the tier, and is why "the symbolic lane refuses
 ///   wherever the bare lane does" would have been a false summary.
@@ -199,10 +198,10 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   registrations. Never a contradiction, never a wrong answer
 ///   (`work/paths/fixture-built-sym-rows-lose-registered-discharges.md`).
 /// - **The certified lane is not a superset or a subset of either.**
-///   It refuses the washer at `(1e-6, 1e9)` and `(1e-9, 1e6)` where
-///   every point lane builds it (the enclosure straddles the band where
-///   the point does not), and it builds the triangle everywhere,
-///   including the cells where both point lanes refuse it.
+///   It refuses the washer at `(1e-9, 3.7e7)` where `Sym<f64>` builds
+///   it (the enclosure straddles the band where the point does not),
+///   and it builds the triangle everywhere, including the cells where
+///   both point lanes refuse it.
 /// - **The certified lane builds the stadium** wherever the point lanes
 ///   do, its extrude's closing pcurve mint included: the arc walls'
 ///   rows are certified over the `r` box by their closed-form envelope,
@@ -211,28 +210,28 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
     // ε = 1e-6: the point lanes refuse nothing anywhere; the certified
-    // lane refuses the stadium and the washer at the furthest.
+    // lane refuses the stadium at the furthest.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "MappedSource", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "built", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
-    // lanes at 1e9, and at 3.7e7 the tier rescues two bodies the bare
-    // lift refuses.
+    // lanes at 1e9, and at 3.7e7 the tier rescues the three bodies the
+    // bare lift refuses.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "MappedSource", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "built", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
 ];
 
@@ -311,6 +310,7 @@ fn assert_lane(name: &str, d: f64, want: &Lane, got: &[Result<usize, String>; 3]
              finding and not a number to refresh: {r:?}"
         );
     }
+    println!("   [{name}] eps={eps:e} d={d:e} disputes: {disputes}");
     assert_eq!(
         disputes, want.disputes,
         "[{name}] eps={eps:e} d={d:e}: {disputes} theorem(s) disputed where TABLE says {}. \
