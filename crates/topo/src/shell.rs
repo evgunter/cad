@@ -4201,57 +4201,94 @@ enum EdgeArc<T: Real> {
 }
 
 /// **A spiric or spline arc as [`MovedWall::cut`] refines it.** Each
-/// piece is its carrier over a parameter window, and holds its arc, and
-/// so the region between the arc and its chord, in the ball about the
-/// window's midpoint point whose radius is a bound on the carrier's
-/// speed times the window's half-width: a spiric's
-/// ([`carrier_ball`]'s), or [`spline_speed`] for a spline. A piece
-/// splits at its window's midpoint into two that do the same.
+/// piece is its carrier over a parameter window, run the way the face's
+/// half-edge runs: the window's first end is the start vertex's
+/// parameter, so it is the carrier's `(t₀, t₁)` reversed on a minus
+/// half-edge. A piece holds its arc, and so the region between the arc
+/// and its chord, in a ball about the window's midpoint point, radius a
+/// bound on the carrier's speed times the window's half-width: a
+/// spiric's [`carrier_ball`], or [`spline_speed`] for a spline. A
+/// spline also lies in its control net's ball ([`carrier_ball`]'s),
+/// which is the smaller for a strongly rational or tightly knotted net,
+/// so a spline piece is read in the smaller of the two. A piece splits
+/// at its window's midpoint into two that do the same.
 ///
 /// [`carrier_ball`]: crate::splitting::containment::carrier_ball
 #[derive(Clone)]
-enum ArcPiece<T: Real> {
-    /// The spiric `carrier` over its parameter window.
-    Spiric(geom::Curve3<T>, (T, T)),
-    /// The spline, a bound on its speed, and its parameter window.
-    Spline(std::sync::Arc<geom::NurbsCurve3<T>>, T, (T, T)),
+struct ArcPiece<T: Real> {
+    carrier: geom::Curve3<T>,
+    /// The carrier's speed bound, metres per unit of its parameter.
+    speed: T,
+    /// For a spline, the ball holding its whole control net.
+    hull: Option<(geom_core::Point3<T>, T)>,
+    /// From the start vertex's parameter to the end vertex's.
+    window: (T, T),
 }
 
 impl<T: Decide> ArcPiece<T> {
-    /// The ball holding this piece's arc.
-    fn ball(&self) -> (geom_core::Point3<T>, T) {
-        match self {
-            Self::Spiric(carrier, window) => {
-                crate::splitting::containment::carrier_ball(carrier, *window)
-                    .unwrap_or_else(|| unreachable!("a spiric has a ball"))
-            }
-            Self::Spline(spline, speed, (t0, t1)) => (
-                spline.eval((*t0 + *t1) * T::from_f64(0.5)),
-                *speed * (*t1 - *t0).abs() * T::from_f64(0.5),
+    /// The piece that is a spiric or spline `carrier` over `(t0, t1)`,
+    /// run forward along a plus half-edge and backward along a minus one.
+    fn along(carrier: &geom::Curve3<T>, (t0, t1): (T, T), plus: bool) -> Self {
+        let (speed, hull) = match carrier {
+            geom::Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } => (
+                geom::spiric_rate_bounds(
+                    *minor_radius,
+                    *offset,
+                    (*major_radius - *minor_radius, *major_radius + *minor_radius),
+                    T::one(),
+                )
+                .0,
+                None,
             ),
+            geom::Curve3::Nurbs(spline) => (
+                spline_speed(spline),
+                crate::splitting::containment::carrier_ball(carrier, (t0, t1)),
+            ),
+            _ => unreachable!("a line or a conic edge is not refined"),
+        };
+        Self {
+            carrier: carrier.clone(),
+            speed,
+            hull,
+            window: if plus { (t0, t1) } else { (t1, t0) },
         }
     }
 
+    /// The ball holding this piece's arc.
+    fn ball(&self) -> (geom_core::Point3<T>, T) {
+        let (t0, t1) = self.window;
+        let centre = self.carrier.mid_point(t0, t1);
+        let radius = self.speed * (t1 - t0).abs() * T::from_f64(0.5);
+        let Some((hull_centre, hull_radius)) = self.hull else {
+            return (centre, radius);
+        };
+        // Both balls hold the arc; either choice is sound, so this is a
+        // selection, not a decision.
+        let pick = |a: T, b: T| (hull_radius - radius).select_le_zero(a, b);
+        (
+            geom_core::Point3::new(
+                pick(hull_centre.x, centre.x),
+                pick(hull_centre.y, centre.y),
+                pick(hull_centre.z, centre.z),
+            ),
+            hull_radius.min(radius),
+        )
+    }
+
     /// The two halves of this piece and the carrier point between them.
-    fn split(&self) -> Option<(Self, geom_core::Point3<T>, Self)> {
-        Some(match self {
-            Self::Spiric(carrier, (t0, t1)) => {
-                let mid = (*t0 + *t1) * T::from_f64(0.5);
-                (
-                    Self::Spiric(carrier.clone(), (*t0, mid)),
-                    carrier.eval(mid),
-                    Self::Spiric(carrier.clone(), (mid, *t1)),
-                )
-            }
-            Self::Spline(spline, speed, (t0, t1)) => {
-                let mid = (*t0 + *t1) * T::from_f64(0.5);
-                (
-                    Self::Spline(spline.clone(), *speed, (*t0, mid)),
-                    spline.eval(mid),
-                    Self::Spline(spline.clone(), *speed, (mid, *t1)),
-                )
-            }
-        })
+    fn split(&self) -> (Self, geom_core::Point3<T>, Self) {
+        let (t0, t1) = self.window;
+        let mid = (t0 + t1) * T::from_f64(0.5);
+        let half = |window| Self {
+            window,
+            ..self.clone()
+        };
+        (half((t0, mid)), self.carrier.eval(mid), half((mid, t1)))
     }
 }
 
@@ -4414,10 +4451,8 @@ impl<T: Decide> MovedWall<T> {
                             decide("shell_moved_wall_ball_radius", Margin::of(rho), band),
                             Ok(Sign::Positive)
                         );
-                        if wide
-                            && splits < ARC_SPLIT_BUDGET
-                            && let Some((left, mid, right)) = piece.split()
-                        {
+                        if wide && splits < ARC_SPLIT_BUDGET {
+                            let (left, mid, right) = piece.split();
                             splits += 1;
                             work.push_back((left, a, (None, mid)));
                             work.push_back((right, (None, mid), b));
@@ -4540,14 +4575,9 @@ fn moved_walls<T: Decide>(
                                 minor,
                                 u_ref,
                             } => conic(center, axis, u_ref, major, minor),
-                            geom::Curve3::Spiric { .. } => {
-                                EdgeArc::Arc(ArcPiece::Spiric(curve.carrier().clone(), (t0, t1)))
-                            }
-                            geom::Curve3::Nurbs(ref spline) => EdgeArc::Arc(ArcPiece::Spline(
-                                spline.clone(),
-                                spline_speed(spline),
-                                (t0, t1),
-                            )),
+                            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => EdgeArc::Arc(
+                                ArcPiece::along(curve.carrier(), (t0, t1), edge.he_plus == he),
+                            ),
                         }
                     }
                 };
@@ -5016,73 +5046,229 @@ mod tests {
         );
     }
 
-    /// **The tilted read cuts a spline on its carrier, not its ball.**
-    /// The parabola `y = 1 − x²` as the quadratic Bézier over
-    /// `(−1, 0), (0, 2), (1, 0)`, closed by its diameter: cut by
-    /// `x = 0.5` the region covers `[0, 0.75]`. The control net's ball,
-    /// centred at `(0, 1)` with radius `√2`, would cover `[−0.32, 2.32]`;
-    /// the refined read covers the true interval to within a few bands at
-    /// either end. Cut by `x = 1.5` it covers nothing, though the ball
-    /// still reaches that line.
+    /// The intervals `got` cover exactly `[lo, hi]` to within `slack`:
+    /// nothing outside it, and no hole in it.
+    fn covers_exactly(got: &[(f64, f64)], (lo, hi): (f64, f64), slack: f64, what: &str) {
+        let mut sorted = got.to_vec();
+        sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert!(
+            !sorted.is_empty() && (sorted[0].0 - lo).abs() <= slack,
+            "{what}: starts at {lo}, got {sorted:?}"
+        );
+        let mut reach = sorted[0].1;
+        for &(a, b) in &sorted[1..] {
+            assert!(
+                a <= reach + slack,
+                "{what}: a hole before {a}, got {sorted:?}"
+            );
+            reach = reach.max(b);
+        }
+        assert!(
+            (reach - hi).abs() <= slack,
+            "{what}: ends at {hi}, got {sorted:?}"
+        );
+    }
+
+    /// One arc closed by its chord, as a wall in the plane through `a`
+    /// with `normal`: the carrier over `params` runs from `a` to `b`, and
+    /// the face holds it along a plus half-edge, or from `b` back to `a`
+    /// along a minus one.
+    fn arc_and_chord(
+        carrier: &geom::Curve3<f64>,
+        params: (f64, f64),
+        (a, b): (geom_core::Point3<f64>, geom_core::Point3<f64>),
+        normal: geom_core::Vec3<f64>,
+        plus: bool,
+    ) -> MovedWall<f64> {
+        let key = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let (a, b) = ((key(1), a), (key(2), b));
+        let (start, end) = if plus { (a, b) } else { (b, a) };
+        MovedWall {
+            face: FaceKey::default(),
+            solid: SolidKey::default(),
+            origin: a.1,
+            normal,
+            edges: vec![
+                BoundaryEdge {
+                    edge: EdgeKey::default(),
+                    start,
+                    end,
+                    curve: EdgeArc::Arc(ArcPiece::along(carrier, params, plus)),
+                },
+                BoundaryEdge {
+                    edge: EdgeKey::default(),
+                    start: end,
+                    end: start,
+                    curve: EdgeArc::Line,
+                },
+            ],
+            vertices: vec![a.0, b.0],
+            lo: a.1,
+            hi: b.1,
+        }
+    }
+
+    /// **The tilted read cuts a spline on its carrier, not its ball, in
+    /// either direction.** The parabola `y = 1 − x²` as the quadratic
+    /// Bézier over `(−1, 0), (0, 2), (1, 0)`, closed by its diameter, held
+    /// along a plus half-edge and along a minus one (the arc walked east
+    /// to west against its parameter). Cut by `x = c` the region covers
+    /// `[0, 1 − c²]`, with no hole, at `c = 0.3, 0.5, 0.8`. The control
+    /// net's ball, centred at `(0, 1)` with radius `√2`, would cover
+    /// `[−0.32, 2.32]` at `x = 0.5`. Cut by `x = 1.5` it covers nothing,
+    /// though the ball still reaches that line.
     #[test]
     fn the_tilted_cut_reads_a_spline_on_its_carrier() {
         use geom_core::spline::KnotVector;
         use geom_core::{Point3, Vec3};
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let key = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let west = (key(1), Point3::new(-1.0, 0.0, 0.0));
-        let east = (key(2), Point3::new(1.0, 0.0, 0.0));
-        let parabola = geom::NurbsCurve3::new(
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
-            vec![west.1, Point3::new(0.0, 2.0, 0.0), east.1],
-            vec![1.0; 3],
-        )
-        .unwrap();
-        let wall = MovedWall {
-            face: FaceKey::default(),
-            solid: SolidKey::default(),
-            origin: o,
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            edges: vec![
-                BoundaryEdge {
-                    edge: EdgeKey::default(),
-                    start: west,
-                    end: east,
-                    curve: EdgeArc::Arc(ArcPiece::Spline(
-                        std::sync::Arc::new(parabola.clone()),
-                        spline_speed(&parabola),
-                        (0.0, 1.0),
-                    )),
-                },
-                BoundaryEdge {
-                    edge: EdgeKey::default(),
-                    start: east,
-                    end: west,
-                    curve: EdgeArc::Line,
-                },
-            ],
-            vertices: Vec::new(),
-            lo: o,
-            hi: o,
-        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (west, east) = (Point3::new(-1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+        let parabola = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![west, Point3::new(0.0, 2.0, 0.0), east],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
         let up = Vec3::new(0.0, 1.0, 0.0);
-        let got = wall.cut(Point3::new(0.5, 0.0, 0.0), up, band).unwrap();
-        let lo = got.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
-        let hi = got.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
         // A leaf's ball is within the band, and its cut lies within
         // twice its radius of the arc the ball holds.
         let slack = 4.0 * band.escalate();
-        assert!(
-            lo.abs() <= slack && (hi - 0.75).abs() <= slack,
-            "the parabola at x = 0.5 covers [0, 0.75], got {got:?}"
+        for plus in [true, false] {
+            let wall = arc_and_chord(
+                &parabola,
+                (0.0, 1.0),
+                (west, east),
+                Vec3::new(0.0, 0.0, 1.0),
+                plus,
+            );
+            for c in [0.3, 0.5, 0.8] {
+                let got = wall.cut(Point3::new(c, 0.0, 0.0), up, band).unwrap();
+                covers_exactly(
+                    &got,
+                    (0.0, 1.0 - c * c),
+                    slack,
+                    &format!("plus {plus}: the parabola at x = {c}"),
+                );
+            }
+            let past = wall.cut(Point3::new(1.5, 0.0, 0.0), up, band).unwrap();
+            assert!(
+                past.is_empty(),
+                "plus {plus}: the parabola at x = 1.5 covers nothing, got {past:?}"
+            );
+        }
+    }
+
+    /// **A spline-bounded wall held against its parameter still
+    /// crosses.** The parabola cap of the row above, held along a minus
+    /// half-edge, against a rectangle in the plane `x = 0.5` covering
+    /// `y ∈ [0.28, 0.34]` and `z ∈ [−1, 1]`. The two meet on the line
+    /// `x = 0.5, z = 0`, where the cap covers `[0, 0.75]`, so the walls
+    /// overlap by `0.06`. Refined with the window run the wrong way, the
+    /// cap's cut had a hole over `[0.25, 0.375]` and the pair read clear.
+    #[test]
+    fn a_reversed_spline_wall_crossing_a_rectangle_refuses() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (west, east) = (Point3::new(-1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+        let parabola = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![west, Point3::new(0.0, 2.0, 0.0), east],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let cap = arc_and_chord(
+            &parabola,
+            (0.0, 1.0),
+            (west, east),
+            Vec3::new(0.0, 0.0, 1.0),
+            false,
         );
-        let past = wall.cut(Point3::new(1.5, 0.0, 0.0), up, band).unwrap();
+        let key = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let corners = [(0.28, -1.0), (0.34, -1.0), (0.34, 1.0), (0.28, 1.0)]
+            .map(|(y, z)| Point3::new(0.5, y, z));
+        let ring: Vec<(VertexKey, Point3<f64>)> =
+            (0..4).map(|i| (key(10 + i as u64), corners[i])).collect();
+        let rectangle = MovedWall {
+            face: FaceKey::default(),
+            solid: SolidKey::default(),
+            origin: corners[0],
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            edges: (0..4)
+                .map(|i| BoundaryEdge {
+                    edge: EdgeKey::default(),
+                    start: ring[i],
+                    end: ring[(i + 1) % 4],
+                    curve: EdgeArc::Line,
+                })
+                .collect(),
+            vertices: ring.iter().map(|r| r.0).collect(),
+            lo: Point3::new(0.5, 0.28, -1.0),
+            hi: Point3::new(0.5, 0.34, 1.0),
+        };
+        let cap = MovedWall {
+            lo: Point3::new(-1.0, 0.0, 0.0),
+            hi: Point3::new(1.0, 1.0, 0.0),
+            ..cap
+        };
+        let got = walls_cross(&cap, &rectangle, band).unwrap();
         assert!(
-            past.is_empty(),
-            "the parabola at x = 1.5 covers nothing, got {past:?}"
+            got.is_some_and(|o| (o - 0.06).abs() < 1e-9),
+            "the walls overlap by 0.06, got {got:?}"
         );
+    }
+
+    /// **A spiric arc is cut on its carrier in either direction.** The
+    /// oval the plane `x = 1/2` cuts from the torus `R = 2, r = 1` about
+    /// `z`, over `v ∈ [0, π]` (from its outer to its inner point on
+    /// `z = 0`, over the top), closed by its chord on `z = 0`, held along
+    /// a plus half-edge and along a minus one. Cut by `y = c` the region
+    /// covers `[0, sin v]` where `√((2 + cos v)² − 1/4) = c`, with no
+    /// hole.
+    #[test]
+    fn the_tilted_cut_reads_a_spiric_on_its_carrier() {
+        use geom_core::{Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (big, small, d) = (2.0_f64, 1.0_f64, 0.5_f64);
+        let oval = geom::Curve3::Spiric {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            major_radius: big,
+            minor_radius: small,
+            offset: d,
+        };
+        let pi = core::f64::consts::PI;
+        let wall = |plus| {
+            arc_and_chord(
+                &oval,
+                (0.0, pi),
+                (oval.eval(0.0), oval.eval(pi)),
+                Vec3::new(1.0, 0.0, 0.0),
+                plus,
+            )
+        };
+        let slack = 4.0 * band.escalate();
+        for plus in [true, false] {
+            let wall = wall(plus);
+            for c in [1.4, 2.0, 2.6] {
+                let cos_v = ((c * c + d * d).sqrt() - big) / small;
+                let top = small * (1.0 - cos_v * cos_v).sqrt();
+                let got = wall
+                    .cut(Point3::new(d, c, 0.0), Vec3::new(0.0, 0.0, 1.0), band)
+                    .unwrap();
+                covers_exactly(
+                    &got,
+                    (0.0, top),
+                    slack,
+                    &format!("plus {plus}: the oval at y = {c}"),
+                );
+            }
+        }
     }
 
     /// **Nesting on a curved chart is read in the chart, at any width
