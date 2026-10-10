@@ -470,6 +470,22 @@ fn sub_segment(
     if p == 0 || (a == s0 && b == s1) {
         return row.to_vec();
     }
+    if std::env::var_os("REVIEW_BLOSSOM").is_some() {
+        // Coefficient i of [a, b] is the blossom at (a^(p-i), b^i),
+        // de Casteljau from the segment's own row: depth p, not 2p.
+        return (0..=p)
+            .map(|i| {
+                let mut r = row.to_vec();
+                for level in 0..p {
+                    let t = if level < p - i { a } else { b };
+                    for j in 0..p - level {
+                        r[j] = super::algebra::convex_step(r[j], r[j + 1], s0, s1, t);
+                    }
+                }
+                r[0]
+            })
+            .collect();
+    }
     let bezier = KnotVector::clamped(
         core::iter::repeat_n(s0, p + 1)
             .chain(core::iter::repeat_n(s1, p + 1))
@@ -2506,6 +2522,86 @@ mod tests {
         assert!(checked > 100, "the row checked {checked} slots");
     }
 
+    #[test]
+    fn review_probe_exact_rows_degree_one_and_repeats() {
+        let mut checked = 0usize;
+        for (name, p, knot_list, coeff_ends) in review_fixtures() {
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let (lo, hi) = kv.domain();
+            let extra: Vec<f64> = [0.9, 0.1, 0.1, 0.3, 1.0 / 3.0, 0.4, 0.5, 0.5, 0.77, 0.9, 0.0, 1.0, -0.5, 0.123_456_789]
+                .iter()
+                .map(|f| lo + (hi - lo) * f)
+                .collect();
+            let ring: Vec<Interval> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| Interval::from_bounds(*lo, *hi))
+                .collect();
+            let got = to_bezier_spans_extra(&kv, &ring, &extra);
+            let mut knots = kv.knots().to_vec();
+            let mut exact: Vec<QInt> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| QInt {
+                    lo: Q::from_f64(*lo),
+                    hi: Q::from_f64(*hi),
+                })
+                .collect();
+            let mut runs: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            for &v in &extra {
+                if let Some(k) = kv.interior_knot(v)
+                    && !runs.iter().any(|(w, _)| w.value() == v)
+                {
+                    runs.push((k, 0));
+                }
+            }
+            runs.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
+            for (v, m) in &runs {
+                for step in *m..p {
+                    exact = insert_once_exact(&knots, p, step, &exact, *v);
+                    knots.insert(find_span_in(&knots, p, *v) + 1, v.value());
+                }
+            }
+            let mut want_breaks = vec![lo];
+            want_breaks.extend(runs.iter().map(|(v, _)| v.value()));
+            want_breaks.push(hi);
+            assert_eq!(
+                got.breaks, want_breaks,
+                "{name}: the breaks are the merged list"
+            );
+            for (j, row) in got.spans.iter().enumerate() {
+                for (i, r) in row.iter().enumerate() {
+                    if !r.is_certified() {
+                        continue;
+                    }
+                    let x = &exact[j * p + i];
+                    assert!(
+                        x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less
+                            && x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                        "{name}: span {j} slot {i} [{:e}, {:e}] does not enclose the exact \
+                         [{:e}, {:e}]",
+                        r.lo(),
+                        r.hi(),
+                        x.lo.to_f64_report(),
+                        x.hi.to_f64_report()
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 10, "the row checked {checked} slots");
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn review_fixtures() -> Vec<(&'static str, usize, Vec<f64>, Vec<(f64, f64)>)> {
+        let pts = |v: &[f64]| -> Vec<(f64, f64)> { v.iter().map(|x| (*x, *x)).collect() };
+        vec![
+            ("deg1 with knots", 1, vec![0.0, 0.0, 0.4, 0.7, 1.0, 1.0], pts(&[0.3, -1.7, 2.9, 0.1])),
+            ("deg1 bezier", 1, vec![0.0, 0.0, 1.0, 1.0], vec![(0.1, 0.2), (-3.0, 7.0)]),
+            ("deg2 double knot", 2, vec![0.0, 0.0, 0.0, 0.4, 0.4, 1.0, 1.0, 1.0], pts(&[1.0, -2.0, 3.0, 0.5, 9.0])),
+            ("deg4 bezier", 4, vec![0.0; 5].into_iter().chain(vec![1.0; 5]).collect(), pts(&[1.0, -1.0, 1e10, -1.0, 1.0])),
+            ("deg5 at knot 0.5", 5, vec![0.0; 6].into_iter().chain([0.5]).chain(vec![1.0; 6]).collect(), pts(&[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])),
+        ]
+    }
+
     /// Cutting more breaks into one segment does not widen its rows: a
     /// line on `[0, 1]` cut at the 254 interior 255ths keeps every
     /// coefficient within a few ulps, where inserting the breaks one
@@ -2529,5 +2625,25 @@ mod tests {
             "the widest coefficient after 254 cuts is {widest:e}, {} ulps of 1",
             widest / f64::EPSILON
         );
+    }
+
+    #[test]
+    fn review_probe_width_against_break_count() {
+        let base = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
+        for p in 1..=5usize {
+            let mut knots = vec![0.0; p + 1];
+            knots.extend(vec![1.0; p + 1]);
+            let kv = KnotVector::clamped(knots, p).unwrap();
+            let row: Vec<Interval> = base[..=p].iter().map(|x| Interval::point(*x)).collect();
+            let mut line = format!("p={p}:");
+            for n in [1usize, 3, 7, 15, 31, 63, 127, 255] {
+                #[allow(clippy::cast_precision_loss)]
+                let extra: Vec<f64> = (1..=n).map(|k| k as f64 / (n + 1) as f64).collect();
+                let got = to_bezier_spans_extra(&kv, &row, &extra);
+                let w = got.spans.iter().flatten().map(|c| c.hi() - c.lo()).fold(0.0f64, f64::max);
+                line += &format!(" N={n}:{:.0}", w / f64::EPSILON);
+            }
+            println!("{line}");
+        }
     }
 }
