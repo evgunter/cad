@@ -367,8 +367,8 @@ fn joinable<T: Decide>(
             certified_line(body, e, d).is_some_and(|c| {
                 matches!(
                     c.description(),
-                    geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                        if Body::<T>::cites_pair((*s1, *s2), sf, sg)
+                    geom_brep::EdgeDescription::Intersection { pair, .. }
+                        if *pair == geom_brep::SurfacePair::new(sf, sg)
                 )
             })
         };
@@ -381,13 +381,13 @@ fn joinable<T: Decide>(
             return Ok(None);
         };
         Ok(match c.description() {
-            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                if sf != sg && Body::<T>::cites_pair((*s1, *s2), sf, sg) =>
+            geom_brep::EdgeDescription::Intersection { pair, .. }
+                if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
                 Some(Locus::Transverse)
             }
-            geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. }
-                if sf != sg && Body::<T>::cites_pair((*s1, *s2), sf, sg) =>
+            geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+                if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
                 Some(Locus::Tangent)
             }
@@ -811,17 +811,15 @@ fn joined_spec<T: Decide>(
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     let description = match kept.description() {
-        geom_brep::EdgeDescription::Intersection { s1, s2, .. } => {
+        geom_brep::EdgeDescription::Intersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: *s1,
-                s2: *s2,
+                pair: *pair,
                 witness: carrier.mid_point(a, b),
             }
         }
-        geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+        geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                s1: *s1,
-                s2: *s2,
+                pair: *pair,
                 witness: carrier.mid_point(a, b),
             }
         }

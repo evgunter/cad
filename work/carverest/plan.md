@@ -7,8 +7,7 @@ Opened 2026-10-10 by CARVE's third priority-seam cut
 
 ## The slate
 
-**13.5 budget points** of dispatchable work against a ceiling of 30.
-PR 4189's state sync adds two more rows, for 17.
+**17 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -16,12 +15,10 @@ PR 4189's state sync adds two more rows, for 17.
 | P3 | `corner-valence-reads-a-self-closed-edge-once` | M | corner_at, cap_incidence and the corner admission count a self-closed edge once at its vertex |
 | P3 | `loft-doors-take-a-non-finite-placement` | M | the loft doors take a non-finite placement: an infinite z refuses ReversedStacking and a NaN escalates |
 | P3 | `loft-geometry-refuses-a-bad-parameter-vector-as-a-count-mismatch` | E | loft_geometry refuses a NaN, descending or unclamped parameter vector as a count mismatch |
+| P3 | `material-jet-readings-take-plus-minus-order` | M | tier 3, rim_wedge and contact_verify read the tangent jet in (plus, minus) order, a third order beside the certificate's key order |
 | P3 | `skin-union-mints-a-hairline-span-from-knots-an-ulp-apart` | M | make_compatible's knot union keeps two section knots an ulp apart as two knots |
 | P3 | `sweep-places-vanishing-tangent-is-a-bare-f64-compare` | M | sweep_places refuses a vanishing path tangent by a bare n > 0.0 |
-
-Arriving with PR 4189:
-`material-jet-readings-take-plus-minus-order` (P3, M) and
-`certify-residual-predicates-still-name-a-slot` (P4, E).
+| P4 | `certify-residual-predicates-still-name-a-slot` | E | certify's residual predicate names still name a slot of the surface pair |
 
 ## Order
 

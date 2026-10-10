@@ -267,7 +267,11 @@ fn the_exit_demo_walk() {
     // verification does not die at the commit.
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { minted: 1 }),
+        Some(&viewer::session::AtRestBadge::Certified {
+            minted: 1,
+            loud: 0,
+            quiet: 0,
+        }),
         "the mated assembly certifies at rest with its one declaration"
     );
 

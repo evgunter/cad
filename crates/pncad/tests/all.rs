@@ -367,9 +367,8 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
 
 /// `ValidationError::UndeclaredContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
-/// `EdgeFacePierce` is interpenetration and categorically undeclarable
-/// until the C6 era, while an `EdgeEdgeOverlap` is certifiable through
-/// the D3 reconstruction today. Same refusal, opposite advice.
+/// `EdgeFacePierce` is interpenetration and undeclarable, while an
+/// `EdgeEdgeOverlap` is certifiable through the D3 reconstruction. Same refusal, opposite advice.
 fn census_contact_is_matchable(contact: CensusContact) -> bool {
     match contact {
         CensusContact::VertexVertex { a, b } => {
