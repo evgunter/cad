@@ -1,6 +1,8 @@
 //! INTENT stage 5 PR A: an assertion's relation is `≥`, `≤` or `=`
 //! (D10's `Assert { measure, relation, bound }`).
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use crate::fixture::{self, cap_ref, insert, len};
 use crate::wire::doctored;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
