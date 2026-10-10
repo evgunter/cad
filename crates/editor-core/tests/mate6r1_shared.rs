@@ -127,6 +127,7 @@ fn row_of(
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -365,6 +366,7 @@ fn r1_false_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -407,6 +409,7 @@ fn r1_true_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -499,7 +502,7 @@ fn r1_no_mates_document_digest() {
         "R1-PROBE no_mates solids={} contacts={:?} roots={} names_empty={}",
         g.body.solids().count(),
         g.contacts,
-        g.solid_roots.len(),
+        g.solid_copies.len(),
         format!("{:?}", g.names).len()
     );
 }
@@ -521,6 +524,7 @@ fn r1_three_stands_exact_counts() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -567,6 +571,7 @@ fn r1_overlapping_false_carried_declaration() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     // seat 0.5 on a unit cube: the two cubes INTERPENETRATE, and the
     // Rest declaration over their caps is a lie about that geometry.
     let (inner, _) = step(
@@ -601,7 +606,7 @@ fn r1_overlapping_false_carried_declaration() {
 }
 
 /// PROBE (claim 5, closing the `checks` lane): TWO instances of the
-/// overlapping-and-falsely-declared stand, so `solid_roots` certainly
+/// overlapping-and-falsely-declared stand, so `solid_copies` certainly
 /// holds more than one row and `separation` certainly has pairs to
 /// judge. Prints the root count beside the finding count, so a zero can
 /// be read as "nothing to suppress" rather than "suppressed".
@@ -616,6 +621,7 @@ fn r1_two_overlapping_false_stands() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -644,7 +650,7 @@ fn r1_two_overlapping_false_stands() {
     };
     println!(
         "R1-PROBE two_overlapping_false_stands roots={} solids={} patches={} separation_findings => {sep}",
-        g.solid_roots.len(),
+        g.solid_copies.len(),
         g.body.solids().count(),
         g.contacts.patches.len()
     );

@@ -384,8 +384,7 @@ use std::borrow::Cow;
 
 use geom::{NetState, Surface};
 use geom_brep::recourse::{
-    Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, UNREADABLE_MARGIN_NOTE,
-    Unsized,
+    Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
 };
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
@@ -2498,41 +2497,6 @@ fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static st
     if margin.is_invalid() { DEFECT } else { lever }
 }
 
-/// The ending of an undecided margin whose refusal does not carry which
-/// of its site's decisions it is: no lever, since none is known to reach
-/// it, and for a poisoned margin what that may mean.
-fn unnamed(margin: &geom_core::MarginDiag) -> Cow<'static, str> {
-    geom_core::noted(
-        NOT_YET_ENDING,
-        margin.is_invalid().then_some(UNREADABLE_MARGIN_NOTE),
-    )
-    .into()
-}
-
-/// `unnamed`'s words, held to `geom_brep::recourse::not_yet`'s — the one
-/// home props' own checks compose that ending from.
-#[cfg(test)]
-#[test]
-#[allow(clippy::unwrap_used)]
-fn the_not_yet_ending_is_one_spelling() {
-    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
-    for margin in [
-        geom_core::MarginDiag::value(5e-9),
-        geom_core::MarginDiag::INVALID,
-    ] {
-        let cause = geom_core::Indeterminate {
-            margin,
-            band,
-            predicate: None,
-            terminal_sliver: false,
-        };
-        assert_eq!(
-            unnamed(&margin),
-            geom_brep::recourse::not_yet(RefusedArm::Undecided(&cause))
-        );
-    }
-}
-
 /// A flat face's corner on its plane: a residual (it passes only at zero)
 /// of a stored vertex against the plane the kernel caches from those same
 /// corners, an exact construction.
@@ -3092,7 +3056,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET_ENDING,
         ),
-        M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
+        M::Escalated { cause, .. } => {
+            return (
+                CLOSE,
+                geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
+            );
+        }
         // Never produced at rest: only the face description raises it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
@@ -3590,11 +3559,23 @@ impl fmt::Display for ValidationError {
                 "two edges meeting at a vertex lie on one curve and are one edge, so the \
                  operation that finished the body did not join them. {DEFECT}"
             ),
-            Self::JoinUndecidedAtRest { undecided } => write!(
-                f,
-                "{}",
-                crate::boolean::JoinRefusal::Undecided(undecided.clone())
-            ),
+            Self::JoinUndecidedAtRest { undecided } => match undecided.diag() {
+                Some(diag) => write!(
+                    f,
+                    "{} is undecided ({}). {}",
+                    crate::boolean::JOIN_SUBJECT,
+                    diag.payload(),
+                    diag.ending_noted(
+                        crate::boolean::JOIN_LEVER,
+                        geom_brep::recourse::unreadable_margin_note(Reading::AtRest)
+                    )
+                ),
+                None => write!(
+                    f,
+                    "{}",
+                    crate::boolean::JoinRefusal::Undecided(undecided.clone())
+                ),
+            },
             Self::TangentNotIntrinsic { .. } => write!(
                 f,
                 "an edge where two faces meet tangentially is stored as a sketch curve, \
@@ -3736,11 +3717,21 @@ impl fmt::Display for ValidationError {
                  measured with far from the world origin. Recourse: model the part nearer the \
                  origin, or tighten the tolerance",
             ),
-            Self::ShellRoleUndecided { error, .. } => write!(
-                f,
-                "a shell's role in its solid cannot be read, so the solid's shells cannot be \
-                 wound: {error}"
-            ),
+            Self::ShellRoleUndecided { error, .. } => {
+                f.write_str(
+                    "a shell's role in its solid cannot be read, so the solid's shells cannot \
+                     be wound: ",
+                )?;
+                match error.arm() {
+                    Some(arm) => write!(
+                        f,
+                        "{}. {}",
+                        error.payload(),
+                        crate::props::SHELL_ROLE.recourse(arm, Reading::AtRest)
+                    ),
+                    None => write!(f, "{error}"),
+                }
+            }
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
             Self::UndeclaredContact { contact, witness } => write!(
@@ -10863,6 +10854,42 @@ mod tests {
         );
     }
 
+    /// **A poisoned shell role read at rest keeps its lever and names the
+    /// file** (D4 ¶1 (i)): check 10 ends the shell-role decision itself,
+    /// at rest, where the shell door's own text reads it at a build.
+    #[test]
+    fn a_poisoned_shell_role_at_rest_names_the_file() {
+        let error = crate::props::ShellClassifyError::Escalated {
+            shell: crate::entity::ShellKey::default(),
+            source: Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("chk_shell_volume_sign"),
+                terminal_sliver: false,
+            },
+        };
+        let lever = "Recourse: thicken or remove the degenerate geometry";
+        assert!(
+            error.to_string().ends_with(&format!(
+                "{lever}; an unreadable margin may indicate a kernel bug worth reporting"
+            )),
+            "the shell door reads at a build: {error}"
+        );
+        let at_rest = ValidationError::ShellRoleUndecided {
+            solid: SolidKey::default(),
+            error,
+            sliver: None,
+        }
+        .to_string();
+        assert!(
+            at_rest.ends_with(&format!(
+                "{lever}; an unreadable margin may indicate a kernel or file defect worth \
+                 reporting"
+            )),
+            "{at_rest}"
+        );
+    }
+
     #[test]
     fn orphan_geometry_is_reported_for_all_three_arenas() {
         let mut t = pillow(Tol::witness());
@@ -10957,8 +10984,8 @@ mod tests {
             read(S::Escalated { face, diag }).1,
             "Recourse: move the point clearly inside or outside the face"
         );
-        // A poisoned margin adds the unreadable-margin note, on the carried
-        // path as on the top-level one.
+        // A poisoned margin adds the unreadable-margin note at rest, which
+        // names the file, on the carried path as on the top-level one.
         let poisoned = Indeterminate {
             margin: MarginDiag::INVALID,
             ..diag
@@ -10978,7 +11005,7 @@ mod tests {
             assert!(
                 read(carried.clone())
                     .1
-                    .ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
+                    .ends_with(geom_core::UNREADABLE_STORED_MARGIN_NOTE),
                 "{carried:?}"
             );
         }
@@ -11356,7 +11383,10 @@ mod tests {
                         cause: diag(MarginDiag::INVALID),
                     },
                 },
-                format!("There is no way through yet; {UNREADABLE_MARGIN_NOTE}"),
+                format!(
+                    "There is no way through yet; {}",
+                    geom_core::UNREADABLE_STORED_MARGIN_NOTE
+                ),
             ),
             (
                 "pcurve fitted certificate, in band",
@@ -15606,8 +15636,8 @@ mod offset_fit_door_rows {
             (
                 says(escalated(Meter::NormalFloor, MarginDiag::INVALID)),
                 format!(
-                    "{LEAD}: {close}. {SPLIT}; an unreadable or collapsed margin may indicate a \
-                     kernel bug worth reporting"
+                    "{LEAD}: {close}. {SPLIT}; an unreadable margin may indicate a kernel or \
+                     file defect worth reporting"
                 ),
             ),
             (

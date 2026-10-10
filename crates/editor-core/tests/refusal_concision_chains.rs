@@ -87,13 +87,13 @@ const KERNEL_KEYED: &[&str] = &[
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // A check finding's labels as its own `Display` says them, with no
-    // document at hand (`check separation: root 000000000004 output 0:
-    // …`): the check the person ran, named as the menu names it, and
-    // the root it ran on, by its tag.
+    // document at hand (`check separation: placement 000000000004 output
+    // 0: …`): the check the person ran, named as the menu names it, and
+    // the placement it ran on, by its tag.
     ("Check/", "check separation"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
-    ("Check/", "root 000000000004 output 0"),
+    ("Check/", "placement 000000000004 output 0"),
     // The mate solve names the mate it refused (`mate 9: …`).
     ("Mate/", "mate 000000000009"),
     // A pair's corner list names each corner it could not fillet.
@@ -1950,8 +1950,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
-            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable or \
-             collapsed margin may indicate a kernel bug worth reporting",
+            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable margin may indicate a kernel bug worth reporting",
         ),
         (
             "lever arm",
@@ -1997,7 +1996,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             "spline meter, invalid",
             escalated(CertCheck::ParamSpanMeter, MarginDiag::INVALID),
             "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
-             or turning back; an unreadable or collapsed margin may indicate a kernel bug worth \
+             or turning back; an unreadable margin may indicate a kernel bug worth \
              reporting",
         ),
         (
@@ -2118,7 +2117,7 @@ fn meter_escalations(curvature: &str) -> Vec<(&'static str, geom_brep::OffsetFit
             "invalid",
             escalated(Meter::CurvatureHeadroom, MarginDiag::INVALID),
             format!(
-                "{curvature}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                "{curvature}; an unreadable margin may indicate a kernel bug worth \
                  reporting"
             ),
         ),
@@ -3776,14 +3775,13 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
 
 /// The instance rows of a part with no product, raised through real
 /// documents so each carries the gather's own sentence: a sketch-only
-/// part, whose roots denote no body; a part that places its body under
-/// two roots; and a part whose split and a move of the split's target
-/// are both roots, so the two alias the block's strict wall names.
+/// part, whose world is empty, and a part whose one placement's body
+/// was deleted.
 fn part_products() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::resolver::{PartStore, with_resolver};
-    use crate::fixture::{ang, insert, len, on_frame, scl, square};
+    use crate::fixture::{insert, len, on_frame, square};
     use editor_core::{
-        CancelToken, Datum, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
+        CancelToken, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
         evaluate,
     };
     use geom_core::Tol;
@@ -3797,22 +3795,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             vec![square(0.0, 0.0, 0.5)],
         )
     };
-    let moved = |doc, input, dx| {
-        insert(
-            doc,
-            Node::transform(
-                input,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-        .0
-    };
-    let twice = {
-        let (doc, profile) = sketch("concision-part-twice");
+    let stranded = {
+        let (doc, profile) = sketch("concision-part-stranded");
         let (doc, body) = insert(
             doc,
             Node::Extrude {
@@ -3821,50 +3805,20 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 side: ExtrudeSide::Along,
             },
         );
-        moved(moved(doc, body, 2.0), body, 4.0)
-    };
-    let aliased = {
-        let (doc, profile) = sketch("concision-part-aliased");
-        let (doc, block) = insert(
-            doc,
-            Node::Extrude {
-                profile: profile.into(),
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            },
-        );
-        let (doc, plane) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.25), len(0.0), len(0.0)],
-                normal: [scl(1.0), scl(0.0), scl(0.0)],
-            }),
-        );
-        let (doc, _) = insert(
-            doc,
-            Node::Split {
-                target: block.into(),
-                tool: plane.into(),
-            },
-        );
-        moved(doc, block, 2.0)
+        let (doc, _) = crate::fixture::place(doc, body);
+        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: body }).0
     };
     let mut store = PartStore::new();
     let parts = [
         (
             "Part/PartProduct",
             store.insert(sketch("concision-part-sketch").0, tol),
-            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::EmptyProduct,
         ),
         (
-            "Part/PartProduct(PlacedUnderTwoRoots)",
-            store.insert(twice, tol),
-            ProductErrorKind::PlacedUnderTwoRoots,
-        ),
-        (
-            "Part/PartProduct(Naming)",
-            store.insert(aliased, tol),
-            ProductErrorKind::Naming,
+            "Part/PartProduct(StrandedPlacement)",
+            store.insert(stranded, tol),
+            ProductErrorKind::StrandedPlacement,
         ),
     ];
     let opts = with_resolver(store);
@@ -3896,8 +3850,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
 }
 
 /// The instance rows of the three gather classes whose sentence
-/// forwards the kernel's own refusal, which no document reaches: a root
-/// the at-rest gate refuses, an aggregate it refuses, and a graft the
+/// forwards the kernel's own refusal, which no document reaches: a
+/// placement the at-rest gate refuses, an aggregate it refuses, and a graft the
 /// kernel refuses. Each is built as the instance carries it, the
 /// gather's refusal whole.
 fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
@@ -4727,7 +4681,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
 
 /// **Every checks-window finding fits the window it is listed in.** The
 /// checks window draws each finding's `Display` verbatim beside its
-/// root's button, so each `CheckEvidence` arm is rendered as the window
+/// placement's button, so each `CheckEvidence` arm is rendered as the window
 /// draws it, on a representative payload, and held to the budget. The
 /// separation arm forwards a Boolean refusal's own sentence; it is
 /// rendered over every containment refusal the separation read can
@@ -4789,7 +4743,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         .to_string()
     };
     let head =
-        "check connectedness: root 000000000004 output 0: the component count is unknowable: ";
+        "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
     let sign = "the sign of a shell's volume is too close to call: ";
     let in_band =
         |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
@@ -4822,7 +4776,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             escalated(MarginDiag::INVALID),
             format!(
                 "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). {LEVER}; an \
-                 unreadable or collapsed margin may indicate a kernel bug worth reporting"
+                 unreadable margin may indicate a kernel or file defect worth reporting"
             ),
         ),
         (
@@ -4866,11 +4820,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     for (name, source, want) in pinned {
         let text = render(source.clone());
         assert_eq!(text, want, "{name}");
-        // The payload's own Display ends in the same one ending.
-        let ending = source.ending().expect("the shell-role decision's refusal");
+        // The finding ends in the shell-role decision's ending read at
+        // rest; the shell door's own Display reads it at a build.
+        let arm = source.arm().expect("the shell-role decision's refusal");
+        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
         assert!(text.ends_with(&ending), "{name}: {text}");
+        let built = source.ending().expect("the shell-role decision's refusal");
         let whole = source.to_string();
-        assert!(whole.ends_with(&format!(". {ending}")), "{name}: {whole}");
+        assert!(whole.ends_with(&format!(". {built}")), "{name}: {whole}");
         assert_eq!(
             test_utils::refusal::recourse_markers(&whole),
             1,
