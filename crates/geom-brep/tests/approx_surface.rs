@@ -486,7 +486,8 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 
 /// `Approx` is its own [`geom::SurfaceKind`] — not the kind its fit
 /// is — and the routing table routes each of its pairs as the fit's
-/// kind does: plane×Approx is the plane×NURBS arm, every other pair
+/// kind does: plane×Approx is the plane×NURBS arm, Approx beside a
+/// spline or a fit the NURBS×NURBS arm, and beside a curved analytic
 /// the unimplemented NURBS arm its fit would take.
 #[test]
 fn approx_is_its_own_kind_and_routes_as_its_fit() {
@@ -516,8 +517,11 @@ fn approx_is_its_own_kind_and_routes_as_its_fit() {
             );
             assert_eq!(
                 route(a, b).implemented,
-                other == SurfaceKind::Plane,
-                "{a:?} x {b:?}: only the plane pair is implemented"
+                matches!(
+                    other,
+                    SurfaceKind::Plane | SurfaceKind::Nurbs | SurfaceKind::Approx
+                ),
+                "{a:?} x {b:?}: the plane and spline pairs are implemented"
             );
         }
     }

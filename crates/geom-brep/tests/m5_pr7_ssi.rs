@@ -2356,9 +2356,13 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     }
     // Everything else on the general rung still refuses, and now names
     // its trace shape rather than a bare "unimplemented".
+    // NURBS × NURBS retired with its own proof, the two-chart tube.
+    let r = route(SurfaceKind::Nurbs, SurfaceKind::Nurbs);
+    assert!(r.implemented, "Nurbs×Nurbs is implemented");
+    assert!(r.note.contains("TWO-CHART"), "{}", r.note);
     for (a, b) in [
         (SurfaceKind::Cylinder, SurfaceKind::Torus),
-        (SurfaceKind::Nurbs, SurfaceKind::Nurbs),
+        (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
     ] {
         let r = route(a, b);
