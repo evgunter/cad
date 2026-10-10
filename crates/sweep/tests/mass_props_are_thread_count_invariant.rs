@@ -438,12 +438,20 @@ fn digest() -> String {
 /// Every verdict hash, pad, volume, refusal and `frozen` column is
 /// unchanged.
 ///
+/// **Re-cut at all three ε when the integral speed meter took a third,
+/// per-piece assembly** (`geom::NurbsCurve3::speed_lower_bound`'s
+/// `piece_assembly`). Only `sym_arc_loft`'s `validate_geometric`
+/// `frozen` column moves, by one at every ε (607 → 606 / 539 → 538 /
+/// 606 → 605 at ε = 1e-6 / 1e-9 / 1e-12). Decisions, discharges, shapes
+/// and every verdict are unchanged. Measured by disabling only that
+/// assembly on a probe build, which restores the old column.
+///
 /// **Re-cut at all three ε when the loft's placements and skinned walls
 /// began entering the scalar as computed values** (`Real::from_computed`
 /// in `sweep::loft`, an unknown each at `Sym` where each was a
 /// constant, a seam column shared by the two walls that end on it).
 /// Only the `frozen` column of the two `validate_geometric` rows moves,
-/// and up: `sym_arc_loft` 607 → 1255 / 539 → 1245 / 606 → 1254 and
+/// and up: `sym_arc_loft` 606 → 1254 / 538 → 1244 / 605 → 1253 and
 /// `sym_thin_strip` 704 → 1257 / 674 → 1268 / 699 → 1256 at
 /// ε = 1e-6 / 1e-9 / 1e-12. The walk freezes more nodes once its
 /// leaves are unknowns rather than constants; which freeze cause each
