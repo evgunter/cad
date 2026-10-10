@@ -4,6 +4,8 @@ kind: issue
 title: The shared half-angle ladder certifies Miss (and roots) for configurations inside the zero band, where the trilean says escalate
 status: open
 opened: 2026-10-02
+priority: P2
+cost: M
 ---
 
 
