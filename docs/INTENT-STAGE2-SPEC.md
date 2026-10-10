@@ -25,7 +25,7 @@ Scope: D10's **Operations** paragraph (`docs/DESIGN.md` §D10), as `work/intent/
   - Both axis datums define an `Axis`, and `Revolve` defines `body: Body` and `axis: Axis`.
   - A pose kind names its symmetry as the mates' `Subgroup` (A11 (1)): `Frame` the trivial group, `Plane` the planar, `Axis` the cylindrical. `Point` and `Direction` name none until a reader needs theirs.
 - **FORK-3** (#4222, approved): sets. A selection is a definition, not a node, stating its body once, and the selection kinds are `Face`, `Edge`, `Faces` and `Edges`.
-- **FORK-VTX** (#PRNUM): a vertex is a selection. `Vertex` joins `Face` and `Edge` as a selection kind, with no `Vertices` set until a slot reads one. A measure reads the `Vertex` selection, as it reads a face or an edge; a pose reader reads `Point { of: v }` off it, as a face reads as a plane.
+- **FORK-VTX** (#4505): a vertex is a selection. `Vertex` joins `Face` and `Edge` as a selection kind, with no `Vertices` set until a slot reads one. A measure reads the `Vertex` selection, as it reads a face or an edge; a pose reader reads `Point { of: v }` off it, as a face reads as a plane.
 - **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`, hits H1–H14) is applied: §11 maps each hit to the unit that retires it.
 
 D10's last paragraph retires two things here: **A10's sink rule** and **A12's reading edges**. Stage 2 also closes `a-measured-part-is-not-a-product-root` and `a-failed-requirement-refuses-the-whole-product`, and completes VR4's interim exception (a `Measure`'s arithmetic stays in the node "until stage 2 makes `Measure` an operation").
