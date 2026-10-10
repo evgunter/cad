@@ -2609,25 +2609,25 @@ pub(crate) fn translate_mapped<T: Real>(
     delta: Vec3<T>,
 ) -> Option<geom_brep::MappedCurve<T>> {
     let shifted = |place: Affine3<T>| Affine3::from_parts(place.linear, place.translation + delta);
-    Some(match mapped {
-        geom_brep::MappedCurve::PlacedSegment { segment, place } => {
-            geom_brep::MappedCurve::PlacedSegment {
+    let source = match mapped.source {
+        geom_brep::MappedSource::PlacedSegment { segment, place } => {
+            geom_brep::MappedSource::PlacedSegment {
                 segment,
                 place: shifted(place),
             }
         }
-        geom_brep::MappedCurve::ExtrudedPoint {
-            point,
-            place,
-            vec,
-            range,
-        } => geom_brep::MappedCurve::ExtrudedPoint {
-            point,
-            place: shifted(place),
-            vec,
-            range,
-        },
-        _ => return None,
+        geom_brep::MappedSource::ExtrudedPoint { point, place, vec } => {
+            geom_brep::MappedSource::ExtrudedPoint {
+                point,
+                place: shifted(place),
+                vec,
+            }
+        }
+        geom_brep::MappedSource::RevolvedPoint { .. } => return None,
+    };
+    Some(geom_brep::MappedCurve {
+        source,
+        range: mapped.range,
     })
 }
 
@@ -3425,27 +3425,40 @@ fn read_ends<T: Decide>(
 /// `mapped` with the sketch endpoint that images `is_start` moved to
 /// `point` — the authoritative sketch datum re-stated, not the carrier
 /// patched around it. `None` for anything but a placed line segment.
+///
+/// The result is a whole segment from the moved end to the other end:
+/// on a whole range that other end is the authored one, verbatim; on a
+/// restricted range it is the segment's own evaluation there, since the
+/// edge's end is no authored point.
 fn move_mapped_endpoint<T: Real>(
     mapped: geom_brep::MappedCurve<T>,
     point: Point3<T>,
     is_start: bool,
 ) -> Option<geom_brep::MappedCurve<T>> {
-    let geom_brep::MappedCurve::PlacedSegment {
-        segment: geom_brep::SketchSegment::Line { a, b },
+    let geom_brep::MappedSource::PlacedSegment {
+        segment: segment @ geom_brep::SketchSegment::Line { a, b },
         place,
-    } = mapped
+    } = mapped.source
     else {
         return None;
     };
+    let (a, b) = if mapped.range.is_whole() {
+        (a, b)
+    } else {
+        let at = |s: T| segment.eval(mapped.range.at(s));
+        (at(T::zero()), at(T::one()))
+    };
     let q = place.inverse().transform_point(point);
     let moved = geom_core::Point2::new(q.x, q.y);
-    Some(geom_brep::MappedCurve::PlacedSegment {
-        segment: geom_brep::SketchSegment::Line {
-            a: if is_start { moved } else { a },
-            b: if is_start { b } else { moved },
+    Some(geom_brep::MappedCurve::whole(
+        geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Line {
+                a: if is_start { moved } else { a },
+                b: if is_start { b } else { moved },
+            },
+            place,
         },
-        place,
-    })
+    ))
 }
 
 /// **The offset mint's fit door, as the pass takes it** — the rows that
@@ -4070,5 +4083,79 @@ mod read_ends_rows {
         read_ends(&mut p, &[(VertexKey::default(), on)], None, band, tol, None)
             .expect("a corner on the carrier reads");
         assert_eq!((p.spec.param_start, p.spec.param_end), (0.5, 0.5));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod move_mapped_endpoint_rows {
+    use geom_core::{Affine3, Point2, Point3, Vec3};
+
+    use super::move_mapped_endpoint;
+
+    /// The sketch chord `(0, 0) → (4, 2)` placed at `(1, 2, 3)`.
+    fn chord() -> geom_brep::MappedCurve<f64> {
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Line {
+                a: Point2::new(0.0, 0.0),
+                b: Point2::new(4.0, 2.0),
+            },
+            place: Affine3::translation(Vec3::new(1.0, 2.0, 3.0)),
+        })
+    }
+
+    fn placed(x: f64, y: f64) -> Point3<f64> {
+        Point3::new(x + 1.0, y + 2.0, 3.0)
+    }
+
+    fn ends(m: geom_brep::MappedCurve<f64>) -> [f64; 6] {
+        let (p, q) = (m.eval(0.0), m.eval(1.0));
+        [p.x, p.y, p.z, q.x, q.y, q.z]
+    }
+
+    /// **A moved end on a restricted range re-authors a whole chord
+    /// from the moved point to the edge's other end.** The edge is the
+    /// chord's `[¼, ¾]`, from `(1, ½)` to `(3, 1½)`; with either end
+    /// moved, the description runs from the moved point to the edge's
+    /// unmoved end, exactly, over a whole range — not from the moved
+    /// point to the authored chord's far end, and not over the old
+    /// range of a chord whose authored end was moved.
+    #[test]
+    fn a_restricted_edge_moves_its_own_end() {
+        let edge = chord().restrict(0.25, 0.75);
+        let moved = placed(1.0, 0.75);
+        let m = move_mapped_endpoint(edge, moved, true).expect("a placed line moves its end");
+        assert!(m.range.is_whole(), "the moved description is whole");
+        let far = placed(3.0, 1.5);
+        assert_eq!(
+            ends(m),
+            [moved.x, moved.y, moved.z, far.x, far.y, far.z],
+            "the moved start runs to the edge's own end"
+        );
+        let moved = placed(3.0, 1.25);
+        let m = move_mapped_endpoint(edge, moved, false).expect("a placed line moves its end");
+        assert!(m.range.is_whole(), "the moved description is whole");
+        let near = placed(1.0, 0.5);
+        assert_eq!(
+            ends(m),
+            [near.x, near.y, near.z, moved.x, moved.y, moved.z],
+            "the moved end runs from the edge's own start"
+        );
+    }
+
+    /// On a whole range the unmoved end is the authored one, verbatim.
+    #[test]
+    fn a_whole_edge_keeps_its_authored_other_end() {
+        let moved = placed(0.5, -0.25);
+        let m = move_mapped_endpoint(chord(), moved, true).expect("a placed line moves its end");
+        let geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Line { a, b },
+            ..
+        } = m.source
+        else {
+            panic!("a placed line stays one");
+        };
+        assert_eq!((a.x, a.y, b.x, b.y), (0.5, -0.25, 4.0, 2.0));
+        assert!(m.range.is_whole());
     }
 }

@@ -191,7 +191,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
     let assertion = r.insert(Node::Assertion {
         value: web,
         bound: len(nominal_web - 5.0e-5),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)

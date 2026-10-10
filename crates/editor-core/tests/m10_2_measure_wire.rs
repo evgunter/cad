@@ -19,9 +19,9 @@ use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
-    AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
-    MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    VarName, apply, load, save,
+    AssertionRelation, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula,
+    FreeVar, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    StableName, VarName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -136,7 +136,7 @@ fn every_form() -> ProfileDoc {
             node: Box::new(Node::Assertion {
                 value,
                 bound: len(0.0005),
-                dir: AssertionDir::AtMost,
+                relation: AssertionRelation::AtMost,
             }),
             fresh: Vec::new(),
         },
@@ -175,7 +175,7 @@ fn angular() -> ProfileDoc {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::read_var(&doc, measured.outputs[0]),
                 bound: ang(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -281,7 +281,7 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
             node: Box::new(Node::Assertion {
                 value: crate::fixture::value_of(&doc, measure(&doc)),
                 bound: len(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -316,7 +316,7 @@ fn an_assertion_over_a_non_scalar_refuses() {
             node: Box::new(Node::Assertion {
                 value: Formula::var(point, Dimension::Angle),
                 bound: ang(0.5),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },

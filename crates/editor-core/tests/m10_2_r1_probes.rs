@@ -18,7 +18,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
     EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
     MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
@@ -687,7 +687,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
         Node::Assertion {
             value: fixture::value_of(&doc, m),
             bound: len(0.1),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     let at_f64 = measured(&eval(&doc), m).0;
@@ -782,7 +782,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         Node::Assertion {
             value: fixture::value_of(&doc, m),
             bound: len(DEPTH),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     match verdict(&eval(&doc_eq), a_eq) {
@@ -799,7 +799,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         Node::Assertion {
             value: fixture::value_of(&doc, m),
             bound: len(DEPTH - 5.0 * eps),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     match verdict(&eval(&doc_band), a_band) {
@@ -827,7 +827,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
         Node::Assertion {
             value: fixture::value_of(&doc, m),
             bound: len(0.1),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     // Boolean over the ASSERTION: an assertion defines nothing.
@@ -949,7 +949,7 @@ fn corruptible() -> ProfileDoc {
         Node::Assertion {
             value: fixture::value_of(&doc, m),
             bound: len(0.777),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     doc
@@ -1059,7 +1059,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
             node: Box::new(Node::Assertion {
                 value,
                 bound: len(0.0),
-                dir: AssertionDir::AtLeast,
+                relation: AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },
@@ -1140,7 +1140,7 @@ fn r1_own_document_web_and_flip() {
         Node::Assertion {
             value: web,
             bound: len(0.05),
-            dir: AssertionDir::AtLeast,
+            relation: AssertionRelation::AtLeast,
         },
     );
     // Web = 0.5 − 0.2 = 0.3 ≥ 0.05: Holds.

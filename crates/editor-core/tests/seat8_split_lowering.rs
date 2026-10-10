@@ -200,6 +200,13 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// not move: `intent_s2_c_world`'s migration check holds each product
 /// to its pre-C digest.
 ///
+/// RE-BLESSED, `cut_cylinder` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
+///
 /// RE-BLESSED, all three, for INTENT stage 4 E (booleans glue on Zero):
 /// a body no longer carries provenance side tables (`GeomSource`
 /// stamps, field and axis sources), and the digest feeds each body's
@@ -210,7 +217,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xb918_821a_3a37_bbadu64),
+        ("cut_cylinder", 0x4318_92f9_c696_0fd1u64),
         ("part_select", 0x90fb_17e7_6b0b_54f9),
         ("kitchen_sink", 0x98c0_fba7_09be_e02d),
     ] {

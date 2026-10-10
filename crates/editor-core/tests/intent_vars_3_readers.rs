@@ -1609,7 +1609,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
                 node: Box::new(Node::Assertion {
                     value: Formula::var(var, Dimension::Length),
                     bound: len(0.0),
-                    dir: editor_core::AssertionDir::AtLeast,
+                    relation: editor_core::AssertionRelation::AtLeast,
                 }),
                 fresh: Vec::new(),
             },
@@ -1634,7 +1634,7 @@ fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
     let assertion = |name| Node::Assertion {
         value: named(name),
         bound: len(0.0),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     };
     let (doc, on_a) = insert(doc, assertion("a"));
     let (doc, on_b) = insert(doc, assertion("b"));

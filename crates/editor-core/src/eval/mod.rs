@@ -4730,7 +4730,7 @@ fn mate_log_is_the_solves(
 /// primitive and sense (`MatePrimitive`, `AxisSense`), a name's entity
 /// kind, a side verdict, a qualifier, a cap end, a meridian end and a
 /// rim support (`names/role.rs`), a tube's window (`node.rs`), an
-/// assertion's direction and a measure primitive (`measure.rs`), a
+/// assertion's relation and a measure primitive (`measure.rs`), a
 /// dimension (`expr.rs`). Each is total by exhaustiveness — a variant
 /// the enum gains breaks the compile at the site — and its two-to-four
 /// arms are read at one position under a word this file does census,
@@ -5778,17 +5778,18 @@ where
                 feed_stable_name(&mut h, &r.name);
             }
         }
-        // The DIRECTION is payload. The value and the bound are payload
+        // The RELATION is payload. The value and the bound are payload
         // expressions, whose evaluated values are fed with the others
         // below; the measures under the value are upstream, so their
         // own keys carry them.
         Node::Assertion {
             value: _,
             bound: _,
-            dir,
-        } => h.write_tag(match dir {
-            crate::measure::AssertionDir::AtLeast => 1,
-            crate::measure::AssertionDir::AtMost => 2,
+            relation,
+        } => h.write_tag(match relation {
+            crate::measure::AssertionRelation::AtLeast => 1,
+            crate::measure::AssertionRelation::AtMost => 2,
+            crate::measure::AssertionRelation::Equal => 3,
         }),
         // A tube's WINDOW VARIANT is recipe payload, not a slot: which
         // variant it is decides whether the node has window slots at
