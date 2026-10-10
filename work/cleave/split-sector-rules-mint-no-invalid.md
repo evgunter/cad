@@ -113,5 +113,7 @@ Census over `crates/topo/src/splitting/`, production code only:
 - **Pass 1.** Before: 8 mints (`rules.rs` ×4, `classify.rs` ×1,
   `containment.rs` ×2, `order.rs` ×1), plus one false positive, the
   return type of `ConicRootFault::diag`. After: 3 (C6, C7, C8), plus the
-  same false positive.
+  same false positive. Merging main (`cc3df241cc`) brings a fourth,
+  `order.rs` `split_join_frame_axis` from `f56de98848`, filed on unit 2's
+  row.
 - **Pass 2** (`terminal_sliver:`): 0 before and 0 after.
