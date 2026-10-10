@@ -120,6 +120,13 @@ impl<T: Real> Arc2<T> {
     /// centre-anchored form at s = 0, and tighter wherever `|s·sweep|`
     /// is small, because `|R − I| = 2·|sin(s·sweep/2)|` scales the
     /// centre's width down instead of doubling it.
+    ///
+    /// Both claims are about the start `a` the caller hands in. A split
+    /// edge's description (`geom_brep::MappedCurve`) hands in the
+    /// authored arc's start and its own sub-range's parameter, so its
+    /// start sample is not exact: it pays the sub-range start's rounding
+    /// times `radius·sweep`
+    /// (`work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`).
     pub fn point_from(self, a: Point2<T>, s: T) -> Point2<T> {
         let Self { centre, sweep, .. } = self;
         let half = T::from_f64(0.5);

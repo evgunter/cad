@@ -53,8 +53,8 @@ fn boolean(
         doc,
         Node::Boolean {
             op,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -201,7 +201,7 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
     let (doc, ell) = insert(
         doc,
         Node::Extrude {
-            profile: lp,
+            profile: lp.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -218,7 +218,7 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
     let (doc, tip) = insert(
         doc,
         Node::Extrude {
-            profile: tp,
+            profile: tp.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -294,7 +294,7 @@ fn an_assembly_keeps_the_touched_edge_whole_in_either_order() {
     let (doc, wedge) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -324,7 +324,7 @@ pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNo
     let (doc, tip) = insert(
         doc,
         Node::Extrude {
-            profile: tp,
+            profile: tp.into(),
             distance: len(0.4),
             side: ExtrudeSide::Along,
         },
@@ -348,7 +348,7 @@ pub(crate) fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, 
     let (doc, tip) = insert(
         doc,
         Node::Extrude {
-            profile: tp,
+            profile: tp.into(),
             distance: len(0.5),
             side: ExtrudeSide::Against,
         },
@@ -378,7 +378,7 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
     let (doc, ell) = insert(
         doc,
         Node::Extrude {
-            profile: lp,
+            profile: lp.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -404,7 +404,7 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
     let (doc, wedge) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -455,7 +455,7 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, tip) = insert(
         doc,
         Node::Extrude {
-            profile: tp,
+            profile: tp.into(),
             distance: len(0.3),
             side: ExtrudeSide::Along,
         },
@@ -543,7 +543,7 @@ fn spelled(n: &StableName, swap: bool) -> String {
 
 fn respelled(n: &StableName, swap: bool) -> StableName {
     let mut n = n.clone();
-    n.node = RecipeNodeId(0);
+    n.node = RecipeNodeId::new(0, 0);
     if swap && let Some(h) = n.path.first_mut() {
         *h = match h.clone() {
             RoleSeg::FromA(x) => RoleSeg::FromB(x),

@@ -3,9 +3,8 @@
 This spec admits `Surface::Cone` as a boolean operand
 (`work/germ/VERBS-CONE.md`). It lists every kind dispatch the admission
 reaches (§1), derives each arm the cone needs (§2), and cuts the units in
-dependency order (§3). The roster flip is the last unit. Until it lands,
-the cone keeps refusing typed at the operand gate. The spec is deleted
-when its last unit merges.
+dependency order (§3). The roster flip is U7; with it the cone passes
+the operand gate. The spec is deleted when its last unit merges.
 
 It builds on PR 3372 (the section certificate, merged) and PR 3375 (the
 circle × torus root lane, in review). §3 names the units that need 3375's
@@ -439,17 +438,21 @@ Components are listed on the DOUBLE cone.
 
 #### 2.5.1 Cone × plane
 
-The plane is `(p₀, n̂)`. Let `m_A = (A − p₀)·n̂` in metres, and let the
-aperture margin be `μ = |n̂·â| − s`, levered.
+The plane is `(p₀, n̂)`. The aperture margin is `μ = |n̂·â| − s`,
+levered by the reach's farthest distance from the apex plus its
+farthest distance from the plane. It alone decides the class. The
+apex's offset `m_A = (A − p₀)·n̂` is never read: every row holds at any
+offset, and a small offset does not bound the ellipse. With `m_A` in
+the band and `μ` a few bands positive, the ellipse runs `m_A·cos α/μ`
+along a generator, so reading a Zero `m_A` as "the apex alone" would
+clear a real closed curve by W0.
 
 | pose | section | parts |
 |---|---|---|
-| `m_A` definite, `μ` Positive | an ellipse, one closed curve on one nappe | one part, `essential_f`, `single: true`, witness the vertex below |
-| `m_A` definite, `μ` Negative | a hyperbola, one branch per nappe | two parts, `unbounded` |
-| `m_A` definite, `μ` Zero | a parabola, or a near one: 1 or 2 components, each unbounded or essential | one part, `essential_f`, no witness, `single: false`. W2 clears it when `F` describes; otherwise R-undec. |
-| `m_A` Zero, `s‖â×n̂‖ − c|â·n̂|` Negative | the apex alone | `none()`: the apex is never in `int F`. It is on `∂F` for an apex-closed face, and every other describable cone face stays off it, because `cone_nappe` escalates a window that straddles the apex. |
-| `m_A` Zero, that margin Positive or Zero | two lines, or one double line, through the apex | one part, `unbounded` |
-| `m_A` undecided | — | `Tangent("section_cone_plane_apex")` |
+| `μ` Positive | an ellipse, one closed curve on one nappe (at `m_A = 0`, the apex point) | one part, `essential_f`, `single: true`, witness the vertex below |
+| `μ` Negative | a hyperbola (one branch per nappe), or two lines through the apex | two parts, `unbounded` |
+| `μ` Zero | a parabola, the double line, or an ellipse or hyperbola near one: each component unbounded or essential | one part, `essential_f`, no witness, `single: false`. W2 clears it when `F` describes; otherwise R-undec. |
+| `μ` undecided | — | `Tangent("section_cone_plane_aperture")` |
 
 **Why the ellipse is essential.** When `μ > 0`, the plane's direction
 set misses the cone's asymptotic directions. So the section on each
@@ -457,12 +460,15 @@ nappe is bounded, and a bounded section is met once by each generator of
 its nappe. It is a graph over the azimuth, and it winds once about the
 axis.
 
-**The witness** is a vertex of the major axis. In the meridian plane
-through `A` spanned by `â` and `m̂ = unit(n̂ − (n̂·â)â)` (use the cone's
-`u_ref` when `n̂ ∥ â`), the generator LINE `g = c·â + s·m̂` meets the
-plane at `A + λg`, with `λ = ((p₀ − A)·n̂)/(g·n̂)`. When `μ > 0`,
-`g·n̂ = sin(α + β)` with `cos β = |n̂·â|`, and it is nonzero. That point
-lies on the ellipse, on whichever nappe the ellipse is.
+**The witness** is the vertex of the major axis nearer the apex. Flip
+`n̂` to face `â` (a decided sign, definite wherever `μ > 0`), and take
+`m̂ = unit(n̂ − (n̂·â)â)`, or the cone's `u_ref` when that is Zero. The
+generator LINE `g = c·â + s·m̂` meets the plane at `A + λg`, with
+`λ = ((p₀ − A)·n̂)/(g·n̂)` and `g·n̂ = cos(α − β)`, `cos β = |n̂·â|`. On
+the ellipse's range `0 ≤ β < π/2 − α` that is at least
+`min(cos α, sin 2α)`: `sin 2α` at the parabola, approaching `cos α` as
+`α → π/2`. Only the witness's position divides by it; no margin does.
+That point lies on the ellipse, on whichever nappe it is.
 
 **The item's claim, "the ellipse is always essential on a face with a
 seam": confirmed, with one qualification.** It is essential on every
@@ -473,9 +479,10 @@ cone face.
 - It clears by W4 when evented, or by its witness, on a face that does
   not: a seamless band, or an apex-closed face before §2.4.
 
-It can never be an interior loop. It meets every generator of its nappe,
-and so every generator edge's line, which puts it on `∂F` or outside the
-slant window at that azimuth.
+It meets every generator of its nappe, so on a face with a generator
+edge it is on `∂F` or outside the face at that azimuth. On a face with
+none (a seamless band) it can lie inside the face: there it clears by
+W4 with an event, and otherwise by its witness or not at all.
 
 #### 2.5.2 Cone × sphere
 
@@ -609,9 +616,9 @@ here.
 
 | pose | row | answer |
 |---|---|---|
-| apex on the partner | plane: `m_A` Zero; sphere: `k` Zero; parallel cylinder: `e = r_c`; parallel cone: an interval end at an apex level; coaxial cone: `d` Zero | plane: the lines or the point, as in the table (never an interior loop). Every other row: R-tan. |
+| apex on the partner | plane: `m_A` Zero; sphere: `k` Zero; parallel cylinder: `e = r_c`; parallel cone: an interval end at an apex level; coaxial cone: `d` Zero | plane: the table's rows by `μ`, which never read `m_A`. Every other row: R-tan. |
 | axis through the partner | plane containing the axis: through the apex, so two lines, unbounded; sphere centred on the axis: `β₁ = 0`, parallels; cylinder: coaxial | the rows above |
-| a tangent generator | plane: `m_A` Zero, the double line, unbounded; sphere: an arc-bound margin Zero | W1, or R-tan |
+| a tangent generator | plane: `μ` Zero (the double line through the apex), essential with no witness; sphere: an arc-bound margin Zero | plane: W2 or R-undec; sphere: R-tan |
 | a tangency elsewhere | any margin Zero | R-tan |
 
 ### 2.6 The no-crossings arm
@@ -773,32 +780,48 @@ preview cone:
 ### U7 — cone-roster-flip (last)
 
 Re-pin the three gate rows to the door each now reaches. The op-level
-rows, all four ops each, use the preview cone, `V = π/3`:
+rows, all four ops each, use the preview cone, `V = π/3`. **Measured on
+the flip (after U1–U4, U6 and the cone sector spec's U-S1..U-S4, U-S6),
+which moved the table as written:** P5 and P7 now build (the plane ×
+cone join), P3 refuses at the frame, P1 and P2 at the cone × cylinder
+frame, and P8 needs a brick inside the quarter cone's own box.
 
 | fixture | ∪ | ∩ | A∖B | B∖A |
 |---|---|---|---|---|
-| P9 nested in the 6³ box (stays green) | `216` | `π/3` | `Empty` | `216 − π/3` |
+| P9 nested in the 6³ box | `216` | `π/3` | `Empty` | `216 − π/3` |
 | P6 box `0.6² × 0.2` inside | `π/3` | `0.072` | `π/3 − 0.072` | `Empty` |
-| P4 brick clear, boxes overlapping | Assembly `π/3 + 0.12` | `Empty` | `π/3` | `0.12` |
+| P4 brick `[−2, 2] × [0.2, 0.3] × [0.9, 1.2]`, clear, boxes overlapping | `π/3 + 0.12` | `Empty` | `π/3` | `0.12` |
 | P2a pin through the base disc | `π/3 + 0.012` | `0.004` | `π/3 − 0.004` | `0.012` |
 | P10 coaxial pin `r = 0.1`, `y ∈ [−0.5, 0.5]` | `π/3 + 0.005π` | `0.005π` | `π/3 − 0.005π` | `0.005π` |
-| 3π/2 cone against a brick clear of it in its box | Assembly `π/4 + v_B` | `Empty` | `π/4` | `v_B` |
-| P3 apex pin | typed refusal (pierce normal or join), never a body | same | same | same |
-| P1 bite, P2 bite + pin | R-reach, typed, naming the cone face | same | same | same |
-| P5 slab, P7 | `CurvedBooleanUnsupported { kind: Cone }` at the join | same | same | same |
+| P5 slab `y ∈ [0.3, 0.6]` (`v_B = 4.8`) | `π/3 + 4.8 − 0.093π` | `0.093π` | `π/3 − 0.093π` | `4.8 − 0.093π` |
+| P7, the 3π/2 cone against the P5 slab | `π/4 + 4.8 − 0.06975π` | `0.06975π` | `π/4 − 0.06975π` | `4.8 − 0.06975π` |
+| 3π/2 cone against a brick in its gap (`v_B = 0.018`) | `π/4 + v_B` | `Empty` | `π/4` | `v_B` |
+| P8 quarter cone against a brick in its box, clear (`v_B = 0.0125`) | `π/12 + v_B` | `Empty` | `π/12` | `v_B` |
+| P3 apex pin | `GermSectionOutsideInventory`, hyperbola | same | same | same |
+| P1 bite, P2 bite + pin | `GermFrameUnsupported`, cone × cylinder | same | same | same |
 
-- **`point_in_solid`** at `(−0.6, 0.05, 0)` (P2a: `In` both) and
-  `(0, 0.25, 0)` (P10: `In` both), and one point per region.
+- **Every body is checked** by its closed-form volume, tier 3, and
+  `point_in_solid` at named points (one per region of the pair,
+  `(−0.6, 0.05, 0)` for P2a and `(0, 0.25, 0)` for P10 among them) and
+  over a grid, against the operands' closed-form membership
+  (`sweep/tests/cone_operand_rows.rs`, `common/solid_truth.rs`).
 - **The admission's red-first row is P3, run against the mutant "U1's
-  guard reverted".** It returns a valid, wrong body, because §2.5.1's
-  hyperbola and circle rows clear the pairs. The row asserts that no
-  body is returned.
-- **`docs/DESIGN.md` :410** ("cone and torus operands refuse") is
-  describing text, and it has been stale for the torus since PR 3265.
-  `git log -S` finds only the editing pass `99cc678bf`. It is re-worded
-  in this PR, as a describing clause, not a design change.
+  guard reverted".** It returns valid, wrong bodies (measured: ∪ an
+  `Assembly` of `π/3 + 0.0016`, ∩ `Empty`), because the no-crossings
+  path's certificate clears every pair. The row asserts that no body is
+  returned.
+- **The held configurations stay refusals**: a plane resting along a
+  generator (`CurvedPierceUnsupported`), and a cone sector lying on the
+  cone face (`CrossingAtConeApex` or `CurvedPierceUnsupported`, a
+  generator lying on the other's carrier).
+- **`docs/DESIGN.md`'s "cone and torus operands refuse"** is describing
+  text, stale for the torus since PR 3265. It is re-worded with the
+  flip, as a describing clause, not a design change.
 
 ### U8 — plane-cone-axis-normal-join (after the flip)
+
+Landed before the flip as `docs/GERM-CONE-SECTOR-SPEC.md`'s U-S3 +
+U-S4; P5 in U7's table is its fixture, built.
 
 - **P5:** slab ∩ cone is the frustum
   `π·0.3/3·(0.49 + 0.28 + 0.16) = 0.093π`.

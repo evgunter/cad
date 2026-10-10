@@ -124,10 +124,13 @@ fn m2r1_declared_seat_f64() {
     let tol = Tol::witness();
     let seat = topo::test_support::straddle_seat(tol);
     let records = ContactRecords {
-        patches: vec![topo::PatchContact {
-            face_a: seat.post_top,
-            face_b: seat.shelf_bottom,
-        }],
+        patches: vec![topo::Cited::new(
+            topo::PatchContact {
+                face_a: seat.post_top,
+                face_b: seat.shelf_bottom,
+            },
+            topo::Cites::decided(0),
+        )],
         ..ContactRecords::default()
     };
     for (family, doors) in [

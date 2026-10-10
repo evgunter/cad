@@ -36,7 +36,7 @@ use editor_core::{
     DocumentId, Evaluation, Node, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject,
     assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
 };
-use fixture::{ang, insert, len, on_frame, scl, square};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 use topo::Body;
 
@@ -65,24 +65,24 @@ fn the_registry_wrapper_and_its_door_agree_on_every_corpus_document() {
 }
 
 /// **A2 — the empty document is a subject, not a refusal.** A document
-/// whose roots denote no body reaches `Subject::NoBodyRoots` through
+/// whose world holds nothing reaches `Subject::EmptyProduct` through
 /// the wrapper and reports clean; the same subject spelled by hand
 /// reports the same thing.
 #[test]
-fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
+fn an_empty_world_is_the_empty_product_subject() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("docm5-empty", tol);
     let ev: Evaluation<f64> = corpus::eval(&doc);
     assert!(
         matches!(
-            product_recorded(&doc, &ev, tol).expect_err("nothing denotes a body"),
-            ProductError::NoBodyRoots
+            product_recorded(&doc, &ev, tol).expect_err("nothing is placed"),
+            ProductError::EmptyProduct { .. }
         ),
         "the premise: this is the arm the wrapper maps to a subject"
     );
     let cfg = ChecksConfig::default();
     let wrapped = run_checks(&doc, &ev, &cfg, tol).expect("an empty document is checkable");
-    let direct = run_checks_on(&doc, &ev, Subject::NoBodyRoots, &cfg, tol).expect("so is it here");
+    let direct = run_checks_on(&doc, &ev, Subject::EmptyProduct, &cfg, tol).expect("so is it here");
     assert_eq!(wrapped, direct);
     assert_eq!(wrapped.findings, Vec::new(), "and it is clean");
     assert_eq!(
@@ -96,10 +96,9 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
 /// `Subject::Unavailable`, and the door raises it AFTER the residents
 /// that read no subject have answered.**
 ///
-/// The reachable gather refusal over one well-formed document is one
-/// body placed under two roots: two `Transform`s of one extrude are two
-/// roots that would carry one extrude's minted names into one product
-/// table, which the gather refuses from the recipe. Connectedness reads the evaluation and answers first (it has
+/// The reachable gather refusal over one well-formed document whose
+/// every copy evaluates is a world whose one placement lives in an
+/// unplaced group's own space. Connectedness reads the evaluation and answers first (it has
 /// nothing to say here); the separation resident reads the subject,
 /// finds none, and the door refuses `Product` carrying the gather's own
 /// sentence. Nothing is run and discarded, and no arm claims the
@@ -107,12 +106,12 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
 #[test]
 fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_residents() {
     let tol = Tol::witness();
-    let doc = one_body_under_two_roots("docm5-collide");
-    let ev: Evaluation<f64> = corpus::eval(&doc);
-    let gathered = || product_recorded(&doc, &ev, tol).expect_err("one body under two roots");
+    let (doc, opts) = crate::fixture::unplaced_world("docm5-collide");
+    let ev: Evaluation<f64> = crate::fixture::run(&doc, &opts);
+    let gathered = || product_recorded(&doc, &ev, tol).expect_err("an unplaced world");
     let refusal = gathered();
     assert!(
-        matches!(refusal, ProductError::PlacedUnderTwoRoots { .. }),
+        matches!(refusal, ProductError::Unplaced { .. }),
         "the premise: {refusal:?}"
     );
     let carries_the_gathers_refusal = |err: ChecksError| match &err {
@@ -174,16 +173,16 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
 /// rather than a stopwatch, which is the same claim without a clock in
 /// it.)
 ///
-/// With the one subject-reading resident `Off`, the base never gathered
-/// (the gather lived inside that resident), so a document whose gather
-/// refuses reported cleanly and a document whose gather succeeds paid
-/// nothing. Both hold again: the counter reads 0 across the call, and
-/// the crossed pair below — which the gather refuses — reports.
+/// With the subject-reading residents `Off`, a document whose gather
+/// refuses reports cleanly and a document whose gather succeeds pays
+/// nothing: the counter reads 0 across the call, and the crossed pair
+/// below — which the gather refuses — reports.
 #[test]
 fn a_run_that_needs_no_subject_does_not_gather() {
     let tol = Tol::witness();
     let off = ChecksConfig {
         separation: Advisory::Off,
+        unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
     assert!(
@@ -209,14 +208,18 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     assert_eq!(
         report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::Separation],
+        vec![
+            CheckId::ChartCoherence,
+            CheckId::UnprovenCoincidence,
+            CheckId::Separation
+        ],
         "and the skip is visible"
     );
 
     // A document that would NOT gather: the refusal never arises,
     // because the gather never runs.
-    let collide = one_body_under_two_roots("docm5-lazy-collide");
-    let ev: Evaluation<f64> = corpus::eval(&collide);
+    let (collide, opts) = crate::fixture::unplaced_world("docm5-lazy-collide");
+    let ev: Evaluation<f64> = crate::fixture::run(&collide, &opts);
     assert!(
         product_recorded(&collide, &ev, tol).is_err(),
         "the premise: this document's gather refuses"
@@ -224,21 +227,49 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     let report = run_checks(&collide, &ev, &off, tol)
-        .expect("with the subject-reading resident off there is nothing to gather for");
+        .expect("with the subject-reading residents off there is nothing to gather for");
     #[cfg(debug_assertions)]
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
     assert_eq!(
         report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::Separation]
+        vec![
+            CheckId::ChartCoherence,
+            CheckId::UnprovenCoincidence,
+            CheckId::Separation
+        ]
     );
+}
+
+/// **The coincidence lint needs the product only for the mates' rows.**
+/// A document with no mate whose gather refuses (two placed copies
+/// crossing): with Separation off and the lint on, the run reports the
+/// nodes' rows rather than refusing, since none of its rows rides the
+/// product.
+#[test]
+fn the_coincidence_lint_reports_node_rows_when_a_mateless_gather_refuses() {
+    let tol = Tol::witness();
+    let cfg = ChecksConfig {
+        separation: Advisory::Off,
+        unproven_coincidence: Advisory::Warn,
+        ..ChecksConfig::default()
+    };
+    let (collide, opts) = crate::fixture::unplaced_world("docm5-lint-collide");
+    let ev: Evaluation<f64> = crate::fixture::run(&collide, &opts);
+    assert!(
+        product_recorded(&collide, &ev, tol).is_err(),
+        "the premise: this document's gather refuses"
+    );
+    let report =
+        run_checks(&collide, &ev, &cfg, tol).expect("no mate, so no row needs the product");
+    assert!(!report.skipped.contains(&CheckId::UnprovenCoincidence));
 }
 
 /// **DI3 at the door.** (R2's two rows, adopted.)
 ///
 /// `run_checks_on` binds `doc` to `ev` itself rather than inheriting a
-/// gather's pairing check, because connectedness reads `doc.roots()`
-/// against `ev.value(root)` and a foreign evaluation of one recipe
-/// answers every one of those lookups. Both arguments are checked: the
+/// gather's pairing check, because connectedness reads
+/// `doc.placements()` against `ev.value(placement)` and a foreign
+/// evaluation of one recipe answers every one of those lookups. Both arguments are checked: the
 /// evaluation, and the product a `Subject::Product` carries.
 #[test]
 fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
@@ -287,7 +318,7 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
     // And with no subject at all — the arm that skips the only resident
     // that could have refused.
     expect_pairing(
-        run_checks_on(&apart, &ev_overlapping, Subject::NoBodyRoots, &cfg, tol),
+        run_checks_on(&apart, &ev_overlapping, Subject::EmptyProduct, &cfg, tol),
         "no subject",
     );
 
@@ -309,9 +340,10 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
 }
 
 /// **A2 — the registry's own preconditions answer BEFORE its subject
-/// does.** A root without a value in this evaluation means the checks
-/// could not run AT ALL, and that holds whether or not the document
-/// would also have gathered — so the refusal names the root, rather
+/// does.** A placement without a value in this evaluation means the
+/// checks could not run AT ALL, and that holds whether or not the
+/// document would also have gathered — so the refusal names the
+/// placement, rather
 /// than forwarding the gather's account of the same state.
 #[test]
 fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
@@ -573,36 +605,41 @@ fn twin(id: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
-    )
-    .0
+    );
+    crate::fixture::place(doc, body).0
 }
 
-/// A document whose one root does not evaluate: two solids resting
-/// face on face, united. The union of coincident faces is what the
-/// boolean refuses, so the root is live and valueless — the state both
-/// the registry's precondition and the gather have something to say
-/// about.
+/// A document whose one placement does not evaluate: two slabs whose
+/// caps stand apart by a sliver inside the ambiguity band, united and
+/// placed. The boolean refuses the in-band pair, so the placement is
+/// live and valueless — the state both the registry's precondition and
+/// the gather have something to say about. Answers the placement.
 fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
     let (doc, a) = slab(doc, 0.0, 1.0);
-    let (doc, b) = slab(doc, 1.0, 1.0);
-    insert(
+    // A gap strictly inside the ambiguity band: the margins decide the
+    // two caps neither one carrier nor two, so the union refuses.
+    let band = tol.get();
+    let gap = 0.5 * (band.eps + band.k * band.eps);
+    let (doc, b) = slab(doc, 1.0 + gap, 1.0);
+    let (doc, fused) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
-    )
+    );
+    crate::fixture::place(doc, fused)
 }
 
 /// A unit-footprint slab from `z0` up by `dz`.
@@ -617,7 +654,7 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -646,12 +683,14 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
         &editor_core::DocEdit::DefineVar {
             var: editor_core::VarName::from_static("fins").into(),
             def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 160 }),
+            fresh: Vec::new(),
         },
         tol,
         &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc;
+    let doc = corpus::place_pattern_to(doc, 160);
     let ev: Evaluation<f64> = corpus::eval(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
     assert_eq!(
@@ -661,46 +700,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
     );
 }
 
-/// Two `Transform`s of one extrude, both roots: each would carry the
-/// same extrude's minted names into the product's one name table, so
-/// the gather refuses the shape (`ProductError::PlacedUnderTwoRoots`),
-/// a refusal reachable over a document whose roots all evaluate.
-fn one_body_under_two_roots(id: &str) -> ProfileDoc {
-    let tol = Tol::witness();
-    let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let moved = |doc, dx: f64| {
-        insert(
-            doc,
-            Node::transform(
-                extrude,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-    };
-    let (doc, _) = moved(doc, 3.0);
-    moved(doc, 6.0).0
-}
-
-/// Two extruded squares, the second offset by `apart` in x — two roots,
+/// Two extruded squares, the second offset by `apart` in x, each placed,
 /// so the separation resident's pair walk actually runs and has
 /// something to disagree about between two twins. Node ids are assigned
 /// in insertion order, so two of these under two document ids are one
@@ -716,10 +716,10 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    let (doc, a) = insert(
         doc,
         Node::Extrude {
-            profile: first,
+            profile: first.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -731,13 +731,13 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    insert(
+    let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: second,
+            profile: second.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
-    )
-    .0
+    );
+    crate::fixture::place_all(doc, &[a, b])
 }

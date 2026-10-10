@@ -111,7 +111,7 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_sphere_region_roots_coaxial",
     extreme: "bool_sphere_region_roots_extreme",
     root_slack: "bool_sphere_region_roots_slack",
-    decision: BooleanDecision::Containment,
+    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The boundary reading's rows (module docs).
@@ -312,13 +312,16 @@ impl<T: Decide> SphereFaceRegion<T> {
             };
             let k = match ConicArc::of(&circle, (arc.t0, arc.t1), BOUNDARY, band) {
                 Ok(Some(k)) => k,
-                Err(ConicArcError::Escalated(diag)) => return Err(RegionRefusal::Escalated(diag)),
+                Err(ConicArcError::Escalated(e)) => return Err(RegionRefusal::Escalated(e.diag)),
                 Ok(None) | Err(ConicArcError::WoundPastPeriod) => {
                     return Err(RegionRefusal::WoundPastPeriod);
                 }
             };
-            match k.hit(p, BOUNDARY, band).map_err(RegionRefusal::Escalated)? {
-                ConicHit::On | ConicHit::End => return Ok(None),
+            match k
+                .hit(p, BOUNDARY, band)
+                .map_err(|e| RegionRefusal::Escalated(e.diag))?
+            {
+                ConicHit::On(_) | ConicHit::End => return Ok(None),
                 ConicHit::Off | ConicHit::Carrier => {}
             }
         }
@@ -368,8 +371,11 @@ impl<T: Decide> SphereFaceRegion<T> {
             let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
                 CircleRoots::Miss => continue,
                 CircleRoots::Certified { count, thetas } => thetas[..count].to_vec(),
-                // The arc in the ray's plane, or a tangency.
-                CircleRoots::OnSurface | CircleRoots::Uncertain => return Err(RayFault::Graze),
+                // The arc in the ray's plane, or a tangency; a plane has no
+                // apex, so `AtApex` is the cone's and never reaches here.
+                CircleRoots::OnSurface | CircleRoots::Uncertain | CircleRoots::AtApex => {
+                    return Err(RayFault::Graze);
+                }
                 // Two computations of one count disagreeing is a broken
                 // invariant, not a ray's conditioning (D9); every caller of
                 // the root doors refuses on it.

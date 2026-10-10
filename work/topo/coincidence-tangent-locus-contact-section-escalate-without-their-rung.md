@@ -2,9 +2,8 @@
 id: coincidence-tangent-locus-contact-section-escalate-without-their-rung
 kind: issue
 title: topo: the tangent-locus, contact and section coincidences escalate without their rung, so none can offer the tolerance a length rung gives
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -45,3 +44,17 @@ each producer returns a closed rung type, and each rung ends from its
 own pass set: the length rungs sized, the zero-only rungs on the lever
 alone. The executed-offer census (`boolean::refusal_routes::offer_rows`)
 then asks for a case per sized rung.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: TangentLocus and Contact escalate only at declared-Tangent/declared-contact doors, and Section reads ParamSource coaxial evidence (the axis declaration channel); all retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E changes who reaches two of the three, and all three escalations still carry no rung.
+
+- **TangentLocus** is asked at the glue door for every candidate pair, declared or not (`crates/topo/src/boolean/glue.rs:98`). The door swallows its escalation, so the pair goes unglued (`.is_ok()` at `glue.rs:120`). The rungless wraps stand at `insert.rs:2146` and `:2167`, `sectors.rs:722` and `mod.rs:5615`.
+- **Contact** stands at `mod.rs:5671`.
+- **Section** no longer reads `ParamSource` evidence, which E deletes. `frame_refusal` still wraps `FrameError::Escalated` as `Coincide::Section` with no rung (`crates/topo/src/boolean/join.rs:2074`).
+
+The repair shape stands.

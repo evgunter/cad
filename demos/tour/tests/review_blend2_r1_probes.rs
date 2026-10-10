@@ -10,11 +10,11 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_core::{Point2, Tol, Vec2};
+use pncad::geom_core::{Point2, Point3, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{AtRestBody, Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey, SolidContainment};
 
 #[path = "common/rim_select.rs"]
 mod rim_select;
@@ -148,7 +148,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
         assert_eq!(r.len(), 1, "one closed rim at y = {y}, got {}", r.len());
         all.extend(r);
     }
-    let one = fillet_edges(&src, &all, ROLL, tol())
+    let one = fillet_edges(&finished("src", src.clone(), tol()), &all, ROLL, tol())
         .unwrap_or_else(|e| panic!("four chained rims in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 4, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -158,7 +158,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
         for &(y, rad) in order {
             let r = rim_at(&b, rad, y, Seeds::Closed);
             assert_eq!(r.len(), 1, "one rim at y = {y} before its carve");
-            b = fillet_edges(&b, &r, ROLL, tol())
+            b = fillet_edges(&finished("b", b.clone(), tol()), &r, ROLL, tol())
                 .unwrap_or_else(|e| panic!("the y = {y} rim fillets sequentially, got {e:?}"))
                 .body;
         }
@@ -188,12 +188,18 @@ fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
         .iter()
         .flat_map(|&(y, r)| rim_at(&src, r, y, Seeds::Closed))
         .collect();
-    let one = fillet_edges(&src, &all, ROLL, tol()).expect("one call");
+    let one =
+        fillet_edges(&finished("src", src.clone(), tol()), &all, ROLL, tol()).expect("one call");
     let mut b = vase();
     for &(y, rad) in &ys {
-        b = fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), ROLL, tol())
-            .expect("sequential")
-            .body;
+        b = fillet_edges(
+            &finished("b", b.clone(), tol()),
+            &rim_at(&b, rad, y, Seeds::Closed),
+            ROLL,
+            tol(),
+        )
+        .expect("sequential")
+        .body;
     }
     assert_eq!(
         face_shapes(&one.body),
@@ -233,7 +239,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut found = None;
     let mut r = 0.05f64;
     while r < 0.45 {
-        if let Err(e) = fillet_edges(&src, &all, r, tol()) {
+        if let Err(e) = fillet_edges(&finished("src", src.clone(), tol()), &all, r, tol()) {
             found = Some((r, e));
             break;
         }
@@ -245,7 +251,12 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut b = vase();
     let mut sequential_ok = true;
     for &(y, rad) in &ys {
-        match fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), r, tol()) {
+        match fillet_edges(
+            &finished("b", b.clone(), tol()),
+            &rim_at(&b, rad, y, Seeds::Closed),
+            r,
+            tol(),
+        ) {
             Ok(out) => b = out.body,
             Err(e) => {
                 println!("   [blend2-r1] sequential also refuses at y = {y}: {e}");
@@ -280,23 +291,38 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     }
 }
 
-/// **P4 — the mixed (ladder + annulus) arm's unreachability, measured
-/// independently.** The PR claims the only public construction of a
-/// plane face carrying both a pip ring and a revolution-wall cycle is a
-/// boolean of a ball against a revolve, and that the operand gate
-/// refuses it first. This probe drives exactly that on the vase's top
-/// annulus and records the refusal kind — so the fence's premise is
-/// pinned rather than asserted.
+/// **P4 — the mixed (ladder + annulus) support is publicly
+/// reachable.** A ball subtracted into the vase's top annulus mints a
+/// plane face carrying both a pip ring and a revolution-wall cycle.
+/// It builds, and the body is the closed form: the vase less the half
+/// ball below its top. The blend gate's mixed arm (`shared_support_gate`) is already rowed on the
+/// dome-topped boss (`ring_clearance_forms`).
 #[test]
-fn p4_no_public_door_builds_a_mixed_ladder_and_annulus_support() {
+fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {
     let vase = AtRestBody::validate(vase(), tol()).expect("the vase is a finished body");
-    let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol());
-    match out {
-        Ok(_) => panic!(
-            "a ball subtracted into a revolve's cap BUILT — the mixed ladder+annulus \
-             support is reachable and the gate's mixed arm needs a row"
-        ),
-        Err(e) => println!("   [blend2-r1] ball into a revolve cap refuses: {e:?}"),
+    let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol())
+        .expect("a ball subtracted into the vase's top annulus builds");
+    let body = &out.body().expect("material remains").body;
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
+    let got = mass_properties(body, tol())
+        .expect("mass properties")
+        .volume;
+    // The vase by Pappus over its meridian, less the half ball.
+    let want = 1.4135 * core::f64::consts::PI - 2.0 / 3.0 * core::f64::consts::PI * 0.08f64.powi(3);
+    assert!(
+        (got - want).abs() <= 1e-9,
+        "the vase less the half ball: {got} against {want}"
+    );
+    let band = pncad::prelude::Band::linear(tol()).expect("the band");
+    for (q, want) in [
+        (Point3::new(0.45, 1.76, 0.0), SolidContainment::Out), // the dimple
+        (Point3::new(0.45, 1.6, 0.0), SolidContainment::In),   // under it
+        (Point3::new(0.6, 1.75, 0.0), SolidContainment::In),   // beside it
+        (Point3::new(0.1, 1.0, 0.0), SolidContainment::Out),   // the bore
+    ] {
+        let got = pncad::topo::point_in_solid(body, q, band, tol())
+            .unwrap_or_else(|e| panic!("point_in_solid at {q:?} refused {e:?}"));
+        assert_eq!(got, want, "at {q:?}");
     }
 }
 
@@ -356,11 +382,16 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
     let mut first_seq: Option<f64> = None;
     let mut r = 0.30f64;
     while r < 0.60 {
-        let one = fillet_edges(&src, &both, r, tol());
+        let one = fillet_edges(&finished("src", src.clone(), tol()), &both, r, tol());
         let mut b = pinched_vase();
         let mut seq_ok = true;
         for &(y, rad) in &pair {
-            match fillet_edges(&b, &rim_at(&b, rad, y, Seeds::Closed), r, tol()) {
+            match fillet_edges(
+                &finished("b", b.clone(), tol()),
+                &rim_at(&b, rad, y, Seeds::Closed),
+                r,
+                tol(),
+            ) {
                 Ok(out) => b = out.body,
                 Err(_) => {
                     seq_ok = false;
@@ -397,4 +428,10 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
         "the spool's cross-chain clearance refusal names the split recourse: {one_text}"
     );
     println!("   [blend2-r1] spool boundary identical both ways at r = {one_r}: {one_text}");
+}
+
+/// `body` finished for a blend door, which takes finished bodies only.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

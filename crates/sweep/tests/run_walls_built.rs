@@ -127,7 +127,15 @@ fn holds(
     }
     // One rim edge per run (maximal edges): a station inside a run has
     // no entity on any cap, line run or arc run.
-    assert_eq!(joinable_vertices(b), vec![], "{label}: a joinable vertex");
+    assert_eq!(
+        joinable_vertices(
+            b,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![],
+        "{label}: a joinable vertex"
+    );
     assert_eq!(station_vertices(b), vec![], "{label}: a station vertex");
     validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
     validate_geometric(b, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
@@ -786,7 +794,8 @@ fn arc_runs_build_one_wall_at_interval() {
 /// True iff filleting `edges` refuses as a seam vertex.
 fn refuses_seam_vertex(b: &Body<f64>, edges: &[EdgeKey]) -> bool {
     matches!(
-        fillet_edges(b, edges, 0.1, tol()).map_err(|r| r.error),
+        fillet_edges(&sweep::test_support::at_rest(b, tol()), edges, 0.1, tol())
+            .map_err(|r| r.error),
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::SeamVertex,
             ..

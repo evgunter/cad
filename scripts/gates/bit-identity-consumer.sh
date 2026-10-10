@@ -3,19 +3,15 @@
 # (retirement landed, M4 PR 5). ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # Bit-identity coincidence checking is RETIRED from production
-# (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Ev, #53): the
-# declared rung is GeomSource lookup, and the production-consumer
-# allowlist is EMPTY. The remaining rows are NON-consumers:
+# (M4 PR 5; DESIGN.md roadmap; Ev, #53): a coincidence is its
+# margin's to decide (D10), and the production-consumer allowlist is
+# EMPTY. The remaining rows are NON-consumers:
 #  - bit_identity.rs — the sanctioned seam itself;
 #  - interval.rs — Interval::repr_bits over its OWN storage:
 #    scalar plumbing (exact-representation access), never a
 #    coincidence comparison;
 #  - eval/memo.rs — HASHES exact bits into content keys (spec D4
 #    "values AS BITS"): scalar plumbing, never a comparison;
-#  - topo/source.rs — the cfg(debug_assertions)-gated
-#    "records agree with bits" assertion (N6's
-#    debug_assert!(same_source => eq_bits)); not in production
-#    builds.
 # The tripwire stays ARMED: any NEW file using the channel fails
 # here — a new production consumer is a design regression against
 # the ratified retirement (add nothing without a DESIGN.md
@@ -35,7 +31,6 @@ NON_CONSUMER_SUBJECT='the non-consumer rows, which reach the bit channel as scal
 NON_CONSUMER_HOMES=(
   crates/geom-core/src/bit_identity.rs
   crates/geom-core/src/interval.rs
-  crates/topo/src/source.rs
   crates/editor-core/src/eval/memo.rs
 )
 
@@ -48,7 +43,7 @@ gate() {
     | gate_grep -vE "$(gate_record_anchor_any "${NON_CONSUMER_HOMES[@]}")")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
+    gate_error "bit-identity channel use above — the channel is RETIRED from production (M4 PR 5); decide a coincidence by its margin (D10), or revise DESIGN.md before adding any consumer"
     exit 1
   fi
   gate_ok "no bit-identity consumer outside the ${#NON_CONSUMER_HOMES[@]} non-consumer rows"

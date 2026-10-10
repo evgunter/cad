@@ -7,148 +7,148 @@
   "documents": {
     "boss_union": {
       "about": "M5 shape (ii): cylinder boss \u222a plate \u2014 the first transverse curved boolean",
-      "nodes": 7,
-      "cone": 2
+      "nodes": 8,
+      "cone": 3
     },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
-      "nodes": 19,
-      "cone": 5
+      "nodes": 20,
+      "cone": 6
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
-      "nodes": 11,
-      "cone": 3
+      "nodes": 12,
+      "cone": 4
     },
     "cut_cylinder": {
       "about": "M5 shape (i): tilted plane\u00d7cylinder cut \u2014 exact Ellipse section edges",
-      "nodes": 5,
-      "cone": 2
+      "nodes": 7,
+      "cone": 4
     },
     "measured_web": {
       "about": "M10-2: a measured web with an assertion over it (E3/E10)",
-      "nodes": 9,
-      "cone": 1
+      "nodes": 10,
+      "cone": 2
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
-      "nodes": 6,
-      "cone": 1
+      "nodes": 8,
+      "cone": 2
     },
     "die": {
-      "about": "M3 exact-oracle die: 21 declared pip subtracts (63 nodes)",
-      "nodes": 63,
-      "cone": 3
+      "about": "M3 exact-oracle die: 21 declared pip subtracts (64 nodes)",
+      "nodes": 64,
+      "cone": 4
     },
     "die_composed": {
       "about": "M6 unit 1: the pipped cube filleted in place \u2014 box blends, octants, and the pip-rim torus band in one body",
-      "nodes": 10,
-      "cone": 3
+      "nodes": 11,
+      "cone": 4
     },
     "die_composed_tour": {
       "about": "the demo tour's die: 21 pips fused by one n-ary union and cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind member-keyed names",
-      "nodes": 32,
-      "cone": 5
+      "nodes": 34,
+      "cone": 6
     },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
-      "nodes": 4,
-      "cone": 2
+      "nodes": 5,
+      "cone": 3
     },
     "die_chamfer": {
       "about": "every edge of a unit cube chamfered at a setback of 0.125",
-      "nodes": 4,
-      "cone": 2
+      "nodes": 5,
+      "cone": 3
     },
     "die_pips": {
       "about": "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
-      "nodes": 9,
-      "cone": 2
+      "nodes": 10,
+      "cone": 3
     },
     "die_tool": {
       "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
-      "nodes": 9,
-      "cone": 2
+      "nodes": 10,
+      "cone": 3
     },
     "face_sketch": {
       "about": "DOCM-1: a boss sketched ON a box's top face through a derived frame (Datum::FaceFrame)",
-      "nodes": 6,
-      "cone": 4
+      "nodes": 7,
+      "cone": 5
     },
     "part_select": {
       "about": "DOCM-2: a split's two halves and a pattern's middle instance as bodies (Node::Part)",
-      "nodes": 11,
-      "cone": 5
+      "nodes": 13,
+      "cone": 6
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
-      "nodes": 17,
-      "cone": 12
+      "nodes": 28,
+      "cone": 23
     },
     "heat_sink_fins": {
       "about": "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
-      "nodes": 4,
-      "cone": 2
+      "nodes": 5,
+      "cone": 3
     },
     "tube_ring": {
       "about": "a solid ring torus from its intent parameters, R = 2, r = 0.5",
-      "nodes": 2,
-      "cone": 1
+      "nodes": 3,
+      "cone": 2
     },
     "tube_arc": {
       "about": "a capped solid bend from its intent parameters, R = 2, r = 0.5, 1 rad",
-      "nodes": 2,
-      "cone": 1
+      "nodes": 3,
+      "cone": 2
     },
     "hollow_tube_elbow": {
       "about": "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",
-      "nodes": 2,
-      "cone": 1
+      "nodes": 3,
+      "cone": 2
     },
     "hollow_tube_ring": {
       "about": "a sealed hollow ring torus \u2014 two shells, one solid \u2014 R = 2, outer 0.5, wall 0.125",
-      "nodes": 2,
-      "cone": 1
+      "nodes": 3,
+      "cone": 2
     },
     "kiss_carry": {
       "about": "corner-kiss assembly; the surviving v-v record re-entered by a declared pair",
-      "nodes": 11,
-      "cone": 2
+      "nodes": 12,
+      "cone": 3
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "nodes": 18,
-      "cone": 2
+      "nodes": 31,
+      "cone": 8
     },
     "loft_prism": {
       "about": "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
-      "nodes": 7,
-      "cone": 1
+      "nodes": 8,
+      "cone": 2
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
-      "nodes": 15,
-      "cone": 2
+      "nodes": 16,
+      "cone": 3
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
-      "nodes": 15,
-      "cone": 2
+      "nodes": 16,
+      "cone": 3
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
-      "nodes": 19,
-      "cone": 3
+      "nodes": 20,
+      "cone": 4
     },
     "plate_param": {
       "about": "the parametric scene: a plate whose two hole radii are one FreeVar",
-      "nodes": 7,
-      "cone": 2
+      "nodes": 8,
+      "cone": 3
     },
     "reshaped_rod": {
       "about": "a rod's section on a block, one crease filleted, the block reshaped under it",
-      "nodes": 4,
-      "cone": 2
+      "nodes": 5,
+      "cone": 3
     }
   }
 }

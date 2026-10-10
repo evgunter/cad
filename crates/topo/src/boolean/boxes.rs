@@ -30,7 +30,7 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **three** of the ten doors that read a box from
+//! PRUNES. That is **four** of the eleven doors that read a box from
 //! here; at four of the other seven, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL, and at the other three it is
 //! more exact work AND can be a refusal:
@@ -46,22 +46,21 @@
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
 //!   inventory below does not count them.
+//! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
+//!   rings of one face whose hulled edge boxes clear are never handed
+//!   to the contact arms, and whether two rings meet is decided by those
+//!   arms through `Decide`. A bigger box costs a pair the exact arms,
+//!   never an answer.
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
 //!   operation whose faces never meet, unless the narrow phase behind
 //!   the overlap (`boolean::separating`, reaches along directions that
 //!   turn with the operands) parts the pair.
-//! - `boolean::reduce`'s undeclared-continuation scan
-//!   (`refuse_undeclared_continuations`, its boxes built by the
-//!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
-//!   or an edge pair whose boxes clear is never asked, and whether two
-//!   faces meet is decided point-on-edge through `Decide`, so a bigger
-//!   box costs exact work there. Its one box-decided answer is the
-//!   fallback for an edge whose carrier has no point parameter
-//!   (ellipse, spline), which reads a long enough overlap as a shared
-//!   curve. There a bigger box can refuse, as an undeclared
-//!   continuation, a pair that only touches.
+//! - the glue door (`boolean::glue`) only PRUNES: a face pair whose
+//!   boxes clear is never asked, and whether two faces lie on one
+//!   carrier is decided by the carrier ladder through `Decide`, so a
+//!   bigger box costs exact work there and decides nothing.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
@@ -112,10 +111,10 @@
 //!   of: the crossing layer keeps its typed door.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The ten are not
+//! about a door, and the door has to be named. The eleven are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a tenth door cannot land unargued. **It pins WHERE the doors are
+//! a new door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -481,8 +480,7 @@ fn poison_value<T: Real>() -> T {
 ///   between the images.
 /// - **ConicAmplitude** — the conic's axial image, restricted to the
 ///   certified ARC by the same subdivision [`arc_extent`] runs one
-///   dimension up (a carrier with no certified span keeps the full
-///   turn). Over a full turn that image is
+///   dimension up. Over a full turn that image is
 ///   `(centre − origin)·axis ± √((a·(û·axis))² + (b·(v̂·axis))²)`, the
 ///   same full-turn amplitude [`conic_extent`] takes per coordinate,
 ///   taken along the axis instead. A rim PERPENDICULAR to the axis
@@ -495,9 +493,9 @@ pub(crate) enum AxialCarrier<T> {
     Unclaimable,
     /// The locus IS the chord between the two ends.
     Chord,
-    /// A full conic: its centre, the two in-plane reference
-    /// directions and the matching semi-axes, in the reading lane's
-    /// own spans.
+    /// A conic arc: its centre, the two in-plane reference
+    /// directions, the matching semi-axes and the certified span, in
+    /// the reading lane's own spans.
     Conic {
         /// The conic's centre.
         center: SpanBox<T>,
@@ -509,9 +507,9 @@ pub(crate) enum AxialCarrier<T> {
         semi_u: T,
         /// The semi-axis along `v_ref`.
         semi_v: T,
-        /// The certified parameter span, when the carrier has one —
-        /// the arc this edge actually occupies.
-        params: Option<(T, T)>,
+        /// The certified parameter span — the arc this edge actually
+        /// occupies.
+        params: (T, T),
     },
 }
 
@@ -549,10 +547,7 @@ pub(crate) fn edge_axial_span<T: Real>(
             let dv = along(v_ref, &zero).abs_max();
             let amp = ((du * *semi_u).powi(2) + (dv * *semi_v).powi(2)).sqrt();
             let c = along(center, origin);
-            let Some((t0, t1)) = *params else {
-                // No certified span: the full turn, as before.
-                return c.widen(amp).hull(chord);
-            };
+            let (t0, t1) = *params;
             // The ARC's own axial image, by the same subdivision
             // [`arc_extent`] runs one dimension up — this projection is
             // that construction restricted to the axis, so the two
@@ -1028,10 +1023,10 @@ impl<T: Real> TorusChartWindow<T> {
         self.net = Some((T::zero(), T::zero()));
     }
 
-    /// One half-edge of the open loop. A torus chart's closed-form
-    /// images are harmonic (a cone-section image certifies on a cone
-    /// only), so any other image abandons the window — which widens the
-    /// box to the whole tube, never narrows it.
+    /// One half-edge of the open loop. The window reads a torus chart's
+    /// harmonic images; any other image (a Villarceau circle's focal
+    /// section among them) abandons it — which widens the box to the
+    /// whole tube, never narrows it.
     pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
         let Some((cache, image, forward)) = step else {
             self.ok = false;
@@ -1867,13 +1862,13 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 }
                 BoundaryMember::Edge { ek, edge: e, .. } => {
                     let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
-                    let certified = body.edge_curve_linked(ek, e).certified();
-                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                    let axial = match edge_box_rule(carrier) {
+                    let axial = match edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
                         // No axial-span closed form is written
                         // for the spiric; a box that cannot
                         // claim is the honest answer.
-                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
+                            AxialCarrier::Unclaimable
+                        }
                         EdgeBoxRule::Chord => AxialCarrier::Chord,
                         EdgeBoxRule::ConicAmplitude {
                             center,
@@ -1881,15 +1876,15 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                             semi_u,
                             semi_v,
                             u_ref,
+                            params: (t0, t1),
+                            ..
                         } => AxialCarrier::Conic {
                             center: bracket_point(center),
                             u_ref: bracket_vector(u_ref),
                             v_ref: bracket_vector(c_axis.cross(u_ref)),
                             semi_u: semi_u.hi(),
                             semi_v: semi_v.hi(),
-                            params: certified
-                                .map(geom_brep::EdgeCurve::params)
-                                .map(|(a, b)| (a.lo(), b.hi())),
+                            params: (t0.lo(), t1.hi()),
                         },
                     };
                     grow(edge_axial_span(
@@ -2229,14 +2224,18 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   Claiming nothing is already the conservative answer, so nothing
 ///   is unsound while it waits. (It also carries the same trim ⊆ knot
 ///   domain premise the surface arm states.)
-pub(crate) enum EdgeBoxRule<T: Real> {
+pub(crate) enum EdgeBoxRule<'c, T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,
-    /// The full conic's amplitude box, hulled with the chord — see the
-    /// type docs. The payload is read by the census lane and by the
-    /// axial projection ([`AxialCarrier::Conic`]); [`edge_box`] matches
-    /// the arm and re-reads the certified carrier for `geom`'s door.
+    /// The conic ARC's box over its certified span, hulled with the
+    /// chord — see the type docs. [`edge_box`] hands `carrier` and
+    /// `params` to `geom`'s exact door; the census lane and the axial
+    /// projection ([`AxialCarrier::Conic`]) read the decomposed fields.
     ConicAmplitude {
+        /// The certified carrier the fields below were read from — a
+        /// `Circle` or an `Ellipse`, which `geom`'s exact arc door
+        /// takes whole.
+        carrier: &'c geom::Curve3<T>,
         /// The conic's centre.
         center: Point3<T>,
         /// The plane normal of the conic.
@@ -2247,6 +2246,10 @@ pub(crate) enum EdgeBoxRule<T: Real> {
         semi_v: T,
         /// The in-plane reference direction.
         u_ref: Vec3<T>,
+        /// The certified parameter span — read from the same
+        /// [`geom_brep::EdgeCurve`] as the carrier, so a conic rule
+        /// always has its arc.
+        params: (T, T),
     },
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
@@ -2257,44 +2260,88 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// because the operand gate refuses the kind. Past the gate, the
     /// sweep's soundness on a spiric edge rests on this box: a face it
     /// prunes is one the arc cannot reach, and a face it meets sends the
-    /// edge to a crossing arm that refuses it typed.
-    Spiric,
+    /// edge to a crossing arm that refuses it typed. [`edge_box`] hands
+    /// `carrier` to that door; the census lane reads the decomposed
+    /// fields.
+    Spiric {
+        /// The certified `Spiric` carrier the fields below were read
+        /// from.
+        carrier: &'c geom::Curve3<T>,
+        /// The spiric's centre.
+        center: Point3<T>,
+        /// The axis of the torus it lies on.
+        axis: Vec3<T>,
+        /// The cutting plane's in-plane reference direction.
+        u_ref: Vec3<T>,
+        /// The torus's major radius.
+        major_radius: T,
+        /// The torus's minor radius.
+        minor_radius: T,
+        /// The cutting plane's offset along `u_ref`.
+        offset: T,
+    },
 }
 
-/// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
-/// with `None` standing for the null-scaffolding state (no carrier by
-/// type). A kind added to [`geom::Curve3`] lands on
-/// [`EdgeBoxRule::NoSoundBox`] only by being written here.
-pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeBoxRule<T> {
+/// The [`EdgeBoxRule`] for an edge's certified curve — the single
+/// kind→rule mapping, with `None` standing for the null-scaffolding
+/// state (no carrier by type). A kind added to [`geom::Curve3`] lands
+/// on [`EdgeBoxRule::NoSoundBox`] only by being written here.
+pub(crate) fn edge_box_rule<T: Real>(
+    certified: Option<&geom_brep::EdgeCurve<T>>,
+) -> EdgeBoxRule<'_, T> {
+    let Some(curve) = certified else {
+        return EdgeBoxRule::NoSoundBox;
+    };
+    let params = curve.params();
+    let carrier = curve.carrier();
     match carrier {
-        Some(geom::Curve3::Line { .. }) => EdgeBoxRule::Chord,
-        Some(geom::Curve3::Circle {
+        geom::Curve3::Line { .. } => EdgeBoxRule::Chord,
+        geom::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
-        }) => EdgeBoxRule::ConicAmplitude {
+        } => EdgeBoxRule::ConicAmplitude {
+            carrier,
             center: *center,
             axis: *axis,
             semi_u: *radius,
             semi_v: *radius,
             u_ref: *u_ref,
+            params,
         },
-        Some(geom::Curve3::Ellipse {
+        geom::Curve3::Ellipse {
             center,
             axis,
             major,
             minor,
             u_ref,
-        }) => EdgeBoxRule::ConicAmplitude {
+        } => EdgeBoxRule::ConicAmplitude {
+            carrier,
             center: *center,
             axis: *axis,
             semi_u: *major,
             semi_v: *minor,
             u_ref: *u_ref,
+            params,
         },
-        Some(geom::Curve3::Spiric { .. }) => EdgeBoxRule::Spiric,
-        Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
+        geom::Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => EdgeBoxRule::Spiric {
+            carrier,
+            center: *center,
+            axis: *axis,
+            u_ref: *u_ref,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            offset: *offset,
+        },
+        geom::Curve3::Nurbs(_) => EdgeBoxRule::NoSoundBox,
     }
 }
 
@@ -2332,46 +2379,28 @@ pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f
     );
     let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
     let certified = body.edge_curve_linked(edge, e).certified();
-    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-    let boxed = match edge_box_rule(carrier) {
+    let boxed = match edge_box_rule(certified) {
         EdgeBoxRule::NoSoundBox => return Aabb::poison(),
         EdgeBoxRule::Chord => chord,
-        EdgeBoxRule::Spiric => certified
-            .and_then(|curve| {
-                let (t0, t1) = curve.params();
-                geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
-            })
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "edge box: the spiric rule is minted only from a certified Spiric \
-                     carrier, and the exact arc door answers for it"
-                )
-            }),
-        EdgeBoxRule::ConicAmplitude { .. } => {
-            // The exact arc box, read from its one home one crate down:
-            // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
-            // enters exactly when its angle lies in the certified span,
-            // and the endpoint hull bounds the monotone pieces between.
-            // A bracketed radius or frame (the `Interval` scalar) enters
-            // that door as its whole bracket, so the box dominates every
-            // realization; poison flows to the poison box.
-            //
-            // `certified` is `Some` here — the rule names this arm only
-            // for a certified conic carrier — and the door answers for
-            // every conic kind, so the remaining arm is a kernel bug
-            // that says so (D2 addendum row 4).
-            certified
-                .and_then(|curve| {
-                    let (t0, t1) = curve.params();
-                    geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
-                })
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "edge box: the conic rule is minted only from a certified Circle \
-                         or Ellipse carrier, and the exact arc door answers for both"
-                    )
-                })
-        }
+        // `geom`'s exact doors answer for every kind these two rules
+        // are minted from, so a `None` is a kernel bug that says so
+        // (D2 addendum row 4).
+        EdgeBoxRule::Spiric { carrier, .. } => geom::curves::boxes::spiric_arc_aabb(carrier, a, b)
+            .unwrap_or_else(|| unreachable!("edge box: the spiric rule carries a Spiric carrier")),
+        // The exact arc box, read from its one home one crate down:
+        // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
+        // enters exactly when its angle lies in the certified span,
+        // and the endpoint hull bounds the monotone pieces between.
+        // A bracketed radius or frame (the `Interval` scalar) enters
+        // that door as its whole bracket, so the box dominates every
+        // realization; poison flows to the poison box.
+        EdgeBoxRule::ConicAmplitude {
+            carrier,
+            params: (t0, t1),
+            ..
+        } => geom::curves::boxes::conic_arc_aabb(carrier, t0, t1, a, b).unwrap_or_else(|| {
+            unreachable!("edge box: the conic rule carries a Circle or Ellipse carrier")
+        }),
     };
     boxed.padded(pad)
 }
@@ -3445,7 +3474,13 @@ pub(crate) mod tests {
     ///
     /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
     ///   **Prunes**: loose is slower work, never a different answer.
-    ///   The only door for which that is true.
+    /// - `boolean/glue.rs` — the glue door's box sweep
+    ///   (`overlapping_pairs`), face boxes of both operands, which its
+    ///   pair scan and its coaxial scan both read. **Prunes**: a loose box
+    ///   only adds pairs the carrier ladder reads and leaves apart,
+    ///   which is slower work and the same answer. A box TIGHTER than
+    ///   its face would miss a pair, which then reaches its site
+    ///   unglued and refuses there — loud, never a different body.
     /// - `boolean/ops.rs` — the curved-extent fallback, face and
     ///   edge: the cylinder-face arm clears a [`face_box`] against
     ///   the ball's extent, the scan's near-boundary test walks the
@@ -3527,20 +3562,16 @@ pub(crate) mod tests {
         // `census.rs` counts SEVEN: the pre-filter's `face_box` and
         // `edge_box` reads (`census::Trees::build`, the pruning door),
         // three rule reads of its own, and two that are not doors —
-        // the adopted CERT-N2 reviewer probes in its test module call
-        // `face_box` to execute what a partially poisoned control net
-        // answers there. The number is stated with that content rather
+        // two rows in its test module call `face_box` to pin what a
+        // described net carrying poison answers there. The number is stated with that content rather
         // than filtered, because this pin's protection is that an
         // occurrence cannot arrive, leave or move unnoticed — which it
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         //
-        // `boolean/mod.rs`'s two and three of `boolean/reduce.rs`'s
-        // eight are ONE door, the undeclared-continuation scan: the
-        // driver builds its padded boxes (`boxes::face_box`/`edge_box`
-        // at `pad`) and hands them in as closures, and the scan's own
-        // calls through those closure parameters match the same text.
-        // So are one of `boolean/ops.rs`'s four and `pieces.rs`'s one:
+        // `boolean/glue.rs`'s two are one door, the sweep its pair scan
+        // and its coaxial scan share, boxing both operands' faces. One of
+        // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
@@ -3548,16 +3579,17 @@ pub(crate) mod tests {
         // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 9] = [
+        const PINNED: [(&str, usize); 10] = [
             ("boolean/carrier_touch.rs", 1),
-            ("boolean/mod.rs", 2),
+            ("boolean/glue.rs", 2),
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 8),
+            ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),
+            ("validate.rs", 1),
         ];
         const HOME: &str = "boolean/boxes.rs";
         const DOORS: [&str; 4] = ["face_box(", "face_box_rule(", "edge_box(", "edge_box_rule("];

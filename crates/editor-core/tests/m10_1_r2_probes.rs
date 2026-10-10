@@ -47,12 +47,12 @@ use test_utils::fuzz;
 /// A variable as the free mass doors' refusals speak it.
 /// The variable `doc` declares as `name`, or an id it never minted.
 fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
-    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(0),
+        editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
 }
@@ -589,6 +589,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
                 fixture::DEPTH,
                 Distribution::Normal { sigma: 0.001 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -610,7 +611,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
     };
     let (a, b) = (run(&plain), run(&annotated_doc));
     let mut compared = 0usize;
-    for &id in plain.order() {
+    for id in plain.ids() {
         let (va, vb) = (a.value(id), b.value(id));
         match (va, vb) {
             (Some(va), Some(vb)) => {
@@ -642,6 +643,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
                 fixture::DEPTH,
                 Distribution::Normal { sigma: 0.001 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -659,7 +661,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
     };
     let (a, b) = (run(&plain), run(&annotated_doc));
     let mut compared = 0usize;
-    for &id in plain.order() {
+    for id in plain.ids() {
         if let (Some(va), Some(vb)) = (a.value(id), b.value(id)) {
             assert_eq!(va.content_key, vb.content_key, "node {}", id.0);
             assert_eq!(va.naming_key, vb.naming_key, "node {}", id.0);
@@ -702,6 +704,7 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         &DocEdit::DefineVar {
             var: p("hole_r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(existing.dim(), 0.004)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -713,15 +716,15 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         None,
         "the annotation is gone, silently"
     );
-    // And the analysis agrees the parameter is now FIXED — the
-    // modelling statement changed without anyone saying so.
+    // And the analysis agrees the parameter is now FIXED — no axis at
+    // all, a constant (VR8) — the modelling statement changed without
+    // anyone saying so.
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
         .get(v(&after, "hole_r"))
-        .copied()
-        .expect("axis");
+        .copied();
     assert!(
-        axis.offsets.is_fixed(),
-        "a value edit turned a varying parameter into a fixed one"
+        axis.is_none(),
+        "a value edit turned a varying parameter into a constant: {axis:?}"
     );
 }
 

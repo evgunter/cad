@@ -9,8 +9,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, Sense, SitedRef, SplitHalf,
-    band, band_rim, band_rim_pi, evaluate, meridian_vertex,
+    ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, Sense, SitedRef,
+    SplitHalf, band, band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
 use geom_core::Tol;
@@ -50,7 +50,7 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(side),
             side: ExtrudeSide::Along,
         },
@@ -147,7 +147,7 @@ fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // The sketch plane's normal is u x v = +z.
             distance: len(1.0),
             side: ExtrudeSide::Against,
@@ -199,8 +199,8 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )
@@ -224,7 +224,7 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -239,8 +239,8 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )
@@ -420,8 +420,8 @@ fn full_holed_revolve_names_the_cavity_loop() {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -620,8 +620,8 @@ fn split_names_sections_fragments_and_crossings() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: ext,
-            tool: plane,
+            target: ext.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -697,16 +697,23 @@ fn split_names_sections_fragments_and_crossings() {
                 ext,
                 RoleSeg::LateralEdge(pv(&doc, ext, 0, s)),
             );
-            assert!(
-                t.lookup(&minted(
-                    EntityKind::Edge,
-                    split,
-                    RoleSeg::SplitFragment {
-                        side,
-                        parent: strut.clone().into()
-                    }
-                ))
-                .is_some(),
+            // The strut's one piece on each side, named by its ends.
+            let fragment = RoleSeg::SplitFragment {
+                side,
+                parent: strut.clone().into(),
+            };
+            assert_eq!(
+                t.iter()
+                    .filter(|(n, _)| {
+                        n.node == split
+                            && n.path.first() == Some(&fragment)
+                            && matches!(
+                                n.path.as_slice(),
+                                [_, RoleSeg::Fragment(Qualifier::Ends(_))]
+                            )
+                    })
+                    .count(),
+                1,
                 "missing strut fragment side={side:?} v={s}"
             );
             // The strut runs up from the start cap, so it enters the
@@ -755,7 +762,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: tr,
+            input: tr.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],

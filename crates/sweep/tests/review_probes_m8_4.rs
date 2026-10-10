@@ -208,17 +208,16 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     Some((body, he_bowed, bowed))
 }
 
-/// **P-E: the direction half of the 4-candidate schedule selects but
-/// can never certify — MEASURED.** On the `v`-reversed chart the same
+/// **P-E: the direction half of the 4-candidate schedule selects, and
+/// the seam class certifies it.** On the `v`-reversed chart the same
 /// carrier traverses the chart's `v` BACKWARD; the pick returns the
-/// geometrically correct negative-slope image, and the seam class then
-/// refuses it (`ResidualExceeded { Envelope }`): its parameter-map
-/// slack is metered against the IDENTITY map `v(t) = t`, and its
-/// control hull against the boundary row's own ordering, so no
-/// backward image fits the certified inventory. The posture for a
-/// v-opposed chart is therefore a typed refusal, never a silent mint —
-/// pinned here as measured; red if either half of that ever changes
-/// silently.
+/// geometrically correct negative-slope image, and the seam class reads
+/// a backward image against the boundary row read backwards — its
+/// control hull against the row reversed, its parameter-map slack
+/// against `v(t) = S − t`, `S` the reflection's sum. The
+/// carrier IS the reversed chart's column run back, so the certificate
+/// is exact: zero residual, zero envelope. Red if the backward image
+/// stops certifying, or certifies with slack it does not have.
 #[test]
 fn probe_e_reversed_chart_takes_the_backward_candidate() {
     let Some((body, he, bowed)) = seam_on_chart(true) else {
@@ -271,12 +270,12 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         &Surface::Nurbs(Arc::new(chart.clone())),
         band(),
     );
-    let refusal = verdict
-        .map(|c| format!("{:?}", c.certificate()))
-        .expect_err("MEASURED: no backward image fits the seam class's certified inventory");
-    assert!(
-        format!("{refusal:?}").contains("Envelope"),
-        "the refusal is the envelope's own: {refusal:?}"
+    let cert = verdict.unwrap_or_else(|e| panic!("the backward image certifies: {e:?}"));
+    assert_eq!(
+        format!("{:?}", cert.certificate()),
+        "PcurveCertificate { samples: 9, max_residual: 0.0, envelope: 0.0, statement: \
+         MapResidualIsoHull, ssi: None }",
+        "the carrier is the reversed chart's column run back, exactly"
     );
     println!(
         "P-E @ eps={:e}: u = {}, v slope {}",

@@ -60,7 +60,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -95,6 +95,7 @@ fn rig(label: &str, n: usize) -> Rig {
                 editor_core::DocEdit::SetOffset {
                     instance: id,
                     offset: None,
+                    fresh: Vec::new(),
                 },
             )
             .0;
@@ -163,6 +164,7 @@ fn add(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     (doc, id.expect("the insert minted an id"))
@@ -1053,6 +1055,7 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
             doc,
             DocEdit::InsertNode {
                 node: Box::new(Node::instantiate_part(doc_ref)),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1072,20 +1075,32 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         "the band must refuse for this row to measure anything"
     );
     // `band_document`'s instances pin a reference no store holds, so
-    // there is no part body for the heads to name: any id spells it.
-    let body = RecipeNodeId(0);
+    // there is no part body for the heads to name: any id spells it,
+    // worn inside the instance's `InPart` wrapper.
+    let cap = |instance: RecipeNodeId| {
+        fixture::head(fixture::fname(
+            instance,
+            editor_core::RoleSeg::InPart {
+                of: fixture::fname(
+                    RecipeNodeId::new(0, 0),
+                    editor_core::RoleSeg::Cap(CapEnd::Start),
+                )
+                .into(),
+            },
+        ))
+    };
     let mut refused = 0_usize;
     for (x, y) in [(0, 1), (2, 3)] {
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(mate(
-                        body,
-                        ids[x],
-                        ids[y],
+                    node: Box::new(Node::Mate {
+                        a: cap(ids[x]),
+                        b: cap(ids[y]),
+                        class: ContactClass::Rest,
                         // A literal step: no band forms to author
                         // vectors through.
-                        al(
+                        alignment: al(
                             MatePrimitive::FrameCoincidence,
                             AxisSense::Aligned,
                             MateFrame::on_part(editor_core::Placement::IDENTITY),
@@ -1094,7 +1109,8 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                             )),
                             None,
                         ),
-                    )),
+                    }),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1112,7 +1128,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     }
     assert_eq!(refused, 2);
     assert!(
-        doc.order()
+        doc.ids()
             .iter()
             .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
         "the document holds its five instances and nothing else"
@@ -1122,7 +1138,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     // else, since no band means no verdict for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;
-    for &id in doc.order() {
+    for id in doc.ids() {
         assert!(
             matches!(poses.fault(id), Some(MateFault::Band { .. })),
             "{id:?}: {:?}",
@@ -1209,13 +1225,14 @@ fn c4_poses_of_another_document_reaches_no_row() {
             editor_core::DocEdit::SetOffset {
                 instance: id,
                 offset: Some(editor_core::Placement::IDENTITY),
+                fresh: Vec::new(),
             },
         )
         .0;
     }
     let tol = Tol::witness();
     let poses = solve(&doc, &r.o, tol);
-    for &id in doc.order() {
+    for id in doc.ids() {
         assert!(
             !matches!(
                 poses.fault(id),
@@ -1241,7 +1258,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
         );
     }
     let ev = run(&doc, &r.o);
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(e) = ev.node_error(id) else {
             continue;
         };

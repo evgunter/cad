@@ -187,6 +187,12 @@ pub(super) enum RoleSeg {
         vertex: NameRef,
         edge: NameRef,
     },
+    Mitre {
+        vertex: NameRef,
+    },
+    TurnFoot {
+        vertex: NameRef,
+    },
     BandFace(Vec<StableName>),
     BandTrim {
         edge: NameRef,
@@ -211,6 +217,10 @@ pub(super) enum RoleSeg {
     },
 
     InPart {
+        of: NameRef,
+    },
+
+    Placed {
         of: NameRef,
     },
 

@@ -108,6 +108,8 @@ mod frame_policy;
 mod gauge_door_and_badge;
 #[path = "gesture_table.rs"]
 mod gesture_table;
+#[path = "gui_variables.rs"]
+mod gui_variables;
 #[path = "index_memo.rs"]
 mod index_memo;
 #[path = "input_mapping.rs"]

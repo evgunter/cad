@@ -21,8 +21,8 @@ use editor_core::ExtrudeSide;
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnitSym, ValuePayload, VarName, evaluate,
+    MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -50,12 +50,14 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
+/// A length carrying a tolerance, so the analysis varies it (VR8: an
+/// untoleranced variable is a constant of every analysis lane).
 fn length(value: f64) -> FreeVar {
     FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
-        distribution: None,
+        distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
     }
 }
 
@@ -102,7 +104,7 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     });
     let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -110,7 +112,7 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::named(name("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -124,13 +126,8 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
         vertex_at(&ev, blank, [R0, R0, D0]),
         vertex_at(&ev, blank, [1.0 - R0, 1.0 - R0, 0.0]),
     ];
-    let m = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs,
-        )
-        .expect("indices in range"),
-    );
+    let m_measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let (m, _m_value) = (m_measured.measures[0], m_measured.outputs[0]);
     (r.doc, m)
 }
 
@@ -141,6 +138,7 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
         &DocEdit::DefineVar {
             var: name(param).into(),
             def: editor_core::VarDecl::Free(length(value)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -156,8 +154,16 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
 #[test]
 fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
     let (doc, measure) = filleted_cube();
-    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness())
-        .expect("the driver runs");
+    let entries = sensitivities(
+        &doc,
+        crate::fixture::output(&doc, measure),
+        None,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("the driver runs");
     let m0 = (2.0 * (1.0 - 2.0 * R0).powi(2) + D0 * D0).sqrt();
     assert_eq!(
         measured(&doc, measure, "radius", R0),
@@ -168,7 +174,11 @@ fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
         ("depth", D0, D0 / m0),
         ("radius", R0, -4.0 * (1.0 - 2.0 * R0) / m0),
     ];
-    assert_eq!(entries.len(), closed.len(), "one entry per parameter");
+    assert_eq!(
+        entries.len(),
+        closed.len(),
+        "one entry per toleranced variable, no written dimension's (VR8)"
+    );
     let mut misses = Vec::new();
     for &(param, nominal, want) in &closed {
         let var = doc.var_named(param).expect("the fixture declares it");

@@ -2,11 +2,12 @@
 id: a-plane-plane-blend-cannot-end-at-an-unrequested-corner
 kind: issue
 title: blend: a plane–plane chain cannot end at a corner whose other edges are unrequested, nor turn a sharp corner, so no proper subset of a box's edges can be chamfered or filleted
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
-pr: 4121
+pr: 4209
+closed: 2026-10-07
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
@@ -168,8 +169,78 @@ Build order (each step widens admission; this row closes with step 4):
   and takes a boolean beside and through the band at the closed forms
   in every op; with a brick wholly apart the boolean refuses at the
   containment door,
-  `work/contact/at-infinity-probe-measures-in-closed-form-only.md`
+  `work/restread/at-infinity-probe-measures-in-closed-form-only.md`
   (evidence added there, pinned in `band_planar_oblique_fillet.rs`).
 - The bracket's walls 2 and 5 (the chords filleted, on the corner
   piece and on the offcuts) build at `4·(1 − π/4)·r²·√2` and are
   retired; wall 3 (the turn) stays, step 4's.
+
+## Findings (step 4, branch `band/two-requested-edges-meet-at-a-mitre`)
+
+- Predicate 6 reads a turn's isosceles verdict as the ruling states it:
+  `fillet3_turn_isosceles`, the difference of the cosines of the two
+  face angles at the vertex (each requested edge against L), levered at
+  the longer edge. Equal face angles put both bands' feet on L at one
+  point for either verb; the mitre ends at their midpoint. (A feet-gap
+  margin was tried first and dropped: it reads Zero on non-isosceles
+  trihedra too — for a chamfer wherever `sin φ₁ = sin φ₂` — where a
+  fillet's foot need not lie on the section's symmetric ellipse.) Zero
+  builds the mitre, definite refuses
+  `UnsupportedRunOut` (`TURN_NOT_ISOSCELES`, step 5), in band escalates.
+  The margin also reads the two feet's gap on L: at acute face angles
+  the cosines alone admit feet further apart than the band. The
+  Zero verdict is recorded as `DecidedCoincidence::IsoscelesTurn` on
+  each `Turn`, read through `BatteryVerdict::coincidences()`; no D10 recording door exists yet, filed
+  as INTENT's `value-decided-coincidences-have-no-recording-door`.
+- The carve is the local carve's, with two new station kinds: on the
+  shared face a strut to the trimlines' crossing (named
+  `FootVertex { vertex, shared support }`), and on L's two faces the
+  foot on L, which is split there (`TurnFoot { vertex }`, its surviving
+  piece a fragment of L). After the link `kef`s, the mitre is `mef`'d
+  across one band (`Mitre { vertex }`), the triangle it cuts off is
+  `kef`'d into the other band across the strut, and L's piece and the
+  vertex are `kev`'d. The fillet mitre is `cylinder_cylinder_section`'s
+  `a₁ − a₂` ellipse, the cylinders handed over with their axes along
+  their edges out of the vertex; the radius evidence is structural (one
+  request's radius).
+- The region a turn takes from its faces is wholly inside the three
+  strips: on the shared face, two strips meeting at the crossing; on
+  each of L's faces, the strip between its edge, its trimline and L's
+  piece to the foot. The other band's cut by this face's plane (the
+  triangle between the vertex, the foot and the other trimline's crossing
+  with the shared edge) lies inside that strip. So arms (a) and (d) meter
+  it, and nothing new is metered. The turn foot is metered against any
+  other split of L (a cut-off at its far end, another turn) by
+  `shared_rims_clear`.
+- Built at closed forms, both verbs: two adjacent box top edges, the
+  box's top rim, the cube's Petrie hexagon (six turns), a convex
+  pentagon cap rim (`P·d²/2 − K·d³/3` and
+  `P·(1 − π/4)·r² − K·(5/3 − π/2)·r³`, `K = Σ cot(θᵢ/2)`; each fillet
+  mitre the ellipse of minor `r` and major `r / sin(θ/2)`), the pocket
+  floor rim (concave), the squared washer's bottom edges beside the
+  bore's band, and the `Interval` replay. A boolean oracle (the box less
+  two half-space prisms) agrees with the chamfer.
+- **The bracket's wall 3 does not retire; it moves to the overrun.**
+  Each corner of a section face is a turn whose dihedrals differ: 90° at
+  the cap chord, 45° or 135° at the section edge on the side wall. So
+  both section faces' whole rims refuse `TURN_NOT_ISOSCELES`, which is
+  step 5's. Re-pinned in `demos/tour/src/bracket.rs`.
+- The four-edge turn foot: L blended in a later call ends at a
+  valence-4 vertex and refuses `NEdgeVertex { valence: 4 }`, whose
+  recourse (`FILLET3_CORNER_RECOURSE`) now ends "in one call"; requested
+  together, the three edges build the patch. Pinned in
+  `band_planar_mitre` and `blend_recourse_followability`.
+- A teardrop prism's top rim (one turn, a tangent arc) now passes the
+  battery as an isosceles turn and refuses at the open-chain door,
+  `UnsupportedChain` (its chain mixes arms), instead of `Turn`.
+- **For step 5: the supplementary turn is not an overrun.** Where the
+  two requested edges make supplementary angles with L (`φ` and
+  `π − φ`, two corners of any box sheared along its diagonal,
+  `common::operands::parallelepiped`), a chamfer's two feet on L
+  coincide (`d / sin φ` each) and its two planes share the chord from
+  the crossing down to that point: the mitre lands on L, though the
+  dihedrals differ. A fillet's do not (its setback follows the
+  dihedral). Step 4 refuses both verbs there as not isosceles, worded
+  so as not to claim an overrun
+  (`band_planar_mitre::a_sheared_box_mitres_its_isosceles_corners_and_refuses_its_supplementary_ones`);
+  step 5's design decides whether the chamfer builds it as a mitre.

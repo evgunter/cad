@@ -470,6 +470,14 @@ BOUNDS_ALLOWLIST=(
   # which has no certified enclosure (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # glue.rs's three are the glue door's box sweep, the amendment's
+  # funnel shape: `overlapping_pairs` builds each face's certified box
+  # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
+  # its two readers carry the bound to call it: `decided_declarations`,
+  # which hands each pair to the carrier ladder, and `coaxial_rows`,
+  # which decides the cylinder × sphere pairs' coaxial frame. None
+  # reads a bracket of its own beyond the box builders'.
+  'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
   # built and decides on them, the amendment's funnel shape. The
@@ -507,7 +515,6 @@ BOUNDS_ALLOWLIST=(
   # Three more ride to `carrier_touch::off_face` the same way:
   # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
   'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
   # `SolidSeparation::of`, is argued in that struct's own doc as
@@ -600,7 +607,7 @@ BOUNDS_ALLOWLIST=(
   # as before), and `face_clearance_margin` is `face_clearance` with its
   # margin formed by the caller, the door the surgery's strip meter
   # refuses through; both decide only through `classify`.
-  'crates/sweep/src/blend/battery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/battery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -643,14 +650,14 @@ BOUNDS_ALLOWLIST=(
   # split meters it; the two sliver constructors became one.
   'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
-  # 7 -> 8: the fitted door gained a fourth body,
-  # `sphere_circle_image_lane` (`Decide + Bounds + CertifiedEnclosure`,
-  # the bound its three siblings carry): a sphere chart's general
-  # circle's image, whose f64 structure (C6) it reads off the data's
-  # bracket midpoints — the reading `rational_arc_chain` did for the
-  # same circles' certificate, which left this file when the Circle
-  # arm's check 4 became closed-form arithmetic at `T`. Same seam,
-  # reached only through `FittedLane::certified`.
+  # The fitted door's fourth body is `projected_hull_lane` (`Decide +
+  # Bounds + CertifiedEnclosure`, the bound its three siblings carry):
+  # a net's projected row's piece hulls and its canonical-composite span
+  # bounds, every value crossing into certification arithmetic through
+  # `Interval::from_certified`. It took the seat of
+  # `sphere_circle_image_lane`, retired with the Hermite image, so the
+  # count is unmoved. Same seam, reached only through
+  # `FittedLane::certified`.
   'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
@@ -670,7 +677,17 @@ BOUNDS_ALLOWLIST=(
   # The seam is unmoved: the branch certificate keeps its bounds.
   'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
   # M7-8, the declare-and-check edge lane.
-  'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
+  # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
+  # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
+  # occurrences): the analytic rung-3 carrier's C2 limbs checked at the
+  # edge certificate — its offset from each operand (limbs 1–2, through
+  # `pcurve_cache::projected::net_offset_sup`) and the uniqueness tube
+  # (limb 3). It reads no bracket. It hands the carrier and the two
+  # analytic operands to `ssi::certify::certify_branch` (M6-2's seam,
+  # ratified at this bound) with `Limbs::Tube`, and its bound is its
+  # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
+  # it is public so the at-rest rows can run the limb directly.
+  'crates/geom-brep/src/edge_nurbs.rs 8 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -687,7 +704,7 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 21 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 22 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
@@ -699,13 +716,15 @@ BOUNDS_ALLOWLIST=(
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
   # `census_verdict`, the census tail both tier-3′ paths end in, at the
   # census's own `Bounds`); `CertifiedLanes::held`, the one spelling of
-  # the certified lanes those doors hold, at `CertifiedBounds`; and one
-  # test helper (`check1`).
+  # the certified lanes those doors hold, at `CertifiedBounds`; one
+  # test helper (`check1`); and `ring_pairs`, check 9's broad phase over
+  # a face's rings, at `Decide + Bounds` under the driver amendment
+  # (argued beside `topo::census` in `geom-core/src/real.rs`).
   # The tier-3′ ones among them reach `census::census_and_certify`, which
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 22 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its

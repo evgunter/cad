@@ -108,7 +108,7 @@
 //! each hole lies wholly inside the blank, so the subtract's volume
 //! bound `vol(A ∖ B) ≥ vol(A) − vol(B)` is a tie whose enclosure
 //! straddles zero at every width
-//! (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
 //! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
 //! document certifies whole. The Monte-Carlo lane answers on the cut
 //! plate; only the certified lane, and the stackup over it, refuse.
@@ -285,7 +285,7 @@ fn cut_wall(tol: Tol) {
         receipt.certified, 1,
         "the study's own document certifies this box whole, so the wall is the cut's: {receipt:?}"
     );
-    let Plate { doc, measure, .. } =
+    let Plate { doc, web, .. } =
         crate::plate::cut_plate(SPACING_HALF_WIDTH * s, RADIUS_SIGMA * s, WEB_BOUND, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &whole, tol).expect("the cut plate's nominal builds");
@@ -294,12 +294,12 @@ fn cut_wall(tol: Tol) {
         1,
         "the holes cut from the blank, the web read off the cut part's bore walls, \
          over 1e-9 of the study",
-        stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
+        stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
             StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
             other => Err(Box::new(other)),
         }),
         |r| matches!(r, Ok(receipt) if receipt.certified == 0),
-        "re-author crate::plate::plate as the cut (work/reach/\
+        "re-author crate::plate::plate as the cut (work/tally/\
          a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md)",
     );
     // The advisory lane is not walled: it samples the cut plate over
@@ -311,10 +311,10 @@ fn cut_wall(tol: Tol) {
         let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
             .expect("the Monte-Carlo lane answers");
         let m = mc
-            .measures
+            .values
             .iter()
-            .find(|m| m.node == p.measure)
-            .expect("the web measure has a row");
+            .find(|v| v.var == p.web)
+            .expect("the web an assertion reads has a row");
         (m.measured, m.mean, m.min, m.max)
     };
     let cut = row(&crate::plate::cut_plate(
@@ -339,7 +339,7 @@ fn cut_wall(tol: Tol) {
 fn real_study(tol: Tol) {
     let Plate {
         doc,
-        measure,
+        web,
         assertion,
         ..
     } = crate::plate::real_study(tol);
@@ -357,7 +357,7 @@ fn real_study(tol: Tol) {
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
+    match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
@@ -587,7 +587,7 @@ fn certified_study(tol: Tol) {
     );
     let Plate {
         doc,
-        measure,
+        web,
         assertion,
         ..
     } = plate(spacing_half_width, radius_sigma, bound, tol);
@@ -602,7 +602,7 @@ fn certified_study(tol: Tol) {
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
     let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
+    let report = match stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -613,7 +613,7 @@ fn certified_study(tol: Tol) {
     println!("{}", indent(&report.render(&doc, &analyzed)));
     print_divergence(&report, bound, worst, &decided, tol);
     // The E11.6 datum: where each certified leaf's mass lands.
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
+    let histogram = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
     println!("{}", indent(&histogram.render(&doc)));
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
@@ -964,4 +964,108 @@ fn indent(text: &str) -> String {
         .map(|l| format!("     {l}"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pncad::document::{CancelToken, EvalOptions, ValuePayload, evaluate};
+
+    /// The verdict bits a plate's assertion lands on: its nominal `f64`
+    /// verdict, the Monte Carlo lane's verdict tally and its population
+    /// of the asserted web, and — at the certifiable box — what the
+    /// requirement decides over the certified leaves, with its masses.
+    const PINNED: &str = "real: nominal Holds Holds { measured: 4558673246493684320, bound: 4557750909289998842 }; mc holds=499 violated=13 unevaluated=0 web 3f438e85babb60ac 3f0e4e721371c0fa 3f3fb4c4f36116c8 3f47f8928a0e25e4 512\n\
+cut: nominal Holds Holds { measured: 4558673246493684320, bound: 4557750909289998842 }; mc holds=499 violated=13 unevaluated=0 web 3f438e85babb60ac 3f0e4e721371c0fa 3f3fb4c4f36116c8 3f47f8928a0e25e4 512\n\
+certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673246337605741 }; mc holds=512 violated=0 unevaluated=0 web 3f43a92a303c9eb1 3d93f96572a381d8 3f43a92a291e92cc 3f43a92a382a5808 512; leaves HOLDS over every certified leaf holds 3fefd3d2aadd38d5 violated 0000000000000000 unevaluated 0000000000000000";
+
+    fn verdict_bits(name: &str, p: &Plate, leaves: bool, tol: Tol) -> String {
+        let ev = evaluate::<f64>(
+            &p.doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let nominal = match ev.value(p.assertion).map(|v| &v.payload) {
+            Some(ValuePayload::Assertion(v)) => {
+                format!("{} {:?}", v.label(), v.clone().map(f64::to_bits))
+            }
+            other => panic!("{name}: the assertion has a verdict, got {other:?}"),
+        };
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let mc = monte_carlo(&p.doc, &analyzed, &McConfig::default(), tol)
+            .expect("the Monte-Carlo lane answers");
+        let tally = mc
+            .assertions
+            .iter()
+            .find(|a| a.node == p.assertion)
+            .expect("the assertion has a row");
+        let web = {
+            let v = mc
+                .values
+                .iter()
+                .find(|v| v.var == p.web)
+                .expect("the web has a row");
+            (v.mean, v.sigma, v.min, v.max, v.measured)
+        };
+        let mut line = format!(
+            "{name}: nominal {nominal}; mc holds={} violated={} unevaluated={} web \
+             {:016x} {:016x} {:016x} {:016x} {}",
+            tally.holds,
+            tally.violated,
+            tally.unevaluated,
+            web.0.to_bits(),
+            web.1.to_bits(),
+            web.2.to_bits(),
+            web.3.to_bits(),
+            web.4
+        );
+        if leaves {
+            let verdict = drive(&p.doc, &analyzed, &parallel(), tol).expect("the nominal builds");
+            let (decided, masses) =
+                requirement_over_leaves(&p.doc, &analyzed, &verdict, p.assertion, tol);
+            line.push_str(&format!(
+                "; leaves {} holds {:016x} violated {:016x} unevaluated {:016x}",
+                describe(&decided),
+                masses.holds.to_bits(),
+                masses.violated.to_bits(),
+                masses.unevaluated.to_bits()
+            ));
+        }
+        line
+    }
+
+    /// **The plate's verdicts are the bits they were before a measure
+    /// became one primitive** (INTENT stage 2 test 13): the web is a
+    /// definition over the distance measure now, and every verdict
+    /// over it — nominal, Monte Carlo and per leaf — lands where the
+    /// measure's own arithmetic landed. The pin was taken on the tree
+    /// before that change.
+    #[test]
+    fn the_plate_verdicts_hold_their_bits() {
+        let tol = Tol::witness();
+        let spread = tol.eps() / 64.0;
+        let (half, sigma) = (0.05 * spread, 0.2 * spread);
+        let worst = 2.0 * half + 2.0 * (3.0 * sigma);
+        let rss3 = 3.0 * ((2.0 * half / 3.0_f64.sqrt()).powi(2) + 2.0 * sigma.powi(2)).sqrt();
+        let lines = [
+            verdict_bits("real", &crate::plate::real_study(tol), false, tol),
+            verdict_bits(
+                "cut",
+                &crate::plate::cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol),
+                false,
+                tol,
+            ),
+            verdict_bits(
+                "certifiable",
+                &plate(half, sigma, WEB - 0.5 * (worst + rss3), tol),
+                true,
+                tol,
+            ),
+        ]
+        .join("\n");
+        println!("{lines}");
+        assert_eq!(lines, PINNED, "a plate verdict moved");
+    }
 }

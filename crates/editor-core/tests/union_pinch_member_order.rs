@@ -17,6 +17,10 @@
 //!   making a second pinch on the top, and for two blocks whose
 //!   footprints on the plate's side face are holes touching at a corner,
 //!   which join into one hole through one vertex;
+//! - three prisms touching pairwise along one vertical line, with the
+//!   plate and alone, in every member order: the line held by two
+//!   coincident edges meets the third, and folded first the three
+//!   pierce the top at one point;
 //! - the plate against the joined blocks as a pair boolean, both ways
 //!   round, so the pierced face sits on each operand side in turn;
 //! - the plate minus the joined blocks, where the pierced face is the
@@ -38,8 +42,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
 use editor_core::{
-    BooleanOp, BooleanValue, Evaluation, ExtrudeSide, NamingError, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, ValuePayload,
+    BooleanOp, BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, ValuePayload,
 };
 use geom_core::Tol;
 use topo::{Body, ContactRecords};
@@ -91,7 +94,7 @@ fn prism(doc: ProfileDoc, corners: &[(f64, f64)], z0: f64, dz: f64) -> (ProfileD
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -411,46 +414,7 @@ fn every_order(
     pinches: &[Point],
     touches: &[([usize; 2], &[Contact])],
 ) {
-    every_order_but(label, fixture, counts, volume, pinches, touches, (&[], 0));
-}
-
-/// The naming refusal EMIT's #4203 (704378c3) brought to the leaning
-/// wedges' unions on main
-/// (`work/emit/a-pinch-split-per-cone-has-a-crossing-edge-with-no-classified-piece.md`).
-const UNCLASSIFIED_CROSSING: &str =
-    "a crossing's edge has no piece the boolean classified at the crossing";
-
-/// Whether `id` refuses [`UNCLASSIFIED_CROSSING`], and nothing else.
-fn refuses_unclassified_crossing(ev: &Evaluation<f64>, id: RecipeNodeId) -> bool {
-    matches!(
-        failure(ev, id),
-        Some(NodeErrorKind::Naming(NamingError::Emission { what })) if *what == UNCLASSIFIED_CROSSING
-    )
-}
-
-/// Whether `order`'s first fold step unions two of the `adjacent`
-/// members, in either order.
-fn first_step_joins(order: &[usize], adjacent: &[[usize; 2]]) -> bool {
-    adjacent
-        .iter()
-        .any(|&[a, b]| (order[0], order[1]) == (a, b) || (order[0], order[1]) == (b, a))
-}
-
-/// [`every_order`], but the member orders whose first step unions two
-/// angularly adjacent wedges (`refused.0`) assert
-/// [`UNCLASSIFIED_CROSSING`] instead, `refused.1` of them. They must
-/// build once that is fixed; the row asserts the refusal until then.
-fn every_order_but(
-    label: &str,
-    fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
-    counts: [usize; 3],
-    volume: f64,
-    pinches: &[Point],
-    touches: &[([usize; 2], &[Contact])],
-    refused: (&[[usize; 2]], usize),
-) {
     let mut first: Option<Outcome> = None;
-    let mut refusals = 0;
     let mut by_last: BTreeMap<usize, Outcome> = BTreeMap::new();
     let n = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()))
         .1
@@ -461,15 +425,6 @@ fn every_order_but(
         let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
         let what = format!("{label}, member order {order:?} (0 = plate)");
         let ev = run(&doc);
-        if first_step_joins(&order, refused.0) {
-            assert!(
-                refuses_unclassified_crossing(&ev, u),
-                "{what}: refuses Naming(Emission) {UNCLASSIFIED_CROSSING:?}, got {:?}",
-                failure(&ev, u)
-            );
-            refusals += 1;
-            continue;
-        }
         let o = checked(&ev, u, &what, volume);
         assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
         for &p in pinches {
@@ -510,10 +465,6 @@ fn every_order_but(
             first = Some(o);
         }
     }
-    assert_eq!(
-        refusals, refused.1,
-        "{label}: the orders refusing {UNCLASSIFIED_CROSSING:?}"
-    );
     assert_eq!(
         first.map(|f| f.manifold),
         Some(Ok(())),
@@ -642,13 +593,13 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     };
     let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
     let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate], Vec::new());
-    let pair = |doc, op, a, b| {
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
         insert(
             doc,
             Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         )
@@ -733,13 +684,13 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let (doc, p1) = block(doc, (1.0, 1.5), (-2.0, 1.0), 0.3, 2.0);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 4.0), 0.27, 1.73);
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let pair = |doc, op, a, b| {
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
         insert(
             doc,
             Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         )
@@ -873,7 +824,7 @@ fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeI
         let (d, w) = insert(
             d,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h.length),
                 side: ExtrudeSide::Along,
             },
@@ -891,7 +842,6 @@ type TiltedRow = (
     fn() -> Vec<Hole>,
     fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
     [usize; 3],
-    (&'static [[usize; 2]], usize),
 );
 
 /// The plate's volume plus each prism's part above its top.
@@ -912,32 +862,28 @@ fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
             two_wedges,
             |d| tilted_holes(d, &two_wedges()),
             [14, 30, 19],
-            (&[[1, 2]], 2),
         ),
         (
             "three wedges",
             three_wedges,
             |d| tilted_holes(d, &three_wedges()),
             [18, 39, 24],
-            (&[[1, 2], [2, 3], [1, 3]], 12),
         ),
         (
             "four wedges",
             four_wedges,
             |d| tilted_holes(d, &four_wedges()),
             [22, 48, 29],
-            (&[[1, 2], [2, 3], [3, 4], [1, 4]], 48),
         ),
     ];
-    for (label, holes, fixture, counts, refused) in rows {
-        every_order_but(
+    for (label, holes, fixture, counts) in rows {
+        every_order(
             label,
             fixture,
             counts,
             tilted_volume(&holes()),
             &[top()],
             &[],
-            refused,
         );
     }
 }
@@ -954,25 +900,22 @@ fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_ord
             wedges_on_one_side,
             |d| tilted_holes(d, &wedges_on_one_side()),
             [18, 39, 24],
-            (&[[1, 2], [2, 3], [1, 3]], 12),
         ),
         (
             "an L and two wedges",
             ell_and_wedges,
             |d| tilted_holes(d, &ell_and_wedges()),
             [21, 48, 30],
-            (&[[2, 3]], 4),
         ),
     ];
-    for (label, holes, fixture, counts, refused) in rows {
-        every_order_but(
+    for (label, holes, fixture, counts) in rows {
+        every_order(
             label,
             fixture,
             counts,
             tilted_volume(&holes()),
             &[top()],
             &[],
-            refused,
         );
     }
 }
@@ -1002,10 +945,6 @@ fn names_at(ev: &Evaluation<f64>, id: RecipeNodeId, p: Point) -> Vec<String> {
 /// Orders that fold the plate earlier mint the vertex at another step,
 /// under another name
 /// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`).
-///
-/// Since EMIT's #4203 every order here refuses
-/// [`UNCLASSIFIED_CROSSING`] and the row asserts that; the names are
-/// read again once it is fixed.
 #[test]
 fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
     let mut first: Option<Vec<String>> = None;
@@ -1017,17 +956,6 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
         let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
         let ev = run(&doc);
-        // Every order here folds two wedges first, which refuses
-        // `UNCLASSIFIED_CROSSING` since EMIT's #4203 (see `every_order_but`);
-        // each must name the junction once that is fixed.
-        if first_step_joins(&order, &[[1, 2], [2, 3], [1, 3]]) {
-            assert!(
-                refuses_unclassified_crossing(&ev, u),
-                "member order {order:?}: refuses Naming(Emission) {UNCLASSIFIED_CROSSING:?}, got {:?}",
-                failure(&ev, u)
-            );
-            continue;
-        }
         if let Some(e) = failure(&ev, u) {
             panic!("member order {order:?}: refused: {e:?}");
         }
@@ -1050,4 +978,192 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
             ),
         }
     }
+}
+
+/// **Where two leaning wedges' legs meet at the plate's top, their union
+/// names the vertex a seam of the two legs, in either member order**:
+/// each leg lies outside the other wedge on both sides of the vertex,
+/// so neither enters or leaves the other and the vertex is no crossing.
+/// The fold reaches one wedge's copy of the vertex only through two
+/// fusions (`names::emit_topo::fused_partners`).
+#[test]
+fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
+    let mut first: Option<Vec<String>> = None;
+    for order in [[1, 2], [2, 1]] {
+        let (doc, m) = tilted_holes(
+            ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+            &two_wedges(),
+        );
+        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]], Vec::new());
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("member order {order:?}: refused: {e:?}");
+        }
+        let names = names_at(&ev, u, top());
+        assert_eq!(
+            names.len(),
+            1,
+            "member order {order:?}: the meeting point's names"
+        );
+        let n = &names[0];
+        assert!(
+            n.contains("path: [Seam {") && !n.contains("Crossing"),
+            "member order {order:?}: the meeting point is a seam, no crossing: {n}"
+        );
+        assert_eq!(
+            n.matches("role: Leg").count(),
+            2,
+            "member order {order:?}: the seam is of the two legs: {n}"
+        );
+        match &first {
+            None => first = Some(names),
+            Some(f) => assert_eq!(
+                &names, f,
+                "member order {order:?}: the meeting point's name"
+            ),
+        }
+    }
+}
+
+/// An upright prism over the triangle from (1.5, 1) to the points at the
+/// bearings `a0` and `a1` (degrees) 0.4 from it, over `z`.
+fn sector_prism(doc: ProfileDoc, a0: f64, a1: f64, z: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
+    let at = |a: f64| {
+        let (s, c) = f64::to_radians(a).sin_cos();
+        (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
+    };
+    prism(doc, &[(MEET[0], MEET[1]), at(a0), at(a1)], z.0, z.1 - z.0)
+}
+
+/// The plate and three prisms over 50° sectors about (1.5, 1), each 70°
+/// from the next, touching pairwise along the vertical line through it.
+fn three_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, 240.0, 290.0, (0.44, 1.81));
+    (doc, vec![plate, a, b, c])
+}
+
+/// The plate and four prisms over 50° sectors about (1.5, 1), each 40°
+/// from the next, touching pairwise along the vertical line through it.
+fn four_on_a_line(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+    let (doc, b) = sector_prism(doc, 90.0, 140.0, (0.47, 1.7));
+    let (doc, c) = sector_prism(doc, 180.0, 230.0, (0.44, 1.81));
+    let (doc, d) = sector_prism(doc, 270.0, 320.0, (0.41, 1.63));
+    (doc, vec![plate, a, b, c, d])
+}
+
+/// [`four_on_a_line`] without the plate.
+fn four_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, m) = four_on_a_line(doc);
+    (doc, m[1..].to_vec())
+}
+
+/// [`three_on_a_line`] without the plate.
+fn three_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, m) = three_on_a_line(doc);
+    (doc, m[1..].to_vec())
+}
+
+/// Asserts every member order of `fixture`'s union builds one body, as
+/// [`every_order`] does, where three solids touch along one line. The
+/// contacts [`DROPPED_RECORDS`] drops are those of earlier members that
+/// the last one's do not cover, which [`every_order`]'s pairs cannot
+/// name: `dropped[i]` of them, all on the line, when member `i` folds
+/// last.
+fn every_order_on_a_line(
+    label: &str,
+    fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
+    counts: [usize; 3],
+    volume: f64,
+    pinch: bool,
+    dropped: &[usize],
+) {
+    let mut first: Option<Outcome> = None;
+    let n = dropped.len();
+    for order in orders(n) {
+        let (doc, m) = fixture(ProfileDoc::empty_derived("on_a_line", Tol::witness()));
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+        let what = format!("{label}, member order {order:?}");
+        let o = checked(&run(&doc), u, &what, volume);
+        assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
+        if pinch {
+            assert_eq!(at(&o.shape, top()), 1, "{what}: vertices at the pinch");
+        }
+        let refused = match &o.verdict {
+            Ok(()) => Vec::new(),
+            Err(es) => es.clone(),
+        };
+        for (kind, p) in &refused {
+            assert!(
+                kind.starts_with("UndeclaredContact")
+                    && p.is_some_and(|(x, y, _)| (x, y) == (1_500_000, 1_000_000)),
+                "{what}: 3′ refused off the line: {kind} at {p:?}"
+            );
+        }
+        assert_eq!(
+            refused.len(),
+            dropped[order[n - 1]],
+            "{what}: 3′ refused by other than the records {DROPPED_RECORDS} drops: {refused:?}"
+        );
+        if let Some(f) = &first {
+            assert_eq!(
+                o.shape, f.shape,
+                "{what}: a different body from the first order"
+            );
+            assert_eq!(o.manifold, f.manifold, "{what}: a different mesh verdict");
+        } else {
+            first = Some(o);
+        }
+    }
+    assert_eq!(
+        first.map(|f| f.manifold),
+        Some(Ok(())),
+        "{label}: check_mesh"
+    );
+}
+
+/// **Three and four solids touching along one line build one body in
+/// every member order**, with the plate and alone: the third meets the first two's
+/// coincident edges along the ray they hold, and, folded first, the
+/// three edges pierce the plate's top at one point once each.
+#[test]
+fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
+    let above = 0.5 * 0.16 * 50f64.to_radians().sin();
+    every_order_on_a_line(
+        "three prisms and the plate",
+        three_on_a_line,
+        [18, 39, 24],
+        above.mul_add(1.0 + 0.7 + 0.81, 6.0),
+        true,
+        &[6, 0, 2, 0],
+    );
+    every_order_on_a_line(
+        "three prisms",
+        three_prisms,
+        [15, 27, 18],
+        above * (1.5 + 1.23 + 1.37),
+        false,
+        &[2, 2, 0],
+    );
+    every_order_on_a_line(
+        "four prisms and the plate",
+        four_on_a_line,
+        [22, 48, 29],
+        above.mul_add(1.0 + 0.7 + 0.81 + 0.63, 6.0),
+        true,
+        &[12, 0, 2, 0, 6],
+    );
+    every_order_on_a_line(
+        "four prisms",
+        four_prisms,
+        [20, 36, 24],
+        above * (1.5 + 1.23 + 1.37 + 1.22),
+        false,
+        &[6, 4, 0, 6],
+    );
 }

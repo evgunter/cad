@@ -219,12 +219,15 @@ use super::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
 };
 use super::arms::EdgeBlend;
-use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link, face_clearance_margin};
+use super::battery::{
+    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+};
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
-use super::open::end_face::{CapSliver, shared_rims_clear};
+use super::open::end_face::{CapSliver, EndCut, foot_param, shared_rims_clear};
 use super::open::planar::{
-    BlankPlan, Corner, CutOffPlan, JointPlan, blank_phase, corner_plan, cut_off_plan, joint_plan,
+    BlankPlan, Corner, CutOffPlan, JointPlan, TurnPlan, blank_phase, corner_plan, cut_off_plan,
+    joint_plan, turn_plan,
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
@@ -433,15 +436,16 @@ enum HostFoot {
 ///
 /// # One shape this door does not serve, measured
 ///
-/// **A CURVED single face carrying every arc CAN arise, and refuses.**
-/// It is reachable through `topo`'s public `kef` — kill one of a sphere
-/// wall's two seam meridians and the remaining face carries both rim
-/// arcs — and through no sweep or boolean door. It refuses at the
-/// half-band gate (on the `Struts` route, a full revolve's plane side
-/// being one face), and never carves:
-/// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
-/// rowed by
-/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`.
+/// **A CURVED single face carrying every arc is construction state.**
+/// It is authorable through `topo`'s public `kef_describing` — kill one
+/// of a cylinder wall's two seam meridians and restate the other as the
+/// wall's wrap edge, and the remaining face carries both rim arcs — and
+/// through no sweep or boolean door. Each rim's two arcs then meet at
+/// the killed meridian's end with nothing else there, a joinable vertex
+/// tier 3's check 11 refuses at rest, so no blend door takes the body
+/// (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
+/// The half-band gate that refused it has no at-rest witness left
+/// (`work/fuse/door-arms-only-a-hand-split-operand-reached.md`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -583,6 +587,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // shape rather than by a check three functions deep. ----
     let mut ends: Vec<CornerLinks<'_, T>> = Vec::new();
     let mut cut_offs: Vec<CutOffPlan<'_, T>> = Vec::new();
+    let mut turning: Vec<(&Turn<T>, Vec<AdmittedOpen<'_, T>>)> = Vec::new();
     for o in &planar {
         for v in [o.link().start, o.link().end] {
             if is_joint(v) {
@@ -590,6 +595,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             }
             if let Some((_, section)) = verdict.end_faces.iter().find(|(e, _)| *e == v) {
                 cut_offs.push(cut_off_plan(source, *o, v, section.clone())?);
+                continue;
+            }
+            if let Some(turn) = verdict.turns.iter().find(|t| t.vertex == v) {
+                match turning.iter_mut().find(|(t, _)| t.vertex == v) {
+                    Some((_, links)) => links.push(*o),
+                    None => turning.push((turn, vec![*o])),
+                }
                 continue;
             }
             match ends.iter_mut().find(|c| c.vertex() == v) {
@@ -600,6 +612,20 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     ends.sort_by_key(CornerLinks::vertex);
     cut_offs.sort_by_key(|c| c.end.vertex);
+    // ---- Turns: the verdict lists each once; both of its links end
+    // here, in edge order since `planar` is. ----
+    let mut turns: Vec<TurnPlan<'_, T>> = Vec::with_capacity(turning.len());
+    for (turn, links) in turning {
+        let [a, b] = links[..] else {
+            return Err(not_intact(
+                EntityId::Vertex(turn.vertex),
+                "a turn the verdict admitted does not end exactly two admitted planar links",
+            ));
+        };
+        let at = foot_param(source, turn.edge, turn.vertex, turn.foot)?;
+        turns.push(turn_plan(source, turn, [a, b], at, kind, band)?);
+    }
+    turns.sort_by_key(|t| t.turn.vertex);
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
@@ -680,6 +706,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             &corner_rows,
             &joint_rows,
             &cut_rows,
+            &verdict.turns,
         )?);
     }
 
@@ -691,14 +718,26 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         ruled_plans.push(RuledPlan::plan(source, *o, &opens, &verdict.end_faces)?);
     }
 
-    // ---- Two cut-offs on one rim: the second split must land on the
-    // piece the first leaves. ----
+    // ---- Two splits on one rim — two cut-offs', or a cut-off's and a
+    // turn's on its third edge — the second must land on the piece the
+    // first leaves. The support screen does not subsume this: a foot
+    // stands `setback / sin φ` along the rim from its vertex, `φ` the
+    // angle there between the rim and the band's edge, so at an oblique
+    // angle the feet cross while the two edges are still further apart
+    // than their setbacks
+    // (`band_planar_mitre::a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes`). ----
     shared_rims_clear(
         source,
         ruled_plans
             .iter()
             .flat_map(RuledPlan::ends)
-            .chain(cut_offs.iter().map(|c| &c.end)),
+            .chain(cut_offs.iter().map(|c| &c.end))
+            .flat_map(EndCut::feet)
+            .chain(
+                turns
+                    .iter()
+                    .map(|t| (t.turn.edge, t.turn.vertex, t.turn.foot)),
+            ),
         band,
     )?;
 
@@ -736,6 +775,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         opens: &planar,
         corners: &corners,
         cut_offs: &cut_offs,
+        turns: &turns,
         joints: &joints,
         supports: &supports,
     };
@@ -849,7 +889,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     })?;
 
     body.close_already_checked();
-    let body = blended;
+    let mut body = blended;
     #[cfg(debug_assertions)]
     debug_assert_eq!(
         topo::validate_closed(&body),
@@ -909,6 +949,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             trims,
             feet,
             arcs,
+            mitres,
+            turn_feet,
             bands,
             rim_trims,
             rim_feet,
@@ -920,6 +962,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                     edges: _,
                     vertices: _,
                 },
+            // Written below, after these rows are checked.
+            edge_joins: _,
         } = &rec;
         let edge_sources = blends
             .iter()
@@ -952,6 +996,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .map(|(_, v)| v)
             .chain(feet.iter().map(|(_, v, _)| v))
             .chain(arcs.iter().map(|(_, v, _)| v))
+            .chain(mitres.iter().map(|(_, v)| v))
+            .chain(turn_feet.iter().map(|(_, v)| v))
             .chain(rim_feet.iter().map(|(_, v)| v));
         for v in vertex_sources {
             assert!(
@@ -972,6 +1018,22 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             );
         }
     }
+    // The join (`docs/DESIGN.md`, maximal edges), over the carved
+    // shells: every other shell is the source's, entity for entity.
+    let carved: BTreeSet<VertexKey> = body
+        .half_edges()
+        .filter(|(k, _)| {
+            body.face_of_half_edge(*k)
+                .and_then(|f| body.get_face(f))
+                .is_some_and(|f| shells.contains(&f.shell))
+        })
+        .map(|(_, h)| h.start)
+        .collect();
+    rec.edge_joins = body
+        .join_edges_within(band, tol, &|v| carved.contains(&v))
+        .map_err(|refusal| BlendError::Join {
+            refusal: topo::JoinRefusal::of(&refusal),
+        })?;
     rec.dead.edges.sort_unstable();
     rec.dead.edges.dedup();
     rec.dead.vertices.sort_unstable();
@@ -983,6 +1045,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         corner_faces,
         band_faces,
         naming: Some(rec),
+        coincidences: verdict.coincidences().copied().collect(),
     })
 }
 
@@ -1522,8 +1585,8 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // feet IN this cycle, so an edge of it the request did not name
         // would end up inside a strip the carve excises. The recourse is
         // true at the site because its clause asks for the rim to be the
-        // host's WHOLE outer cycle. Rowed by
-        // `fillet_h5_r2_probes::a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate`.
+        // host's WHOLE outer cycle. A finished host reaches it through a
+        // pinch: `fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_hostless_gate`.
         if cycle != want {
             return Err(unbuilt_chain(
                 link0.edge,
@@ -3175,6 +3238,7 @@ fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> 
 // ------------------------------------------------------------------
 
 /// A recorded new edge awaiting its intrinsic description.
+#[derive(Clone)]
 pub(super) enum ContactCarrier<T: Real> {
     /// A straight trimline where the band meets its support
     /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt
@@ -5106,7 +5170,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                  close as an annulus",
             ));
         }
-        EdgeDescriptionSpec::seam(s1)
+        EdgeDescriptionSpec::wrap(s1)
     } else if transverse {
         // The chamfer's edges and the ruled band's cut-off arcs: two
         // surfaces crossing at a definite angle, so the intrinsic
@@ -5145,11 +5209,12 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
             must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
         };
-        // In-band: a separation certifiable as neither positive nor
-        // zero — a band a few K·ε in radius, or a corner arc whose
-        // extent is the lever — escalated typed with the deciding
-        // station's own reading, at the link the contact edge belongs
-        // to. Refuted: a station reads the join a corner, so this
+        // In-band: a station certifiable as neither — a band a few K·ε
+        // in radius, or a corner arc whose extent is the lever —
+        // escalated typed as the decision its reading asks (the
+        // first-order arm or wedge, or the second-order separation),
+        // with that station's own diagnostics, at the link the contact
+        // edge belongs to. Refuted: a station reads the join a corner, so this
         // branch's premise — a definitely-smooth join — is refuted by
         // the geometry. The carrier kind routed the edge here, and
         // every kind whose surfaces cross at an angle is routed to the
@@ -5158,11 +5223,14 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // repaired by storing a description the routing did not
         // choose.
         let refused = |refusal| match refusal {
-            MustCarryRefusal::InBand(source) => BlendError::Escalated {
-                site: BlendSite::Link { edge: link },
-                decision: BlendDecision::ContactSecondOrder,
-                source: source.diag(),
-            },
+            MustCarryRefusal::InBand(escalation) => {
+                let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
+                BlendError::Escalated {
+                    site: BlendSite::Link { edge: link },
+                    decision: BlendDecision::of_contact(reading),
+                    source,
+                }
+            }
             MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),
                 detail: "a contact edge routed as a smooth join reads definitely \
@@ -5171,8 +5239,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         };
         match verdict.description(s1, s2, witness).map_err(refused)? {
             MustCarryDescription::Intrinsic(description) => description,
-            // The surfaces under-determine the locus, so the
-            // description stays CONVENTIONAL: an image in a chart,
+            // No intrinsic tangency is demanded (a zero-side
+            // station, or an all-positive pair outside the
+            // certificate's lane), so the description stays
+            // CONVENTIONAL: an image in a chart,
             // derived by the certification door from the exact carrier
             // above. `he_plus`'s chart: the locus lies exactly in both
             // surfaces, so either is a legitimate home — the argument
@@ -5187,8 +5257,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
-            // every station has read smooth first-order (a crossing
-            // out of lane is refuted above, as in lane): the
+            // every station has read smooth first-order and the
+            // second-order walk has not escalated, including when every
+            // station reads positive (a crossing or an in-band station
+            // out of lane refuses above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a

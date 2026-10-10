@@ -2,11 +2,11 @@
 id: the-rest-lane-zips-no-pinch-apex
 kind: issue
 title: The REST lane reads its vertex correspondence one-to-one, so a pinch apex meeting one vertex refuses
-status: parked
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-08
 ---
 
 ## What
@@ -27,7 +27,7 @@ pins it (a notched block holding a wedge, touching along the apex line,
 and a prism whose corner rests on the apex; the join refuses
 `Euler(NotSameFace)` in both orders, its halves on two faces at the
 fillets' tangency
-(`work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`),
+(`a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share`, JOIN, closed by PR 4364),
 and hands the union to the lane): the two apex vertices each correspond
 to the prism's corner.
 
@@ -61,4 +61,12 @@ pinned to today's refusal and moves with the fix.
 
 ## Parked on the D10 hold (2026-10-06)
 
-This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/flush/plan.md`, "The intent-refactor hold"). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: try_rest_union's one-to-one vcorr and glue_pair are the declared-REST zip, retired at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+The pinch apex meeting one vertex builds in the join, in both orders: `rest_nested_strut.rs`'s `a_pinch_apex_meeting_one_vertex_builds_in_either_order` (the join connects, the volume is the two stacked solids' sum, tiers 2, 3 and 3′). The zip and its one-to-one correspondence are deleted.

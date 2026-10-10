@@ -19,7 +19,7 @@
 //! Layering (D1, G1): the kernel never sees a `StableName` — ops emit
 //! birth facts; THIS module (editor-core) names things.
 
-mod attribute;
+pub(crate) mod attribute;
 mod borders;
 mod canonical;
 mod defer;
@@ -36,12 +36,13 @@ mod flush;
 mod geompred;
 mod groups;
 pub(crate) mod interrogate;
+mod join_names;
 mod least_root;
 pub(crate) mod merged;
 mod nest;
 #[cfg(test)]
 mod nest_reference;
-mod role;
+pub(crate) mod role;
 mod seam_pair;
 mod select;
 mod table;
@@ -50,19 +51,19 @@ pub(crate) mod words;
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{FAMILY, decision_words};
-pub(crate) use emit::name_in_part;
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
 };
+pub(crate) use emit::{name_in_part, name_placed};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_name, collapse_table,
-    is_fold_qualified_member_edge, member_name, member_view, name_union,
+    Fold as UnionFold, Links as UnionLinks, Member as UnionMember, collapse_table, member_name,
+    member_view, name_union,
 };
 pub use flush::{
     BooleanCoincidence, CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict,
@@ -88,7 +89,7 @@ pub use role::{
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};
-pub(crate) use role::{fragment_tail_start, name_free_seg};
+pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

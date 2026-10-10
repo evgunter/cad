@@ -30,9 +30,15 @@
 //!   ([`SegmentCurve`]); if the first `mef` split a
 //!   face that still owns rings, the rings are re-homed by trilean
 //!   containment ([`crate::splitting::containment`] on a plane,
-//!   [`chart_ring_side`] on a cylinder wall's chart) +
+//!   [`chart_ring_side`] on a cylinder wall's chart,
+//!   [`path_ring_side`] on a sphere or a cone) +
 //!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
-//!   mirror site).
+//!   mirror site);
+//! - two halves of one null edge making up a ring alone (a one-site
+//!   section loop's pierce of a planar face) ⇒ the ring is promoted to
+//!   a face and joined there, and the conic that winds against the old
+//!   face's outer loop goes back to it as a ring
+//!   ([`ChordJoiner::join_lone_ring`]).
 //!
 //! `cut(edge)` retires a fully-joined null edge: halves in different
 //! loops ⇒ `kef` (merge the two sliver faces — the killed side must be
@@ -88,12 +94,14 @@
 //! side wires a cylinder or a sphere partner, and the split's reduce
 //! refuses a sphere.
 //!
-//! A **self-loop chord** (both ends one vertex) is the split's on a
-//! curved face whose one crossing is the face's seam vertex — a full
-//! revolve's wall, cut across its one seam: there the chord is the
-//! whole section conic, from the vertex round to itself. On a planar
-//! face, in a boolean lane, or on a ruling section, a self-loop is a
-//! lone site, and rides `mef`'s placeholder circle
+//! A **self-loop chord** (both ends one vertex) is a one-site section
+//! loop's: a one-face closed wall cut across its one wrap edge, in the
+//! split or the boolean, and in the boolean also the partner's planar
+//! face, whose interior that edge pierces
+//! ([`ChordJoiner::join_lone_ring`]). There the chord is the whole
+//! section conic, from the vertex round to itself. In the plane × plane
+//! lane, on a planar face the split divides, or on a ruling section, a
+//! self-loop is a lone site, and rides `mef`'s placeholder circle
 //! (`EdgeCurveSpec::self_loop_circle_at`), which bounds nothing. A
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
@@ -111,8 +119,9 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
+use crate::ring_path::{LoopArc, Path, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
-use crate::splitting::rules::face_extent;
+use crate::splitting::rules::{face_axial_range, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -224,12 +233,11 @@ pub enum SplitJoinError {
         /// How many halves remained.
         count: usize,
     },
-    /// A closed section loop has ONE site: a closed curve of one solid
-    /// (a circle edge, or a face's closed section) lies in a face of the
-    /// other and meets nothing else of it, so the one vertex on it holds
-    /// both ends of the loop. The join pairs ends at two distinct sites
-    /// and has no arm that closes a loop on itself; refused typed, before
-    /// the loose ends are counted.
+    /// A closed section loop has ONE site that is not a wrap edge
+    /// crossing a planar face: the one vertex on the loop holds both its
+    /// ends, and the join closes a loop on itself only there
+    /// (`boolean::join::wrap_site_segments`). Any other is refused
+    /// typed, before the loose ends are counted.
     SingleSiteSectionLoop {
         /// How many such loops.
         count: usize,
@@ -252,11 +260,13 @@ pub enum SplitJoinError {
     /// Neither section loop of a null face reads which side of the other
     /// solid it lies on: every witness the role probe holds for either
     /// loop's regions lies on the other solid's boundary or within its
-    /// band of it. A crossing's two flanks cannot both read that way
-    /// unless their faces are curved and the witness can only sit on
-    /// their boundaries — the frontier of
-    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
-    /// — or the two solids' faces lie within the band of each other (a
+    /// band of it. A crossing's two flanks can both read that way only
+    /// where no face of either offers a point of its interior: a
+    /// curved face, the frontier of
+    /// `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`,
+    /// or a planar one none of whose interior candidates certifies
+    /// (`crate::stands`, rung 3) — or where the two solids' faces lie
+    /// within the band of each other (a
     /// settled in-band coincidence,
     /// `topo/tests/door_backstop_settled_residue.rs`). No kernel defect.
     SectionLoopUndecided {
@@ -319,7 +329,7 @@ pub enum SplitJoinError {
     ///   one means a lane invariant is broken, never user geometry;
     /// - **deliberate typed frontiers**: configurations the M5 lane
     ///   refuses BY DESIGN with the front door named in `what` (a
-    ///   tangent germ pair inside the boolean zip — a touching
+    ///   tangent germ pair inside the boolean join — a touching
     ///   configuration, the M5 envelope's frontier; a non-cylinder
     ///   planar-side germ partner — the PR 9c arms).
     SectionInvariant {
@@ -328,12 +338,12 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
-    /// A ring on a curved face that is not a cylinder wall: the ring
-    /// lane winds an island, and re-homes a ring, on a cylinder wall's
-    /// chart only. Valid input whose lane is not yet built (D2 addendum
-    /// row 2), refused typed; no reachable pose built a sphere island
-    /// when the cylinder reading was written.
-    RingOffCylinderChart {
+    /// A ring on a curved face whose island the ring lane does not read:
+    /// it winds an island, and re-homes a ring, on a cylinder wall's
+    /// chart, and on a sphere whose ring run lies in one cap of its
+    /// section plane and is bounded by circles. Valid input whose lane is
+    /// not yet built (D2 addendum row 2), refused typed.
+    RingIslandUnread {
         /// The face carrying the ring.
         face: FaceKey,
         /// Its surface kind.
@@ -454,16 +464,16 @@ impl SplitJoinError {
             ),
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
-                "{count} section loop(s) close through a single vertex: a closed curve of \
-                 one solid lies in a face of the other and meets nothing else of it, and a \
-                 loop joined at one site is not built. {}",
+                "{count} section loop(s) close through a single vertex that is not a \
+                 wrap edge crossing a planar face, and such a loop joined at one site is not \
+                 built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(
                 f,
                 "which of a section's two loops bounds the result cannot be read: every \
-                 point it is read at lies on a curved face's boundary or too near the \
-                 other part. {}",
+                 point it is read at lies on a face's boundary or too near the other \
+                 part. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopMixed { face } => write!(
@@ -509,11 +519,11 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
-            Self::RingOffCylinderChart { kind, .. } => write!(
+            Self::RingIslandUnread { kind, .. } => write!(
                 f,
                 "a cut passes through a {kind:?} face without reaching its boundary, leaving \
-                 a ring the join reads only on a cylinder wall. Recourse: move the cut so it \
-                 crosses the face's edge, or divide the face there first"
+                 a ring whose island the join does not read there. Recourse: move the cut so \
+                 it crosses the face's edge, or divide the face there first"
             ),
             Self::SectionCrossings { case, band, .. } => write!(
                 f,
@@ -549,20 +559,44 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
-/// Where the section table reads a wall's pose, and the lever: the base
-/// vertex `at`'s point, and [`face_extent`], the farthest boundary vertex
-/// of `face` from it, which bounds how far along the axis a tilt pinned
-/// at the vertex's foot moves the section. No ball around the vertex is
-/// a lever ([`geom_brep::Reach`]'s module docs): levered at one, a vertex
-/// on a wall `r` from the axis read `r + face_extent` from the foot, and
-/// an in-band tilt decided as an ellipse.
+/// Where the section table reads a wall's pose, and how far `face`
+/// reaches from there: the base vertex `at`'s point, [`face_extent`]
+/// (the cone lane's lever), and the cylinder lane's two
+/// [`geom_brep::Reach::Face`]s: the face's axial range from the vertex
+/// ([`face_axial_range`], the curved edges' bulge included) and its
+/// distance from it, each edge read over its span ([`face_extent`]) and
+/// round its whole carrier (`face_reach_round_from`), which the table
+/// reads from the rulings' hinge and [`agreed_section`] together. Off a
+/// cylinder the second reach is the first.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-) -> Result<(Point3<T>, T), SplitJoinError> {
+    wall: &geom::Surface<T>,
+) -> Result<(T, geom_brep::Reach<T>, geom_brep::Reach<T>), SplitJoinError> {
+    let p = body.resolve_vertex_point(at, Proven);
     let extent = face_extent(body, at, face).map_err(unbounded)?;
-    Ok((body.resolve_vertex_point(at, Proven), extent))
+    Ok(match wall {
+        geom::Surface::Cylinder { axis, .. } => {
+            let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
+            let round =
+                crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
+            let face_reach = |across| geom_brep::Reach::Face {
+                at: p,
+                below,
+                above,
+                across,
+            };
+            (extent, face_reach(extent), face_reach(round))
+        }
+        _ => {
+            let reach = geom_brep::Reach::Measured {
+                at: p,
+                lever: extent,
+            };
+            (extent, reach.clone(), reach)
+        }
+    })
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -640,8 +674,9 @@ pub(crate) struct ChordJoiner {
     /// Faces minted by `join`'s mefs — the sliver (section-polygon-in-
     /// progress) faces `cut` may kill.
     slivers: SecondaryMap<FaceKey, ()>,
-    /// Naming emission (M4 PR 3): every face the chord mefs minted,
-    /// paired with the face it was divided from, in mint order —
+    /// Naming emission (M4 PR 3): every face the chord mefs minted, and
+    /// the face [`Self::join_lone_ring`] promotes a ring to, paired with
+    /// the face it was divided from, in mint order —
     /// `(new face, divided-from face)` at CALL-TIME keys. Rows are
     /// historical (a recorded face may later die — slivers killed by
     /// `cut`, discarded material at finish); consumers filter to the
@@ -656,6 +691,9 @@ pub(crate) struct ChordJoiner {
     /// in the face it was in until a join connects it to a ring that is
     /// placed, and it moves to that ring's face.
     pending: SecondaryMap<LoopKey, ()>,
+    /// The 2-loop null faces [`Self::cut_core`] completed, which no later
+    /// kef takes as a side.
+    completed: SecondaryMap<FaceKey, ()>,
 }
 
 impl ChordJoiner {
@@ -666,6 +704,7 @@ impl ChordJoiner {
             fragments: Vec::new(),
             band,
             pending: SecondaryMap::new(),
+            completed: SecondaryMap::new(),
         }
     }
 
@@ -781,10 +820,12 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// The aux wall key in THIS body (minted once, caller-cached).
         partner_key: &'a mut Option<SurfaceKey>,
     },
-    /// A section segment that is an edge of BOTH solids: its chords are
-    /// copies of that edge ([`along_edge_spec`]) and no section is
-    /// read, since the germ's face pair there may be two faces on one
-    /// carrier, with no section between them.
+    /// A section segment that is an edge of this solid: this side's
+    /// chord is a copy of that edge ([`along_edge_spec`]) and reads no
+    /// section, since the germ's face pair there may be two faces on
+    /// one carrier, or meet in no conic. Where the edge is this solid's
+    /// alone, the other solid's chord may read one (the boolean's
+    /// edge-plane lane cuts its face by the edge's plane).
     AlongEdge,
 }
 
@@ -826,7 +867,7 @@ impl<T: Real> SectionConic<T> {
 ///
 /// `Straight` and `Tangent` are handed BACK rather than decided here:
 /// the two chord lanes mean different things by them — the split lane
-/// mints a tangent chord along the ruling, the boolean zip refuses a
+/// mints a tangent chord along the ruling, the boolean join refuses a
 /// tangent germ pair as a touching frontier — and that difference is
 /// the whole of what the two lanes do not share.
 pub(crate) enum SectionCase<T: Real> {
@@ -839,6 +880,40 @@ pub(crate) enum SectionCase<T: Real> {
     Straight([geom::Curve3<T>; 2]),
     /// The tangent locus, as the table constructed it.
     Tangent(geom::Curve3<T>),
+}
+
+/// **A plane×cylinder section, served only where a wall face's two
+/// measures of its reach across agree**: read over each edge's span
+/// (`splitting::rules::face_reach_from`) and round its whole carrier
+/// (`face_reach_round_from`). Both the chord lane ([`section_case`])
+/// and the germ frame (`boolean::join::pair_section_frame_at`) read
+/// the section on the declared-tangency path, which a shorter lever must
+/// not widen: an escalation under either reading escalates, and two
+/// served readings of different classes escalate under the row whose
+/// verdict they split (`pc_axis_plane_parallel_disagreement` between a
+/// conic and the rulings' lane, `pc_parallel_gap_disagreement` within
+/// that lane), two sound bounds straddling the band.
+pub(crate) fn agreed_section<T: Decide>(
+    span: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    round: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    band: Band,
+) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
+    use geom_brep::PlaneCylinderSection as S;
+    let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
+    match (span, round) {
+        (Err(e), _) | (Ok(_), Err(e)) => Err(e),
+        (Ok(s), Ok(r)) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => Ok(s),
+        (Ok(s), Ok(r)) => Err(geom_brep::SectionError::Escalated(
+            crate::invalid_margin::invalid(
+                band,
+                if conic(&s) == conic(&r) {
+                    "pc_parallel_gap_disagreement"
+                } else {
+                    "pc_axis_plane_parallel_disagreement"
+                },
+            ),
+        )),
+    }
 }
 
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
@@ -865,7 +940,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (at, extent): (Point3<T>, T),
+    (extent, reach, round): (T, geom_brep::Reach<T>, geom_brep::Reach<T>),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -962,8 +1037,8 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let reach = geom_brep::Reach::Measured { at, lever: extent };
-    let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
+    let read = |reach| geom_brep::plane_cylinder_section(plane_s, wall, reach, band);
+    let sec = agreed_section(read(&reach), read(&round), band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
@@ -1012,9 +1087,11 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
 /// Whether an edge from `start` to `end` on `curve` is a lone site's
 /// placeholder: a self-loop on a scaffold carrier, which `mef` certifies
 /// at a lone site as `EdgeCurveSpec::self_loop_circle_at` and
-/// [`chord_spec`] leaves on every self-loop chord it mints but a curved
-/// split face's whole conic (module docs, "The section-chord
-/// geometry"). Its circle is arbitrary, so it bounds nothing.
+/// [`chord_spec`] leaves on a self-loop chord in the plane × plane and
+/// along-edge lanes, where no conic is sectioned (module docs, "The
+/// section-chord geometry"; a curved face's self-loop and the boolean's
+/// planar pierce are the whole conic). Its circle is arbitrary, so it
+/// bounds nothing.
 ///
 /// Nothing in the edge marks a placeholder apart from an honest
 /// whole-turn scaffold, so this reading holds only in a body whose
@@ -1053,9 +1130,9 @@ fn oriented_arc<T: Real>(
     // chord may span more than half the conic. Its window jumps at a
     // span of zero, two distinct ends sharing a conic parameter, which
     // is either a zero-length arc or a whole turn. Nothing here gates
-    // that: the boolean joins only distinct sites (`bool_join_chord`),
-    // and the split pairs a vertex with itself only as a self-loop,
-    // which says so (`ArcEnd::WholeTurn`).
+    // that: both lanes pair distinct sites at distinct points
+    // (`bool_join_chord` in the boolean), and a vertex with itself only
+    // as a self-loop, which says so (`ArcEnd::WholeTurn`).
     let ccw_span = match to {
         ArcEnd::At(th2) => (th2 - th1).reduce_periodic(tau),
         ArcEnd::WholeTurn => tau,
@@ -1201,8 +1278,8 @@ fn arc_leaving<T: Decide>(
 ///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
 ///    pairing's answer; the chord does not ask the face again. A
 ///    self-loop (`u1 == u2`) is the whole conic, run the same way; on
-///    a ruling section, and outside the split's curved lane, a
-///    self-loop stays a lone site (`None`, the placeholder circle).
+///    a ruling section, and in the plane × plane and along-edge lanes,
+///    a self-loop stays a lone site (`None`, the placeholder circle).
 /// 3. Describe as `Intersection { wall, aux plane, witness }` with the
 ///    witness minted at the carrier's mid-parameter (the witness
 ///    contract) — certification then pins endpoints, residuals, and
@@ -1217,9 +1294,9 @@ fn chord_spec<T: Decide>(
     u2: VertexKey,
     leave: Departure<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    // A self-loop chord is a lone site (module docs) outside the
-    // split's curved lane.
-    if u1 == u2 && !matches!(lane, JoinLane::Split(_)) {
+    // A self-loop chord is a lone site (module docs) in the lanes that
+    // section no conic.
+    if u1 == u2 && matches!(lane, JoinLane::Planar | JoinLane::AlongEdge) {
         return Ok(None);
     }
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
@@ -1248,8 +1325,7 @@ fn chord_spec<T: Decide>(
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
             JoinLane::AlongEdge => Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a chord along an edge of both solids asked for a section: it copies the \
-                       edge",
+                what: "a chord along an edge asked for a section: it copies the edge",
             }),
         };
     }
@@ -1382,7 +1458,10 @@ fn chord_spec<T: Decide>(
 /// the face ([`chord_spec`]) and the split's pairing of the face's
 /// crossings along it (`splitting::join`) — so the two cannot read
 /// different conics. It is lane-neutral: the pair is the face and a
-/// plane, and nothing here knows which lane asks.
+/// plane, and nothing here knows which lane asks. So a cylinder wall is
+/// read as the most guarded lane needs it, the Boolean's germ join on the
+/// declared-tangency path: served only where the face's reach over its
+/// edges' spans and round their whole turn agree ([`agreed_section`]).
 ///
 /// # Errors
 ///
@@ -1409,7 +1488,8 @@ pub(crate) fn wall_section<T: Decide>(
         _ => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a section through a face kind the gate refuses",
+                what: "a section through a face kind no section arm reads (C5 has no plane×torus or \
+                       plane×spline section)",
             });
         }
     }
@@ -1421,7 +1501,13 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face)?)?;
+    let case = section_case(
+        face,
+        band,
+        &plane_s,
+        &wall,
+        section_reach(body, at, face, &wall)?,
+    )?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1506,12 +1592,12 @@ fn bool_planar_chord_spec<T: Decide>(
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     if !matches!(
         wall,
-        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }
     ) {
         return Err(SplitJoinError::SectionInvariant {
             face,
-            what: "boolean planar-side germ partner is neither a cylinder nor a sphere (arm not \
-                   wired)",
+            what: "boolean planar-side germ partner is not a cylinder, a sphere or a cone (arm \
+                   not wired)",
         });
     }
     let (p_o, p_n) = match body.get_surface(plane_key) {
@@ -1533,18 +1619,25 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face)?)? {
+    let conic = match section_case(
+        face,
+        band,
+        &plane_s,
+        wall,
+        section_reach(body, u1, face, wall)?,
+    )? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
-        // A tangent germ pair inside the boolean zip means TOUCHING
-        // operands — the M5 envelope refuses those upstream; reaching
-        // here is a frontier configuration, refused typed. (The split
-        // lane mints a chord on the same ruling; that difference is
-        // why `section_case` hands the arm back instead of deciding.)
+        // A tangent germ pair in the boolean join means TOUCHING
+        // operands: a germ tangent to a bound of its sector is read in
+        // the face across it (`boolean::insert`), so reaching here is a
+        // frontier configuration, refused typed. (The split lane mints
+        // a chord on the same ruling; that difference is why
+        // `section_case` hands the arm back instead of deciding.)
         SectionCase::Tangent(_) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "tangent plane×cylinder germ pair in the boolean zip — a touching \
+                what: "tangent plane×wall germ pair in the boolean join — a touching \
                        configuration, the typed frontier of the supported envelope",
             });
         }
@@ -1553,13 +1646,12 @@ fn bool_planar_chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
-    let (carrier, t_start, t_end) = oriented_arc(
-        &conic,
-        face,
-        conic.param(p1),
-        ArcEnd::At(conic.param(p2)),
-        ccw,
-    )?;
+    let to = if u1 == u2 {
+        ArcEnd::WholeTurn
+    } else {
+        ArcEnd::At(conic.param(p2))
+    };
+    let (carrier, t_start, t_end) = oriented_arc(&conic, face, conic.param(p1), to, ccw)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {
@@ -1820,7 +1912,7 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// channel that is exactly `α + β·t` (it writes `pa.x = pb.x = 0` and
 /// `pl.x = β ∈ {−1, 0, +1}` in both of its arms), so the two endpoint
 /// evaluations ARE the range — this is closed-form structure, not a
-/// sampled bound. A cone-section ellipse's azimuth is strictly
+/// sampled bound. A focal section's azimuth is strictly
 /// monotone, so its endpoints are its range too. It is read off
 /// [`Pcurve::closed_form_span_box`], whose trigonometric widening is
 /// exactly zero for every pcurve this lane derives and keeps the
@@ -1921,50 +2013,6 @@ fn outer_cycle<T: Decide>(
         return Ok(None);
     };
     Ok(Some(body.loop_walk(first).closed("loop", first)))
-}
-
-/// **Is a walk's chart polygon its own bounding box?** Every image is a
-/// chart segment on the cone's two iso families — a rim holds `v`, a
-/// generator holds `u` — so the lifted boundary, closed by the segment
-/// from its last exit to its first entry (the apex jump, when the walk
-/// was closed there), is a rectilinear chart polygon. Such a polygon is
-/// its bounding box exactly when its enclosed area is the box's; an L or
-/// a notch has strictly less, and every one of them has the same hull,
-/// so a window read off the hull would cover the notch. `None` for an
-/// empty walk.
-pub(crate) fn chart_box_defect<T: Real>(images: &[AzimuthImage<T>]) -> Option<ChartBox<T>> {
-    let (first, last) = (images.first()?, images.last()?);
-    let u = azimuth_hull(images)?;
-    let mut v = (first.v.0, first.v.0);
-    let mut twice = T::zero();
-    let closing = [(last.exit, last.v.1, first.entry, first.v.0)];
-    for (u0, v0, u1, v1) in images
-        .iter()
-        .map(|i| (i.entry, i.v.0, i.exit, i.v.1))
-        .chain(closing)
-    {
-        v = (v.0.min(v0).min(v1), v.1.max(v0).max(v1));
-        twice = twice + (u0 * v1 - u1 * v0);
-    }
-    let area = twice.abs() / T::from_f64(2.0);
-    Some(ChartBox {
-        u,
-        v,
-        defect: (u.1 - u.0) * (v.1 - v.0) - area,
-    })
-}
-
-/// A walk's chart bounding box, and how far its polygon falls short of
-/// it ([`chart_box_defect`]).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ChartBox<T: Real> {
-    /// The azimuth window.
-    pub(crate) u: (T, T),
-    /// The second coordinate's window.
-    pub(crate) v: (T, T),
-    /// The box's area less the polygon's: zero exactly when the polygon
-    /// is the box.
-    pub(crate) defect: T,
 }
 
 /// What the apex closure makes of a cone face's outer cycle.
@@ -2341,10 +2389,10 @@ fn wall_chart<T: Real>(surface: &geom::Surface<T>) -> Option<WallChart<T>> {
     }
 }
 
-/// The refusal of a ring-lane reading on a curved face that is not a
-/// cylinder wall ([`SplitJoinError::RingOffCylinderChart`]).
-fn no_wall_chart<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> SplitJoinError {
-    SplitJoinError::RingOffCylinderChart {
+/// The refusal of a ring-lane reading the lane has no arm for
+/// ([`SplitJoinError::RingIslandUnread`]).
+fn ring_island_unread<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> SplitJoinError {
+    SplitJoinError::RingIslandUnread {
         face,
         kind: surface.kind(),
     }
@@ -2388,8 +2436,9 @@ fn no_wall_chart<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> SplitJoi
 /// (`R·A_chart`) and `P` an upper bound on the boundary length in
 /// metres (`R·|Δu|` plus the axial variation, per piece).
 ///
-/// A sphere face, or any other curved kind, refuses typed
-/// ([`no_wall_chart`]).
+/// A sphere or a cone face winds without a chart
+/// ([`path_island_winding`]); any other curved kind refuses typed
+/// ([`ring_island_unread`]).
 pub(crate) fn chart_island_winding<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2408,7 +2457,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
         axis,
         radius,
         u_ref,
-    } = wall_chart(&surface).ok_or_else(|| no_wall_chart(face, &surface))?;
+    } = wall_chart(&surface).ok_or_else(|| ring_island_unread(face, &surface))?;
     let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
     let end = cycle
         .iter()
@@ -2479,17 +2528,312 @@ pub(crate) fn chart_island_winding<T: Decide>(
     Ok(wound.map(|d| if sense { d.sign } else { d.sign.flip() }))
 }
 
-/// **The chord of a section segment that is an edge of BOTH solids**
-/// ([`JoinLane::AlongEdge`], `segment` naming this solid's edge): the
-/// other copy of that edge, so its curve is the edge's own, from `u1`
-/// to `u2` (the edge's endpoints' copies, at its endpoints' points) —
-/// never a section the lane would compute from the germ's face pair,
-/// which may be two faces on one carrier with no section between them.
-/// A line is the straight chord; a circle is its own arc, on the
-/// carrier reversed when the chord runs against it. `None` on every
-/// other lane: there a segment along an edge of ONE solid lies in a
-/// face of the other, whose lane computes the section the chord takes
-/// (the rod's ruling, a lens rim on a wall).
+/// The loop arc of an edge on `quadric` over `params`; `None` on a
+/// carrier its loops do not carry: on a sphere any but a circle (a
+/// cylinder's or a torus's section), on a cone a spiric or a spline.
+fn quadric_loop_arc<T: Decide>(
+    quadric: &Quadric<T>,
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
+) -> Option<LoopArc<T>> {
+    match (quadric, carrier) {
+        (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
+        | (
+            Quadric::Cone { .. },
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line { .. },
+        ) => LoopArc::of(carrier, params),
+        _ => None,
+    }
+}
+
+/// The loop arcs of the half-edges `run` on the face `face` of
+/// `surface`: a null edge (a pierce point's scaffolding, no length)
+/// contributes none, and an edge on a carrier the surface's loops do
+/// not carry ([`quadric_loop_arc`]) is a ring the lane does not read
+/// ([`SplitJoinError::RingIslandUnread`]).
+fn run_loop_arcs<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
+    run: &[HalfEdgeKey],
+) -> Result<Vec<LoopArc<T>>, SplitJoinError> {
+    let mut arcs = Vec::with_capacity(run.len());
+    for &he in run {
+        let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
+        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+            continue;
+        };
+        arcs.push(
+            quadric_loop_arc(quadric, curve.carrier(), curve.params())
+                .ok_or_else(|| ring_island_unread(face, surface))?,
+        );
+    }
+    Ok(arcs)
+}
+
+/// The reference points a path may run to from `face`'s outer loop:
+/// its vertices, then the midpoints of its edges other than `skip`. A
+/// midpoint lies off a run that shares its edge's vertices but not the
+/// edge, where every vertex reads on the run.
+fn outer_references<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    skip: &[EdgeKey],
+) -> Result<Vec<Point3<T>>, SplitJoinError> {
+    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
+    let mut points = loop_points(body, outer)?;
+    for he in outer_cycle(body, face)?.unwrap_or_default() {
+        let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
+        if skip.contains(&edge) {
+            continue;
+        }
+        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        if let Some(curve) = body.edge_curve_linked(edge, data).certified() {
+            let (t0, t1) = curve.params();
+            points.push(curve.carrier().mid_point(t0, t1));
+        }
+    }
+    Ok(points)
+}
+
+/// The points of a loop's vertices, in cycle order (an empty loop's
+/// lone vertex).
+fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, SplitJoinError> {
+    Ok(ring_vertices(body, l)?
+        .into_iter()
+        .map(|v| vertex_point(body, v))
+        .collect())
+}
+
+/// **The winding of a ring-lane island on a sphere or a cone face**,
+/// about the face's OUTWARD normal, read without a chart: whether the
+/// open run `h1 → h2` (`next` order, through `h2`), closed by `closing`
+/// (the chord from `h2`'s site back to `h1`'s; `None`, the straight
+/// chord, which only a cone's ruling is), bounds on its left the patch
+/// holding none of the face's outer loop — the island, since the ring is
+/// a hole and the run's left is the face's side of it.
+///
+/// A path ([`Quadric::paths`]) runs from an outer-loop point `w` (a
+/// vertex, or an edge midpoint: [`outer_references`]) to the closing
+/// chord's midpoint `q`, where it arrives across the chord. Its
+/// crossings of the curve before `q` ([`crate::ring_path::path_parity`])
+/// say whether `w` lies on the side it arrives from, and the arrival
+/// says which side that is: the left one exactly when the path arrives
+/// against the chord's left normal `N × t` (`N` the outward normal at
+/// `q`, `t` the chord's direction of travel), the lean
+/// **`split_ring_path_lean`** (the cosine between the arrival and the
+/// left normal, levered at [`Quadric::lever`]). CCW is `w` off the left.
+///
+/// Positive for CCW, as the cylinder arm's chart sign. A path whose lean
+/// or crossings land in the zero band or the escalation band says
+/// nothing, and the next path or `w` is asked: the parity is the same on
+/// every path, so the first decided one is the reading. The first
+/// escalation escalates only where no path decides. A run
+/// bounded by an edge the face's loops do not carry, or a chord through
+/// a cone's apex, is a ring the lane does not read
+/// ([`SplitJoinError::RingIslandUnread`]); an outer loop no point of
+/// which a path decides refuses typed.
+pub(crate) fn path_island_winding<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    closing: Option<&EdgeCurveSpec<T>>,
+    band: Band,
+) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
+    let invariant = |what| SplitJoinError::SectionInvariant { face, what };
+    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    let surface = body
+        .get_surface(face_data.surface)
+        .ok_or_else(|| corrupt_face(face))?;
+    let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
+    let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
+    let end = cycle
+        .iter()
+        .position(|&he| he == h2)
+        .ok_or_else(|| corrupt_he(h2))?;
+    let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end])?;
+    let (chord, q, travel) = match closing {
+        Some(spec) => {
+            let (t0, t1) = (spec.param_start, spec.param_end);
+            let chord = quadric_loop_arc(&quadric, &spec.carrier, (t0, t1))
+                .ok_or_else(|| ring_island_unread(face, surface))?;
+            let travel = spec.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
+            (chord, spec.carrier.mid_point(t0, t1), travel)
+        }
+        None if matches!(quadric, Quadric::Sphere { .. }) => {
+            return Err(invariant(
+                "a sphere ring run is closed by a straight chord (the section lanes mint an arc \
+                 on a sphere)",
+            ));
+        }
+        None => {
+            let after = cycle[(end + 1) % cycle.len()];
+            let at = |he: HalfEdgeKey| {
+                Ok::<_, SplitJoinError>(vertex_point(
+                    body,
+                    body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
+                ))
+            };
+            let (from, to) = (at(after)?, at(h1)?);
+            (
+                LoopArc::segment(from, to),
+                from + (to - from) * T::from_f64(0.5),
+                to - from,
+            )
+        }
+    };
+    match quadric.off_apex(q, band) {
+        Ok(true) => {}
+        Ok(false) => return Err(ring_island_unread(face, surface)),
+        Err(diag) => return Ok(Err(diag)),
+    }
+    let arrives_on = arcs.len();
+    arcs.push(chord);
+    let outward = quadric.outward(q, face_data.sense);
+    let left = outward.cross(travel);
+    let lever = quadric.lever(q);
+    let read = |path: Path<T>| -> Result<Option<Sign>, Indeterminate> {
+        let lean = decide(
+            "split_ring_path_lean",
+            Margin::levered(-path.arrival.dot(left) / left.norm(), lever),
+            band,
+        )?;
+        if lean == Sign::Zero {
+            return Ok(None);
+        }
+        Ok(
+            path_parity(&path, &arcs, Some(arrives_on), band)?.map(|odd| {
+                let w_left = (lean == Sign::Positive) != odd;
+                if w_left {
+                    Sign::Negative
+                } else {
+                    Sign::Positive
+                }
+            }),
+        )
+    };
+    let paths = outer_references(body, face, &[])?
+        .into_iter()
+        .flat_map(|w| quadric_paths(&quadric, (w, q), band));
+    match first_decided(paths.map(|path| Ok::<_, SplitJoinError>(path.and_then(read))))? {
+        Ok(Some(sign)) => return Ok(Ok(sign)),
+        Err(diag) => return Ok(Err(diag)),
+        Ok(None) => {}
+    }
+    Err(invariant(
+        "no outer-loop point of a sphere or cone face reads which side of a ring-lane island it \
+         is on (every path to the closing chord meets the island's boundary in the zero band)",
+    ))
+}
+
+/// **The first decided reading** of `readings`, asked in order and
+/// lazily. Every reading answers one question — which side of a curve a
+/// point lies on, the same whatever path or point reads it — so one that
+/// says nothing (`Ok(None)`: the zero band) or escalates moves to the
+/// next. The first escalation escalates only where no reading decides; a
+/// hard error stops the walk.
+///
+/// **The premise**: the decided readings agree. For the winding's
+/// references and a ring's paths it holds by construction (each reads one
+/// point's side). For a ring's vertices it holds because the ring does
+/// not cross the curve it is read against: a ring crossing it would have
+/// decided vertices on both sides, and the walk would answer with the
+/// first. That is the premise `validate::ring_nesting` rests on, checked
+/// by check 9's contact arms on `Line` and `Circle` edges and assumed on
+/// `Ellipse`, `Spiric` and NURBS ones
+/// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
+/// Under it, which decided reading is taken changes nothing.
+fn first_decided<R, D, E>(
+    readings: impl IntoIterator<Item = Result<Result<Option<R>, D>, E>>,
+) -> Result<Result<Option<R>, D>, E> {
+    let mut escalated = None;
+    for reading in readings {
+        match reading? {
+            Ok(Some(r)) => return Ok(Ok(Some(r))),
+            Ok(None) => {}
+            Err(diag) => {
+                escalated.get_or_insert(diag);
+            }
+        }
+    }
+    Ok(escalated.map_or(Ok(None), Err))
+}
+
+/// The paths [`Quadric::paths`] offers between two points, each as a
+/// reading of [`first_decided`]'s: an escalation choosing them is one
+/// escalated reading.
+fn quadric_paths<T: Decide>(
+    quadric: &Quadric<T>,
+    ends: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Vec<Result<Path<T>, Indeterminate>> {
+    match quadric.paths(ends, band) {
+        Ok(paths) => paths.into_iter().map(Ok).collect(),
+        Err(diag) => vec![Err(diag)],
+    }
+}
+
+/// [`ring_side`] on a sphere or a cone face, without a chart: whether
+/// `ring` lies inside `newf`'s outer loop (the run a `mef` just walled
+/// off `oldf`), by the parity of a path ([`Quadric::paths`]) from a ring
+/// vertex to a point outside the new face: a vertex of `oldf`'s outer
+/// loop, or the midpoint of one of its edges the run does not share,
+/// which lies off the run even where every vertex of that loop is a
+/// copy of a run vertex ([`crate::ring_path::path_parity`]). A path with
+/// a reading in the zero band says nothing and the next path or pair is
+/// asked: one ending on the run does, so a ring vertex on the run never
+/// decides. One with a reading in the escalation band says nothing
+/// either; the first escalation escalates only where no pair decides.
+/// The decided pairs agree because the ring does not cross the run
+/// ([`first_decided`]'s premise). A ring no pair decides otherwise is [`RingSide::Undecided`], as on a
+/// wall's chart ([`chart_ring_side`]).
+fn path_ring_side<T: Decide>(
+    body: &Body<T>,
+    (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
+    (oldf, newf): (FaceKey, FaceKey),
+    ring: LoopKey,
+    band: Band,
+) -> Result<RingSide, SplitJoinError> {
+    let cycle = outer_cycle(body, newf)?.ok_or(SplitJoinError::SectionInvariant {
+        face: newf,
+        what: "ring re-homing on a sphere or a cone: the run is not a cycle",
+    })?;
+    let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle)?;
+    let run_edges = cycle
+        .iter()
+        .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
+        .collect::<Result<Vec<_>, SplitJoinError>>()?;
+    let outside = outer_references(body, oldf, &run_edges)?;
+    let paths = loop_points(body, ring)?.into_iter().flat_map(|p| {
+        outside
+            .iter()
+            .flat_map(move |&w| quadric_paths(quadric, (p, w), band))
+    });
+    let read = |path: Result<Path<T>, Indeterminate>| {
+        Ok::<_, SplitJoinError>(path.and_then(|path| path_parity(&path, &arcs, None, band)))
+    };
+    match first_decided(paths.map(read))? {
+        Ok(Some(odd)) => Ok(if odd { RingSide::In } else { RingSide::Out }),
+        Ok(None) => Ok(RingSide::Undecided),
+        Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
+    }
+}
+
+/// **The chord of a section segment that is an edge of this solid**
+/// ([`JoinLane::AlongEdge`], `segment` naming that edge): the other
+/// copy of the edge, so its curve is the edge's own, from `u1` to `u2`
+/// (the edge's endpoints' copies, at its endpoints' points) — never a
+/// section the lane would compute from the germ's face pair, which may
+/// be two faces on one carrier, or meet in no conic. A line is the
+/// straight chord; a circle is its own arc, on the carrier reversed
+/// when the chord runs against it. The boolean takes this lane on both
+/// solids for an edge of both, and on the edge's solid alone for a
+/// conic edge of one lying in a face of the other whose pair has no
+/// section lane (a tube's rim on a ball). `None` on every other lane:
+/// there a segment along an edge of one solid lies in a face of the
+/// other, whose lane computes the section the chord takes (the rod's
+/// ruling, a lens rim on a wall).
 ///
 /// `segment`, `u1` and `u2` are keys the join carries, so one that no
 /// longer resolves refuses typed. Past them, the ends' points and the
@@ -2768,7 +3112,7 @@ impl JoinPlan {
     ) -> Result<Self, SplitJoinError> {
         // The second half can sit on another face: a boolean match can
         // take a germ's half from a sector on a face its ends do not
-        // share (`work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`).
+        // share (`a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share`, JOIN, closed by PR 4364).
         // Such a plan stays on the first half's face, and what runs on
         // it answers: the curve's lane there, or the `mekr` across the
         // two faces (`NotSameFace`).
@@ -2801,6 +3145,25 @@ impl JoinPlan {
             self.second.as_ref().map(|p| p.site),
         )
     }
+}
+
+/// The ring `halves` make up alone, where they are the two halves of one
+/// null edge and their loop is a ring of its face holding nothing else
+/// (a pierce of the face's interior a one-site section loop joins to
+/// itself, [`ChordJoiner::join_lone_ring`]).
+fn lone_ring<T: Real>(
+    body: &Body<T>,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> Result<Option<LoopKey>, SplitJoinError> {
+    let half = |he: HalfEdgeKey| body.get_half_edge(he).ok_or_else(|| corrupt_he(he));
+    let (d1, d2) = (half(h1)?, half(h2)?);
+    if d1.edge != d2.edge || d1.parent_loop != d2.parent_loop || d1.next != h2 || d2.next != h1 {
+        return Ok(None);
+    }
+    let l = d1.parent_loop;
+    let face = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face;
+    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
+    Ok((l != outer).then_some(l))
 }
 
 /// A boolean match's adjacency skip: the between edge is the edge the
@@ -2886,6 +3249,9 @@ impl ChordJoiner {
         curve: &SegmentCurve<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
+        if let Some(ring) = lone_ring(body, plan.halves)? {
+            return self.join_lone_ring(body, plan, ring, curve, tol);
+        }
         let (h2, oldf) = (plan.halves.1, plan.face);
         let mut minted = Vec::new();
         let mut newf = None;
@@ -2969,6 +3335,90 @@ impl ChordJoiner {
         Ok(minted)
     }
 
+    /// [`Self::join`] of a one-site section loop whose site is a pierce
+    /// of a planar face's interior: the two halves are one null edge,
+    /// and `ring`, a ring of the face, holds nothing else. Each chord is
+    /// the whole conic at one copy of the site, and the face they wall
+    /// off is the null face, which holds both halves. `mef` walls off an
+    /// empty run when its two halves are one, so the ring is first
+    /// promoted to a face of its own (`mfkrh`) and joined there: the
+    /// promoted face keeps both halves and each chord walls off a face
+    /// bounded by one conic. The one of those two that winds against the
+    /// old face's outer loop bounds the hole the conic cuts in the old
+    /// face, and becomes its ring (`kfmrh`); the other is the disc
+    /// inside the conic, which takes the old face's rings it encloses.
+    fn join_lone_ring<T: Decide + crate::props::AtRestPolicy>(
+        &mut self,
+        body: &mut Body<T>,
+        plan: &JoinPlan,
+        ring: LoopKey,
+        curve: &SegmentCurve<T>,
+        tol: Tol,
+    ) -> Result<Vec<EdgeKey>, SplitJoinError> {
+        let oldf = plan.face;
+        let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
+        let normal = face_plane_normal(body, oldf)?;
+        let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let (outer, sense) = (old.outer, old.sense);
+        // The promoted face lies in the old face's region, its material
+        // on the same side, where `mfkrh` derives a promoted ring's face
+        // as facing the other way. No door states the bit: `mfkrh`
+        // refuses a stated sense on the old face's chart that disagrees
+        // with the one it derives (`SenseContradictsChart`), so the bit
+        // is set after. The loop is the null edge alone, which winds no
+        // area to disagree with it, and the seam zip reads each wall-off
+        // face's conic against its partner's
+        // (`boolean::zip::one_vertex_sense`).
+        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
+        body.set_face_sense(promoted, sense)?;
+        self.slivers.insert(promoted, ());
+        self.fragments.push((promoted, oldf));
+        let replan = JoinPlan::of(body, plan.halves, SegmentEdge::Locus(plan.locus), self.band)?;
+        let walled_from = self.fragments.len();
+        // The halves' loop is now the promoted face's outer, which
+        // `lone_ring` never takes, so this `join` mints its two chords.
+        let minted = self.join(body, &replan, curve, tol)?;
+        let walled: Vec<FaceKey> = self.fragments[walled_from..]
+            .iter()
+            .map(|&(f, _)| f)
+            .collect();
+        let [a, b] = walled[..] else {
+            return Err(invariant(
+                "a one-site loop's join in a pierce ring walled off other than two faces",
+            ));
+        };
+        let winding = |body: &Body<T>, l: LoopKey| match body
+            .planar_loop_winding(l, normal, self.band)
+        {
+            Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
+            _ => Err(invariant(
+                "a one-site loop's conic in a pierce ring does not wind definitely on its plane",
+            )),
+        };
+        let face_outer = |body: &Body<T>, f: FaceKey| {
+            body.get_face(f)
+                .map(|d| d.outer)
+                .ok_or_else(|| corrupt_face(f))
+        };
+        let along = winding(body, outer)?;
+        let (disc, hole) = match (
+            winding(body, face_outer(body, a)?)? == along,
+            winding(body, face_outer(body, b)?)? == along,
+        ) {
+            (true, false) => (a, b),
+            (false, true) => (b, a),
+            _ => {
+                return Err(invariant(
+                    "a one-site loop's two conics in a pierce ring wind one way",
+                ));
+            }
+        };
+        let cut = body.kfmrh(oldf, hole)?.ring;
+        self.slivers.remove(hole);
+        self.rehome_rings(body, oldf, disc, cut)?;
+        Ok(minted)
+    }
+
     /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
     /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
     /// on the run's own edge carriers ([`point_in_loop`]),
@@ -3014,22 +3464,30 @@ impl ChordJoiner {
             .and_then(|f| body.get_surface(f.surface))
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
-        let chart = matches!(
-            surface,
-            geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
-        );
-        let normal = if chart {
-            None
-        } else {
-            Some(face_plane_normal(body, oldf)?)
+        // How a ring's side is read: off the plane, on a cylinder's
+        // chart, or by a path on a sphere or a cone.
+        enum Homing<T: geom_core::Real> {
+            Plane(Vec3<T>),
+            Chart,
+            Path(Quadric<T>),
+        }
+        let homing = match &surface {
+            geom::Surface::Plane { .. } => Homing::Plane(face_plane_normal(body, oldf)?),
+            geom::Surface::Cylinder { .. } => Homing::Chart,
+            other => {
+                Homing::Path(Quadric::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
+            }
         };
         for ring in rings {
             if ring == remainder {
                 continue;
             }
-            let side = match normal {
-                Some(normal) => ring_side(body, ring, run, normal, self.band)?,
-                None => chart_ring_side(body, &surface, newf, ring, self.band)?,
+            let side = match &homing {
+                Homing::Plane(normal) => ring_side(body, ring, run, *normal, self.band)?,
+                Homing::Chart => chart_ring_side(body, &surface, newf, ring, self.band)?,
+                Homing::Path(quadric) => {
+                    path_ring_side(body, (&surface, quadric), (oldf, newf), ring, self.band)?
+                }
             };
             match side {
                 RingSide::In => body.ring_move(ring, newf)?,
@@ -3065,6 +3523,7 @@ impl ChordJoiner {
             // The last null edge of a section polygon: kemr leaves the
             // 2-loop null face.
             let result = body.kemr_minting(edge_data.he_plus, edge_data.he_minus, tol)?;
+            self.completed.insert(f_plus, ());
             Ok(CutOutcome::Completed {
                 face: f_plus,
                 ring: result.ring,
@@ -3073,6 +3532,18 @@ impl ChordJoiner {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
+            //
+            // Neither side is a completed null face, though one sits in
+            // `slivers` and the boolean carries its key to quiescence
+            // unremapped: the edge's sides are the slivers its own
+            // polygon's chords walled off at its two ends, and a
+            // completed face is bounded by another polygon's two copies,
+            // which kemr left once that polygon's last null edge was cut.
+            debug_assert!(
+                !self.completed.contains_key(f_plus) && !self.completed.contains_key(f_minus),
+                "{} would kef a completed null face",
+                EntityId::Edge(edge)
+            );
             let victim = if self.slivers.contains_key(f_plus) {
                 edge_data.he_plus
             } else if self.slivers.contains_key(f_minus) {
@@ -3118,8 +3589,8 @@ fn face_plane_normal<T: Decide>(
         None => Err(corrupt_face(face)),
         Some(_) => Err(SplitJoinError::SectionInvariant {
             face,
-            what: "ring re-homing reads the divided face's plane; this face's carrier is not \
-                   a plane (arm not wired)",
+            what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
+                   sends every other kind to its own reading)",
         }),
     }
 }
@@ -3158,7 +3629,10 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// sections meet at one point — so its anchor alone can land `OnBoundary`
 /// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
 /// every vertex does: each such verdict is decided, so the ring is on
-/// the run.
+/// the run. A vertex whose reading escalates says nothing either, and
+/// the next is asked; the first escalation escalates only where no
+/// vertex decides ([`first_decided`]). The vertices agree because the
+/// ring does not cross the run ([`first_decided`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -3166,15 +3640,18 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    for v in ring_vertices(body, ring)? {
-        let p = vertex_point(body, v);
-        match point_in_loop(body, run, normal, p, band)? {
-            LoopContainment::In => return Ok(RingSide::In),
-            LoopContainment::Out => return Ok(RingSide::Out),
-            LoopContainment::OnBoundary => {}
-        }
+    let read = |v: VertexKey| match point_in_loop(body, run, normal, vertex_point(body, v), band) {
+        Ok(LoopContainment::In) => Ok(Ok(Some(RingSide::In))),
+        Ok(LoopContainment::Out) => Ok(Ok(Some(RingSide::Out))),
+        Ok(LoopContainment::OnBoundary) => Ok(Ok(None)),
+        Err(e @ PointInLoopError::Escalated { .. }) => Ok(Err(e)),
+        Err(e) => Err(SplitJoinError::from(e)),
+    };
+    match first_decided(ring_vertices(body, ring)?.into_iter().map(read))? {
+        Ok(Some(side)) => Ok(side),
+        Ok(None) => Ok(RingSide::OnRun),
+        Err(e) => Err(SplitJoinError::RingHoming(e)),
     }
-    Ok(RingSide::OnRun)
 }
 
 /// Where ring re-homing puts a bystander ring.
@@ -3186,9 +3663,8 @@ enum RingSide {
     Out,
     /// Every vertex is ON the run ([`ring_side`]'s decided verdict).
     OnRun,
-    /// No vertex was decided: on a chart, a vertex whose ray is
-    /// degenerate says nothing, whether or not it is on the run
-    /// ([`chart_ring_side`]).
+    /// No vertex was decided: on a chart, a vertex on the run says
+    /// nothing ([`chart_ring_side`]).
     Undecided,
 }
 
@@ -3223,20 +3699,29 @@ fn ring_vertices<T: Decide>(
 /// there is read from its harmonic form; the straight chart rows between
 /// images (the walk's junction gaps) are segments. A ring vertex is placed
 /// on the run's branch, which is one branch because the run's window is
-/// decided under a period. Each comparison is a named trilean metered in
-/// metres; a ring vertex on the ray's degenerate rows (the run passes
-/// through its azimuth at a vertex, or along it) says nothing and the
-/// next vertex is asked, as [`ring_side`] does for a vertex on the run.
-/// Such a vertex may or may not be on the run, so a ring none of whose
-/// vertices is decided is [`RingSide::Undecided`], never
-/// [`RingSide::OnRun`]: a pierce strut at a pinch, whose point is a run
-/// vertex, always reads so here, and refuses rather than waiting.
-/// A sphere face refuses typed ([`no_wall_chart`]).
+/// decided under a period; for a window of exactly one period, a vertex
+/// at the seam's azimuth reads alike on either edge. Each comparison is a named trilean metered in
+/// metres. A run vertex at the ray's azimuth reads as just short of it
+/// (the half-open rule), so the ray crosses the run there once or not at
+/// all, and a run row along the ray is met only by a vertex on it. A ring
+/// vertex on the run says nothing and the next vertex is asked, as
+/// [`ring_side`] does; so does one whose reading escalates, and the first
+/// escalation escalates only where no vertex decides ([`first_decided`]);
+/// the decided vertices agree because the ring does not cross the run
+/// (its premise). A ring none of whose vertices is decided is
+/// [`RingSide::Undecided`], never [`RingSide::OnRun`]: a pierce strut at a
+/// pinch, whose point is a run vertex, always reads so here, and refuses
+/// rather than waiting.
+/// A sphere or a cone face reads without a chart ([`path_ring_side`]);
+/// [`ChordJoiner::rehome_rings`] sends no other kind here.
 ///
-/// This is the third point-in-region routine beside [`ring_side`] (on a
-/// plane) and `solid_contain`'s wall outline (a point against a whole
-/// wall face's outline, inside the containment gate): a known split,
-/// each reading the region it is handed in its own chart.
+/// It is one of several point-in-region routines, beside [`ring_side`]
+/// (on a plane), [`path_ring_side`] (on a sphere or a cone), `solid_contain`'s
+/// wall outline (a point against a whole wall face's outline, inside the
+/// containment gate) and `boolean::sphere_region` (a point against a
+/// trimmed sphere face): a known split, each reading the region it is
+/// handed in its own terms
+/// (`work/cleave/closest-crossing-and-graze-abandon-have-three-homes.md`).
 fn chart_ring_side<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
@@ -3249,7 +3734,7 @@ fn chart_ring_side<T: Decide>(
         axis,
         radius,
         u_ref,
-    } = wall_chart(surface).ok_or_else(|| no_wall_chart(newf, surface))?;
+    } = wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
     let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
@@ -3261,14 +3746,20 @@ fn chart_ring_side<T: Decide>(
     let decide_m = |name, margin| {
         decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
     };
+    // A run whose window is a whole period (a band round a full-turn
+    // face, closed along its seam) holds the seam's azimuth at both `lo`
+    // and `hi`. A ring vertex there reads alike at either: the half-open
+    // rule reads it just inside `lo` or just past `hi`, and just inside
+    // `lo` the run lies only beside its rows along `lo`, which the ray
+    // meets only from a vertex on them.
     if decide_m(
         "split_ring_chart_window",
         Margin::levered(tau - (hi - lo), radius),
-    )? != Sign::Positive
+    )? == Sign::Negative
     {
         return Err(invariant(
-            "ring re-homing on a chart: the run's azimuth window spans a full period, so a \
-             ring vertex has no single branch on it",
+            "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
+             so a ring vertex has no single branch on it",
         ));
     }
     let mid = (lo + hi) * T::from_f64(0.5);
@@ -3276,7 +3767,8 @@ fn chart_ring_side<T: Decide>(
     // The chart segments of the run: each edge (`Some(image)`), then the
     // straight row to the next image's entry.
     let n = images.len();
-    'vertex: for v in vertices {
+    let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
+        let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
@@ -3285,22 +3777,36 @@ fn chart_ring_side<T: Decide>(
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];
             let rows = [
-                (image.entry, image.exit, Some(image)),
-                (image.exit, next.entry, None),
+                (image.entry, image.exit, (image.v.0, image.v.1), Some(image)),
+                (image.exit, next.entry, (image.v.1, next.v.0), None),
             ];
-            for (u0, u1, edge) in rows {
-                let s0 = decide_m(
-                    "split_ring_chart_ray_azimuth",
-                    Margin::levered(u_p - u0, radius),
-                )?;
-                let s1 = decide_m(
-                    "split_ring_chart_ray_azimuth",
-                    Margin::levered(u_p - u1, radius),
-                )?;
-                if s0 == Sign::Zero || s1 == Sign::Zero {
-                    continue 'vertex;
+            for (u0, u1, (v0, v1), edge) in rows {
+                let sides = [u0, u1].map(|u| {
+                    decide_r(
+                        "split_ring_chart_ray_azimuth",
+                        Margin::levered(u_p - u, radius),
+                    )
+                });
+                let (s0, s1) = match sides {
+                    [Ok(s0), Ok(s1)] => (s0, s1),
+                    [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
+                };
+                if s0 == Sign::Zero && s1 == Sign::Zero {
+                    // A row along the ray: the ray misses it unless the
+                    // vertex is on it.
+                    let ends = [v0, v1]
+                        .map(|v| decide_r("split_ring_chart_ray_along", Margin::of(v - v_p)));
+                    match ends {
+                        [Ok(e0), Ok(e1)] if e0 == e1 && e0 != Sign::Zero => continue,
+                        [Ok(_), Ok(_)] => return Ok(Ok(None)),
+                        [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
+                    }
                 }
-                if s0 == s1 {
+                // A row end at the ray's azimuth reads as below it, so
+                // a run vertex the ray passes through is crossed once
+                // or not at all, by the rows on either side of it.
+                let below = |s: Sign| s != Sign::Negative;
+                if below(s0) == below(s1) {
                     continue;
                 }
                 let f = (u_p - u0) / (u1 - u0);
@@ -3317,20 +3823,25 @@ fn chart_ring_side<T: Decide>(
                     }
                     None => image.v.1 + f * (next.v.0 - image.v.1),
                 };
-                match decide_m("split_ring_chart_ray_height", Margin::of(v_x - v_p))? {
-                    Sign::Positive => crossings += 1,
-                    Sign::Negative => {}
-                    Sign::Zero => continue 'vertex,
+                match decide_r("split_ring_chart_ray_height", Margin::of(v_x - v_p)) {
+                    Ok(Sign::Positive) => crossings += 1,
+                    Ok(Sign::Negative) => {}
+                    Ok(Sign::Zero) => return Ok(Ok(None)),
+                    Err(diag) => return Ok(Err(diag)),
                 }
             }
         }
-        return Ok(if crossings % 2 == 1 {
+        Ok(Ok(Some(if crossings % 2 == 1 {
             RingSide::In
         } else {
             RingSide::Out
-        });
+        })))
+    };
+    match first_decided(vertices.into_iter().map(read))? {
+        Ok(Some(side)) => Ok(side),
+        Ok(None) => Ok(RingSide::Undecided),
+        Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
     }
-    Ok(RingSide::Undecided)
 }
 
 /// A representative point of a loop (its anchor vertex).
@@ -3352,6 +3863,19 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod chart_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod sibling_escalation_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod sphere_island_rows;
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -3662,6 +4186,404 @@ mod tests {
         }
     }
 
+    /// **A wall's pose is levered at its axial extent, its rim's bulge
+    /// included, not the distance round it.** A unit wall about `z`
+    /// trimmed at `φ = ±45°`, its rim one closed ellipse on the seam vertex
+    /// `(1, 0, ±1)` (`oblique_rim_wall`), the rim's highest point or its
+    /// lowest, and the plane through the vertex tilted so the axis meets
+    /// it at `sin β = k·ε/2`. The rim reaches `2·tan |φ| = 2` down or up
+    /// the axis from the vertex's foot, at its low crest or its high one, so
+    /// `pc_axis_plane_parallel` reads `k·ε` and escalates at every `k` in
+    /// the band. The vertex alone levers nothing and reads Zero (the
+    /// tangent ruling); the rim's Euclidean reach from the vertex,
+    /// `2/cos φ`, reads `√2·k·ε`, definite from `k = K/√2`, and serves a
+    /// tilted ellipse.
+    #[test]
+    fn a_rims_bulge_levers_the_pose_along_the_axis() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let quarter = core::f64::consts::FRAC_PI_4;
+        for (phi, frac) in [quarter, -quarter]
+            .into_iter()
+            .flat_map(|phi| [0.12, 0.8, 0.9, 0.99].map(|frac| (phi, frac)))
+        {
+            let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
+            let base = body.resolve_vertex_point(vertex, Proven);
+            let k = frac * Tol::witness().k();
+            let sin_beta: f64 = k * band.zero() / 2.0;
+            let normal = UnitVec3::new(
+                Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                "rim row",
+                band,
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, face, vertex);
+            assert!(
+                matches!(
+                    got,
+                    Err(SplitJoinError::Escalated { ref diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel")
+                ),
+                "φ = {phi}, k = {k}: an in-band tilt over the rim must escalate, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **A short face is never turned definite by its wall's size.** A
+    /// wall of radius `r` whose face is the lone ruling `(r, 0, 0)` to
+    /// `(r, 0, 10 µm)`, cut by the plane through the vertex and the axis
+    /// tilted so the axis meets it at `sin β = k·ε/10 µm`: the ruling
+    /// leaves the plane by at most `k·ε`, so the section over it is the
+    /// ruling pair (`Straight`) at every `k < 1`, on a 1 km wall and a
+    /// 1 m one. Levered across the whole cylinder (`r + |gap|`) the tilt's
+    /// second-order turn read `r·sin² β`, which served an ellipse on the
+    /// 1 km wall and escalated on the 1 m one; the face reaches 10 µm
+    /// across the wall and reads nothing.
+    #[test]
+    fn a_short_face_is_never_turned_definite_by_its_walls_size() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let e = 1e-5;
+        for r in [1000.0, 1.0] {
+            let base = Point3::new(r, 0.0, 0.0);
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: r,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(r, 0.0, e),
+                Tol::witness(),
+            )
+            .unwrap();
+            for k in [0.5, 0.8, 0.95] {
+                let c: f64 = k * band.zero() / e;
+                let normal =
+                    UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "short face", band)
+                        .unwrap();
+                let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+                assert!(
+                    matches!(
+                        got,
+                        Ok(Some(WallSection {
+                            case: SectionCase::Straight(_),
+                            ..
+                        }))
+                    ),
+                    "r = {r}, k = {k}: the ruling pair, got {:?}",
+                    got.map(|w| w.map(|w| match w.case {
+                        SectionCase::Straight(_) => "straight",
+                        SectionCase::Tangent(_) => "tangent",
+                        SectionCase::Conic(_) => "conic",
+                    }))
+                );
+            }
+        }
+    }
+
+    /// **A short patch on a large wall never takes its rims' whole turn
+    /// for a conic.** A `1e5·ε × 1e3·ε`
+    /// patch (100 µm × 1 µm at ε = 1e-9) of a 1 km wall, bounded by two rim
+    /// arcs and two rulings, read at a corner and cut by the plane through that corner and the axis
+    /// tilted by `sin β = k·zero/e` about the radial: the patch stands
+    /// within `k·zero` of the corner's ruling. Read over its arcs' spans
+    /// the turn is Zero (the rulings); round the arcs' whole turn (2 km
+    /// across) it reads definite (a conic). The section serves only what
+    /// both readings serve ([`agreed_section`]), so it escalates on the
+    /// split, and never serves the whole turn's conic.
+    #[test]
+    fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let eps = Tol::witness().eps();
+        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
+        let mut body = crate::Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(r),
+            (0.0, w / r),
+            (0.0, e),
+            Tol::witness(),
+        );
+        let base = Point3::new(r, 0.0, 0.0);
+        let corner = body
+            .vertex_points()
+            .find(|(_, p)| (*p - base).norm() < 1e-9)
+            .map(|(v, _)| v)
+            .expect("the patch's corner");
+        for k in [0.5, 0.8, 0.95] {
+            let c: f64 = k * band.zero() / e;
+            let normal =
+                UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band).unwrap();
+            let got = wall_section(&body, band, base, normal, face, corner);
+            assert!(
+                matches!(
+                    &got,
+                    Err(SplitJoinError::Escalated { diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel_disagreement")
+                ),
+                "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **The Boolean's germ join never serves a rim patch where main
+    /// escalated.** The germ join's wall side mints its chord through the
+    /// split lane ([`JoinLane::Split`], `boolean::join`'s `split_curve`).
+    /// A `1e5·ε × 1e3·ε` patch on a wall of radius `3·zero/c²` is cut by
+    /// the plane through a corner and the axis tilted by
+    /// `c = 0.5·zero/e`. Round the rims' whole turn the turn moves the
+    /// patch by about `c²·r = 3·zero`, in the band, so main escalates.
+    /// Over the arcs' spans it moves the patch by about `0.5·zero`, so the
+    /// span alone serves the rulings. The chord escalates.
+    #[test]
+    fn the_germ_join_escalates_a_rim_patch_main_escalated() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let eps = Tol::witness().eps();
+        let (e, w) = (1e3 * eps, 1e5 * eps);
+        let c: f64 = 0.5 * band.zero() / e;
+        let r = 3.0 * band.zero() / (c * c);
+        let mut body = crate::Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(r),
+            (0.0, w / r),
+            (0.0, e),
+            Tol::witness(),
+        );
+        let base = Point3::new(r, 0.0, 0.0);
+        let corners: Vec<_> = body.vertex_points().collect();
+        let corner = corners
+            .iter()
+            .find(|(_, p)| (*p - base).norm() < 1e-9 * r)
+            .map(|(v, _)| *v)
+            .expect("the patch's corner");
+        let other = corners
+            .iter()
+            .find(|(v, _)| *v != corner)
+            .map(|(v, _)| *v)
+            .expect("a second corner");
+        let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+        let plane = geom::Surface::Plane {
+            origin: base,
+            normal,
+            u_ref: Vec3::unit_x(),
+        };
+        let wall = crate::test_support_fixtures::CylFrame::canonical(r).surface::<f64>();
+        let (below, above) =
+            crate::splitting::rules::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
+        let read = |across| {
+            let reach = geom_brep::Reach::Face {
+                at: base,
+                below,
+                above,
+                across,
+            };
+            geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
+        };
+        let span = crate::splitting::rules::face_reach_from(&body, face, base).unwrap();
+        let round = crate::splitting::rules::face_reach_round_from(&body, face, base).unwrap();
+        assert!(
+            matches!(read(round), Err(geom_brep::SectionError::Escalated(_))),
+            "main's whole-turn reading escalates"
+        );
+        assert!(
+            matches!(
+                read(span),
+                Ok(geom_brep::PlaneCylinderSection::ParallelLines { .. }
+                    | geom_brep::PlaneCylinderSection::TangentLine(_))
+            ),
+            "the span alone serves the rulings"
+        );
+        let mut ctx = SectionCtx {
+            origin: base,
+            normal: UnitVec3::new(normal, "rim patch", band).unwrap(),
+            plane_key: None,
+        };
+        let leave = Departure {
+            dir: Vec3::unit_z(),
+            datum: Datum::Germ,
+        };
+        let got = chord_spec(
+            &mut body,
+            band,
+            JoinLane::Split(&mut ctx),
+            face,
+            corner,
+            other,
+            leave,
+        );
+        assert!(
+            matches!(got, Err(SplitJoinError::Escalated { .. })),
+            "the germ join's chord escalates, got {:?}",
+            got.map(|s| s.is_some())
+        );
+    }
+
+    /// **A face at one station is cut by a plane across the axis in a
+    /// conic.** A unit wall about `z` whose face is the rim arc at `z = 0`
+    /// from `(1, 0, 0)` a quarter turn round: it reaches nothing along the
+    /// axis, so a tilt levered along the axis alone moves it by nothing,
+    /// read Zero and minted rulings for the plane `z = 0` (the merge
+    /// later refused them). The plane turns about the rulings' hinge, and
+    /// the face reaches across the wall from there by up to its distance
+    /// from the base vertex: the plane `z = 0` and the planes 30° and 60°
+    /// off it are conics.
+    #[test]
+    fn a_face_at_one_station_is_cut_by_a_plane_across_the_axis_in_a_conic() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let base = carrier.eval(0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let cyl = body.get_face(seed.face).unwrap().surface;
+        let rim_plane = body.add_surface(geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        let quarter = core::f64::consts::FRAC_PI_2;
+        body.mev(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            carrier.eval(quarter),
+            EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: rim_plane,
+                    witness: carrier.mid_point(0.0, quarter),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: quarter,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        for degrees in [90.0_f64, 60.0, 30.0] {
+            let tilt = degrees.to_radians();
+            let normal =
+                UnitVec3::new(Vec3::new(0.0, tilt.cos(), tilt.sin()), "one station", band).unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Ok(Some(WallSection {
+                        case: SectionCase::Conic(_),
+                        ..
+                    }))
+                ),
+                "{degrees}° off the axis: a conic, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
+    /// **A one-sided face is levered from the rulings' hinge station
+    /// either way.** A wall of radius `r` whose face is the lone ruling
+    /// `(r, 0, 0)` to `(r, 0, e)`, `e` = 1 mm, cut by the plane through the
+    /// vertex tilted to `sin β = c`. The rulings this lane mints stand on
+    /// the hinge through the foot's projection, `r·c` up the axis: with
+    /// `r·c = e/2` the face reaches `e/2` from that station either way, so
+    /// the tilt moves it by `c·e/2 = 0.6·Kε`, in the band, and the table
+    /// escalates. Read as reaching `e` both ways from the vertex, the
+    /// lever was `e + r·c` and served an ellipse (main's face extent, `e`,
+    /// read `1.2·Kε` and served one too).
+    #[test]
+    fn a_one_sided_face_is_levered_from_the_hinge_station_either_way() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let e = 1e-3;
+        let c: f64 = 1.2 * band.escalate() / e;
+        let r = e / (2.0 * c);
+        let base = Point3::new(r, 0.0, 0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: r,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(r, 0.0, e),
+            Tol::witness(),
+        )
+        .unwrap();
+        let normal = UnitVec3::new(
+            Vec3::new((1.0 - c * c).sqrt(), 0.0, c),
+            "one-sided face",
+            band,
+        )
+        .unwrap();
+        let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+        assert!(
+            matches!(
+                got,
+                Err(SplitJoinError::Escalated { ref diag, .. })
+                    if diag.predicate == Some("pc_axis_plane_parallel")
+            ),
+            "the tilt over the face from the hinge station is in the band, got {:?}",
+            got.map(|w| w.map(|w| match w.case {
+                SectionCase::Straight(_) => "straight",
+                SectionCase::Tangent(_) => "tangent",
+                SectionCase::Conic(_) => "conic",
+            }))
+        );
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper
@@ -3879,8 +4801,14 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> (Point3<f64>, f64) {
-        (Point3::origin(), 4.0)
+    fn reach() -> (f64, geom_brep::Reach<f64>, geom_brep::Reach<f64>) {
+        let reach = geom_brep::Reach::Face {
+            at: Point3::origin(),
+            below: 4.0,
+            above: 4.0,
+            across: 4.0,
+        };
+        (4.0, reach.clone(), reach)
     }
 
     fn plane() -> geom::Surface<f64> {
@@ -4397,7 +5325,6 @@ mod torn_hop_rows {
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),

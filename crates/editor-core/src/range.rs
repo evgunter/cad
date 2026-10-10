@@ -69,14 +69,13 @@
 //! # The one field, and where its widening lives
 //!
 //! The widening is a property of the QUERY, never of the document. A
-//! document parameter already has a name to widen, so it is boxed
-//! directly. A node SLOT has none — its value is a bit-pinned `f64`
-//! literal — so the query derives a document of its own: a clone
-//! carrying one synthetic continuous parameter whose nominal is the
-//! literal's bits, with the slot rewritten to name it. The input
-//! document is never edited, keyed or persisted, its memo is not
-//! shared, and the derivation is a pure function of (document, field,
-//! seed) that lives only for the query ([`derive`]).
+//! node SLOT reads a variable (VR4), so a slot is boxed through the
+//! free variable it reads, exactly as a variable named directly is:
+//! the query derives a document of its own, a clone with that
+//! variable's spread set to the seed. The input document is never
+//! edited, keyed or persisted, its memo is not shared, and the
+//! derivation is a pure function of (document, field, seed) that lives
+//! only for the query ([`derive`]).
 //!
 //! Every OTHER parameter's distribution is cleared in the derived
 //! document, so the drive has exactly one varying axis. That is what
@@ -111,7 +110,7 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use crate::distribution::Distribution;
-use crate::doc::{Doc, FreeVar, VarName};
+use crate::doc::{Doc, FreeVar};
 use crate::drive::{
     DriveConfig, DriveRefusal, FlipEvidence, ParamBoxVerdict, RefusalReason, drive,
 };
@@ -120,20 +119,24 @@ use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::spoken::SpokenNode;
 use crate::spoken::SpokenVar;
-use crate::var::{VarDecl, VarId};
+use crate::var::VarId;
 
 /// The field a range is asked about: one document parameter, or one
 /// node slot.
 ///
-/// The two are not the same kind of thing and the query does not
-/// pretend they are: a parameter is already a name the analysis can
-/// vary, and a slot is a literal that has to be given one.
+/// A slot is boxed through the free variable it reads; one that reads a
+/// defined variable has no interval of its own
+/// ([`RangeRefusal::SlotIsDefined`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RangeField {
     /// A free variable of the document, boxed directly.
     Param(VarId),
-    /// A continuous slot of one node, widened through a synthetic
-    /// parameter of the derived document.
+    /// A continuous slot of one node, widened through the free variable
+    /// it reads. That variable may be shared — a named one several
+    /// slots read (D10: sharing is reading one variable; VR2: a shared
+    /// variable is named) — and widening it moves every reader, not
+    /// only this slot: the certified range is the variable's, reported
+    /// against the slot it was asked through.
     Slot {
         /// The node owning the slot.
         node: RecipeNodeId,
@@ -446,11 +449,10 @@ pub enum RangeRefusal {
         /// The slot.
         slot: SlotId,
     },
-    /// The slot is not a bare literal: it is already driven by an
-    /// expression, which the rewrite would SHADOW. Widening it would
-    /// certify a document the caller did not ask about — vary the
-    /// parameters that expression reads instead.
-    SlotIsNotALiteral {
+    /// The slot reads a DEFINED variable: its value is a function of
+    /// other variables, so it has no interval of its own to certify
+    /// over — certify the variables its definition reads instead.
+    SlotIsDefined {
         /// The node, spoken from the document asked about.
         node: SpokenNode,
         /// The slot.
@@ -522,10 +524,10 @@ impl core::fmt::Display for RangeRefusal {
                 slot.label(),
                 node
             ),
-            Self::SlotIsNotALiteral { node, slot } => write!(
+            Self::SlotIsDefined { node, slot } => write!(
                 f,
-                "the {} slot of {} is driven by an expression, which naming it would \
-                 shadow — certify the parameters that expression reads instead",
+                "the {} slot of {} reads a variable defined by a formula, which has no \
+                 interval of its own — certify the variables that formula reads instead",
                 slot.label(),
                 node
             ),
@@ -571,9 +573,8 @@ impl core::error::Error for RangeRefusal {}
 /// on the input, keyed against it, or shared with its memo.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DerivedRange {
-    /// The document the drive runs on — the input verbatim for a
-    /// parameter field, and the input plus one synthetic parameter
-    /// with the slot rewritten to name it for a slot field.
+    /// The document the drive runs on: the input, its spreads set as
+    /// [`derive`] says.
     pub doc: Doc<ProfileProgram>,
     /// The variable whose axis IS the seed.
     pub axis: VarId,
@@ -585,36 +586,12 @@ pub struct DerivedRange {
     pub pinned: Vec<VarId>,
 }
 
-/// The synthetic parameter a slot of `node` is widened through: the
-/// first of `query_certified_range_<node>`, `…_<node>_1`, `…_<node>_2`,
-/// … that `doc` does not declare.
-///
-/// Fresh, so the rewritten slot never reads a parameter the caller
-/// authored; one identifier (a fixed prefix, the node's full hex id and
-/// underscores), so the parser reads it back. The slot's label is not
-/// part of it: a label is prose for a person, and what a person is
-/// shown of the answer names the slot ([`CertifiedRange::field`]).
-fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> VarName {
-    let base = format!("query_certified_range_{}", node.full());
-    let mut spelled = base.clone();
-    let mut n = 0_usize;
-    while doc.var_named(spelled.as_str()).is_some() {
-        n += 1;
-        spelled = format!("{base}_{n}");
-    }
-    match VarName::new(spelled) {
-        Ok(name) => name,
-        Err(fault) => unreachable!("a fixed prefix and hex digits are one identifier: {fault}"),
-    }
-}
-
 /// **The derived document** (a pure function of its three arguments).
 ///
-/// For [`RangeField::Param`] the document is the input with that
-/// parameter's distribution set to the seed. For
-/// [`RangeField::Slot`] it additionally carries one synthetic
-/// continuous parameter whose nominal is the slot literal's bits, and
-/// the slot rewritten to name it.
+/// The document is the input with the field's variable's distribution
+/// set to the seed: the variable itself for [`RangeField::Param`], the
+/// free variable the slot reads for [`RangeField::Slot`] (VR4), widened
+/// in place — nothing declared, nothing named, nothing rewritten.
 ///
 /// Every other continuous parameter's distribution is CLEARED, so the
 /// drive has exactly one varying axis (module docs).
@@ -665,7 +642,7 @@ pub fn derive(
             // of node N is structural" for a node with no count slot
             // states the vocabulary's fact where the caller asked
             // about this document's.
-            let Some(expr) = n.expr(*slot) else {
+            let Some(var) = n.expr(*slot) else {
                 return Err(RangeRefusal::UnknownSlot {
                     node: doc.spoken(*node),
                     slot: *slot,
@@ -677,41 +654,13 @@ pub fn derive(
                     slot: *slot,
                 });
             }
-            let Some(value) = expr.literal_value() else {
-                return Err(RangeRefusal::SlotIsNotALiteral {
+            let Some(FreeVar::Continuous { value, .. }) = doc.free(*var) else {
+                return Err(RangeRefusal::SlotIsDefined {
                     node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
-            let dim = slot.dimension();
-            let name = synthetic_name(doc, *node);
-            // The synthetic parameter's nominal is the literal's value
-            // verbatim, and a literal and a parameter reference reach
-            // the evaluator through the same `T::from_f64`, so the
-            // derived document's f64 build is the input's bit for bit.
-            let declared = apply(
-                doc,
-                &DocEdit::DeclareVar {
-                    name: name.clone(),
-                    def: VarDecl::Free(FreeVar::continuous(dim, value)),
-                },
-                tol,
-                &crate::mate::RefusingReach,
-            )
-            .map_err(|e| RangeRefusal::Derivation(Box::new(e)))?;
-            let Some(var) = declared.record.minted_var else {
-                unreachable!("an accepted declare mints a variable")
-            };
-            let rewritten = edit(
-                &declared.doc,
-                &DocEdit::SetParam {
-                    node: *node,
-                    slot: *slot,
-                    expr: crate::Formula::var(var, dim),
-                },
-                tol,
-            )?;
-            (rewritten, var, value)
+            (doc.clone(), *var, *value)
         }
     };
     // The axis takes the seed; every other continuous parameter is
@@ -1090,7 +1039,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn node(n: u64) -> RecipeNodeId {
-        RecipeNodeId(n)
+        RecipeNodeId::new(0, n)
     }
 
     /// A flip evidence with the two node standings asked for.

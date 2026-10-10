@@ -30,26 +30,41 @@ use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
     Alignment, Attr, AttrKind, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EditError, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr,
-    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
-    cascade_delete_order,
+    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasurePrimitive, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{ang, flush_pairs, fname, insert, len, wall};
 use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
-/// them — the whole of what these rows assert about.
+/// them — the whole of what these rows assert about. A selection's row
+/// is said by the node that reads the selection.
 fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
+            Maintenance::StrandedSelection { readers, name, .. } => {
+                let [reader] = readers.as_slice() else {
+                    panic!("an unnamed selection has one reader: {readers:?}");
+                };
+                Some((reader.id(), name.name().clone()))
+            }
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
+            | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
+}
+
+/// The selection a blend reads.
+fn selection_of(doc: &ProfileDoc, blend: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(blend) {
+        Some(Node::Fillet { selection, .. } | Node::Chamfer { selection, .. }) => *selection,
+        other => panic!("a blend, got {other:?}"),
+    }
 }
 
 /// The appearance keys an accepted edit reported stranded, in the
@@ -60,7 +75,9 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
         .filter_map(|row| match row {
             Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::Strand { .. }
+            | Maintenance::StrandedSelection { .. }
             | Maintenance::OffsetCleared { .. }
+            | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
@@ -119,26 +136,42 @@ fn union_released_from_a_declared_member(
         &declared,
         &DocEdit::SetMembers {
             node: union,
-            members: vec![a, c],
+            members: vec![a.into(), c.into()],
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect("the member list is replaceable");
+    // The re-point is accepted and reports, never refuses (DM6): each
+    // pair side minted by `b` is now out of the union's reach.
+    let reached: Vec<(RecipeNodeId, RecipeNodeId)> =
+        crate::fixture::without_anonymous(&released.maintenance)
+            .iter()
+            .map(|row| match row {
+                Maintenance::Strand {
+                    node,
+                    name,
+                    took: editor_core::Took::Reach,
+                } => (node.id(), name.name().node),
+                other => panic!(
+                    "a member re-point reports only the names it takes out of reach, got {other}"
+                ),
+            })
+            .collect();
     assert_eq!(
-        released.maintenance,
-        Vec::new(),
-        "a rewire strands nothing: the declared pairs are names, not inputs"
+        reached,
+        vec![(union, b); 4],
+        "one strand per pair side minted by the dropped member, on the union"
     );
     (declared, released.doc, union, b)
 }
 
 /// **A strand per NAME and none per site**, on a declared union.
 ///
-/// A member is the union's DAG input, so deleting it while the union
-/// consumes it is refused typed. What the declared pairs NAME is not
-/// an edge: once `SetMembers` has dropped the member, the delete is
-/// legal and strands the names minted there, one row per name, on the
+/// A member is a read, so deleting it while the union reads it is
+/// accepted and reports the stranded read. What the declared pairs
+/// NAME is not a read: once `SetMembers` has dropped the member, the
+/// delete strands the names minted there, one row per name, on the
 /// union that still carries them. The SITE is reported by no delete: a
 /// site is a reading edge, and a deleted one is N5's dangling case
 /// refused at the next evaluation (`Node::payload_read_sites`, DM7's
@@ -147,17 +180,22 @@ fn union_released_from_a_declared_member(
 fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
     let (declared, doc, union, b) = union_released_from_a_declared_member("dm7_declared_union");
 
+    // A member is a read: the delete is accepted, and leaves the union
+    // reading the deleted output, reported (D10).
+    let deleted = apply(
+        &declared,
+        &DocEdit::DeleteNode { id: b },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("deleting a read node is accepted");
     assert!(
-        matches!(
-            apply(
-                &declared,
-                &DocEdit::DeleteNode { id: b },
-                Tol::witness(),
-                &editor_core::RefusingReach
-            ),
-            Err(EditError::DeleteWouldDangle { .. })
-        ),
-        "a member IS a DAG edge and refuses"
+        deleted.maintenance.iter().any(|row| matches!(
+            row,
+            Maintenance::StrandedRead { node, .. } if node.id() == union
+        )),
+        "the union's read of the deleted member is reported stranded: {:?}",
+        deleted.maintenance
     );
 
     let Some(Node::Union { declare: pairs, .. }) = doc.node(union) else {
@@ -185,7 +223,7 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
         "one name per pair is minted in the deleted member"
     );
     assert_eq!(
-        strands(&applied.maintenance),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
         "the accepted delete names every stranded name, in the payload's own order, and no site"
     );
@@ -234,59 +272,63 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: body,
             radius: len(0.1),
-            selection: vec![f0.clone()],
+            selection: editor_core::Operand::select(body, vec![f0.clone()]),
         },
     );
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
-            target: body,
             distance: len(0.1),
-            selection: vec![f1.clone()],
+            selection: editor_core::Operand::select(body, vec![f1.clone()]),
         },
     );
     let (doc, shell) = insert(
         doc,
         Node::Shell {
-            target: body,
             thickness: len(0.1),
-            open: vec![f2.clone()],
+            open: editor_core::Operand::select(body, vec![f2.clone()]),
         },
     );
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body,
-            face: f3.clone(),
+            face: editor_core::Operand::select(body, vec![f3.clone()]),
             spin: ang(0.0),
         }),
     );
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(body, f4.clone()),
-                SitedRef::new(fillet, f0.clone()),
-            ],
-        )
-        .expect("both indices address a reference"),
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(body, f4.clone()),
+            SitedRef::new(fillet, f0.clone()),
+        ],
     );
+    // Sited at the operands, as every pair must be, and naming the
+    // victim's walls while the boolean reads the victim (D10: a pair
+    // names what its node reads). The re-point to `other` then reports
+    // the names out of reach and never refuses them, so the delete
+    // strands them without taking an operand.
     let (doc, boolean) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: body,
-            b: other,
-            // Sited at the operands, as every pair must be; the names
-            // are the victim's, minted before the boolean, so the
-            // delete strands them without taking an operand.
+            a: body.into(),
+            b: victim.into(),
             declare: editor_core::declare_rest(vec![(
                 SitedRef::new(body, f1.clone()),
-                SitedRef::new(other, f2.clone()),
+                SitedRef::new(victim, f2.clone()),
             )]),
+        },
+    );
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: boolean,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::B),
+            value: editor_core::Operand::Node(other).into(),
+            fresh: Vec::new(),
         },
     );
 
@@ -299,7 +341,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // hole that replaces — a kind this suite thinks carries nothing
     // while `Node::payload_names` reads a name out of it.
     let mut expected: Vec<(RecipeNodeId, StableName)> = Vec::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(node) = doc.node(id) else { continue };
         match node {
             Node::Fillet { .. } => expected.push((id, f0.clone())),
@@ -339,19 +381,22 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // The match is total over `Node`; this says it ran over the
     // document this fixture actually built, so an arm cannot go
     // unreached and look satisfied.
+    // The report walks the payloads, then the selections in the order
+    // they were minted.
+    expected.sort_by_key(|(id, _)| *id != boolean);
     assert_eq!(
         expected.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
         vec![
-            fillet, chamfer, shell, derived, measure, measure, boolean, boolean
+            boolean, boolean, fillet, chamfer, shell, derived, measure, measure
         ],
-        "six carriers, eight names, in document order"
+        "six carriers, eight names: the payloads, then the selections as minted"
     );
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        strands(&applied.maintenance),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
-        "one row per carried name, in document order and then payload order"
+        "one row per carried name, payloads first, each in its own order"
     );
 }
 
@@ -369,17 +414,16 @@ fn a_delete_that_strands_nothing_reports_nothing() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-        target: body,
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, _fillet) = insert(doc, node);
 
     let applied = delete(&doc, spare);
     assert!(
-        applied.maintenance.is_empty(),
+        crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
         "nothing named the deleted node: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
 }
 
@@ -392,9 +436,8 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_self", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node1 = Node::Fillet {
-        target: body,
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node1);
 
@@ -404,7 +447,9 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.extend(strands(&applied.maintenance));
+        reported.extend(strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert!(
@@ -430,17 +475,15 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node2 = Node::Fillet {
-        target: body,
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node2);
     let face = fname(fillet, wall(&doc, fillet, 2));
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: other,
-            face: face.clone(),
+            face: editor_core::Operand::select(other, vec![face.clone()]),
             spin: ang(0.0),
         }),
     );
@@ -455,7 +498,10 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let mut per_step = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        per_step.push((id, strands(&applied.maintenance)));
+        per_step.push((
+            id,
+            strands(&crate::fixture::without_anonymous(&applied.maintenance)),
+        ));
         doc = applied.doc;
     }
     assert_eq!(
@@ -471,8 +517,9 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
         panic!("the survivor is still a derived frame")
     };
     assert_eq!(
-        still, &face,
-        "the survivor holds the name unchanged, now resolving to nothing"
+        doc.selection(*still).map(|select| select.names.clone()),
+        Some(vec![face]),
+        "the survivor's selection holds the name unchanged, now resolving to nothing"
     );
 }
 
@@ -544,15 +591,15 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
 
     let applied = delete(&doc, ia);
     assert_eq!(
-        strands(&applied.maintenance),
+        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![(mate, head_a)],
         "the head is a name and is reported; the operand at the same id is not"
     );
     assert_eq!(
-        applied.maintenance.len(),
+        crate::fixture::without_anonymous(&applied.maintenance).len(),
         1,
         "deleting a placed member records no frame: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
 }
 
@@ -581,11 +628,12 @@ fn a_round_tripped_document_reports_the_same_strands() {
     let direct = delete(&doc, b);
     let after_load = delete(&loaded.doc, b);
     assert!(
-        !direct.maintenance.is_empty(),
+        !crate::fixture::without_anonymous(&direct.maintenance).is_empty(),
         "the delete strands the declared pairs' names"
     );
     assert_eq!(
-        direct.maintenance, after_load.maintenance,
+        crate::fixture::without_anonymous(&direct.maintenance),
+        crate::fixture::without_anonymous(&after_load.maintenance),
         "the report is derived from the document and the edit, so it survives the boundary \
          by being recomputable rather than by being carried"
     );
@@ -625,7 +673,7 @@ fn a_delete_reports_the_appearance_keys_it_stranded() {
     let mut stranded = vec![one, two];
     stranded.sort();
     assert_eq!(
-        appearance_strands(&applied.maintenance),
+        appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         stranded,
         "both keys the deleted node minted, and only those"
     );
@@ -656,10 +704,10 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        appearance_strands(&applied.maintenance),
+        appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![doomed],
         "the key the deleted node minted, and not the one the live node did: {:?}",
-        applied.maintenance
+        crate::fixture::without_anonymous(&applied.maintenance)
     );
     assert!(
         applied.doc.appearance().contains_key(&live),
@@ -667,11 +715,11 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
     );
 }
 
-/// **The payload strands come first, then the appearance strands.**
+/// **The selection strands come first, then the appearance strands.**
 ///
 /// The order on `Applied::maintenance` is a contract, and this is the
 /// edit that produces both kinds at once: one node mints the name a
-/// surviving fillet carries AND the key the store holds. Written out
+/// surviving fillet's selection holds AND the key the store holds. Written out
 /// as one vector, so a walk that ran the store first goes red here
 /// rather than somewhere a consumer finds it.
 #[test]
@@ -679,16 +727,15 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_order", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    // The fillet's own DAG input is `body`; what it NAMES is a face of
-    // `victim`, which is a payload name and not an edge, so deleting
-    // `victim` is accepted and strands it.
+    // The fillet's selection reads `body`; what it NAMES is a face of
+    // `victim`, which is a name and not a read, so deleting `victim` is
+    // accepted and strands it.
     let carried = fname(victim, wall(&doc, victim, 0));
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: body,
             radius: len(0.1),
-            selection: vec![carried.clone()],
+            selection: editor_core::Operand::select(body, vec![carried.clone()]),
         },
     );
     let painted = fname(victim, wall(&doc, victim, 2));
@@ -696,10 +743,11 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
-            Maintenance::Strand {
-                node: doc.spoken(fillet),
+            Maintenance::StrandedSelection {
+                var: doc.spoken_var(selection_of(&doc, fillet)),
+                readers: vec![doc.spoken(fillet)],
                 name: doc.spoken_name(&carried),
                 took: editor_core::Took::Node
             },
@@ -748,6 +796,7 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
                     clocking: Some(0.0),
                 },
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -755,11 +804,11 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
     .expect("the mate inserts");
     assert!(
         matches!(
-            mated.maintenance.as_slice(),
+            crate::fixture::without_anonymous(&mated.maintenance).as_slice(),
             [Maintenance::OffsetCleared { instance, .. }] if instance.id() == ia
         ),
         "the mate's insert clears the mover's offset and strands nothing: {:?}",
-        mated.maintenance
+        crate::fixture::without_anonymous(&mated.maintenance)
     );
     let mate = mated.record.minted.expect("the mate is minted");
     let doc = mated.doc;
@@ -768,7 +817,7 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
 
     let applied = delete(&doc, ia);
     assert_eq!(
-        applied.maintenance,
+        crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::Strand {
                 node: doc.spoken(mate),
@@ -799,9 +848,8 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node3 = Node::Fillet {
-        target: body,
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node3);
     let on_fillet = fname(fillet, wall(&doc, fillet, 2));
@@ -816,7 +864,9 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.push(appearance_strands(&applied.maintenance));
+        reported.push(appearance_strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert_eq!(
@@ -847,7 +897,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
 
     let applied = delete(&doc, victim);
     assert_eq!(
-        appearance_strands(&applied.maintenance),
+        appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         vec![painted.clone()],
         "the door named the key"
     );
@@ -889,12 +939,13 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let direct = delete(&doc, victim);
     let after_load = delete(&loaded.doc, victim);
     assert_eq!(
-        appearance_strands(&direct.maintenance).len(),
+        appearance_strands(&crate::fixture::without_anonymous(&direct.maintenance)).len(),
         2,
         "the delete strands both painted faces"
     );
     assert_eq!(
-        direct.maintenance, after_load.maintenance,
+        crate::fixture::without_anonymous(&direct.maintenance),
+        crate::fixture::without_anonymous(&after_load.maintenance),
         "the store's half is derived from the document and the edit too"
     );
 }

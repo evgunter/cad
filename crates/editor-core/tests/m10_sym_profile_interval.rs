@@ -275,19 +275,23 @@ fn eps_row(eps: f64) -> usize {
 /// middle station are one [`geom::mid_param`] evaluation, and a second
 /// spelling of that point builds a second chain of forms, which reads
 /// here as `Plain/Decision` forms alone.
+///
+/// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
+/// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
+/// the anonymous definition a slot's formula lowers to.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest c5a152514b522899526a41668175a0de\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest 5206c920343d6282631593785c59fd94\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest 3db9ed51fb47a298354b2832b038c78a",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest e7826bcc06fc0e40f560d482194172fe\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest bcfbe11c2bdeed2409771fd302947d91\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest e17861a58d5e7b4a5b43d4001d4bce08",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 22f0ef9b79cc104cbde46fca27614b59\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest bcfbe11bda9c90c6b10f188ca7b67066\n\
      Plain/Assertion calls 514 forms 998 frozen 0 digest 88893d9f9257c4f96979ed9188e3ff26\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 514 forms 2041 frozen 0 digest 4265056406dca4880d3caf74f355b9cb",
@@ -505,10 +509,28 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   15720 → 15710 and `Early/Decision`'s 8689 → 8633 with the cap's own
 ///   10 and 56, the `Assertion` forms are the cap's, and
 ///   `Door/Decision` builds 7099 forms. No `Report` line.
+/// - **A slot holds a variable (INTENT-LITERALS PR C).** A formula
+///   written at a slot lowers to an anonymous defined variable, which
+///   the environment binds through the non-finite door: one more
+///   `Plain/Decision` call, a theorem, and that line's digest. Every
+///   other line holds; the untoleranced variables bind as constants
+///   (VR8), as the literals did.
+/// - **The pcurve envelope sums two more terms (`pcert/projected-image`).**
+///   `EnvelopeTerm` gained `Incidence` and `Fidelity`, the projected
+///   image's, and the closed-form lanes' envelope still folds every slot,
+///   so each `pcurve_envelope` decision adds two zero-valued summands:
+///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
+///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
+///   move, and the calls, the freezes and every other line hold.
+/// - **A measure is an operation (INTENT stage 2 unit D).** The web is
+///   the assertion's definition over the distance measure's output, so
+///   the measured value enters the arithmetic as a variable the
+///   definition reads: one more `Plain/Decision` form (15734 → 15735),
+///   and that line's digest. Calls, freezes and every other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1047 forms 15710 frozen 252 digest 31308502235a95639fe1678c9a2a981f\n\
+     Plain/Decision calls 1048 forms 15735 frozen 252 digest 333f42221fb2f369a5e7c06d1c9d751e\n\
      Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
-     Early/Decision calls 352 forms 8633 frozen 0 digest dfd56c276c08ef0be8256716c68484b9\n\
+     Early/Decision calls 352 forms 8657 frozen 0 digest f610d4dbb8133211901db22b14760ad2\n\
      Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
      Door/Decision calls 396 forms 7099 frozen 0 digest 4b490dcb93367447183d6428998bbfbd\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";

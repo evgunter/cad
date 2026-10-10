@@ -14,7 +14,7 @@ use geom_brep::{
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
-use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
+use topo::{Body, DihedralReading, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
 use geom_core::Tol;
@@ -90,15 +90,15 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// certification schedule's interior stations, in its one home), and a
 /// station the rule reads transverse refuses
 /// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
-/// error built by `sliver`, at the first-order classification and at
-/// the rule alike.
+/// error built by `sliver` from the reading that escalated, at the
+/// first-order classification and at the rule alike.
 pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     s1: SurfaceKey,
     s2: SurfaceKey,
     band: Band,
-    sliver: impl FnOnce(geom_core::Indeterminate) -> RevolveError,
+    sliver: impl FnOnce(DihedralReading, geom_core::Indeterminate) -> RevolveError,
     tol: Tol,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
@@ -148,7 +148,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             // arm's premise, and the edge refuses rather than store a
             // description neither reading chose.
             let refused = |refusal| match refusal {
-                MustCarryRefusal::InBand(source) => sliver(source.diag()),
+                MustCarryRefusal::InBand(escalation) => {
+                    let (reading, source) = DihedralReading::of_must_carry(escalation);
+                    sliver(reading, source)
+                }
                 MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
             };
             match must_carry_over_edge(
@@ -173,8 +176,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     body.set_edge_curve(edge, spec, tol)?;
                 }
                 MustCarryDescription::Conventional => {
-                    // The surfaces UNDER-determine the locus, so the
-                    // description stays CONVENTIONAL — but the edge is
+                    // No intrinsic tangency is demanded (a zero-side
+                    // station, or an all-positive pair outside the
+                    // certificate's lane), so the description stays
+                    // CONVENTIONAL — but the edge is
                     // at rest between two faces now, so it says where
                     // it rests: an image in `s1`'s chart (D3's
                     // transience fence). The pushforward it was
@@ -186,17 +191,22 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(sliver(source)),
+        Err(escalation) => {
+            let (reading, source) = DihedralReading::of_lever(escalation);
+            Err(sliver(reading, source))
+        }
     }
 }
 
-/// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian becomes an image
-/// at rest in that wall's chart (module docs — `Seam` is malformed on
-/// a non-periodic chart, and one surface on both sides determines no
-/// locus, so D2's conventional split applies). Carrier and interval
-/// kept verbatim either way.
-pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
+/// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
+/// when both its halves bound one face on a periodic wall surface — a
+/// lamina wall, closed on itself across it. Otherwise it is an image at
+/// rest in that wall's chart: a plane wall's meridian (module docs — a
+/// plane's chart closes in no direction, and one surface on both sides
+/// determines no locus, so D2's conventional split applies), and a wire
+/// wall's angle-0 meridian, which parts its two π-bands rather than
+/// closing either. Carrier and interval kept verbatim either way.
+pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
@@ -208,15 +218,20 @@ pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
         }),
         geom::Surface::Plane { .. }
     );
-    if is_plane {
-        // A plane wall has no seam to be — but the meridian is still
-        // at rest in that wall's chart, and the scaffolding door it
-        // was minted through is for edges whose surfaces do not exist
-        // yet (D3's transience fence). So it is described where it
-        // rests, as an ordinary chart image owing the one meter.
+    let (f_plus, f_minus) = topo::readback::edge_sides(body, edge)
+        .unwrap_or_else(|_| {
+            unreachable!("meridian {edge:?} was minted by this revolve and is live")
+        })
+        .faces();
+    if is_plane || f_plus != f_minus {
+        // The meridian is at rest in that wall's chart, and the
+        // scaffolding door it was minted through is for edges whose
+        // surfaces do not exist yet (D3's transience fence). So it is
+        // described where it rests, as an ordinary chart image owing
+        // the one meter.
         body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
-    crate::swept::describe_seam(body, edge, wall, tol)?;
+    crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
     Ok(())
 }

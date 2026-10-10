@@ -30,14 +30,14 @@ use crate::wire::doctored;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
     EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, PartResolver,
-    PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef,
-    StableName, Step, Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups,
-    load, product, regauge_then_mate, root_of, save,
+    MatePrimitive, MateRole, MeasurePrimitive, Node, NodeErrorKind, PartResolver, PersistError,
+    Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef, StableName, Step,
+    Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups, load, product,
+    regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::seat::{assert_seated, seat_map};
 use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, scl, solve, step, xform};
+use geom_core::linalg::Affine3;
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
 
@@ -60,7 +60,7 @@ pub(crate) fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -112,6 +112,48 @@ impl Parts {
     pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
         in_part(top, self.top_body, CapEnd::End)
     }
+}
+
+/// **`name`'s world copy**: the one name in the gathered product's
+/// table that is a copy of `name` ([`StableName::copy_of`]) — what the
+/// product names a member's face by, under the placement that put it
+/// in the world.
+fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
+    let (_, names) =
+        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
+    let copies: Vec<StableName> = names
+        .iter()
+        .map(|(n, _)| n.clone())
+        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
+        .collect();
+    let [copy] = copies.as_slice() else {
+        panic!("{name:?} has one world copy, not {copies:?}");
+    };
+    copy.clone()
+}
+
+/// [`fixture::seat::assert_seated`] over the world copies of `a` and
+/// `b` ([`copy_name`]).
+fn assert_seated(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    a: &StableName,
+    b: &StableName,
+    control: &Affine3<f64>,
+    what: &str,
+) {
+    let (a, b) = (copy_name(doc, ev, a), copy_name(doc, ev, b));
+    fixture::seat::assert_seated(doc, ev, &a, &b, control, what);
+}
+
+/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`.
+fn seat_map(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    a: &StableName,
+    b: &StableName,
+) -> Affine3<f64> {
+    fixture::seat::seat_map(doc, ev, &copy_name(doc, ev, a), &copy_name(doc, ev, b))
 }
 
 pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
@@ -203,7 +245,15 @@ pub(crate) fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
@@ -309,6 +359,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     );
     let mate = DocEdit::InsertNode {
         node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)))),
+        fresh: Vec::new(),
     };
     let applied = apply(&doc, &mate, Tol::witness(), &editor_core::RefusingReach)
         .expect("a mate with no rider asks no store");
@@ -329,9 +380,11 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     let log = vec![
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.base)),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::instantiate_part(p.top)),
+            fresh: Vec::new(),
         },
         mate,
     ];
@@ -343,11 +396,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     );
     // The mate places: the top seats on the base.
     let poses = solve(&loaded.doc, &o, Tol::witness());
-    let mate_id = *loaded
-        .doc
-        .order()
-        .last()
-        .expect("the mate is the last node");
+    let mate_id = *loaded.doc.ids().last().expect("the mate is the last node");
     assert_eq!(
         poses.role(mate_id),
         Some(MateRole::Determining),
@@ -408,6 +457,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
             },
             DocEdit::InsertNode {
                 node: Box::new(mate),
+                fresh: Vec::new(),
             },
         ],
         "the record is the group's re-gauges in document order, then the insert"
@@ -417,7 +467,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
         "the record replays from the input to the outcome's document"
     );
     assert_eq!(
-        out.doc.order().last(),
+        out.doc.ids().last(),
         Some(&out.mate),
         "the outcome names the mate its insert minted"
     );
@@ -607,16 +657,13 @@ fn an_unplaced_group_is_gathered_minted_and_measured_against_nothing_outside_it(
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, top, Some(g));
+    let doc = fixture::place_all(doc, &[base, top]);
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let measure = || {
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::at_mint(p.base_cap(base)),
-                SitedRef::at_mint(p.top_cap(top)),
-            ],
-        )
-        .expect("both indices address a reference")
+    let measure = || Node::Measure {
+        primitive: MeasurePrimitive::Distance {
+            a: SitedRef::at_mint(p.base_cap(base)).into(),
+            b: SitedRef::at_mint(p.top_cap(top)).into(),
+        },
     };
     let o = p.opts();
     // Placed, across gauges: the measure answers, the mate declares.
@@ -753,6 +800,7 @@ fn a_placer_between_a_tree_mates_operand_and_its_instance_under_a_parametric_gau
     let control = ProfileDoc::empty(DocumentId::derive("p2-afb-control"), Tol::witness());
     let (control, cb) = insert(control, Node::instantiate_part(p.base));
     let (control, ct) = insert(control, Node::instantiate_part(p.top));
+    let control = fixture::place_all(control, &[cb, ct]);
     let (control, _) = insert(control, seat(head(p.top_cap(ct)), head(p.base_cap(cb))));
     let seat_control = seat_map(
         &control,
@@ -769,6 +817,7 @@ fn a_placer_between_a_tree_mates_operand_and_its_instance_under_a_parametric_gau
     let doc = set_gauge(doc, base, Some(g));
     let doc = set_gauge(doc, top, Some(g));
     let (doc, lifted) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
+    let doc = fixture::place_all(doc, &[base, lifted]);
     let (doc, mate) = insert(
         doc,
         seat(head_at(lifted, p.top_cap(top)), head(p.base_cap(base))),
@@ -866,12 +915,41 @@ pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3])
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(doc, base, Some(literal([4.0, 0.0, 0.0])));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = fixture::place_all(doc, &[base, top]);
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     (p, doc, [base, top, mate])
 }
 
-pub(crate) fn cut(ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
-    ids.iter().copied().collect()
+/// **A cut of `ids` in `doc`, with the world copies of what it
+/// moves**: each `Part` selecting a copy of a cut pattern, then every
+/// world placement of a cut body ([`fixture::with_placements`]) — a
+/// part delivers only its world, so a split moves a body with its
+/// placements.
+pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
+    let mut out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
+    for id in doc.ids() {
+        if let Some(Node::Part { of, .. }) = doc.node(id)
+            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
+        {
+            out.insert(id);
+        }
+    }
+    fixture::with_placements(doc, &out)
+}
+
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity (A10).
+pub(crate) fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
 }
 
 /// **Gauge references leaving a cut must land on one anchor** (A4). A
@@ -884,11 +962,12 @@ fn a_cut_landing_on_two_anchors_refuses_typed() {
     let (doc, on_g) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, on_g, Some(g));
     let (doc, on_world) = insert(doc, Node::instantiate_part(p.top));
+    let doc = fixture::place_all(doc, &[on_g, on_world]);
     let o = p.opts();
     let split = |ids: &[RecipeNodeId]| {
         editor_core::split(
             &doc,
-            &cut(ids),
+            &cut(&doc, ids),
             DocumentId::derive("p2-split-gauge-part"),
             Tol::witness(),
             o.resolver.as_ref(),
@@ -929,7 +1008,7 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
     let split = |ids: &[RecipeNodeId]| {
         editor_core::split(
             &doc,
-            &cut(ids),
+            &cut(&doc, ids),
             DocumentId::derive("p2-split-unplaced-part"),
             Tol::witness(),
             o.resolver.as_ref(),
@@ -955,41 +1034,33 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
 }
 
 /// **A cut of unplaced material alone names the group of its first node
-/// in document order**, whatever the ids. A gauge ahead of the two bare
-/// instances is moved until the later instance draws the lower id, so a
-/// walk over the cut set in id order would name the later group.
+/// in document order**, the least id: two bare instances, and the one
+/// placed first is named.
 #[test]
 fn a_cut_of_unplaced_material_alone_names_its_first_group_in_document_order() {
     let p = parts("p2-split-unplaced-order");
     let o = p.opts();
-    for k in 0..64u32 {
-        let doc = ProfileDoc::empty(
-            DocumentId::derive("p2-split-unplaced-order"),
-            Tol::witness(),
-        );
-        let (doc, _) = insert(doc, Node::gauge(None, literal([f64::from(k), 0.0, 0.0])));
-        let (doc, first) = insert(doc, Node::instantiate_part(p.base));
-        let doc = set_offset(doc, first, None);
-        let (doc, second) = insert(doc, Node::instantiate_part(p.top));
-        let doc = set_offset(doc, second, None);
-        if first < second {
-            continue;
-        }
-        let err = editor_core::split(
-            &doc,
-            &cut(&[first, second]),
-            DocumentId::derive("p2-split-unplaced-order-part"),
-            Tol::witness(),
-            o.resolver.as_ref(),
-        )
-        .expect_err("unplaced material alone");
-        assert!(
-            matches!(&err, editor_core::SplitError::UnplacedAlone { group } if group.id() == first),
-            "the refusal names the first group the document holds: {err:?}"
-        );
-        return;
-    }
-    panic!("no gauge in 0..64 gave the later bare instance the lower id");
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("p2-split-unplaced-order"),
+        Tol::witness(),
+    );
+    let (doc, _) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 0.0])));
+    let (doc, first) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, first, None);
+    let (doc, second) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_offset(doc, second, None);
+    let err = editor_core::split(
+        &doc,
+        &cut(&doc, &[second, first]),
+        DocumentId::derive("p2-split-unplaced-order-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect_err("unplaced material alone");
+    assert!(
+        matches!(&err, editor_core::SplitError::UnplacedAlone { group } if group.id() == first),
+        "the refusal names the first group the document holds: {err:?}"
+    );
 }
 
 /// **A cut of one placed group moves as selected, and the frame rule
@@ -1005,7 +1076,7 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     let split = |doc: &ProfileDoc, ids: &[RecipeNodeId]| {
         editor_core::split(
             doc,
-            &cut(ids),
+            &cut(doc, ids),
             DocumentId::derive("p2-one-group-part"),
             Tol::witness(),
             o.resolver.as_ref(),
@@ -1033,13 +1104,17 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     let out = split(&checked, &[base, top, mate]).expect("a checked member crosses");
     assert_eq!(
         offset_of(&out.part, out.node_map[&top]),
-        Some(editor_core::test_support::stored_placement(&solved)),
+        Some(editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &solved
+        )),
         "the member's checked offset, verbatim"
     );
 
     // The frame rule: a kept block mated onto the cut top, whose cut
     // side reads the top — which in the part is NOT its group's root.
     let (with_kept, kept) = insert(doc.clone(), Node::instantiate_part(p.top));
+    let with_kept = fixture::place(with_kept, kept).0;
     let (with_kept, kept_mate) = insert(
         with_kept,
         seat_on(
@@ -1083,7 +1158,7 @@ fn inline_lands_verbatim_at_the_empty_offset_and_on_a_minted_gauge_at_any_other(
     let o = p.opts();
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, mate]),
+        &cut(&doc, &[base, top, mate]),
         DocumentId::derive("p2-inline-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -1131,9 +1206,10 @@ fn inline_lands_verbatim_at_the_empty_offset_and_on_a_minted_gauge_at_any_other(
         "the minted gauge holds the instance's offset on its gauge"
     );
     assert_eq!(offset_of(&minted.doc, root), Some(literal([4.0, 0.0, 0.0])));
+    let at_empty_doc = set_offset(doc.clone(), base, Some(Placement::IDENTITY));
     let at_empty = editor_core::split(
-        &set_offset(doc.clone(), base, Some(Placement::IDENTITY)),
-        &cut(&[base, top, mate]),
+        &at_empty_doc,
+        &cut(&at_empty_doc, &[base, top, mate]),
         DocumentId::derive("p2-inline-empty-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -1185,6 +1261,7 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, base, Some(k));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = fixture::place_all(doc, &[base, top]);
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let o = p.opts();
     assert_eq!(
@@ -1193,7 +1270,7 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     );
     let out = editor_core::split(
         &doc,
-        &cut(&[top]),
+        &cut(&doc, &[top]),
         DocumentId::derive("p2-crossing-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -1235,6 +1312,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, base, Some(k));
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = fixture::place_all(doc, &[base, top]);
     let Node::Mate {
         a,
         b,
@@ -1255,6 +1333,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
                 class,
                 alignment,
             }),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -1265,7 +1344,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     );
     let out = editor_core::split(
         &faced,
-        &cut(&[top]),
+        &cut(&faced, &[top]),
         DocumentId::derive("p2-face-crossing-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -1327,21 +1406,25 @@ fn inline_refuses_two_placing_mates_of_one_pair_that_would_read_two_pairs() {
     let part = ProfileDoc::empty(DocumentId::derive("p2-fold-part"), Tol::witness());
     let (part, first) = insert(part, Node::instantiate_part(p.base));
     let (part, second) = insert(part, Node::instantiate_part(p.base));
+    let part = fixture::place_all(part, &[first, second]);
+    let copies = part.placements();
     let mut store = p.store.clone();
     let part_ref = store.insert(part, Tol::witness());
 
     let host = ProfileDoc::empty(DocumentId::derive("p2-fold"), Tol::witness());
     let (host, h) = insert(host, Node::instantiate_part(part_ref));
     let (host, block) = insert(host, fixture::mated_instance(p.top));
-    let through = |inner: RecipeNodeId| StableName {
+    // The part's base cap of its `k`-th instance, under that instance's
+    // world placement, seen through `h`.
+    let through = |inner: RecipeNodeId, k: usize| StableName {
         kind: editor_core::EntityKind::Face,
         node: h,
         path: vec![editor_core::RoleSeg::InPart {
-            of: p.base_cap(inner).into(),
+            of: p.base_cap(inner).in_copy(copies[k]).into(),
         }],
     };
-    let (host, one) = insert(host, seat(head(p.top_cap(block)), head(through(first))));
-    let (host, two) = insert(host, seat(head(p.top_cap(block)), head(through(second))));
+    let (host, one) = insert(host, seat(head(p.top_cap(block)), head(through(first, 0))));
+    let (host, two) = insert(host, seat(head(p.top_cap(block)), head(through(second, 1))));
     let err =
         editor_core::inline(&host, h, &resolver(store), Tol::witness()).expect_err("two pairs");
     assert!(
@@ -1372,6 +1455,7 @@ fn a_declaring_mate_across_gauges_is_minted_and_certified_at_rest() {
         translation: [1.0, 1.0, BASE_HEIGHT],
     };
     let doc = set_offset(doc, top, Some(Placement::literal(&seated)));
+    let doc = fixture::place_all(doc, &[base, top]);
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let o = p.opts();
     assert_eq!(
@@ -1397,10 +1481,11 @@ fn a_cut_of_two_placed_groups_moves_verbatim() {
     let doc = set_offset(doc, first, Some(literal([4.0, 0.0, 0.0])));
     let (doc, second) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(doc, second, Some(literal([0.0, 9.0, 0.0])));
+    let doc = fixture::place_all(doc, &[first, second]);
     let o = p.opts();
     let out = editor_core::split(
         &doc,
-        &cut(&[first, second]),
+        &cut(&doc, &[first, second]),
         DocumentId::derive("p2-two-groups-part"),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -1443,6 +1528,7 @@ fn checked_pair_beside_a_base(
     let doc = set_offset(doc, top, checked.clone());
     let (doc, second) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(doc, second, Some(literal([0.0, 9.0, 0.0])));
+    let doc = fixture::place(doc, second).0;
     (p, doc, [base, top, mate, second], checked)
 }
 
@@ -1455,7 +1541,7 @@ fn split_all_four(
 ) -> editor_core::SplitOutcome {
     editor_core::split(
         doc,
-        &cut(&ids),
+        &cut(doc, &ids),
         part_id,
         Tol::witness(),
         p.opts().resolver.as_ref(),
@@ -1470,7 +1556,7 @@ fn offsets_through(
     map: impl Fn(RecipeNodeId) -> RecipeNodeId,
     onto: &ProfileDoc,
 ) -> Vec<(Option<Placement>, Option<Placement>)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))
         .map(|&id| (offset_of(doc, id), offset_of(onto, map(id))))
@@ -1510,7 +1596,10 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
         offset_of(&out.part, out.node_map[&ids[1]]),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the top's checked offset survives the carry"
     );
     for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
@@ -1541,7 +1630,10 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
         offset_of(&back.doc, through(ids[1])),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the top's checked offset survives the splice"
     );
     for (source, spliced) in offsets_through(&part, through, &back.doc) {
@@ -1569,7 +1661,7 @@ fn round_trip_keeps_every_offset(
     let part_id = DocumentId::derive(&format!("{label}-part"));
     let out = editor_core::split(
         doc,
-        &doc.order().iter().copied().collect(),
+        &doc.ids().iter().copied().collect(),
         part_id,
         Tol::witness(),
         p.opts().resolver.as_ref(),
@@ -1626,7 +1718,10 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
         offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
         checked
             .as_ref()
-            .map(editor_core::test_support::stored_placement),
+            .map(|p| editor_core::test_support::stored_placement(
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                p
+            )),
         "the round trip holds the checked offset"
     );
 }
@@ -1674,7 +1769,12 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
     let (doc, y) = insert(doc, Node::instantiate_part(p.top));
     let (doc, _) = insert(doc, seat(head(p.top_cap(y)), head(p.base_cap(g))));
     assert_eq!(offset_of(&doc, y), None, "Y sits at no offset");
-    assert_eq!(doc.order().len(), 8, "eight nodes, all cut");
+    let doc = fixture::place_all(doc, &[t, x, b, g, y]);
+    assert_eq!(
+        doc.ids().len(),
+        13,
+        "eight nodes and the five instances' world placements, all cut"
+    );
 
     let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-chain");
     let host = |i: RecipeNodeId| back.node_map[&out.node_map[&i]];
@@ -1682,13 +1782,19 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
         assert_eq!(
             offset_of(&out.part, out.node_map[&i]),
             want.as_ref()
-                .map(editor_core::test_support::stored_placement),
+                .map(|p| editor_core::test_support::stored_placement(
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                    p
+                )),
             "{what} in the part"
         );
         assert_eq!(
             offset_of(&back.doc, host(i)),
             want.as_ref()
-                .map(editor_core::test_support::stored_placement),
+                .map(|p| editor_core::test_support::stored_placement(
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+                    p
+                )),
             "{what} in the host"
         );
     }

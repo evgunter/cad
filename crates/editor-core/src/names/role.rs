@@ -584,6 +584,100 @@ pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
         .map_or(0, |i| i + 1)
 }
 
+/// **The line edge `name` lies on** (N2): the name with every piece
+/// qualifier (`Fragment(Ends)`) removed, at every depth of wrapping —
+/// through each segment that carries one entity of an earlier node
+/// ([`wrapped_edge`]). A name that is not an edge's is its own line,
+/// and so is an edge's that holds no piece qualifier: the same handle
+/// comes back.
+///
+/// Iterative, like the rest of a name's structural walks: a name nests
+/// as deep as its derivation, with no bound.
+#[must_use]
+pub(crate) fn edge_line(name: &NameRef) -> NameRef {
+    // Down the wrapper chain: each level's path with its piece
+    // qualifiers popped, and whether popping changed it.
+    let mut levels: Vec<(&NameRef, RolePath, bool)> = Vec::new();
+    let mut cur = name;
+    while cur.kind == EntityKind::Edge {
+        let mut path = cur.path.clone();
+        while matches!(path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))) {
+            path.pop();
+        }
+        let popped = path.len() != cur.path.len();
+        let inner = match (path.len(), cur.path.first()) {
+            (1, Some(seg)) => wrapped_edge(seg),
+            _ => None,
+        };
+        levels.push((cur, path, popped));
+        match inner {
+            Some(n) => cur = n,
+            None => break,
+        }
+    }
+    // Back up: a level is rebuilt where it popped a qualifier or the
+    // edge it wraps lies on a line other than itself.
+    let mut line: Option<NameRef> = None;
+    while let Some((orig, mut path, popped)) = levels.pop() {
+        let inner_moved = match (&line, path.as_mut_slice()) {
+            (Some(l), [seg]) => match wrapped_edge_mut(seg) {
+                Some(slot) if !Arc::ptr_eq(&slot.0, &l.0) => {
+                    *slot = l.clone();
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        line = Some(if popped || inner_moved {
+            NameRef::new(StableName {
+                kind: orig.kind,
+                node: orig.node,
+                path,
+            })
+        } else {
+            orig.clone()
+        });
+    }
+    line.unwrap_or_else(|| name.clone())
+}
+
+/// The segments [`edge_line`] reads through, as one match over `$seg`
+/// answering the earlier edge each carries: the one list behind
+/// [`wrapped_edge`] and its mutable twin, which match ergonomics give a
+/// shared or a mutable reference alike.
+///
+/// `InPart` is read through: its argument names another document's
+/// edge, and stripping a piece qualifier from it reads no id as local
+/// (the `resolve` walk does not descend into it because it reads ids),
+/// so a piece of a part's edge is a piece of that edge's line in the
+/// part as anywhere else.
+macro_rules! wrapped_edge_of {
+    ($seg:expr) => {
+        match $seg {
+            RoleSeg::FromA(n)
+            | RoleSeg::FromB(n)
+            | RoleSeg::FromMember { of: n, .. }
+            | RoleSeg::SplitFragment { parent: n, .. }
+            | RoleSeg::FromTarget(n)
+            | RoleSeg::InPart { of: n }
+            | RoleSeg::Instance { of: n, .. } => Some(n),
+            _ => None,
+        }
+    };
+}
+
+/// The one earlier edge an edge's single segment `seg` carries, where
+/// [`edge_line`] reads through it.
+pub(crate) fn wrapped_edge(seg: &RoleSeg) -> Option<&NameRef> {
+    wrapped_edge_of!(seg)
+}
+
+/// [`wrapped_edge`], mutably.
+fn wrapped_edge_mut(seg: &mut RoleSeg) -> Option<&mut NameRef> {
+    wrapped_edge_of!(seg)
+}
+
 /// A sequence of role segments (N1). Usually length 1; composition
 /// (`[FromA(..), Fragment(..)]`) grows it.
 pub type RolePath = Vec<RoleSeg>;
@@ -899,6 +993,23 @@ impl SplitHalf {
         match self {
             SplitHalf::Above => 0,
             SplitHalf::Below => 1,
+        }
+    }
+
+    /// **The split's output port this half is** ([`crate::Node::outputs`]):
+    /// [`Self::output_body`], narrowed to a port — what a read of the
+    /// half names ([`crate::Operand::Output`]).
+    #[must_use]
+    pub fn port(self) -> u8 {
+        u8::try_from(self.output_body()).unwrap_or_else(|_| unreachable!("a split has two ports"))
+    }
+
+    /// The half's word, which is also the split's output port it is
+    /// ([`crate::Node::outputs`]).
+    pub fn name(self) -> &'static str {
+        match self {
+            SplitHalf::Above => "above",
+            SplitHalf::Below => "below",
         }
     }
 
@@ -1231,7 +1342,7 @@ pub enum RoleSeg {
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
     /// names retires into this name (N3; canonical order = name order). A
     /// constituent is never itself a BARE merged name, through any
-    /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
+    /// `FromA`/`FromB`/`FromMember` wrapping — a merge of a merged face lists the
     /// faces, never the merge, and an edge set lists edges. The one
     /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face
@@ -1361,6 +1472,22 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
+    /// **The mitre where two blend bands meet at a turn**: two of a
+    /// source vertex's three edges blended in one call, the bands meeting
+    /// along their intersection. Keyed by the vertex alone: a trivalent
+    /// vertex has at most one turn, and the request fixes its two edges.
+    Mitre {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
+    /// **Where a turn's unrequested edge now ends**: the mitre's lower
+    /// end, on that edge. One name whether the trihedron is isosceles or
+    /// not; the trimlines' crossing on the shared face is the turn's
+    /// [`RoleSeg::FootVertex`] on that face.
+    TurnFoot {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
     /// The one blend face a chain of several source edges is carved
     /// into — a CLOSED chain's torus band, or an open fillet's cylinder
     /// or chamfer's flat strip carved across joints where consecutive
@@ -1461,6 +1588,16 @@ pub enum RoleSeg {
     /// [`RoleSeg::Instance`] carries a pattern's.
     InPart {
         /// The entity's name inside the referenced document's product.
+        of: NameRef,
+    },
+
+    // ---- World placement ----
+    /// The copy a world placement defines of its body's entity `of`
+    /// (D10, A10). The placement's identity rides in the enclosing
+    /// [`StableName::node`], so two placements of one body name their
+    /// copies apart, as [`RoleSeg::Instance`] names a pattern's.
+    Placed {
+        /// The entity's name in the body placed.
         of: NameRef,
     },
 
@@ -1607,6 +1744,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -1617,6 +1756,7 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
+        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. } => None,
     }
 }
@@ -1631,14 +1771,14 @@ pub(crate) enum VerbatimEdge<'a> {
     /// [`Node::Transform`](crate::node::Node::Transform). A selection
     /// in effect above it rides through to `input` unchanged.
     Whole {
-        /// The value placed.
-        input: RecipeNodeId,
+        /// The read of the value placed.
+        input: crate::VarId,
     },
     /// The one body of `of` that `select` names, projected: a
     /// [`Node::Part`](crate::node::Node::Part).
     Selected {
-        /// The split or pattern read.
-        of: RecipeNodeId,
+        /// The read of the split half or the pattern.
+        of: crate::VarId,
         /// Which body of it.
         select: &'a crate::node::PartSelect,
     },
@@ -1653,9 +1793,10 @@ pub(crate) enum VerbatimEdge<'a> {
 /// projection, a split's intact entities (N1's pass-through ops).
 /// Every other node is classified as re-minting what it carries.
 ///
-/// Two walks read the set here: the product's two-roots check
-/// (`product::placed_under_two_roots`) and the mate member walk
-/// (`mate::member::walk`); they differ only in where each stops. The
+/// Two walks read the set here: split's test of which cut placement's
+/// copy carries a name (`refactor::split`'s `in_world`, which follows
+/// `Whole` edges alone) and the mate member walk (`mate::member::walk`);
+/// they differ only in where each stops. The
 /// compiler holds the three together: this match is exhaustive, so a
 /// new node kind does not compile until it is classified here, and
 /// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
@@ -1690,6 +1831,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Boolean { .. }
         | Node::Union { .. }
         | Node::Pattern { .. }
+        | Node::PlaceInWorld { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
@@ -1720,11 +1862,12 @@ pub(crate) enum Lift {
 }
 
 /// **How `node` (the consumer, minted as `consumer`) carries `name`, an
-/// entity of its input `input`**: one [`Lift`] per seat `input` fills,
-/// empty when `input` is not one of `node`'s inputs.
+/// entity of its input `input`**: one [`Lift`] per seat whose read
+/// `defined_by` resolves to `input` (a selection's, through its body), empty when `node` reads none of
+/// `input`'s outputs.
 ///
 /// The match is exhaustive with no wildcard, and every arm names its
-/// variant's fields (as [`crate::node::Node::inputs`] does), so a new
+/// variant's fields (as [`crate::node::Node::operand_rows`] does), so a new
 /// node kind or a new field does not compile until it is classified
 /// here — a seat or not. Every answer is read off the node's kind and
 /// seat alone; no slot is evaluated.
@@ -1736,7 +1879,7 @@ pub(crate) enum Lift {
 /// - **Spelled under the consumer**: a `Union` member's entity as
 ///   [`super::member_name`]; a pair `Boolean`'s as `FromA` / `FromB`;
 ///   a `Fillet`'s, `Chamfer`'s or `Shell`'s target's survivor as
-///   `FromTarget`.
+///   `FromTarget`; a world placement's copy as `Placed`.
 /// - **Moved**: a `Transform`, a `Pattern` and a `PlacedUnion` place
 ///   their input again.
 /// - **Dropped**: every other seat — the datum, profile, path, axis
@@ -1746,6 +1889,7 @@ pub(crate) fn lift<P>(
     node: &crate::node::Node<P>,
     input: RecipeNodeId,
     name: &StableName,
+    defined_by: &dyn Fn(crate::VarId) -> Option<RecipeNodeId>,
 ) -> Vec<Lift> {
     use crate::node::{Datum, Node, PatternKind};
     let under = |seg: fn(NameRef) -> RoleSeg| {
@@ -1755,7 +1899,8 @@ pub(crate) fn lift<P>(
             path: vec![seg(NameRef::new(name.clone()))],
         })
     };
-    let seat = |at: RecipeNodeId, how: Lift| (at == input).then_some(how);
+    let reads = |at: crate::VarId| defined_by(at) == Some(input);
+    let seat = |at: crate::VarId, how: Lift| reads(at).then_some(how);
     let placer_axis = |kind: &PatternKind| match kind {
         PatternKind::Circular { axis, step: _ } => seat(*axis, Lift::Dropped),
         PatternKind::Linear {
@@ -1780,8 +1925,8 @@ pub(crate) fn lift<P>(
             declare: _,
         } => members
             .iter()
-            .filter(|&&m| m == input)
-            .map(|&m| Lift::Spelled(super::member_name(consumer, m, name)))
+            .filter(|&&m| reads(m))
+            .map(|_| Lift::Spelled(super::member_name(consumer, input, name)))
             .collect(),
         Node::Boolean {
             op: _,
@@ -1796,26 +1941,27 @@ pub(crate) fn lift<P>(
         .flatten()
         .collect(),
         Node::Fillet {
-            target,
             radius: _,
-            selection: _,
+            selection: body,
         }
         | Node::Chamfer {
-            target,
             distance: _,
-            selection: _,
+            selection: body,
         }
         | Node::Shell {
-            target,
             thickness: _,
-            open: _,
-        } => seat(*target, under(RoleSeg::FromTarget))
-            .into_iter()
-            .collect(),
+            open: body,
+        } => seat(*body, under(RoleSeg::FromTarget)).into_iter().collect(),
         Node::Transform {
             input: placed,
             placement: _,
         } => seat(*placed, Lift::Moved).into_iter().collect(),
+        // The copy is the body's, qualified by the placement; where the
+        // pose puts it is the product's geometry, and the copy's name
+        // reaches it there.
+        Node::PlaceInWorld { body, pose: _ } => seat(*body, under(|of| RoleSeg::Placed { of }))
+            .into_iter()
+            .collect(),
         Node::Pattern {
             input: placed,
             count: _,
@@ -1829,25 +1975,26 @@ pub(crate) fn lift<P>(
             .into_iter()
             .flatten()
             .collect(),
-        Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
-            seat(*at, Lift::Dropped).into_iter().collect()
+        Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
+            seat(*face, Lift::Dropped).into_iter().collect()
         }
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane,
             origin: _,
             direction: _,
         }) => seat(*plane, Lift::Dropped).into_iter().collect(),
-        Node::Measure { expr: _, refs } => refs
+        Node::Measure { primitive } => primitive
+            .refs()
             .iter()
-            .any(|r| r.at == input)
+            .any(|&&r| reads(r))
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),
         Node::Assertion {
-            measure,
+            value,
             bound: _,
-            dir: _,
-        } => seat(*measure, Lift::Dropped).into_iter().collect(),
+            relation: _,
+        } => seat(*value, Lift::Dropped).into_iter().collect(),
         Node::Extrude {
             profile,
             distance: _,
@@ -1864,25 +2011,24 @@ pub(crate) fn lift<P>(
                 .collect()
         }
         Node::Tube {
-            spine,
-            u_ref: _,
+            frame,
             major_radius: _,
             window: _,
             minor_radius: _,
         }
         | Node::HollowTube {
-            spine,
-            u_ref: _,
+            frame,
             major_radius: _,
             window: _,
             minor_radius: _,
             wall: _,
-        } => seat(*spine, Lift::Dropped).into_iter().collect(),
+        } => seat(*frame, Lift::Dropped).into_iter().collect(),
         Node::Loft {
             profiles,
             v_degree: _,
         } => profiles
-            .contains(&input)
+            .iter()
+            .any(|&p| reads(p))
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),
@@ -2353,6 +2499,12 @@ impl RoleSeg {
                 vertex: rewrite_ref(vertex, w)?,
                 edge: rewrite_ref(edge, w)?,
             },
+            R::Mitre { vertex } => R::Mitre {
+                vertex: rewrite_ref(vertex, w)?,
+            },
+            R::TurnFoot { vertex } => R::TurnFoot {
+                vertex: rewrite_ref(vertex, w)?,
+            },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
@@ -2376,6 +2528,9 @@ impl RoleSeg {
             },
             // The document seam.
             R::InPart { .. } => self.clone(),
+            R::Placed { of } => R::Placed {
+                of: rewrite_ref(of, w)?,
+            },
             R::Instance { i, of } => R::Instance {
                 i: *i,
                 of: rewrite_ref(of, w)?,
@@ -2385,6 +2540,35 @@ impl RoleSeg {
 }
 
 impl StableName {
+    /// **This entity as world placement `placement`'s copy names it**
+    /// (D10, A10): the body's own name, worn inside the one
+    /// [`RoleSeg::Placed`] qualifier the placement puts round every
+    /// name of the body it places, headed at the placement. What the
+    /// product's table spells the entity by; [`StableName::copy_of`] is
+    /// its inverse.
+    #[must_use]
+    pub fn in_copy(&self, placement: RecipeNodeId) -> StableName {
+        StableName {
+            kind: self.kind,
+            node: placement,
+            path: vec![RoleSeg::Placed {
+                of: self.clone().into(),
+            }],
+        }
+    }
+
+    /// **The body's own name a copy's name wraps**: the name under the
+    /// one `Placed` qualifier, with the placement that put it there.
+    /// `None` when this name is not of that shape;
+    /// [`StableName::in_copy`] is its inverse.
+    #[must_use]
+    pub fn copy_of(&self) -> Option<(RecipeNodeId, &StableName)> {
+        match self.path.as_slice() {
+            [RoleSeg::Placed { of }] => Some((self.node, of)),
+            _ => None,
+        }
+    }
+
     /// This name with every segment of its path rebuilt through `w`
     /// ([`RoleSeg::rewrite`]), then put back in canonical form; the
     /// kind and the minting node are not the path's and are kept.
@@ -2564,6 +2748,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
             | $crate::names::RoleSeg::EndArc { .. }
+            | $crate::names::RoleSeg::Mitre { .. }
+            | $crate::names::RoleSeg::TurnFoot { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)
@@ -2574,6 +2760,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }
             | $crate::names::RoleSeg::InPart { .. }
+            | $crate::names::RoleSeg::Placed { .. }
             | $crate::names::RoleSeg::Instance { .. }
     };
 }
@@ -2589,14 +2776,14 @@ mod tests {
     use crate::node::{RecipeNodeId, StepId};
 
     /// The node every pin below mints against.
-    const N: RecipeNodeId = RecipeNodeId(7);
+    const N: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// The two locator forms every pin below is written at: an
     /// authored piece and a kernel-built section's piece.
     fn edges() -> [ProfileEdgeRef; 2] {
         [
             ProfileEdgeRef::Piece {
-                step: StepId(3),
+                step: StepId::new(0, 3),
                 role: PieceRole::RunOut,
             },
             ProfileEdgeRef::Section {
@@ -2698,7 +2885,7 @@ mod tests {
         }
         assert_eq!(
             serde_json::to_string(&edges()[0]).expect("serializes"),
-            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
+            r#"{"Piece":{"step":"0:0000000000000003","role":"RunOut"}}"#
         );
         assert_eq!(
             serde_json::to_string(&edges()[1]).expect("serializes"),
@@ -2713,23 +2900,23 @@ mod tests {
     fn piece_steps_read_the_names_own_document_only() {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: StepId(step),
+                    step: StepId::new(0, step),
                     role: PieceRole::Leg,
                 }
                 .into(),
             )],
         };
-        let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
+        let carried_wall = carried(RecipeNodeId::new(0, 9), wall(1, 4));
         assert_eq!(
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
-            vec![StepId(4)]
+            vec![StepId::new(0, 4)]
         );
         let foreign = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::InPart {
                 of: NameRef::new(wall(1, 5)),
             }],
@@ -2745,7 +2932,7 @@ mod tests {
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
         let inner = band_rim(N, edges()[0].start());
-        let outer = RecipeNodeId(9);
+        let outer = RecipeNodeId::new(0, 9);
         assert_eq!(
             carried(outer, inner.clone()),
             StableName {

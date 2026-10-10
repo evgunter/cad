@@ -2,11 +2,11 @@
 id: unclaimed-half-edge-read-as-a-minus-half-in-zip
 kind: issue
 title: a half-edge its own edge does not claim is read as that edge's minus half: 2 site(s) on this ground
-status: parked
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-08
 ---
 
 Filed by TOPO's fix pass on PR 3532 (the review's MINOR-3), which
@@ -90,4 +90,12 @@ self-pair checks, and `merge_faces.rs`' `#[cfg(test)]` tear hooks.
 
 ## Parked on the D10 hold (2026-10-06)
 
-This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/flush/plan.md`, "The intent-refactor hold"). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: its only open site is rest.rs's REST-lane mate ladder, which stage 4 deletes. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+This slate's last open site, the REST lane's first-run far half in `boolean/rest.rs`, is deleted with the zip; the `join.rs` site closed earlier.

@@ -2,8 +2,9 @@
 id: viewer-param-vocabulary-names-a-variable
 kind: issue
 title: The viewer's ops, refusals and selection call a variable a param
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-07
 ---
 
 INTENT-VARS-1 PR 3 moved the viewer's operations onto `VarId`, but its
@@ -27,3 +28,19 @@ which the next unit (where the GUI's variable affordances are designed)
 is the place for.
 
 Raised by PR 3's dual review (r2 S4).
+
+## Closed
+
+Closed by the stage-1 GUI unit (`typing-a-value-mints-or-offers-a-variable`),
+which decided what the GUI calls a variable: **variable**, the ratified
+word (D10, VARIABLES-DESIGN). The whole viewer vocabulary moved, not
+three names: `SessionOp::SetVariable`/`SetVariableUnit`/`SetVariableText`,
+`Begin`/`Preview`/`CommitVariableGesture`, `ValueGestureName::Variable`,
+`Refusal::NoSuchVariable`, `Selection::Variable` and `Standing::Variable`,
+`BoundsTarget::Variable`, `props::variable_rows`/`VariableRow` and the
+`variable_*` helpers beside them, and the panel's words ("variables",
+"variable w (length)", "create variable w?"). A feature's slots are still
+its "parameters" in the panel ("this feature carries no parameters"),
+which is the operation's word for its arguments. Kernel and Python names
+(`DocEdit::SetParam`, `SetStructuralParam`, `ParamSource`) are out of
+this unit's fence.

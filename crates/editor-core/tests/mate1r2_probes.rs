@@ -51,7 +51,7 @@ fn block_part(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -60,6 +60,22 @@ fn block_part(
 
 fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
+}
+
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity —
+/// the world a pattern's copies are in the product by (A10).
+fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
@@ -224,6 +240,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
         DocEdit::SetOffset {
             instance: leg,
             offset: Some(editor_core::Placement::literal(&group_frame())),
+            fresh: Vec::new(),
         },
     );
     let (doc, axis) = insert(
@@ -237,10 +254,10 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(theta),
             },
         },
@@ -255,6 +272,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -310,12 +328,13 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
         DocEdit::SetOffset {
             instance: leg,
             offset: Some(editor_core::Placement::literal(&group_frame())),
+            fresh: Vec::new(),
         },
     );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 // Document ŷ: the placed group frame turns the leg
@@ -331,6 +350,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 2);
+    let doc = fixture::place(doc, top).0;
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -340,6 +361,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m1) = step(
@@ -351,6 +373,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
@@ -396,7 +419,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let (doc, p1) = insert(
         doc,
         Node::Pattern {
-            input: leg1,
+            input: leg1.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -408,7 +431,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let (doc, p2) = insert(
         doc,
         Node::Pattern {
-            input: leg2,
+            input: leg2.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -425,6 +448,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -468,7 +492,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -482,6 +506,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
         DocEdit::SetOffset {
             instance: leg,
             offset: None,
+            fresh: Vec::new(),
         },
     );
     let (doc, mate) = step(
@@ -493,6 +518,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -537,7 +563,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -555,6 +581,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     // The second mate names copy 1, well formed at insert (the edit
@@ -570,6 +597,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
@@ -579,6 +607,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
             node: pattern,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
     );
 
@@ -631,7 +660,7 @@ fn r2_nested_pattern_head_is_a_member() {
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -642,7 +671,7 @@ fn r2_nested_pattern_head_is_a_member() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -664,6 +693,7 @@ fn r2_nested_pattern_head_is_a_member() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -707,6 +737,7 @@ fn r2_plain_document_pose_bits() {
                 [0.25, 0.5, 1.0],
                 AxisSense::Opposed,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, m1) = step(
@@ -718,6 +749,7 @@ fn r2_plain_document_pose_bits() {
                 [0.75, 0.125, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let _ = (m0.expect("m0 mints"), m1.expect("m1 mints"));

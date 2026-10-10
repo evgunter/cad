@@ -30,7 +30,7 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-/// A unit square extruded by a document parameter — the same branch
+/// A unit square extruded by a document variable — the same branch
 /// fixture `editor-core`'s own suite uses, so the two suites are
 /// talking about one document.
 fn slab(depth: f64) -> ProfileDoc {
@@ -48,7 +48,7 @@ fn slab(depth: f64) -> ProfileDoc {
     common::insert_into(
         &mut doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::named(name("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },

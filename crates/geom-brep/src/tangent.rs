@@ -118,17 +118,24 @@ pub struct TangentSpanBounds<T: Real> {
 
 /// **THE certified-lane predicate** (C12.1, one place): is this
 /// (carrier kind, surface-kind pair) triple inside the jet
-/// certificate's span-bound lane? It has THREE consumers, and naming
-/// all three is what makes the together-by-construction claim checkable:
-/// [`tangent_span_bounds`] (which refuses outside it), the tier-3
-/// must-carry enforcement in `topo::validate`, and the declared-contact
-/// verifier in `topo::boolean::contact_verify` (which gates on it before
-/// taking any per-sample verdict). The demanded set, the certifiable set
-/// and the verifiable set are therefore ONE set BY CONSTRUCTION — a
-/// tangency the certificate cannot store is never demanded and never
-/// accepted as a declared contact. Widening this predicate widens all
-/// three at once, which is the property that makes a new surface row
-/// (the cone row below) cost nothing downstream.
+/// certificate's span-bound lane? It has FOUR consumers, and naming
+/// all four is what makes the together-by-construction claim checkable:
+/// [`tangent_span_bounds`] (which refuses outside it),
+/// [`crate::must_carry_over_edge`] (the constructors' gate on what a
+/// smooth join stores: outside the lane an all-`Positive` edge answers
+/// `UnderDetermined`), the tier-3 must-carry enforcement in
+/// `topo::validate` (`TangentNotIntrinsic` is demanded only inside it),
+/// and the declared-contact verifier in
+/// `topo::boolean::contact_verify` (which gates on it before taking any
+/// per-sample verdict). The stored set, the demanded set, the
+/// certifiable set and the verifiable set are therefore ONE set BY
+/// CONSTRUCTION — a tangency the certificate cannot store is never
+/// stored intrinsic, never demanded and never accepted as a declared
+/// contact. The lane gates only that intrinsic answer: the rule and
+/// tier 3 both read the second order on every definitely-smooth pair,
+/// lane or not, and refuse an in-band reading either way. Widening this
+/// predicate widens all four at once, which is the property that makes
+/// a new surface row (the cone row below) cost nothing downstream.
 ///
 /// Two arms, both closed-form:
 /// - **`Line` carriers on `Plane`/`Cylinder`/`Sphere` pairs** — the

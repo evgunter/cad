@@ -43,9 +43,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, Datum, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector, SitedRef, ValuePayload, apply,
-    evaluate, select,
+    LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, SegPat, SegTag, Selector, SitedRef, ValuePayload, apply, evaluate, select,
 };
 use fixture::{len, scl};
 use geom_core::Tol;
@@ -74,6 +73,7 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -123,7 +123,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         let (next, profile) = mint(
             &doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![square.clone()],
                 ids: Vec::new(),
             }),
@@ -132,7 +132,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         let (next, prism) = mint(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(THICKNESS),
                 side: ExtrudeSide::Along,
             },
@@ -152,8 +152,8 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         cap(&ev, plates[0], CapEnd::End),
         cap(&ev, plates[1], CapEnd::Start),
     ];
-    let expr = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let (doc, measure) = mint(&doc, Node::measure(expr, refs).expect("indices in range"));
+    let expr = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let (doc, measure) = crate::fixture::measure_node(&doc, expr, refs);
 
     let ev: Evaluation<f64> = evaluate(
         &doc,

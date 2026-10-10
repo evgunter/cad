@@ -2,12 +2,11 @@
 id: a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face
 kind: issue
 title: A convex corner kissing a cube's face ships results with an undeclared vertex-on-face (8 runs, identical on main)
-status: parked
+status: open
 opened: 2026-10-04
 priority: P1
 cost: M
 refs: [a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -36,3 +35,11 @@ same battery's ten `StaleContactDeclaration` results are evidence on
 Read one pose's contact records through `remap_contacts`. Either the
 kissing vertex's record is dropped, or none was minted for a contact
 the result keeps. Fix it at the record's mint or its remap.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the tier-3′ UndeclaredContact{VertexOnFace} refusal becomes an unproven-coincidence finding recorded at the stage-4 door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E does not reach this. Its glue door records face pairs the carrier ladder decides one carrier, or that the witness lane verifies tangent (`crates/topo/src/boolean/glue.rs:72`–`:83`). A convex corner kissing a face is a vertex on a face, and no face pair there is coincident or tangent, so no new record backs it. The census still raises `UndeclaredContact` for an unrecorded touch (`crates/topo/src/census.rs:1388` and its siblings). Not re-measured (the battery lives on `join/pierce-two-out-runs-review-r2`). The shape to give stands: the kissing vertex's record is dropped at its mint or its remap.

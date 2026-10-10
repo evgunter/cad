@@ -39,7 +39,7 @@ fn a_document_round_trips_through_save_and_open() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    session.perform(SessionOp::SetParam {
+    session.perform(SessionOp::SetVariable {
         var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.020),
     });
@@ -122,7 +122,7 @@ fn opening_a_document_drops_what_the_previous_one_answered() {
         body: 0,
     }))));
     let probed = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
+        target: BoundsTarget::Variable {
             var: common::thickness_var(session.committed_doc()),
         },
     });
@@ -249,7 +249,11 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     session.pump();
 
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 4, "sketch frame, profile, axis datum, revolve");
+    assert_eq!(
+        rows.len(),
+        5,
+        "sketch frame, profile, axis datum, revolve and its placement"
+    );
     assert!(
         !viewer::tree::has_faults(&rows),
         "a gallery document evaluates clean: {:?}",
@@ -257,8 +261,8 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     );
     assert!(
         rows.iter()
-            .any(|row| row.spoken.kind() == Some("Revolve") && row.root),
-        "the revolve is the product root"
+            .any(|row| row.spoken.kind() == Some("Revolve") && row.placed),
+        "the revolve carries the world badge: the gallery places it"
     );
 
     // Round-trip: opened, saved, and opened again is the same document.
@@ -286,7 +290,7 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    session.perform(SessionOp::SetParam {
+    session.perform(SessionOp::SetVariable {
         var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.020),
     });
@@ -302,38 +306,41 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
-/// INVARIANT: a document whose product roots occupy the same space
+/// INVARIANT: a document whose placed copies occupy the same space
 /// still DRAWS, and the session carries the finding that says so.
 ///
-/// This is the diefillet gallery bug, as a session row. The two roots
+/// This is the diefillet gallery bug, as a session row. The two copies
 /// gather into one product whose picture looks almost right — the
-/// second root's material fills the first's cavities and z-fights its
-/// outer faces — and every local battery passes, because each root's
+/// second copy's material fills the first's cavities and z-fights its
+/// outer faces — and every local battery passes, because each copy's
 /// body is individually perfect. The report is the only thing that
 /// says otherwise, so it has to land with the evaluation, and the
 /// scene has to keep building alongside it (report, never gate: a
 /// modeller cannot fix what the viewer refuses to show).
 #[test]
-fn overlapping_roots_still_draw_and_land_a_finding() {
+fn overlapping_copies_still_draw_and_land_a_finding() {
     let tol = Tol::witness();
-    // Two extrudes over the same square: two sinks, so two product
-    // roots, exactly on top of each other.
+    // Two extrudes over the same square, each placed: two copies,
+    // exactly on top of each other.
     let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
-    let mut roots = Vec::new();
+    let mut copies = Vec::new();
     for _ in 0..2 {
         let plane = common::insert_into(&mut doc, common::xy_frame(), tol);
         let profile = common::insert_into(&mut doc, common::square(plane, 1.0), tol);
-        roots.push(common::insert_into(
+        let extrude = common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(1.0),
                 side: ExtrudeSide::Along,
             },
             tol,
-        ));
+        );
+        let (placed, copy) = common::placed(&doc, extrude, tol);
+        doc = placed;
+        copies.push(copy);
     }
-    assert_eq!(doc.roots().len(), 2, "two sinks, two product roots");
+    assert_eq!(doc.placements().len(), 2, "two placements, two copies");
 
     let mut session = DocSession::new(doc, tol, Box::new(viewer::InlineEvaluator::new()));
     session.pump();
@@ -351,7 +358,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     .expect("an overlapping product still tessellates");
     assert!(scene.stats().triangles > 0, "the picture is not empty");
 
-    // And the finding landed with it, naming both roots.
+    // And the finding landed with it, naming both copies.
     let report = session.checks().expect("the registry ran");
     let separation: Vec<_> = report
         .findings
@@ -360,10 +367,10 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
         .collect();
     assert_eq!(separation.len(), 1, "one pair, one finding: {report}");
     let rendered = separation[0].to_string();
-    for root in &roots {
+    for copy in &copies {
         assert!(
-            rendered.contains(&format!("root {}", test_utils::refusal::tag(root.0))),
-            "the finding names both roots: {rendered}"
+            rendered.contains(&test_utils::refusal::tag(copy.0.digest())),
+            "the finding names both copies: {rendered}"
         );
     }
 }
@@ -371,7 +378,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 /// **A declaration authored in millimetres comes back in
 /// millimetres.** The notation rides on the declaration, so it is
 /// persisted state and not a view setting — the create door mints it
-/// (`props::doc_param`) and the file carries it.
+/// (`props::doc_variable`) and the file carries it.
 #[test]
 fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     let tol = Tol::witness();
@@ -385,7 +392,7 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     );
     let outcome = session.perform(SessionOp::DeclareVar {
         name: name.clone(),
-        value: viewer::props::doc_param(
+        value: viewer::props::doc_variable(
             pncad::document::Dimension::Length,
             SlotValue::Continuous(0.05),
             Some(pncad::prelude::MM.def()),
@@ -402,10 +409,10 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
             .is_none()
     );
     let reopened = docio::open(&file, tol).expect("the saved document opens");
-    let row = viewer::props::param_rows(reopened.doc())
+    let row = viewer::props::variable_rows(reopened.doc())
         .into_iter()
         .find(|row| row.label.name() == Some(&name))
-        .expect("the parameter survived the round trip");
+        .expect("the variable survived the round trip");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05));
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");

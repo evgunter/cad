@@ -70,9 +70,11 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     // The sphere key both bands share — the chart both meridians below
     // are images in.
     let sphere = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
-    // The angle-0 meridian IS the sphere's parameterization seam:
-    // derived by the kernel, carrying D1's seam obligation.
-    assert_seam_of(&t.body, arc_edge, sphere);
+    // The angle-0 meridian parts the two π-bands, so it is no wrap
+    // edge of either (D1: a wrap edge's halves bound one face): it is
+    // an image at rest in the sphere's chart, the profile's arc its
+    // declaring authority, as the angle-π copy is.
+    assert_declared_image_in(&t.body, arc_edge, sphere);
     assert_eq!(t.walls()[0][1], None);
     assert!(t.rims[0].iter().all(Option::is_none));
     // Both poles are EXPORTED (M9-D1), in canonical vertex order —

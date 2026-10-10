@@ -338,49 +338,49 @@ fn near_tangent_join_escalates() {
     // exact-tangency direction (45 deg): carrier clearance to the
     // incoming line y=0 is r(1 - cos phi) ~ phi^2/2 with r = 1.
     let b = quarter_bulge();
-    let build = |phi: f64, declare: bool| {
+    let build = |phi: f64, construct: bool| {
         let l = std::f64::consts::SQRT_2;
         let ang = std::f64::consts::FRAC_PI_4 + phi;
         let end = Point2::new(2.0 + l * ang.cos(), l * ang.sin());
         // Joint 1 is the line->arc join under test. At phi = 0 the
         // vertical exit line x = end.x is tangent to the SAME carrier
-        // at the arc's end -- joint 2, a second tangent joint, declared
-        // under the same flag.
-        let mut lp = chain(&[
+        // at the arc's end -- joint 2, a second tangent joint,
+        // constructed under the same flag.
+        let lp = chain(&[
             (0.0, 0.0, 0.0),
             (2.0, 0.0, b),
             (end.x, end.y, 0.0),
             (end.x, 3.0, 0.0),
             (0.0, 3.0, 0.0),
         ]);
-        if declare {
-            lp = lp.with_tangent_joints(vec![1, 2]);
+        if construct {
+            profile::ConstructedProfile::new(
+                profile::SketchPlane::xy(),
+                vec![profile::ConstructedLoop::fixture(lp, vec![1, 2])],
+            )
+            .validate(tol())
+        } else {
+            profile(vec![lp]).validate(tol())
         }
-        profile(vec![lp])
     };
     // phi = 0: exact carrier tangency at the shared vertex -> smooth
-    // join, accepted when DECLARED (#101: tangency is declared intent,
-    // verified never trusted)...
-    assert!(
-        build(0.0, true).validate(tol()).is_ok(),
-        "declared exact tangency accepts"
-    );
-    // ...and refused typed when the same exact tangency is undeclared.
-    match build(0.0, false)
-        .validate(tol())
-        .expect_err("undeclared tangency")
-    {
-        ProfileError::UndeclaredTangency { .. } => {}
-        other => panic!("expected undeclared tangency, got {other:?}"),
-    }
+    // join, accepted when CONSTRUCTED (verified, never trusted)...
+    let built = build(0.0, true).expect("constructed exact tangency accepts");
+    assert!(built.loops()[0].decided_joints().is_empty());
+    // ...and accepted when the same exact tangency is no construction's:
+    // decided from values, and recorded.
+    let decided = build(0.0, false).expect("a value-decided tangency accepts");
+    let joints: Vec<usize> = decided.loops()[0]
+        .decided_joints()
+        .iter()
+        .map(|d| d.joint)
+        .collect();
+    assert_eq!(joints, vec![1, 2], "both tangencies recorded");
     // phi = sqrt(10 eps): clearance ~ 5 eps, inside the band ->
-    // escalation naming the tangency predicate (declaration cannot
-    // rescue an in-band margin -- point 2 of the discipline).
+    // escalation naming the tangency predicate (a construction cannot
+    // rescue an in-band margin).
     let phi = (10.0 * eps).sqrt();
-    match build(phi, true)
-        .validate(tol())
-        .expect_err("near-tangent join")
-    {
+    match build(phi, true).expect_err("near-tangent join") {
         ProfileError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("carrier_line_circle"));
         }
@@ -388,16 +388,10 @@ fn near_tangent_join_escalates() {
     }
     // phi large: a definite corner, accepted undeclared (transversal
     // joints are free geometry)...
-    assert!(
-        build(0.3, false).validate(tol()).is_ok(),
-        "definite corner accepts"
-    );
-    // ...and a tangency DECLARATION on that definite corner is
-    // contradicted (point 3: the flag is verified, never trusted).
-    match build(0.3, true)
-        .validate(tol())
-        .expect_err("contradicted declaration")
-    {
+    assert!(build(0.3, false).is_ok(), "definite corner accepts");
+    // ...and a constructed tangency on that definite corner is
+    // contradicted (a construction is verified, never trusted).
+    match build(0.3, true).expect_err("contradicted construction") {
         ProfileError::TangencyContradicted { .. } => {}
         other => panic!("expected contradicted tangency, got {other:?}"),
     }

@@ -105,6 +105,28 @@ fn net_iso_u<T: Real>(net: &NetView<'_, T>, end: bool) -> Result<NurbsCurve3<T>,
     NurbsCurve3::new(net.knots_v.clone(), control, weights)
 }
 
+/// `column` run back: its knots reflected through 0
+/// ([`KnotVector::negated`], exact for every vector), its control
+/// points and weights reversed, so on `[−b, −a]` its point at `t` is
+/// `column`'s at `−t`. A wrap edge a construction lays against its
+/// column's direction is carried by this (D1), on that reflected
+/// domain; the seam-class pcurve certification reads the relation back
+/// with [`KnotVector::is_reflection_of`].
+///
+/// The reflection about the column's own domain, `a + b − t`, is not
+/// offered: `a + b − k` is not an `f64` for most knots (`1 − fl(1/3)`,
+/// on a four-section loft's column), and a curve on rounded knots is
+/// not the column run back.
+#[must_use]
+pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
+    NurbsCurve3::new(
+        column.knots().negated(),
+        column.control().iter().rev().copied().collect(),
+        column.weights().iter().rev().copied().collect(),
+    )
+    .unwrap_or_else(|e| unreachable!("a valid curve's net reversed onto its negated knots: {e}"))
+}
+
 /// The `v = 0` (`end = false`) or `v = 1` (`end = true`) boundary
 /// iso-curve of a clamped surface: the first/last v-column of the
 /// control net over `knots_u`, weights matching.
@@ -204,7 +226,13 @@ fn net_interior_iso_u<T: SpanLocate>(
         });
     };
     let ku = net.knots_u;
-    let spans = u.locate_spans(ku);
+    let Some(spans) = u.locate_spans(ku) else {
+        // A poison `u*` locates no span, and the row is poison in every
+        // channel `u*` carries.
+        let control = vec![Point3::<T>::origin().map(|_| geom_core::spline::poison_from(u)); nv];
+        return NurbsCurve3::new(net.knots_v.clone(), control, weights)
+            .map_err(|source| IsoRowError::Structure { source });
+    };
     let mut hulled: Option<Vec<Point3<T>>> = None;
     for index in spans.first.index()..=spans.last.index() {
         // The locator's range may cross an EMPTY span (interior knot
@@ -402,6 +430,30 @@ mod tests {
             Point3::new(2.0, 1.0, 0.1),
         ];
         NurbsSurface::<f64>::new(ku, kv, control, vec![1.0; 6]).unwrap()
+    }
+
+    /// A poison `u*` locates no span, so the collapsed row is poison in
+    /// every channel `u*` carries — at `Dual` the derivative channel
+    /// too, where a bare `from_f64(NaN)` would be a dual constant whose
+    /// derivative reads as a zero.
+    #[test]
+    fn a_poison_iso_parameter_collapses_to_a_row_poison_in_every_dual_channel() {
+        let s = surface();
+        let ku = s.knots_u().clone();
+        let kv = s.knots_v().clone();
+        let control: Vec<Point3<geom_core::Dual64>> = s
+            .control()
+            .iter()
+            .map(|p| p.map(geom_core::Dual64::constant))
+            .collect();
+        let dual = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let row = interior_iso_u(&dual, geom_core::Dual64::variable(f64::NAN))
+            .expect("a separable net collapses");
+        for p in row.control() {
+            for c in [p.x, p.y, p.z] {
+                assert!(c.value.is_nan() && c.deriv.is_nan(), "{p:?}");
+            }
+        }
     }
 
     /// [`iso_boundary_row`] selects the row the stored parameter names,

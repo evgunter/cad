@@ -160,10 +160,13 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
             ..
         } = e
         {
-            records.b_on_a.push(VfContact {
-                vertex: *vertex,
-                face: *face,
-            });
+            records.b_on_a.push(topo::Cited::new(
+                VfContact {
+                    vertex: *vertex,
+                    face: *face,
+                },
+                topo::Cites::decided(0),
+            ));
         }
     }
     let residue = validate_pseudomanifold(&body, &records, Tol::witness());
@@ -449,7 +452,10 @@ fn a_vertex_touching_straddler_is_decided_by_its_inside_corner() {
         "{errors:?}"
     );
     let records = ContactRecords {
-        b_on_a: touches,
+        b_on_a: touches
+            .into_iter()
+            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
+            .collect(),
         ..Default::default()
     };
     let declared = validate_pseudomanifold(&body, &records, tol).unwrap_err();

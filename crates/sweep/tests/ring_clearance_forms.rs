@@ -62,8 +62,8 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
         arcs.extend(a);
     }
     let before = mass_properties(body, tol()).unwrap();
-    let out =
-        fillet_edges(body, &arcs, r, tol()).unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
     let after = mass_properties(&out.body, tol()).unwrap();
@@ -116,7 +116,9 @@ fn the_bosss_dome_rim_carves_inside_its_hosts_circular_boundary() {
         let body = repaired(up);
         assert_eq!(census(&body), (7, 10, 6), "{name}: the repaired census");
         let (measured, out) = carve(name, &body, &[(0.5, 1.0)], 0.1);
-        assert_eq!(census(&out), (9, 13, 7), "{name}: the band's census delta");
+        // (7, 10, 6) + the two-crossing band's (1, 2, 1): its host
+        // trimlines join at the foot the slit does not reach.
+        assert_eq!(census(&out), (8, 12, 7), "{name}: the band's census delta");
         agrees(name, measured, if adds { form } else { -form });
     }
 }
@@ -161,7 +163,8 @@ fn the_bosss_top_outer_rim_carves_on_a_ringed_host() {
             "{name}: the host is an annulus"
         );
         let (measured, out) = carve(name, &body, &[(1.0, 1.0)], 0.1);
-        assert_eq!(census(&out), (9, 13, 7), "{name}: the band's census delta");
+        // The two-crossing band's (1, 2, 1), its host trimlines joined.
+        assert_eq!(census(&out), (8, 12, 7), "{name}: the band's census delta");
         assert_eq!(
             body.get_face(host).unwrap().rings.len(),
             out.get_face(host).map_or(0, |fd| fd.rings.len()),
@@ -187,7 +190,14 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
         let body = repaired(up);
         let mut both = rim_arcs_at(&body, 0.5, 1.0);
         both.extend(rim_arcs_at(&body, 1.0, 1.0));
-        match fillet_edges(&body, &both, 0.1, tol()).map_err(|e| e.error) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &both,
+            0.1,
+            tol(),
+        )
+        .map_err(|e| e.error)
+        {
             Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
                 detail.contains("SEQUENTIAL calls"),
                 "{name}: the mixed ladder/annulus arm and its recourse: {detail}"
@@ -197,7 +207,8 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
         let before = mass_properties(&body, tol()).unwrap().volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
-        assert_eq!(census(&out), (11, 16, 8), "{name}: two bands' census");
+        // Each band's host trimlines joined: one vertex and one edge fewer apiece.
+        assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
         let measured = mass_properties(&out, tol()).unwrap().volume - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);
     }
@@ -280,9 +291,14 @@ fn a_ladder_boundary_nested_inside_its_trim_circle_refuses() {
     let body = narrowed(0.55);
     let arcs = rim_arcs_at(&body, 0.5, 1.0);
     let (predicate, read) = refusal_reading(
-        fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a boundary nested inside the trim circle refuses")
-            .error,
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect_err("a boundary nested inside the trim circle refuses")
+        .error,
     );
     assert_eq!(
         predicate, "fillet3_face_clearance",
@@ -303,7 +319,13 @@ fn a_ladder_boundary_nested_inside_its_trim_circle_refuses() {
         0.6 - ((0.5 + 0.1f64).powi(2) - 0.01).sqrt() > 0.008,
         "and the derived margin there is positive"
     );
-    let out = fillet_edges(&wide, &arcs, 0.1, tol()).expect("the nested trim circle carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&wide, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .expect("the nested trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 }
 
@@ -336,9 +358,14 @@ fn a_hostless_annulus_ring_in_the_excised_strip_refuses() {
     let body = domed(0.92);
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
     let (predicate, read) = refusal_reading(
-        fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a ring in the excised strip refuses")
-            .error,
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect_err("a ring in the excised strip refuses")
+        .error,
     );
     assert_eq!(
         predicate, "fillet3_face_clearance",
@@ -357,7 +384,12 @@ fn a_hostless_annulus_ring_in_the_excised_strip_refuses() {
     // The other side of the same zero.
     let wide = domed(0.85);
     let arcs = rim_arcs_at(&wide, 1.0, 1.0);
-    let out = fillet_edges(&wide, &arcs, 0.1, tol())
-        .expect("a ring the trim circle contains carves through");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&wide, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .expect("a ring the trim circle contains carves through");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 }

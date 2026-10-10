@@ -145,8 +145,10 @@ fn embedded() -> (Body<f64>, ContactRecords) {
             vertex: v,
             face: big_bottom,
         };
-        if inner_corner && !records.b_on_a.contains(&rec) {
-            records.b_on_a.push(rec);
+        if inner_corner && !records.b_on_a.iter().any(|c| *c == rec) {
+            records
+                .b_on_a
+                .push(topo::Cited::new(rec, topo::Cites::decided(0)));
         }
     }
     assert_eq!(
@@ -248,7 +250,10 @@ fn a_declared_stacked_assembly_still_clears_at_the_containment_arm() {
         let [a, b] = hits[..] else {
             panic!("exactly two coincident corners at {corner:?}: {hits:?}");
         };
-        records.vv.push(VvContact { a, b });
+        records.vv.push(topo::Cited::new(
+            VvContact { a, b },
+            topo::Cites::decided(0),
+        ));
     }
     assert_eq!(
         validate_pseudomanifold(&body, &records, Tol::witness()),

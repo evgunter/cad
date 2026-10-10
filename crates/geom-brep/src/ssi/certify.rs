@@ -16,13 +16,11 @@
 //!   linearized implicit residual, through `ssi_on_locus`;
 //! - **NURBS operand**: no implicit form exists, so the residual is
 //!   `|C(t) − S(u*, v*)|` at a **certified foot point** from
-//!   `geom::surfaces::projection` — and the projection's own
-//!   orthogonality residual is banded too (`ssi_foot_orthogonality`,
-//!   normalized by the chart speed so the margin is in meters). That
-//!   second band is what stops a bad projection laundering a bad cache
-//!   (C2.1 verbatim): a foot on the far sheet has vanishing
-//!   orthogonality and a large distance; a clamped domain-edge foot has
-//!   a small distance and a large orthogonality. Both are visible.
+//!   `geom::surfaces::projection` (`ssi_on_locus_foot`). Any point of
+//!   the surface bounds the carrier's distance from it above, so the
+//!   foot is owed no limb of its own: a foot on the far sheet reads a
+//!   large distance and refuses, and no foot reads less than the true
+//!   distance.
 //!
 //! # Limb 2 — sup-norm honesty (between the samples)
 //!
@@ -115,26 +113,25 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::spline::algebra::{
-    GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, range_grid_points,
-};
+use geom_core::spline::algebra::{domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
-    Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
+    Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
-use crate::dihedral::{decide, decide_positive};
+use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
+use super::refine::{RefusedResidual, RoundMargin};
 use super::section::{BandVerdict, band_verdict};
-use super::{SsiError, SsiOperand, TubeScale};
+use super::{SsiError, SsiOperand};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
 /// named extent. The ladder halves from here.
@@ -256,8 +253,8 @@ pub struct SsiCertificate<T: Real> {
     pub tube: SsiTube<T>,
     /// Limb 3: the smallest certified transversality margin over the
     /// box chain, in meters — the headroom of the one-arc proof. The
-    /// ring's zero-free lower bound times the caller's lever arm, so it
-    /// carries the arm's scalar.
+    /// ring's zero-free lower bound times the caller's feature extent,
+    /// so it carries the extent's scalar.
     pub tube_transversality: T,
     /// Limb 3: how many boxes the chain has.
     pub tube_boxes: u32,
@@ -267,8 +264,7 @@ pub struct SsiCertificate<T: Real> {
 /// acceptance suite) can tell them apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SsiLimb {
-    /// Limb 1 — on-locus residual (including the foot-point
-    /// orthogonality check).
+    /// Limb 1 — on-locus residual.
     OnLocus,
     /// Limb 2 — the control-hull sup-norm bound.
     HullSup,
@@ -311,9 +307,10 @@ fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
         return curve.clone();
     }
-    // Parameters already present as knots are skipped (refinement would
-    // raise multiplicity, which is not what this is for).
-    let add = domain_grid_points(kv, SSI_CERT_SPANS, GridSkip::BitEqual);
+    // A grid point on or near a knot is skipped: on it, refinement
+    // would raise multiplicity; beside it, it would open a narrow span
+    // whose tangent is the insertion's rounding.
+    let add = domain_grid_points(kv, SSI_CERT_SPANS);
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
@@ -418,7 +415,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     surface: &Surface<T>,
     band: Band,
-    at: &mut Vec<RefusedSpan>,
+    at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: the implicit form composed with the refined
     // carrier, in metres.
@@ -456,30 +453,14 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
-        let decided = decide("ssi_on_locus", Margin::of(r), band);
+        let decided = decide_reported("ssi_on_locus", Margin::of(r), band);
         if locatable(&decided) {
-            at.push(RefusedSpan { lo: t, hi: t });
+            at.spans.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
-                hull.uncleared(band, at);
+                hull.uncleared(band, &mut at.spans);
             }
         }
-        match decided {
-            // Zero is the affirmative: the residual is zero to
-            // tolerance (the `dihedral_wedge` convention).
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
-                return Err(SsiError::CertificateLimb {
-                    limb: SsiLimb::OnLocus,
-                    value: r.hi(),
-                });
-            }
-            Err(cause) => {
-                return Err(SsiError::CertificateEscalated {
-                    limb: SsiLimb::OnLocus,
-                    cause,
-                });
-            }
-        }
+        limb_verdict(SsiLimb::OnLocus, decided, || r.hi(), at)?;
     }
 
     // ---- limb 2: the certified hull bound ----
@@ -488,21 +469,12 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
     let sup = T::from_f64(hull.sup);
-    let decided = decide("ssi_hull_sup", Margin::of(sup), band);
+    let decided = decide_reported("ssi_hull_sup", Margin::of(sup), band);
     if locatable(&decided) {
-        hull.uncleared(band, at);
+        hull.uncleared(band, &mut at.spans);
     }
-    match decided {
-        Ok(Sign::Zero) => Ok((worst, sup)),
-        Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value: sup.hi(),
-        }),
-        Err(cause) => Err(SsiError::CertificateEscalated {
-            limb: SsiLimb::HullSup,
-            cause,
-        }),
-    }
+    limb_verdict(SsiLimb::HullSup, decided, || sup.hi(), at)?;
+    Ok((worst, sup))
 }
 
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
@@ -512,7 +484,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     band: Band,
-    at: &mut Vec<RefusedSpan>,
+    at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, in
     // metres.
@@ -590,53 +562,14 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 last_distance: e.last_distance,
             })?;
         worst = worst.max(proj.distance);
-        let decided = decide("ssi_on_locus_foot", Margin::of(proj.distance), band);
+        let decided = decide_reported("ssi_on_locus_foot", Margin::of(proj.distance), band);
         if locatable(&decided) {
-            at.push(RefusedSpan { lo: t, hi: t });
+            at.spans.push(RefusedSpan { lo: t, hi: t });
             if let Ok(hull) = hull() {
-                hull.uncleared(band, at);
+                hull.uncleared(band, &mut at.spans);
             }
         }
-        match decided {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => {
-                return Err(SsiError::CertificateLimb {
-                    limb: SsiLimb::OnLocus,
-                    value: proj.distance.hi(),
-                });
-            }
-            Err(cause) => {
-                return Err(SsiError::CertificateEscalated {
-                    limb: SsiLimb::OnLocus,
-                    cause,
-                });
-            }
-        }
-        // The orthogonality residuals, normalized by the chart speeds
-        // so the margin is a length: |S_d·r|/|S_d| is the component of
-        // the offset along that parameter line, in meters.
-        let jet = surface.ders(T::from_f64(proj.u), T::from_f64(proj.v));
-        for (res, speed) in [
-            (proj.orthogonality_u, jet.du.norm()),
-            (proj.orthogonality_v, jet.dv.norm()),
-        ] {
-            let margin = Margin::levered_inv(res, speed);
-            match decide("ssi_foot_orthogonality", margin, band) {
-                Ok(Sign::Zero) => {}
-                Ok(Sign::Positive | Sign::Negative) => {
-                    return Err(SsiError::CertificateLimb {
-                        limb: SsiLimb::OnLocus,
-                        value: margin.value().hi(),
-                    });
-                }
-                Err(cause) => {
-                    return Err(SsiError::CertificateEscalated {
-                        limb: SsiLimb::OnLocus,
-                        cause,
-                    });
-                }
-            }
-        }
+        limb_verdict(SsiLimb::OnLocus, decided, || proj.distance.hi(), at)?;
     }
 
     // ---- limb 2: |S(P(t)) − C(t)| as ONE composite (M5 PR 7b) ----
@@ -647,20 +580,48 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
-    let decided = decide("ssi_hull_sup_chart", Margin::of(sup), band);
+    let decided = decide_reported("ssi_hull_sup_chart", Margin::of(sup), band);
     if locatable(&decided) {
-        hull.uncleared(band, at);
+        hull.uncleared(band, &mut at.spans);
     }
+    limb_verdict(SsiLimb::HullSup, decided, || sup.hi(), at)?;
+    Ok((worst, sup))
+}
+
+/// A limb's verdict on its residual: `Ok` where it is zero to tolerance
+/// (the `dihedral_wedge` convention), and otherwise the limb's refusal,
+/// recorded in `at` as one [`LimbRefusal`] — `sup`, the upper end of the
+/// residual's enclosure, as its residual on a definite refusal. A
+/// margin that is no number records nothing: no density of samples
+/// answers it.
+fn limb_verdict(
+    limb: SsiLimb,
+    decided: Result<Decided, Indeterminate>,
+    sup: impl FnOnce() -> f64,
+    at: &mut Refused,
+) -> Result<(), SsiError> {
     match decided {
-        Ok(Sign::Zero) => Ok((worst, sup)),
-        Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value: sup.hi(),
-        }),
-        Err(cause) => Err(SsiError::CertificateEscalated {
-            limb: SsiLimb::HullSup,
-            cause,
-        }),
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(()),
+        Ok(Decided { margin, .. }) => {
+            at.refusal = Some(LimbRefusal {
+                limb,
+                margin,
+                residual: RefusedResidual::Over(sup()),
+            });
+            Err(SsiError::CertificateLimb { limb, margin })
+        }
+        Err(cause) => {
+            if !cause.margin.is_invalid() {
+                at.refusal = Some(LimbRefusal {
+                    limb,
+                    margin: cause.margin,
+                    residual: RefusedResidual::InBand,
+                });
+            }
+            Err(SsiError::CertificateEscalated { limb, cause })
+        }
     }
 }
 
@@ -668,10 +629,9 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 /// definite one, or one undecided on a margin that is a number. A
 /// margin that is no number is no residual a denser carrier answers, so
 /// that refusal stands at once.
-fn locatable(decided: &Result<Sign, geom_core::Indeterminate>) -> bool {
+fn locatable(decided: &Result<Decided, geom_core::Indeterminate>) -> bool {
     match decided {
-        Ok(Sign::Zero) => false,
-        Ok(Sign::Positive | Sign::Negative) => true,
+        Ok(Decided { sign, .. }) => *sign != Sign::Zero,
         Err(cause) => !cause.margin.is_invalid(),
     }
 }
@@ -704,11 +664,11 @@ impl Hull {
 }
 
 /// The uniform breaks limb 2's composite is cut at: the carrier
-/// domain's `SSI_CERT_SPANS` grid, minus every point within
-/// [`SLIVER_CLEARANCE_ULPS`] of an interior knot of EITHER curve. The
-/// composite merges both curves' knots into its break list, so a grid
-/// point a few ulps off either one's knot would open a hairline span
-/// beside it.
+/// domain's `SSI_CERT_SPANS` grid, minus every point within the grid's
+/// clearance ([`geom_core::spline::algebra::GRID_CLEARANCE`] of the
+/// spacing) of an interior knot of EITHER curve. The composite merges
+/// both curves' knots into its break list, so a grid point near either
+/// one's knot would open a narrow span beside it.
 fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
     let (lo, hi) = carrier.domain();
     let knots: Vec<f64> = carrier
@@ -716,13 +676,7 @@ fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
         .chain(pcurve.interior_knots())
         .map(|(k, _)| k)
         .collect();
-    range_grid_points(
-        lo,
-        hi,
-        SSI_CERT_SPANS,
-        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
-        &knots,
-    )
+    range_grid_points(lo, hi, SSI_CERT_SPANS, &knots)
 }
 
 /// The box chain covering a carrier: one padded box per span of the
@@ -985,8 +939,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
                 super::TubeDegeneracy::PcurveTangentUnusable,
             ));
         }
-        let Some(margin) = chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (tx, ty, tn))?
-        else {
+        // A window that names no region has no stretch to read.
+        let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
+            return Ok(None);
+        };
+        let Some(margin) = chart_transverse_margin(&boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin < worst {
@@ -1116,8 +1073,7 @@ impl core::fmt::Display for OneArcRefusal {
 /// A narrower rung is the more specific reading of the same carrier, so
 /// it speaks over every wider one.
 fn limb_three<T: Decide>(
-    extent: f64,
-    arm: T,
+    (widest, extent): (f64, T),
     band: Band,
     mut probe: impl FnMut(f64) -> Result<Option<Rung>, SsiError>,
 ) -> Result<(Rung, T), SsiError> {
@@ -1126,10 +1082,10 @@ fn limb_three<T: Decide>(
     // a structural fact about extent against ε, decided before any box
     // is probed — and it must refuse as itself rather than fall through
     // to the no-rung-answered path below with a manufactured margin.
-    let ladder: Vec<f64> = tube_ladder(extent, band).collect();
+    let ladder: Vec<f64> = tube_ladder(widest, band).collect();
     if ladder.is_empty() {
         return Err(SsiError::TubeLadderEmpty {
-            extent,
+            extent: widest,
             floor: SSI_TUBE_RADIUS * band.zero(),
         });
     }
@@ -1141,7 +1097,7 @@ fn limb_three<T: Decide>(
         };
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
-                let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+                let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
                 return Ok((rung, t));
             }
             // A graph whose proof did not run never reads as proved.
@@ -1163,7 +1119,7 @@ fn limb_three<T: Decide>(
         (true, Some(Err(shortfall))) => shortfall,
         (true, _) => Shortfall::Undecided,
         (false, _) => {
-            let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+            let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
             return Ok((rung, t));
         }
     };
@@ -1205,8 +1161,8 @@ fn certificate<T: Real>(
 }
 
 /// Which limbs a certificate asks: all three in order, or limb 3 alone,
-/// which refinement asks once of a carrier whose refused margin stopped
-/// falling ([`super::refine::refine_by_certificate`]).
+/// which refinement asks once of a carrier whose refused residual
+/// stopped falling ([`super::refine::refine_by_certificate`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Limbs {
     /// Limbs 1, 2 and 3, refusing at the first that refuses.
@@ -1259,6 +1215,36 @@ pub(crate) struct RefusedSpan {
     pub(crate) hi: f64,
 }
 
+/// What limbs 1 and 2 leave refinement where they refuse a carrier.
+#[derive(Debug, Default)]
+pub(crate) struct Refused {
+    /// The parameter intervals the refusal lies in.
+    pub(crate) spans: Vec<RefusedSpan>,
+    /// The refusal, once a limb refused on a margin that is a number.
+    pub(crate) refusal: Option<LimbRefusal>,
+}
+
+/// A limb-1 or limb-2 refusal, as the refusing limb recorded it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LimbRefusal {
+    /// The limb that refused.
+    pub(crate) limb: SsiLimb,
+    /// What the classifier saw, for the round's report.
+    pub(crate) margin: geom_core::MarginDiag,
+    /// What refinement drives down.
+    pub(crate) residual: RefusedResidual,
+}
+
+impl LimbRefusal {
+    /// The round's report: definite or in the band, as the residual is.
+    pub(crate) fn round(self) -> RoundMargin {
+        match self.residual {
+            RefusedResidual::Over(_) => RoundMargin::Over(self.margin),
+            RefusedResidual::InBand => RoundMargin::InBand(self.margin),
+        }
+    }
+}
+
 /// A certificate's refusal, with where on the carrier limbs 1 and 2
 /// refused it.
 #[derive(Debug)]
@@ -1271,15 +1257,13 @@ pub(crate) struct Located {
     pub(crate) at: Option<Box<Spans>>,
 }
 
-/// A located refusal: its limb, what the limb read, and the parameter
-/// intervals whose residual did not clear the band's zero, a limb-1
-/// sample as a point interval.
+/// A located refusal: the limb's refusal, and the parameter intervals
+/// whose residual did not clear the band's zero, a limb-1 sample as a
+/// point interval.
 #[derive(Debug)]
 pub(crate) struct Spans {
-    /// The limb that refused.
-    pub(crate) limb: SsiLimb,
-    /// What it read.
-    pub(crate) margin: super::RoundMargin,
+    /// The refusal.
+    pub(crate) refusal: LimbRefusal,
     /// The carrier's parameter intervals the refusal lies in.
     pub(crate) spans: Vec<RefusedSpan>,
 }
@@ -1301,17 +1285,16 @@ impl From<SsiError> for Located {
 pub(crate) fn certify_located(
     carrier: &NurbsCurve3<f64>,
     lane: Lane<'_, f64>,
-    scale: TubeScale<f64>,
+    extent: f64,
     band: Band,
     limbs: Limbs,
 ) -> Result<SsiCertificate<f64>, Located> {
-    let mut spans = Vec::new();
-    certify_branch(carrier, lane, scale, band, limbs, &mut spans).map_err(|error| {
-        let at = match super::refine::limb_reading(&error) {
-            Some((limb, margin)) if !spans.is_empty() => Some(Box::new(Spans {
-                limb,
-                margin,
-                spans,
+    let mut refused = Refused::default();
+    certify_branch(carrier, lane, extent, band, limbs, &mut refused).map_err(|error| {
+        let at = match refused.refusal {
+            Some(refusal) if !refused.spans.is_empty() => Some(Box::new(Spans {
+                refusal,
+                spans: refused.spans,
             })),
             _ => None,
         };
@@ -1333,10 +1316,8 @@ pub(crate) fn certify_located(
 /// converge, [`SsiError::CertificateEscalated`] naming the limb whose trilean
 /// escalated.
 ///
-/// `scale` carries the two lengths the certificate is stated over: the
-/// folded curvature/extent lever arm the transversality margin is
-/// levered by, and the caller's named feature extent, which sets the
-/// tube ladder's widest rung.
+/// `extent` is the caller's named feature extent, which levers limb 3's
+/// transversality clearance and sets the tube ladder's widest rung.
 ///
 /// The tolerance is `band`'s and only `band`'s. A linear band's
 /// `zero()` **is** the run's ε, and every threshold this function
@@ -1345,14 +1326,15 @@ pub(crate) fn certify_located(
 /// certify at.
 ///
 /// A limb-1 or limb-2 refusal is located on the carrier in `at`
-/// ([`RefusedSpan`]), for [`super::refine::refine_by_certificate`].
+/// ([`Refused`]), with its refused residual, for
+/// [`super::refine::refine_by_certificate`].
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     lane: Lane<'_, T>,
-    scale: TubeScale<T>,
+    extent: T,
     band: Band,
     limbs: Limbs,
-    at: &mut Vec<RefusedSpan>,
+    at: &mut Refused,
 ) -> Result<SsiCertificate<T>, SsiError> {
     // The pair the first two limbs read, the pcurve beside the second.
     let (first, second);
@@ -1402,7 +1384,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
-    // (`work/ssi/limb3-carrier-ends-read-at-f64-points.md`).
+    // (`work/ssiarith/limb3-carrier-ends-read-at-f64-points.md`).
     let (t0, t1) = carrier.domain();
     let ends = [t0, t1].map(|t| {
         let p = carrier.eval(T::from_f64(t));
@@ -1412,11 +1394,13 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             z: Interval::from_certified(p.z),
         }
     });
-    let TubeScale { arm, extent } = scale;
+    // The extent levers the clearance; its upper end is the ladder's
+    // widest rung.
+    let widest = Bounds::hi(extent);
     let three = match (a, b) {
         (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
             let chain = box_chain(carrier);
-            limb_three(extent, arm, band, |radius| {
+            limb_three((widest, extent), band, |radius| {
                 Ok(probe_tube_analytic(
                     &chain,
                     s1,
@@ -1438,7 +1422,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            limb_three(extent, arm, band, |radius| {
+            limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
                 // speed along that axis. The padded windows are the
                 // proved region and the certificate records them; the
@@ -1758,8 +1742,8 @@ mod tests {
         /// its domain carries real endpoints (`sqrt([−1, 0.01]) + 0.1` is
         /// about `[0.1, 0.2]` at `Trv`), the span window's hull refuses it as NaI,
         /// and NaI's NaN endpoints must not become a chart window — a NaN
-        /// window end lands on the first span in `span_range`, and the
-        /// derivative boxes of an arbitrary cell would then certify.
+        /// end mints no `ParamRange`, where a window landed on the first
+        /// span would certify the derivative boxes of an arbitrary cell.
         #[test]
         fn a_violated_pcurve_coordinate_cannot_certify() {
             let bad = Interval::from_bounds(-1.0, 0.01).sqrt() + iv(0.1);
@@ -1902,28 +1886,99 @@ mod tests {
         geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
     }
 
-    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point only
-    /// where a knot sits on it bit for bit: `0.5` is skipped, while a
-    /// knot one ulp above `2/32` does NOT suppress `2/32`.
+    /// `refined` inserts the DOMAIN's 32nds, a grid point skipped up
+    /// to and including `GRID_CLEARANCE` of the spacing (`2⁻¹³`) from a
+    /// knot: `0.5` is a knot, and `2/32` is skipped beside a knot
+    /// exactly `2⁻¹³` above it, while a knot one ulp further than that
+    /// above `12/32` leaves `12/32` standing.
     #[test]
-    fn refined_inserts_the_domain_grid_skipping_bit_equal_knots() {
-        let near = f64::from_bits(0.0625f64.to_bits() + 1);
-        let fine = super::refined(&carrier(&[near, 0.5]));
-        let mut want = vec![0.0, 0.0, 0.0, near];
-        want.extend((1..32).map(|k| f64::from(k) / 32.0));
+    fn refined_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
+        let near = 0.0625 + c;
+        let clear = (0.375 + c).next_up();
+        let fine = super::refined(&carrier(&[near, clear, 0.5]));
+        let mut want = vec![0.0, 0.0, 0.0, near, clear];
+        want.extend((1..32).filter(|&k| k != 2).map(|k| f64::from(k) / 32.0));
         want.extend([1.0, 1.0, 1.0]);
         want.sort_by(f64::total_cmp);
         assert_eq!(fine.knots().knots(), want);
     }
 
-    /// `chart_breaks` skips a grid point beside a knot of either curve:
-    /// a carrier knot one ulp above `2/32` drops `2/32`, a pcurve knot
-    /// one ulp below `12/32` drops `12/32`, and every other 32nd stays.
+    /// `refined`'s box chain has no cliff at any distance of a stated
+    /// knot from a grid point: a degree-1 carrier bent at every offset
+    /// of [`crate::grid_offsets::knot_offsets`] from the second point of
+    /// the [`super::SSI_CERT_SPANS`] grid gives every
+    /// box the direction of the leg it lies on as its axis, to `1e-10`.
+    /// A grid point inserted at a gap `g` beside the bend opens a span
+    /// of width `g` whose tangent is the inserted point's rounding over
+    /// `g`, an axis error decaying as `1/g` from `~1e-3` at `g ≈ 2e-15`;
+    /// `1e-10` is crossed near `g ≈ 2e-8`, far inside any clearance
+    /// that holds and far outside one that does not.
     #[test]
-    fn chart_breaks_skip_a_grid_point_beside_either_curves_knot() {
-        let above = f64::from_bits(0.0625f64.to_bits() + 1);
-        let below = f64::from_bits(0.375f64.to_bits() - 1);
-        let breaks = super::chart_breaks(carrier(&[above]).knots(), carrier(&[below]).knots());
+    #[allow(clippy::unwrap_used)]
+    fn the_refine_grid_box_axes_have_no_cliff_at_any_knot_offset() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Point3};
+        let bend = [0.9, 0.1, 0.3];
+        let unit = |d: [f64; 3]| {
+            let n = d.iter().map(|x| x * x).sum::<f64>().sqrt();
+            d.map(|x| x / n)
+        };
+        let legs = [unit(bend), unit([0.1, 0.9, 0.7])];
+        let (_, offsets) = crate::grid_offsets::knot_offsets(super::SSI_CERT_SPANS, 2);
+        let rows: Vec<(String, f64, usize)> = offsets
+            .into_iter()
+            .map(|(label, k)| {
+                let kv = KnotVector::clamped(vec![0.0, 0.0, k, 1.0, 1.0], 1).unwrap();
+                let control = vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(bend[0], bend[1], bend[2]),
+                    Point3::new(1.0, 1.0, 1.0),
+                ];
+                let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+                let chain = super::box_chain(&curve);
+                let worst = chain
+                    .iter()
+                    .map(|(b, axis)| {
+                        let leg = legs[usize::from(b.x.hi() > bend[0])];
+                        (axis.x - leg[0])
+                            .abs()
+                            .max((axis.y - leg[1]).abs())
+                            .max((axis.z - leg[2]).abs())
+                    })
+                    // A NaN axis (a zero tangent) must surface, not fold away.
+                    .fold(0.0, |a: f64, e| if e.is_nan() || e > a { e } else { a });
+                (label, worst, chain.len())
+            })
+            .collect();
+        let table: String = rows
+            .iter()
+            .map(|(label, worst, n)| {
+                format!("\n  {label:>26}: axis error {worst:.4e} over {n} boxes")
+            })
+            .collect();
+        for (label, worst, n) in &rows {
+            assert!(
+                *n >= super::SSI_CERT_SPANS,
+                "knot {label}: {n} boxes{table}"
+            );
+            assert!(*worst < 1e-10, "knot {label}: an axis left its leg{table}");
+        }
+    }
+
+    /// `chart_breaks` skips a grid point up to the clearance (`2⁻¹³`,
+    /// `GRID_CLEARANCE` of the spacing) from a knot of either curve: a
+    /// carrier knot that far above `2/32` drops `2/32`, a pcurve knot
+    /// that far below `12/32` drops `12/32`, and a pcurve knot one ulp
+    /// further below `20/32` leaves it standing with every other 32nd.
+    #[test]
+    fn chart_breaks_skip_a_grid_point_up_to_the_clearance_from_either_curves_knot() {
+        let c = geom_core::spline::algebra::grid_clearance(0.0, 1.0, super::SSI_CERT_SPANS);
+        let above = 0.0625 + c;
+        let below = 0.375 - c;
+        let past = (0.625 - c).next_down();
+        let breaks =
+            super::chart_breaks(carrier(&[above]).knots(), carrier(&[below, past]).knots());
         let want: Vec<f64> = (1..32)
             .filter(|&k| k != 2 && k != 12)
             .map(|k| f64::from(k) / 32.0)
@@ -2150,7 +2205,7 @@ mod tests {
         use super::{Rung, SsiTube, limb_three};
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let mut widest = true;
-        limb_three(1.0, 1.0, band, |radius| {
+        limb_three((1.0, 1.0), band, |radius| {
             let (margin, one_arc) = if widest { first } else { rest };
             widest = false;
             Ok(Some(Rung {
@@ -2253,7 +2308,7 @@ mod tests {
         use geom_core::{Band, Point2, Point3, Vec3};
 
         use super::{Lane, certify_located};
-        use crate::ssi::{ChartedNurbs, SsiError, TubeScale};
+        use crate::ssi::{ChartedNurbs, SsiError};
 
         let beta = 0.5e-9;
         let c = 1600.0 * beta;
@@ -2300,13 +2355,7 @@ mod tests {
             pcurve: &pcurve,
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let Err(refused) = certify_located(
-            &carrier,
-            lane,
-            TubeScale::uniform(1.0),
-            band,
-            super::Limbs::All,
-        ) else {
+        let Err(refused) = certify_located(&carrier, lane, 1.0, band, super::Limbs::All) else {
             panic!("the carrier across the gap certified on the search's lane");
         };
         assert!(

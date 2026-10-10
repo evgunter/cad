@@ -79,7 +79,7 @@ impl NameOrigin {
 }
 
 /// What one role segment says about the entity it names.
-pub(super) enum SegOrigin<'a> {
+pub(crate) enum SegOrigin<'a> {
     /// The entity existed in an operand; the name is its name there,
     /// and the [`CarriedAs`] says what the op did to it on the way.
     Carried(&'a StableName, CarriedAs),
@@ -92,9 +92,9 @@ pub(super) enum SegOrigin<'a> {
 /// **How an operand's entity was carried through** — the module docs'
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
-pub(super) enum CarriedAs {
-    /// Passed through whole from a primary operand (a boolean's `A`, a
-    /// fillet's target): the body's own continuation.
+pub(crate) enum CarriedAs {
+    /// Passed through whole from a primary operand (a boolean's `A`, the
+    /// body a fillet's selection reads): the body's own continuation.
     Primary,
     /// Passed through whole from a secondary operand (a boolean's `B`,
     /// a union's member): joined into the body there.
@@ -112,7 +112,7 @@ pub(super) enum CarriedAs {
 
 /// Read the outermost segment's verdict — the whole classification,
 /// stated once (module docs).
-pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
+pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
     match seg {
         // The name-free roles are the sweep, split and boolean
         // primitives: an entity born of the recipe rather than of an
@@ -121,7 +121,9 @@ pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
 
         // Carried through: the argument is the entity's own name one
         // level down.
-        RoleSeg::FromA(of) | RoleSeg::FromTarget(of) => SegOrigin::Carried(of, CarriedAs::Primary),
+        RoleSeg::FromA(of) | RoleSeg::FromTarget(of) | RoleSeg::Placed { of } => {
+            SegOrigin::Carried(of, CarriedAs::Primary)
+        }
         RoleSeg::FromB(of) | RoleSeg::FromMember { of, .. } => {
             SegOrigin::Carried(of, CarriedAs::Secondary)
         }
@@ -144,6 +146,8 @@ pub(super) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -218,11 +222,11 @@ mod tests {
     use super::*;
     use crate::names::role::{CapEnd, EntityKind, ProfileEdgeRef, Qualifier};
 
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(1);
-    const CUT: RecipeNodeId = RecipeNodeId(2);
-    const FILLET: RecipeNodeId = RecipeNodeId(3);
-    const PATTERN: RecipeNodeId = RecipeNodeId(4);
-    const INSTANCE: RecipeNodeId = RecipeNodeId(5);
+    const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1);
+    const CUT: RecipeNodeId = RecipeNodeId::new(0, 2);
+    const FILLET: RecipeNodeId = RecipeNodeId::new(0, 3);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(0, 4);
+    const INSTANCE: RecipeNodeId = RecipeNodeId::new(0, 5);
 
     /// A cap face of the extrude — a name-free role, minted where it
     /// is emitted.
@@ -242,7 +246,7 @@ mod tests {
             node: EXTRUDE,
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId::new(0, 0),
                     role: crate::names::PieceRole::Leg,
                 }
                 .into(),

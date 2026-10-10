@@ -2,12 +2,11 @@
 id: topo-mints-indeterminates-outside-the-funnel
 kind: issue
 title: topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites
-status: parked
+status: open
 opened: 2026-09-20
 priority: P0
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -146,11 +145,6 @@ above:
 - `crates/topo/src/boolean/reduce.rs` `vertex_on_curved_face`:
   `Ok(Sign::Negative)` of a distance → a struct-literal
   `BooleanError::Escalated { decision: VertexOnVertex, .. }`.
-- `crates/topo/src/boolean/rim_wedge.rs` `classify_shared_rim`: the
-  `Sign::Zero` arm on a quantity whose magnitude decided nonzero one
-  decision above → a hand mint (`decide_nonzero` is the door; the
-  same shape in `validate.rs` is filed on restfront,
-  `work/restfront/validate-material-side-zero-mints-an-indeterminate.md`).
 - `crates/topo/src/boolean/carrier_eq.rs` `data_rungs`:
   `Ok(Sign::Positive | Sign::Negative)` → an `INVALID` diagnostic
   under the decided datum's own name — the "contradiction dressed as
@@ -206,7 +200,7 @@ User-visible, measured:
 - **`r2_p7`.** The margin no longer reaches the text since PR 3493, but `INVALID` survives in the public `margin` field.
 
 Cited, not run: `bool_wall_trim_period` refuses 567 of 729 `point_in_solid`
-probes on a revolved tube (`work/contact/revolved-tube-wall-...`).
+probes on a revolved tube (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`).
 
 Six readers treat `is_invalid()` as "decided exactly zero":
 `carrier_eq.rs:315`, `flush.rs:302`, `boolean/mod.rs:2967`,
@@ -404,3 +398,13 @@ yet done:
 - editor-core labels every coincidence `DecidedCoincident`.
 
 Weigh this against the #3990 ruling before reusing any of it.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: held step 2's payload sites (CarrierEqError::Undeclared, UndeclaredCoincidence) and contact_verify's declared-contact contradictions are what stage 4 retires; steps 4–5 could be split off as workable. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E deletes step 2's user-visible payload sites: `BooleanError::UndeclaredCoincidence`, editor-core's `UndeclaredCoincidence` / `UndeclarableContact`, and `NeighbourOffset`. `CarrierEqError`'s Zero arm is no longer a refusal, because rung 4 glues. `CoincidenceMeasure` stays the ladders' typed payload (`crates/topo/src/boolean/carrier_eq.rs:137`). The pr4 x = 1.0 union's "margin is invalid" sentence has no site left to render it.
+
+Steps 3–5 are untouched. `contact_verify`'s minted `MarginDiag::INVALID` contradictions are all live (`crates/topo/src/boolean/contact_verify.rs:166`, `:180`, `:332`, `:366`, `:380`, `:430`, `:455`), and so are `plane_eq.rs:304` and the class (a)/(c) sites. E adds one shape of class (b): a pair decided one carrier at an arm the glue door did not glue escalates through `unglued_coincidence` (`crates/topo/src/boolean/mod.rs:1007`). That escalation carries the decided margin, or `INVALID` where none was read (`recl.rs:151`, `vtxfac.rs:789`), inside an `Indeterminate`. The row resumes at step 3.

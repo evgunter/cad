@@ -2,13 +2,13 @@
 id: zip
 kind: program
 title: ZIP — the declared-REST zip and the seam zip: closing the boolean's seams once the join has matched them
-status: blocked
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: zip/
 tag: (ZIP orchestrator)
 ab_band: 7200-7299
-paths: [crates/topo/src/boolean/rest.rs, crates/topo/src/boolean/zip.rs]
+paths: [crates/topo/src/boolean/zip.rs]
 keep_out: [opened by REACH's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - REACH measured 151 budget points, about five sittings, and was cut into six tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on at once), the six are REACH GERM CONTACT ZIP BOXES PIN and they SHARE crates/topo/src/boolean/* by design - shared ground is legitimate per the README's 2026-09-20 rule and what is owed is awareness while a lane is live, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, TANG shares chord_join.rs and boolean/rest.rs for the declared-tangency and germ/pierce lanes, CHART owns the pcurve and SSI side, CURVED keeps offset_axial.rs, and ZIP was itself cut along its layer seam on 2026-10-02 (Ev, in chat, chose three tracks by layer) - JOIN took the join (boolean/join.rs, loop_winding.rs) and FUSE the merge door and the rebuild (merge_faces.rs, boolean/ops.rs, boolean/combine.rs)]
 priority: P0
 ---

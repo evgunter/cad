@@ -36,14 +36,14 @@ That premise is gone.
 ## The site
 
 `crates/viewer/src/pane/properties.rs`, the add-parameter panel
-(`add_param_ui`, where the `Create` button is drawn). Today it reads
+(`add_variable_ui`, where the `Create` button is drawn). Today it reads
 
 ```rust
-let name = ParamName::new(self.drafts.new_param_name.trim()).ok();
+let name = ParamName::new(self.drafts.new_variable_name.trim()).ok();
 …
-let ready = name.is_some() && self.drafts.new_param_dimension.is_some();
+let ready = name.is_some() && self.drafts.new_variable_dimension.is_some();
 let create = ui.add_enabled(ready, egui::Button::new("Create"));
-let create = if self.drafts.new_param_dimension.is_none() {
+let create = if self.drafts.new_variable_dimension.is_none() {
     create.on_disabled_hover_text("pick a dimension first")
 } else {
     create

@@ -10,7 +10,6 @@
 
 use geom_core::Point2;
 use geom_core::Tol;
-use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
@@ -29,14 +28,13 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
     let r_fillet = 1.0 / (2.0 * margin);
     let s = r_fillet / 0.25;
     let b = (std::f64::consts::PI / 8.0).tan();
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(s, 0.0), 0.0),
         (Point2::new(s, 0.75 * s), b),
         (Point2::new(0.75 * s, s), 0.0),
         (Point2::new(0.0, s), 0.0),
     ]);
-    lp = lp.with_tangent_joints(vec![2, 3]);
     let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Ok(p) => p,
         Err(e) => {

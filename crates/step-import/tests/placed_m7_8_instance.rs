@@ -4,6 +4,7 @@
 //! re-mints through the plain edge doors and the cap offset after it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::test_support::upper;
 use geom_core::{Point3, Tol};
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::test_support as tc;
@@ -177,12 +178,12 @@ fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
                         error:
                             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                                 limb: geom_brep::SsiLimb::OnLocus,
-                                value,
+                                margin,
                             }),
                         ..
                     },
                 ..
-            }) => assert!((value - 0.25).abs() < 1e-9, "the gap: {value}"),
+            }) => assert!((upper(margin) - 0.25).abs() < 1e-9, "the gap: {margin}"),
             other => panic!("cap {cap:?} outward: {:?}", other.map(|_| ())),
         }
     }

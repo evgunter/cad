@@ -10,14 +10,14 @@
 //! - a ball against a radius-0.5 drum `z ∈ [−1, 1]`, clear of its caps,
 //!   crossing the wall in one loop (its reach short of the far side) or
 //!   two (past it), with the ball's chart turned off the axes on some;
-//! - the row's own poses (`work/join/cylinder-sphere-germ-pair-has-no-section-frame.md`):
+//! - the row's own poses (`cylinder-sphere-germ-pair-has-no-section-frame`, JOIN, closed by PR 4025):
 //!   the tilted drum cut's lower part against a ball straddling the rim.
 //!
 //! Each run builds a body that is SOUND by
 //! `common::differential::outcome` (tiers 2 and 3′, the certificate, a
 //! legal operand, the volume) or refuses at the join's lane door for the
 //! cylinder × sphere pair, `CurvedBooleanUnsupported` naming the wall or
-//! the sphere (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`).
+//! the sphere (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`).
 //! The matched segments are checked against the analytic loops, where
 //! every segment joins two sites that are neighbours along their loop.
 //!

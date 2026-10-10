@@ -3,8 +3,7 @@
 //! `verbs` sits above the op crates and below the document layer, and
 //! the rule is that the recipe vocabulary never crosses down into it:
 //! no serde, no `Expr`, no `StableName`, no `RecipeNodeId`, no name
-//! table. What may sit here is lowered pure data compared for identity
-//! — the `topo::source` precedent.
+//! table. What may sit here is lowered pure data compared for identity.
 //!
 //! Two guards, because they fail differently. The MANIFEST guard is the
 //! strong one: serde reaches a crate only through a dependency edge, so

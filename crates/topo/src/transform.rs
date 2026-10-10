@@ -29,10 +29,10 @@
 //! moves; a residue remains, ≈6e-13 m on the
 //! near-ε reproduction and not scaling with the residual, so an edge
 //! certified within that width of ε can still refuse, typed
-//! [`TransformError::Certify`]. An `Approx` face's `hull_sup` is
-//! assembled from control hulls in the ambient frame, so it can
-//! re-derive above ε for a face certified near it; that face is
-//! re-fitted (see `map_approx`).
+//! [`TransformError::Certify`]. An `Approx` face's `hull_sup` reads its
+//! vector upper bounds from coefficient norms, but its lower bounds are
+//! box-assembled in the ambient frame, so it can re-derive above ε for
+//! a face certified near it; that face is re-fitted (see `map_approx`).
 //!
 //! # What maps how
 //!
@@ -96,7 +96,9 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{
+    CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource,
+};
 use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
@@ -466,9 +468,10 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
 /// certifies, a fresh fit of the mapped description where it does not.
 ///
 /// The image is a pair by the composition law (module docs), but its
-/// certificate is re-derived, never carried: `hull_sup` is assembled
-/// from ambient-frame control hulls and moves under a rotation
-/// (`geom-brep`'s composition-law row pins that it does). The fit loop
+/// certificate is re-derived, never carried: `hull_sup`'s lower bounds
+/// (the regularity floor and the floors on `‖E‖`) are assembled from
+/// ambient-frame control hulls and move under a rotation (`geom-brep`'s
+/// composition-law row pins that it does). The fit loop
 /// stops at the first round that certifies, so a sound face can sit
 /// within that drift of ε and its image re-derive above it.
 ///
@@ -624,15 +627,6 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     check_rigid(map, band)?;
     let mut out = body.clone();
 
-    // GeomSource hygiene (N6, M4 PR 5): this op rewrites every
-    // description's bits without recipe context, so the cloned source
-    // records' same-source ⇒ same-bits claim would become FALSE here,
-    // and every axis row would name an axis this map just moved.
-    // Clear them all; the recipe layer re-stamps composed sources
-    // (`GeomSource::placed`, `AxisSource::placed`) right after the op —
-    // it, not this kernel-level map, knows the placing node's identity.
-    out.clear_geom_sources();
-
     // Points and surfaces first — edge re-certification below reads
     // the MAPPED versions of both.
     for (_k, p) in &mut out.points {
@@ -703,7 +697,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                 let chart = EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(c.pcurve.clone()),
-                    seam: c.seam,
+                    wrap: c.wrap,
                     declared: None,
                 };
                 match old.authority() {
@@ -794,29 +788,32 @@ fn endpoint<T: Real>(
 }
 
 fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCurve<T> {
-    match *mc {
-        MappedCurve::PlacedSegment { segment, place } => MappedCurve::PlacedSegment {
-            segment,
-            place: *map * place,
+    MappedCurve {
+        source: match mc.source {
+            MappedSource::PlacedSegment { segment, place } => MappedSource::PlacedSegment {
+                segment,
+                place: *map * place,
+            },
+            MappedSource::ExtrudedPoint { point, place, vec } => MappedSource::ExtrudedPoint {
+                point,
+                place: *map * place,
+                vec: map_vec(map, vec),
+            },
+            MappedSource::RevolvedPoint {
+                point,
+                place,
+                axis_origin,
+                axis_dir,
+                angle,
+            } => MappedSource::RevolvedPoint {
+                point,
+                place: *map * place,
+                axis_origin: map.transform_point(axis_origin),
+                axis_dir: map_vec(map, axis_dir),
+                angle,
+            },
         },
-        MappedCurve::ExtrudedPoint { point, place, vec } => MappedCurve::ExtrudedPoint {
-            point,
-            place: *map * place,
-            vec: map_vec(map, vec),
-        },
-        MappedCurve::RevolvedPoint {
-            point,
-            place,
-            axis_origin,
-            axis_dir,
-            angle,
-        } => MappedCurve::RevolvedPoint {
-            point,
-            place: *map * place,
-            axis_origin: map.transform_point(axis_origin),
-            axis_dir: map_vec(map, axis_dir),
-            angle,
-        },
+        range: mc.range,
     }
 }
 

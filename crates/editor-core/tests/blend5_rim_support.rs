@@ -91,8 +91,8 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -106,9 +106,11 @@ fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection: vec![mouth],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![mouth],
+            ),
         },
     )
 }
@@ -237,9 +239,11 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection: vec![lip],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![lip],
+            ),
         },
     );
     let ev = run(&doc);
@@ -339,8 +343,8 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -357,22 +361,37 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection,
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                selection,
+            ),
         },
     );
     let ev = run(&doc);
     let t = table(&ev, fillet);
     let body = corpus::body_of(&ev, fillet);
+    // A trimline is named for its (arc, support) whether it stands
+    // alone or the blend's closing join made it one edge with the next
+    // arc's (`docs/DESIGN.md`, maximal edges): then the joined edge is
+    // the set of their names, and each member still reads its support.
     let mut by_role: Vec<(RimSupport, SurfaceKey)> = t
         .iter()
-        .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::BandTrim { support, .. }) => Some((
-                *support,
-                support_surface_key(body, edge_of(t, "a trim arc", n)),
-            )),
-            _ => None,
+        .flat_map(|(n, _)| {
+            let members: Vec<&editor_core::StableName> = match n.path.first() {
+                Some(RoleSeg::Merged(cs)) => cs.iter().collect(),
+                _ => vec![n],
+            };
+            members
+                .into_iter()
+                .filter_map(|m| match m.path.first() {
+                    Some(RoleSeg::BandTrim { support, .. }) => Some((
+                        *support,
+                        support_surface_key(body, edge_of(t, "a trim arc", n)),
+                    )),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     by_role.sort();

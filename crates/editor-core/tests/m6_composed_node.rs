@@ -76,7 +76,7 @@ fn selection_of(
     fillet: editor_core::RecipeNodeId,
 ) -> Vec<StableName> {
     match doc.node(fillet) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(doc, *selection),
         other => panic!("expected a fillet node, got {other:?}"),
     }
 }
@@ -85,9 +85,13 @@ fn selection_of(
 fn fillet_and_target(
     doc: &editor_core::ProfileDoc,
 ) -> (editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
-    for id in doc.order() {
-        if let Some(Node::Fillet { target, .. }) = doc.node(*id) {
-            return (*id, *target);
+    for id in doc.ids() {
+        if let Some(Node::Fillet { selection, .. }) = doc.node(id) {
+            return (
+                id,
+                doc.read_operation(*selection)
+                    .expect("the target read is live"),
+            );
         }
     }
     panic!("the composed die has a fillet node")
@@ -120,7 +124,8 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
     // The ball's names ride the Transform through unchanged, so the
     // `FromB` payloads name the revolve node — recovered here from the
     // target's own table rather than restated.
-    let ball = edge_names(&eval(&doc.doc), target)
+    let ev0 = eval(&doc.doc);
+    let ball = edge_names(&ev0, target)
         .into_iter()
         .find_map(|n| match n.path.first() {
             Some(RoleSeg::FromB(inner)) => Some(inner.node),
@@ -129,12 +134,13 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         .expect("the cavity contributes FromB edges");
 
     let selection = selection_of(&doc.doc, fillet);
-    for meridian in die_composed::excluded_meridians(&doc.doc, ball, target) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, &ev0, ball, target) {
         // Grown the ONLY way a selection grows: an explicit `Rebind`
         // swapping one selected box edge for the meridian.
         let d = apply(
             &doc.doc,
             &DocEdit::Rebind {
+                body: doc.doc.output(target, 0),
                 from: selection[0].clone(),
                 to: meridian.clone(),
             },
@@ -238,12 +244,28 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         RoleSeg::BandCross { .. } => "band cross",
         RoleSeg::BandCut(_) => "band cut",
         RoleSeg::BandSlit { .. } => "slit",
+        // An edge the closing join made (`docs/DESIGN.md`, maximal
+        // edges): the set of the trims or survivors it covers.
+        RoleSeg::Merged(cs)
+            if cs.iter().all(|c| {
+                matches!(
+                    c.path.first(),
+                    Some(
+                        RoleSeg::BandTrim { .. }
+                            | RoleSeg::TrimEdge { .. }
+                            | RoleSeg::FromTarget(_)
+                    )
+                )
+            }) =>
+        {
+            "joined"
+        }
         other => panic!("a non-fillet role leaked into the fillet's table: {other:?}"),
     };
     let seen: BTreeSet<&str> = v.name_table.iter().map(|(n, _)| role(n)).collect();
     assert_eq!(
         seen.len(),
-        13,
+        14,
         "every fillet role the composed die can produce is produced, got {seen:?}"
     );
 }
@@ -327,12 +349,13 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
 #[test]
 fn rebind_repairs_a_selection_and_can_never_grow_it() {
     let doc = die_composed::document();
-    let (fillet, _) = fillet_and_target(&doc.doc);
+    let (fillet, target) = fillet_and_target(&doc.doc);
     let before = selection_of(&doc.doc, fillet);
     let (from, to) = (before[0].clone(), before[1].clone());
     let after = apply(
         &doc.doc,
         &DocEdit::Rebind {
+            body: doc.doc.output(target, 0),
             from: from.clone(),
             to: to.clone(),
         },

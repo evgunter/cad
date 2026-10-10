@@ -1,19 +1,21 @@
 {
-  "plane": 0,
+  "frame": {
+    "Node": "0:0000000000000000"
+  },
   "loops": [
     {
       "Chain": [
         {
           "At": [
             {
-              "Literal": {
+              "Quantity": {
                 "value": 0.0,
                 "dim": "Length",
                 "unit": "m"
               }
             },
             {
-              "Literal": {
+              "Quantity": {
                 "value": 0.0,
                 "dim": "Length",
                 "unit": "m"
@@ -23,7 +25,7 @@
         },
         {
           "Angle": {
-            "Literal": {
+            "Quantity": {
               "value": 0.25,
               "dim": "Angle",
               "unit": "rad"
@@ -33,14 +35,14 @@
         {
           "Toward": {
             "dx": {
-              "Literal": {
+              "Quantity": {
                 "value": 1.0,
                 "dim": "Scalar",
                 "unit": ""
               }
             },
             "dy": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Scalar",
                 "unit": ""
@@ -52,7 +54,7 @@
         "Cusp",
         {
           "Turn": {
-            "Literal": {
+            "Quantity": {
               "value": 0.1,
               "dim": "Angle",
               "unit": "rad"
@@ -61,7 +63,7 @@
         },
         {
           "Line": {
-            "Literal": {
+            "Quantity": {
               "value": 1.0,
               "dim": "Length",
               "unit": "m"
@@ -70,7 +72,7 @@
         },
         {
           "Fillet": {
-            "Literal": {
+            "Quantity": {
               "value": 0.2,
               "dim": "Length",
               "unit": "m"
@@ -80,14 +82,14 @@
         {
           "FarEndTo": [
             {
-              "Literal": {
+              "Quantity": {
                 "value": 7.0,
                 "dim": "Length",
                 "unit": "m"
               }
             },
             {
-              "Literal": {
+              "Quantity": {
                 "value": 2.0,
                 "dim": "Length",
                 "unit": "m"
@@ -107,7 +109,7 @@
                         "Sub": [
                           {
                             "Neg": {
-                              "Literal": {
+                              "Quantity": {
                                 "value": 3.0,
                                 "dim": "Length",
                                 "unit": "m"
@@ -115,7 +117,7 @@
                             }
                           },
                           {
-                            "Literal": {
+                            "Quantity": {
                               "value": 0.5,
                               "dim": "Length",
                               "unit": "m"
@@ -126,17 +128,16 @@
                       {
                         "Mul": [
                           {
-                            "Literal": {
+                            "Quantity": {
                               "value": 2.0,
                               "dim": "Length",
                               "unit": "m"
                             }
                           },
                           {
-                            "Literal": {
-                              "value": 1.5,
-                              "dim": "Scalar",
-                              "unit": ""
+                            "Ratio": {
+                              "num": 3,
+                              "den": 2
                             }
                           }
                         ]
@@ -146,17 +147,16 @@
                   {
                     "Div": [
                       {
-                        "Literal": {
+                        "Quantity": {
                           "value": 8.0,
                           "dim": "Length",
                           "unit": "m"
                         }
                       },
                       {
-                        "Literal": {
-                          "value": 4.0,
-                          "dim": "Scalar",
-                          "unit": ""
+                        "Ratio": {
+                          "num": 4,
+                          "den": 1
                         }
                       }
                     ]
@@ -167,7 +167,7 @@
                 "Add": [
                   {
                     "Var": {
-                      "var": 4587410805836808193,
+                      "var": "0:3fa9c1d2a0b10001",
                       "dim": "Length"
                     }
                   },
@@ -184,21 +184,26 @@
         },
         {
           "Angle": {
-            "Atan2": [
+            "Add": [
               {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
+                "Atan2": [
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 2.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ]
               },
-              {
-                "Literal": {
-                  "value": 2.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
+              "Turn"
             ]
           }
         },
@@ -208,7 +213,7 @@
               "Mul": [
                 {
                   "Sin": {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.3,
                       "dim": "Angle",
                       "unit": "rad"
@@ -219,7 +224,7 @@
                   "Mul": [
                     {
                       "Cos": {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.4,
                           "dim": "Angle",
                           "unit": "rad"
@@ -228,7 +233,7 @@
                     },
                     {
                       "Tan": {
-                        "Literal": {
+                        "Quantity": {
                           "value": 0.5,
                           "dim": "Angle",
                           "unit": "rad"
@@ -241,14 +246,14 @@
             },
             "dy": {
               "CountToScalar": {
-                "Count": 7
+                "Integer": 7
               }
             }
           }
         },
         {
           "Fillet": {
-            "Literal": {
+            "Quantity": {
               "value": 0.012,
               "dim": "Length",
               "unit": "mm"
@@ -277,14 +282,14 @@
           "LineTo": {
             "Point": [
               {
-                "Literal": {
+                "Quantity": {
                   "value": 3.0,
                   "dim": "Length",
                   "unit": "m"
                 }
               },
               {
-                "Literal": {
+                "Quantity": {
                   "value": 0.0,
                   "dim": "Length",
                   "unit": "m"
@@ -297,14 +302,14 @@
           "ContinueTo": {
             "Point": [
               {
-                "Literal": {
+                "Quantity": {
                   "value": 3.0,
                   "dim": "Length",
                   "unit": "m"
                 }
               },
               {
-                "Literal": {
+                "Quantity": {
                   "value": 0.0,
                   "dim": "Length",
                   "unit": "m"
@@ -317,14 +322,14 @@
           "TangentArcTo": {
             "Point": [
               {
-                "Literal": {
+                "Quantity": {
                   "value": 3.0,
                   "dim": "Length",
                   "unit": "m"
                 }
               },
               {
-                "Literal": {
+                "Quantity": {
                   "value": 0.0,
                   "dim": "Length",
                   "unit": "m"
@@ -337,7 +342,7 @@
           "ArcTo": {
             "Radius": {
               "r": {
-                "Literal": {
+                "Quantity": {
                   "value": 2.0,
                   "dim": "Length",
                   "unit": "m"
@@ -350,7 +355,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -359,7 +364,7 @@
             "spec": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -375,7 +380,7 @@
             "spec": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -385,7 +390,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -398,7 +403,7 @@
             "spec": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -408,7 +413,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -417,7 +422,7 @@
             "spec2": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -432,7 +437,7 @@
           "ArcTo": {
             "Sweep": {
               "r": {
-                "Literal": {
+                "Quantity": {
                   "value": 1.5,
                   "dim": "Length",
                   "unit": "m"
@@ -440,7 +445,7 @@
               },
               "side": "Left",
               "angle": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.6,
                   "dim": "Angle",
                   "unit": "rad"
@@ -452,7 +457,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -461,7 +466,7 @@
             "spec": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -469,7 +474,7 @@
                 },
                 "side": "Left",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -484,7 +489,7 @@
             "spec": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -492,7 +497,7 @@
                 },
                 "side": "Left",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -501,7 +506,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -514,7 +519,7 @@
             "spec": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -522,7 +527,7 @@
                 },
                 "side": "Left",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -531,7 +536,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -540,7 +545,7 @@
             "spec2": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -548,7 +553,7 @@
                 },
                 "side": "Left",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -562,7 +567,7 @@
           "ArcTo": {
             "ArcLen": {
               "r": {
-                "Literal": {
+                "Quantity": {
                   "value": 1.75,
                   "dim": "Length",
                   "unit": "m"
@@ -570,7 +575,7 @@
               },
               "side": "Left",
               "len": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.9,
                   "dim": "Length",
                   "unit": "m"
@@ -582,7 +587,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -591,7 +596,7 @@
             "spec": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -599,7 +604,7 @@
                 },
                 "side": "Left",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -614,7 +619,7 @@
             "spec": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -622,7 +627,7 @@
                 },
                 "side": "Left",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -631,7 +636,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -644,7 +649,7 @@
             "spec": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -652,7 +657,7 @@
                 },
                 "side": "Left",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -661,7 +666,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -670,7 +675,7 @@
             "spec2": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -678,7 +683,7 @@
                 },
                 "side": "Left",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -692,7 +697,7 @@
           "ArcTo": {
             "Radius": {
               "r": {
-                "Literal": {
+                "Quantity": {
                   "value": 2.0,
                   "dim": "Length",
                   "unit": "m"
@@ -705,7 +710,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -714,7 +719,7 @@
             "spec": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -730,7 +735,7 @@
             "spec": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -740,7 +745,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -753,7 +758,7 @@
             "spec": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -763,7 +768,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -772,7 +777,7 @@
             "spec2": {
               "Radius": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 2.0,
                     "dim": "Length",
                     "unit": "m"
@@ -787,7 +792,7 @@
           "ArcTo": {
             "Sweep": {
               "r": {
-                "Literal": {
+                "Quantity": {
                   "value": 1.5,
                   "dim": "Length",
                   "unit": "m"
@@ -795,7 +800,7 @@
               },
               "side": "Right",
               "angle": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.6,
                   "dim": "Angle",
                   "unit": "rad"
@@ -807,7 +812,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -816,7 +821,7 @@
             "spec": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -824,7 +829,7 @@
                 },
                 "side": "Right",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -839,7 +844,7 @@
             "spec": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -847,7 +852,7 @@
                 },
                 "side": "Right",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -856,7 +861,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -869,7 +874,7 @@
             "spec": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -877,7 +882,7 @@
                 },
                 "side": "Right",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -886,7 +891,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -895,7 +900,7 @@
             "spec2": {
               "Sweep": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.5,
                     "dim": "Length",
                     "unit": "m"
@@ -903,7 +908,7 @@
                 },
                 "side": "Right",
                 "angle": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.6,
                     "dim": "Angle",
                     "unit": "rad"
@@ -917,7 +922,7 @@
           "ArcTo": {
             "ArcLen": {
               "r": {
-                "Literal": {
+                "Quantity": {
                   "value": 1.75,
                   "dim": "Length",
                   "unit": "m"
@@ -925,7 +930,7 @@
               },
               "side": "Right",
               "len": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.9,
                   "dim": "Length",
                   "unit": "m"
@@ -937,7 +942,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -946,7 +951,7 @@
             "spec": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -954,7 +959,7 @@
                 },
                 "side": "Right",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -969,7 +974,7 @@
             "spec": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -977,7 +982,7 @@
                 },
                 "side": "Right",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -986,7 +991,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -999,7 +1004,7 @@
             "spec": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -1007,7 +1012,7 @@
                 },
                 "side": "Right",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -1016,7 +1021,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1025,7 +1030,7 @@
             "spec2": {
               "ArcLen": {
                 "r": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.75,
                     "dim": "Length",
                     "unit": "m"
@@ -1033,7 +1038,7 @@
                 },
                 "side": "Right",
                 "len": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.9,
                     "dim": "Length",
                     "unit": "m"
@@ -1048,7 +1053,7 @@
             "Bulge": {
               "target": "Start",
               "b": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.3,
                   "dim": "Scalar",
                   "unit": ""
@@ -1060,7 +1065,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1070,7 +1075,7 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1086,7 +1091,7 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1095,7 +1100,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1109,7 +1114,7 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1118,7 +1123,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1128,7 +1133,7 @@
               "Bulge": {
                 "target": "Start",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1143,14 +1148,14 @@
             "Via": {
               "q": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 4.5,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.5,
                     "dim": "Length",
                     "unit": "m"
@@ -1164,7 +1169,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1174,14 +1179,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1199,14 +1204,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1217,7 +1222,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1231,14 +1236,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1249,7 +1254,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1259,14 +1264,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1283,14 +1288,14 @@
             "Center": {
               "c": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 6.0,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Length",
                     "unit": "m"
@@ -1305,7 +1310,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1315,14 +1320,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1341,14 +1346,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1360,7 +1365,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1374,14 +1379,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1393,7 +1398,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1403,14 +1408,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1428,14 +1433,14 @@
             "Center": {
               "c": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 6.0,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Length",
                     "unit": "m"
@@ -1450,7 +1455,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1460,14 +1465,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1486,14 +1491,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1505,7 +1510,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1519,14 +1524,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1538,7 +1543,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1548,14 +1553,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1573,7 +1578,7 @@
             "Bulge": {
               "target": "StartArriving",
               "b": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.3,
                   "dim": "Scalar",
                   "unit": ""
@@ -1585,7 +1590,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1595,7 +1600,7 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1611,7 +1616,7 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1620,7 +1625,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1634,7 +1639,7 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1643,7 +1648,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1653,7 +1658,7 @@
               "Bulge": {
                 "target": "StartArriving",
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -1668,14 +1673,14 @@
             "Via": {
               "q": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 4.5,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.5,
                     "dim": "Length",
                     "unit": "m"
@@ -1689,7 +1694,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1699,14 +1704,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1724,14 +1729,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1742,7 +1747,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1756,14 +1761,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1774,7 +1779,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1784,14 +1789,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -1808,14 +1813,14 @@
             "Center": {
               "c": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 6.0,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Length",
                     "unit": "m"
@@ -1830,7 +1835,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1840,14 +1845,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1866,14 +1871,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1885,7 +1890,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -1899,14 +1904,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1918,7 +1923,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -1928,14 +1933,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -1953,14 +1958,14 @@
             "Center": {
               "c": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 6.0,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Length",
                     "unit": "m"
@@ -1975,7 +1980,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -1985,14 +1990,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2011,14 +2016,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2030,7 +2035,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -2044,14 +2049,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2063,7 +2068,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -2073,14 +2078,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2099,14 +2104,14 @@
               "target": {
                 "Point": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 2.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2115,7 +2120,7 @@
                 ]
               },
               "b": {
-                "Literal": {
+                "Quantity": {
                   "value": 0.3,
                   "dim": "Scalar",
                   "unit": ""
@@ -2127,7 +2132,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -2138,14 +2143,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2154,7 +2159,7 @@
                   ]
                 },
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -2171,14 +2176,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2187,7 +2192,7 @@
                   ]
                 },
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -2196,7 +2201,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -2211,14 +2216,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2227,7 +2232,7 @@
                   ]
                 },
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -2236,7 +2241,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -2247,14 +2252,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2263,7 +2268,7 @@
                   ]
                 },
                 "b": {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.3,
                     "dim": "Scalar",
                     "unit": ""
@@ -2278,14 +2283,14 @@
             "Via": {
               "q": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 4.5,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 0.5,
                     "dim": "Length",
                     "unit": "m"
@@ -2295,14 +2300,14 @@
               "target": {
                 "Point": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 2.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2316,7 +2321,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -2326,14 +2331,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -2343,14 +2348,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2368,14 +2373,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -2385,14 +2390,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2403,7 +2408,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -2417,14 +2422,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -2434,14 +2439,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2452,7 +2457,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -2462,14 +2467,14 @@
               "Via": {
                 "q": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 4.5,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 0.5,
                       "dim": "Length",
                       "unit": "m"
@@ -2479,14 +2484,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2503,14 +2508,14 @@
             "Center": {
               "c": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 6.0,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Length",
                     "unit": "m"
@@ -2521,14 +2526,14 @@
               "target": {
                 "Point": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 2.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2542,7 +2547,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -2552,14 +2557,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2570,14 +2575,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2595,14 +2600,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2613,14 +2618,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2631,7 +2636,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -2645,14 +2650,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2663,14 +2668,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2681,7 +2686,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -2691,14 +2696,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2709,14 +2714,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2733,14 +2738,14 @@
             "Center": {
               "c": [
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 6.0,
                     "dim": "Length",
                     "unit": "m"
                   }
                 },
                 {
-                  "Literal": {
+                  "Quantity": {
                     "value": 1.0,
                     "dim": "Length",
                     "unit": "m"
@@ -2751,14 +2756,14 @@
               "target": {
                 "Point": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 2.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2772,7 +2777,7 @@
         {
           "FilletArc": {
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.3,
                 "dim": "Length",
                 "unit": "m"
@@ -2782,14 +2787,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2800,14 +2805,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2825,14 +2830,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2843,14 +2848,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2861,7 +2866,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.4,
                 "dim": "Length",
                 "unit": "m"
@@ -2875,14 +2880,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2893,14 +2898,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2911,7 +2916,7 @@
               }
             },
             "radius": {
-              "Literal": {
+              "Quantity": {
                 "value": 0.5,
                 "dim": "Length",
                 "unit": "m"
@@ -2921,14 +2926,14 @@
               "Center": {
                 "c": [
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 6.0,
                       "dim": "Length",
                       "unit": "m"
                     }
                   },
                   {
-                    "Literal": {
+                    "Quantity": {
                       "value": 1.0,
                       "dim": "Length",
                       "unit": "m"
@@ -2939,14 +2944,14 @@
                 "target": {
                   "Point": [
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 2.0,
                         "dim": "Length",
                         "unit": "m"
                       }
                     },
                     {
-                      "Literal": {
+                      "Quantity": {
                         "value": 1.0,
                         "dim": "Length",
                         "unit": "m"
@@ -2964,14 +2969,14 @@
       "Circle": {
         "centre": [
           {
-            "Literal": {
+            "Quantity": {
               "value": 1.0,
               "dim": "Length",
               "unit": "m"
             }
           },
           {
-            "Literal": {
+            "Quantity": {
               "value": 1.0,
               "dim": "Length",
               "unit": "m"
@@ -2979,7 +2984,7 @@
           }
         ],
         "radius": {
-          "Literal": {
+          "Quantity": {
             "value": 0.5,
             "dim": "Length",
             "unit": "m"
@@ -2991,14 +2996,14 @@
       "CircleSplit": {
         "centre": [
           {
-            "Literal": {
+            "Quantity": {
               "value": 2.0,
               "dim": "Length",
               "unit": "m"
             }
           },
           {
-            "Literal": {
+            "Quantity": {
               "value": 2.0,
               "dim": "Length",
               "unit": "m"
@@ -3006,7 +3011,7 @@
           }
         ],
         "radius": {
-          "Literal": {
+          "Quantity": {
             "value": 0.75,
             "dim": "Length",
             "unit": "m"
@@ -3014,7 +3019,7 @@
         },
         "n": 5,
         "phase": {
-          "Literal": {
+          "Quantity": {
             "value": 0.2,
             "dim": "Angle",
             "unit": "rad"

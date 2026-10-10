@@ -13,12 +13,8 @@
 //! `Part(Instance(i))` — the same kernel op on the same body under the
 //! same map, so nothing is approximate and no rule is restated. The
 //! lane rows of the same claims are `eval6_placers_over_instances_interval`.
-//!
-//! What is NOT compared is provenance: a placing node stamps every
-//! description `Placed { node, instance }` with its own id and the
-//! body's ordinal in its value, so two nodes' bodies never share a
-//! source by construction, and the digest here is the geometry, the
-//! topology and the arena keys — the bits a consumer reads.
+//! The digest here is the geometry, the topology and the arena keys —
+//! the bits a consumer reads.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -49,7 +45,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -59,7 +55,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// A linear pattern of `count` along `dir` at `spacing`.
 pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
-        input,
+        input: input.into(),
         count: editor_core::Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
@@ -71,7 +67,7 @@ pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i6
 /// `Part(Instance(i))` of `of`.
 pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
-        of,
+        of: of.into(),
         select: PartSelect::Instance(editor_core::Formula::count(i)),
     }
 }
@@ -371,12 +367,15 @@ fn a_part_over_a_nested_pattern_indexes_the_flat_list() {
 
 // ---- the door ----
 
-/// **The operand door.** A placer takes a body or instances and
-/// refuses everything else typed, naming both admitted shapes; a
-/// boolean still takes ONE body and refuses instances — the asymmetry
-/// `ValuePayload::Instances` states.
+/// **The operand door.** A placer reads a body or instances and the
+/// door refuses everything else typed, before any evaluation: a split
+/// named alone is two bodies, so the read names a port, and a datum is
+/// not placeable. A boolean reads ONE body and refuses instances — the
+/// asymmetry `ValuePayload::Instances` states — as a kind at the same
+/// door.
 #[test]
 fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
+    use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
     let (doc, cube) = cube_doc("eval6-door");
     let (doc, plane) = insert(
         doc,
@@ -388,55 +387,60 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: cube,
-            tool: plane,
+            target: cube.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
-    let (doc, xf_split) = insert(doc, skew(split));
-    let (doc, xf_plane) = insert(doc, skew(plane));
-    let (doc, pat_split) = insert(doc, linear(split, [0.0, 1.0, 0.0], 2.0, N));
+    for node in [skew(split), linear(split, [0.0, 1.0, 0.0], 2.0, N)] {
+        let refusal = fixture::insert_refused(&doc, node);
+        assert!(
+            matches!(
+                &refusal,
+                EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(OperandSlot::Input), .. } if input.id() == split
+            ),
+            "a split named alone: {refusal:?}"
+        );
+    }
+    let refusal = fixture::insert_refused(&doc, skew(plane));
+    assert!(
+        matches!(
+            &refusal,
+            EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(OperandSlot::Input),
+                found: VarKind::Plane,
+                expected: SlotKind::Placeable,
+                ..
+            }
+        ),
+        "a datum: {refusal:?}"
+    );
     let (doc, pat_pattern) = insert(doc, linear(pattern, [0.0, 1.0, 0.0], 2.0, N));
     let (doc, xf_pattern) = insert(doc, skew(pattern));
-    let (doc, boolean) = insert(
-        doc,
+    let refusal = fixture::insert_refused(
+        &doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: pattern,
-            b: cube,
+            a: pattern.into(),
+            b: cube.into(),
             declare: Vec::new(),
         },
     );
-    let ev = run(&doc, &opts());
-    for (node, found) in [
-        (xf_split, "split"),
-        (xf_plane, "datum"),
-        (pat_split, "split"),
-    ] {
-        assert!(
-            matches!(
-                ev.node_error(node).map(|e| &e.kind),
-                Some(NodeErrorKind::WrongOperand { expected, found: f, .. })
-                    if *expected == "body or instances" && *f == found
-            ),
-            "{found}: {:?}",
-            ev.node_error(node)
-        );
-    }
-    assert_eq!(instances_of(&ev, pat_pattern).len() as i64, N * M);
-    assert_eq!(instances_of(&ev, xf_pattern).len() as i64, M);
     assert!(
         matches!(
-            ev.node_error(boolean).map(|e| &e.kind),
-            Some(NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "instances",
+            &refusal,
+            EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(OperandSlot::A),
+                found: VarKind::Bodies,
+                expected: SlotKind::Is(VarKind::Body),
                 ..
-            })
+            }
         ),
-        "a boolean takes one body: {:?}",
-        ev.node_error(boolean)
+        "a boolean reads one body: {refusal:?}"
     );
+    let ev = run(&doc, &opts());
+    assert_eq!(instances_of(&ev, pat_pattern).len() as i64, N * M);
+    assert_eq!(instances_of(&ev, xf_pattern).len() as i64, M);
 }
 
 // ---- the lanes the hosted matrix does not draw: Dual64 ----
@@ -535,64 +539,5 @@ fn a_transform_of_a_pattern_is_not_a_pattern_of_a_transform_under_rotation() {
             bits(&p[i]),
             "body {i} of the transform is MOVED"
         );
-    }
-}
-
-/// The outermost placement stamp of a body's first surface: the placing
-/// node and ordinal, or `None` for a description minted rather than
-/// placed.
-fn outer_stamp(b: &Body<f64>) -> Option<(u64, u32)> {
-    let (key, _) = b.surfaces().next().expect("a cube has surfaces");
-    match &b
-        .surface_source(key)
-        .expect("a placed description is sourced")
-        .expr
-    {
-        topo::SourceExpr::Placed { node, instance, .. } => Some((*node, *instance)),
-        topo::SourceExpr::Minted { .. } => None,
-    }
-}
-
-/// **The stamps are pairwise distinct across a value's bodies** —
-/// `compose_placed`'s ordinal rule, pinned on the two values that
-/// would collide under a constant ordinal: a nested pattern (placement
-/// 0 carries the inner's own stamps; every placed body wears the
-/// outer node at its flat index) and a transform of a pattern (body
-/// `i` wears the transform at `i`). A stamp shared by two bodies of
-/// one node would read as one source over two geometries at a
-/// boolean's identity rung.
-#[test]
-fn placement_stamps_are_pairwise_distinct_across_a_values_bodies() {
-    let (doc, _cube, inner, outer) = nested_doc("eval6-stamps");
-    let (doc, moved) = insert(doc, skew(inner));
-    let ev = run(&doc, &opts());
-    for (what, node, bodies) in [
-        ("the nested pattern", outer, instances_of(&ev, outer)),
-        (
-            "the transform of the pattern",
-            moved,
-            instances_of(&ev, moved),
-        ),
-    ] {
-        let stamps: Vec<Option<(u64, u32)>> = bodies.iter().map(|b| outer_stamp(b)).collect();
-        for (x, sx) in stamps.iter().enumerate() {
-            for (y, sy) in stamps.iter().enumerate().skip(x + 1) {
-                assert_ne!(sx, sy, "{what}: bodies {x} and {y} share a stamp {sx:?}");
-            }
-        }
-        // And every body this node PLACED wears this node at its own
-        // flat index; the ones it passed through verbatim do not wear
-        // it at all.
-        for (k, stamp) in stamps.iter().enumerate() {
-            match stamp {
-                Some((by, ordinal)) if *by == node.0 => {
-                    assert_eq!(*ordinal as usize, k, "{what}: body {k}'s ordinal")
-                }
-                _ => assert!(
-                    node == outer && k < M as usize,
-                    "{what}: body {k} is unstamped by its node yet is not a verbatim placement 0"
-                ),
-            }
-        }
     }
 }

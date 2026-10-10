@@ -221,10 +221,9 @@ fn edge_rest_promoted_d4_pin() {
 /// "interior-rest flush contact") and consumes every rest record into
 /// structure: the consumed class, census agrees, 3′ ≡ tier 3.
 /// Corner-flush (contact-square edges collinear with the slab's own
-/// rim) was the documented boundary-on-boundary ∪ refusal (M3
-/// envelope class (iii)) until M5 S1's declared-REST union zip: the
-/// declared ∪ now BUILDS through the same consumed class, and the
-/// undeclared door refuses unchanged (the ladder is law). ∖ returns
+/// rim, the boundary-on-boundary class (iii)): the declared ∪ BUILDS
+/// through the same consumed class, and the
+/// undeclared door glues the same way (D10). ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
 fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
@@ -239,17 +238,10 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
 
     let corner = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
-    // Undeclared: the coincidence door refuses first now (M4 PR 5's
-    // rung (b) narrowing — value equality never classifies).
-    let err = union(&slab, &corner, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-        "undeclared corner-flush ∪ must refuse at the coincidence door, got {err:?}"
-    );
-    // Declared: the M5 S1 REST lane zips the corner-flush mate — the
-    // former Join(_) pin flipped to a certified pass (the same
-    // frontier as the crosslap; `crosslap_rest.rs` holds the headline
-    // pins, `m5_s1_rest_zip.rs` the exact-volume row for this shape).
+    // The join builds the corner-flush mate, declared or not (the
+    // same frontier as the crosslap; `crosslap_rest.rs` holds the
+    // headline pins, `m5_s1_rest_zip.rs` the exact-volume row and the
+    // undeclared row for this shape).
     let glued = run_body(union_with as BoolOp<T>, &slab, &corner);
     assert!(
         glued.contacts.vv.is_empty()
@@ -340,7 +332,7 @@ fn tampered_declaration_is_stale() {
         .map(|(k, _)| k)
         .find(|&k| k != real_a && k != tampered.vv[0].b)
         .unwrap();
-    tampered.vv[0].a = wrong;
+    tampered.vv[0].record.a = wrong;
     let errors = validate_pseudomanifold(&body.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors
