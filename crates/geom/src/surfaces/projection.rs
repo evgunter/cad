@@ -239,9 +239,11 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
         while iterations < PROJECT_MAX_ITERS {
-            let j = self
-                .window_at(u, v)
-                .ders_in_span(T::from_f64(u), T::from_f64(v));
+            // A NaN seed has no window: the projection is inconclusive.
+            let Some(win) = self.window_at(u, v) else {
+                break;
+            };
+            let j = win.ders_in_span(T::from_f64(u), T::from_f64(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -286,9 +288,10 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             // through the chart (domain-edge feet land here).
             let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
-                let jn = self
-                    .window_at(un, vn)
-                    .ders_in_span(T::from_f64(un), T::from_f64(vn));
+                let Some(win) = self.window_at(un, vn) else {
+                    break;
+                };
+                let jn = win.ders_in_span(T::from_f64(un), T::from_f64(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {

@@ -5248,38 +5248,23 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
         if record.shells.len() < 2 {
             continue;
         }
-        let mut undecided = false;
-        let reads: Vec<Option<ShellRead>> = record
-            .shells
-            .iter()
-            .map(
-                |&shell| match ShellRead::of(body, shell, band, tol, quad)? {
-                    Ok(read) => Some(read),
-                    Err(error) => {
-                        errors.push(ValidationError::ShellRoleUndecided { solid, error });
-                        undecided = true;
-                        None
-                    }
-                },
-            )
-            .collect();
+        let mut reads = Vec::with_capacity(record.shells.len());
+        for &shell in &record.shells {
+            match ShellRead::of(body, shell, band, tol, quad) {
+                Ok(read) => reads.push(read),
+                Err(error) => errors.push(ValidationError::ShellRoleUndecided { solid, error }),
+            }
+        }
         // A shell whose role does not read leaves the solid's winding
         // unknowable; its refusal is the solid's verdict.
-        if undecided {
+        if reads.len() < record.shells.len() {
             continue;
         }
-        let outer = reads
-            .iter()
-            .flatten()
-            .filter(|r| r.role == ShellRole::Outer)
-            .count();
+        let outer = reads.iter().filter(|r| r.role == ShellRole::Outer).count();
         if outer > 1 {
             errors.push(ValidationError::SolidOuterShells { solid, outer });
             continue;
         }
-        let Some(reads) = reads.into_iter().collect::<Option<Vec<ShellRead>>>() else {
-            continue;
-        };
         for (i, read) in reads.iter().enumerate() {
             let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
             else {

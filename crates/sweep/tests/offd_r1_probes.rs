@@ -476,21 +476,21 @@ const CURVED_FIT_REACH: f64 = 1e-13;
 
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
-    // Both fixtures' spline walls are bounded by rims described in a
-    // NEIGHBOUR's chart (the cap plane they lie in), so both land on
-    // the same leg — and the row says so by name rather than by
-    // membership.
+    // Both fixtures' walls refuse first at a seam that is one of this
+    // fit's rows, shared with the next, unmoved, spline wall: both land
+    // on that leg, named rather than matched by membership. One rim is
+    // planned before that seam; what each rim does is the next row's.
     for (name, mut body, leg, curved) in [
         (
             "planar prism",
             prism(),
-            "a curve drawn on a neighbour's surface",
+            "a row of this fit shared with a spline face",
             false,
         ),
         (
             "twisted loft",
             twisted_loft(0.3),
-            "a curve drawn on a neighbour's surface",
+            "a row of this fit shared with a spline face",
             true,
         ),
     ] {
@@ -679,6 +679,124 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
         assert_eq!(
             on_others, 2,
             "a corner at {p:?} lies on its oblique neighbour and its cap"
+        );
+    }
+}
+
+/// **Each fitted wall edge's own verdict, read at its plan.** The door
+/// stops at the first edge that refuses, which on both fixtures is a
+/// seam, so the row above cannot see the rims behind it. Read per edge
+/// (`topo::offset_edge_plans_for_tests`), moving one wall by the row
+/// above's `d = 5e-10`:
+/// - both rims of the prism's wall derive as the cap planes' sections
+///   of the fit;
+/// - the loft's bottom rim derives, and its top rim's section is
+///   refused, deferred to the corners: the offset fit's window, the
+///   base's own, stops short of the top cap plane on this twisted wall,
+///   so the plane has no branch through it (`NoBranch`, at every ε ≥
+///   1e-9); at 1e-12 the trace's tube refuses first, an `Ssi` verdict;
+/// - one seam is a row of this fit shared with the next spline wall
+///   (`FittedBoundaryUnsupported`); the other is not one of the fit's
+///   rows, so it routes as `Approx × Nurbs`, which has no arm
+///   (`NeighborPairUnroutable`).
+#[test]
+fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
+    use topo::SectionVerdict;
+    let eps = Tol::witness().eps();
+    for (name, body, curved) in [
+        ("planar prism", prism(), false),
+        ("twisted loft", twisted_loft(0.3), true),
+    ] {
+        let wall = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("{name}: no spline wall"));
+        if curved && eps < CURVED_FIT_REACH {
+            // The fit stops short of ε (the row above's `Fit` arm), and
+            // no edge is planned.
+            continue;
+        }
+        let (mut rims, mut seams) = (Vec::new(), Vec::new());
+        for (edge, verdict) in topo::offset_edge_plans_for_tests(&body, wall, 5e-10, Tol::witness())
+        {
+            let c = body
+                .get_curve_geom(body.get_edge(edge).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            let (t0, t1) = c.params();
+            let (z0, z1) = (c.carrier().eval(t0).z, c.carrier().eval(t1).z);
+            if (z1 - z0).abs() < 1e-9 {
+                rims.push((z0, verdict));
+            } else {
+                seams.push(verdict);
+            }
+        }
+        rims.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let [(_, bottom), (_, top)] = rims.as_slice() else {
+            panic!("{name}: the wall has two rims, got {}", rims.len());
+        };
+        assert!(
+            matches!(bottom, Ok(None)),
+            "{name}: the bottom rim derives, got {bottom:?}"
+        );
+        if curved {
+            let Ok(Some(ReplaceFaceError::EdgeSection {
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
+                verdict,
+                ..
+            })) = top
+            else {
+                panic!("{name}: the top rim's section is refused, deferred; got {top:?}");
+            };
+            if eps >= 1e-9 {
+                assert!(
+                    matches!(verdict, SectionVerdict::NoBranch),
+                    "{name} at {eps:e}: {verdict:?}"
+                );
+            } else {
+                assert!(
+                    matches!(verdict, SectionVerdict::Ssi(_)),
+                    "{name} at {eps:e}: {verdict:?}"
+                );
+            }
+        } else {
+            assert!(
+                matches!(top, Ok(None)),
+                "{name}: the top rim derives, got {top:?}"
+            );
+        }
+        let [a, b] = seams.as_slice() else {
+            panic!("{name}: the wall has two seams, got {}", seams.len());
+        };
+        let row = |v: &Result<_, ReplaceFaceError<f64>>| {
+            matches!(
+                v,
+                Err(ReplaceFaceError::FittedBoundaryUnsupported {
+                    what: "a row of this fit shared with a spline face",
+                    ..
+                })
+            )
+        };
+        let unroutable = |v: &Result<_, ReplaceFaceError<f64>>| {
+            matches!(
+                v,
+                Err(ReplaceFaceError::NeighborPairUnroutable {
+                    kind: geom::SurfaceKind::Approx,
+                    other_kind: geom::SurfaceKind::Nurbs,
+                    ..
+                })
+            )
+        };
+        assert!(
+            (row(a) && unroutable(b)) || (row(b) && unroutable(a)),
+            "{name}: one seam is a shared row, the other unroutable; got {a:?}, {b:?}"
         );
     }
 }
