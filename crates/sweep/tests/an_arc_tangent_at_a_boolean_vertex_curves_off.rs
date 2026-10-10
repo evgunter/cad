@@ -79,6 +79,24 @@ fn quarter_round() -> AtRestBody<f64> {
     )
 }
 
+/// The round's mirror below the rim: the arc leaves the rim vertex
+/// tangent to z = 1 and curves DOWN to (3, ·, 0), into a slab under it.
+fn dipping_round() -> AtRestBody<f64> {
+    let b90 = (core::f64::consts::PI / 8.0).tan();
+    lying_extrude(
+        vec![
+            (Point2::new(1.0, 0.5), 0.0),
+            (Point2::new(1.0, 2.0), b90),
+            (Point2::new(0.0, 3.0), 0.0),
+            (Point2::new(3.0, 3.0), 0.0),
+            (Point2::new(3.0, 0.5), 0.0),
+        ],
+        0.0,
+        4.0,
+        "the dipping round",
+    )
+}
+
 fn slab(x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
     lying_extrude(
         vec![
@@ -201,4 +219,44 @@ fn an_arc_tangent_at_a_boolean_vertex_curves_off() {
             );
         }
     }
+}
+
+/// **The arc curving INTO the partner**: the dipping round over the
+/// wide slab. They overlap in the lens between the slab's top and the
+/// round's wall, `(1 − π/4)` per unit of extrusion over `y ∈ [0, 4]`.
+/// No declaration: the wall crosses into the slab, so nothing is a
+/// contact but the rim line.
+#[test]
+#[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
+fn an_arc_tangent_at_a_boolean_vertex_curves_in() {
+    let round = dipping_round();
+    let vr = mass_properties(&round, Tol::witness()).unwrap().volume;
+    eprintln!(
+        "SIDECODE-FIXTURE dip: round volume {vr} (want {})",
+        24.0 - core::f64::consts::PI
+    );
+    let s = slab(5.0, -1.0, 6.0);
+    let vs = mass_properties(&s, Tol::witness()).unwrap().volume;
+    let lens = 4.0 - core::f64::consts::PI;
+    let d = BooleanDeclarations::none();
+    report(
+        "dip / slab ∪ round",
+        topo::union_with(&s, &round, &d, Tol::witness()),
+        Some(vs + vr - lens),
+    );
+    report(
+        "dip / slab ∖ round",
+        topo::subtract_with(&s, &round, &d, Tol::witness()),
+        Some(vs - lens),
+    );
+    report(
+        "dip / round ∖ slab",
+        topo::subtract_with(&round, &s, &d, Tol::witness()),
+        Some(vr - lens),
+    );
+    report(
+        "dip / slab ∩ round",
+        topo::intersect_with(&s, &round, &d, Tol::witness()),
+        Some(lens),
+    );
 }
