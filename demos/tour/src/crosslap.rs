@@ -9,10 +9,9 @@
 //! as interior and the seam is fused, volume exactly
 //! 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
 //! GLUED union (watertight STL + STEP exported by the tour like every
-//! stop body). UNDECLARED, the mate still refuses at the coincidence
-//! door (rung (b) — value equality never classifies; the ladder is
-//! law) — that refusal stays narrated: it is the declared/undeclared
-//! contrast the joint exists to demonstrate.
+//! stop body). UNDECLARED, the union decides the same contacts one
+//! carrier by margin (D10) and glues them alike: the scene checks the
+//! two bodies are one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -21,7 +20,7 @@ use pncad::geom_core::Affine3;
 use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
-use crate::booleans::{check, describe, expect_seamed, try_subtract, try_union};
+use crate::booleans::{check, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
@@ -57,10 +56,8 @@ fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 }
 
 /// The joint's boolean work, generic (the Probe sweep runs the same
-/// ops): both notched beams, the naive-union refusal pin, the DECLARED
-/// glued union, and the lifted exploded copy.
-/// Returns the undeclared refusal's narration string for the f64 stop
-/// captions.
+/// ops): both notched beams, the DECLARED glued union (checked equal
+/// to the undeclared one), and the lifted exploded copy.
 pub(crate) fn build<S: Scalar>(
     tol: Tol,
 ) -> (
@@ -68,23 +65,16 @@ pub(crate) fn build<S: Scalar>(
     BooleanBody<S>,
     BooleanBody<S>,
     pncad::topo::Body<S>,
-    String,
 ) {
     let a = beam_a::<S>(tol);
     let b = beam_b::<S>(tol);
 
-    // The UNDECLARED union refuses at the coincidence door (rung (b);
-    // post-PR 5 value equality never even classifies).
     let expected = 2.0 * (BEAM_VOL - NOTCH_VOL);
-    let naive = check(try_union(&a.body, &b.body, tol), expected, tol);
-    let refusal = describe(&naive, expected);
-    if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
-        panic!(
-            "the UNDECLARED mated union no longer refuses ({refusal}) — \
-             value-equality must never glue (ladder rung (b)); regression"
-        );
-    }
-    println!("   mated-union WITHOUT declarations: {refusal}");
+    let undeclared = expect_seamed(
+        "undeclared mated union",
+        check(try_union(&a.body, &b.body, tol), expected, tol),
+        expected,
+    );
     // DECLARED, the union BUILDS through the join, which leaves the
     // coincident contact patches out and fuses the seam — exact dyadic
     // volume additivity (interiors disjoint).
@@ -97,6 +87,15 @@ pub(crate) fn build<S: Scalar>(
         ),
         expected,
     );
+    assert_eq!(
+        format!("{:?}", undeclared.body),
+        format!("{:?}", glued.body),
+        "the undeclared mated union glues the same contacts as the declared one"
+    );
+    println!(
+        "   mated-union WITHOUT declarations: glued on the decided zero (D10), the \
+         same body as the declared mate"
+    );
     println!(
         "   mated-union WITH the mate declared: GLUED (volume {expected} exactly) — \
          through the join (crosslap_rest.rs pins both doors)"
@@ -106,17 +105,17 @@ pub(crate) fn build<S: Scalar>(
     // edge witness is re-minted, and the moved body revalidates).
     let lift = Affine3::translation(v3(0.0, 0.0, 1.25));
     let b_lifted = pncad::topo::transform_rigid(&b.body, &lift, tol).expect("lift beam B");
-    (a, b, glued, b_lifted, refusal)
+    (a, b, glued, b_lifted)
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let (a, _b, glued, b_lifted, refusal) = build::<f64>(tol);
+    let (a, _b, glued, b_lifted) = build::<f64>(tol);
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
-         bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
-         door ({refusal}); DECLARED, the join GLUES the joint — one \
+         bit-exact, gated 1e-9); DECLARED, the join GLUES the joint — one \
          watertight body, volume {} exactly (2·(beam − notch); interiors \
-         disjoint, nothing discarded)",
+         disjoint, nothing discarded); undeclared, the union glues the same \
+         contacts on their decided zero (D10) into the same body",
         BEAM_VOL - NOTCH_VOL,
         2.0 * (BEAM_VOL - NOTCH_VOL)
     );

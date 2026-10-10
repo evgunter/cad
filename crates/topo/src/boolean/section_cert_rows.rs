@@ -1313,7 +1313,6 @@ fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let wall = cyl_wall_sheet(
         &mut wall_body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, PI),
         (-1.0, 1.0),
         Tol::witness(),
@@ -1342,7 +1341,6 @@ fn a_lone_vertex_ring_refuses_the_pair() {
     let wall = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, PI),
         (-1.0, 1.0),
         tol,
@@ -1513,7 +1511,6 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     let _ = cyl_wall_sheet(
         &mut wall_body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, PI),
         (-1.0, 1.0),
         Tol::witness(),
@@ -1552,7 +1549,6 @@ fn an_off_carrier_witness_places_nowhere() {
     let wall = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, PI),
         (-1.0, 1.0),
         Tol::witness(),
@@ -1582,7 +1578,6 @@ fn a_lone_vertex_ring_on_the_b_side_refuses_the_pair() {
     let wall = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, PI),
         (-1.0, 1.0),
         tol,

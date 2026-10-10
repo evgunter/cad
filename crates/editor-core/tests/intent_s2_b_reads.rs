@@ -954,10 +954,10 @@ fn dm5_is_over_the_variables_read() {
 
 /// **Each of a split's two halves is read as itself, and a pair
 /// declared across them is sided by the half that holds each name.**
-/// Both halves are read at the split's one site. Undeclared, the pair
-/// boolean of them refuses the rest contact across the section; under
-/// a declared rest named in either order it is the whole block, where
-/// one projection per node read one half twice. A side naming what
+/// Both halves are read at the split's one site. Under a declared rest
+/// named in either order the pair boolean of them is the whole block,
+/// where one projection per node read one half twice; undeclared, it
+/// glues the rest the margins decide and is that same block. A side naming what
 /// neither half holds — a wall of the block the cut renamed in both —
 /// refuses as a site no operand's table answers. A union of the two
 /// refuses before any of that: it keys each member by the operation it
@@ -1011,13 +1011,12 @@ fn a_pair_declared_across_one_splits_halves_is_sided_by_table() {
     let (doc, fused) = insert(doc, union(pair(above.clone(), below)));
     let (doc, stray_boolean) = insert(doc, boolean(pair(above, wall)));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
-    assert!(
-        matches!(
-            ev.node_error(undeclared).map(|e| &e.kind),
-            Some(NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "{:?}",
-        ev.node_error(undeclared)
+    // Undeclared, the two section faces are one plane by margin, so the
+    // pair glues them as the declared `Rest` they are (D10).
+    assert_eq!(
+        format!("{:?}", crate::corpus::body_of(&ev, undeclared)),
+        format!("{:?}", crate::corpus::body_of(&ev, joined)),
+        "the undeclared pair boolean is the declared one"
     );
     for id in [joined, flipped] {
         assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));

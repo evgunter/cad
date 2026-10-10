@@ -143,6 +143,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # a façade carry would owe (the CUR3 matchability row, and a word
     # for the Python door), so it is written where the type is declared
     # and where whoever carries it will be reading.
+    # `BooleanDeclarations::verdicts`: argued where the type is declared,
+    # as the row above is.
+    "Verdicts": ("argued", "non-carriage with its falsifier, beside the declaration in "
+                 "crates/topo/src/boolean/mod.rs"),
     "CensusUnsupportedCause": ("argued", "non-carriage with its falsifier, beside the "
                                "declaration in crates/topo/src/validate.rs; the carry "
                                "is the facade crate's row and owes the CUR3 property "
@@ -156,10 +160,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "boolean-error.md"),
     "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                       "boolean-error.md"),
-    # `BooleanError::CoplanarNeighbours`'s refused offset: the same
-    # carrier, the same row.
-    "NeighbourOffset": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
-                        "boolean-error.md"),
     # `BooleanError::VertexReadTwice`'s two reads (PR 4234): the same
     # carrier, the same row.
     "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
