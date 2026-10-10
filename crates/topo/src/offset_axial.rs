@@ -3116,14 +3116,6 @@ mod tests {
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
-    /// A band the tilted far placement's turned corner fits inside at
-    /// `Interval`: read back through the composed placement a thousand
-    /// metres out, its out-of-plane coordinate is some 1e-6 wide, on
-    /// main's composite as on this one.
-    fn wide() -> Band {
-        Band::new(1e-5, 1e-4).unwrap()
-    }
-
     const NEAR: [f64; 3] = [0.0, 0.0, 3.0];
     const FAR: [f64; 3] = [1000.0, -700.0, 300.0];
     const FARTHER: [f64; 3] = [1.0e5, 3.0e4, -2.0e4];
@@ -3213,20 +3205,19 @@ mod tests {
         }
     }
 
-    /// **A turned start on a tilted far placement lands as close to its
-    /// corner as composing the turn into the placement did.** At `f64`,
-    /// over 200 turns in `[−3, 3]`, the re-authored description's start
-    /// sample sits within 1.25× of main's worst distance, plus one ulp
-    /// of the coordinates: main read the corner back through `(R(φ)·place)⁻¹`
-    /// and placed it again through the same composite, rebuilt here from
-    /// `Affine3` alone. The ulp is the start sample's own form, which
-    /// applies `place` and then the rotation rather than their
-    /// composite; the distances are a few ulps of the coordinates, so
-    /// one ulp is a ratio of 1.5 at 1e5. Turning the corner back through
-    /// `I − R(−θ)` and reading it through `place⁻¹` landed 2.5–3×
-    /// farther.
+    /// **A turned start on a tilted far placement lands within four
+    /// ulps of the coordinates of its corner.** At `f64`, over 200 turns
+    /// in `[−3, 3]`, the re-authored description's start sample — the
+    /// corner turned back on its offset from the axis, read through
+    /// `place⁻¹`, placed and turned again — sits 3.4e-13 from the corner
+    /// at 1e3 (three ulps) and 1.5e-11 at 1e5 (one). Reading the corner
+    /// back through the composite `(R(φ)·place)⁻¹` instead lands 1.0e-12
+    /// and 5.8e-11 off, nine and four ulps: the read-back and the
+    /// description's own evaluation then turn the corner by two
+    /// different spellings. (Read and placed through that composite
+    /// alone, the corner lands 5.7e-13 and 2.9e-11 off, printed beside.)
     #[test]
-    fn a_turned_start_on_a_tilted_far_placement_lands_as_close_as_composing() {
+    fn a_turned_start_on_a_tilted_far_placement_lands_within_ulps_of_its_corner() {
         let mut worst = Vec::new();
         for at in [FAR, FARTHER] {
             let mapped = tilted_rim(at, |x| x);
@@ -3248,23 +3239,25 @@ mod tests {
             let scale = at.iter().fold(0.0f64, |m, c| m.max(c.abs()));
             let ulp = scale.next_up() - scale;
             assert!(
-                ours <= 1.25 * main + ulp,
-                "at {at:?} a turned start re-authors {ours:e} from its corner, over 1.25× \
-                 the composed placement's {main:e} plus one ulp of the coordinates ({ulp:e})"
+                ours <= 4.0 * ulp,
+                "at {at:?} a turned start re-authors {ours:e} from its corner, over four \
+                 ulps of the coordinates ({ulp:e} each; the composed placement lands \
+                 {main:e} off)"
             );
         }
     }
 
-    /// **At `Interval` a turned start stores no wider than composing the
-    /// turn into the placement did.** On the tilted far placement, at
-    /// three turns, the stored sketch point is no wider than main's
-    /// composed reading of the same corner, with main's turn rebuilt
-    /// here as main measured it. Every input is an exact point; at 1e5
-    /// the composite's reading is some 7e-3 wide out of the plane, past
-    /// any band a decision there could take, on main's spelling as on
-    /// this one.
+    /// **At `Interval` a turned start stores a thousand times tighter
+    /// than composing the turn into the placement.** On the tilted far
+    /// placement, at four turns, the stored sketch point is 1.1e-10 to
+    /// 3.7e-10 wide, the turn's width times the radius, where the
+    /// composite `(R(φ)·place)⁻¹` reads the same corner 1.1e-6 to
+    /// 2.8e-6 wide, the turn's width times the coordinates. The corner
+    /// is read at the ordinary band: its out-of-plane coordinate, read
+    /// on the turned offset, fits inside it, where the composite's needed
+    /// a band of 1e-5.
     #[test]
-    fn a_turned_start_on_a_tilted_far_placement_stores_no_wider_than_composing() {
+    fn a_turned_start_on_a_tilted_far_placement_stores_far_tighter_than_composing() {
         let iv = Interval::from_f64;
         for at in [FAR] {
             let mapped = lifted(tilted_rim(at, |x| x));
@@ -3274,7 +3267,7 @@ mod tests {
                 let geom_brep::MappedCurve {
                     source: geom_brep::MappedSource::RevolvedPoint { point, .. },
                     ..
-                } = reauthored(mapped, corner, wide())
+                } = reauthored(mapped, corner, band())
                 else {
                     panic!("a revolved point re-authors as one");
                 };
@@ -3283,9 +3276,9 @@ mod tests {
                 let main = width(q.x).max(width(q.y));
                 println!("at {at:?}, turn {theta}: stored width {ours:e}, composed {main:e}");
                 assert!(
-                    ours <= main,
-                    "at {at:?} a start turned {theta} stored a point {ours:e} wide, over the \
-                     composed placement's {main:e}"
+                    ours <= 1e-3 * main,
+                    "at {at:?} a start turned {theta} stored a point {ours:e} wide, over a \
+                     thousandth of the composed placement's {main:e}"
                 );
             }
         }
