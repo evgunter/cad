@@ -2602,6 +2602,7 @@ pub(crate) fn evaluate(
         profile_lift: defaults.profile_lift,
         param_box: defaults.param_box,
         seed: defaults.seed,
+        symbols: defaults.symbols,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;

@@ -1155,7 +1155,7 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     let metres: Vec<editor_core::VarId> = doc
         .free_vars()
         .filter_map(|(id, free)| match *free {
-            FreeVar::Continuous { value, .. } if value == 1.0 => Some(id),
+            FreeVar::Continuous { value, .. } => (value == 1.0).then_some(id),
             _ => None,
         })
         .collect();

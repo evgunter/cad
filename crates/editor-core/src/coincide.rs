@@ -361,11 +361,11 @@ pub fn prove<P: crate::ProfilePayload>(
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
     tol: geom_core::Tol,
 ) -> Vec<Vec<Proof>> {
-    let walked: Vec<Vec<Result<Rung, [Result<Construction, Unwalked>; 2]>>> = nodes
+    let walked: Vec<Vec<[Result<Construction, Unwalked>; 2]>> = nodes
         .iter()
-        .map(|(_, rows)| rows.iter().map(|row| same_construction(doc, row)).collect())
+        .map(|(_, rows)| rows.iter().map(|row| constructions(doc, row)).collect())
         .collect();
-    let asks = walked.iter().flatten().any(Result::is_err);
+    let asks = walked.iter().flatten().any(|c| !one_construction(c));
     let replayed = match P::evaluable(doc) {
         Some(doc) if asks => replay::rungs(doc, nodes, tol),
         _ => nodes
@@ -380,39 +380,44 @@ pub fn prove<P: crate::ProfilePayload>(
             walked
                 .into_iter()
                 .zip(replayed)
-                .map(|(walked, replayed)| match (walked, replayed) {
-                    (Ok(rung), _) | (Err(_), Ok(rung)) => Proof::Structural(rung),
-                    (Err(constructions), Err(replay)) => Proof::Unproven {
-                        residual: Residual {
-                            constructions,
-                            replay,
+                .map(|(constructions, replayed)| {
+                    if one_construction(&constructions) {
+                        return Proof::Structural(Rung::SameConstruction);
+                    }
+                    match replayed {
+                        Ok(rung) => Proof::Structural(rung),
+                        Err(replay) => Proof::Unproven {
+                            residual: Residual {
+                                constructions,
+                                replay,
+                            },
+                            recourse: Recourse::OneConstruction,
                         },
-                        recourse: Recourse::OneConstruction,
-                    },
+                    }
                 })
                 .collect()
         })
         .collect()
 }
 
-/// The first rung: the two cells one construction read twice, or each
-/// cell's construction.
-fn same_construction<P>(
+/// Each cell's construction.
+fn constructions<P>(
     doc: &crate::doc::Doc<P>,
     row: &NamedCoincidence,
-) -> Result<Rung, [Result<Construction, Unwalked>; 2]> {
-    let constructions = row.cells.each_ref().map(|cell| match cell {
+) -> [Result<Construction, Unwalked>; 2] {
+    row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
         NamedCell::Tool { input } => datum(doc, *input, Vec::new()),
         NamedCell::Piece { profile, piece } => Ok(Construction {
             origin: Origin::Piece(*profile, *piece),
             placed: Vec::new(),
         }),
-    });
-    match &constructions {
-        [Ok(a), Ok(b)] if a == b => Ok(Rung::SameConstruction),
-        _ => Err(constructions),
-    }
+    })
+}
+
+/// The first rung: the two cells one construction read twice.
+fn one_construction(constructions: &[Result<Construction, Unwalked>; 2]) -> bool {
+    matches!(constructions, [Ok(a), Ok(b)] if a == b)
 }
 
 /// **The construction of the entity `name` names in `read`'s value**:

@@ -1024,7 +1024,7 @@ impl<T: crate::real::Real> InfSpeed<T> {
 /// zero (ERROR-DESIGN E12), the kind of theorem that decided it. It
 /// carries no number, and every other lane leaves it `None`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MarginDiag(Reading, Option<Zero>);
+pub struct MarginDiag(Reading);
 
 /// The symbolic tier's word on a Zero reading: proved, or left on a
 /// deferring session's list ([`crate::sym::deferred`]).
@@ -1032,6 +1032,36 @@ pub struct MarginDiag(Reading, Option<Zero>);
 enum Zero {
     Proven(Theorem),
     Deferred(u32),
+}
+
+/// [`Zero`] in one word, so it rides in the reading's padding and the
+/// reading stays the size of its numbers: `0` none, `1..=3` a theorem,
+/// `4 + i` the deferred entry `i`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ZeroWord(u32);
+
+impl ZeroWord {
+    const NONE: Self = Self(0);
+
+    const fn of(zero: Option<Zero>) -> Self {
+        Self(match zero {
+            None => 0,
+            Some(Zero::Proven(Theorem::SymbolicZero)) => 1,
+            Some(Zero::Proven(Theorem::SignGated)) => 2,
+            Some(Zero::Proven(Theorem::Registered)) => 3,
+            Some(Zero::Deferred(i)) => 4 + i,
+        })
+    }
+
+    const fn zero(self) -> Option<Zero> {
+        match self.0 {
+            0 => None,
+            1 => Some(Zero::Proven(Theorem::SymbolicZero)),
+            2 => Some(Zero::Proven(Theorem::SignGated)),
+            3 => Some(Zero::Proven(Theorem::Registered)),
+            i => Some(Zero::Deferred(i - 4)),
+        }
+    }
 }
 
 /// **How the symbolic tier proved a margin zero** (ERROR-DESIGN E12):
@@ -1056,14 +1086,16 @@ pub enum Theorem {
 enum Reading {
     /// The classified `f64` margin, signed, exactly as submitted, and
     /// the gate's tag where a gate rejected it. The tag rides inside
-    /// the variant so the reading stays the size of its numbers.
-    Value(f64, Option<Rejection>),
+    /// the variant so the reading stays the size of its numbers, and
+    /// so does the symbolic tier's word.
+    Value(f64, Option<Rejection>, ZeroWord),
     /// The classified enclosure's bounds, exactly as the interval
     /// scalar held them, and the gate's tag where a gate rejected it.
     Enclosure {
         lo: f64,
         hi: f64,
         tag: Option<Rejection>,
+        zero: ZeroWord,
     },
     /// The margin was poisoned.
     Invalid,
@@ -1421,18 +1453,23 @@ pub enum MissSource {
 
 impl MarginDiag {
     /// A poisoned margin.
-    pub const INVALID: Self = Self(Reading::Invalid, None);
+    pub const INVALID: Self = Self(Reading::Invalid);
 
     /// The reading of a point margin, as `f64` classification mints it.
     #[must_use]
     pub const fn value(m: f64) -> Self {
-        Self(Reading::Value(m, None), None)
+        Self(Reading::Value(m, None, ZeroWord::NONE))
     }
 
     /// The reading of an enclosure, as interval classification mints it.
     #[must_use]
     pub const fn enclosure(lo: f64, hi: f64) -> Self {
-        Self(Reading::Enclosure { lo, hi, tag: None }, None)
+        Self(Reading::Enclosure {
+            lo,
+            hi,
+            tag: None,
+            zero: ZeroWord::NONE,
+        })
     }
 
     /// Which shape this reading has.
@@ -1469,25 +1506,41 @@ impl MarginDiag {
     /// [`MarginDiag::rejected_sign`] reads.
     pub(crate) const fn rejected_by(self, sign: Sign, passes: SizedPass) -> Self {
         let tag = Some(Rejection { sign, passes });
-        Self(
-            match self.0 {
-                Reading::Value(m, _) => Reading::Value(m, tag),
-                Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
-                Reading::Invalid => Reading::Invalid,
-            },
-            self.1,
-        )
+        Self(match self.0 {
+            Reading::Value(m, _, zero) => Reading::Value(m, tag, zero),
+            Reading::Enclosure { lo, hi, zero, .. } => Reading::Enclosure { lo, hi, tag, zero },
+            Reading::Invalid => Reading::Invalid,
+        })
+    }
+
+    /// The symbolic tier's word on this reading.
+    const fn zero(self) -> Option<Zero> {
+        match self.0 {
+            Reading::Value(_, _, zero) | Reading::Enclosure { zero, .. } => zero.zero(),
+            Reading::Invalid => None,
+        }
+    }
+
+    /// This reading with `zero` as the symbolic tier's word; a poisoned
+    /// reading takes none.
+    const fn with_zero(self, zero: Option<Zero>) -> Self {
+        let zero = ZeroWord::of(zero);
+        Self(match self.0 {
+            Reading::Value(m, tag, _) => Reading::Value(m, tag, zero),
+            Reading::Enclosure { lo, hi, tag, .. } => Reading::Enclosure { lo, hi, tag, zero },
+            Reading::Invalid => Reading::Invalid,
+        })
     }
 
     /// This reading, decided Zero by the symbolic tier as `how`.
     pub(crate) const fn proven(self, how: Theorem) -> Self {
-        Self(self.0, Some(Zero::Proven(how)))
+        self.with_zero(Some(Zero::Proven(how)))
     }
 
     /// This reading, a Zero left at `index` on a deferring session's
     /// list.
     pub(crate) const fn deferred_at(self, index: u32) -> Self {
-        Self(self.0, Some(Zero::Deferred(index)))
+        self.with_zero(Some(Zero::Deferred(index)))
     }
 
     /// **The theorem that decided this margin Zero**, where the symbolic
@@ -1496,7 +1549,7 @@ impl MarginDiag {
     /// left for a reader to discharge ([`crate::sym::deferred::discharge`]).
     #[must_use]
     pub const fn theorem(self) -> Option<Theorem> {
-        match self.1 {
+        match self.zero() {
             Some(Zero::Proven(how)) => Some(how),
             Some(Zero::Deferred(_)) | None => None,
         }
@@ -1505,7 +1558,7 @@ impl MarginDiag {
     /// The deferring session's entry this reading stands for.
     pub(crate) fn pending(self) -> Option<crate::sym::deferred::Pending> {
         use crate::sym::deferred::{Pending, entry};
-        match self.1? {
+        match self.zero()? {
             Zero::Proven(how) => Some(Pending::Proven(how)),
             Zero::Deferred(index) => entry(index),
         }
@@ -1518,7 +1571,7 @@ impl MarginDiag {
     /// every one of them is.
     #[must_use]
     pub fn jointly(self, other: Self) -> Self {
-        let zero = match (self.1, other.1) {
+        let zero = match (self.zero(), other.zero()) {
             (Some(Zero::Proven(a)), Some(Zero::Proven(b))) => Some(Zero::Proven(a.max(b))),
             (Some(_), Some(_)) => self
                 .pending()
@@ -1527,7 +1580,7 @@ impl MarginDiag {
                 .map(Zero::Deferred),
             _ => None,
         };
-        Self(self.0, zero)
+        self.with_zero(zero)
     }
 
     /// The sign the classifier decided, where this reading is a gate's
@@ -1542,7 +1595,7 @@ impl MarginDiag {
     /// The gate's tag, where a gate rejected this reading.
     const fn tag(self) -> Option<Rejection> {
         match self.0 {
-            Reading::Value(_, tag) | Reading::Enclosure { tag, .. } => tag,
+            Reading::Value(_, tag, _) | Reading::Enclosure { tag, .. } => tag,
             Reading::Invalid => None,
         }
     }
@@ -1556,7 +1609,7 @@ impl MarginDiag {
             return None;
         }
         match self.0 {
-            Reading::Value(m, _) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
+            Reading::Value(m, ..) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
             Reading::Enclosure { lo, hi, .. } => passes.below(lo, hi, band),
             Reading::Invalid => None,
         }
@@ -1580,9 +1633,9 @@ impl MarginDiag {
     fn placement(self, band: Band) -> Placement {
         let (zero, escalate) = (band.zero, band.escalate);
         match self.0 {
-            Reading::Value(m, _) if m.abs() <= zero => Placement::ZeroBand,
+            Reading::Value(m, ..) if m.abs() <= zero => Placement::ZeroBand,
             Reading::Enclosure { lo, hi, .. } if -zero <= lo && hi <= zero => Placement::ZeroBand,
-            Reading::Value(m, _) if m.abs() >= escalate => Placement::Past,
+            Reading::Value(m, ..) if m.abs() >= escalate => Placement::Past,
             Reading::Enclosure { lo, hi, .. } if lo >= escalate || hi <= -escalate => {
                 Placement::Past
             }
@@ -1598,7 +1651,7 @@ impl MarginDiag {
     #[must_use]
     pub fn diagnostic_f64_for_error_text(self) -> ErrorTextReading {
         match self.0 {
-            Reading::Value(m, _) => ErrorTextReading::Value(m),
+            Reading::Value(m, ..) => ErrorTextReading::Value(m),
             Reading::Enclosure { lo, hi, .. } => ErrorTextReading::Enclosure { lo, hi },
             Reading::Invalid => ErrorTextReading::Invalid,
         }
@@ -1713,7 +1766,7 @@ impl MarginDiag {
     /// a poisoned one: a straddling enclosure is nearest at zero.
     fn magnitudes(self) -> Option<(f64, f64)> {
         match self.0 {
-            Reading::Value(m, _) => Some((m.abs(), m.abs())),
+            Reading::Value(m, ..) => Some((m.abs(), m.abs())),
             Reading::Enclosure { lo, hi, .. } => {
                 let far = lo.abs().max(hi.abs());
                 Some(if lo <= 0.0 && hi >= 0.0 {
@@ -1734,7 +1787,7 @@ impl MarginDiag {
         num: fn(&f64, &mut fmt::Formatter<'_>) -> fmt::Result,
     ) -> fmt::Result {
         match self.0 {
-            Reading::Value(m, _) => num(&m, f),
+            Reading::Value(m, ..) => num(&m, f),
             Reading::Enclosure { lo, hi, .. } => {
                 f.write_str("[")?;
                 num(&lo, f)?;
