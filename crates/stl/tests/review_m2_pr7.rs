@@ -520,7 +520,7 @@ fn consumer_e2e_vase_and_bracket() {
     let delta = 1e-2;
     // Vase: revolved profile with an arc belly (cylinder foot, sphere
     // belly, cylinder neck... kept in the M2 inventory: lines + arc).
-    let mut vase_profile = bulge_loop(vec![
+    let vase_profile = bulge_loop(vec![
         (geom_core::Point2::new(0.0, 0.0), 0.0),
         (geom_core::Point2::new(0.8, 0.0), 0.0),
         // quarter-arc belly
@@ -533,8 +533,7 @@ fn consumer_e2e_vase_and_bracket() {
         (geom_core::Point2::new(0.0, 1.4), 0.0),
     ]);
     // The sphere belly blends tangentially into the neck cylinder at
-    // (1.2, 0.8) -- intended smooth blend, declared (#101).
-    vase_profile = vase_profile.with_tangent_joints(vec![3]);
+    // (1.2, 0.8) -- intended smooth blend.
     let vase = revolve(
         &common::validated(vec![vase_profile]),
         common::axis_y(),

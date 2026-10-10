@@ -454,8 +454,8 @@ fn a_dome_short_of_tangent_shells_at_its_upper_root() {
     let tol = Tol::witness();
     let (r, h, t): (f64, f64, f64) = (0.5, 0.6, 0.05);
     let eps = tol.eps();
-    for (gap, declared) in [(1e-3 * eps, true), (0.5 * eps, true), (20.0 * eps, false)] {
-        let (body, rho, centre) = nearly_domed_vessel(r, h, gap, declared);
+    for gap in [1e-3 * eps, 0.5 * eps, 20.0 * eps] {
+        let (body, rho, centre) = nearly_domed_vessel(r, h, gap);
         let (a, inner) = (r - t, rho - t);
         let corner = centre + (inner * inner - a * a).sqrt();
         let outer = PI * r * r * h + cap_volume(rho, rho - (h - centre));

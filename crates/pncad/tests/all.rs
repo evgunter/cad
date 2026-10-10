@@ -1063,7 +1063,7 @@ fn the_polygon_door_authors_through_the_lattice() {
 
 /// **The identity claim**: the door changes how a polygon is SAID, not
 /// what it is. The emitted loop is the raw vertex table — every
-/// authored point in order, every bulge zero, no declared joints.
+/// authored point in order, every bulge zero, no constructed joints.
 ///
 /// The claim is pinned against the table rather than against a call to
 /// the raw minting door, because that door is unreachable from here by
@@ -1086,13 +1086,13 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
         assert_eq!(format!("{:?}", loop_.segments()[i]), "Line", "segment {i}");
     }
     assert!(
-        loop_.tangent_joints().is_empty(),
-        "a polygon declares no tangent joint"
+        loop_.constructed_joints().is_empty(),
+        "a polygon constructs no tangent joint"
     );
 
     // And the same loop the hand-spelled chain emits: the door IS that
     // chain, not a second lowering of the same table.
-    let chain: ProfileLoop<f64> = Open
+    let chain: ConstructedLoop<f64> = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0), tol)
         .and_then(|t| t.line_to(p2(2.0, 3.0), tol))
@@ -1100,7 +1100,7 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
         .and_then(|t| t.line_to(p2(0.0, 3.0), tol))
         .and_then(|t| t.line_to(Start, tol))
         .expect("the hand-spelled chain authors")
-        .into();
+        .loop_;
     let hand = chain.vertices();
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
@@ -1111,7 +1111,7 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
             "segment {i}"
         );
     }
-    assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
+    assert_eq!(chain.constructed_joints(), loop_.constructed_joints());
 }
 
 /// The validation ladder as the corpus actually walks it.

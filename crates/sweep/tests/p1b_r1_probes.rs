@@ -123,7 +123,7 @@ fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 }
 
 /// A rounded square: four lines and four quarter-circle corner arcs,
-/// tangent-declared at every arc joint.
+/// tangent at every arc joint.
 fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan(); // quarter-turn bulge
     let v = |x, y, bulge| (Point2::new(x, y), bulge);
@@ -137,7 +137,6 @@ fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
         v(-half, half - r, 0.0),
         v(-half, -half + r, b),
     ])
-    .with_tangent_joints(vec![1, 2, 3, 4, 5, 6, 7, 0])
 }
 
 fn revolved(points: &[(f64, f64, f64)], rev: Revolution<f64>) -> Body<f64> {

@@ -2,11 +2,10 @@
 id: tangent-joints-are-derived
 kind: issue
 title: D10 stage 4 PR G: ProfileLoop.tangent_joints is no longer stored; the set is derived at lowering, a value-decided junction is recorded, UndeclaredTangency retires
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [coincidences-are-recorded-at-one-door]
 ---
 
 INTENT stage 4, PR G. Spec: `docs/INTENT-STAGE4-SPEC.md` §8.

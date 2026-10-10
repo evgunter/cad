@@ -217,16 +217,13 @@ fn revolve_refuses_an_in_band_second_order_at_the_door() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![
-            bulge_loop(vec![
-                (Point2::new(r, 0.0), 0.0),
-                (Point2::new(1.5, 0.0), 0.0),
-                (Point2::new(1.5, 2.0), 0.0),
-                (Point2::new(1.0 + r, 2.0), b),
-                (Point2::new(r, 1.0), 0.0),
-            ])
-            .with_tangent_joints(vec![3, 4]),
-        ],
+        vec![bulge_loop(vec![
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(1.5, 0.0), 0.0),
+            (Point2::new(1.5, 2.0), 0.0),
+            (Point2::new(1.0 + r, 2.0), b),
+            (Point2::new(r, 1.0), 0.0),
+        ])],
     )
     .validate(tol)
     .unwrap();
