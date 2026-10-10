@@ -618,9 +618,10 @@ class TestTheRefusals(unittest.TestCase):
 
     def test_deleting_a_referenced_node_strands_the_measure(self):
         """A measure CONSUMES the values it names, so its references
-        are recipe edges — and, like every read, deleting what they
-        name is accepted and reported on the measure, which refuses at
-        evaluation until rebound."""
+        are selections that read their body — and, like every read,
+        deleting that body is accepted and reported on the measure
+        twice: its selections read an output the delete took, and name
+        entities it minted. It refuses at evaluation until re-pointed."""
         doc = Doc()
         node = slab(doc, 0.0)
         ev = evaluate(doc)
@@ -634,7 +635,7 @@ class TestTheRefusals(unittest.TestCase):
                 for m in doc.last_maintenance
                 if m.variant != "anonymous_var_removed"
             },
-            {("strand", measure)},
+            {("stranded_read", measure), ("stranded_selection", measure)},
         )
         with self.assertRaises(EvaluationError):
             evaluate(doc).value(measure)
