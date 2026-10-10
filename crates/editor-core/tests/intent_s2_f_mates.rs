@@ -579,12 +579,13 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     );
 }
 
-/// **A face-based side whose name stops resolving refuses in the
-/// selection's words** (review R2, m1), as an authored-frame side does:
-/// the solve's `FaceUnresolved` is the same fact, and the selection
-/// says it at the side's slot.
+/// **A face-based side whose name stops resolving refuses as the
+/// solve's `FaceUnresolved`, naming the side** (review R2, m1, kept). The
+/// fault fails the mate's members with it, so no member evaluates for
+/// the side's selection to resolve in: the solve's sentence, which names
+/// the side and the name the part does not answer, is the one said.
 #[test]
-fn a_face_based_side_that_vanishes_refuses_in_the_selections_words() {
+fn a_face_based_side_that_vanishes_refuses_as_the_solve_naming_the_side() {
     let (doc, [a, b], store, body) = pair("f-face-vanish");
     let doc = fixture::place_all(doc, &[a, b]);
     let opts = with_resolver(store);
@@ -618,10 +619,11 @@ fn a_face_based_side_that_vanishes_refuses_in_the_selections_words() {
     assert!(
         matches!(
             ev.node_error(mate).map(|e| &e.kind),
-            Some(editor_core::NodeErrorKind::SelectResolve {
-                slot: OperandSlot::Side(editor_core::MateSide::B),
-                ..
-            })
+            Some(editor_core::NodeErrorKind::Mate(fault))
+                if matches!(**fault, editor_core::MateFault::FaceUnresolved {
+                    side: editor_core::MateSide::B,
+                    ..
+                })
         ),
         "{:?}",
         ev.node_error(mate).map(|e| &e.kind)

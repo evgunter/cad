@@ -4212,17 +4212,10 @@ where
     // mate, and the instances' is the same fault seen from the group,
     // so poisoning the mate through them would lose the one sentence
     // that names it.
-    // A face the solve could not find is the side's selection's to
-    // refuse, where the selection resolves nothing (D10); every other
-    // solve fault names more than the selection could.
-    if let crate::node::Node::Mate { a, b, .. } = node
+    if matches!(node, crate::node::Node::Mate { .. })
         && let Some(fault) = op_env.poses.fault(id)
     {
-        let kind = matches!(fault, crate::mate::MateFault::FaceUnresolved { .. })
-            .then(|| wire::side_refusal(doc, results, (*a, *b)))
-            .flatten()
-            .unwrap_or_else(|| NodeErrorKind::Mate(Box::new(fault.clone())));
-        return fail(bracket, kind);
+        return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
     }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
     for input in doc.upstream_of(node) {

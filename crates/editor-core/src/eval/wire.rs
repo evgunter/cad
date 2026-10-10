@@ -2232,29 +2232,6 @@ fn select<T: Decide>(
     Ok(Selected { at, ents })
 }
 
-/// **A mate side's own refusal**, where the solve faulted the mate: a
-/// side whose selection resolves nothing in a body that evaluated is
-/// the selection's to refuse (D10), not the solve's sentence about the
-/// face it could not find. `None` where both sides select, or a side's
-/// body did not evaluate (its fault is then the group's, and the
-/// solve's sentence names the mate).
-pub(super) fn side_refusal<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    (a, b): (crate::VarId, crate::VarId),
-) -> Option<NodeErrorKind> {
-    [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)]
-        .into_iter()
-        .find_map(
-            |(side, var)| match select(doc, results, crate::OperandSlot::Side(side), var) {
-                Err(
-                    kind @ (NodeErrorKind::SelectResolve { .. } | NodeErrorKind::SelectKind { .. }),
-                ) => Some(kind),
-                Ok(_) | Err(_) => None,
-            },
-        )
-}
-
 /// One resolved measure reference, as a SELECTION rather than as a
 /// carrier: the body the name landed in, where it was read, and which
 /// entity it is.
