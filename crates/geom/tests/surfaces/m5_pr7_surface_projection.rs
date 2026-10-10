@@ -2,14 +2,13 @@
 //! §6.1's surface half) — the certified foot points C2.1 requires for
 //! the limb-1 residual of a rung-3 cache whose operand is a NURBS
 //! surface (no implicit form, so "distance to the surface" has to be
-//! *exhibited*, with the orthogonality residuals that stop a bad
-//! projection laundering a bad cache).
+//! *exhibited*, as the distance from a point of the surface).
 //!
 //! Rows: convergence + residual honesty on an interior foot; a planted
-//! **wrong-sheet** seed whose orthogonality residuals are tiny and
+//! **wrong-sheet** seed that converges to a genuine stationary point
 //! whose distance is large (the laundering attempt that must be
-//! visible); a **domain-edge** foot whose distance is small and whose
-//! orthogonality residual is honestly large; poison totality.
+//! visible); a **domain-edge** foot clamped to the edge with its honest
+//! distance; poison totality.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -84,9 +83,11 @@ fn interior_foot_converges_with_honest_residuals() {
     // The nearest point is the crown itself.
     assert!((pr.u - 0.5).abs() < 1e-6, "u = {}", pr.u);
     assert!((pr.v - 0.5).abs() < 1e-6, "v = {}", pr.v);
-    // Both orthogonality residuals converged to (near) zero …
-    assert!(pr.orthogonality_u < 1e-9, "{pr:?}");
-    assert!(pr.orthogonality_v < 1e-9, "{pr:?}");
+    // Both orthogonality conditions converged to (near) zero …
+    let j = s.ders(pr.u, pr.v);
+    let r = j.point - p;
+    assert!(j.du.dot(r).abs() < 1e-9, "{pr:?}");
+    assert!(j.dv.dot(r).abs() < 1e-9, "{pr:?}");
     // … and the distance is the honest one, not zero.
     let expect = (p - pr.foot).norm();
     assert!((pr.distance - expect).abs() < 1e-12, "{pr:?}");
@@ -95,10 +96,10 @@ fn interior_foot_converges_with_honest_residuals() {
 
 #[test]
 fn projection_residual_matches_a_recomputation_from_the_reported_foot() {
-    // The foot, the distance, and the orthogonality residuals must be
-    // mutually consistent — a consumer bands the carried numbers, so a
-    // struct whose fields disagreed with its own `(u, v)` would be a
-    // laundering channel all by itself.
+    // The foot and the distance must agree with the reported `(u, v)`:
+    // a consumer bands the carried distance, so a struct whose fields
+    // disagreed with its own `(u, v)` would be a laundering channel all
+    // by itself.
     let s = bump_patch();
     for &(px, py, pz) in &[(0.2, 0.7, 1.0), (0.9, 0.1, -0.5), (0.45, 0.55, 0.2)] {
         let p = Point3::new(px, py, pz);
@@ -107,14 +108,6 @@ fn projection_residual_matches_a_recomputation_from_the_reported_foot() {
         let r = j.point - p;
         assert!((pr.foot - j.point).norm() < 1e-15, "{pr:?}");
         assert!((pr.distance - r.norm()).abs() < 1e-15, "{pr:?}");
-        assert!(
-            (pr.orthogonality_u - j.du.dot(r).abs()).abs() < 1e-15,
-            "{pr:?}"
-        );
-        assert!(
-            (pr.orthogonality_v - j.dv.dot(r).abs()).abs() < 1e-15,
-            "{pr:?}"
-        );
     }
 }
 
@@ -133,33 +126,28 @@ fn a_wrong_sheet_seed_is_visible_in_the_distance_not_the_orthogonality() {
         "the planted seed did not stay on the far wall: {bad:?}"
     );
     // The far foot is a genuine stationary point: both orthogonality
-    // residuals vanish, so orthogonality ALONE would accept it as a
-    // certified foot — and a cache lying 0.4 m off the surface would
+    // conditions hold there, so orthogonality ALONE would accept it as
+    // a certified foot — and a cache lying 0.4 m off the surface would
     // then certify. Only the distance exposes it.
+    let j = s.ders(bad.u, bad.v);
+    let r = j.point - p;
     assert!(
-        bad.orthogonality_u < 1e-9 && bad.orthogonality_v < 1e-9,
+        j.du.dot(r).abs() < 1e-9 && j.dv.dot(r).abs() < 1e-9,
         "expected a converged far stationary point, got {bad:?}"
     );
     assert!(bad.distance > good.distance + 0.39, "{bad:?} vs {good:?}");
 }
 
 #[test]
-fn a_domain_edge_foot_reports_an_honestly_large_orthogonality_residual() {
+fn a_domain_edge_foot_clamps_to_the_edge_with_its_honest_distance() {
     let s = bump_patch();
     // Far off the u = 0 edge: the true nearest point is on the
     // boundary, where the gradient does not vanish.
     let p = Point3::new(-4.0, 0.5, 0.0);
     let pr = s.project(p).unwrap();
     assert!(pr.u <= PROJECT_EPS_POINT, "clamped to u = 0: {pr:?}");
-    // Distance is the honest boundary distance …
+    // Distance is the honest boundary distance.
     assert!(pr.distance > 3.9, "{pr:?}");
-    // … and the u-orthogonality residual is large, which is exactly
-    // what tells a consumer "this is a clamped edge foot, not an
-    // interior stationary point".
-    assert!(
-        pr.orthogonality_u > 1.0,
-        "an edge foot must report its residual honestly, got {pr:?}"
-    );
 }
 
 #[test]

@@ -54,12 +54,13 @@
 //! tiny orthogonality residual and a large distance; and at a
 //! degenerate parameterization point (a vanishing partial — a cusp, a
 //! collapsed row of control points) the cosine condition is met with a
-//! trivially-zero orthogonality residual. **Every residual rides the
-//! result**, so a consumer must band them *together*: wrong
-//! branch/sheet ⇒ the distance fails the band; a boundary clamp ⇒ an
-//! orthogonality residual fails it. Neither half decides anything;
-//! both report. Each half's docs name its own residual set and its
-//! planted-fixture rows.
+//! trivially-zero orthogonality residual. **The distance rides the
+//! result**, and it is the residual a consumer bands: a foot is a point
+//! of the curve or surface at every exit, boundary clamps included, so
+//! its distance bounds the query point's true distance above. A wrong
+//! branch or sheet fails the band; nothing reads smaller than the
+//! truth. Neither half decides anything; both report. Each half's docs
+//! name its own residual set and its planted-fixture rows.
 //!
 //! # Non-convergence
 //!
