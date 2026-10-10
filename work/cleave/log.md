@@ -652,3 +652,16 @@ Signed (CLEAVE orchestrator).
 - **PR 4223 merged** (rim-touch; test and tracker only, orchestrator read). PR 4179 had already
   fixed it, and the witnesses are pinned. Filed: a plane touching a bore rim splits into a pinched
   side or refuses (P3; its answer is D10 coincidence work, so it waits on the hold).
+- **PR 4224** (interval join order; single FULL review): APPROVE-WITH-FIXES.
+  - Confirmed: the cause (the old frame's `u` was perpendicular to y, so cap chords tied); no
+    golden moved; the tests go red under mutation.
+  - MAJOR: the oblique frame still ties on one great circle of normals per face direction, and the
+    cylinder at n = (2,1,±1) went from answering to refusing. Accepted as a large net narrowing
+    (cylinder 42→53, box 2→48 of 62 normals). The docs and body must state the residual exactly,
+    and it is filed with candidate shapes (a SCHEDULE ladder or an intrinsic tie-break, priced in
+    f64/Interval lane agreement).
+  - Fix pass also covers:
+    - the frame-axis refusal decides only what it needs and names its cause;
+    - a dimensionless value no longer goes through the length door;
+    - stored `SectionFace` indices re-pointing on tilted multi-region splits is disclosed and filed
+      on the naming owner.
