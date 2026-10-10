@@ -1492,6 +1492,33 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
     );
     assert!(certified.label().contains('4'), "{}", certified.label());
 
+    // An overlap no assertion quiets is the reader's to answer; one
+    // every assertion quiets is reported and asks nothing.
+    for (loud, quiet, tone) in [
+        (1, 2, frame::Tone::Actionable),
+        (0, 2, frame::Tone::Advisory),
+    ] {
+        let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified {
+            minted: 0,
+            loud,
+            quiet,
+        }))
+        .expect("a certified assembly badges");
+        assert_eq!(
+            badge.tone(),
+            tone,
+            "{loud} loud, {quiet} quiet: {}",
+            badge.label()
+        );
+        assert!(
+            badge
+                .label()
+                .contains(&format!("interference: {loud} loud, {quiet} quiet")),
+            "{}",
+            badge.label()
+        );
+    }
+
     let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {
         message: "the gate declined to certify".to_owned(),
     }))
