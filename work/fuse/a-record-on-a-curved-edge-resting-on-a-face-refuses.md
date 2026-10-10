@@ -31,3 +31,13 @@ No `ci` row reaches it.
 An edge-on-face point record kind (or a census lane that certifies an
 edge-face touch at a point from the body alone), so the pair carries
 instead of refusing.
+
+## Closes with CONTACTHOLD's at-rest record (2026-10-10)
+
+`at-rest-records-are-unordered-cell-pairs` (PR 2 of its stack) records
+every non-incident pair the carry lands on, an edge and a face included,
+and retires `BooleanError::CurvedRestUnrecorded`. The census confirms a
+curved edge's record at its conventional vertex and refuses the rest
+typed. That remainder is filed as
+`work/restread/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`.
+This row closes when that PR merges.
