@@ -625,7 +625,7 @@ weights enforced at construction (the convex-hull property every hull
 bound stands on); evaluation and derivatives generic over `Real` by de
 Boor in fixed order. Algorithms: knot insertion, refinement, removal and
 degree elevation on curves and surfaces (`split_at` is insertion to full
-multiplicity), point projection with certified orthogonality residuals,
+multiplicity), point projection with certified residuals,
 and the fitting stack (interpolation, column-wise collocation for
 skinning, the bounded approximation loop). Lofts and sweeps
 (`crates/sweep`) are *definitional* surfaces: the produced NURBS is the

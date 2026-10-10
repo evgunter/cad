@@ -324,10 +324,10 @@
 //!   [`ShellError::OpenFaceRimNotExpressible`].
 //! - **A window that does not wrap** is a ring, exactly as on a plane.
 //!   What its readers cannot yet read is theirs and refuses where they
-//!   read it: a ringed sphere or cone face at tier 3's check 7
+//!   read it: a ringed sphere face at tier 3's check 7
 //!   ([`ValidationError::VolumeUncomputable`]), through
-//!   [`ShellError::NotValid`] as the boolean's does, and a ringed
-//!   cylinder wall — which props reads — at the mesh.
+//!   [`ShellError::NotValid`] as the boolean's does, and a ringed cone
+//!   or cylinder wall — which props reads — at the mesh.
 //!
 //! Every nesting question the rim stage asks is read in the chart
 //! ([`encloses`]); check 9's contact arm reads only planes, so a curved

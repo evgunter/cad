@@ -2664,8 +2664,8 @@ mod tests {
         let mut spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(Point3::new(0.0, 0.0, 0.0));
         let over = spec.param_end + 0.5 * eps;
         spec.param_end = over;
-        if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            ref mut angle,
+        if let geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve {
+            source: geom_brep::MappedSource::RevolvedPoint { ref mut angle, .. },
             ..
         }) = spec.description
         {

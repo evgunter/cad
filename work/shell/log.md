@@ -1348,3 +1348,21 @@ Ev said go.
   - Bilateral: the ε-end rule's doc scope, the seed taken from the domain end, the triplicated agreement predicate, and weak rows.
   - Rule 3: each lane saw the other's process listing, but no findings, so the pair is fair. The next brief says to poll by own PID only.
   - Ruling: fix the MAJOR, R2's MINOR and the ε-boundary row, plus the doc and style items, in one pass.
+- **Wall-seam fork to Ev** (2026-10-10, fork-log row 106): `a-wall-seam-between-two-fits-has-no-section`.
+  - The designer pair agrees on the final state, recorded in the item's `## Designed`:
+    - the crease seam is a fit × fit section;
+    - `shell` moves every chart through one general simultaneous door;
+    - the iso-row arm narrows;
+    - curved clearance is promoted to a gate;
+    - D2 does not change now.
+  - They split on one question, now an `[ev]` PR: whether the NURBS × NURBS arm is a seeded operation, with C5 rows stating seeded or complete, or one complete arm. It took three rounds: round 1 crossed over, round 2 returned both to their first positions, and round 3 held.
+  - Unit cut, pending the ruling:
+    - (a) narrow the iso-row arm (M; independent of the ruling);
+    - (b) the general simultaneous door (H; can precede the arm against plane + fit pairs);
+    - (c) the NURBS × NURBS arm, whose scope is set by the ruling;
+    - (d) curved clearance as a gate;
+    - (e) the saddle fit's reach at the default ε (measure first; no item yet).
+- **Wall-seam fork ruled** (PR 4515, 2026-10-10). Ev chose B: one complete NURBS × NURBS arm, built as a `Section` handle with `branch_at(seed)` and `all()`. `shell` asks only `branch_at`; the boolean asks `all()`.
+  - Before the ruling, Ev asked whether B could avoid computing work it throws away. Both designers answered yes. A's lazy variant always ran the proof.
+  - The ruling is recorded in the item's `## Decided`, and `needs_ev` is cleared.
+  - Unit (c), the arm, is scoped by it. Units (a), the iso-row narrowing, and (b), the general door, are unaffected.

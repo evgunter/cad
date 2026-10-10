@@ -995,7 +995,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// carrier the line from `p0` to `p1` (arc-length parameters
     /// `0 … |p1 − p0|`), description the honest pushforward — `p0`'s
     /// trajectory under the translation by `p1 − p0`
-    /// ([`crate::MappedCurve::ExtrudedPoint`] with the sketch origin
+    /// ([`crate::MappedSource::ExtrudedPoint`] with the sketch origin
     /// placed at `p0`) — through the scaffolding door (D3).
     ///
     /// By calling this the caller asserts the edge's locus **is** the
@@ -1012,12 +1012,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2};
         let len = p0.distance(p1);
         Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(p0 - Point3::origin()),
-                vec: p1 - p0,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::ExtrudedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(p0 - Point3::origin()),
+                    vec: p1 - p0,
+                },
+            )),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: (p1 - p0) / len,
@@ -1032,7 +1033,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// verbatim, and the description is the honest pushforward —
     /// the start point's trajectory under the rotation about the
     /// carrier's own axis by the swept angle
-    /// ([`crate::MappedCurve::RevolvedPoint`], the same
+    /// ([`crate::MappedSource::RevolvedPoint`], the same
     /// geometry-derived posture as [`Self::line_between`]'s
     /// `ExtrudedPoint`). This is the conventional description for a
     /// circular locus the adjacent surfaces UNDER-determine (D2's
@@ -1051,14 +1052,15 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let start = carrier.eval(t0);
         Some(Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(start - Point3::origin()),
-                axis_origin: center,
-                axis_dir: axis,
-                angle: t1 - t0,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(start - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: axis,
+                    angle: t1 - t0,
+                },
+            )),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -1068,7 +1070,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// The straight SCAFFOLDING spec along an existing LINE carrier
     /// between the given parameters: carrier and interval kept verbatim,
     /// description the start point's trajectory under the translation to
-    /// the end ([`crate::MappedCurve::ExtrudedPoint`], as
+    /// the end ([`crate::MappedSource::ExtrudedPoint`], as
     /// [`Self::line_between`] states it). `None` for a non-line carrier.
     pub fn segment_of_line(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
     where
@@ -1080,12 +1082,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let start = carrier.eval(t0);
         Some(Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(start - Point3::origin()),
-                vec: carrier.eval(t1) - start,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::ExtrudedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(start - Point3::origin()),
+                    vec: carrier.eval(t1) - start,
+                },
+            )),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -1177,14 +1180,15 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
         Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(p - Point3::origin()),
-                axis_origin: center,
-                axis_dir: Vec3::unit_z(),
-                angle: T::tau(),
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(p - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: Vec3::unit_z(),
+                    angle: T::tau(),
+                },
+            )),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),
@@ -3244,7 +3248,7 @@ mod tests {
 
     use crate::recourse::Reading;
 
-    use crate::mapped::{MappedCurve, SketchSegment};
+    use crate::mapped::{MappedCurve, MappedSource, SketchSegment};
 
     use super::*;
 
@@ -3724,7 +3728,10 @@ mod tests {
         assert!(declared.authority().is_declared());
         assert!(matches!(
             declared.authority(),
-            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+            EdgeAuthority::Declared(MappedCurve {
+                source: MappedSource::ExtrudedPoint { .. },
+                ..
+            })
         ));
 
         let r = 2.0;
@@ -4608,14 +4615,15 @@ mod tests {
         let center = Point3::new(1.0, 2.0, 3.0);
         let p = Point3::new(2.0, 2.0, 3.0); // center + u_ref·r
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-                point: Point2::new(2.0, 2.0),
-                place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-                axis_origin: center,
-                axis_dir: Vec3::unit_z(),
-                angle: TAU,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::RevolvedPoint {
+                    point: Point2::new(2.0, 2.0),
+                    place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
+                    axis_origin: center,
+                    axis_dir: Vec3::unit_z(),
+                    angle: TAU,
+                },
+            )),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),
@@ -4636,18 +4644,20 @@ mod tests {
         use core::f64::consts::FRAC_PI_2;
         let place = Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc {
-                    a: Point2::new(1.0, 0.0),
-                    b: Point2::new(0.0, 1.0),
-                    arc: Arc2 {
-                        centre: Point2::new(0.0, 0.0),
-                        radius: 1.0,
-                        sweep: FRAC_PI_2,
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc {
+                        a: Point2::new(1.0, 0.0),
+                        b: Point2::new(0.0, 1.0),
+                        arc: Arc2 {
+                            centre: Point2::new(0.0, 0.0),
+                            radius: 1.0,
+                            sweep: FRAC_PI_2,
+                        },
                     },
+                    place,
                 },
-                place,
-            }),
+            )),
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 1.0),
                 axis: Vec3::unit_z(),
