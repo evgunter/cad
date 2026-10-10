@@ -110,7 +110,8 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// - `outside` holds nothing;
 /// - every mate's escalation log is the reference's escalations taken
 ///   in order (a subsequence), and the mates' logs together are the
-///   reference's, element for element;
+///   reference's, element for element, unless a mate was poisoned
+///   through a body it reads, which leaves it no log;
 /// - the same of the verdicts, over the mates that evaluate `Ok`, and
 ///   exactly the reference's only when every mate does. A failed node
 ///   carries no verdict log, so for a document with a failing mate the
@@ -139,6 +140,7 @@ pub fn solve_decisions_have_one_home(
     let mut escalations: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
     let mut verdicts: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
     let mut every_mate_ok = true;
+    let mut every_mate_ran = true;
     for id in doc.ids() {
         if !matches!(doc.node(id), Some(Node::Mate { .. })) {
             continue;
@@ -150,6 +152,13 @@ pub fn solve_decisions_have_one_home(
             }
             Some(editor_core::NodeResult::Failed(e)) => {
                 escalations.push((id, spell(&e.escalations)));
+                every_mate_ok = false;
+            }
+            // A mate poisoned through a body it reads never ran, so it
+            // has no log to hold the solve's decisions about it: the
+            // logs together are then a part of the solve's, not all.
+            Some(editor_core::NodeResult::Poisoned { .. }) => {
+                every_mate_ran = false;
                 every_mate_ok = false;
             }
             other => panic!("document {label}: mate {} has no log: {other:?}", id.0),
@@ -166,7 +175,7 @@ pub fn solve_decisions_have_one_home(
         "escalation",
         &reference_escalations,
         &escalations,
-        true,
+        every_mate_ran,
     );
     one_home(
         label,

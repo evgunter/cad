@@ -1274,7 +1274,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 continue;
             }
             mates += 1;
-            let twin = at_the_door(&doc, &reach, node.authored(&doc));
+            let twin = at_the_door(&doc, &reach, node.written(&doc));
             match poses.fault(id) {
                 None => {
                     assert!(

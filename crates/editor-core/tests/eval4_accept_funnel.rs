@@ -122,7 +122,11 @@ fn kept_instance_mated_to_a_local_block(
 ) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, cut, body) = local_block(doc, 3.0);
+    let (doc, mut cut, body) = local_block(doc, 3.0);
+    // The block is placed in the world, so the cut delivers it and the
+    // kept mate's side re-anchors through the instance left behind.
+    let (doc, placement) = crate::fixture::place(doc, body);
+    cut.insert(placement);
     let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         mate(in_part(kept, part_body, CapEnd::Start), local_cap(body)),

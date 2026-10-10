@@ -2806,6 +2806,48 @@ pub fn split(
             return Err(SplitError::PartIdCollides { id: part_id });
         }
     }
+    // A11's group precondition, checked FOR REAL now that mates can
+    // make a group multi-node (this module's docs have promised the
+    // re-check since ASM-4; review MAJOR-2 found it missing). Run
+    // before the severed-read check: a mate that welds its two members
+    // reads both, so a cut tearing the group also severs one of its
+    // reads, and the group the cut tears is the more informative
+    // refusal.
+    let groups = crate::mate::groups(doc);
+    for members in &groups {
+        let (root, _) = crate::mate::solve::root_and_cause(doc, members);
+        let root_is_cut = cut.contains(&root);
+        if let Some(&instance) = members.iter().find(|id| cut.contains(id) != root_is_cut) {
+            return Err(SplitError::TornGroup {
+                root: doc.spoken(root),
+                instance: doc.spoken(instance),
+                root_is_cut,
+            });
+        }
+    }
+    // A placing mate never crosses (A4): a kept mate that places two
+    // cut instances would read both through the one instance the split
+    // leaves behind. Before the closure rule, whose crossing reads
+    // would otherwise carry its sides across.
+    for mate in doc.ids() {
+        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+            continue;
+        };
+        if cut.contains(&mate) {
+            continue;
+        }
+        if let (Some(x), Some(y)) = (
+            crate::mate::member::member_of_side(doc, *a),
+            crate::mate::member::member_of_side(doc, *b),
+        ) && cut.contains(&x.instance)
+            && cut.contains(&y.instance)
+            && crate::mate::places(doc, x.instance, y.instance)
+        {
+            return Err(SplitError::PlacingMateLeft {
+                mate: doc.spoken(mate),
+            });
+        }
+    }
     // D-2's closure rule, narrowed by the world (module docs): no cut
     // node reads the remainder, and a remainder read of the cut crosses
     // only where it reads a body a cut placement places, which the part
@@ -2924,45 +2966,6 @@ pub fn split(
             return Err(SplitError::RemainderReadUncarried {
                 reader: doc.spoken(reader),
                 why,
-            });
-        }
-    }
-    // A11's group precondition, checked FOR REAL now that mates can
-    // make a group multi-node (this module's docs have promised the
-    // re-check since ASM-4; review MAJOR-2 found it missing). Run
-    // beside the severed-edge check, before anything moves.
-    let groups = crate::mate::groups(doc);
-    for members in &groups {
-        let (root, _) = crate::mate::solve::root_and_cause(doc, members);
-        let root_is_cut = cut.contains(&root);
-        if let Some(&instance) = members.iter().find(|id| cut.contains(id) != root_is_cut) {
-            return Err(SplitError::TornGroup {
-                root: doc.spoken(root),
-                instance: doc.spoken(instance),
-                root_is_cut,
-            });
-        }
-    }
-    // A placing mate never crosses (A4): a kept mate that places two
-    // cut instances would read both through the one instance the split
-    // leaves behind. Before the reading-edge rule, whose interface
-    // crossing would otherwise carry it across.
-    for mate in doc.ids() {
-        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
-            continue;
-        };
-        if cut.contains(&mate) {
-            continue;
-        }
-        if let (Some(x), Some(y)) = (
-            crate::mate::member::member_of_side(doc, *a),
-            crate::mate::member::member_of_side(doc, *b),
-        ) && cut.contains(&x.instance)
-            && cut.contains(&y.instance)
-            && crate::mate::places(doc, x.instance, y.instance)
-        {
-            return Err(SplitError::PlacingMateLeft {
-                mate: doc.spoken(mate),
             });
         }
     }
@@ -4525,7 +4528,7 @@ pub fn inline(
                 },
             });
         }
-        part_heir(placement)
+        let body = part_heir(placement)
             .and_then(|body| part.defined_by(body))
             .and_then(|(at, port)| host.output(*node_map.get(&at)?, port))
             .ok_or_else(|| InlineError::InstanceReadUncarried {
@@ -4533,7 +4536,25 @@ pub fn inline(
                 why: Uncarried::Bodies {
                     count: part_placements.len(),
                 },
+            })?;
+        // A `Part` pick moves nothing and carries its pattern's names
+        // verbatim, so a selection whose names are headed at the pattern
+        // is read in the pattern, where the names are its own rows.
+        let headed = |at: RecipeNodeId| {
+            doc.selection(var).is_some_and(|select| {
+                select
+                    .names
+                    .iter()
+                    .all(|name| rehost(name).is_ok_and(|local| local.node == at))
             })
+        };
+        Ok(match host.operation_of(body).and_then(|at| host.node(at)) {
+            Some(Node::Part {
+                of,
+                select: crate::node::PartSelect::Instance(_),
+            }) if host.operation_of(*of).is_some_and(headed) => *of,
+            _ => body,
+        })
     };
     {
         // Once per selection, as split authors them: a named one keeps

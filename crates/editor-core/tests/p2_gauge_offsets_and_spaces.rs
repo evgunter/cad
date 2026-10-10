@@ -1198,8 +1198,9 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         out.part
             .vars()
             .values()
-            .all(|var| var.def().output().is_some()),
-        "the part copies no variable, holding only its nodes' outputs: {:?}",
+            .all(|var| var.def().output().is_some() || var.def().select().is_some()),
+        "the part copies no variable, holding only its nodes' outputs and its mates' \
+         selections: {:?}",
         out.part.var_names().values().collect::<Vec<_>>()
     );
 }

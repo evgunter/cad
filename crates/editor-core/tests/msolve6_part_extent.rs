@@ -1036,6 +1036,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
                     row,
                     editor_core::Maintenance::Strand { .. }
                         | editor_core::Maintenance::StrandedRead { .. }
+                        | editor_core::Maintenance::StrandedSelection { .. }
                         | editor_core::Maintenance::StrandedAppearance { .. }
                 )),
             "a delete reports what it stranded and records no frame: {:?}",
@@ -1166,15 +1167,27 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         other => panic!("an instance, not {other:?}"),
     };
-    let (doc, mate) = mated(
-        doc,
-        &opts,
-        clocked(
-            (ids[0], body),
-            (ids[1], body),
-            coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
-        ),
+    // A revolved cylinder has no caps by those names, so each side reads
+    // the first face its instance's table carries: the sides now
+    // resolve at evaluation, and this row is about the reach.
+    let ev0 = run(&doc, &opts);
+    let first_face = |instance: RecipeNodeId| {
+        fixture::table(&ev0, instance)
+            .iter()
+            .map(|(name, _)| name.clone())
+            .find(|name| name.kind == editor_core::EntityKind::Face)
+            .expect("a cylinder has faces")
+    };
+    let mut node = clocked(
+        (ids[0], body),
+        (ids[1], body),
+        coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
     );
+    if let Node::Mate { a, b, .. } = &mut node {
+        *a = fixture::head(first_face(ids[0])).into();
+        *b = fixture::head(first_face(ids[1])).into();
+    }
+    let (doc, mate) = mated(doc, &opts, node);
     let r64 = mate_reach::<f64>(&opts, Tol::witness())
         .reach(&doc_ref)
         .expect("bounded at f64");

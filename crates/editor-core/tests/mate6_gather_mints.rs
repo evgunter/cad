@@ -822,7 +822,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             assert!(
                 matches!(refusals[0], MintRefusal::NoAtRestRecord { .. })
-                    && matches!(refusals[1], MintRefusal::Reference { .. }),
+                    && matches!(refusals[1], MintRefusal::Unevaluated { .. }),
                 "each still under its own arm: {refusals:?}"
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();

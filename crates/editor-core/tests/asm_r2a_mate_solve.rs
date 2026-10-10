@@ -550,8 +550,13 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
     // The root's world placement is the first, `assembly` placing the
     // instances in order.
     let placement = doc.placements()[0];
+    let rows = crate::fixture::without_anonymous(&applied.maintenance);
+    assert!(
+        matches!(rows.last(), Some(Maintenance::StrandedSelection { .. })),
+        "the mate's selection of the root's face strands: {rows:?}"
+    );
     assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance),
+        rows[..rows.len() - 1].to_vec(),
         vec![
             Maintenance::StrandedRead {
                 node: doc.spoken(placement),

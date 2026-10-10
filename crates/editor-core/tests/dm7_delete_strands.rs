@@ -588,15 +588,23 @@ fn a_mates_side_strands_as_a_read() {
     );
 
     let applied = delete(&doc, ia);
-    let _ = head_a;
+    let rows = crate::fixture::without_anonymous(&applied.maintenance);
     assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance),
-        vec![Maintenance::StrandedRead {
+        rows.first(),
+        Some(&Maintenance::StrandedRead {
             node: doc.spoken(mate),
             slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
             var: doc.spoken_var(doc.output(ia, 0).expect("the instance's body")),
-        }],
-        "the side's read is reported, once"
+        }),
+        "the side's read is reported"
+    );
+    assert!(
+        matches!(
+            &rows[1..],
+            [Maintenance::StrandedSelection { readers, name, .. }]
+                if readers == &vec![doc.spoken(mate)] && *name.name() == head_a
+        ),
+        "and its selection, once, naming the side's face: {rows:?}"
     );
 }
 
@@ -813,20 +821,18 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
     let doc = paint(&doc, &painted);
 
     let applied = delete(&doc, ia);
-    assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance),
-        vec![
-            Maintenance::StrandedRead {
-                node: doc.spoken(mate),
-                slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
-                var: doc.spoken_var(doc.output(ia, 0).expect("the instance's body")),
-            },
-            Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&painted),
-                took: editor_core::Took::Node
-            },
-        ],
-        "both strand kinds are read at the door, and the delete reports no placement row"
+    let rows = crate::fixture::without_anonymous(&applied.maintenance);
+    assert!(
+        matches!(
+            rows.as_slice(),
+            [
+                Maintenance::StrandedRead { node, .. },
+                Maintenance::StrandedSelection { .. },
+                Maintenance::StrandedAppearance { name, .. },
+            ] if *node == doc.spoken(mate) && *name == doc.spoken_name(&painted)
+        ),
+        "both strand kinds are read at the door, and the delete reports no placement row: \
+         {rows:?}"
     );
 }
 

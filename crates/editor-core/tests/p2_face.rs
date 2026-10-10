@@ -283,7 +283,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a), (b) and (c): the top is no root.
-    let Some(face_side) = doc.node(m).map(|n| n.authored(&doc)) else {
+    let Some(face_side) = doc.node(m).map(|n| n.written(&doc)) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -374,7 +374,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a): it reads a copy.
-    let Some(face_side) = doc.node(m).map(|n| n.authored(&doc)) else {
+    let Some(face_side) = doc.node(m).map(|n| n.written(&doc)) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {

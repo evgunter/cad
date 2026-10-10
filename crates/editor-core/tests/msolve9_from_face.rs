@@ -897,7 +897,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
     let logged = DocEdit::InsertNode {
-        node: Box::new(s.doc.node(s.mate).expect("the mate").authored(&s.doc)),
+        node: Box::new(s.doc.node(s.mate).expect("the mate").written(&s.doc)),
         fresh: Vec::new(),
     };
     let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
@@ -961,8 +961,8 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
     let replayed = *loaded.doc.ids().last().expect("the replayed mate");
     assert_eq!(
-        loaded.doc.node(replayed),
-        doc.node(s.mate),
+        loaded.doc.node(replayed).map(|n| n.written(&loaded.doc)),
+        doc.node(s.mate).map(|n| n.written(&doc)),
         "the mate as logged"
     );
     let ev = run(&loaded.doc, &s.opts);

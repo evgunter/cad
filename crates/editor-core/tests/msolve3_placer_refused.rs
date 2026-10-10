@@ -785,7 +785,7 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
     scene.doc = doc;
     let f = scene.fault();
     assert!(
-        matches!(&f, MateFault::SideUnresolved { mate, .. } if *mate == scene.mate),
+        matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),
         "{f:?}"
     );
 }

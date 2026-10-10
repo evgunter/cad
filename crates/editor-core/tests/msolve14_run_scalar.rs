@@ -1306,8 +1306,9 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 /// **Over a wide box the solve places the bolt, and the instance meets
 /// the placement door's refusal** — the residual every boxed placer
 /// meets today (a `Transform` node with a boxed translation refuses the
-/// same way): the mate evaluates, and the bolt's own refusal is the
-/// rigid transform's certification, not a mate fault.
+/// same way): the solve faults no mate, the bolt's own refusal is the
+/// rigid transform's certification, and the mate, which reads the
+/// bolt, is poisoned through it.
 #[test]
 fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
     let b = bolted("msolve14-a2-wide", slab_at(6.0, 4.0));
@@ -1317,9 +1318,12 @@ fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
         None,
     );
     assert!(
-        ev.node_error(b.mate).is_none(),
+        matches!(
+            ev.result(b.mate),
+            Some(NodeResult::Poisoned { through }) if *through == b.bolt
+        ),
         "{:?}",
-        ev.node_error(b.mate)
+        ev.result(b.mate)
     );
     let kind = &ev
         .node_error(b.bolt)
