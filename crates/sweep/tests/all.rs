@@ -320,10 +320,10 @@ mod closed_chain_junctions;
 mod conic_edge_curved_face;
 #[path = "contact11_torus_chart_l.rs"]
 mod contact11_torus_chart_l;
-#[path = "contacthold_tube_rim_probe.rs"]
-mod contacthold_tube_rim_probe;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contacthold_tube_rim_probe.rs"]
+mod contacthold_tube_rim_probe;
 #[path = "contained_flush_cylinder.rs"]
 mod contained_flush_cylinder;
 #[path = "contfp_reads_arcs_on_their_carriers.rs"]
