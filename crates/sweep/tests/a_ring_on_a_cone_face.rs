@@ -7,9 +7,8 @@
 //!
 //! The crossing sweep's crossings are held to the closed form here
 //! (`topo::sweep_split`, `sweep-testing` only), and each
-//! op's answer to the closed-form overlap. Where the ring stays on the
-//! cone face, the result door refuses its volume
-//! (`work/germ/boolean-sector-algebra-has-no-cone-arm.md`'s D7).
+//! op's answer to the closed-form overlap, the ring kept on the cone
+//! face in ∪ and cone ∖ box.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -20,7 +19,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError};
+use topo::{AtRestBody, BooleanDeclarations};
 
 use crate::common::solid_truth::{self, Op, Solid, Want};
 
@@ -206,9 +205,9 @@ fn poses() -> [(&'static str, Affine3<f64>); 3] {
 /// scale and a tenth of it (the ring by the apex), in both member orders:
 /// the box's split carries exactly the two closed-form crossings as new
 /// vertices; ∩ and box ∖ cone build, held to the overlap's closed form,
-/// tier 3 and `point_in_solid`; ∪ and cone ∖ box keep the ring on the
-/// cone face, whose volume the result door cannot yet read
-/// (`ResultInvalid`, `RingOnCurvedFace`), so their opening is a red row.
+/// tier 3 and `point_in_solid`; so do ∪ and cone ∖ box, which keep the
+/// ring on the cone face, its volume read off every loop's vector area
+/// (`geom_brep::props::cone_face_closed_form`).
 #[test]
 fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
     let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
@@ -238,26 +237,31 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 let points = truth_grid(s, pose);
                 // The cone face the box's tilted sections bound has no
                 // trim reading: as built, 16 grid points refuse
-                // `PartialConeFace` (measured at every ε row, scale and
-                // member order); in the other two poses, none does.
-                let partial = if pose_name == "as built" { 16 } else { 0 };
-                // ∪ keeps the ring on the cone face, and the result door
-                // has no volume for a ring there yet.
+                // `PartialConeFace` in ∩ and box ∖ cone, and in ∪ and
+                // cone ∖ box, which keep the ring, 20 at the lune's scale
+                // and 52 at a tenth of it, at every ε row and member
+                // order. Tilted, at a tenth of the scale, one point
+                // refuses in those two at the 1e-6 row; otherwise none
+                // does.
+                let as_built = pose_name == "as built";
+                let partial = if as_built { 16 } else { 0 };
+                let ring_partial = match (as_built, s == 0.1) {
+                    (false, false) => 0,
+                    (false, true) => 1,
+                    (true, false) => 20,
+                    (true, true) => 52,
+                };
+                let vc = core::f64::consts::PI * R * R * height() / 3.0;
+                // ∪ keeps the lune as a ring on the cone face.
                 let union = topo::union_with(a, b, &none, tol);
-                assert!(
-                    matches!(
-                        &union,
-                        Err(BooleanError::ResultInvalid { errors })
-                            if matches!(
-                                errors[..],
-                                [topo::ValidationError::VolumeUncomputable {
-                                    source: topo::MassPropsError::RingOnCurvedFace { .. },
-                                    ..
-                                }]
-                            )
-                    ),
-                    "{label}, {order}, ∪: {:?}",
-                    union.map(|r| r.body().map(|b| b.kind))
+                solid_truth::assert_is_but(
+                    &format!("{label}, {order}, ∪"),
+                    &union,
+                    Want::Body(vc + 216.0 - overlap(s), 1e-9 * 216.0),
+                    &|q| Op::Union.depth(&sc, &sx, q),
+                    &[],
+                    &points,
+                    ring_partial,
                 );
                 let inter = topo::intersect_with(a, b, &none, tol);
                 let vi = solid_truth::assert_is_but(
@@ -272,10 +276,14 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 let diff = topo::subtract_with(a, b, &none, tol);
                 if cone_first {
                     // The cone less the box keeps the ring too.
-                    assert!(
-                        matches!(&diff, Err(BooleanError::ResultInvalid { .. })),
-                        "{label}, {order}, cone ∖ box: {:?}",
-                        diff.map(|r| r.body().map(|b| b.kind))
+                    solid_truth::assert_is_but(
+                        &format!("{label}, {order}, cone ∖ box"),
+                        &diff,
+                        Want::Body(vc - vi, 1e-9 * vc),
+                        &|q| Op::Subtract.depth(&sc, &sx, q),
+                        &[],
+                        &points,
+                        ring_partial,
                     );
                 } else {
                     solid_truth::assert_is_but(
@@ -290,5 +298,149 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 }
             }
         }
+    }
+}
+
+/// **The overlap's quadrature agrees with a grid integral.** The
+/// midpoint rule over `{cone ∩ box}` at 100³ cells of the overlap's
+/// bounding box, read through the two closed-form memberships alone
+/// ([`cone_truth`], [`wedge_truth`]), lands within 4.1e-5 of
+/// [`overlap`] at the lune's scale (measured), held to 2e-4.
+#[test]
+fn the_overlap_is_its_grid_integral() {
+    let (sc, sx) = (
+        cone_truth(Affine3::identity()),
+        wedge_truth(0.6, Affine3::identity()),
+    );
+    let grid = solid_truth::grid_volume(
+        |q| Op::Intersect.depth(&sc, &sx, q),
+        Point3::new(0.25, 0.3, -0.5),
+        Point3::new(1.05, 1.35, 0.5),
+        100,
+    );
+    assert!(
+        (grid - overlap(0.6)).abs() <= 2e-4,
+        "the grid integral {grid} against the quadrature {}",
+        overlap(0.6)
+    );
+}
+
+/// **The ring's volume at the certified scalar.** T1 built at
+/// `Interval` (the cone revolved from the same triangle, the box turned
+/// and moved by the same maps, lifted): ∪ and cone ∖ box, which keep
+/// the lune as a ring on the cone face, pass tier 3 and their volume
+/// enclosures bracket the closed forms (about 1.3e-11 wide, measured).
+/// At the 1e-12 row the build stops before the volume, typed: the join
+/// certifies each section on its surfaces, and that residual's
+/// enclosure, ±1.3e-12 wide, escalates against the band's 1e-12.
+#[test]
+fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
+    use crate::common::interval::{iv, p2, p3, v2, v3};
+    use geom_core::{Bounds, Interval};
+    use profile::{Profile, SketchPlane};
+    let tol = Tol::witness();
+    let tri = ProfileLoop::polygon([p2(0.0, 0.0), p2(R, 0.0), p2(0.0, height())]);
+    let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![tri])
+        .validate(tol)
+        .unwrap();
+    let axis = sweep::RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    };
+    let raw = revolve(&profile, axis, Revolution::Full, tol).unwrap().body;
+    let spin = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), iv(FRAC_PI_2));
+    let c = finished(
+        "the cone",
+        topo::transform_rigid(&raw, &spin, tol).unwrap(),
+        tol,
+    );
+    let e = edge_point(0.6);
+    let turn = Affine3::rotation_about_axis(
+        p3(0.0, 0.0, 0.0),
+        v3(0.0, 0.0, 1.0),
+        iv(-50f64.to_radians()),
+    );
+    let to = Affine3::translation(v3(e.x, e.y, e.z));
+    let raw = brick::<Interval>((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol);
+    let x = finished(
+        "the box",
+        topo::transform_rigid(&raw, &(to * turn), tol).unwrap(),
+        tol,
+    );
+    let vc = core::f64::consts::PI * R * R * height() / 3.0;
+    let i = overlap(0.6);
+    for (op, r, want) in [
+        ("cone ∪ box", topo::union(&c, &x, tol), vc + 216.0 - i),
+        ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
+        ("cone ∖ box", topo::subtract(&c, &x, tol), vc - i),
+    ] {
+        if tol.eps() <= 1e-12 {
+            assert!(
+                matches!(
+                    &r,
+                    Err(topo::BooleanError::Join(topo::SplitJoinError::Euler(
+                        topo::EulerOpError::Certification {
+                            error: topo::CertifyError::Escalated { .. }
+                        }
+                    )))
+                ),
+                "{op}: at ε = {}, the join's certification escalates, got {:?}",
+                tol.eps(),
+                r.as_ref().map(|r| r.body().map(|b| b.kind))
+            );
+            continue;
+        }
+        let bb = match r.as_ref().map(topo::BooleanResult::body) {
+            Ok(Some(bb)) => bb,
+            _ => panic!("{op}: wanted a body, got {r:?}"),
+        };
+        topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
+        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        assert!(
+            v.lo() <= want && want <= v.hi() && v.hi() - v.lo() < 1e-10,
+            "{op}: [{}, {}] against {want}",
+            v.lo(),
+            v.hi()
+        );
+    }
+}
+
+/// **A ringed cone face's sense is checked against its boundary.** In
+/// ∪ and cone ∖ box, both member orders where the op has them, the cone
+/// face carrying the lune as a ring, its stored sense flipped, fails
+/// tier 3 as `CurvedSenseInverted` naming it (check 6): its outer
+/// loop's traversal encodes the face's side whatever holes it carries
+/// (`geom_brep::props::boundary_material_sign_loops`). The flip also
+/// reads as `LaminaWedge` at the face's edges.
+#[test]
+fn a_ringed_cone_faces_sense_flip_fails_tier_3() {
+    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let (c, x) = (cone(Affine3::identity()), wedge(0.6, Affine3::identity()));
+    for (op, r) in [
+        ("cone ∪ box", topo::union_with(&c, &x, &none, tol)),
+        ("box ∪ cone", topo::union_with(&x, &c, &none, tol)),
+        ("cone ∖ box", topo::subtract_with(&c, &x, &none, tol)),
+    ] {
+        let mut body = r.unwrap().body().unwrap().body.clone().into_body();
+        let ringed: Vec<_> = body
+            .faces()
+            .filter(|(_, f)| !f.rings.is_empty())
+            .map(|(k, f)| (k, f.sense))
+            .collect();
+        let [(face, sense)] = ringed[..] else {
+            panic!("{op}: one ringed face, got {ringed:?}");
+        };
+        body.set_face_sense(face, !sense).unwrap();
+        let got = topo::validate_geometric(&body, tol);
+        assert!(
+            matches!(
+                &got,
+                Err(errors) if errors.iter().any(|e| matches!(
+                    e,
+                    topo::ValidationError::CurvedSenseInverted { face: f } if *f == face
+                ))
+            ),
+            "{op}: {got:?}"
+        );
     }
 }
