@@ -320,13 +320,21 @@ fn vf_reading(
     body: &topo::Body<f64>,
     record: topo::VfContact,
 ) -> Result<(), Vec<topo::ValidationError>> {
-    let contacts = topo::test_support::records(
-        body,
-        [(
-            topo::Cell::Vertex(record.vertex),
-            topo::Cell::Face(record.face),
-        )],
+    let pair = (
+        topo::Cell::Vertex(record.vertex),
+        topo::Cell::Face(record.face),
     );
+    // A vertex on the face's boundary is incident to it: no record can
+    // name the pair, which reads as the census's stale verdict on it.
+    if let Err(topo::ContactPairError::Incident(_)) = topo::Contact::new(body, pair.0, pair.1) {
+        return Err(vec![topo::ValidationError::StaleContactDeclaration {
+            declaration: topo::StaleDeclaration::VertexOnFace {
+                vertex: record.vertex,
+                face: record.face,
+            },
+        }]);
+    }
+    let contacts = topo::test_support::records(body, [pair]);
     let errors: Vec<_> = topo::validate_pseudomanifold(body, &contacts, Tol::witness())
         .err()
         .unwrap_or_default()
