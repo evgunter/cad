@@ -1104,12 +1104,17 @@ fn half_edge_description<T: Decide>(
 }
 
 /// Whether a carrier over `carrier` lies in the spline space of a chart
-/// row over `row`, run either way: the same knots, or their reflection.
+/// row over `row`, run either way: the same knots, or an exact
+/// reflection of them ([`KnotVector::is_reflection_of`]) — the relation
+/// the seam certificate reads back, so a candidate offered here is one
+/// it can certify.
+///
+/// [`KnotVector::is_reflection_of`]: geom_core::spline::KnotVector::is_reflection_of
 fn in_row_space(
     carrier: &geom_core::spline::KnotVector,
     row: &geom_core::spline::KnotVector,
 ) -> bool {
-    carrier.degree() == row.degree() && carrier.knots() == row.knots()
+    (carrier.degree() == row.degree() && carrier.knots() == row.knots())
         || row.is_reflection_of(carrier)
 }
 
@@ -1496,8 +1501,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             });
             // A cap–wall rim stated intrinsically traverses a boundary
             // ROW, `u` moving — offered only to a carrier in the row's
-            // own spline space (the row class compares control nets),
-            // run either way.
+            // own spline space, run either way (`in_row_space`: the
+            // row class compares control nets over it).
             let row_space = in_row_space(spline.knots(), wall.knots_u());
             let row_ys: &[T] = if row_space { &[cv0, cv1] } else { &[] };
             let rows = row_ys.iter().copied().flat_map(|y| {
@@ -7282,10 +7287,11 @@ mod row_space_tests {
         KnotVector::clamped(knots.to_vec(), 1).unwrap()
     }
 
-    /// The reversed row space is the row's EXACT reflection: on
+    /// The reversed row space is any EXACT reflection of the row: on
     /// `[0.1, 0.3]` the knots `0.25` and `0.15` sum to `0.1 + 0.3` in ℝ
     /// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`; on `[0, 1]`,
-    /// `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1.
+    /// `fl(1 − 0.1)` is `0.9` while `0.1 + 0.9` is not 1; and the
+    /// reflection through 0, `−k`, never rounds.
     #[test]
     fn a_carrier_is_in_the_reversed_row_space_on_its_exact_reflection() {
         let row = kv(&[0.1, 0.1, 0.25, 0.3, 0.3]);
@@ -7294,8 +7300,8 @@ mod row_space_tests {
             "an exact mirror the rounded reflection misses is in the row space"
         );
         assert!(
-            in_row_space(&row, &row),
-            "the row's own knots are in its space"
+            in_row_space(&row.negated(), &row),
+            "the row run back through 0, which rounds nowhere, is in its space"
         );
         assert!(
             !in_row_space(

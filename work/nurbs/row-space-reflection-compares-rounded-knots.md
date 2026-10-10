@@ -2,10 +2,13 @@
 id: row-space-reflection-compares-rounded-knots
 kind: issue
 title: pcurves' cap-wall row test compares a carrier's knots against a ROUNDED reflection of knots_u
-status: open
+status: closed
 opened: 2026-10-09
 priority: P2
 cost: E
+branch: nurbs/row-space-reflection-exact
+closed: 2026-10-10
+pr: 4479
 ---
 
 ## Finding
@@ -36,3 +39,19 @@ Use the exact reflection test for two vectors (`k_i + k'_{m−i} = lo + hi`
 over `two_sum`, with matching degree and length) as a `KnotVector`
 method next to `mirror_symmetric`, and call it here. The current
 `mirror_symmetric` is that method with `k' = k`.
+
+## Closed
+
+`KnotVector::is_reflection_of` (beside `mirror_symmetric`, which is
+now the same rule read with `other = self`) decides a reflection as
+exact `two_sum` pairs summing to `S`, this vector's first knot plus the
+other's last. The cap–wall row test (`in_row_space` in
+`crates/topo/src/pcurves.rs`) and the seam certificate's backward
+branch (`seam_envelope` in `crates/geom-brep/src/pcurve_cache.rs`)
+both call it, so a row candidate offered is one the certificate reads
+the same way. `geom_brep::reversed_column` reflects through 0
+(`KnotVector::negated`), the one reflection that never rounds; the
+filed sibling `work/pcert/seam-certificate-compares-a-rounded-reversed-column.md`
+closed with it. Pinned by
+`pcurves::row_space_tests::a_carrier_is_in_the_reversed_row_space_on_its_exact_reflection`
+and, end to end, `m8_4_intersection_iso::a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row`.

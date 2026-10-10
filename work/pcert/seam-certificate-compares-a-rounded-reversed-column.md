@@ -2,10 +2,13 @@
 id: seam-certificate-compares-a-rounded-reversed-column
 kind: issue
 title: the seam certificate's backward branch compares the carrier against reversed_column's ROUNDED knot reflection bitwise, so the hull it certifies is against a column an ulp off the chart's
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: E
+branch: nurbs/row-space-reflection-exact
+closed: 2026-10-10
+pr: 4479
 ---
 
 (NURBS lane, found by the rounded-reflection sweep of
@@ -54,3 +57,25 @@ its producers: refuse an inexact reflection (as
 `NurbsSurface::reversed_v` requires `mirror_symmetric`), or state that
 its output is a different curve.
 
+
+## Closed
+
+Landed with `work/nurbs/row-space-reflection-compares-rounded-knots.md`
+(PR 4479), not by refusing an inexact reflection: refusing would have
+stopped `loft_body` building a one-segment loop through four equally
+spaced sections at degree 1 (`1 − fl(1/3)` is not an `f64`), and
+through 6, 7 or 8 sections at several degrees, all of which build on
+main.
+
+- `reversed_column` reflects through 0 (`KnotVector::negated`, exact
+  for every vector): on `[−b, −a]` its point at `t` is the column's at
+  `−t`. Its doc says so, and why the reflection about `[a, b]` is not
+  offered.
+- `seam_envelope` no longer rebuilds a reversal: run back, it decides
+  the shared space with `KnotVector::is_reflection_of` and reads the
+  traversed row's net backwards, its parameter map is `S − t` with
+  `S` the reflection's sum, and its domain check reads `v` against the
+  row's domain and `t` against the carrier's.
+- `sweep::loft`'s one-segment strut is stated on `t ∈ [−1, 0]`,
+  `v = −t`; `topo::offset_derive`'s reversed section can no longer
+  refuse.

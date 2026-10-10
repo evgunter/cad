@@ -656,12 +656,7 @@ fn plane_wall_section(
     Ok(
         match decide("offset_section_sense", Margin::of(cosine), band)? {
             Sign::Positive => Ok(carrier),
-            Sign::Negative => match geom_brep::reversed_column(&carrier) {
-                Ok(c) => Ok(c),
-                Err(_) => Err(SectionVerdict::Unsupported {
-                    what: "the section's knot vector does not mirror",
-                }),
-            },
+            Sign::Negative => Ok(geom_brep::reversed_column(&carrier)),
             Sign::Zero => Err(SectionVerdict::Unsupported {
                 what: "the section crosses the old edge rather than running along it",
             }),
