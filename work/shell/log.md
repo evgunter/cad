@@ -1381,3 +1381,5 @@ Ev said go.
 - **Unit 17 review 1** (PR 4525, sequential arm, head 533bfea562): APPROVE-WITH-FIXES, no MAJOR, so there is no review 2.
   - F1, MINOR, executed: `normal_in_plane_along` accepts steps that point opposite ways along m, so `holds_the_move` can answer true for a nearly singular net whose moved row lies 0.1 off the plane. It is made must-fix.
   - Docs, the wrap row's reflection guard, and the domain assumption go into the same pass.
+- **Unit 17's DR row became DR-145.** NURBS's PR 4518 took DR-144 first, and that row was the 20th M-tier unit, so the full readout under rule 9 is the NURBS orchestrator's to raise. Unit 17 is the 21st.
+  - Main also carried a stale duplicate tally line, left by DR-143's commit; the DR-145 commit removes it.
