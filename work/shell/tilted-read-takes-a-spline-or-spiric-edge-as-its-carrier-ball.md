@@ -48,8 +48,10 @@ radius a speed bound times the half-width: the spiric's
 weights. A piece crosses at its chord's end sides. A piece whose ball
 reaches the line halves until its ball is within the band, within a
 budget of 1024 halvings per edge per line. Leftover pieces add their
-ball's cut, so the set read holds the true one and exceeds it by a few
-bands. A sample point or a ball the band cannot place counts with the
+ball's cut, so the set read holds the true one. While the budget lasts
+it exceeds the truth by a few bands; past it, by as much as the
+leftover balls reach (a weight-40 parabola cut near its apex reads
+`[0, 2.124]` against `[0, 1.951]`), which costs refusals, never a miss. A sample point or a ball the band cannot place counts with the
 reaching side, so the read only ever grows. The ball's offset from the
 line is taken as a vector's norm: the old `|w|² − along²` cancelled to
 about `1e-8` noise.
@@ -72,6 +74,9 @@ evidence added there). Rows: `a_bowl_sectors_spiric_bounded_end_walls_clear`
 (`verbs_shell`) and `the_tilted_cut_reads_a_spline_on_its_carrier`
 (unit: a parabola's cut within a few bands of `[0, 0.75]`, where its
 ball covered `[−0.32, 2.32]`, in both orientations at three lines),
+`the_spline_speed_bound_covers_a_strongly_rational_arc` (red without
+the bound's weight term), `speed_fuzz` (the bound over random rational
+splines), `a_rational_spline_piece_is_read_in_its_control_ball`,
 `the_tilted_cut_reads_a_spiric_on_its_carrier` (both orientations) and
 `a_reversed_spline_wall_crossing_a_rectangle_refuses` (the review's
 end-to-end case, overlap `0.06`).

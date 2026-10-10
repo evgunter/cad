@@ -47,6 +47,15 @@ that excision before merge. Two joined faces come arbitrarily close at
 the vertex they share, so at a fine eps an in-band margin there
 escalated the tour's sectioned vessel.
 
+A touch is read whichever side of the line the face lies on: each face
+is cut twice, a point on the line counted with one side and then the
+other, and the two cuts united. The first version counted it with one
+side only, so a vertex touch, or an edge within the band of the line,
+showed on half the configurations and flipped with the pair's order
+(second review of PR 4467).
+`a_contact_on_the_line_is_read_from_either_side_in_either_order` pins
+both faces' sides in both orders.
+
 Pinned at unit level by `the_tilted_read_accepts_a_touch_only_at_a_shared_vertex`:
 a touch at `0.5` refuses at overlap zero, and the same pair meeting only
 at its shared vertex clears. No row through `shell` reaches a Zero
