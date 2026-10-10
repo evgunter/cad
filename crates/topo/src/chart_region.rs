@@ -1690,20 +1690,24 @@ fn wrap_band<T: Decide + Bounds>(
             return Ok(None);
         }
     }
-    let (mut ul, mut uh, mut vl, mut vh) = (pts[0].0, pts[0].0, pts[0].1, pts[0].1);
-    for p in &pts {
-        ul = ul.min(p.0);
-        uh = uh.max(p.0);
-        vl = vl.min(p.1);
-        vh = vh.max(p.1);
-    }
-    let span = T::from_f64(uh) - T::from_f64(ul);
+    // The extremes are chosen by the exact reads and then read from
+    // `outer` itself, so the span and the band are the corners' own
+    // values (their expressions at `Sym`), never their bits re-entered.
+    let extreme = |key: fn(&(f64, f64)) -> f64, pick_hi: bool| -> usize {
+        (1..4).fold(0, |best, i| {
+            let (k, b) = (key(&pts[i]), key(&pts[best]));
+            if (pick_hi && k > b) || (!pick_hi && k < b) { i } else { best }
+        })
+    };
+    let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
+    let (vl, vh) = (extreme(|p| p.1, false), extreme(|p| p.1, true));
+    let span = outer[uh].x - outer[ul].x;
     match decide(
         "chart_region_cyl_wrap",
         Margin::levered(span - T::tau(), radius),
         band,
     ) {
-        Ok(Sign::Zero) => Ok(Some((T::from_f64(vl), T::from_f64(vh)))),
+        Ok(Sign::Zero) => Ok(Some((outer[vl].y, outer[vh].y))),
         Ok(_) => Ok(None),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }

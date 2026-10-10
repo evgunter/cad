@@ -5032,6 +5032,10 @@ impl<T: Real> Real for Sym<T> {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
     }
 
+    fn from_computed(x: f64) -> Self {
+        Self::opaque(T::from_computed(x))
+    }
+
     fn zero() -> Self {
         // The same node a `from_f64(0.0)` mints, so the two spellings
         // of the additive identity share one id.

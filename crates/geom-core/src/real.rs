@@ -311,7 +311,23 @@ pub trait Real:
     const NAME: &'static str;
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
+    ///
+    /// **For a constant only**: a literal, a count, a tolerance, data
+    /// that is a constant of the model. At [`crate::Sym`] it is an exact
+    /// rational, so a value the kernel COMPUTED and re-entered here is a
+    /// different function of the parameters than the one it came from,
+    /// and a symbolic `Zero` over it is a theorem about the wrong
+    /// function (ERROR-DESIGN E12). A computed value stays in `Self`, or
+    /// enters through [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
+
+    /// Embeds an `f64` that a NUMERICAL routine computed (a root, a
+    /// march point, a bound read off an enclosure): the value is
+    /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
+    /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
+    /// it. Declared, never defaulted: a scalar that defaulted it to
+    /// `from_f64` would re-enter every computed value as a constant.
+    fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
     fn zero() -> Self;
@@ -1750,6 +1766,10 @@ impl Real for f64 {
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
+        x
+    }
+
+    fn from_computed(x: f64) -> Self {
         x
     }
 

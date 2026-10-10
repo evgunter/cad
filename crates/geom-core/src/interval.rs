@@ -452,6 +452,10 @@ impl Real for Interval {
         Self(DInterval::point(x))
     }
 
+    fn from_computed(x: f64) -> Self {
+        Self::from_f64(x)
+    }
+
     /// The exact point `[0, 0]`.
     fn zero() -> Self {
         Self::from_f64(0.0)
