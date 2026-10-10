@@ -330,6 +330,9 @@ pub enum ChartRegionError {
     Corrupt,
 }
 
+/// What [`ChartRegionError::Escalated`] leaves undecided.
+const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
+
 impl core::fmt::Display for ChartRegionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -411,21 +414,18 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
-            // A poisoned margin — a NaN, or the cylinder transfer's two
-            // decided readings that contradict each other — is reached by
-            // no declaration or move.
+            // A poisoned margin is reached by no declaration or move.
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
                 f,
                 "chart-region: {}",
                 diag.undecided(
-                    "how the two faces' regions overlap",
+                    OVERLAP_SUBJECT,
                     geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
                 )
             ),
             Self::Escalated(diag) => write!(
                 f,
-                "chart-region: a decision about how the two faces' regions overlap is too \
-                 close to call: {diag}"
+                "chart-region: a decision about {OVERLAP_SUBJECT} is too close to call: {diag}"
             ),
             Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::NoRaySettled),
             Self::WitnessBudgetExhausted { segments, cells } => write!(
@@ -3499,10 +3499,8 @@ mod tests {
     }
 
     /// **A poisoned overlap decision ends in the build's defect ending**
-    /// (D4 ¶1 (i)): its cylinder transfer mints the invalid margin for
-    /// two decided readings that contradict each other, and no
-    /// declaration or move reaches either that or a NaN. A margin that
-    /// was read keeps the coincidence menu.
+    /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
+    /// readable. A margin that was read keeps the coincidence menu.
     #[test]
     fn a_poisoned_overlap_escalation_ends_in_the_defect_ending() {
         let diag = |margin| Indeterminate {

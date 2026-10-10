@@ -2478,11 +2478,13 @@ fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
     )
 }
 
-/// The ending of an undecided margin about ONE thing, where "declare the
-/// coincidence" has no object and the refusal does not carry which of
-/// its site's decisions it is: the site's lever alone, since no one
-/// decision's margin gives a tolerance to tighten below (D4 ¶1 (i)), or,
-/// for a poisoned margin (not a number at all), the kernel defect it is.
+/// The ending of an undecided margin whose refusal does not carry which
+/// of its site's decisions it is: `lever` alone, since no one decision's
+/// margin gives a tolerance to tighten below (D4 ¶1 (i)), or, on a
+/// poisoned margin ([`geom_core::MarginDiag::is_invalid`]: a NaN, or the
+/// invalid margin a site mints where it has none to report), the defect
+/// ending, since no lever makes the margin readable. `lever` is a site's
+/// own, or [`too_close`]'s coincidence menu.
 fn own_close(margin: &geom_core::MarginDiag, lever: &'static str) -> &'static str {
     if margin.is_invalid() { DEFECT } else { lever }
 }
