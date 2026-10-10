@@ -2587,7 +2587,7 @@ fn wire_assertion<T: Decide>(
     payload: &super::Payload<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let Node::Assertion { dir, .. } = node else {
+    let Node::Assertion { relation, .. } = node else {
         unreachable!("an assertion's verdict is wired for an assertion")
     };
     // A measured value with no value at this scalar is not a failed
@@ -2620,7 +2620,7 @@ fn wire_assertion<T: Decide>(
         ValuePayload::Assertion(crate::measure::decide_assertion(
             *value,
             *bound,
-            *dir,
+            *relation,
             band(tol)?,
             certified,
         )),

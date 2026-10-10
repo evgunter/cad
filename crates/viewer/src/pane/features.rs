@@ -704,7 +704,8 @@ mod tests {
     /// assertions: the height, measured a second time, at least 0.01 m
     /// (holds), at least 0.02 m (violated), and at least itself and 2ε,
     /// in the band between ε and K·ε (indeterminate); the clearance and
-    /// the failed measure at least 0.01 m; and the angle at most 2 rad.
+    /// the failed measure at least 0.01 m; the angle at most 2 rad; and
+    /// the height equal to itself.
     /// A measure or an assertion defines no body, so its row never
     /// carries the world badge.
     struct MeasureFixture {
@@ -720,6 +721,7 @@ mod tests {
         unavailable: RecipeNodeId,
         poisoned: RecipeNodeId,
         angle_holds: RecipeNodeId,
+        equal_holds: RecipeNodeId,
     }
 
     /// The box's height, which the `distance` measure reads back.
@@ -727,8 +729,8 @@ mod tests {
 
     fn measure_fixture() -> MeasureFixture {
         use pncad::document::{
-            AssertionDir, CancelToken, Doc, EvalOptions, Formula, MeasurePrimitive, Node, SitedRef,
-            evaluate,
+            AssertionRelation, CancelToken, Doc, EvalOptions, Formula, MeasurePrimitive, Node,
+            SitedRef, evaluate,
         };
         use pncad::geom_core::Tol;
         use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
@@ -809,30 +811,32 @@ mod tests {
                 b: side,
             },
         );
-        let assertion = |doc: &Doc<_>, measure: RecipeNodeId, bound: Formula, dir: AssertionDir| {
-            let value = doc.output(measure, 0).expect("a measure defines its value");
-            inserted(
-                doc,
-                Node::Assertion {
-                    value: Formula::var(value, bound.dim()),
-                    bound,
-                    dir,
-                },
-                tol,
-            )
-        };
+        let assertion =
+            |doc: &Doc<_>, measure: RecipeNodeId, bound: Formula, relation: AssertionRelation| {
+                let value = doc.output(measure, 0).expect("a measure defines its value");
+                inserted(
+                    doc,
+                    Node::Assertion {
+                        value: Formula::var(value, bound.dim()),
+                        bound,
+                        relation,
+                    },
+                    tol,
+                )
+            };
         let (doc, height) = measure(&doc, across());
-        let (doc, holds) = assertion(&doc, height, len(0.01), AssertionDir::AtLeast);
-        let (doc, violated) = assertion(&doc, height, len(0.02), AssertionDir::AtLeast);
+        let (doc, holds) = assertion(&doc, height, len(0.01), AssertionRelation::AtLeast);
+        let (doc, violated) = assertion(&doc, height, len(0.02), AssertionRelation::AtLeast);
         let (doc, indeterminate) = assertion(
             &doc,
             height,
             len(HEIGHT + 2.0 * tol.eps()),
-            AssertionDir::AtLeast,
+            AssertionRelation::AtLeast,
         );
-        let (doc, unavailable) = assertion(&doc, clearance, len(0.01), AssertionDir::AtLeast);
-        let (doc, poisoned) = assertion(&doc, failed, len(0.01), AssertionDir::AtLeast);
-        let (doc, angle_holds) = assertion(&doc, angle, ang(2.0), AssertionDir::AtMost);
+        let (doc, unavailable) = assertion(&doc, clearance, len(0.01), AssertionRelation::AtLeast);
+        let (doc, poisoned) = assertion(&doc, failed, len(0.01), AssertionRelation::AtLeast);
+        let (doc, angle_holds) = assertion(&doc, angle, ang(2.0), AssertionRelation::AtMost);
+        let (doc, equal_holds) = assertion(&doc, height, len(HEIGHT), AssertionRelation::Equal);
         let evaluation = run(&doc);
         MeasureFixture {
             doc,
@@ -847,6 +851,7 @@ mod tests {
             unavailable,
             poisoned,
             angle_holds,
+            equal_holds,
         }
     }
 
@@ -1122,8 +1127,8 @@ mod tests {
     /// with the kernel's relation for the side assertion `id` records.
     fn compared(fixture: &MeasureFixture, id: RecipeNodeId, measured: &str, bound: &str) -> String {
         match fixture.doc.node(id) {
-            Some(pncad::document::Node::Assertion { dir, .. }) => {
-                format!("{measured} {} {bound}", dir.symbol())
+            Some(pncad::document::Node::Assertion { relation, .. }) => {
+                format!("{measured} {} {bound}", relation.symbol())
             }
             other => panic!("the premise: {id:?} is an assertion: {other:?}"),
         }
@@ -1222,7 +1227,7 @@ mod tests {
     /// dimension**, and its relation is the one it records.
     ///
     /// Red if `asserted` spells a verdict's numbers in any dimension
-    /// but its measure's, or `comparison` any relation but `dir`'s.
+    /// but its measure's, or `comparison` any relation but the one recorded.
     #[test]
     fn an_assertion_over_an_angle_paints_both_numbers_in_its_angle_unit() {
         let fixture = measure_fixture();
@@ -1238,6 +1243,20 @@ mod tests {
         assert!(
             drawn.contains(&comparison),
             "`{comparison}` among {drawn:?}"
+        );
+    }
+
+    /// **An `=` assertion paints `=` between its two numbers.** Red if the
+    /// row spells the relation from anything but the one recorded.
+    #[test]
+    fn an_equality_paints_its_relation() {
+        let fixture = measure_fixture();
+        let drawn = painted(|ui| {
+            feature_row_drawn(ui, &fixture.row(fixture.equal_holds), &Theme::DEFAULT);
+        });
+        assert!(
+            drawn.contains(&"0.0125 m = 0.0125 m".to_owned()),
+            "`=` among {drawn:?}"
         );
     }
 

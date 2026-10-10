@@ -99,8 +99,8 @@ use core::fmt;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, classify_dihedral,
-    newell_plane,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError,
+    classify_dihedral, newell_plane,
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
@@ -692,12 +692,13 @@ fn extruded_strut_spec<T: Real>(
     w_norm: T,
 ) -> EdgeCurveSpec<T> {
     EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point,
-            place,
-            vec: w,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point,
+                place,
+                vec: w,
+            },
+        )),
         carrier: strut_carrier(q_bottom, w),
         param_start: T::zero(),
         param_end: w_norm,
@@ -1425,12 +1426,13 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
     let far = q + w;
     let back = Vec3::zero() - w;
     let strut = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
-            point: seg.chord.a,
-            place: top_place,
-            vec: back,
-            range: geom_brep::SweepRange::whole(),
-        }),
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+            MappedSource::ExtrudedPoint {
+                point: seg.chord.a,
+                place: top_place,
+                vec: back,
+            },
+        )),
         carrier: strut_carrier(far, back),
         param_start: T::zero(),
         param_end: w_norm,

@@ -3490,8 +3490,8 @@ impl Node {
     /// or variable — a variable at its own kind's dimension, anything
     /// else at the bound's. A failed or poisoned
     /// measure under it poisons the assertion rather than producing a
-    /// verdict about nothing. `dir` is which side of `bound` the value
-    /// must fall on, and `bound` is a `Formula` from `Doc.parse_formula`.
+    /// verdict about nothing. `relation` is how the value must relate to
+    /// `bound` (`>=`, `<=` or `=`), and `bound` is a `Formula` from `Doc.parse_formula`.
     ///
     /// **The bound is an expression and not a quantity, because its
     /// DIMENSION is the value's.** It may be an angle, a count or a plain
@@ -3512,7 +3512,7 @@ impl Node {
     fn assertion(
         py: Python<'_>,
         value: super::expr::SlotArg,
-        dir: super::measure::AssertionDir,
+        relation: super::measure::AssertionRelation,
         bound: &super::expr::Formula,
     ) -> PyResult<Self> {
         Ok(Self {
@@ -3528,7 +3528,7 @@ impl Node {
                     _ => value.formula(py, bound.0.dim())?,
                 },
                 bound: bound.0.clone(),
-                dir: dir.to_kernel(),
+                relation: relation.to_kernel(),
             },
         })
     }

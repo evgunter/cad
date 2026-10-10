@@ -557,14 +557,15 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     }
 }
 
-/// LIB-B-MEASURES: an assertion's two directions, and the symbols a
+/// LIB-B-MEASURES: an assertion's three relations, and the symbols a
 /// report reads them as.
 #[test]
-fn the_assertion_directions_keep_their_symbols() {
-    use pncad::document::AssertionDir;
+fn the_assertion_relations_keep_their_symbols() {
+    use pncad::document::AssertionRelation;
 
-    assert_eq!(AssertionDir::AtLeast.symbol(), ">=");
-    assert_eq!(AssertionDir::AtMost.symbol(), "<=");
+    assert_eq!(AssertionRelation::AtLeast.symbol(), ">=");
+    assert_eq!(AssertionRelation::AtMost.symbol(), "<=");
+    assert_eq!(AssertionRelation::Equal.symbol(), "=");
 }
 
 /// LIB-B-READBACK: the read-back doors' tag map, arm by arm.

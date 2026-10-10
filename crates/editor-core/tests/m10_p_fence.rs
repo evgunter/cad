@@ -108,6 +108,15 @@
 //! `measured_web`'s row and no other, and the id-masked geometry fence
 //! below did not move: no body's point moved anywhere.
 //!
+//! **ALL THREE NUMBERS MOVED WHEN AN ASSERTION'S `dir` BECAME
+//! `relation`** (INTENT stage 5 PR A), through `measured_web` only.
+//! The mint preimage is the stored node, so the renamed field moved the
+//! assertion's id and every id the mint chain draws after it (the
+//! placement's). No outcome or point moved: `lib_g16_corpus_name_digests`
+//! moved `measured_web`'s row alone, the id-masked geometry fence held,
+//! and the assertion's verdict, dumped at `f64` and at `Interval` on main
+//! and on the branch, was the same text.
+//!
 //! **ALL THREE NUMBERS MOVED WHEN A SELECTION BECAME A VARIABLE**
 //! (INTENT stage 2 PR E), through the seven documents that blend,
 //! shell, frame on a face or measure. Each such node now reads a

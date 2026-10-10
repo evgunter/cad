@@ -338,13 +338,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// this digest walks holds those copies. No node evaluated before moved:
 /// `intent_s2_c_world`'s migration check holds each product to its
 /// pre-C digest.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x1077_757a_ce0f_17c1),
         ("corner_table", 0x956a_8c9d_2a36_d96a),
-        ("cut_cylinder", 0x5b24_7f0a_1360_4db4),
-        ("boss_union", 0x97c7_3b56_4913_d69c),
+        ("cut_cylinder", 0x3c8a_06a4_0790_b026),
+        ("boss_union", 0x027c_2448_f729_e2ca),
         ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ];
     let mut moved: Vec<String> = Vec::new();

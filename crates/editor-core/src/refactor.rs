@@ -2540,14 +2540,18 @@ fn remap_node(
         // operand does, and one reading a stranded output refuses; any
         // other value is a slot variable, carried as the bound is. The
         // value is no operand, so its miss names no slot of its own.
-        Node::Assertion { value, bound, dir } => Node::Assertion {
+        Node::Assertion {
+            value,
+            bound,
+            relation,
+        } => Node::Assertion {
             value: match rd(crate::OperandSlot::Input, *value) {
                 Err(RemapMiss::Read { output: false, .. }) => *value,
                 Err(RemapMiss::Read { var, .. }) => return Err(RemapMiss::PayloadRead { var }),
                 read => read?,
             },
             bound: *bound,
-            dir: *dir,
+            relation: *relation,
         },
     })
 }

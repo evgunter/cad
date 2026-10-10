@@ -1240,8 +1240,10 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     // the field that now holds it. Nothing about what is checked
     // moves: the stored vector is still the input, bitwise, and the
     // raised vertices are still measured against it below.
-    let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
-        authority(&t.body, t.strut_edges()[0][1].unwrap())
+    let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+        source: geom_brep::MappedSource::ExtrudedPoint { vec, .. },
+        ..
+    }) = authority(&t.body, t.strut_edges()[0][1].unwrap())
     else {
         panic!("the circle's cut strut keeps its declaring pushforward");
     };

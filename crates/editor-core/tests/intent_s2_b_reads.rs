@@ -738,7 +738,7 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     let assertion = r.insert(Node::Assertion {
         value: Formula::var(web, Dimension::Length),
         bound: len(0.5),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let by_insert = refused(
         &r.doc,
@@ -746,7 +746,7 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
             node: Box::new(Node::Assertion {
                 value: as_angle.clone(),
                 bound: len(0.5),
-                dir: editor_core::AssertionDir::AtLeast,
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
             fresh: Vec::new(),
         },

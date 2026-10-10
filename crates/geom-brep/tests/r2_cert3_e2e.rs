@@ -13,21 +13,20 @@
 
 use core::f64::consts::TAU;
 
-use geom_brep::MappedCurve;
+use geom_brep::{MappedCurve, MappedSource};
 use geom_core::{Affine3, Point2, Point3, Real, Vec3};
 
 /// An oblique-axis, partial-sweep revolve whose axis origin is far from
 /// the swept point — deliberately less friendly than the unit's
 /// `+z`-axis, unit-radius, full-turn rim.
 fn oblique<T: Real>(angle: T, mk: impl Fn(f64) -> T) -> MappedCurve<T> {
-    MappedCurve::RevolvedPoint {
+    MappedCurve::whole(MappedSource::RevolvedPoint {
         point: Point2::new(mk(7.0), mk(-4.0)),
         place: Affine3::translation(Vec3::new(mk(1.5), mk(-2.5), mk(11.0))),
         axis_origin: Point3::new(mk(-30.0), mk(45.0), mk(-12.0)),
         axis_dir: Vec3::new(mk(1.0), mk(-2.0), mk(2.0)),
         angle,
-        range: geom_brep::SweepRange::whole(),
-    }
+    })
 }
 
 /// f64 lane: what does a consumer see? The load-bearing consumer
