@@ -1454,7 +1454,6 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::TangentialContact { .. } => "tangential_contact",
         ProfileError::TangentJointOutOfRange { .. } => "tangent_joint_out_of_range",
         ProfileError::TangentJointOnFullTurn { .. } => "tangent_joint_on_full_turn",
-        ProfileError::UndeclaredTangency { .. } => "undeclared_tangency",
         ProfileError::TangencyContradicted { .. } => "tangency_contradicted",
         ProfileError::SliverLoop { .. } => "sliver_loop",
         ProfileError::MultipleOuterLoops { .. } => "multiple_outer_loops",
@@ -3049,6 +3048,8 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
         R::EqualAngles => "equal_angles",
+        R::Tangent { aligned: true } => "tangent",
+        R::Tangent { aligned: false } => "cusp",
     }
 }
 
@@ -3061,6 +3062,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::CarrierLadder => "carrier_ladder",
         S::SplitOn => "split_on",
         S::BatteryTurn => "battery_turn",
+        S::ProfileJunction => "profile_junction",
     }
 }
 

@@ -500,7 +500,7 @@ fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
 /// surfaced typed by the caller, never a panic.
 ///
 /// The match covers vertex POSITIONS, each validated segment's KIND and
-/// an arc's carrier and sweep, and the declared joint set. Positions
+/// an arc's carrier and sweep, and the constructed joint set. Positions
 /// alone are NOT enough (PR #291 review MAJOR-1, both reviewers,
 /// executed): on a 2-vertex loop the forward and reversed maps agree on
 /// every position (index arithmetic mod 2), so a reversed hole circle —
@@ -515,7 +515,7 @@ fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
 /// `Line` matches either stored kind, because a sub-tolerance stored
 /// arc classifies as one and keeps no carrier to compare; a loop with
 /// no validated arc needs n ≥ 3 to close, where positions already
-/// decide. Declared joints ride the same maps and are checked as sets.
+/// decide. Constructed joints ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ConstructedLoop<f64>],
@@ -567,18 +567,20 @@ pub(crate) fn derive_naming(
                 if !segments_ok {
                     continue;
                 }
-                // Declared joints as SETS under the vertex map
-                // (canonical joints are canonical vertex indices).
+                // Constructed joints as SETS under the vertex map
+                // (canonical joints are canonical vertex indices): the
+                // validated loop's tangent joints less the ones it
+                // decided from values are the ones the program's
+                // constructors made.
+                let decided = |j: &usize| vl.decided_joints().iter().any(|d| d.joint == *j);
                 let mut mapped: Vec<usize> = vl
                     .tangent_joints()
                     .iter()
+                    .filter(|j| !decided(j))
                     .map(|&j| u32::try_from(j).ok().map(vmap))
                     .collect::<Option<_>>()?;
                 mapped.sort_unstable();
-                let mut prog_joints = pl.tangent_joints().to_vec();
-                prog_joints.sort_unstable();
-                prog_joints.dedup();
-                if mapped != prog_joints {
+                if mapped != pl.constructed_joints() {
                     continue;
                 }
                 found = Some(a);

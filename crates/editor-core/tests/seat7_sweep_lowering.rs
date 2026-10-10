@@ -325,6 +325,13 @@ fn both_sweeps_evaluate_in_one_document() {
 /// now mint variables of their own, so its ids moved. No outcome or
 /// point moved (the id-free fence held).
 ///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a swept point's description began
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
+///
 /// RE-BLESSED, all five, for INTENT stage 2 PR C (the product is the
 /// world): each document now places its bodies, and every placement is
 /// a node with a value and a name table of its own, so the evaluation
@@ -336,8 +343,8 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x1077_757a_ce0f_17c1),
         ("corner_table", 0x956a_8c9d_2a36_d96a),
-        ("cut_cylinder", 0x9135_5b31_b169_a160),
-        ("boss_union", 0x8d74_12b7_2960_07ee),
+        ("cut_cylinder", 0x5b24_7f0a_1360_4db4),
+        ("boss_union", 0x97c7_3b56_4913_d69c),
         ("kitchen_sink", 0x59cd_a9f6_f2c5_f886),
     ];
     let mut moved: Vec<String> = Vec::new();

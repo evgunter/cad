@@ -8,7 +8,7 @@ github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
-blocked_on: [intent-stage4-is-built]
+blocked_on: [booleans-glue-on-zero]
 ---
 
 ## From GitHub issue 941
@@ -89,3 +89,13 @@ CLEAVE's designer pair on `work/cleave/tier-3-passes-a-curved-wall-touching-a-pl
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: its open items route a definite tangency to the declaration ladder (a Tangent declaration, a stored tangent-joint flag); both retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-pointed by stage 4 G (`tangent-joints-are-derived`)
+
+G retired the stored tangent-joint flag: a profile's cusp joint is now
+constructed (`.cusp()`) or decided Zero from its carriers and recorded
+as `Relation::Tangent { aligned: false }`, and a raw-authored cusp
+builds the same strut (`sweep/tests/a_swept_cusp_is_legal_at_rest.rs`,
+`a_raw_authored_cusp_is_legal_like_the_door`). What is left is the
+boolean's half (items 3 and 4: a Tangent declaration routing a definite
+tangency), which waits on stage 4 E (`booleans-glue-on-zero`).

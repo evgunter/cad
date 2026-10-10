@@ -694,6 +694,9 @@ impl crate::finding::Finding for SaidFinding<'_> {
                     crate::coincide::NamedCell::Tool { input } => {
                         format!("the plane of {}", by.node_as(*input, "node"))
                     }
+                    crate::coincide::NamedCell::Piece { profile, piece } => {
+                        crate::names::words::piece(piece, *profile, by)
+                    }
                 };
                 write!(
                     f,
