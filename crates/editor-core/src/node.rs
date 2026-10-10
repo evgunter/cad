@@ -1372,7 +1372,7 @@ macro_rules! expr_table {
             Node::Assertion {
                 value,
                 bound,
-                dir: _,
+                relation: _,
             } => $wrap(vec![value, bound]),
             $rest @ (Node::Datum(_)
             | Node::Profile(_)
@@ -2720,9 +2720,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// accepts a verdict as an operand, so a `Violated` assertion
     /// cannot reach any downstream outcome even by mistake: it denotes
     /// no body, the product gather skips it as it skips a
-    /// declaration, and `build()` never consults it. E10 v1 rules that
-    /// assertions report; a gating mode is additive policy, not a
-    /// default this node quietly implements.
+    /// declaration, and `build()` never consults it: an assertion
+    /// checks and never places (D10).
     Assertion {
         /// The value checked: any scalar variable, typically an observed
         /// one (a measure's output, or a definition over outputs). Not a
@@ -2733,8 +2732,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// document error at every door, never a silent comparison of
         /// radians with metres.
         bound: S,
-        /// Which side of the bound the measure must fall on.
-        dir: crate::measure::AssertionDir,
+        /// How the value must relate to the bound: `>=`, `<=` or `=`.
+        relation: crate::measure::AssertionRelation,
     },
 }
 
@@ -3049,7 +3048,7 @@ macro_rules! node_rows {
             | Node::Assertion {
                 value: _,
                 bound: _,
-                dir: _,
+                relation: _,
             } => {}
         }
     }};
@@ -3372,7 +3371,7 @@ impl<P> Node<P> {
             | Node::Assertion {
                 value: _,
                 bound: _,
-                dir: _,
+                relation: _,
             } => Vec::new(),
             Node::Profile(p) => p.frame_read().map(|r| (O::Frame, r)).into_iter().collect(),
             Node::Extrude {
@@ -3523,7 +3522,7 @@ impl<P> Node<P> {
             | Node::Assertion {
                 value: _,
                 bound: _,
-                dir: _,
+                relation: _,
             } => Vec::new(),
             Node::Profile(p) => p
                 .frame_read_mut()
@@ -4525,10 +4524,14 @@ impl<P, S: Slot> Node<P, S> {
             Node::Measure { primitive } => Node::Measure {
                 primitive: primitive.clone(),
             },
-            Node::Assertion { value, bound, dir } => Node::Assertion {
+            Node::Assertion {
+                value,
+                bound,
+                relation,
+            } => Node::Assertion {
                 value: f(value)?,
                 bound: f(bound)?,
-                dir: *dir,
+                relation: *relation,
             },
         })
     }

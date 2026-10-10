@@ -911,12 +911,20 @@ impl core::fmt::Display for SsiError {
                  (cos φ = {cos_phi:e} over {arc_length:e} m of arc) — the candidate \
                  locus cusps or crosses itself, which is a degenerate operand pair"
             ),
-            Self::CertificateLimb { limb, value, .. } => write!(
-                f,
-                "ssi: the fitted carrier failed {} at {value:e} m — the cache is not \
-                 within tolerance of the locus it claims",
-                limb.name()
-            ),
+            Self::CertificateLimb { limb, value, .. } => match limb {
+                SsiLimb::HullSup => write!(
+                    f,
+                    "ssi: {} bounds the fitted carrier's distance from the locus it claims by \
+                     {value:e} m, past the tolerance",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                    f,
+                    "ssi: the fitted carrier failed {} at {value:e} m — the cache is not \
+                     within tolerance of the locus it claims",
+                    limb.name()
+                ),
+            },
             Self::TubeLadderEmpty { extent, floor } => write!(
                 f,
                 "ssi: the uniqueness tube's radius ladder is empty — every rung scaled \
@@ -1308,7 +1316,7 @@ impl SsiError {
                 | FitError::ParamCountMismatch { .. }
                 | FitError::Structure(_)
                 | FitError::Lsq(_),
-            ) => Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading),
+            ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
             Self::BoundaryGraze { side, verdict, .. } => graze_recourse(*side, verdict, reading),
             // The surfaces' tangency along the side: the march's own
@@ -1321,12 +1329,12 @@ impl SsiError {
             // root is there; one that will not settle is the settling's
             // limit.
             Self::EndNotOnLocus { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             // The march is untrusted: a march that loses its branch is the
             // march's limit, whatever it matched.
             Self::CrossingUnmatched { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::ShortBranchUncertified {
                 verdict,
@@ -1342,7 +1350,7 @@ impl SsiError {
             // A candidate generator's limit: the march's samples and
             // every midpoint between them, read as they settled.
             Self::MarchShortOfFit { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
@@ -1368,7 +1376,7 @@ impl SsiError {
             // (`SettlingUnresolvable`), so a step that still will not
             // settle is the march's own limit.
             Self::StepRefinementFailed { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain(None), reading)
+                Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading)
             }
             // `r >= floor` is decided exactly, so the extent alone.
             Self::TubeLadderEmpty { .. } => {
@@ -2122,7 +2130,7 @@ impl TraceDecision {
             Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
             Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading),
             Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), reading),
-            Self::ClosureReturn => Unsized::LastResort.recourse(arm, reading),
+            Self::ClosureReturn => Unsized::Fit.recourse(arm, reading),
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
             Self::BoundarySection => defect_ending(reading).to_owned(),
@@ -3281,10 +3289,15 @@ mod ending_tests {
     /// **A certificate limb's definite refusal ends by its limb**, as its
     /// undecided sibling does: a fitted residual's at a build is the
     /// last resort, and over stored geometry the defect of the kernel or
-    /// the file. The tube's refusal is held to the concision standard.
+    /// the file; a certified bound's is the last resort at both, since a
+    /// loose bound contradicts nothing stored. The tube's refusal is held
+    /// to the concision standard.
     #[test]
     fn a_definite_limb_refusal_ends_by_its_limb() {
-        for limb in [SsiLimb::OnLocus, SsiLimb::HullSup] {
+        for (limb, at_rest) in [
+            (SsiLimb::OnLocus, KERNEL_OR_FILE_DEFECT_ENDING),
+            (SsiLimb::HullSup, KERNEL_LIMIT_RECOURSE),
+        ] {
             let refusal = SsiError::CertificateLimb {
                 limb,
                 value: 3e-9,
@@ -3295,11 +3308,7 @@ mod ending_tests {
                 KERNEL_LIMIT_RECOURSE,
                 "{limb:?}"
             );
-            assert_eq!(
-                refusal.ending(Reading::AtRest),
-                KERNEL_OR_FILE_DEFECT_ENDING,
-                "{limb:?}"
-            );
+            assert_eq!(refusal.ending(Reading::AtRest), at_rest, "{limb:?}");
         }
         let tube = SsiError::TubeStraddles {
             verdict: Refused::Zero(Classified {
