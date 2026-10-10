@@ -89,6 +89,8 @@ pub enum OpGroup {
     Pattern,
     /// Instantiate-part (ASM-2A's cross-document wrapper).
     InstantiatePart,
+    /// A world placement's copy.
+    PlaceInWorld,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::FromTarget`], which groups
     /// under [`OpGroup::Fillet`]: the tag names the SHAPE (an entity
@@ -187,6 +189,8 @@ seg_tags! {
     Instance,
     // Instantiate part
     InPart,
+    // World placement
+    Placed,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -282,6 +286,7 @@ impl SegTag {
             RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Instance { .. } => Self::Instance,
             RoleSeg::InPart { .. } => Self::InPart,
+            RoleSeg::Placed { .. } => Self::Placed,
         }
     }
 
@@ -339,6 +344,7 @@ impl SegTag {
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
             Self::InPart => OpGroup::InstantiatePart,
+            Self::Placed => OpGroup::PlaceInWorld,
         }
     }
 }
@@ -402,6 +408,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
+        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. } => None,
     }
 }
@@ -446,6 +453,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::OnToolVertex { of: n, .. }
         | RoleSeg::BandTrim { edge: n, .. }
         | RoleSeg::Instance { of: n, .. }
+        | RoleSeg::Placed { of: n }
         | RoleSeg::InPart { of: n } => vec![n],
         RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => vec![a, b],
         RoleSeg::Crossing { edge, face, .. } => vec![edge, face],

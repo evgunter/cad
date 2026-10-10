@@ -22,8 +22,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Formula, MateFrame,
-    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
-    derivation_nodes, split,
+    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, derivation_nodes,
+    split,
 };
 use fixture::resolver::in_part;
 use fixture::{in_copy, insert, len, on_frame, scl, step};
@@ -49,11 +49,53 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// [`block`] as a reference, and its body.
+/// [`block`] as a reference, and its body, placed in the part's world
+/// ([`fixture::resolver::PartStore::insert_part`], which is what lets
+/// [`in_part`] spell its caps through the placement).
 fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
-    let (doc, body) = block(label);
-    let pin = content_pin(&doc, Tol::witness()).unwrap();
-    (DocRef { id: doc.id(), pin }, body)
+    fixture::resolver::PartStore::new().insert_part(block(label), Tol::witness())
+}
+
+/// **The world the product is** (A10): each `(pattern, count)`'s copies
+/// placed through a `Part` per copy, and each of `bodies` placed — the
+/// old product roots, in their document order.
+fn world(doc: ProfileDoc, roots: &[(RecipeNodeId, Option<i64>)]) -> ProfileDoc {
+    roots.iter().fold(doc, |doc, &(root, copies)| match copies {
+        None => fixture::place(doc, root).0,
+        Some(count) => (0..count).fold(doc, |doc, i| {
+            let (doc, copy) = insert(
+                doc,
+                Node::Part {
+                    of: root.into(),
+                    select: editor_core::PartSelect::Instance(Formula::count(i)),
+                },
+            );
+            fixture::place(doc, copy).0
+        }),
+    })
+}
+
+/// Whether `id` is one of [`world`]'s nodes: a placement, or a `Part`
+/// selecting a pattern copy for one.
+fn of_the_world(doc: &ProfileDoc, id: RecipeNodeId) -> bool {
+    matches!(
+        doc.node(id),
+        Some(Node::PlaceInWorld { .. } | Node::Part { .. })
+    )
+}
+
+/// `cut` and the world copies of what it moves: each `Part` selecting a
+/// copy of a cut pattern, then every placement of a cut body.
+fn with_world(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
+    let mut out = cut.clone();
+    for id in doc.ids() {
+        if let Some(Node::Part { of, .. }) = doc.node(id)
+            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
+        {
+            out.insert(id);
+        }
+    }
+    fixture::with_placements(doc, &out)
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
@@ -97,12 +139,18 @@ struct Sweep {
     straddling_mates: usize,
 }
 
-/// Runs [`split`] over every non-empty subset of `doc`'s recipe and
+/// Runs [`split`] over every non-empty subset of `doc`'s recipe (its
+/// world placements and copy `Part`s ride with what they place,
+/// [`with_world`]) and
 /// asserts the AQ8 invariant on each accepted one: an interface record
 /// is always empty, and any remainder mate whose ends straddle the cut
 /// is NOT an A12 edge.
 fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
-    let ids: Vec<RecipeNodeId> = doc.ids().to_vec();
+    let ids: Vec<RecipeNodeId> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| !of_the_world(doc, id))
+        .collect();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
     // A mate is an EDGE iff BOTH its heads resolve to members — which
     // the public A12 walk reports as two edges out of the mate.
@@ -126,7 +174,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
             .collect();
         let Ok(out) = split(
             doc,
-            &cut,
+            &with_world(doc, &cut),
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
             None,
@@ -229,7 +277,7 @@ fn three_shapes() -> ProfileDoc {
         b,
         b_body,
     );
-    doc
+    world(doc, &[(pa, Some(3)), (b, None), (npc, Some(4))])
 }
 
 /// The adversary the four-cut sample cannot reach: a pattern-placed
@@ -268,7 +316,7 @@ fn foreign_master() -> ProfileDoc {
         d,
         d_body,
     );
-    doc
+    world(doc, &[(pa, Some(3)), (c, None), (d, None)])
 }
 
 /// INVARIANT (AQ8, exhaustively): over EVERY subset of the recipe, no

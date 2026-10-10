@@ -103,9 +103,9 @@ pub struct Highlight {
 /// describes what is drawn.
 ///
 /// **Scoped to the selection's own (node, body)**, not merely to its
-/// name. A name can be drawn twice — two `Transform` roots over one
-/// extrude carry the same names on both copies — and marking "the
-/// first id of the name" then lights the OTHER placement, which is the
+/// name. A name drawn twice — a name table that is not the picture's
+/// bijection — would make "the first id of the name" light the OTHER
+/// copy, which is the
 /// deliverable failing at exactly the shape it is hardest to notice.
 /// [`PickIndex::ids_of_target`] does the narrowing, and it narrows to
 /// at most one id because a node's name table is a bijection.
@@ -140,7 +140,7 @@ fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
 
 /// **The patch a face pick is drawn as, if the picture draws it**:
 /// its id on its own (node, body) ([`highlight`]'s narrowing), on a
-/// root the display does not hide — the rule
+/// copy the display does not hide — the rule
 /// [`PickIndex::edge_polyline_for`] applies to an edge.
 ///
 /// The one answer to "is this pick in the picture": the held mark
@@ -149,7 +149,7 @@ fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
 /// so the button never commits against a face the viewport is not
 /// marking.
 pub fn drawn_patch(index: &PickIndex, display: &DisplayView, face: &FaceSelection) -> Option<u32> {
-    if display.hidden_roots.contains(&face.node) {
+    if display.hidden_placements.contains(&face.node) {
         return None;
     }
     Some(face_id(index, face)).filter(|&id| id != IdMap::NOTHING)
@@ -275,10 +275,10 @@ pub fn compose(
     (highlight, edges)
 }
 
-/// Whether `node` is a free-moved root — the one read behind every
+/// Whether `node` is a free-moved placement — the one read behind every
 /// probe flag on an [`EdgeOverlay`].
 fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
-    display.moved_roots.contains_key(&node)
+    display.moved_placements.contains_key(&node)
 }
 
 /// The edge marks a frame draws: the drawn polylines of the marked
@@ -665,7 +665,7 @@ impl LegLane {
 /// additionally tinted by `highlight` — and that holds however many
 /// features later carried the wall, because a click resolves to the
 /// feature that MADE the face (`FaceSelection::feature`) rather than
-/// to whichever root drew it.
+/// to whichever placement drew it.
 ///
 /// **Made, not merely drawn under.** A patch belongs to the node that
 /// MINTED the entity its name denotes, which
@@ -686,8 +686,8 @@ impl LegLane {
 /// by construction, so what it carries is what was minted below it
 /// ([`crate::display::derives_from`]). Failing that, a node no
 /// drawn name mentions at all — a profile, a datum plane, a sketch —
-/// marks the drawn roots deriving from it
-/// ([`crate::display::roots_deriving_from`]): a profile's line and the wall it
+/// marks the drawn copies deriving from it
+/// ([`crate::display::placements_deriving_from`]): a profile's line and the wall it
 /// swept are one thing seen twice. That last step is also where a name
 /// the vocabulary walk cannot classify degrades to, so an
 /// unclassified role costs the whole-body picture rather than an empty
@@ -713,7 +713,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
     let nodes: Vec<RecipeNodeId> = match selection {
         Selection::None => Vec::new(),
         Selection::Node(node) => vec![*node],
-        // The feature the face IS, not the root that drew it — the
+        // The feature the face IS, not the placement that drew it — the
         // same inversion the tree and the panel read
         // (`FaceSelection::feature`), so a click and a tree selection
         // of one feature mark one set.
@@ -751,7 +751,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
 }
 
 /// The patches ONE node is responsible for: what it minted, else what
-/// passes through it, else the roots built from it (see [`focus`]).
+/// passes through it, else the copies built from it (see [`focus`]).
 fn marked_for(
     index: &PickIndex,
     doc: &Doc<ProfileProgram>,
@@ -784,9 +784,9 @@ fn marked_for(
     if !through.is_empty() {
         return through;
     }
-    crate::display::roots_deriving_from(doc, node)
+    crate::display::placements_deriving_from(doc, node)
         .into_iter()
-        .flat_map(|root| index.ids_of_node(root))
+        .flat_map(|placement| index.ids_of_node(placement))
         .collect()
 }
 
@@ -835,7 +835,7 @@ mod tests {
     /// The view that puts `node`'s drawn geometry `shift` metres out.
     fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
         DisplayView {
-            moved_roots: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
+            moved_placements: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
             ..DisplayView::none()
         }
     }
@@ -858,8 +858,8 @@ mod tests {
     /// the same list both times.
     #[test]
     fn an_edge_placed_past_the_display_seam_is_not_drawn_at_all() {
-        let (_, index, extrude) = plate_indexed(Tol::witness());
-        let id = some_edge(&index, extrude);
+        let (_, index, copy) = plate_indexed(Tol::witness());
+        let id = some_edge(&index, copy);
         let here = edge_id_lane(&index, &DisplayView::none(), id);
         assert!(
             !here.segments().is_empty(),
@@ -871,7 +871,7 @@ mod tests {
             "a drawn leg is made of numbers"
         );
 
-        let far = moved(extrude, 1.0e300);
+        let far = moved(copy, 1.0e300);
         let out_there = edge_id_lane(&index, &far, id);
         assert!(
             out_there.segments().is_empty(),
@@ -960,8 +960,8 @@ mod tests {
     /// refuses nothing.
     #[test]
     fn a_held_mark_the_index_cannot_wholly_name_carries_its_refusal() {
-        let (_, mut index, extrude) = plate_indexed(Tol::witness());
-        let drawn = index.edges_in(extrude, 0).to_vec();
+        let (_, mut index, copy) = plate_indexed(Tol::witness());
+        let drawn = index.edges_in(copy, 0).to_vec();
         let names: BTreeSet<StableName> = drawn[..2]
             .iter()
             .map(|id| index.edge_name_of(*id).expect("named").clone())
@@ -969,7 +969,7 @@ mod tests {
         let held = |body| Held {
             faces: [None; HELD_FACES],
             edges: Some(HeldEdges {
-                node: extrude,
+                node: copy,
                 body,
                 names: &names,
             }),
@@ -986,7 +986,7 @@ mod tests {
         assert_eq!(
             marked.held_refused,
             Some(EdgeNamesRefused {
-                node: extrude,
+                node: copy,
                 body: 0,
                 first,
                 named: drawn.len() - 1,

@@ -46,7 +46,15 @@ use editor_core::{
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
-const OVER_BUDGET: &[(&str, usize)] = &[];
+///
+/// Two rows, one word over, since INTENT stage 2 PR C: every placed
+/// body's names are held twice, by the body and by its world copy, so
+/// the 90th-percentile name is a longer one of the same corpus (37
+/// words in full). No name a document held before grew.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    ("SelectRefusal::PairInBand", 76),
+    ("NodeErrorKind::CrossingUnverified", 76),
+];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -65,16 +73,21 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// it. The total moves with a word said once more by every name of a
 /// kind, which the quantiles of a long tail need not.
 ///
-/// The full p99 rose from 97 to 98 when the blend began ending with the
-/// join (`docs/DESIGN.md`, maximal edges; 3881 step 3, PR C): two host
-/// trimlines of a rim band the join makes one edge are said as the set
-/// of both trim names, which is longer than either. The ruling names a
-/// joined edge by the input cells it covers, so the longer name is the
-/// reading, not a regression; the total fell with the names the join
-/// took (a host foot and a trimline per band).
+/// Raised by INTENT stage 2 PR C (the product is the world): each
+/// corpus document places its bodies, and a copy's names are its
+/// body's under the placement, said "the world copy of …", four words
+/// over the body's own. The p99s rise by those four words and the
+/// totals by the copies' names; the p50s and the maxima held.
+///
+/// Merged with main's blend change (`d5a518b1b2`, the die's blend ends
+/// with the join), which on main moved the full p99 97 → 98 and the
+/// total down: the die's names are said once more each as their copy's,
+/// so its longer names weigh twice in the tail and the full p99 reads
+/// 106. The total fell by twice main's drop; the p50s, the scoped row
+/// and the maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 98, 181, 273_351]),
+    ("scoped faces", [16, 38, 38, 49_844]),
+    ("full", [19, 106, 181, 365_724]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -96,10 +109,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// reorder a `Borders` one (mint order, not digest order), and move no
 /// other word.
 ///
-/// The blend's closing join moved it: the two rim-filleting documents'
-/// joined host trimlines say the set of both trim names, and their
-/// joined-away feet and trimlines say nothing.
-const SAID_DIGEST: u64 = 0xc67dee5894fd87e5;
+/// INTENT stage 2 PR C: the words that moved are the copies' names, new
+/// with the placements ("the world copy of …"), and the node tags of
+/// the placements; no name a document held before says another word.
+/// Re-taken merged with main's blend change, whose die names it says.
+const SAID_DIGEST: u64 = 0x103d_5735_924f_211b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
