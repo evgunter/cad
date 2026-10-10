@@ -1273,6 +1273,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::DeclareUnsupportedPair { .. }
+        | NodeErrorKind::DeclaredContactUnbacked { .. }
         | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }

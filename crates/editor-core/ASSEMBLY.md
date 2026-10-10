@@ -295,7 +295,12 @@ re-evaluation, which re-verifies crossings (A4).
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
 runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
-verdict, over body plus records. The gather's own tier-3 verdict rides
+verdict, over body plus records. A mate places and never checks (D10):
+its record cites the at-rest census's decision that its two faces rest
+on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
+the product, which the `unproven-coincidence` check reads), and a pair
+the census refuses mints no record, its finding raised by the gate
+beside the census's own. The gather's own tier-3 verdict rides
 on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
 census over it rather than the local battery a second time. The gate
 runs no predicate of its own; kernel findings come back as

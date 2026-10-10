@@ -110,7 +110,7 @@ pub(in crate::boolean) fn sweep(
         [None, None],
         Tol::witness(),
     )?;
-    Ok(acc.finish())
+    Ok(acc.finish().0)
 }
 
 /// **The rim in the face's plane records its valence-2 vertex.** No
@@ -127,7 +127,10 @@ fn a_rim_arc_in_the_face_plane_records_its_valence_two_vertex() {
     let (b, g) = brick_under(1.0);
     let contacts = sweep(&a, &b).expect("the sweep runs");
     assert!(
-        contacts.a_on_b.contains(&VfContact { vertex: w, face: g }),
+        contacts
+            .a_on_b
+            .iter()
+            .any(|c| *c == VfContact { vertex: w, face: g }),
         "the valence-2 vertex is recorded on the top face: {:?}",
         contacts.a_on_b
     );
