@@ -204,3 +204,18 @@ rows ride with it, and `topo-surgery-…` and `declared-faces-…` park on
 it. It's dispatched once disk and slots free up. PR 4558's review came
 back with no MAJOR, so a fix pass is out. PR 4550's verifier passed it,
 and it merges after its last README word. — (CONTACTHOLD orchestrator)
+
+## 2026-10-10 — PR 4559 verified; PR 4575 to a concurrent dual
+
+- PR 4559's delta review passed (mutations re-run; the line × conic guard
+  rows still refuse with PR 4550 merged, held by backstop arm 1's
+  `CurvedWithinReach` for the three rows with no overlap cell). I made
+  its doc and row nits myself (comments and tracker only). It merges on
+  green.
+- PR 4575 (side-code order 2, class H): a **concurrent dual pair** on
+  frozen head `5ca970782b` under protocol `da5dbd1532`, with identical
+  briefs and claims (the In/Out lift bound, the On height bound, the
+  narrowing's two regression measurements, the pins, `ConicBend`'s wiring,
+  the dip correction). R1 runs in the implementer's clone, R2 in its own;
+  the method is the same. The census lane's space is reclaimed for R2.
+  — (CONTACTHOLD orchestrator)
