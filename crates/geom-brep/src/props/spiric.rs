@@ -201,9 +201,7 @@ fn composite<const N: usize>(
 ) -> [Interval; N] {
     let (a, b) = (mid(t0), mid(t1));
     let span = b - a;
-    if !(t0.is_certified() && t1.is_certified() && span.is_finite() && span >= 0.0)
-        || pieces == 0
-    {
+    if !(t0.is_certified() && t1.is_certified() && span.is_finite() && span >= 0.0) || pieces == 0 {
         return [Interval::refused(); N];
     }
     let mut total = [Interval::zero(); N];
