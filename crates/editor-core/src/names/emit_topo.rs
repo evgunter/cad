@@ -858,7 +858,7 @@ fn operand_key<K: Copy + Ord>(
 /// read through the graft rows and the fragment rows. A union's fold
 /// reads it step by step to follow each face to the member faces it
 /// descends from.
-pub(super) struct FaceDescent<'n> {
+pub(crate) struct FaceDescent<'n> {
     naming: &'n topo::BooleanNaming,
     inv_faces: BTreeMap<FaceKey, FaceKey>,
     a_rows: BTreeMap<FaceKey, FaceKey>,
@@ -866,7 +866,7 @@ pub(super) struct FaceDescent<'n> {
 }
 
 impl<'n> FaceDescent<'n> {
-    pub(super) fn of(naming: &'n topo::BooleanNaming) -> Self {
+    pub(crate) fn of(naming: &'n topo::BooleanNaming) -> Self {
         Self {
             naming,
             inv_faces: naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect(),
@@ -878,7 +878,7 @@ impl<'n> FaceDescent<'n> {
     /// The operand face result face `f` descends from. A merged face
     /// descends from each face it absorbed as well: see
     /// [`FaceDescent::merged`].
-    pub(super) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
+    pub(crate) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
         let (operand, k) = operand_key(self.naming, &self.inv_faces, f)?.0.of_operand();
         Ok((operand, self.clone_face(operand, k)?))
     }
@@ -898,7 +898,7 @@ impl<'n> FaceDescent<'n> {
 
     /// Merged result face → every face it holds, itself first, in
     /// result keys before the merge.
-    pub(super) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
+    pub(crate) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
         self.naming
             .merge_groups
             .iter()

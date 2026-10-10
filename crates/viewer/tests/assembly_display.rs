@@ -496,7 +496,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let mut session = asm::open_bench(&bench, tol);
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { minted: 0 }),
+        Some(&viewer::session::AtRestBadge::Certified {
+            minted: 0,
+            loud: 0,
+            quiet: 0,
+        }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
     common::commit_mate(
