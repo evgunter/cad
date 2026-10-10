@@ -2,8 +2,9 @@
 id: a-certified-bound-refusal-reads-as-a-stored-contradiction
 kind: issue
 title: geom-brep: a refusal on a certified upper bound (hull limbs, TangentHull) ends as a kernel or file defect at rest and as the miss at the import door
-status: dispatched
+status: review
 branch: encl/bound-kind
+pr: 4504
 opened: 2026-10-10
 priority: P3
 cost: M
