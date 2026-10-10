@@ -149,7 +149,11 @@
 //! reason it holds the funnel's own. A gated decision the gate rejects
 //! records BOTH channels — the classifier's definite verdict, which it
 //! really did reach, and the gate's escalation beside it — so gating
-//! leaves verdict populations untouched.
+//! leaves verdict populations untouched. Two doors mint onto that
+//! channel from verdicts the funnel already recorded, and classify
+//! nothing themselves: [`gate_rejection`], one rejection for a schedule
+//! of verdicts none of which a gate admits, and [`straddle`], two
+//! decided bounds on one quantity that straddle the band.
 //!
 //! **BOTH channels are empty wherever no bracket is open, and that is
 //! load-bearing rather than incidental.** The frame stack is this
@@ -388,9 +392,10 @@ fn record_verdict(verdict: Verdict) {
 /// escalation that reaches a caller from inside a bracket is on that
 /// bracket's log by construction rather than by each producer
 /// remembering to log it. The minters are [`classify_in`], for the
-/// funnel's own escalation, and [`classify_gated`] / [`gate_measured`],
-/// for the requirement a predicate puts on an answer the funnel gave
-/// definitely.
+/// funnel's own escalation; [`gate_rejection`] / [`gate_measured`], for
+/// the requirement a predicate puts on an answer the funnel gave
+/// definitely; and [`straddle`], for two decided bounds on one quantity
+/// that straddle the band.
 ///
 /// It is not the only place the channel is WRITTEN: [`splice`] extends
 /// it with a [`detached`] run's escalations, which this function minted
@@ -435,14 +440,82 @@ fn classify_gated<T: Decide, R>(
     // would leave every caller converting an already-tested sign a
     // second time, with an arm for the answer this door escalated — the
     // shape these doors exist to remove, reproduced one level up.
-    let Decided { sign, margin } = classify(name, margin, band)?;
-    admits(sign).ok_or_else(|| {
-        record_escalation(Indeterminate {
-            margin: margin.rejected_by(sign, passes),
-            band,
-            predicate: Some(name),
-            terminal_sliver: false,
-        })
+    let decided = classify(name, margin, band)?;
+    admits(decided.sign).ok_or_else(|| gate_rejection(name, decided, band, passes))
+}
+
+/// **A gate's rejection of a verdict the funnel already reached**: the
+/// escalation a gate door mints, for a site that decided several readings
+/// through the funnel and passes on the first one a gate admits — the
+/// members of a schedule. Gating each member would log an escalation
+/// for every member a later one rescues; the site decides each one
+/// through [`decide_reported`] or [`decide_magnitude_reported`] and,
+/// where none passes, hands the one its refusal quotes here, so the log
+/// holds one escalation for the one refusal. The gate doors mint their
+/// own rejections through this door too, so a rejection has one shape
+/// wherever it is minted: the decided margin, tagged with the decided
+/// sign and the signs `passes` admits ([`MarginDiag::rejected_sign`]).
+///
+/// # Panics
+///
+/// Where `passes` admits `decided`'s sign: that verdict passes, and
+/// there is nothing to reject.
+pub fn gate_rejection(
+    name: &'static str,
+    decided: Decided,
+    band: Band,
+    passes: SizedPass,
+) -> Indeterminate {
+    let Decided { sign, margin } = decided;
+    assert!(
+        !passes.admits(sign),
+        "`{name}` handed the gate a {sign:?} verdict its pass set {passes:?} admits, \
+         so there is no rejection to record"
+    );
+    record_escalation(Indeterminate {
+        margin: margin.rejected_by(sign, passes),
+        band,
+        predicate: Some(name),
+        terminal_sliver: false,
+    })
+}
+
+/// **The straddle door**: two sound bounds on ONE quantity, each decided
+/// through the funnel, that straddle the band — one within the zero band
+/// and the other past the escalation band, or the two past it on
+/// opposite sides. No verdict of either bound answers for the quantity,
+/// so the pair is an indeterminacy, and its margin is the enclosure the
+/// two bounds give: from the lower of their lower ends to the higher of
+/// their upper ends. It is recorded on the frame like every other
+/// escalation, under `name`, the site's own straddle row, so it is
+/// charged to neither bound's predicate. Subdivision may cure it, as it
+/// may any straddling enclosure, so it is never a terminal sliver.
+///
+/// # Panics
+///
+/// Where the two readings do not straddle the band (both within the
+/// zero band, or both past it on one side), or either was poisoned: a
+/// decided reading is neither, and two that agree are not a straddle.
+pub fn straddle(
+    name: &'static str,
+    one: MarginDiag,
+    other: MarginDiag,
+    band: Band,
+) -> Indeterminate {
+    let Some(margin) = one.hull(other).filter(|m| m.undecided_in(band)) else {
+        unreachable!(
+            "`{name}` handed the straddle door two readings ({one:e}, {other:e}) that do not \
+             straddle the band ({:e}, {:e}): two decided bounds that agree leave the quantity \
+             decided, and a decided reading is never poisoned",
+            band.zero(),
+            band.escalate()
+        )
+    };
+    record_escalation(Indeterminate {
+        margin,
+        band,
+        predicate: Some(name),
+        terminal_sliver: false,
     })
 }
 
@@ -2141,6 +2214,129 @@ mod tests {
         assert!(
             take_samples().is_empty(),
             "the detached sink was left installed on the caller"
+        );
+    }
+
+    /// **Two decided bounds that straddle the band are one escalation on
+    /// the frame, carrying their enclosure**, whichever order they come in
+    /// and on either side: a bound within the zero band against one past
+    /// the escalation band, and a bound past it on each side. Every pair
+    /// sits at the band's own multiples, so each ε row places them alike.
+    #[test]
+    fn a_straddle_logs_the_enclosure_of_its_two_bounds() {
+        let band = band();
+        let (zero, past) = (0.5 * band.zero(), 3.0 * band.escalate());
+        for (one, other) in [(zero, past), (past, zero), (-zero, -past), (-past, past)] {
+            let bracket = Bracket::open();
+            let got = straddle(
+                "lane_straddle",
+                MarginDiag::value(one),
+                MarginDiag::value(other),
+                band,
+            );
+            let recorded = bracket.finish();
+            let want = MarginDiag::enclosure(one.min(other), one.max(other));
+            assert_eq!(got.margin, want, "({one:e}, {other:e}): the enclosure");
+            assert_eq!(got.predicate, Some("lane_straddle"));
+            assert!(!got.terminal_sliver, "({one:e}, {other:e}): curable");
+            assert!(recorded.verdicts.is_empty(), "the door classifies nothing");
+            assert_eq!(
+                recorded.escalations,
+                vec![Escalation { source: got }],
+                "({one:e}, {other:e}): on the frame, once"
+            );
+        }
+    }
+
+    /// Two enclosures hull to the lower of their lower ends and the higher
+    /// of their upper ends.
+    #[test]
+    fn a_straddle_of_two_enclosures_spans_both() {
+        let band = band();
+        let z = band.zero();
+        let p = band.escalate();
+        let got = straddle(
+            "lane_straddle",
+            MarginDiag::enclosure(-0.5 * z, 0.25 * z),
+            MarginDiag::enclosure(2.0 * p, 3.0 * p),
+            band,
+        );
+        assert_eq!(got.margin, MarginDiag::enclosure(-0.5 * z, 3.0 * p));
+    }
+
+    /// Two bounds on one side of the band are not a straddle: the door
+    /// refuses them loudly.
+    #[test]
+    #[should_panic(expected = "do not straddle the band")]
+    fn two_bounds_that_agree_are_not_a_straddle() {
+        let band = band();
+        let _ = straddle(
+            "lane_straddle",
+            MarginDiag::value(2.0 * band.escalate()),
+            MarginDiag::value(3.0 * band.escalate()),
+            band,
+        );
+    }
+
+    /// A poisoned reading bounds nothing.
+    #[test]
+    #[should_panic(expected = "do not straddle the band")]
+    fn a_poisoned_bound_is_not_a_straddle() {
+        let band = band();
+        let _ = straddle(
+            "lane_straddle",
+            MarginDiag::value(0.0),
+            MarginDiag::INVALID,
+            band,
+        );
+    }
+
+    /// **A gate's rejection of a verdict already reached** records one
+    /// escalation and no verdict, and carries the decided margin tagged
+    /// with the decided sign — the shape [`decide_positive`] mints for
+    /// the same verdict.
+    #[test]
+    fn a_gate_rejection_logs_once_with_the_decided_margin() {
+        let band = band();
+        let margin = Margin::of(0.25 * band.zero());
+        let gated = {
+            let bracket = Bracket::open();
+            let got = decide_positive("lane_gate", margin, band).unwrap_err();
+            (got, bracket.finish())
+        };
+        let bracket = Bracket::open();
+        let got = gate_rejection(
+            "lane_gate",
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.25 * band.zero()),
+            },
+            band,
+            SizedPass::Positive,
+        );
+        let recorded = bracket.finish();
+        assert_eq!(got, gated.0, "the gate door's own rejection");
+        assert_eq!(got.margin.rejected_sign(), Some(Sign::Zero));
+        assert!(
+            recorded.verdicts.is_empty(),
+            "the verdict was recorded where it was reached"
+        );
+        assert_eq!(recorded.escalations, vec![Escalation { source: got }]);
+        assert_eq!(gated.1.escalations, recorded.escalations);
+    }
+
+    /// A verdict the pass set admits has nothing to reject.
+    #[test]
+    #[should_panic(expected = "admits")]
+    fn a_gate_rejection_of_an_admitted_verdict_panics() {
+        let _ = gate_rejection(
+            "lane_gate",
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(1.0),
+            },
+            band(),
+            SizedPass::NonNegative,
         );
     }
 }

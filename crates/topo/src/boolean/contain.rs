@@ -24,7 +24,7 @@ use crate::live::{linked, proven};
 use crate::ray_walk::ParityRows;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
-    BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
+    BoundaryRows, CarrierLoop, ConicRows, EdgeContact, OffEdge, carrier_loop, carrier_loop_side,
 };
 use crate::splitting::spiric_arc::SpiricRows;
 use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
@@ -398,8 +398,8 @@ pub(crate) fn contfp_decided<T: Decide>(
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
     // inside or outside.
-    let inside = |(lk, lp): &(LoopKey, CarrierLoop<T>)| -> Result<bool, ContainError> {
-        Ok(carrier_loop_side(*lk, lp, normal, q, band)?)
+    let inside = |(lk, lp, off): &ReadLoop<T>| -> Result<bool, ContainError> {
+        Ok(carrier_loop_side(*lk, lp, off, normal, q, band)?)
     };
     let Some((outer, rings)) = read.split_first() else {
         unreachable!("the pre-pass reads every loop of the face, and a face has its outer loop")
@@ -580,6 +580,7 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let lp = carrier_loop(body, lk, ROWS, band)?;
         let n = lp.verts.len();
+        let mut off = Vec::with_capacity(n);
         for (i, edge) in lp.edges.iter().enumerate() {
             let ends = (lp.verts[i], lp.verts[(i + 1) % n]);
             match edge
@@ -592,7 +593,9 @@ fn boundary_pre_pass<T: Decide>(
                 EdgeContact::On(margin) => {
                     return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]), margin));
                 }
-                EdgeContact::Off | EdgeContact::Carrier | EdgeContact::Unread => {}
+                EdgeContact::Off => off.push(OffEdge::Off),
+                EdgeContact::Carrier => off.push(OffEdge::Carrier),
+                EdgeContact::Unread => off.push(OffEdge::Unread),
                 // Within the band of a curved edge's END, which the vertex
                 // pass above placed definitely clear of both of this edge's
                 // vertices. The end is read exactly (a circle through its
@@ -628,17 +631,21 @@ fn boundary_pre_pass<T: Decide>(
                 }
             }
         }
-        read.push((lk, lp));
+        read.push((lk, lp, off));
     }
     Ok(PrePass::Off(read))
 }
+
+/// A loop read on its carriers, with what the boundary pass read of `q`
+/// against each of its edges, in edge order: off every one.
+type ReadLoop<T> = (LoopKey, CarrierLoop<T>, Vec<OffEdge>);
 
 /// What [`boundary_pre_pass`] found: a boundary verdict, or every loop
 /// read on its carriers — with `q` definitely off each of their edges —
 /// for the walk that follows.
 enum PrePass<T: geom_core::Real> {
     On(FaceContainment, MarginDiag),
-    Off(Vec<(LoopKey, CarrierLoop<T>)>),
+    Off(Vec<ReadLoop<T>>),
 }
 
 /// The distance from a conic or spiric edge's carrier end to one of the

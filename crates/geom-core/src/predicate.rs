@@ -1071,9 +1071,10 @@ enum Placement {
 pub enum MarginKind {
     /// What `f64` classification saw: a point margin.
     Value,
-    /// What interval classification saw: an enclosure. When it rides an
-    /// [`Indeterminate`], the enclosure straddles a decision boundary or
-    /// lies inside the ambiguity band. Q1's subdivision driver responds
+    /// An enclosure: what interval classification saw, or the hull of two
+    /// sound bounds on one quantity ([`crate::k_stats::straddle`]). When
+    /// it rides an [`Indeterminate`], the enclosure straddles a decision
+    /// boundary or lies inside the ambiguity band. Q1's subdivision driver responds
     /// by splitting the parameter box and re-evaluating at a tighter
     /// enclosure — with one **terminal** case: an enclosure lying wholly
     /// inside one open sliver band (`zero`, `escalate`), or its mirror on
@@ -1154,6 +1155,15 @@ pub enum SizedPass {
 }
 
 impl SizedPass {
+    /// Whether a verdict of `sign` passes this decision.
+    pub(crate) fn admits(self, sign: Sign) -> bool {
+        match sign {
+            Sign::Zero => self.passes_zero(),
+            Sign::Positive => !matches!(self, Self::Negative),
+            Sign::Negative => !matches!(self, Self::Positive | Self::NonNegative),
+        }
+    }
+
     /// Whether a zero verdict passes this decision.
     #[must_use]
     pub fn passes_zero(self) -> bool {
@@ -1442,6 +1452,26 @@ impl MarginDiag {
             Reading::Enclosure { lo, hi, .. } => Reading::Enclosure { lo, hi, tag },
             Reading::Invalid => Reading::Invalid,
         })
+    }
+
+    /// **The enclosure of two readings of one quantity**: from the lower
+    /// of their lower ends to the higher of their upper ends, untagged.
+    /// `None` where either was poisoned, which bounds nothing.
+    pub(crate) fn hull(self, other: Self) -> Option<Self> {
+        let ends = |m: Self| match m.0 {
+            Reading::Value(v, _) => Some((v, v)),
+            Reading::Enclosure { lo, hi, .. } => Some((lo, hi)),
+            Reading::Invalid => None,
+        };
+        let ((lo0, hi0), (lo1, hi1)) = (ends(self)?, ends(other)?);
+        Some(Self::enclosure(lo0.min(lo1), hi0.max(hi1)))
+    }
+
+    /// Whether this reading lies neither within `band`'s zero band nor
+    /// past its escalation band: for the hull of two decided readings,
+    /// that the two straddle the band.
+    pub(crate) fn undecided_in(self, band: Band) -> bool {
+        self.placement(band) == Placement::Undecided
     }
 
     /// The sign the classifier decided, where this reading is a gate's

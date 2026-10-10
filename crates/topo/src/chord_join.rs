@@ -908,32 +908,49 @@ pub(crate) enum SectionCase<T: Real> {
 /// and the germ frame (`boolean::join::pair_section_frame_at`) read
 /// the section on the declared-tangency path, which a shorter lever must
 /// not widen: an escalation under either reading escalates, and two
-/// served readings of different classes escalate under the row whose
-/// verdict they split (`pc_axis_plane_parallel_disagreement` between a
-/// conic and the rulings' lane, `pc_parallel_gap_disagreement` within
-/// that lane), two sound bounds straddling the band.
+/// served readings of different classes are two sound bounds on the one
+/// reading that splits them, straddling the band
+/// ([`geom_core::k_stats::straddle`]): `pc_axis_plane_parallel_straddle`
+/// between a conic and the rulings' lane, `pc_parallel_gap_straddle`
+/// within that lane. Both reaches are read at one point, so the gap's
+/// datum is one number and only its swing differs between them.
 pub(crate) fn agreed_section<T: Decide>(
-    span: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
-    round: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    span: Result<SectionRead<T>, geom_brep::SectionError>,
+    round: Result<SectionRead<T>, geom_brep::SectionError>,
     band: Band,
 ) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
-    use geom_brep::PlaneCylinderSection as S;
-    let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
     match (span, round) {
         (Err(e), _) | (Ok(_), Err(e)) => Err(e),
-        (Ok(s), Ok(r)) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => Ok(s),
-        (Ok(s), Ok(r)) => Err(geom_brep::SectionError::Escalated(
-            crate::invalid_margin::invalid(
-                band,
-                if conic(&s) == conic(&r) {
-                    "pc_parallel_gap_disagreement"
-                } else {
-                    "pc_axis_plane_parallel_disagreement"
-                },
-            ),
-        )),
+        (Ok((s, _)), Ok((r, _))) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => {
+            Ok(s)
+        }
+        (Ok((_, one)), Ok((_, other))) => {
+            let (row, one, other) = match (one.gap, other.gap) {
+                (Some(g0), Some(g1)) => ("pc_parallel_gap_straddle", g0, g1),
+                (None, None) => unreachable!(
+                    "two conic sections of one plane and wall parted by class at two reaches: \
+                     `pc_rim_alignment` and the ellipse constructor, which part a rim from a \
+                     tilted ellipse, read no reach"
+                ),
+                _ => (
+                    "pc_axis_plane_parallel_straddle",
+                    one.parallel,
+                    other.parallel,
+                ),
+            };
+            Err(geom_brep::SectionError::Escalated(
+                geom_core::k_stats::straddle(row, one, other, band),
+            ))
+        }
     }
 }
+
+/// A plane×cylinder section read at one reach, with the readings that
+/// settled its class.
+pub(crate) type SectionRead<T> = (
+    geom_brep::PlaneCylinderSection<T>,
+    geom_brep::PlaneCylinderReading,
+);
 
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
 /// the conic a chord takes an arc of — **one implementation for both
@@ -1056,7 +1073,7 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let read = |reach| geom_brep::plane_cylinder_section(plane_s, wall, reach, band);
+    let read = |reach| geom_brep::plane_cylinder_section_read(plane_s, wall, reach, band);
     let sec = agreed_section(read(&reach), read(&round), band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
@@ -4349,19 +4366,52 @@ mod tests {
             let c: f64 = k * band.zero() / e;
             let normal =
                 UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band).unwrap();
+            let bracket = geom_core::k_stats::Bracket::open();
             let got = wall_section(&body, band, base, normal, face, corner);
-            assert!(
-                matches!(
-                    &got,
-                    Err(SplitJoinError::Escalated { diag, .. })
-                        if diag.predicate == Some("pc_axis_plane_parallel_disagreement")
+            let recorded = bracket.finish();
+            let err = match got {
+                Err(err @ SplitJoinError::Escalated { .. }) => err,
+                got => panic!(
+                    "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
+                    got.map(|w| w.map(|w| match w.case {
+                        SectionCase::Straight(_) => "straight",
+                        SectionCase::Tangent(_) => "tangent",
+                        SectionCase::Conic(_) => "conic",
+                    }))
                 ),
-                "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
-                got.map(|w| w.map(|w| match w.case {
-                    SectionCase::Straight(_) => "straight",
-                    SectionCase::Tangent(_) => "tangent",
-                    SectionCase::Conic(_) => "conic",
-                }))
+            };
+            let SplitJoinError::Escalated { diag, .. } = &err else {
+                unreachable!("matched as an escalation")
+            };
+            assert_eq!(
+                diag.predicate,
+                Some("pc_axis_plane_parallel_straddle"),
+                "k = {k}"
+            );
+            // The two readings' enclosure, on the frame: never poison.
+            assert_eq!(
+                diag.margin.kind(),
+                geom_core::MarginKind::Enclosure,
+                "k = {k}"
+            );
+            assert_eq!(
+                recorded.escalations.last().map(|e| e.source),
+                Some(*diag),
+                "k = {k}: on the frame"
+            );
+            // The ending the join has always given it, at a split and
+            // under a Boolean.
+            assert!(
+                err.to_string()
+                    .ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+                "k = {k}: {err}"
+            );
+            assert!(
+                UnderBoolean(&err)
+                    .to_string()
+                    .ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
+                "k = {k}: {}",
+                UnderBoolean(&err)
             );
         }
     }

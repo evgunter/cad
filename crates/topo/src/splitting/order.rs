@@ -88,7 +88,11 @@
 //! order): the sort is stable, and the topological neighbor criterion
 //! disambiguates join partners at coincident positions.
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::k_stats::{Magnitude, decide_magnitude_reported, gate_rejection};
+use geom_core::{
+    Band, BandError, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, SizedPass,
+    Vec3,
+};
 
 use super::SplitPlane;
 use crate::validate::decide;
@@ -107,7 +111,7 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 /// plane the first schedule axis that projects definitely into it, on
 /// any other the first oblique member that does. `arm` is
 /// the caller's lever arm in meters (the spread of the points to be
-/// ordered): the SCHEDULE triples are bare numbers, so the projected
+/// ordered, a magnitude): the SCHEDULE triples are bare numbers, so the projected
 /// norm alone would be a dimensionless comparand against the length band
 /// (rim-dimensional audit, class (c)); the honest margin is
 /// `sin(member, plane NORMAL) × arm` (the member's in-plane fraction
@@ -122,11 +126,13 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 ///
 /// # Errors
 ///
-/// [`axis_plane`]'s. When no eligible member projects definitely —
-/// unreachable for a unit normal (two axes lie in an axis plane, and no
-/// two oblique members lie near one line, so a normal is near at most
-/// one) — the first in-band arm, else an invalid margin on the arm's
-/// row.
+/// [`axis_plane`]'s. When no eligible member projects definitely, the
+/// first in-band arm; else, every member's arm decided Zero, the gate's
+/// one rejection of the member nearest to passing. Two axes lie in an
+/// axis plane, and no two oblique members lie near one line, so a
+/// normal is near at most one: every arm reads Zero only where `arm`
+/// itself does, the points all within the zero band of the plane's
+/// origin.
 pub(super) fn in_plane_frame<T: Decide>(
     plane: &SplitPlane<T>,
     arm: T,
@@ -141,27 +147,46 @@ pub(super) fn in_plane_frame<T: Decide>(
         oblique
     };
     let mut first_in_band = None;
+    let mut nearest: Option<MarginDiag> = None;
     for r in members {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
-        match decide(
-            "split_join_frame_arm",
-            Margin::levered(d.norm() / r.norm(), arm),
-            band,
-        ) {
-            Ok(Sign::Positive) => {
+        match decide_magnitude_reported(FRAME_ARM, Margin::levered(d.norm() / r.norm(), arm), band)
+        {
+            Ok((Magnitude::Positive, _)) => {
                 let u = d.normalize();
                 return Ok((u, n.cross(u)));
             }
-            Ok(_) => {}
+            Ok((Magnitude::Zero, margin)) => {
+                if nearest.is_none_or(|m| m.binds_before(margin)) {
+                    nearest = Some(margin);
+                }
+            }
             Err(diag) => {
                 first_in_band.get_or_insert(diag);
             }
         }
     }
-    Err(first_in_band
-        .unwrap_or_else(|| crate::invalid_margin::invalid(band, "split_join_frame_arm")))
+    if let Some(diag) = first_in_band {
+        return Err(diag);
+    }
+    let Some(margin) = nearest else {
+        unreachable!("the schedule's axis and oblique members are fixed and none is empty")
+    };
+    Err(gate_rejection(
+        FRAME_ARM,
+        Decided {
+            sign: Sign::Zero,
+            margin,
+        },
+        band,
+        SizedPass::Positive,
+    ))
 }
+
+/// The frame gate's row: a schedule member's in-plane fraction, levered
+/// by the points' spread.
+const FRAME_ARM: &str = "split_join_frame_arm";
 
 /// Whether the unit normal `n` is a coordinate axis: two of its
 /// components exactly zero (**`split_join_frame_axis`**, at the exact
@@ -194,7 +219,13 @@ fn axis_plane<T: Decide>(n: Vec3<T>, arm: T, exact: Band) -> Result<bool, Indete
             return Ok(true);
         }
     }
-    Err(undecided.unwrap_or_else(|| crate::invalid_margin::invalid(exact, "split_join_frame_axis")))
+    let Some(diag) = undecided else {
+        unreachable!(
+            "three decided components settle whether the plane is an axis plane: two of them \
+             share a verdict, and the loop returns on the second"
+        )
+    };
+    Err(diag)
 }
 
 /// Total lexicographic comparison of two on-plane points by their
@@ -367,6 +398,71 @@ pub(super) fn group_coincident<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **Points all within the zero band of the plane's origin give the
+    /// frame no direction**: every schedule member's arm decides Zero, and
+    /// the frame refuses once, on the gate's rejection of the member
+    /// nearest to passing — one escalation on the frame's log, carrying
+    /// the decided margin, never a poisoned one. The join's sentence keeps
+    /// its ending. On an axis plane and an oblique one, for coincident
+    /// points and points spread within the band.
+    #[test]
+    fn points_at_the_origin_refuse_the_frame_once_on_a_decided_arm() {
+        use geom_core::k_stats::Bracket;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let exact = exact_band().unwrap();
+        let s3 = 3.0f64.sqrt().recip();
+        let oblique = crate::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(s3, s3, s3),
+            tol,
+        );
+        let s2 = 2.0f64.sqrt().recip();
+        for (label, plane, along) in [
+            ("y = 1", plane_y1(), Vec3::new(1.0, 0.0, 0.0)),
+            ("oblique", oblique, Vec3::new(s2, -s2, 0.0)),
+        ] {
+            let o = plane.origin;
+            for spread in [0.0, 0.1, 0.4] {
+                let d = along * (spread * band.zero());
+                let bracket = Bracket::open();
+                let got = sort_indices_by_point(&[o, o + d, o - d], &plane, band, exact);
+                let recorded = bracket.finish();
+                let Err(diag) = got else {
+                    panic!("{label}, {spread}: expected a refusal, got {got:?}");
+                };
+                assert_eq!(
+                    diag.predicate,
+                    Some("split_join_frame_arm"),
+                    "{label}, {spread}"
+                );
+                assert_eq!(
+                    diag.margin.rejected_sign(),
+                    Some(Sign::Zero),
+                    "{label}, {spread}: the decided arm"
+                );
+                assert_eq!(
+                    recorded
+                        .escalations
+                        .iter()
+                        .map(|e| e.source)
+                        .collect::<Vec<_>>(),
+                    vec![diag],
+                    "{label}, {spread}: once on the frame"
+                );
+                let said = crate::chord_join::SplitJoinError::OrderEscalated { diag }.to_string();
+                assert!(
+                    said.starts_with("which direction in the section plane to order points along")
+                        && said.ends_with(&format!(
+                            "Recourse: {}",
+                            geom_core::NO_DECLARATION_RECOURSE
+                        )),
+                    "{label}, {spread}: {said}"
+                );
+            }
+        }
+    }
 
     fn plane_y1() -> SplitPlane<f64> {
         crate::test_support::split_plane(

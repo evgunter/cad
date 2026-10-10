@@ -267,27 +267,27 @@ measurement, absent from the alternation while being named in this
 file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
-**Twelve names carry the K vocabulary and never reach the funnel**, so
+**Eleven names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 248 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - six through `predicate: Some("…")`: `carrier_kind`,
   `contact_tangent_independent`, `contact_rest_senses_opposed`,
   `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
-- five through `topo::invalid_margin::invalid`:
+- four as the name argument of a `k_stats::straddle` call, two decided
+  bounds on one quantity straddling the band:
   - `bool_contact_arc_straddle` and `point_in_arc_loop_conic_straddle`,
-    an ellipse's lower and upper bound on one distance straddling the
-    whole band;
-  - `point_in_arc_loop_boundary_disagreement`, the carrier walk meeting
-    on an edge a point its caller's pass placed off it;
-  - `pc_axis_plane_parallel_disagreement` and
-    `pc_parallel_gap_disagreement`, a plane×cylinder section on the
-    declared-tangency path served one class over a wall face's reach
-    read over each edge's span and another over it read round each
-    edge's whole turn (`chord_join::agreed_section`);
+    an ellipse's lower and upper bound on one distance;
+  - `pc_axis_plane_parallel_straddle` and `pc_parallel_gap_straddle`, a
+    plane×cylinder section on the declared-tangency path served one
+    class over a wall face's reach read over each edge's span and
+    another over it read round each edge's whole turn
+    (`chord_join::agreed_section`);
 - one, `plane_nurbs_transversality_reported`, as the name argument of a
-  `k_stats::gate_measured` call. That records the escalation on the
-  open frame but classifies nothing, so it is outside this table for
-  the same reason the other eleven are.
+  `k_stats::gate_measured` call.
+
+The two `k_stats` doors record the escalation on the open frame but
+classify nothing, so their names are outside this table for the same
+reason the other six are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 

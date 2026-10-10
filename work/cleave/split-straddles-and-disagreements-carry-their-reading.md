@@ -45,3 +45,53 @@ Unit 2 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
 
 Same as unit 1: pin each moved arm's ending. `RefusedArm::Straddle` is
 the ending door for a straddle.
+
+## Built (branch `cleave/split-straddles-carry-reading`)
+
+Measured first on `origin/main` (`19c43d1a4b`) at ε = 1e-9, 1e-6 and
+1e-12: C6's two straddles, C8's frame fallback and C9's rim patch each
+returned `MarginDiag::INVALID`, and an open `k_stats::Bracket` held no
+escalation for any of them. C7 is not reachable without the test-only
+identity pass.
+
+- **The doors (geom-core, SCALAR's ground).** `k_stats::straddle(name,
+  one, other, band)` takes two decided readings of one quantity. It
+  records their enclosure (`MarginDiag::hull`) on the frame and panics
+  if the two do not straddle the band. `k_stats::gate_rejection(name,
+  decided, band, passes)` is a gate's rejection of a verdict the funnel
+  already reached, and the gate doors now mint through it too.
+- **C6.** Both `ReadEscalation::straddle` sites hand the straddle door
+  the two bounds' decided readings (`decide_reported`,
+  `decide_magnitude_reported`). The span's straddle and the hit's carry
+  an enclosure and are on the log.
+- **C7. The fact is decided once now.** `contfp`'s pre-pass and the
+  carrier walk ran the same `LoopEdge::contact` arithmetic under two
+  row names, so they could part only through the identity pass.
+  `carrier_loop_side` now takes the pre-pass's readings (`OffEdge`),
+  and the walk decides none of them again. The disagreement mint is
+  gone, and so is its name.
+- **C8.** Each member is decided through `decide_magnitude_reported`.
+  Where every arm decides Zero, the frame refuses once through
+  `gate_rejection`, on the member nearest to passing. This is reachable:
+  the arms all read Zero exactly where the points' spread is within the
+  zero band of the plane origin. `axis_plane`'s fallback is
+  `unreachable!`, because three decided components always settle it.
+- **C9.** `geom_brep::plane_cylinder_section_read` returns the readings
+  that settled the class (`PlaneCylinderReading`). `agreed_section`
+  straddles them: `pc_axis_plane_parallel_straddle` between the conic
+  lane and the rulings' lane, `pc_parallel_gap_straddle` within the
+  rulings' lane. Both reaches are read at one point, so a rim and a
+  tilted ellipse cannot part, and that arm is `unreachable!`.
+
+Endings were pinned before and after at the three ε rows.
+- Unchanged: the walk's `Boundary` and `ArcSpan` straddles, which end
+  through `RefusedArm::Straddle`; `OrderEscalated`; and
+  `SplitJoinError::Escalated` at a split and under a Boolean.
+- Moved, on paths that read the margin's kind rather than the
+  straddle's type:
+  - the Boolean germ frame's `Coincide::Section`: from the lever plus
+    the unreadable-margin note, to the lever alone;
+  - the census crossing cut's `pm_census_ef_cross_arc_straddle`: from
+    the defect ending to `too_close`'s menu.
+
+  Both are now the ending `RefusedArm::Straddle` gives.
