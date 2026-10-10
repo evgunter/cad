@@ -2747,10 +2747,7 @@ macro_rules! node_rows {
             }
             // Origin and normal come off the face; the spin is the
             // one number an author chooses.
-            Node::Datum(Datum::FaceFrame {
-                face: _,
-                spin,
-            }) => $out.push((S::Spin, spin)),
+            Node::Datum(Datum::FaceFrame { face: _, spin }) => $out.push((S::Spin, spin)),
             // A profile's slots are its program's. The payload keys its
             // rows by program address, so it answers `S::Profile` and
             // no other slot.
@@ -2774,10 +2771,7 @@ macro_rules! node_rows {
                 distance,
                 selection: _,
             } => $out.push((S::ChamferDistance, distance)),
-            Node::Shell {
-                thickness,
-                open: _,
-            } => $out.push((S::ShellThickness, thickness)),
+            Node::Shell { thickness, open: _ } => $out.push((S::ShellThickness, thickness)),
             Node::Revolve {
                 profile: _,
                 axis: _,
@@ -3539,9 +3533,9 @@ impl<P> Node<P> {
     ///   union, a revolve's body patterned about its own axis), and two
     ///   reads that evaluate to one body (two `Part`s of one split
     ///   half) are admitted, the boolean answering them (`A ∪ A = A`,
-    ///   `A − A` empty). A measure's sited references are not reads
-    ///   ([`Node::measure_sites`]), so a measurement over one body
-    ///   twice is untouched by this rule.
+    ///   `A − A` empty). A measure is exempt: its two references are
+    ///   independent arguments, so one variable at both measures an
+    ///   entity against itself.
     /// - The floor clause only ever fires where [`Node::list_input`]
     ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
     ///   For the loft this is NEW — a one-section loft was accepted
@@ -3845,7 +3839,6 @@ where
     }
 }
 
-
 /// `f` over each of `a`'s values, in order: the arrays a slot table
 /// holds, in another slot form.
 pub(crate) fn map_array<S, S2, E, const N: usize>(
@@ -3859,6 +3852,21 @@ pub(crate) fn map_array<S, S2, E, const N: usize>(
     match out.try_into() {
         Ok(mapped) => Ok(mapped),
         Err(_) => unreachable!("{N} values in, {N} out"),
+    }
+}
+
+impl Datum<crate::Formula> {
+    /// A [`Datum::FaceFrame`] on the face `face` names in the body `at`
+    /// reads: the door mints its `Face` selection.
+    pub fn face_frame(
+        at: impl Into<crate::Operand>,
+        face: StableName,
+        spin: crate::Formula,
+    ) -> Self {
+        Datum::FaceFrame {
+            face: crate::Operand::select(at, vec![face]),
+            spin,
+        }
     }
 }
 
@@ -4305,10 +4313,9 @@ impl<P: crate::ProfilePayload> Node<P> {
             doc,
             &mut |var, dim| crate::Formula::from(doc.written(&crate::Expr::var(var, dim))),
             &mut |var| match doc.selection(var) {
-                Some(select) if doc.var_name(var).is_none() => crate::Operand::select(
-                    crate::Operand::Var(select.body),
-                    select.names.clone(),
-                ),
+                Some(select) if doc.var_name(var).is_none() => {
+                    crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
+                }
                 _ => crate::Operand::Var(var),
             },
         )
@@ -4613,16 +4620,35 @@ impl<P, S: Slot> Node<P, S> {
         }
     }
 
+    /// **Where name `reference` of the selection this node reads at
+    /// `slot` sits, as a person reads it**: the node's own noun and the
+    /// place — `("fillet", "edge 2")`, `("frame", "face")` — for a
+    /// refusal that says a name that stopped resolving by where it sits
+    /// rather than by its words. `None` for a seat that reads no
+    /// selection.
+    pub(crate) fn selection_slot(
+        &self,
+        slot: crate::OperandSlot,
+        reference: usize,
+    ) -> Option<(&'static str, String)> {
+        use crate::OperandSlot as O;
+        match (self, slot) {
+            (Node::Fillet { .. }, O::Selection) => Some(("fillet", format!("edge {reference}"))),
+            (Node::Chamfer { .. }, O::Selection) => Some(("chamfer", format!("edge {reference}"))),
+            (Node::Shell { .. }, O::Open) => Some(("shell", format!("open face {reference}"))),
+            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => Some(("frame", "face".to_owned())),
+            (Node::Measure { .. }, O::Measured(i)) => Some(("measure", format!("reference {i}"))),
+            _ => None,
+        }
+    }
+
     /// **Which of this payload's references a refusal is about, as a
-    /// person reads it**: the node's own noun and the slot — `("fillet",
-    /// "edge 2")`, `("frame", "face")` — for a refusal that says a
-    /// reference that stopped resolving by where it sits rather than by
-    /// its words. `reference` is the slot's place among
-    /// [`Node::payload_names`]; a reference is (site, name), so two
-    /// slots holding one name are told apart by it. `None` where the
-    /// slot there does not hold `name` — as authored, or as node `id`'s
-    /// union reads it in member space — or no slot of a node that
-    /// resolves names is there.
+    /// person reads it** — [`Self::selection_slot`]'s twin for a name a
+    /// node still carries in its payload, a declared pair's: the node's
+    /// noun and the side. `reference` is the name's place among
+    /// [`Node::payload_names`]. `None` where the slot there does not hold
+    /// `name` — as authored, or as node `id`'s union reads it in member
+    /// space.
     pub(crate) fn reference_slot(
         &self,
         id: RecipeNodeId,
@@ -4809,6 +4835,23 @@ impl<P, S: Slot> Node<P, S> {
 }
 
 impl<P> Node<P, crate::Formula> {
+    /// **The names this authored node's selection seats author**
+    /// ([`crate::Operand::Select`]): what the edit door mints selections
+    /// of, in seat order.
+    pub fn selected_names(&self) -> Vec<&StableName> {
+        let seats: Vec<&crate::Operand> = match self {
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => vec![selection],
+            Node::Shell { open, .. } => vec![open],
+            Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
+            Node::Measure { primitive } => primitive.refs().to_vec(),
+            _ => Vec::new(),
+        };
+        seats
+            .into_iter()
+            .flat_map(crate::Operand::selected_names)
+            .collect()
+    }
+
     /// Builds a [`Node::Fillet`] over the selection of `selection` in
     /// the body `target` reads, the names in their stored order (sorted,
     /// deduplicated, [`crate::var::Selection::canonical`]), so a recipe's

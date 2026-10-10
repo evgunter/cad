@@ -870,6 +870,7 @@ pub fn insert_mate_with_stranded_head(
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: stand_in,
             to: (*stranded.name).clone(),
         },
@@ -1210,8 +1211,8 @@ impl Recorder {
             .expect("the cube has a vertex at the origin");
         self.insert(Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {
-                a: editor_core::SitedRef::new(cube, vertex.clone()),
-                b: editor_core::SitedRef::new(copy, vertex),
+                a: editor_core::SitedRef::new(cube, vertex.clone()).into(),
+                b: editor_core::SitedRef::new(copy, vertex).into(),
             },
         })
     }
@@ -2175,6 +2176,51 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
             declare: Vec::new(),
         },
     )
+}
+
+/// **The names an authored selection names** ([`editor_core::Operand::Select`]).
+///
+/// # Panics
+///
+/// If `operand` authors no selection.
+pub fn authored_names(operand: &editor_core::Operand) -> Vec<StableName> {
+    match operand {
+        editor_core::Operand::Select { names, .. } => names.clone(),
+        other => panic!("{other} authors no selection"),
+    }
+}
+
+/// **The names the selection `var` holds** in `doc`.
+///
+/// # Panics
+///
+/// If `var` is not a selection `doc` holds.
+pub fn selected(doc: &ProfileDoc, var: editor_core::VarId) -> Vec<StableName> {
+    doc.selection(var)
+        .unwrap_or_else(|| panic!("{var:?} is a selection"))
+        .names
+        .clone()
+}
+
+/// **The one node of `doc` that reads the selection `var`** — the node a
+/// row about the selection is said by.
+///
+/// # Panics
+///
+/// If no node, or more than one, reads it.
+pub fn selection_reader(doc: &ProfileDoc, var: editor_core::VarId) -> RecipeNodeId {
+    let readers: Vec<RecipeNodeId> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| {
+            doc.node(id)
+                .is_some_and(|node| node.operand_rows().iter().any(|&(_, read)| read == var))
+        })
+        .collect();
+    let [one] = readers.as_slice() else {
+        panic!("{var:?} has one reader, not {readers:?}");
+    };
+    *one
 }
 
 /// **An edit's maintenance with its anonymous-variable removals left

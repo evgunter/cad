@@ -1280,13 +1280,13 @@ fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
     );
 }
 
-/// **A measure whose site is deleted refuses typed, and its dead site
-/// is no edge** (review A's MINOR-1): the delete of a block a measure
-/// reads names at is accepted, `Doc::upstream` sets the dead site aside
-/// — so no walk over the relation (the roots, the cascade, the mate
-/// solve's components) meets an id no node is — and evaluation refuses
-/// the measure `UnresolvedSite` at that site rather than a missing
-/// input. The stranded document saves and loads as itself.
+/// **A measure whose body is deleted refuses typed, and its dead read
+/// is no edge**: the delete of a block a measure's selection reads is
+/// accepted, `Doc::upstream` sets the dead read aside — so no walk over
+/// the relation (the cascade, the mate solve's components) meets an id
+/// no node is — and evaluation refuses the measure `UnresolvedRead` at
+/// that reference rather than a missing input. The stranded document
+/// saves and loads as itself.
 #[test]
 fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     let doc = ProfileDoc::empty_derived("s2b-dead-site", Tol::witness());
@@ -1326,7 +1326,10 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
     assert!(
         matches!(
             ev.node_error(measure).map(|e| &e.kind),
-            Some(NodeErrorKind::UnresolvedSite { at }) if *at == b
+            Some(NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Measured(1),
+                ..
+            })
         ),
         "{:?}",
         ev.node_error(measure)

@@ -461,7 +461,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let e = refusal(&doc, n);
     let blank = test_utils::refusal::tag(blank_of(&doc).0.digest());
     let step = fixture::step_of(&piece);
-    assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
+    assert!(matches!(e, NodeErrorKind::SelectResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
         format!(
@@ -485,7 +485,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert!(
         matches!(
             &e,
-            NodeErrorKind::ShellOpenKind { found, .. } if found.kind() == EntityKind::Edge
+            NodeErrorKind::SelectKind { found, .. } if found.kind() == EntityKind::Edge
         ),
         "{e:?}"
     );
@@ -554,11 +554,11 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
         panic!("the door builds a shell");
     };
     assert_eq!(
-        open,
-        &vec![b.clone(), a.clone()],
+        fixture::authored_names(open),
+        vec![b.clone(), a.clone()],
         "order kept, first occurrence kept"
     );
-    assert_eq!(node.payload_names(), vec![&b, &a]);
+    assert_eq!(node.selected_names(), vec![&b, &a]);
     assert_eq!(node.slots(), vec![SlotId::ShellThickness]);
     assert_eq!(
         SlotId::ShellThickness.dimension(),
@@ -570,18 +570,19 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
 
 /// **The load door refuses a repeated `open` entry** as a corrupt file,
 /// never quietly deduplicating it — through the one definition the
-/// insert door asks too (`Node::input_fault`), so the two doors refuse
+/// insert door asks too (`Selection::fault`), so the two doors refuse
 /// alike (`lib_g17_r2_probes::p2_*` is the insert door's half).
 #[test]
 fn a_repeated_open_entry_is_refused_at_load() {
     let d = cup::document();
     let text = save(&d.doc, &[], Tol::witness()).expect("the cup saves");
-    // The wire form of `open` is the name's own serde encoding inside
-    // an `"open"` list; the one entry names the blank's END cap, and
-    // the pin reads that spelling rather than assuming it.
+    // The wire form of the open faces is the names' own serde encoding
+    // inside the selection's `"names"` list; the one entry names the
+    // blank's END cap, and the pin reads that spelling rather than
+    // assuming it.
     let open = text
-        .find("\"open\"")
-        .expect("the open list reaches the wire");
+        .find("\"names\"")
+        .expect("the open faces reach the wire");
     let start = open + text[open..].find('[').expect("a list");
     let mut depth = 0usize;
     let mut end = start;
@@ -606,8 +607,8 @@ fn a_repeated_open_entry_is_refused_at_load() {
     // Doubling the list's one entry: `[x]` → `[x, x]`.
     let corrupt = format!("{}[{entry}, {entry}]{}", &text[..start], &text[end + 1..]);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
-            fault: editor_core::ListFault::RepeatedDesignation { first: 0, again: 1 },
+        Err(PersistError::Snapshot(editor_core::SnapshotError::SelectionShape {
+            fault: editor_core::SelectionFault::Repeated { first: 0, again: 1 },
             ..
         })) => {}
         other => panic!("a repeated designation must refuse typed, got {other:?}"),

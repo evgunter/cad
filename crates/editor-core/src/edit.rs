@@ -1374,6 +1374,38 @@ pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, 
     })
 }
 
+/// **A selection minted into `doc` as given**, outside any edit: of the
+/// kind a selection of `names` at `slot` is minted at, reading `body`,
+/// with no door around it. The test support's shape rows build their
+/// selections through it.
+///
+/// # Panics
+///
+/// If `slot` reads no selection of the names' entity kind.
+#[doc(hidden)]
+pub fn selection_into<P>(
+    doc: &mut Doc<P>,
+    slot: crate::OperandSlot,
+    body: VarId,
+    names: &[StableName],
+) -> VarId {
+    let entity = names.first().map_or(EntityKind::Face, |n| n.kind);
+    let kind = slot
+        .kind()
+        .selection_kind(entity)
+        .expect("a seat that reads a selection of these names");
+    let def = WrittenDef::Select(
+        kind,
+        crate::var::Selection {
+            body,
+            names: names.to_vec(),
+        },
+    );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
 /// **One authored node lowered into `doc`**, outside any edit: what the
 /// insert door would store for it — its operands each lowered at its
 /// seat ([`lower_operand`]), its slots each through
@@ -3358,7 +3390,10 @@ impl EditError {
                 tail.recourse(f, format_args!("list two or more entries"))
             }
             Self::SelectionShape { slot, fault, .. } => {
-                write!(f, "the selection at {slot} is not one a document stores: {fault}")?;
+                write!(
+                    f,
+                    "the selection at {slot} is not one a document stores: {fault}"
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -4935,9 +4970,13 @@ impl MaintenanceNet {
                 Maintenance::StrandedAppearance { name, .. } => {
                     end.appearance().contains_key(name.name())
                 }
-                Maintenance::StrandedRead { node, slot, var } => end
-                    .node(node.id())
-                    .is_some_and(|reader| reader.operand_rows().contains(&(*slot, var.id()))),
+                Maintenance::StrandedRead { node, slot, var } => {
+                    end.node(node.id()).is_some_and(|reader| {
+                        reader.operand_rows().into_iter().any(|(at, read)| {
+                            at == *slot && end.selection(read).map_or(read, |s| s.body) == var.id()
+                        })
+                    })
+                }
                 Maintenance::OffsetCleared { instance, .. } => matches!(
                     end.node(instance.id()),
                     Some(Node::InstantiatePart { offset: None, .. })
@@ -6904,8 +6943,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let mut declare_sites = 0usize;
             let mut appearance_sites = 0usize;
             if let Some(body) = body {
-                declare_sites +=
-                    new.rewrite_selection_names(*body, &mut |name| (name == from).then(|| to.clone()));
+                declare_sites += new
+                    .rewrite_selection_names(*body, &mut |name| (name == from).then(|| to.clone()));
             } else {
                 let mut redeclared = Vec::new();
                 for (&id, node) in &mut new.nodes {
@@ -7459,9 +7498,10 @@ fn remove_node<P: crate::ProfilePayload>(
     reported
 }
 
-/// **Every operand of `doc` reading one of `removed`**, in document
-/// order and within a node in field order, as the strand rows a
-/// removal reports, spoken from `before`, which still holds them.
+/// **Every operand of `doc` reading one of `removed`**, directly or as
+/// a selection's body, in document order and within a node in field
+/// order, as the strand rows a removal reports, spoken from `before`,
+/// which still holds them.
 fn stranded_reads<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
@@ -7472,6 +7512,7 @@ fn stranded_reads<P: crate::ProfilePayload>(
         .flat_map(|(&node, n)| {
             n.operand_rows()
                 .into_iter()
+                .map(|(slot, read)| (slot, doc.selection(read).map_or(read, |s| s.body)))
                 .filter(|(_, read)| removed.contains(read))
                 .map(move |(slot, var)| Maintenance::StrandedRead {
                     node: before.spoken(node),

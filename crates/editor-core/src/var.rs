@@ -288,8 +288,14 @@ impl Selection {
     /// ([`Selection`]): sorted and deduplicated for edges, first
     /// occurrence kept for faces.
     #[must_use]
-    pub fn canonical(kind: VarKind, mut names: Vec<crate::names::StableName>) -> Vec<crate::names::StableName> {
-        if kind.selection().is_some_and(|(e, _)| e == crate::names::EntityKind::Edge) {
+    pub fn canonical(
+        kind: VarKind,
+        mut names: Vec<crate::names::StableName>,
+    ) -> Vec<crate::names::StableName> {
+        if kind
+            .selection()
+            .is_some_and(|(e, _)| e == crate::names::EntityKind::Edge)
+        {
             names.sort();
             names.dedup();
         } else {
@@ -351,13 +357,23 @@ impl core::fmt::Display for SelectionFault {
         match self {
             Self::NotASelection { kind } => write!(f, "a {kind} is not a selection"),
             Self::Seat { entity } => {
-                write!(f, "the seat reads no selection of {} {}", entity.article(), entity.noun())
+                write!(
+                    f,
+                    "the seat reads no selection of {} {}",
+                    entity.article(),
+                    entity.noun()
+                )
             }
             Self::Singleton { count } => {
                 write!(f, "a selection of one entity holds {count} names")
             }
             Self::Kind { name, expected } => {
-                write!(f, "{name} does not name {} {}", expected.article(), expected.noun())
+                write!(
+                    f,
+                    "{name} does not name {} {}",
+                    expected.article(),
+                    expected.noun()
+                )
             }
             Self::NotCanonical { at } => write!(
                 f,

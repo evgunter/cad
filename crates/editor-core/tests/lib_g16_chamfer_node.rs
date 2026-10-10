@@ -142,7 +142,11 @@ fn the_chamfer_door_sorts_and_dedups_its_selection() {
     };
     let mut want = vec![a, b];
     want.sort();
-    assert_eq!(selection, &want, "sorted and deduplicated");
+    assert_eq!(
+        fixture::authored_names(selection),
+        want,
+        "sorted and deduplicated"
+    );
 }
 
 /// **The slot is the chamfer's own**, and it is a Length: a setback is

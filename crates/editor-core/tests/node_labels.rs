@@ -465,8 +465,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let (doc, carrier) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: kept.into(),
-            face: named.clone(),
+            face: editor_core::Operand::select(kept, vec![named.clone()]),
             spin: fixture::ang(0.0),
         }),
     );
@@ -518,6 +517,7 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
     let refused = refusal(
         &doc,
         DocEdit::Rebind {
+            body: None,
             from: unreferenced.clone(),
             to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
         },
@@ -662,9 +662,8 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: a.into(),
             radius: len(0.1),
-            selection: vec![early.clone()],
+            selection: editor_core::Operand::select(a, vec![early.clone()]),
         },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);
@@ -672,6 +671,7 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body: None,
             from: early,
             to: late.clone(),
         },
@@ -1333,6 +1333,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     let rebind = refusal(
         &doc,
         DocEdit::Rebind {
+            body: None,
             from: unreferenced.clone(),
             to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
         },

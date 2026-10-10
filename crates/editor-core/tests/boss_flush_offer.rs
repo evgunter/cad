@@ -33,8 +33,7 @@ fn accepting_each_offer_in_turn_builds_the_flush_boss_union() {
     let (doc, top) = insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: blk.into(),
-            face: fname(blk, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(blk, vec![fname(blk, RoleSeg::Cap(CapEnd::End))]),
             spin: ang(0.0),
         }),
     );

@@ -792,9 +792,8 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
         .expect("the selection holds it");
     assert!(at > 0, "the unheld edge sits above slot zero: {edges:#?}");
     let fillet = r.insert(Node::Fillet {
-        target: block.into(),
         radius: len(0.1),
-        selection: edges,
+        selection: editor_core::Operand::select(block, edges),
     });
     let said = failure_of(&r, fillet);
     assert!(
@@ -805,12 +804,14 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
     let mut r = Recorder::new();
     let (block, _) = block_and_split(&mut r);
     let shell = r.insert(Node::Shell {
-        target: block.into(),
         thickness: len(0.1),
-        open: vec![
-            fixture::fname(block, RoleSeg::Cap(CapEnd::End)),
-            unheld(&r, block, EntityKind::Face),
-        ],
+        open: editor_core::Operand::select(
+            block,
+            vec![
+                fixture::fname(block, RoleSeg::Cap(CapEnd::End)),
+                unheld(&r, block, EntityKind::Face),
+            ],
+        ),
     });
     let said = failure_of(&r, shell);
     assert!(

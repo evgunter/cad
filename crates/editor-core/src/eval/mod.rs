@@ -2482,15 +2482,21 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::SelectResolve {
                 slot,
-                var: _,
+                var,
                 reference,
                 error,
-            } => write!(
-                f,
-                "its {slot} reads a selection whose name {} failed to resolve: {}",
-                reference + 1,
-                crate::spoken::Said(error.as_ref(), by)
-            ),
+            } => match by.selection_reference(*slot, *var, *reference, error.name()) {
+                Some(at) => write!(
+                    f,
+                    "{}",
+                    crate::spoken::Said(&crate::resolve::AboutReference(error, at), by)
+                ),
+                None => write!(
+                    f,
+                    "its {slot} reads a selection whose name {reference} failed to resolve: {}",
+                    crate::spoken::Said(error.as_ref(), by)
+                ),
+            },
             Self::SelectKind {
                 slot,
                 var: _,
@@ -2842,7 +2848,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "derived frame node")
             ),
-            Self::MeasureRefUnreadable { slot, var: _, error } => {
+            Self::MeasureRefUnreadable {
+                slot,
+                var: _,
+                error,
+            } => {
                 write!(f, "the measure's {slot} could not be read back: {error}")
             }
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),

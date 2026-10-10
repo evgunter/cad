@@ -2058,10 +2058,8 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 ///
 /// # Refusals
 ///
-/// A selection is a commitment (the blend nodes' freeze semantics), so
-/// a name that stopped resolving refuses with the N5 typed trio
-/// ([`NodeErrorKind::BlendSelectionResolve`]) rather than shrinking the
-/// set. Failure of the op itself is [`NodeErrorKind::Blend`], carrying
+/// The selection is resolved before this runs ([`select`]); an empty one
+/// refuses [`NodeErrorKind::BlendSelectionEmpty`]. Failure of the op itself is [`NodeErrorKind::Blend`], carrying
 /// the kernel's error unaltered; the input body is never passed
 /// through, so a blend that did not happen reads as a failed node.
 ///
@@ -2145,16 +2143,14 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 }
 
 /// **The shell's lowering**, driven by the verb's correspondence
-/// ([`crate::verbs::shell`]): resolve the frozen, ORDERED list of open
-/// faces, build the kernel verb, run it through the seat's shell door,
+/// ([`crate::verbs::shell`]): read the open faces in designation order,
+/// build the kernel verb, run it through the seat's shell door,
 /// emit names from the birth record under THIS node's id.
 ///
 /// # Refusals
 ///
-/// The open list resolves through the same N5 [`ladder`] a blend's
-/// selection takes ([`NodeErrorKind::ShellOpenResolve`],
-/// [`NodeErrorKind::ShellOpenKind`]). An EMPTY list is the sealed
-/// hollow, not a refusal. Failure of the op itself is
+/// The open faces are resolved before this runs ([`select`]). An EMPTY
+/// selection is the sealed hollow, not a refusal. Failure of the op itself is
 /// [`NodeErrorKind::Shell`]; the input body is never passed through. A
 /// scalar that cannot form the door's call at all — a dual — refuses
 /// [`NodeErrorKind::ShellLaneUnsupported`]. An operand the at-rest gate
@@ -2533,14 +2529,8 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
             )
         };
         let value = value_of(results, at)?;
-        let body =
-            crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
-                NodeErrorKind::MeasureRefUnreadable {
-                    slot,
-                    var,
-                    error,
-                }
-            })?;
+        let body = crate::names::interrogate::output_body(&value.payload, ent.body)
+            .map_err(|error| NodeErrorKind::MeasureRefUnreadable { slot, var, error })?;
         let carrier = super::measure::carrier_of(body, ent);
         sides.push((
             Measured {
@@ -2815,7 +2805,10 @@ fn split_side<T: Decide>(
 
 /// The body variables `node`'s operands read, in field order: a
 /// selection read as the body it states.
-fn reads_of(node: &Node<ProfileProgram>, doc: &crate::doc::Doc<ProfileProgram>) -> Vec<crate::VarId> {
+fn reads_of(
+    node: &Node<ProfileProgram>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+) -> Vec<crate::VarId> {
     node.operand_rows()
         .into_iter()
         .map(|(_, var)| doc.selection(var).map_or(var, |select| select.body))

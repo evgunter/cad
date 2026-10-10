@@ -390,8 +390,7 @@ fn carry<E>(
             }
             other => miss(old, other),
         };
-        let carried =
-            remap_node(node, &node_map, &rd, &step_map, &regauge).map_err(&refuse)?;
+        let carried = remap_node(node, &node_map, &rd, &step_map, &regauge).map_err(&refuse)?;
         let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
         for (slot, var) in node.operand_rows() {
             let Some(select) = source.selection(var) else {
@@ -405,11 +404,9 @@ fn carry<E>(
                         .names
                         .iter()
                         .map(|n| {
-                            remap_name(n, &node_map, &step_map).map_err(|missing| {
-                                RemapMiss::Name {
-                                    name: Box::new(n.clone()),
-                                    missing,
-                                }
+                            remap_name(n, &node_map, &step_map).map_err(|missing| RemapMiss::Name {
+                                name: Box::new(n.clone()),
+                                missing,
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()
@@ -3318,9 +3315,10 @@ pub fn split(
             // A selection is on the side of its readers: one a cut node
             // reads is the part's, and may not name the remainder.
             NameCarrier::Select { var, name } => {
-                let Some(&reader) = select_readers.get(&var).and_then(|readers| {
-                    readers.iter().find(|reader| cut.contains(reader))
-                }) else {
+                let Some(&reader) = select_readers
+                    .get(&var)
+                    .and_then(|readers| readers.iter().find(|reader| cut.contains(reader)))
+                else {
                     continue;
                 };
                 let outside = derivation_nodes(name)

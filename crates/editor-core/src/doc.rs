@@ -910,7 +910,8 @@ impl Carrier {
     /// Every carrier, in the order [`Doc::name_carriers`] walks them
     /// — which it walks them BY, so this is the order rather than a
     /// description of one.
-    pub(crate) const ALL: [Carrier; 3] = [Carrier::Payloads, Carrier::Selections, Carrier::Appearance];
+    pub(crate) const ALL: [Carrier; 3] =
+        [Carrier::Payloads, Carrier::Selections, Carrier::Appearance];
 }
 
 /// **One [`StableName`] the document holds, and what holds it** — the
@@ -2623,7 +2624,7 @@ mod tests {
         /// the match the macro writes: a carrier added to the enum
         /// leaves it non-exhaustive, and the census below compares
         /// this roster against [`Carrier::ALL`] in both directions.
-        const CARRIER: Carrier = [Payloads, Appearance];
+        const CARRIER: Carrier = [Payloads, Selections, Appearance];
     }
 
     fn name(node: u64, kind: EntityKind) -> StableName {

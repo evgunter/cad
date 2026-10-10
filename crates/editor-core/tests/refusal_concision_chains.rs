@@ -197,9 +197,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "AssertionDimension",
     "AxisInDifferentPlane",
     "BlendSelectionEmpty",
-    "BlendSelectionKind",
-    "BlendSelectionResolve/Ambiguous",
-    "BlendSelectionResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DeclareResolve/Ambiguous",
@@ -219,20 +219,20 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
-    "FaceFrameKind",
+    "SelectKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
-    "FaceFrameResolve/Ambiguous",
-    "FaceFrameResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
     "MeasureNonFinite",
     "MeasureNotParallel",
-    "MeasureRefResolve/Ambiguous",
-    "MeasureRefResolve/Vanished",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
     "MeasureRefUnreadable/NoSuchBody",
@@ -275,9 +275,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Seed/UnknownVar",
     "SeedPinnedSection",
     "ShellLaneUnsupported",
-    "ShellOpenKind",
-    "ShellOpenResolve/Ambiguous",
-    "ShellOpenResolve/Vanished",
+    "SelectKind",
+    "SelectResolve/Ambiguous",
+    "SelectResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
     "VerbArity",
@@ -3449,32 +3449,16 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ));
     }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
-    let wraps: [(&str, Wrap); 5] = [
+    let wraps: [(&str, Wrap); 2] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
             reference: 0,
         }),
-        ("BlendSelectionResolve", |error| {
-            NodeErrorKind::BlendSelectionResolve {
-                verb: sweep::blend::BlendKind::Chamfer,
-                error,
-                reference: 0,
-            }
-        }),
-        ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve {
-                error,
-                reference: 0,
-            }
-        }),
-        ("FaceFrameResolve", |error| {
-            NodeErrorKind::FaceFrameResolve { error }
-        }),
-        ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve {
-                error,
-                reference: 0,
-            }
+        ("SelectResolve", |error| NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var: editor_core::VarId::new(0, 7),
+            error,
+            reference: 0,
         }),
     ];
     for (wrap, build) in wraps {
@@ -3694,7 +3678,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         rows.push(row(
             &format!("MeasureRefUnreadable/{n}"),
             NodeErrorKind::MeasureRefUnreadable {
-                name: Box::new(face()),
+                slot: editor_core::OperandSlot::Measured(0),
+                var: editor_core::VarId::new(0, 7),
                 error,
             },
         ));
@@ -4640,8 +4625,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body.into(),
-            face: edge,
+            face: editor_core::Operand::select(body, vec![edge]),
             spin: ang(0.0),
         }),
     );
@@ -4658,9 +4642,9 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         Tol::witness(),
     );
     [
-        ("ShellOpenKind", shell),
-        ("BlendSelectionKind", fillet),
-        ("FaceFrameKind", frame),
+        ("SelectKind", shell),
+        ("SelectKind", fillet),
+        ("SelectKind", frame),
         ("MeasureSelectionKind", measure),
     ]
     .into_iter()

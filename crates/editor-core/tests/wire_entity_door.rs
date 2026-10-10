@@ -127,7 +127,7 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![name]));
         let got = refusal(&doc, shell);
         assert!(
-            matches!(got, NodeErrorKind::ShellOpenKind { .. }),
+            matches!(got, NodeErrorKind::SelectKind { .. }),
             "{what}: the shell's own refusal, not another road's: {got:?}"
         );
         assert_eq!(got.to_string(), want.replace("{name}", &said), "{what}");
@@ -156,7 +156,7 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         let (doc, blend) = insert(doc, node(body, len(0.1), vec![face]));
         let got = refusal(&doc, blend);
         assert!(
-            matches!(got, NodeErrorKind::BlendSelectionKind { .. }),
+            matches!(got, NodeErrorKind::SelectKind { .. }),
             "{what}: the blend's own refusal: {got:?}"
         );
         assert_eq!(got.to_string(), want.replace("{name}", &said), "{what}");
@@ -173,14 +173,13 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body.into(),
-            face: edge,
+            face: editor_core::Operand::select(body, vec![edge]),
             spin: ang(0.0),
         }),
     );
     let got = refusal(&doc, frame);
     assert!(
-        matches!(got, NodeErrorKind::FaceFrameKind { .. }),
+        matches!(got, NodeErrorKind::SelectKind { .. }),
         "the frame's own refusal: {got:?}"
     );
     assert_eq!(

@@ -614,22 +614,22 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         let body = match snapshot.var(select.body) {
             None if snapshot.mint.has_var(select.body) => return None,
             None => SelectionBodyFault::Unminted { body: select.body },
-            Some(held) => match snapshot.read_fault(
-                held,
-                crate::SlotKind::Is(crate::VarKind::Body),
-                None,
-            )? {
-                crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
-                    body: Box::new(snapshot.spoken_var(select.body)),
-                    found,
-                },
-                crate::doc::ReadFault::WorldCopy { placement } => SelectionBodyFault::WorldCopy {
-                    placement: snapshot.spoken(placement),
-                },
-                crate::doc::ReadFault::OtherHalf { .. } => {
-                    unreachable!("a selection's body read selects no half")
+            Some(held) => {
+                match snapshot.read_fault(held, crate::SlotKind::Is(crate::VarKind::Body), None)? {
+                    crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
+                        body: Box::new(snapshot.spoken_var(select.body)),
+                        found,
+                    },
+                    crate::doc::ReadFault::WorldCopy { placement } => {
+                        SelectionBodyFault::WorldCopy {
+                            placement: snapshot.spoken(placement),
+                        }
+                    }
+                    crate::doc::ReadFault::OtherHalf { .. } => {
+                        unreachable!("a selection's body read selects no half")
+                    }
                 }
-            },
+            }
         };
         Some(SnapshotError::SelectionBody {
             var: spoken(),
@@ -758,43 +758,41 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.operand_rows()
-            .into_iter()
-            .find_map(|(slot, var)| {
-                if !snapshot.has_minted_var(var) {
-                    return Some(SnapshotError::OperandUnminted {
+        node.operand_rows().into_iter().find_map(|(slot, var)| {
+            if !snapshot.has_minted_var(var) {
+                return Some(SnapshotError::OperandUnminted {
+                    node: snapshot.spoken(id),
+                    slot,
+                    var: snapshot.spoken_var(var),
+                });
+            }
+            // A minted read no live operation defines is a strand the
+            // file keeps (DM7), the reader's refusal at evaluation.
+            let held = snapshot.var(var)?;
+            Some(
+                match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
+                    crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
                         node: snapshot.spoken(id),
-                        slot,
-                        var: snapshot.spoken_var(var),
-                    });
-                }
-                // A minted read no live operation defines is a strand the
-                // file keeps (DM7), the reader's refusal at evaluation.
-                let held = snapshot.var(var)?;
-                Some(
-                    match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
-                        crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
+                        slot: SlotId::Operand(slot),
+                        var: Box::new(snapshot.spoken_var(var)),
+                        found,
+                        expected: slot.kind(),
+                    },
+                    crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
+                        node: snapshot.spoken(id),
+                        half,
+                        var: Box::new(snapshot.spoken_var(var)),
+                    },
+                    crate::doc::ReadFault::WorldCopy { placement } => {
+                        SnapshotError::ReadsWorldCopy {
                             node: snapshot.spoken(id),
                             slot: SlotId::Operand(slot),
-                            var: Box::new(snapshot.spoken_var(var)),
-                            found,
-                            expected: slot.kind(),
-                        },
-                        crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
-                            node: snapshot.spoken(id),
-                            half,
-                            var: Box::new(snapshot.spoken_var(var)),
-                        },
-                        crate::doc::ReadFault::WorldCopy { placement } => {
-                            SnapshotError::ReadsWorldCopy {
-                                node: snapshot.spoken(id),
-                                slot: SlotId::Operand(slot),
-                                placement: snapshot.spoken(placement),
-                            }
+                            placement: snapshot.spoken(placement),
                         }
-                    },
-                )
-            })
+                    }
+                },
+            )
+        })
     })
 }
 
@@ -1623,7 +1621,11 @@ impl core::fmt::Display for SnapshotError {
                     crate::sentence::Recourse(super::REGENERATE_RECOURSE)
                 ),
                 SelectionBodyFault::Kind { body, found } => {
-                    write!(f, "{var} selects in {body}, which is {} {found}, not a body", crate::sentence::article(&found.to_string()))
+                    write!(
+                        f,
+                        "{var} selects in {body}, which is {} {found}, not a body",
+                        crate::sentence::article(&found.to_string())
+                    )
                 }
                 SelectionBodyFault::WorldCopy { placement } => write!(
                     f,
@@ -2235,6 +2237,7 @@ mod tests {
             DisplayUnit,
             Vars,
             OutputSignature,
+            Selection,
             DefinitionRead,
             ObservedRead,
             DefinitionCycle,
@@ -2258,6 +2261,7 @@ mod tests {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
             Walk::Vars
             | Walk::OutputSignature
+            | Walk::Selection
             | Walk::DefinitionRead
             | Walk::ObservedRead
             | Walk::DefinitionCycle
@@ -2349,8 +2353,7 @@ mod tests {
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
             SnapshotError::OperandUnminted { .. }
             | SnapshotError::PartHalfPort { .. }
-            | SnapshotError::ReadsWorldCopy { .. }
-            | SnapshotError::MeasuresWorldCopy { .. } => Walk::OperandRead,
+            | SnapshotError::ReadsWorldCopy { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
@@ -2455,9 +2458,15 @@ mod tests {
                 slot: SlotId::Operand(crate::OperandSlot::A),
                 placement: node(),
             },
-            SnapshotError::MeasuresWorldCopy {
-                node: node(),
-                placement: node(),
+            SnapshotError::SelectionShape {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                fault: crate::var::SelectionFault::Singleton { count: 2 },
+            },
+            SnapshotError::SelectionBody {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                fault: super::SelectionBodyFault::Unminted {
+                    body: crate::VarId::new(0, 8),
+                },
             },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },

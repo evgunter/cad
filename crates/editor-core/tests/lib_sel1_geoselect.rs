@@ -523,7 +523,7 @@ fn composed_ids(
         .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, doc.operation_of(*target)?)),
+            Some(Node::Fillet { selection, .. }) => Some((*id, doc.read_operation(*selection)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");

@@ -177,7 +177,7 @@ fn accepted(
 /// A blend node's selection as the document holds it.
 fn selection_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> Vec<StableName> {
     match doc.node(node) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => fixture::selected(doc, *selection),
         other => panic!("node {node:?} is a fillet, got {other:?}"),
     }
 }
@@ -188,8 +188,7 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
     insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: at.into(),
-            face,
+            face: editor_core::Operand::select(at, vec![face]),
             spin: ang(0.0),
         }),
     )
@@ -198,7 +197,9 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
 /// The face a derived frame carries, as the document holds it.
 fn frame_face(doc: &editor_core::ProfileDoc, frame: RecipeNodeId) -> StableName {
     match doc.node(frame) {
-        Some(Node::Datum(Datum::FaceFrame { face, .. })) => face.clone(),
+        Some(Node::Datum(Datum::FaceFrame { face, .. })) => {
+            fixture::selected(doc, *face)[0].clone()
+        }
         other => panic!("a frame, got {other:?}"),
     }
 }
@@ -283,7 +284,7 @@ fn frame_refuses_vanished(doc: &editor_core::ProfileDoc, frame: RecipeNodeId, na
     let ev = fixture::run(doc, &EvalOptions::default());
     match ev.nodes.get(&frame) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::FaceFrameResolve { error } => match error.as_ref() {
+            NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
                 ResolveError::Vanished { name: gone, .. } => assert_eq!(gone, name),
                 other => panic!("the name resolves to nothing: got {other:?}"),
             },
@@ -508,7 +509,7 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
     match ev.nodes.get(&fillet) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+            NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
                 ResolveError::Vanished { name, .. } => assert_eq!(name, &crease),
                 other => panic!("the stranded name resolves to nothing: got {other:?}"),
             },
@@ -646,8 +647,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     };
     never(DocEdit::InsertNode {
         node: Box::new(Node::Datum(editor_core::Datum::FaceFrame {
-            at: r.rod.into(),
-            face: unminted.clone(),
+            face: editor_core::Operand::select(r.rod, vec![unminted.clone()]),
             spin: fixture::ang(0.0),
         })),
         fresh: Vec::new(),
@@ -661,6 +661,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
         apply(
             &painted,
             &DocEdit::Rebind {
+                body: None,
                 from: dropped.clone(),
                 to: unminted.clone(),
             },

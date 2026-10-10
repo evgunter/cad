@@ -49,8 +49,7 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
     insert(
         doc,
         Node::Datum(editor_core::Datum::FaceFrame {
-            at: at.into(),
-            face,
+            face: editor_core::Operand::select(at, vec![face]),
             spin: ang(0.0),
         }),
     )
@@ -82,6 +81,7 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
         vec![
             DocEdit::DeleteNode { id: victim },
             DocEdit::Rebind {
+                body: None,
                 from: named,
                 to: fname(kept, wall(&doc, kept, 0)),
             },

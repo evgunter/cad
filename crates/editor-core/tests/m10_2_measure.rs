@@ -964,7 +964,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
     let ev = eval(&doc);
     let err = failed_kind(&ev, last(&doc));
     assert!(
-        matches!(err, NodeErrorKind::MeasureRefResolve { .. }),
+        matches!(err, NodeErrorKind::SelectResolve { .. }),
         "got {err:?}"
     );
 }
@@ -989,7 +989,13 @@ fn deleting_a_referenced_node_leaves_the_measure_refusing() {
     let ev = eval(&deleted);
     let err = failed_kind(&ev, measure);
     assert!(
-        matches!(err, NodeErrorKind::UnresolvedSite { at } if *at == holes[0]),
+        matches!(
+            err,
+            NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Measured(0),
+                ..
+            }
+        ),
         "got {err:?}"
     );
 }

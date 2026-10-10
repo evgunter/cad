@@ -74,6 +74,20 @@ impl Operand {
         Self::Output { node, port }
     }
 
+    /// The names this operand authors a selection of, its body's
+    /// included.
+    #[must_use]
+    pub fn selected_names(&self) -> Vec<&crate::names::StableName> {
+        match self {
+            Self::Select { body, names } => {
+                let mut held = body.selected_names();
+                held.extend(names);
+                held
+            }
+            Self::Node(_) | Self::Output { .. } | Self::Var(_) | Self::Name(_) => Vec::new(),
+        }
+    }
+
     /// The selection of `names` in the body `body` reads.
     #[must_use]
     pub fn select(body: impl Into<Operand>, names: Vec<crate::names::StableName>) -> Self {

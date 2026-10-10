@@ -205,7 +205,7 @@ pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
     load, save,
 };
-pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SnapshotError};
+pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
@@ -244,7 +244,9 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
+pub use var::{
+    FreshEntry, Selection, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef,
+};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.

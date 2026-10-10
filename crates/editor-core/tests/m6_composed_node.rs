@@ -76,7 +76,7 @@ fn selection_of(
     fillet: editor_core::RecipeNodeId,
 ) -> Vec<StableName> {
     match doc.node(fillet) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(doc, *selection),
         other => panic!("expected a fillet node, got {other:?}"),
     }
 }
@@ -86,10 +86,11 @@ fn fillet_and_target(
     doc: &editor_core::ProfileDoc,
 ) -> (editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
     for id in doc.ids() {
-        if let Some(Node::Fillet { target, .. }) = doc.node(id) {
+        if let Some(Node::Fillet { selection, .. }) = doc.node(id) {
             return (
                 id,
-                doc.operation_of(*target).expect("the target read is live"),
+                doc.read_operation(*selection)
+                    .expect("the target read is live"),
             );
         }
     }
@@ -139,6 +140,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         let d = apply(
             &doc.doc,
             &DocEdit::Rebind {
+                body: None,
                 from: selection[0].clone(),
                 to: meridian.clone(),
             },
@@ -353,6 +355,7 @@ fn rebind_repairs_a_selection_and_can_never_grow_it() {
     let after = apply(
         &doc.doc,
         &DocEdit::Rebind {
+            body: None,
             from: from.clone(),
             to: to.clone(),
         },
