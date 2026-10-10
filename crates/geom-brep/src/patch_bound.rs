@@ -960,4 +960,36 @@ mod tests {
             );
         }
     }
+
+    /// **Review probe (PR 4485 delta).** Equal-split points can COLLIDE
+    /// with each other on a span a few ulps wide, so refinement can
+    /// raise a multiplicity to `p` after the C¹ gate passed. The deleted
+    /// `derived_knots` gate refused that typed (`DerivedKnots` on
+    /// main); without it `DNets`' `d20` is `None` on a degree-3
+    /// direction and every cell's `S_uu` reads as zero.
+    #[test]
+    fn colliding_split_points_do_not_zero_the_second_partial() {
+        let (a, b) = (0.5_f64, f64::from_bits(0.5_f64.to_bits() + 3));
+        let ku =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, a, b, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let (x, y) = (i as f64, j as f64);
+                control.push(geom_core::Point3::new(x * x * x, y, 0.0));
+            }
+        }
+        let n = NurbsSurface::new(ku, kv, control, vec![1.0; nu * nv]).unwrap();
+        match patch_cells_refined(&n, 8) {
+            Err(_) => {}
+            Ok(cells) => assert!(
+                cells.iter().any(|c| c.s_uu[0].hi() > 0.0),
+                "x = Σ i³·N_i(u) has S_uu ≠ 0, but every cell's S_uu.x is {:?}",
+                cells[0].s_uu[0]
+            ),
+        }
+    }
 }
