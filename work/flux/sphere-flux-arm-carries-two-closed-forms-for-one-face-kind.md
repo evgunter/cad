@@ -41,7 +41,7 @@ nothing to cross-check it against — is part of the same answer.
 
 ## Weighed (2026-10-10): the sphere arm, decided apart from one ruling
 
-(FLUX orchestrator) A designer pair (fork log row 108) weighed this row
+(FLUX orchestrator) A designer pair (fork log row 109) weighed this row
 together with `sphere-face-with-a-hole-has-no-closed-form`,
 `a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone`,
 `sphere-wedge-arm-does-not-fold-split-meridians-by-lineage` and the

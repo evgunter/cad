@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-Found off-question by the sphere-arm designer pair (fork log row 108),
+Found off-question by the sphere-arm designer pair (fork log row 109),
 2026-10-10. Unverified.
 
 A torus is a closed surface, like a sphere. `torus_face` and

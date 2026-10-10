@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-Found off-question by the sphere-arm designer pair (fork log row 108),
+Found off-question by the sphere-arm designer pair (fork log row 109),
 2026-10-10, and read from the code at origin/main `dfb193f783`, not
 executed.
 
