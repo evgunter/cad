@@ -12,7 +12,7 @@
 //!   elevation and knot refinement are exact), so the carrier stays
 //!   the `Curve3::Line`/`Circle` it was minted as, verbatim, and
 //!   certifies today. Its DESCRIPTION still moves: minted through the
-//!   scaffolding door as `MappedCurve::PlacedSegment` (the cap plane
+//!   scaffolding door as `MappedSource::PlacedSegment` (the cap plane
 //!   is fitted through the rim, so it does not exist yet), it is
 //!   re-stated as an image in the cap's own chart once the plane does
 //!   ([`crate::swept::describe_face_rim_at_rest`] — D3's transience

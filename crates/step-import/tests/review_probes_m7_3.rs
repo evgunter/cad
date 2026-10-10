@@ -431,9 +431,10 @@ fn probe_subunit_x_direction_rim_frame_rigidity() {
             let mut bad = Vec::new();
             for (ek, e) in body.edges() {
                 if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve)
-                    && let geom_brep::EdgeAuthority::Declared(
-                        geom_brep::MappedCurve::PlacedSegment { place, .. },
-                    ) = c.authority()
+                    && let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+                        source: geom_brep::MappedSource::PlacedSegment { place, .. },
+                        ..
+                    }) = c.authority()
                 {
                     let l = place.linear;
                     let det = l.determinant();

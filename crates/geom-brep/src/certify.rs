@@ -198,6 +198,11 @@ pub enum CertCheck {
     /// **sup-norm** bound over the whole span — the number that
     /// certifies (a bound, never a sampled max).
     PlaneNurbsHull,
+    /// Intersection, analytic rung 3: the carrier's certified distance
+    /// bound from an analytic operand over the edge's whole interval
+    /// (`crate::analytic_rung3`'s limb 2) — a bound on the miss, never
+    /// a sampled one.
+    AnalyticHull,
     /// Intersection, plane × NURBS (M7-8): the lane's reported
     /// transversality, the minimum sine over the interior samples that
     /// each decided transverse — named when that aggregate is poisoned,
@@ -243,8 +248,9 @@ pub enum CertCheck {
 /// noun itself — "{check} residual at sample …" — for all thirteen
 /// checks that reach it, and three of them meter no residual:
 /// [`CertCheck::TangentHull`] and [`CertCheck::PlaneNurbsHull`] are sup
-/// bounds, and [`CertCheck::TangentParallel`] a parallelism defect. A noun owned by the sentence is a noun the sentence
-/// cannot get right for every check that reaches it.
+/// bounds, and [`CertCheck::TangentParallel`] a parallelism defect. A
+/// noun owned by the sentence is a noun the sentence cannot get right
+/// for every check that reaches it.
 impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
@@ -270,6 +276,7 @@ impl core::fmt::Display for CertCheck {
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
             Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
+            Self::AnalyticHull => "the carrier's certified distance bound from an analytic surface",
             Self::PlaneNurbsReportedTransversality => {
                 "the plane × NURBS lane's reported minimum crossing angle"
             }
@@ -592,11 +599,12 @@ impl core::fmt::Display for CertifyError {
                 } else {
                     write!(f, "{check} at sample {sample}")?;
                 }
-                write!(
-                    f,
-                    " definitely exceeds the tolerance band (the cache does not represent \
-                     the description, D4 ¶2)"
-                )
+                let claim = if check.bounds_a_miss() {
+                    "the certificate cannot show the cache represents the description"
+                } else {
+                    "the cache does not represent the description"
+                };
+                write!(f, " definitely exceeds the tolerance band ({claim}, D4 ¶2)")
             }
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
@@ -776,6 +784,14 @@ enum Ending {
 }
 
 impl CertCheck {
+    /// Whether this check refuses on a certified upper bound on a miss
+    /// rather than on the miss: its refusal says only that the
+    /// certificate cannot show the cache is the description.
+    #[must_use]
+    pub fn bounds_a_miss(self) -> bool {
+        matches!(self.ending(), Ending::Residual(Unsized::Bound))
+    }
+
     /// How this decision's refusals end: its own lever, and what it
     /// passes on, where it passes on a nonzero sign; otherwise the way
     /// its definite refusal ends.
@@ -881,17 +897,19 @@ impl CertCheck {
                 at_zero: None,
             }),
             // Approximations: a fitted intersection carrier on its
-            // surfaces, a certified sag bound, and the plane × NURBS
-            // lane's fitted image's two residual limbs. The surface
-            // residuals take the last resort for EVERY carrier, the exact
-            // analytic ones too, where a miss would be a defect: the
-            // routing reads the decision alone and cannot see which kind
-            // of carrier it measured.
-            Self::Surface1Residual
-            | Self::Surface2Residual
-            | Self::TangentHull
-            | Self::PlaneNurbsOnLocus
-            | Self::PlaneNurbsHull => Ending::Residual(Unsized::LastResort),
+            // surfaces, and the plane × NURBS lane's on-locus limb. The
+            // surface residuals take the fit's ending for EVERY carrier,
+            // the exact analytic ones too, where a miss would be a defect:
+            // the routing reads the decision alone and cannot see which
+            // kind of carrier it measured.
+            Self::Surface1Residual | Self::Surface2Residual | Self::PlaneNurbsOnLocus => {
+                Ending::Residual(Unsized::Fit)
+            }
+            // Certified bounds on the miss: the tangent lane's sag bound
+            // and the two hull limbs.
+            Self::TangentHull | Self::PlaneNurbsHull | Self::AnalyticHull => {
+                Ending::Residual(Unsized::Bound)
+            }
         }
     }
 }
@@ -912,12 +930,14 @@ impl CertCheck {
 ///   approximated, an arm read at a build, and an undecided arm read at
 ///   rest, end in the last resort; a definite arm at rest ends in the
 ///   file's defect ending, since no loosening repairs a stored
-///   contradiction.
+///   contradiction. A certified bound on the miss ends in the last resort
+///   on every arm: a loose bound contradicts nothing stored.
 /// - At the STEP import door ([`ReadAt::File`]) certification reads as at
 ///   rest, and the file's declared coincidence distance picks the words:
 ///   a sized decision's as [`SizedDecision::recourse`] gives, and a
-///   residual's miss within ε_in but beyond ε names setting ε to ε_in as
-///   a stopgap ([`Unsized::residual_in_file`]).
+///   residual's miss within ε_in but beyond ε, or a bound on it wholly
+///   within ε_in, names setting ε to ε_in as a stopgap
+///   ([`Unsized::residual_in_file`]).
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
     let at = at.into();
@@ -975,7 +995,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// carrier the line from `p0` to `p1` (arc-length parameters
     /// `0 … |p1 − p0|`), description the honest pushforward — `p0`'s
     /// trajectory under the translation by `p1 − p0`
-    /// ([`crate::MappedCurve::ExtrudedPoint`] with the sketch origin
+    /// ([`crate::MappedSource::ExtrudedPoint`] with the sketch origin
     /// placed at `p0`) — through the scaffolding door (D3).
     ///
     /// By calling this the caller asserts the edge's locus **is** the
@@ -992,12 +1012,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2};
         let len = p0.distance(p1);
         Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(p0 - Point3::origin()),
-                vec: p1 - p0,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::ExtrudedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(p0 - Point3::origin()),
+                    vec: p1 - p0,
+                },
+            )),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: (p1 - p0) / len,
@@ -1012,7 +1033,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// verbatim, and the description is the honest pushforward —
     /// the start point's trajectory under the rotation about the
     /// carrier's own axis by the swept angle
-    /// ([`crate::MappedCurve::RevolvedPoint`], the same
+    /// ([`crate::MappedSource::RevolvedPoint`], the same
     /// geometry-derived posture as [`Self::line_between`]'s
     /// `ExtrudedPoint`). This is the conventional description for a
     /// circular locus the adjacent surfaces UNDER-determine (D2's
@@ -1031,14 +1052,15 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let start = carrier.eval(t0);
         Some(Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(start - Point3::origin()),
-                axis_origin: center,
-                axis_dir: axis,
-                angle: t1 - t0,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(start - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: axis,
+                    angle: t1 - t0,
+                },
+            )),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -1048,7 +1070,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// The straight SCAFFOLDING spec along an existing LINE carrier
     /// between the given parameters: carrier and interval kept verbatim,
     /// description the start point's trajectory under the translation to
-    /// the end ([`crate::MappedCurve::ExtrudedPoint`], as
+    /// the end ([`crate::MappedSource::ExtrudedPoint`], as
     /// [`Self::line_between`] states it). `None` for a non-line carrier.
     pub fn segment_of_line(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
     where
@@ -1060,12 +1082,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let start = carrier.eval(t0);
         Some(Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(start - Point3::origin()),
-                vec: carrier.eval(t1) - start,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::ExtrudedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(start - Point3::origin()),
+                    vec: carrier.eval(t1) - start,
+                },
+            )),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -1157,14 +1180,15 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
         Self {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
-                point: Point2::new(T::zero(), T::zero()),
-                place: Affine3::translation(p - Point3::origin()),
-                axis_origin: center,
-                axis_dir: Vec3::unit_z(),
-                angle: T::tau(),
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                crate::mapped::MappedSource::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(p - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: Vec3::unit_z(),
+                    angle: T::tau(),
+                },
+            )),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),
@@ -3224,7 +3248,7 @@ mod tests {
 
     use crate::recourse::Reading;
 
-    use crate::mapped::{MappedCurve, SketchSegment};
+    use crate::mapped::{MappedCurve, MappedSource, SketchSegment};
 
     use super::*;
 
@@ -3292,7 +3316,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 25] = [
+    const ALL_CHECKS: [CertCheck; 26] = [
         CertCheck::ParamSpan,
         CertCheck::ParamSpanMeter,
         CertCheck::ParamWinding,
@@ -3315,6 +3339,7 @@ mod tests {
         CertCheck::ChartResidual,
         CertCheck::PlaneNurbsOnLocus,
         CertCheck::PlaneNurbsHull,
+        CertCheck::AnalyticHull,
         CertCheck::PlaneNurbsReportedTransversality,
         CertCheck::PlaneNurbsChartSpeed,
         CertCheck::PlaneNurbsChartSpeedBound,
@@ -3335,31 +3360,32 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 25,
-            CertCheck::ParamSpanMeter => 25,
-            CertCheck::ParamWinding => 25,
-            CertCheck::EndpointStart => 25,
-            CertCheck::EndpointEnd => 25,
-            CertCheck::Surface1Residual => 25,
-            CertCheck::Surface2Residual => 25,
-            CertCheck::WitnessSurface1 => 25,
-            CertCheck::WitnessSurface2 => 25,
-            CertCheck::WitnessMidpoint => 25,
-            CertCheck::Transversality => 25,
-            CertCheck::TransversalityArm => 25,
-            CertCheck::TangentPlanes => 25,
-            CertCheck::TangentParallel => 25,
-            CertCheck::TangentSecondOrder => 25,
-            CertCheck::TangentHull => 25,
-            CertCheck::TangentTube => 25,
-            CertCheck::MappedSource => 25,
-            CertCheck::ChartImage => 25,
-            CertCheck::ChartResidual => 25,
-            CertCheck::PlaneNurbsOnLocus => 25,
-            CertCheck::PlaneNurbsHull => 25,
-            CertCheck::PlaneNurbsReportedTransversality => 25,
-            CertCheck::PlaneNurbsChartSpeed => 25,
-            CertCheck::PlaneNurbsChartSpeedBound => 25,
+            CertCheck::ParamSpan => 26,
+            CertCheck::ParamSpanMeter => 26,
+            CertCheck::ParamWinding => 26,
+            CertCheck::EndpointStart => 26,
+            CertCheck::EndpointEnd => 26,
+            CertCheck::Surface1Residual => 26,
+            CertCheck::Surface2Residual => 26,
+            CertCheck::WitnessSurface1 => 26,
+            CertCheck::WitnessSurface2 => 26,
+            CertCheck::WitnessMidpoint => 26,
+            CertCheck::Transversality => 26,
+            CertCheck::TransversalityArm => 26,
+            CertCheck::TangentPlanes => 26,
+            CertCheck::TangentParallel => 26,
+            CertCheck::TangentSecondOrder => 26,
+            CertCheck::TangentHull => 26,
+            CertCheck::TangentTube => 26,
+            CertCheck::MappedSource => 26,
+            CertCheck::ChartImage => 26,
+            CertCheck::ChartResidual => 26,
+            CertCheck::PlaneNurbsOnLocus => 26,
+            CertCheck::PlaneNurbsHull => 26,
+            CertCheck::AnalyticHull => 26,
+            CertCheck::PlaneNurbsReportedTransversality => 26,
+            CertCheck::PlaneNurbsChartSpeed => 26,
+            CertCheck::PlaneNurbsChartSpeedBound => 26,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -3432,9 +3458,9 @@ mod tests {
             }
             .render(Reading::Build),
             "the between-samples sag bound at sample 4 definitely exceeds the tolerance \
-             band (the cache does not represent the description, D4 ¶2). Recourse: \
-             loosen the tolerance, as a last resort; this refusal may indicate a kernel bug \
-             worth reporting"
+             band (the certificate cannot show the cache represents the description, D4 ¶2). \
+             Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+             kernel bug worth reporting"
         );
 
         let cause = Indeterminate {
@@ -3702,7 +3728,10 @@ mod tests {
         assert!(declared.authority().is_declared());
         assert!(matches!(
             declared.authority(),
-            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+            EdgeAuthority::Declared(MappedCurve {
+                source: MappedSource::ExtrudedPoint { .. },
+                ..
+            })
         ));
 
         let r = 2.0;
@@ -4586,14 +4615,15 @@ mod tests {
         let center = Point3::new(1.0, 2.0, 3.0);
         let p = Point3::new(2.0, 2.0, 3.0); // center + u_ref·r
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
-                point: Point2::new(2.0, 2.0),
-                place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-                axis_origin: center,
-                axis_dir: Vec3::unit_z(),
-                angle: TAU,
-                range: crate::mapped::SweepRange::whole(),
-            }),
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::RevolvedPoint {
+                    point: Point2::new(2.0, 2.0),
+                    place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
+                    axis_origin: center,
+                    axis_dir: Vec3::unit_z(),
+                    angle: TAU,
+                },
+            )),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),
@@ -4614,18 +4644,20 @@ mod tests {
         use core::f64::consts::FRAC_PI_2;
         let place = Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc {
-                    a: Point2::new(1.0, 0.0),
-                    b: Point2::new(0.0, 1.0),
-                    arc: Arc2 {
-                        centre: Point2::new(0.0, 0.0),
-                        radius: 1.0,
-                        sweep: FRAC_PI_2,
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc {
+                        a: Point2::new(1.0, 0.0),
+                        b: Point2::new(0.0, 1.0),
+                        arc: Arc2 {
+                            centre: Point2::new(0.0, 0.0),
+                            radius: 1.0,
+                            sweep: FRAC_PI_2,
+                        },
                     },
+                    place,
                 },
-                place,
-            }),
+            )),
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 1.0),
                 axis: Vec3::unit_z(),
@@ -5215,8 +5247,8 @@ mod tests {
     /// one sentence, whichever arm the run's band placed it on: the file
     /// does not state the size, and keeping it takes declaring the file's
     /// uncertainty below it and tightening, together — and a residual's
-    /// miss within ε_in but beyond ε names setting ε to ε_in as a
-    /// stopgap. An ε_in below every margin leaves every ending at rest
+    /// miss within ε_in but beyond ε, or a certified bound on it wholly
+    /// within ε_in, names setting ε to ε_in as a stopgap. An ε_in below every margin leaves every ending at rest
     /// but a reading at zero's. No ending at the door blames the kernel
     /// alone, or carries a second recourse.
     #[test]
@@ -5340,6 +5372,26 @@ mod tests {
                             assert!(door.ends_with(&at_rest), "{check:?} {arm:?}: {door}");
                         }
                     }
+                    // A bound wholly within ε_in names itself, on its
+                    // undecided and sign-certain arms alike: every
+                    // readable margin here lies within the wide ε_in.
+                    (Ending::Residual(Unsized::Bound), _) => {
+                        let named = match arm {
+                            RefusedArm::Undecided(cause) => !cause.margin.is_invalid(),
+                            RefusedArm::SignCertain(margin) => margin.is_some(),
+                            RefusedArm::Zero(_) | RefusedArm::Straddle => false,
+                        };
+                        if named {
+                            assert!(
+                                door.starts_with(
+                                    "The certificate's bound on this miss lies within"
+                                ) && door.contains("as a stopgap, set the tolerance to ε_in"),
+                                "{check:?} {arm:?}: {door}"
+                            );
+                        } else {
+                            assert_eq!(door, at_rest, "{check:?} {arm:?}");
+                        }
+                    }
                     (Ending::Residual(_), _) if miss => assert!(
                         door.contains("as a stopgap, set the tolerance to ε_in"),
                         "{check:?} {arm:?}: {door}"
@@ -5409,6 +5461,89 @@ mod tests {
                 "{check:?}: a miss past ε_in is the file's own defect"
             );
         }
+    }
+
+    /// **A refusal on a certified bound is the certificate's limit**
+    /// (D4 ¶1 (i)): a loose bound contradicts nothing stored, so every
+    /// arm ends in the last resort at every reading, and at the import
+    /// door a bound within ε_in names itself and the stopgap. A bound
+    /// past ε_in, or only partly within it, ends in the last resort: it
+    /// says nothing about where the miss lies.
+    #[test]
+    fn a_certified_bound_refusal_is_the_certificates_limit() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        use crate::ssi::SsiLimb;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let file = FileCoincidence::new(1e-6);
+        let named = "The certificate's bound on this miss lies within the file's declared \
+                     coincidence distance ε_in = 1e-6 m. Recourse: \
+                     re-export the file more precisely, or, as a stopgap, set the tolerance to \
+                     ε_in = 1e-6 m; this refusal may indicate a kernel bug worth reporting";
+        let undecided = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_probe"),
+            terminal_sliver: false,
+        };
+        let within = undecided(MarginDiag::value(5e-9));
+        let poisoned = undecided(MarginDiag::INVALID);
+        for check in [CertCheck::TangentHull, CertCheck::PlaneNurbsHull] {
+            let exceeded = |margin| CertifyError::ResidualExceeded {
+                check,
+                sample: NOT_A_SAMPLE,
+                margin,
+            };
+            let escalated = |cause| CertifyError::Escalated {
+                check,
+                sample: NOT_A_SAMPLE,
+                cause,
+            };
+            let inside = exceeded(MarginDiag::value(5e-7));
+            for reading in [Reading::Build, Reading::AtRest] {
+                assert_eq!(
+                    inside.ending(reading).unwrap(),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{check:?} {reading:?}"
+                );
+                assert_eq!(
+                    escalated(within).ending(reading).unwrap(),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{check:?} {reading:?}"
+                );
+            }
+            assert_eq!(
+                escalated(poisoned).ending(Reading::AtRest).unwrap(),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                "{check:?}: an unreadable margin is a defect"
+            );
+            assert_eq!(inside.ending(file).unwrap(), named, "{check:?}");
+            assert_eq!(
+                escalated(within).ending(file).unwrap(),
+                named,
+                "{check:?}: the in-band route names the bound too"
+            );
+            for past in [
+                exceeded(MarginDiag::value(2e-6)),
+                exceeded(MarginDiag::enclosure(5e-7, 2e-6)),
+            ] {
+                assert_eq!(
+                    past.ending(file).unwrap(),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{check:?} {past:?}"
+                );
+            }
+        }
+        let limb = CertifyError::PlaneNurbs(P::Limb {
+            limb: SsiLimb::HullSup,
+            value: 5e-7,
+            margin: MarginDiag::value(5e-7),
+        });
+        assert_eq!(limb.ending(Reading::AtRest).unwrap(), KERNEL_LIMIT_RECOURSE);
+        assert_eq!(limb.ending(file).unwrap(), named);
+        assert_eq!(
+            limb.ending(FileCoincidence::new(1e-7)).unwrap(),
+            KERNEL_LIMIT_RECOURSE
+        );
     }
 
     /// **The analytic rung-3 lane's one-arc refusal ends at the import
@@ -5661,21 +5796,21 @@ mod tests {
 
     /// Every decision's class, pinned against a table written out by
     /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
-    /// sized, with its pass set; an exact construction ends as a defect;
-    /// an approximation ends in the last resort; a residual, whose
-    /// refused margin is a miss, is marked so as either. The table is the
+    /// sized, with its pass set; an exact construction ends as a defect,
+    /// an approximation as a fit and a certified bound on the miss as a
+    /// bound; a residual, whose refused margin is a miss, is marked so as
+    /// any of them. The table is the
     /// independent side, so a decision `ending()` misfiles fails here.
     #[test]
     fn each_decision_is_classified_as_the_table_says() {
         #[derive(Debug, PartialEq, Eq)]
         enum Class {
             Sized(SizedPass),
-            Defect,
-            LastResort,
+            NoSize(Unsized),
             Miss(Unsized),
             Undefined,
         }
-        use Class::{Defect, LastResort, Miss, Sized, Undefined};
+        use Class::{Miss, NoSize, Sized, Undefined};
         use SizedPass::{NonNegative, Positive};
         let table = [
             (CertCheck::EndpointStart, Miss(Unsized::Defect)),
@@ -5683,8 +5818,8 @@ mod tests {
             (CertCheck::ParamSpan, Sized(Positive)),
             (CertCheck::ParamSpanMeter, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
-            (CertCheck::Surface1Residual, Miss(Unsized::LastResort)),
-            (CertCheck::Surface2Residual, Miss(Unsized::LastResort)),
+            (CertCheck::Surface1Residual, Miss(Unsized::Fit)),
+            (CertCheck::Surface2Residual, Miss(Unsized::Fit)),
             (CertCheck::WitnessSurface1, Miss(Unsized::Defect)),
             (CertCheck::WitnessSurface2, Miss(Unsized::Defect)),
             (CertCheck::WitnessMidpoint, Miss(Unsized::Defect)),
@@ -5693,14 +5828,18 @@ mod tests {
             (CertCheck::TangentPlanes, Undefined),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
             (CertCheck::TangentParallel, Miss(Unsized::Defect)),
-            (CertCheck::TangentHull, Miss(Unsized::LastResort)),
+            (CertCheck::TangentHull, Miss(Unsized::Bound)),
             (CertCheck::TangentTube, Sized(Positive)),
             (CertCheck::MappedSource, Miss(Unsized::Defect)),
             (CertCheck::ChartResidual, Miss(Unsized::Defect)),
-            (CertCheck::ChartImage, Defect),
-            (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::LastResort)),
-            (CertCheck::PlaneNurbsHull, Miss(Unsized::LastResort)),
-            (CertCheck::PlaneNurbsReportedTransversality, Defect),
+            (CertCheck::ChartImage, NoSize(Unsized::Defect)),
+            (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
+            (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
+            (CertCheck::AnalyticHull, Miss(Unsized::Bound)),
+            (
+                CertCheck::PlaneNurbsReportedTransversality,
+                NoSize(Unsized::Defect),
+            ),
             (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
             (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
         ];
@@ -5712,8 +5851,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("{check:?} is missing from the table"));
             let got = match check.ending() {
                 Ending::Sized(sized) => Sized(sized.passes),
-                Ending::Unsized(Unsized::Defect) => Defect,
-                Ending::Unsized(Unsized::LastResort) => LastResort,
+                Ending::Unsized(no_size) => NoSize(no_size),
                 Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
             };

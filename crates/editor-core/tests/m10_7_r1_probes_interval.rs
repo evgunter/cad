@@ -454,7 +454,7 @@ fn bracket_with(
     let assertion = r.insert(Node::Assertion {
         value: web,
         bound: len(7.0e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
