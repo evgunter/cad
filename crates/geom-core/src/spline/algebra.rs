@@ -435,7 +435,28 @@ pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) ->
             Interval::hull(yl + (xl - yl) * beta, yh + (xh - yh) * beta)
         }
     };
+    // Designer A's midpoint-radius: centre by lerp on the point centres,
+    // radius by the convex combination of the radii.
+    let midrad = |nearer: bool| -> Interval {
+        if !(x.is_certified() && y.is_certified()) {
+            return Interval::refused();
+        }
+        let (mx, my) = (0.5 * (x.lo() + x.hi()), 0.5 * (y.lo() + y.hi()));
+        let rx = (Interval::point(x.hi()) - Interval::point(mx)).hi().max((Interval::point(mx) - Interval::point(x.lo())).hi());
+        let ry = (Interval::point(y.hi()) - Interval::point(my)).hi().max((Interval::point(my) - Interval::point(y.lo())).hi());
+        let m = if nearer && u_f - lo_f > hi_f - u_f {
+            Interval::point(my) + (Interval::point(mx) - Interval::point(my)) * beta
+        } else {
+            Interval::point(mx) + (Interval::point(my) - Interval::point(mx)) * alpha
+        };
+        let r = (beta * Interval::point(rx) + alpha * Interval::point(ry)).hi();
+        m + Interval::from_bounds(-r, r)
+    };
     match form.as_str() {
+        "midrad" => midrad(false),
+        "midrad_hull" => midrad(false).meet(hull),
+        "midrad2" => midrad(true),
+        "midrad2_hull" => midrad(true).meet(hull),
         "corner2" => corner2,
         "corner2_hull" => corner2.meet(hull),
         "corner2_convex" => corner2.meet(convex),
@@ -1756,10 +1777,12 @@ mod fork3_probe {
     // Corner form with the chord formed once: `d = y - x` on the
     // corner points, then `x + d*a` — identical ops, kept for symmetry.
     fn centred(x: Interval, y: Interval, a: Interval) -> Interval {
+        // designer A's midpoint-radius (radius by convex combination)
         let (xm, ym) = (0.5 * (x.lo() + x.hi()), 0.5 * (y.lo() + y.hi()));
-        let rx = (x.hi() - xm).max(xm - x.lo());
-        let ry = (y.hi() - ym).max(ym - y.lo());
-        let r = rx.max(ry).next_up();
+        let rx = (pt(x.hi()) - pt(xm)).hi().max((pt(xm) - pt(x.lo())).hi());
+        let ry = (pt(y.hi()) - pt(ym)).hi().max((pt(ym) - pt(y.lo())).hi());
+        let b = pt(1.0) - a;
+        let r = (b * pt(rx) + a * pt(ry)).hi();
         let m = pt(xm) + (pt(ym) - pt(xm)) * a;
         m + Interval::from_bounds(-r, r)
     }
@@ -1827,6 +1850,72 @@ mod fork3_probe {
                     }
                 }
             }
+        }
+    }
+
+    /// PROBE (fork3, round 2): designer A's input families on the p=6,
+    /// 80-insertion fold, under the env-selected form. Prints the widest
+    /// slot's width (absolute) and the excess over the exact set's width
+    /// where that is known (2·r for equal-radius inputs, 0 for points).
+    #[test]
+    fn a_families_on_the_deep_fold() {
+        let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+        let p = 6usize;
+        let m = 16usize;
+        let mut knot_list = vec![0.0; p + 1];
+        for j in 1..=m {
+            knot_list.push(j as f64 / (m + 1) as f64);
+        }
+        knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+        let kv = KnotVector::clamped(knot_list, p).unwrap();
+        let n = kv.control_count();
+        let base: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 + i as f64 } else { -(1.0 + i as f64) }).collect();
+        let families: Vec<(&str, Vec<Interval>, f64)> = vec![
+            ("points O(1)", base.iter().map(|&c| pt(c)).collect(), 0.0),
+            ("points offset 1e3", base.iter().map(|&c| pt(c + 1e3)).collect(), 0.0),
+            ("width 1e-9", base.iter().map(|&c| wid(c, 1e-9)).collect(), 2e-9),
+            ("homogeneous w(x-c)", base.iter().enumerate().map(|(i, &c)| pt(1.0 + 0.1 * (i as f64).sin()) * (pt(c) - pt(0.3))).collect(), f64::NAN),
+            ("near-constant 1+1e-9 sin", (0..n).map(|i| pt(1.0 + 1e-9 * (i as f64).sin())).collect(), 0.0),
+        ];
+        for (name, inputs, truth_w) in families {
+            let mut cur_kv = kv.clone();
+            let mut ring = inputs.clone();
+            for (v, s) in kv.interior_knots().collect::<Vec<_>>() {
+                let plans = insert_knot_plan(&cur_kv, &vec![1.0; cur_kv.control_count()], v, p - s).unwrap();
+                for plan in &plans {
+                    ring = plan.apply_certified(&ring);
+                    cur_kv = plan.knots().clone();
+                }
+            }
+            let widest = ring.iter().fold(0.0f64, |a, r| a.max(r.hi() - r.lo()));
+            let in_widest = inputs.iter().fold(0.0f64, |a, r| a.max(r.hi() - r.lo()));
+            println!(
+                "form={form} {name}: widest slot {widest:.3e}, excess over exact {:.3e} (input widest {in_widest:.2e})",
+                if truth_w.is_nan() { f64::NAN } else { widest - truth_w }
+            );
+        }
+    }
+
+    /// PROBE (fork3, round 2): the between-property. A step whose
+    /// sources are the points `w` and `1e2`, both orientations, over a
+    /// sweep of knot ratios: does the result ever leave `[min, max]`?
+    #[test]
+    fn between_property_at_a_subnormal_weight() {
+        let form = std::env::var("CAD_STEP_FORM").unwrap_or_default();
+        for &w in &[f64::from_bits(1), 1e-300, 1e-20, 1e-3] {
+            let (mut escapes, mut neg, mut n) = (0usize, 0usize, 0usize);
+            for k in 1..2000 {
+                // ratios within ulps of either end, and a coarse sweep
+                let u = if k < 500 { (k as f64) * f64::EPSILON } else if k < 1000 { 1.0 - ((k - 499) as f64) * f64::EPSILON } else { (k - 999) as f64 / 1000.0 + 1e-7 };
+                for (x, y) in [(pt(w), pt(1e2)), (pt(1e2), pt(w))] {
+                    let r = convex_step(x, y, 0.0, 1.0, u);
+                    n += 1;
+                    let (mn, mx) = (w, 1e2);
+                    if r.lo() < mn || r.hi() > mx { escapes += 1; }
+                    if r.lo() <= 0.0 { neg += 1; }
+                }
+            }
+            println!("form={form} w={w:e}: {escapes}/{n} results leave [min, max]; {neg} reach zero or below");
         }
     }
 
