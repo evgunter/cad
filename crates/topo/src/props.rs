@@ -3836,7 +3836,7 @@ pub trait AtRestPolicy: Decide {
         tol: Tol,
     ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>>;
 
-    /// The at-rest gate over a gated body with declared contacts — the
+    /// The at-rest gate over a gated body with contact records — the
     /// tier-3′ pass ([`crate::AtRestBody::validate_pseudomanifold`],
     /// which is [`crate::validate_pseudomanifold`] less the battery the
     /// kept verdict already answers, at certifying scalars; absent at

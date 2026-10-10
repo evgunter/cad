@@ -1,6 +1,6 @@
 //! **A solid that is neither planar nor axial, offset every chart at
 //! once.** The unit box under a spline cap
-//! (`common::approx::box_with_spline_cap`): five planes and one
+//! (`common::approx::box_with_bumped_cap`): five planes and one
 //! described NURBS, so `shell`'s ladder sends it to the general
 //! simultaneous door (`topo::offset_surfaces_together`). Every chart
 //! moves inward together; each side's edge with the cap is the section
@@ -14,7 +14,7 @@ use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::{Body, ReplaceFaceError, ShellError};
 
-use crate::common::approx::box_with_spline_cap;
+use crate::common::approx::box_with_bumped_cap;
 
 /// The wall thickness, in metres.
 const T: f64 = 0.1;
@@ -52,7 +52,7 @@ fn only_the_fitted_caps_quadrature(refusals: &[topo::ValidationError]) -> bool {
 #[test]
 fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
     let eps = Tol::witness().eps();
-    let (mut body, cap) = box_with_spline_cap(0.0);
+    let (mut body, cap) = box_with_bumped_cap(0.0);
     let moves = inward(&body, T);
     topo::offset_surfaces_together(
         &mut body,
@@ -119,7 +119,7 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
 #[test]
 fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
     let eps = Tol::witness().eps();
-    let (mut body, cap) = box_with_spline_cap(0.01);
+    let (mut body, cap) = box_with_bumped_cap(0.01);
     let Some(geom::Surface::Nurbs(bump)) = body
         .get_face(cap)
         .and_then(|f| body.get_surface(f.surface))
@@ -203,7 +203,7 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
 /// of a fit, and that is not built.
 #[test]
 fn shelling_a_spline_capped_box_refuses_past_the_door() {
-    let (body, cap) = box_with_spline_cap(0.0);
+    let (body, cap) = box_with_bumped_cap(0.0);
     let at_rest = finished("the spline-capped box", body, Tol::witness());
     let e = topo::shell(&at_rest, T, Tol::witness())
         .expect_err("the fitted cavity cap's quadrature is not built");
@@ -300,7 +300,7 @@ fn tangent_charts_shell_onto_their_closed_forms() {
 #[test]
 fn a_collapse_names_the_move_that_made_it() {
     let eps = Tol::witness().eps();
-    let (body, cap) = box_with_spline_cap(0.0);
+    let (body, cap) = box_with_bumped_cap(0.0);
     let side = body
         .faces()
         .find(|(_, f)| {

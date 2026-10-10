@@ -13,7 +13,7 @@ Found by the dual review of PR 4524 (unit 18).
 
 ## Repro
 
-`topo::shell(&finished(box_with_spline_cap(0.0)), 0.6, Tol::witness())`. The fixture is `crates/sweep/tests/common/approx.rs`, `box_with_spline_cap`.
+`topo::shell(&finished(box_with_bumped_cap(0.0)), 0.6, Tol::witness())`. The fixture is `crates/sweep/tests/common/approx.rs`, `box_with_bumped_cap`.
 - The box is `2 × 2 × 1`, so a wall of 0.6 runs the cavity's floor and ceiling past each other.
 - `shell` refuses `Face { Op { edge: None, RechartFalsifies { IntervalNotForward } } }`.
 - That names no edge and no collapse. An all-plane box of the same size refuses `WallClearance` instead.

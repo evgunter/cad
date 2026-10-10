@@ -140,31 +140,38 @@ fn bisect(f: &impl Fn(f64) -> f64, (mut a, mut b): (f64, f64)) -> f64 {
     (a + b) / 2.0
 }
 
+/// The samples about sample `k` of `v` (its one neighbour at either end)
+/// when they keep its sign and `|v|` is least at `k`, a tie going to the
+/// earlier sample so one extremum is searched once: the bracket in which
+/// `f`'s extremum near there may cross zero and come back.
+fn trough(v: &[f64], k: usize) -> Option<(usize, usize)> {
+    let (a, b) = (k.saturating_sub(1), (k + 1).min(v.len() - 1));
+    let kept = |j: usize| (v[j] < 0.0) == (v[k] < 0.0);
+    let before = a == k || (kept(a) && v[k].abs() < v[a].abs());
+    let after = b == k || (kept(b) && v[k].abs() <= v[b].abs());
+    (before && after).then_some((a, b))
+}
+
 /// The sign changes of `f` on `[t0, t1]`, each bisected to the bit. A
-/// pair inside one sample cell is found too: at every sampled local
-/// extremum of `|f|`, the extremum is refined by golden section, and one
-/// that crosses zero is bisected on both sides.
+/// pair inside one sample cell is found too, the first and last cells
+/// included: at every sampled local extremum of `|f|`, the extremum is
+/// refined by golden section, and one that crosses zero is bisected on
+/// both sides.
 pub(super) fn crossings(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> Vec<f64> {
-    let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(SAMPLES);
-    let v: Vec<f64> = (0..=SAMPLES).map(|k| f(at(k))).collect();
-    let mut out = Vec::new();
-    for k in 0..SAMPLES {
-        let (i, j) = (k as usize, k as usize + 1);
-        if (v[i] < 0.0) != (v[j] < 0.0) {
-            out.push(bisect(&f, (at(k), at(k + 1))));
-        } else if k > 0
-            && (v[i - 1] < 0.0) == (v[i] < 0.0)
-            && v[i].abs() <= v[i - 1].abs()
-            && v[i].abs() <= v[j].abs()
-        {
-            // `f` keeps its sign through both cells: its extremum near
-            // `at(k)` may still cross zero and come back.
-            let low = v[i] > 0.0;
-            let x = golden(&f, (at(k - 1), at(k + 1)), low);
-            if (f(x) < 0.0) != (v[i] < 0.0) {
-                out.push(bisect(&f, (at(k - 1), x)));
-                out.push(bisect(&f, (x, at(k + 1))));
-            }
+    let at = |k: usize| t0 + (t1 - t0) * k as f64 / f64::from(SAMPLES);
+    let v: Vec<f64> = (0..=SAMPLES as usize).map(|k| f(at(k))).collect();
+    let mut out: Vec<f64> = (0..SAMPLES as usize)
+        .filter(|&k| (v[k] < 0.0) != (v[k + 1] < 0.0))
+        .map(|k| bisect(&f, (at(k), at(k + 1))))
+        .collect();
+    for k in 0..v.len() {
+        let Some((a, b)) = trough(&v, k) else {
+            continue;
+        };
+        let x = golden(&f, (at(a), at(b)), v[k] > 0.0);
+        if (f(x) < 0.0) != (v[k] < 0.0) {
+            out.push(bisect(&f, (at(a), x)));
+            out.push(bisect(&f, (x, at(b))));
         }
     }
     out.sort_by(f64::total_cmp);
@@ -172,18 +179,20 @@ pub(super) fn crossings(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> Vec<f64> {
 }
 
 /// `f`'s least and greatest values on `[t0, t1]`, every sampled local
-/// extremum refined by golden section.
+/// extremum refined by golden section, the first and last cells' included.
 pub(super) fn extremes(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> (f64, f64) {
-    let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(SAMPLES);
-    let v: Vec<f64> = (0..=SAMPLES).map(|k| f(at(k))).collect();
-    let (mut lo, mut hi) = (v[0].min(v[SAMPLES as usize]), v[0].max(v[SAMPLES as usize]));
-    for k in 1..SAMPLES {
-        let (p, q, s) = (v[k as usize - 1], v[k as usize], v[k as usize + 1]);
-        if q <= p && q <= s {
-            lo = lo.min(f(golden(&f, (at(k - 1), at(k + 1)), true)).min(q));
+    let at = |k: usize| t0 + (t1 - t0) * k as f64 / f64::from(SAMPLES);
+    let v: Vec<f64> = (0..=SAMPLES as usize).map(|k| f(at(k))).collect();
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (k, &q) in v.iter().enumerate() {
+        let (a, b) = (k.saturating_sub(1), (k + 1).min(v.len() - 1));
+        lo = lo.min(q);
+        hi = hi.max(q);
+        if q <= v[a] && q <= v[b] {
+            lo = lo.min(f(golden(&f, (at(a), at(b)), true)));
         }
-        if q >= p && q >= s {
-            hi = hi.max(f(golden(&f, (at(k - 1), at(k + 1)), false)).max(q));
+        if q >= v[a] && q >= v[b] {
+            hi = hi.max(f(golden(&f, (at(a), at(b)), false)));
         }
     }
     (lo, hi)
@@ -231,5 +240,38 @@ pub(super) fn assert_matches_oracle(
             (a - b).abs() < 1e-9,
             "{label}: root {a} vs the oracle's {b}"
         );
+    }
+}
+
+/// **The first and last sample cells are searched like the rest.**
+/// `cos(t − s) − cos w` crosses zero at `s ± w` and peaks at `s`; with
+/// the pair a fifth of a cell wide and `s` inside the first or the last
+/// cell, no sample sees the pair's sign, so only the refined extremum
+/// finds it. On an arc and on a whole turn, at three places in each end
+/// cell: both crossings, to the root's own rounding, and the peak `1`
+/// to a few ulps, where an unrefined end cell reads it `1e-10` low.
+#[test]
+fn the_end_cells_are_searched() {
+    use core::f64::consts::PI;
+    for (t0, t1) in [(0.0, 1.0), (-PI, PI), (2.5, 2.5 + 2.0 * PI)] {
+        let cell = (t1 - t0) / f64::from(SAMPLES);
+        let w = 0.1 * cell;
+        for frac in [0.3, 0.5, 0.7] {
+            for s in [t0 + frac * cell, t1 - frac * cell] {
+                let label = format!("[{t0}, {t1}], the pair about {s}");
+                let got = crossings(|t| (t - s).cos() - w.cos(), t0, t1);
+                assert_eq!(got.len(), 2, "{label}: {got:?}");
+                for (g, want) in got.iter().zip([s - w, s + w]) {
+                    assert!(
+                        (g - want).abs() < 1e-9,
+                        "{label}: a crossing {g} for {want}"
+                    );
+                }
+                let (_, hi) = extremes(|t| (t - s).cos(), t0, t1);
+                assert!(hi >= 1.0 - 1e-15, "{label}: the peak reads {hi}");
+                let (lo, _) = extremes(|t| -(t - s).cos(), t0, t1);
+                assert!(lo <= -1.0 + 1e-15, "{label}: the trough reads {lo}");
+            }
+        }
     }
 }
