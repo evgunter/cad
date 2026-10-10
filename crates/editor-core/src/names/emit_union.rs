@@ -2302,7 +2302,16 @@ fn collapse_one<'s>(
     done: &Kept<NameRef>,
 ) -> Result<StableName, Stopped<'s, NamingError>> {
     let oriented = orient(node, name, done)?;
-    let mut image = |n: &'s StableName| done.need(n).map(|r| r.name().clone());
+    // A name another node minted is a member's own, seen through its
+    // read's `From`: final in the member, so its image is itself. Only
+    // this node's fold rows are collapsed.
+    let mut image = |n: &'s StableName| {
+        if n.node == node {
+            done.need(n).map(|r| r.name().clone())
+        } else {
+            Ok(n.clone())
+        }
+    };
     let name = canonical::collapsed(name, oriented, &mut image).map_err(|stop| match stop {
         Stop::Image(stopped) => stopped,
         Stop::Unrankable(u) => Stopped::Refused(NamingError::Emission { what: u.what() }),
