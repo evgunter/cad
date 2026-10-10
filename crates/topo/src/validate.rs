@@ -10871,6 +10871,7 @@ mod tests {
         let at_rest = ValidationError::ShellRoleUndecided {
             solid: SolidKey::default(),
             error,
+            sliver: None,
         }
         .to_string();
         assert!(
