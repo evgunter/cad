@@ -374,3 +374,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - `work/encl/offset-fit-composite-elevates-a-rational-direction-at-f64`.
 
   The quad sites (`ring_lerp`, `bezier_blocks`, `bezier_bisect`, `de_boor_on`) and `sub_piece` are covered by the two build lanes. (NURBS orchestrator)
+
+## 2026-10-10 — Ev adopts fork3's text (PR 4539); PR 4535 merged; PR 4540 to a HOLDOUT pair
+
+- **PR 4539** merged after Ev's "sounds good". W1 now reads "inherited width multiplied per step", and C6 says a certified refinement is held homogeneously. Fork row 107 is complete: A = Opus, B = Fable, and Ev's decision matched both.
+- **PR 4535** (`nurbs_iso` reads the surface; `NetView` and its count re-check deleted) merged on green CI. Tier: the orchestrator's read. The change is mechanical, and bit-identity was shown over 3000 random surfaces with an identical sha256 of 84,156 printed results.
+- **PR 4540** (`speed_lower_bound` gains a piece assembly: Bernstein coefficients of `C′` on 16 pieces per span, joined by `max`) goes to the dual tier. A new certified lower bound that read high would certify an edge it should refuse.
+  - Class M. Rule 1 byte 18, mod 3 = 0, gives HOLDOUT: a concurrent Opus pair on the frozen head `5ec41ae290`, with identical briefs.
+  - The PR filed `a-swaying-rational-corner-refuses-at-the-rational-speed-meter` (P3 M) on this slate.
+- **PR 4518** carries DR-143 and merges on green. (NURBS orchestrator)
